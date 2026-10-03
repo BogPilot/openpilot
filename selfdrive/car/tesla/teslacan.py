@@ -74,7 +74,7 @@ class TeslaCAN:
     values["CRC_STW_ACTN_RQ"] = self.crc(data[:7])
     return self.packer.make_can_msg("STW_ACTN_RQ", bus, values)
 
-  def create_longitudinal_commands(self, acc_state, speed, min_accel, max_accel, cnt):
+  def create_longitudinal_commands(self, acc_state, speed, min_accel, max_accel, cnt, chassis_only=False):
     messages = []
     values = {
       "DAS_setSpeed": speed * CV.MS_TO_KPH,
@@ -88,7 +88,12 @@ class TeslaCAN:
       "DAS_controlChecksum": 0,
     }
 
-    for packer, bus in [(self.packer, CANBUS.chassis), (self.pt_packer, CANBUS.powertrain)]:
+    # AP1 packs chassis DAS_control only (0x2b9). The default still packs
+    # chassis and powertrain, which is the non-AP1 path. Checksum id stays 0x2b9.
+    targets = [(self.packer, CANBUS.chassis)]
+    if not chassis_only:
+      targets.append((self.pt_packer, CANBUS.powertrain))
+    for packer, bus in targets:
       data = packer.make_can_msg("DAS_control", bus, values)[2]
       values["DAS_controlChecksum"] = self.checksum(0x2b9, data[:7])
       messages.append(packer.make_can_msg("DAS_control", bus, values))

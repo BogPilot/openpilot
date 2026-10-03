@@ -9,14 +9,18 @@ from collections import deque
 from pathlib import Path
 
 from openpilot.common.conversions import Conversions as CV
-from openpilot.selfdrive.car.tesla.actuator_plan import STEERING_CONTROL_NONE, build_actuator_plan, longitudinal_command_allowed
+from openpilot.selfdrive.car.tesla.actuator_plan import (
+  DAS_CONTROL_CHASSIS,
+  DAS_CONTROL_POWERTRAIN,
+  STEERING_CONTROL_NONE,
+  build_actuator_plan,
+  longitudinal_command_allowed,
+)
 from openpilot.selfdrive.car.tesla.teslacan import TeslaCAN
 from openpilot.selfdrive.car.tesla.values import CANBUS
 
 ROOT = Path(__file__).resolve().parents[4]
 # Chassis and powertrain DAS_control addresses. safety_tesla.h and the DBCs.
-DAS_CONTROL_CHASSIS = 0x2B9
-DAS_CONTROL_POWERTRAIN = 0x2BF
 
 
 class _Packer:
@@ -136,3 +140,67 @@ def test_long_active_plans_previous_das_control_contents():
     assert packed["DAS_accelMin"] == 0
     assert packed["DAS_accelMax"] == 1.0
     assert packed["DAS_accState"] == 2
+
+
+def test_ap1_plans_0x2b9_when_long_active_and_not_0x2bf():
+  counters = deque([4])
+  plan, _ = _plan(
+    counters,
+    openpilot_longitudinal_control=True,
+    enabled=True,
+    long_active=True,
+    chassis_das_only=True,
+    v_ego=10.0,
+    accel=1.0,
+  )
+  assert len(plan.longitudinal) == 1
+  assert plan.longitudinal_addrs == (DAS_CONTROL_CHASSIS,)
+  assert DAS_CONTROL_POWERTRAIN not in plan.longitudinal_addrs
+  assert plan.longitudinal[0].target_speed == 13.0
+  assert list(counters) == []
+
+  chassis = _Packer()
+  powertrain = _Packer()
+  messages = TeslaCAN(chassis, powertrain).create_longitudinal_commands(
+    plan.longitudinal[0].acc_state,
+    plan.longitudinal[0].target_speed,
+    plan.longitudinal[0].min_accel,
+    plan.longitudinal[0].max_accel,
+    plan.longitudinal[0].counter,
+    chassis_only=True,
+  )
+  assert len(messages) == 1
+  assert [name for name, _, _ in chassis.calls] == ["DAS_control", "DAS_control"]
+  assert chassis.calls[-1][1] == CANBUS.chassis
+  assert powertrain.calls == []
+  assert chassis.calls[-1][2]["DAS_setSpeed"] == 13.0 * CV.MS_TO_KPH
+  assert chassis.calls[-1][2]["DAS_setSpeed"] not in (0, 145)
+
+  controller = (ROOT / "selfdrive/car/tesla/carcontroller.py").read_text()
+  assert "chassis_das_only" in controller
+  assert "CAR.TESLA_AP1_MODELS" in controller
+  assert "chassis_only=chassis_only" in controller
+  header = (ROOT / "panda/board/safety/safety_tesla.h").read_text()
+  assert "addr == (tesla_powertrain ? 0x2bf : 0x2b9)" in header
+
+
+def test_ap1_inactive_plans_no_das_control():
+  for gates in (
+    dict(openpilot_longitudinal_control=True, enabled=True, long_active=False),
+    dict(openpilot_longitudinal_control=True, enabled=False, long_active=True),
+    dict(openpilot_longitudinal_control=False, enabled=True, long_active=True),
+  ):
+    counters = deque([4])
+    plan, _ = _plan(counters, chassis_das_only=True, **gates)
+    assert plan.longitudinal == ()
+    assert plan.longitudinal_addrs == ()
+    assert DAS_CONTROL_POWERTRAIN not in plan.longitudinal_addrs
+    assert DAS_CONTROL_CHASSIS not in plan.longitudinal_addrs
+    assert list(counters) == [4]
+
+
+def test_non_ap1_active_still_plans_chassis_and_powertrain():
+  plan, _ = _plan(openpilot_longitudinal_control=True, enabled=True, long_active=True)
+  assert plan.longitudinal_addrs == (DAS_CONTROL_CHASSIS, DAS_CONTROL_POWERTRAIN)
+  assert 0x2B9 in plan.longitudinal_addrs
+  assert 0x2BF in plan.longitudinal_addrs

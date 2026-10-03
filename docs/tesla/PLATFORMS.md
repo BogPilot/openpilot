@@ -2,7 +2,7 @@
 
 BogPilot is not a product. No warranty. The driver remains responsible. Comply with local law. This commit is not validated on a bench or in a car.
 
-`CAR.TESLA_AP1_MODELS` sets `dashcamOnly` false so lateral can engage behind `TESLA_AP1_STEERING_LIMITS`. That is an explicit user exception for the Mobileye chassis port, not a Model 3 change. AP2 and Raven stay `dashcamOnly` true. `openpilotLongitudinalControl` is still not enabled for AP1, and `0x2bf` is not required. This is not a driving validation.
+`CAR.TESLA_AP1_MODELS` keeps `dashcamOnly` false. Chassis longitudinal on `0x2b9` is allowed for that candidate only, without requiring `0x2bf` and without `TESLA_FLAG_POWERTRAIN`. With no powertrain bus the safety flags are `TESLA_FLAG_AP1 | TESLA_FLAG_LONGITUDINAL_CONTROL` (`8|2` = 10). `tesla_tx_hook` uses `0x2b9` when the powertrain flag is unset. `interface.py` sets `openpilotLongitudinalControl` to `not frogpilot_toggles.disable_openpilot_long` for AP1, the same toggle as the `0x2bf` branch; `flags_for_candidate` does not see the toggle, so the panda flags stay 10 even if that toggle later turns the param off. `DAS_control` is still planned only when that param, `CC.enabled`, and `CC.longActive` are all true. Disengaged or long-inactive plans no `DAS_control`. AP1 plans `0x2b9` and does not plan `0x2bf`. There is no fixed set-speed of 0 or 145 and no friction-brake command. AP2 and Raven stay `dashcamOnly` true. `TESLA_STEERING_LIMITS` is unchanged and `TESLA_FLAG_AP1` stays 8. This is not a driving validation.
 
 ## This commit
 

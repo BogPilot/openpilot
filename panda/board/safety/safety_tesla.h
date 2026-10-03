@@ -39,9 +39,11 @@ const int TESLA_FLAG_POWERTRAIN = 1;
 const int TESLA_FLAG_LONGITUDINAL_CONTROL = 2;
 const int TESLA_FLAG_RAVEN = 4;
 // Bit 3, value 8. Selects TESLA_AP1_STEERING_LIMITS. Does not overlap
-// POWERTRAIN (1), LONGITUDINAL_CONTROL (2), or RAVEN (4). Set by
-// interface.py only for CAR.TESLA_AP1_MODELS. Does not require 0x2bf.
-// dashcamOnly stays true. This flag does not enable longitudinal control.
+// POWERTRAIN (1), LONGITUDINAL_CONTROL (2), or RAVEN (4). Set with
+// LONGITUDINAL_CONTROL for CAR.TESLA_AP1_MODELS (flags 10) so chassis
+// DAS_control is allowed. Does not set POWERTRAIN and does not require 0x2bf.
+// tesla_tx_hook uses 0x2b9 when the powertrain flag is unset, and 0x2bf only
+// when it is set.
 const int TESLA_FLAG_AP1 = 8;
 
 const CanMsg TESLA_TX_MSGS[] = {
@@ -190,6 +192,7 @@ static bool tesla_tx_hook(const CANPacket_t *to_send) {
     }
   }
 
+  // Unset powertrain flag: chassis DAS_control is 0x2b9, not 0x2bf.
   if(addr == (tesla_powertrain ? 0x2bf : 0x2b9)) {
     // DAS_control: longitudinal control message
     if (tesla_longitudinal) {
