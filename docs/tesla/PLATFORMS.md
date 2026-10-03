@@ -106,4 +106,6 @@ One panda. Buses 0, 1, and 2 were active. `0x2b9` (`DAS_control`) was present on
 
 The route was recorded on `frog_ap1` with that build's `dashcamOnly` false and fingerprint `TESLA_AP1_MODELS` (`fixed`). This BogPilot tree was not validated on the route. `dashcamOnly` here stays true.
 
+A later drive on the same `frog_ap1` build (`73a16cdd`) is summarized as `ap1-drive-engaged` in `selfdrive/car/tesla/tests/fixtures/ap1_drive_addrs.py`. The log is not in this repo. No payloads and no VIN are stored. The device RTC year is untrusted. On that recording only, the fingerprint was `TESLA_AP1_MODELS` (`fixed`), `dashcamOnly` was false, and the safety param was 0. One panda. `0x2bf` was absent. While `latActive` and `longActive`, sendcan on bus 0 contained `0x2b9` and `0x488`. Engaged about 88.5 s. Max `vEgo` about 14.2 m/s. The seven `DTR_Dist_Rq` raw values were already known from the parked capture. This does not validate BogPilot engagement. `dashcamOnly` here stays true.
+
 BogPilot is not a product. No warranty. The driver remains responsible. Comply with local law.

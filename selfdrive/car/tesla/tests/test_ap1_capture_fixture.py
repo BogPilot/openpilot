@@ -1,5 +1,24 @@
 from openpilot.selfdrive.car.tesla.platform import classify_tesla_platform, long_control_allowed
 from openpilot.selfdrive.car.tesla.stalk_follow import map_stalk_follow, parse_stalk_raw
+from openpilot.selfdrive.car.tesla.tests.fixtures.ap1_drive_addrs import (
+  ADDR_0X2BF_ABSENT,
+  DEVICE_RTC_YEAR_UNTRUSTED,
+  DTR_DIST_RQ_RAW as DRIVE_DTR_DIST_RQ_RAW,
+  ENGAGED_S,
+  LAT_ACTIVE,
+  LONG_ACTIVE,
+  MAX_VEGO_MPS,
+  PANDA_COUNT,
+  ROUTE_LABEL as DRIVE_ROUTE_LABEL,
+  SENDCAN_ADDRS_WHILE_ACTIVE,
+  SENDCAN_BUS,
+  SOURCE_BRANCH as DRIVE_SOURCE_BRANCH,
+  SOURCE_CAR as DRIVE_SOURCE_CAR,
+  SOURCE_COMMIT as DRIVE_SOURCE_COMMIT,
+  SOURCE_DASHCAM_ONLY as DRIVE_SOURCE_DASHCAM_ONLY,
+  SOURCE_FINGERPRINT as DRIVE_SOURCE_FINGERPRINT,
+  SOURCE_SAFETY_PARAM,
+)
 from openpilot.selfdrive.car.tesla.tests.fixtures.ap1_parked_addrs import (
   ADDR_0X2B9_CAN_COUNTS,
   ADDR_0X2B9_PRESENT,
@@ -75,3 +94,30 @@ def test_absent_0x2bf_is_not_the_dual_panda_powertrain_fingerprint():
   platform = classify_tesla_platform(CAR.TESLA_AP1_MODELS)
   assert platform == TeslaPlatform.ap1_s
   assert long_control_allowed(platform) is False
+
+
+def test_drive_fixture_constants_and_long_still_refused():
+  # Recording facts only. This tree does not replay the route and does not engage.
+  assert DRIVE_ROUTE_LABEL == "ap1-drive-engaged"
+  assert "--" not in DRIVE_ROUTE_LABEL
+  assert DRIVE_SOURCE_BRANCH == "frog_ap1"
+  assert DRIVE_SOURCE_COMMIT == "73a16cdd"
+  assert DRIVE_SOURCE_CAR == "TESLA_AP1_MODELS"
+  assert DRIVE_SOURCE_FINGERPRINT == "fixed"
+  # That recording only. This assertion does not change this tree's dashcamOnly.
+  assert DRIVE_SOURCE_DASHCAM_ONLY is False
+  assert SOURCE_SAFETY_PARAM == 0
+  assert PANDA_COUNT == 1
+  assert ADDR_0X2BF_ABSENT is True
+  assert LAT_ACTIVE is True
+  assert LONG_ACTIVE is True
+  assert SENDCAN_BUS == 0
+  assert SENDCAN_ADDRS_WHILE_ACTIVE == (0x2B9, 0x488)
+  assert ENGAGED_S == 88.5
+  assert MAX_VEGO_MPS == 14.2
+  assert DEVICE_RTC_YEAR_UNTRUSTED is True
+  assert DRIVE_DTR_DIST_RQ_RAW == DTR_DIST_RQ_RAW
+  platform = classify_tesla_platform(CAR.TESLA_AP1_MODELS)
+  assert platform == TeslaPlatform.ap1_s
+  assert long_control_allowed(platform) is False
+  assert long_control_allowed(None) is False
