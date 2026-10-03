@@ -24,6 +24,8 @@ class CarController(CarControllerBase):
       CC.latActive,
       hands_on_fault,
       self.CP.openpilotLongitudinalControl,
+      CC.enabled,
+      CC.longActive,
       CS.out.steeringAngleDeg,
       actuators.steeringAngleDeg,
       self.apply_angle_last,

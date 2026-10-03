@@ -38,6 +38,8 @@ def _plan(counters=None, **kwargs):
     lat_active=False,
     hands_on_fault=False,
     openpilot_longitudinal_control=False,
+    enabled=False,
+    long_active=False,
     measured_angle_deg=12.5,
     requested_angle_deg=40.0,
     last_angle_deg=1.0,
@@ -112,39 +114,6 @@ def test_active_lateral_is_unchanged_when_engaged():
   assert plan.steer.control_type == 1
   assert plan.steer.angle_deg == 10.0
   assert plan.longitudinal == ()
-
-
-def test_gap_disengaged_still_plans_das_control_when_long_param_on():
-  """Not a safety pass.
-
-  update() does not read CC.enabled or CC.longActive. With
-  openpilotLongitudinalControl true, DAS_control is still planned while
-  lateral is inactive. DAS_setSpeed is not asserted to be a safe value.
-  """
-  counters = deque([4])
-  plan, _ = _plan(counters, openpilot_longitudinal_control=True, lat_active=False, accel=1.0, v_ego=10.0)
-
-  assert plan.steer is not None and plan.steer.enabled is False
-  assert len(plan.longitudinal) == 1
-  assert list(counters) == []
-  cmd = plan.longitudinal[0]
-  assert cmd.counter == 4
-  assert cmd.acc_state == 2
-
-  chassis = _Packer()
-  powertrain = _Packer()
-  messages = TeslaCAN(chassis, powertrain).create_longitudinal_commands(
-    cmd.acc_state, cmd.target_speed, cmd.min_accel, cmd.max_accel, cmd.counter)
-  assert len(messages) == 2
-  assert [name for name, _, _ in chassis.calls] == ["DAS_control", "DAS_control"]
-  assert [name for name, _, _ in powertrain.calls] == ["DAS_control", "DAS_control"]
-  assert chassis.calls[-1][1] == CANBUS.chassis
-  assert powertrain.calls[-1][1] == CANBUS.powertrain
-  for packed in (chassis.calls[-1][2], powertrain.calls[-1][2]):
-    assert "DAS_setSpeed" in packed
-    assert "DAS_accelMin" in packed
-    assert "DAS_accelMax" in packed
-    # Present on purpose: this is the fail-open long frame, not a cancel.
 
 
 def test_no_friction_brake_or_ibooster_apply():

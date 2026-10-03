@@ -1,8 +1,9 @@
 """Actuator decision for Tesla CarController.
 
 CarController.update packs exactly the messages this plan names. No CAN
-packing happens here. CC.enabled and CC.longActive are not inputs: the
-longitudinal gate is CP.openpilotLongitudinalControl only.
+packing happens here. DAS_control is planned only when the car params allow
+openpilot longitudinal control and CarControl.enabled and CarControl.longActive
+are both true. Otherwise the plan has no longitudinal command.
 """
 
 from dataclasses import dataclass
@@ -53,16 +54,26 @@ def steering_control_type(enabled: bool) -> int:
   return STEERING_CONTROL_NONE
 
 
+def longitudinal_command_allowed(openpilot_longitudinal_control, enabled, long_active):
+  """True only when a DAS_control command may be planned.
+
+  CarControl.enabled must be true for actuator commands. longActive is the
+  longitudinal engage bit from controlsd. The openpilot-long car param is
+  required as well. Any false input means no DAS_control frame.
+  """
+  return bool(openpilot_longitudinal_control) and bool(enabled) and bool(long_active)
+
+
 def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudinal_control,
+                        enabled, long_active,
                         measured_angle_deg, requested_angle_deg, last_angle_deg, v_ego, accel,
                         acc_state, das_counters, pcm_cancel):
-  """Same branches CarController.update had before this function existed.
+  """Same steering branches CarController.update had before this function existed.
 
   Disengaged lateral (lat_active false, or hands_on_fault): the steering
   frame echoes measured_angle_deg and enabled is false. Longitudinal
-  messages are built only when openpilot_longitudinal_control is true,
-  including when lateral is inactive. That is the current gate, not an
-  engage check.
+  messages are built only when longitudinal_command_allowed is true.
+  An inactive long plan is empty. It does not send a zeroed DAS_control.
   """
 
   lkas_enabled = lat_active and not hands_on_fault
@@ -82,7 +93,7 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
     steer = SteerCommand(apply_angle, lkas_enabled, (frame // 2) % 16)
 
   longitudinal = []
-  if openpilot_longitudinal_control:
+  if longitudinal_command_allowed(openpilot_longitudinal_control, enabled, long_active):
     target_accel = accel
     target_speed = max(v_ego + (target_accel * CarControllerParams.ACCEL_TO_SPEED_MULTIPLIER), 0)
     max_accel = 0 if target_accel < 0 else target_accel
