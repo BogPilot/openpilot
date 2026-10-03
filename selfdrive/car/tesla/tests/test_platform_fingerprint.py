@@ -65,3 +65,13 @@ def test_preap_and_ap1_x_only_from_explicit_fixture():
 def test_long_refused_for_every_platform():
   for platform in TeslaPlatform:
     assert long_control_allowed(platform) is False
+
+def test_honda_civic_is_not_an_early_tesla_platform():
+  # Honda CAR imports in this environment. A non-Tesla platform id must not
+  # classify as preap, ap1_s, ap1_x, or ap2, and long stays refused.
+  from openpilot.selfdrive.car.honda.values import CAR as HONDA
+
+  platform = classify_tesla_platform(HONDA.HONDA_CIVIC)
+  assert platform is None
+  assert platform not in (TeslaPlatform.preap, TeslaPlatform.ap1_s, TeslaPlatform.ap1_x, TeslaPlatform.ap2)
+  assert long_control_allowed(platform) is False
