@@ -2802,3 +2802,41 @@ UTILITIES_TOGGLES = (
     tuning_level=0,
   ),
 )
+
+
+# Not rendered by frogpilot/ui/qt/offroad/vehicle_settings.cc. That panel is
+# hand-written. These definitions match other toggle groups. They do not
+# change CarParams, dashcamOnly, or panda safety. There is no fingerprint override.
+TESLA_EARLY_TOGGLES = (
+  ToggleDefinition(
+    title=("Tesla Early"),
+    param="TeslaEarly",
+    description=("<b>Research toggles for pre-AP, AP1, and AP2 Model S/X.</b><br><br>Not a product. No warranty. The driver remains responsible. Comply with local law.<br><br>Stored only. Not applied to CarParams, dashcam mode, or panda safety."),
+    toggle_type=ToggleType.MANAGE,
+    tuning_level=2,
+  ),
+  ToggleDefinition(
+    title=("Detected platform"),
+    description=("<b>Display only.</b> The platform is the fingerprint classification: preap, ap1_s, ap1_x, or ap2. This is not a setting. It cannot force a fingerprint."),
+    parent_param="TeslaEarly",
+    toggle_type=ToggleType.LABEL,
+    tuning_level=2,
+  ),
+  ToggleDefinition(
+    title=("Longitudinal control"),
+    param="TeslaLongControl",
+    button_labels=["SELECT"],
+    button_options=["off", "lateral_only", "full"],
+    description=("<b>Stored preference only.</b> Values are off, lateral_only, and full. Default: off. Not applied to CarParams, dashcamOnly, or safety flags. An index such as 0, 1, or 2 is not a value."),
+    parent_param="TeslaEarly",
+    toggle_type=ToggleType.BUTTON_PARAM,
+    tuning_level=2,
+  ),
+  ToggleDefinition(
+    title=("Stalk follow distance"),
+    param="TeslaStalkFollow",
+    description=("<b>Stored preference for early Tesla.</b> Default on. controlsd does not read this. Car state may still parse the stalk on its own."),
+    parent_param="TeslaEarly",
+    tuning_level=2,
+  ),
+)

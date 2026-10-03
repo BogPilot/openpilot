@@ -467,6 +467,8 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("SubaruSNG", "1", 2, "0"),
   ("TacoTune", "0", 2, "0"),
   ("TacoTuneHacks", "0", 2, "0"),
+  ("TeslaLongControl", "off", 2, "off"),
+  ("TeslaStalkFollow", "1", 2, "1"),
   ("TetheringEnabled", "0", 0, "0"),
   ("ThemesDownloaded", "", 0, ""),
   ("ToyotaDoors", "1", 0, "0"),

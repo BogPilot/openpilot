@@ -83,3 +83,17 @@ BogPilot is not a product. No warranty. The driver remains responsible. Comply w
 
 There is no pre-AP command builder. `long_control_allowed` is false for `preap`. The messages this controller can pack are `DAS_steeringControl`, `STW_ACTN_RQ`, and `DAS_control`. No iBooster apply and no friction-brake command. `BrakeMessage` (`0x20a` chassis, `0x1f8` powertrain) is an RX check in `safety_tesla.h`, not a TX message.
 
+## Stored Tesla Early toggles
+
+Not applied to `CarParams`. `selfdrive/car/tesla/interface.py` is unchanged, including `ret.dashcamOnly = True`. `panda/` is unchanged. `controlsd` does not read these params.
+
+| Key | Stored values | Default | Applied |
+| --- | --- | --- | --- |
+| `TeslaLongControl` | `off`, `lateral_only`, `full` | `off` | no |
+| `TeslaStalkFollow` | bool | on (`1`), early-Tesla preference only | no |
+
+There is no `TeslaPlatform` param. `classify_tesla_platform` is the only platform source. The "Detected platform" row in `TESLA_EARLY_TOGGLES` is a label, not a fingerprint override. The on-device vehicle panel does not render this metadata tuple.
+
+`tesla_long_control` and `tesla_stalk_follow` in `selfdrive/car/tesla/toggles.py` only parse a stored string. Unknown long-control text, including `0`, `1`, and `2`, is `off`.
+
+BogPilot is not a product. No warranty. The driver remains responsible. Comply with local law.
