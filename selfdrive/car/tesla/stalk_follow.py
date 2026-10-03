@@ -17,10 +17,12 @@ is equidistant from those neighbors, so collapsing onto a cereal personality wou
 be arbitrary. get_T_FOLLOW is not imported: that module pulls car interfaces and
 setproctitle. Do not edit get_T_FOLLOW, long_mpc, or frogpilot_following to add a profile.
 
-Later call site, not this commit: a carstate parser may pass DTR_Dist_Rq into
-map_stalk_follow. Do not call it from controlsd yet. When wiring, pass
+Car state calls parse_stalk_raw and keeps the decision on the CarState
+instance (stalk_follow). Cereal is not extended: no new field, and this
+module does not write trafficModeEnabled or LongitudinalPersonality.
+Do not call it from controlsd yet. When a later layer applies it, pass
 decision.follow_s through the t_follow argument FrogPilotFollowing and
-desired_follow_distance already take. Detent 1 sets traffic mode
+desired_follow_distance already take. Detent 1 would set traffic mode
 (frogpilotCarState.trafficModeEnabled), not LongitudinalPersonality.
 Detents 3, 5, and 7 are LongitudinalPersonality aggressive, standard, and relaxed.
 Detents 2, 4, and 6 are follow times only. No new persisted param.
@@ -65,6 +67,31 @@ class StalkFollowDecision:
 def detent_edges() -> tuple[float, ...]:
   """Halfway raw values between adjacent detents. The higher detent owns the edge."""
   return tuple((_DETENT_RAW[i] + _DETENT_RAW[i + 1]) / 2 for i in range(len(_DETENT_RAW) - 1))
+
+
+def dtr_sample(value, ts_nanos):
+  """Return one DTR_Dist_Rq sample, or None if the message has not been seen.
+
+  CANParser publishes 0 with a zero timestamp before STW_ACTN_RQ arrives.
+  That 0 is not ACC_DIST_1. A missing value is not a sample either.
+  """
+  if ts_nanos is None or ts_nanos == 0:
+    return None
+  if value is None:
+    return None
+  return value
+
+
+def parse_stalk_raw(raw, prev):
+  """Map one stalk sample through map_stalk_follow.
+
+  None is missing: not ready on the first sample, hold after that.
+  Whole-number floats are the parser's form of the integer DBC scale.
+  A non-integral float is left unchanged so the mapper rejects it.
+  """
+  if isinstance(raw, float) and raw.is_integer():
+    raw = int(raw)
+  return map_stalk_follow(raw, prev)
 
 
 def map_stalk_follow(raw: int | None, previous: StalkFollowDecision | None = None) -> StalkFollowDecision:

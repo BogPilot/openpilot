@@ -1,4 +1,4 @@
-from openpilot.selfdrive.car.tesla.stalk_follow import SNA, detent_edges, map_stalk_follow
+from openpilot.selfdrive.car.tesla.stalk_follow import SNA, detent_edges, dtr_sample, map_stalk_follow, parse_stalk_raw
 
 # Stock FrogPilot defaults. Traffic is the cruising TRAFFIC_FOLLOW value (1.00s),
 # not the 0.50s standstill end of that curve. Intermediates are midpoints.
@@ -160,3 +160,45 @@ def test_first_unknown_does_not_guess():
   assert decision.valid is False
   assert decision.profile is None
   assert decision.detent is None
+
+
+def test_parse_stalk_raw_does_not_guess_on_first_missing_sample():
+  for raw in (None, dtr_sample(0.0, 0), dtr_sample(0, None), dtr_sample(None, 0), dtr_sample(None, 123)):
+    decision = parse_stalk_raw(raw, None)
+    assert decision.ready is False
+    assert decision.valid is False
+    assert decision.detent is None
+    assert decision.profile is None
+    assert decision.follow_s is None
+
+
+def test_parse_stalk_raw_parser_floats_and_hold():
+  # Seen frame: timestamp nonzero. 0.0 is ACC_DIST_1, not the unseen default.
+  assert dtr_sample(0.0, 0) is None
+  seen = dtr_sample(0.0, 1000)
+  decision = parse_stalk_raw(seen, None)
+  assert decision.ready
+  assert decision.valid
+  assert decision.detent == 1
+  assert decision.profile == "traffic"
+  assert decision.raw == 0
+
+  nxt = parse_stalk_raw(dtr_sample(133.0, 2000), decision)
+  assert nxt.detent == 5
+  assert nxt.profile == "standard"
+  assert nxt.follow_s == 1.45
+
+  held = parse_stalk_raw(dtr_sample(0.0, 0), nxt)
+  assert held.ready
+  assert held.valid
+  assert held.detent == 5
+  assert held.profile == "standard"
+  assert held.raw is None
+
+  sna = parse_stalk_raw(255.0, None)
+  assert sna.ready is False
+  assert sna.profile is None
+
+  bad = parse_stalk_raw(33.5, nxt)
+  assert bad.detent == 5
+  assert bad.valid is False

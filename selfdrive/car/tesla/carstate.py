@@ -2,6 +2,7 @@ import copy
 from collections import deque
 from cereal import car, custom
 from openpilot.common.conversions import Conversions as CV
+from openpilot.selfdrive.car.tesla.stalk_follow import dtr_sample, parse_stalk_raw
 from openpilot.selfdrive.car.tesla.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTTONS
 from openpilot.selfdrive.car.interfaces import CarStateBase
 from opendbc.can.parser import CANParser
@@ -19,6 +20,8 @@ class CarState(CarStateBase):
     self.steer_warning = None
     self.acc_state = 0
     self.das_control_counters = deque(maxlen=32)
+    # DTR_Dist_Rq decision. Python only; cereal was not extended.
+    self.stalk_follow = None
 
   def update(self, cp, cp_cam, frogpilot_toggles):
     ret = car.CarState.new_message()
@@ -97,6 +100,16 @@ class CarState(CarStateBase):
 
     # AEB
     ret.stockAeb = (cp_cam.vl["DAS_control"]["DAS_aebEvent"] == 1)
+
+    # Stalk follow detent. STW_ACTN_RQ is already subscribed. No cereal field.
+    # A zero timestamp is the parser default, not ACC_DIST_1.
+    stw = cp.vl.get("STW_ACTN_RQ")
+    ts_map = getattr(cp, "ts_nanos", {}).get("STW_ACTN_RQ", {})
+    if not isinstance(stw, dict) or not isinstance(ts_map, dict):
+      raw = None
+    else:
+      raw = dtr_sample(stw.get("DTR_Dist_Rq"), ts_map.get("DTR_Dist_Rq", 0))
+    self.stalk_follow = parse_stalk_raw(raw, self.stalk_follow)
 
     # Messages needed by carcontroller
     self.msg_stw_actn_req = copy.copy(cp.vl["STW_ACTN_RQ"])
