@@ -1,4 +1,4 @@
-"""Phase 1 smoke test. Must stay red until early Tesla platforms exist (Phase 3)."""
+"""Early Tesla platform enum must exist. The member list stays strict."""
 
 from openpilot.selfdrive.car import tesla as tesla_car
 from openpilot.selfdrive.car.tesla import values

@@ -1,4 +1,5 @@
 from collections import namedtuple
+from enum import StrEnum
 
 from cereal import car
 from openpilot.selfdrive.car import AngleRateLimit, CarSpecs, PlatformConfig, Platforms, dbc_dict
@@ -25,6 +26,20 @@ class CAR(Platforms):
     TESLA_AP1_MODELS.specs,
     dbc_dict('tesla_powertrain', 'tesla_radar_continental_generated', chassis_dbc='tesla_can')
   )
+
+class TeslaPlatform(StrEnum):
+  """Early-Tesla platforms. Recognition only; actuation is a later layer.
+
+  ap1_s is the existing CAR.TESLA_AP1_MODELS member. fingerprints.py has no
+  FW_VERSIONS entry for that member. preap and ap1_x have no production
+  fingerprint. ap2 is CAR.TESLA_AP2_MODELS only, not CAR.TESLA_MODELS_RAVEN.
+  """
+
+  preap = "preap"
+  ap1_s = "ap1_s"
+  ap1_x = "ap1_x"
+  ap2 = "ap2"
+
 
 FW_QUERY_CONFIG = FwQueryConfig(
   requests=[
