@@ -216,7 +216,7 @@ class Panda:
   FLAG_TESLA_POWERTRAIN = 1
   FLAG_TESLA_LONG_CONTROL = 2
   FLAG_TESLA_RAVEN = 4
-  # Bit 3, value 8. Matches TESLA_FLAG_AP1. Not applied by tesla interface.py.
+  # Bit 3, value 8. Matches TESLA_FLAG_AP1. interface.py sets it only for TESLA_AP1_MODELS.
   FLAG_TESLA_AP1 = 8
 
   FLAG_VOLKSWAGEN_LONG_CONTROL = 1

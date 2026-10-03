@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from cereal import car
-from panda import Panda
-from openpilot.selfdrive.car.tesla.values import CANBUS, CAR
+from openpilot.selfdrive.car.tesla.safety_flags import flags_for_candidate
+from openpilot.selfdrive.car.tesla.values import CANBUS
 from openpilot.selfdrive.car import get_safety_config
 from openpilot.selfdrive.car.interfaces import CarInterfaceBase
 
@@ -23,17 +23,20 @@ class CarInterface(CarInterfaceBase):
 
     # Check if we have messages on an auxiliary panda, and that 0x2bf (DAS_control) is present on the AP powertrain bus
     # If so, we assume that it is connected to the longitudinal harness.
-    flags = (Panda.FLAG_TESLA_RAVEN if candidate == CAR.TESLA_MODELS_RAVEN else 0)
+    # flags_for_candidate adds the AP1 steering bit only for CAR.TESLA_AP1_MODELS.
+    # The 0x2bf branch still adds long control and the powertrain config. It does
+    # not enable openpilotLongitudinalControl for AP1 unless that bus is present,
+    # which AP1 is not expected to have.
+    safety_params = flags_for_candidate(candidate, fingerprint)
     if (CANBUS.autopilot_powertrain in fingerprint.keys()) and (0x2bf in fingerprint[CANBUS.autopilot_powertrain].keys()):
       ret.openpilotLongitudinalControl = not frogpilot_toggles.disable_openpilot_long
-      flags |= Panda.FLAG_TESLA_LONG_CONTROL
       ret.safetyConfigs = [
-        get_safety_config(car.CarParams.SafetyModel.tesla, flags),
-        get_safety_config(car.CarParams.SafetyModel.tesla, flags | Panda.FLAG_TESLA_POWERTRAIN),
+        get_safety_config(car.CarParams.SafetyModel.tesla, safety_params[0]),
+        get_safety_config(car.CarParams.SafetyModel.tesla, safety_params[1]),
       ]
     else:
       ret.openpilotLongitudinalControl = False
-      ret.safetyConfigs = [get_safety_config(car.CarParams.SafetyModel.tesla, flags)]
+      ret.safetyConfigs = [get_safety_config(car.CarParams.SafetyModel.tesla, safety_params[0])]
 
     ret.steerLimitTimer = 1.0
     ret.steerActuatorDelay = 0.25

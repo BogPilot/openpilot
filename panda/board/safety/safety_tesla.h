@@ -39,8 +39,9 @@ const int TESLA_FLAG_POWERTRAIN = 1;
 const int TESLA_FLAG_LONGITUDINAL_CONTROL = 2;
 const int TESLA_FLAG_RAVEN = 4;
 // Bit 3, value 8. Selects TESLA_AP1_STEERING_LIMITS. Does not overlap
-// POWERTRAIN (1), LONGITUDINAL_CONTROL (2), or RAVEN (4). Not set by
-// interface.py. Does not require 0x2bf. ap1_s recognition does not actuate.
+// POWERTRAIN (1), LONGITUDINAL_CONTROL (2), or RAVEN (4). Set by
+// interface.py only for CAR.TESLA_AP1_MODELS. Does not require 0x2bf.
+// dashcamOnly stays true. This flag does not enable longitudinal control.
 const int TESLA_FLAG_AP1 = 8;
 
 const CanMsg TESLA_TX_MSGS[] = {
