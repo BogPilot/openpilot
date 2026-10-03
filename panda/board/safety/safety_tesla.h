@@ -1,3 +1,6 @@
+// Shared Model 3/Y and non-AP1 table. Not an AP1 limit. AP1 uses
+// TESLA_AP1_STEERING_LIMITS, from Tinkla earlytesla-panda
+// board/safety/safety_tesla.h (TESLA_LOOKUP_ANGLE_RATE_UP / _DOWN).
 const SteeringLimits TESLA_STEERING_LIMITS = {
   .angle_deg_to_can = 10,
   .angle_rate_up_lookup = {
@@ -7,6 +10,21 @@ const SteeringLimits TESLA_STEERING_LIMITS = {
   .angle_rate_down_lookup = {
     {0., 5., 15.},
     {10., 7.0, .8}
+  },
+};
+
+// AP1 only. Tinkla TESLA_LOOKUP_ANGLE_RATE_UP speeds {2., 7., 17.} rates {8., 4., 2.5};
+// TESLA_LOOKUP_ANGLE_RATE_DOWN speeds {2., 7., 17.} rates {9., 5., 4.5}; TESLA_DEG_TO_CAN 10.
+// Selected only when TESLA_FLAG_AP1 is set. The shared table above is not for AP1.
+const SteeringLimits TESLA_AP1_STEERING_LIMITS = {
+  .angle_deg_to_can = 10,
+  .angle_rate_up_lookup = {
+    {2., 7., 17.},
+    {8., 4., 2.5}
+  },
+  .angle_rate_down_lookup = {
+    {2., 7., 17.},
+    {9., 5., 4.5}
   },
 };
 
@@ -20,6 +38,10 @@ const LongitudinalLimits TESLA_LONG_LIMITS = {
 const int TESLA_FLAG_POWERTRAIN = 1;
 const int TESLA_FLAG_LONGITUDINAL_CONTROL = 2;
 const int TESLA_FLAG_RAVEN = 4;
+// Bit 3, value 8. Selects TESLA_AP1_STEERING_LIMITS. Does not overlap
+// POWERTRAIN (1), LONGITUDINAL_CONTROL (2), or RAVEN (4). Not set by
+// interface.py. Does not require 0x2bf. ap1_s recognition does not actuate.
+const int TESLA_FLAG_AP1 = 8;
 
 const CanMsg TESLA_TX_MSGS[] = {
   {0x488, 0, 4},  // DAS_steeringControl
@@ -63,6 +85,7 @@ RxCheck tesla_pt_rx_checks[] = {
 bool tesla_longitudinal = false;
 bool tesla_powertrain = false;  // Are we the second panda intercepting the powertrain bus?
 bool tesla_raven = false;
+bool tesla_ap1 = false;
 
 bool tesla_stock_aeb = false;
 
@@ -150,7 +173,10 @@ static bool tesla_tx_hook(const CANPacket_t *to_send) {
     bool steer_control_enabled = (steer_control_type != 0) &&  // NONE
                                  (steer_control_type != 3);    // DISABLED
 
-    if (steer_angle_cmd_checks(desired_angle, steer_control_enabled, TESLA_STEERING_LIMITS)) {
+    // AP1 flag picks the Tinkla table. Otherwise the shared non-AP1 table.
+    // 0x2bf is not part of this choice.
+    const SteeringLimits limits = tesla_ap1 ? TESLA_AP1_STEERING_LIMITS : TESLA_STEERING_LIMITS;
+    if (steer_angle_cmd_checks(desired_angle, steer_control_enabled, limits)) {
       violation = true;
     }
   }
@@ -227,6 +253,7 @@ static safety_config tesla_init(uint16_t param) {
   tesla_powertrain = GET_FLAG(param, TESLA_FLAG_POWERTRAIN);
   tesla_longitudinal = GET_FLAG(param, TESLA_FLAG_LONGITUDINAL_CONTROL);
   tesla_raven = GET_FLAG(param, TESLA_FLAG_RAVEN);
+  tesla_ap1 = GET_FLAG(param, TESLA_FLAG_AP1);
 
   tesla_stock_aeb = false;
 

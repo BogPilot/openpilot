@@ -33,3 +33,16 @@ IC lead-car and telemetry frames that depended on those missing definitions are 
 ## Angle steering and dashcamOnly
 
 Angle steering does not blend with driver torque. `selfdrive/car/tesla/interface.py` documents that and keeps `ret.dashcamOnly = True` for that reason. This document does not propose turning `dashcamOnly` off.
+
+## AP1 angle-rate table (Tinkla) vs shared Tesla table
+
+Tinkla is the authority for AP1 angle rates. Source read: earlytesla-panda `board/safety/safety_tesla.h` (`TESLA_LOOKUP_ANGLE_RATE_UP`, `TESLA_LOOKUP_ANGLE_RATE_DOWN`, `TESLA_DEG_TO_CAN`). The shared `TESLA_STEERING_LIMITS` table is the Model 3/Y and non-AP1 limit. It is not an AP1 limit, and its numbers were not changed.
+
+| | speeds (m/s) | rate up (deg/s) | rate down (deg/s) | deg to CAN |
+| --- | --- | --- | --- | --- |
+| `TESLA_STEERING_LIMITS` (shared, non-AP1) | 0, 5, 15 | 10, 1.6, 0.3 | 10, 7.0, 0.8 | 10 |
+| `TESLA_AP1_STEERING_LIMITS` (Tinkla AP1) | 2, 7, 17 | 8, 4, 2.5 | 9, 5, 4.5 | 10 |
+
+`TESLA_FLAG_AP1` is bit 3, value 8. It does not overlap `TESLA_FLAG_POWERTRAIN` (1), `TESLA_FLAG_LONGITUDINAL_CONTROL` (2), or `TESLA_FLAG_RAVEN` (4). `tesla_tx_hook` passes `TESLA_AP1_STEERING_LIMITS` to `steer_angle_cmd_checks` only when that flag is set, and `TESLA_STEERING_LIMITS` otherwise. The choice does not read `0x2bf`.
+
+`selfdrive/car/tesla/interface.py` does not set `TESLA_FLAG_AP1`. `ret.dashcamOnly = True` is unchanged. Recognizing `ap1_s` does not select this table and does not start actuating.
