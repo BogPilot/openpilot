@@ -30,8 +30,9 @@ SoftwarePanel::SoftwarePanel(QWidget* parent) : ListWidget(parent) {
   addItem(versionLbl);
 
   // automatic updates toggle
-  ParamControl *automaticUpdatesToggle = new ParamControl("AutomaticUpdates", tr("Automatically Update FrogPilot"),
-                                                       tr("FrogPilot will automatically update itself and it's assets when you're offroad and have an active internet connection."), "");
+  // Install channel is not live. Updates follow git origin; do not use frogpilot.download.
+  ParamControl *automaticUpdatesToggle = new ParamControl("AutomaticUpdates", tr("Automatically Update BogPilot"),
+                                                       tr("BogPilot will automatically update itself and its assets when you're offroad and have an active internet connection. The install channel is not live."), "");
   automaticUpdatesToggle->setVisible(params.getBool("IsReleaseBranch"));
   addItem(automaticUpdatesToggle);
 

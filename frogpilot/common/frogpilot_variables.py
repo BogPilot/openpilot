@@ -508,7 +508,8 @@ class FrogPilotVariables:
 
     short_branch = get_build_metadata().channel
     self.development_branch = short_branch == "FrogPilot-Development"
-    self.release_branch = short_branch == "FrogPilot"
+    # FrogPilot remains accepted. BogPilot and bogpilot-tesla are this fork (install channel is not live).
+    self.release_branch = short_branch in ("FrogPilot", "BogPilot", "bogpilot-tesla")
     self.staging_branch = short_branch == "FrogPilot-Staging"
     self.testing_branch = short_branch == "FrogPilot-Testing"
     self.vetting_branch = short_branch == "FrogPilot-Vetting"

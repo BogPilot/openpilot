@@ -1,3 +1,17 @@
+# BogPilot
+
+BogPilot is a research fork of FrogPilot for early Tesla (pre-AP, AP1, AP2 Model S/X).
+
+**Not a product. No warranty. The driver remains responsible. Comply with local law.** Not safe to drive until a human validates it on a bench and in a car.
+
+Pinned FrogPilot SHA: `1e23dec6352cef5a36a87be0af7d7a082b7c48a4`.
+
+Alpha. No bus captures yet, so this tree is not a tagged release.
+
+The BogPilot install channel is not live. Do not enter `frogpilot.download` for this fork (that host installs upstream FrogPilot). `https://github.com/BogPilot/BogPilot` is the repository pointer only, not a download CDN.
+
+---
+
 <div align="center" style="text-align: center;">
 
 <h1>openpilot</h1>
@@ -194,22 +208,28 @@ And lots more! From safety enhancements to personalization options, **FrogPilot*
 ------
 | Branch                     | Install&nbsp;URL          | Description                                            | Recommended&nbsp;For     |
 |----------------------------|---------------------------|--------------------------------------------------------|--------------------------|
-| FrogPilot                  | frogpilot.download        | The main release branch.                               | Everyone                 |
-| FrogPilot&#8209;Staging    | staging.frogpilot.download| Beta branch with upcoming features. Expect bugs!       | Early&nbsp;Adopters      |
-| FrogPilot&#8209;Testing    | testing.frogpilot.download| Alpha branch with bleeding-edge features. Breaks often!| Advanced&nbsp;Testers    |
-| FrogPilot&#8209;Development| No :)                     | Active development branch. Do not use!                 | **FrogPilot**&nbsp;Developers|
-| MAKE&#8209;PRS&#8209;HERE  | No :)                     | Workspace for pull requests. Do not use!               | Contributors             |
+| BogPilot                   | not live                  | This fork's stable name. No download CDN yet.          | Nobody yet (alpha)       |
+| bogpilot-tesla             | not live                  | Tesla early integration branch. No download CDN yet.   | Research only            |
+| FrogPilot                  | upstream FrogPilot only   | Upstream FrogPilot release name. Still accepted here.  | Not this fork            |
+| FrogPilot&#8209;Staging    | upstream FrogPilot only   | Upstream beta. Not a BogPilot channel.                 | Not this fork            |
+| FrogPilot&#8209;Testing    | upstream FrogPilot only   | Upstream alpha. Not a BogPilot channel.                | Not this fork            |
+| FrogPilot&#8209;Development| No                        | Upstream development. Do not use.                      | Not this fork            |
+| MAKE&#8209;PRS&#8209;HERE  | No                        | Workspace for pull requests. Do not use.               | Contributors             |
 
 🧰 How to Install
 ------
 
-The easiest way to install **FrogPilot** is by entering this URL on the installation screen:
+BogPilot does not have a live install channel. The install channel is not live.
+
+Do not type `frogpilot.download` (or `staging.frogpilot.download` / `testing.frogpilot.download`) on the comma installation screen for this fork. Those hosts install upstream FrogPilot, and this tree must not update from them.
+
+Repository pointer only, not a download CDN:
 
 ```
-frogpilot.download
+https://github.com/BogPilot/BogPilot
 ```
 
-**DO NOT** install the **FrogPilot-Development** branch. I'm constantly breaking things on there, so unless you don't want to use **FrogPilot**, **NEVER** install it!
+Branches `FrogPilot`, `BogPilot`, and `bogpilot-tesla` are all accepted names. `BogPilot` and `bogpilot-tesla` are this fork. There is no tagged release.
 
 ![](https://i.imgur.com/FsufQtO.png)
 

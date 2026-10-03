@@ -10,7 +10,9 @@ from openpilot.common.basedir import BASEDIR
 from openpilot.common.swaglog import cloudlog
 from openpilot.common.git import get_commit, get_origin, get_branch, get_short_branch, get_commit_date
 
-RELEASE_BRANCHES = ['FrogPilot', 'FrogPilot-Vetting']
+# FrogPilot stays accepted. BogPilot and bogpilot-tesla are this fork.
+# Install channel is not live; these names do not point at frogpilot.download.
+RELEASE_BRANCHES = ['FrogPilot', 'BogPilot', 'bogpilot-tesla', 'FrogPilot-Vetting']
 TESTED_BRANCHES = RELEASE_BRANCHES + ['FrogPilot-Staging', 'FrogPilot-Testing']
 
 BUILD_METADATA_FILENAME = "build.json"
