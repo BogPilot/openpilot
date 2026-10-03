@@ -1,5 +1,8 @@
-from openpilot.selfdrive.car.tesla.platform import EarlyPlatformFixture, classify_tesla_platform, long_control_allowed
-from openpilot.selfdrive.car.tesla.values import CAR, TeslaPlatform
+from openpilot.selfdrive.car.tesla.platform import EarlyPlatformFixture, classify_ap1_chassis, classify_tesla_platform, long_control_allowed
+from openpilot.selfdrive.car.tesla.values import CANBUS, CAR, TeslaPlatform
+
+# tesla_can.dbc chassis: STW_ACTN_RQ, DAS_control, DAS_steeringControl.
+_AP1_CHASSIS = frozenset((0x45, 0x2B9, 0x488))
 
 
 def test_ap1_model_s_maps_to_ap1_s_and_long_stays_off():
@@ -75,3 +78,42 @@ def test_honda_civic_is_not_an_early_tesla_platform():
   assert platform is None
   assert platform not in (TeslaPlatform.preap, TeslaPlatform.ap1_s, TeslaPlatform.ap1_x, TeslaPlatform.ap2)
   assert long_control_allowed(platform) is False
+
+
+def test_ap1_chassis_addrs_classify_as_ap1_s_without_0x2bf():
+  # Bus 0 is the chassis bus. Presence of the three IDs is the rule.
+  # 0x2bf is not required. Extra addresses do not change the result.
+  assert CANBUS.chassis == 0
+  assert classify_ap1_chassis(_AP1_CHASSIS) == TeslaPlatform.ap1_s
+  assert classify_ap1_chassis({0x45: 8, 0x2B9: 8, 0x488: 4}) == TeslaPlatform.ap1_s
+  bus0 = {0: {addr: 1 for addr in _AP1_CHASSIS}}
+  platform = classify_tesla_platform(bus0)
+  assert platform == TeslaPlatform.ap1_s
+  assert platform not in (TeslaPlatform.preap, TeslaPlatform.ap1_x, TeslaPlatform.ap2)
+  assert long_control_allowed(platform) is False
+  with_extra = {0: {0x45: 8, 0x2B9: 8, 0x488: 4, 0x100: 8, 0x2BF: 1}, 6: {0x2BF: 1}}
+  assert classify_tesla_platform(with_extra) == TeslaPlatform.ap1_s
+  assert classify_tesla_platform(set(_AP1_CHASSIS)) == TeslaPlatform.ap1_s
+
+
+def test_0x2bf_alone_and_incomplete_chassis_are_not_ap1():
+  assert classify_ap1_chassis({0x2BF}) is None
+  assert classify_ap1_chassis(frozenset((0x2BF,))) is None
+  assert classify_tesla_platform({0x2BF}) is None
+  assert classify_tesla_platform({0: {0x2BF: 8}}) is None
+  assert classify_tesla_platform({6: {0x2BF: 8}}) is None
+  for missing in (
+    frozenset((0x45, 0x2B9)),
+    frozenset((0x45, 0x488)),
+    frozenset((0x2B9, 0x488)),
+    frozenset((0x45,)),
+    frozenset((0x2B9,)),
+    frozenset((0x488,)),
+  ):
+    assert classify_ap1_chassis(missing) is None
+    assert classify_tesla_platform({0: {addr: 1 for addr in missing}}) is None
+  # The same three IDs on another bus are not the chassis signature.
+  elsewhere = {1: {0x45: 1, 0x2B9: 1, 0x488: 1}, 2: {0x45: 1, 0x2B9: 1, 0x488: 1}}
+  assert classify_tesla_platform(elsewhere) is None
+  assert classify_ap1_chassis(None) is None
+  assert classify_ap1_chassis("TESLA_AP1_MODELS") is None

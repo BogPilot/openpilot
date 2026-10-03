@@ -1,4 +1,4 @@
-from openpilot.selfdrive.car.tesla.platform import classify_tesla_platform, long_control_allowed
+from openpilot.selfdrive.car.tesla.platform import classify_ap1_chassis, classify_tesla_platform, long_control_allowed
 from openpilot.selfdrive.car.tesla.stalk_follow import map_stalk_follow, parse_stalk_raw
 from openpilot.selfdrive.car.tesla.tests.fixtures.ap1_drive_addrs import (
   ADDR_0X2BF_ABSENT,
@@ -86,7 +86,8 @@ def test_absent_0x2bf_is_not_the_dual_panda_powertrain_fingerprint():
   for bus in OBSERVED_BUSES:
     assert ADDR_0X2B9_PRESENT[bus] is True
     assert ADDR_0X2B9_CAN_COUNTS[bus] > 0
-  # A CAN address dict is not how ap1_s is recognized, with or without 0x2bf.
+  # 0x2b9 alone is not the AP1 chassis signature. 0x45 and 0x488 are also required.
+  # 0x2bf is not required, and a lone 0x2bf is not AP1.
   capture = {bus: {0x2B9: ADDR_0X2B9_CAN_COUNTS[bus]} for bus in OBSERVED_BUSES}
   assert 0x2BF not in capture.get(6, {})
   assert classify_tesla_platform(capture) is None
@@ -121,3 +122,23 @@ def test_drive_fixture_constants_and_long_still_refused():
   assert platform == TeslaPlatform.ap1_s
   assert long_control_allowed(platform) is False
   assert long_control_allowed(None) is False
+
+
+def test_capture_chassis_signature_is_ap1_s_without_0x2bf():
+  # Parked fixture: buses 0/1/2, 0x2b9 present, 0x2bf count 0, stalk 0x45 DTR values.
+  # Drive fixture: sendcan bus 0 had 0x2b9 and 0x488 while active. No payloads.
+  assert OBSERVED_BUSES == (0, 1, 2)
+  assert 0 in OBSERVED_BUSES
+  assert ADDR_0X2BF_COUNT == 0
+  assert ADDR_0X2BF_ABSENT is True
+  assert SENDCAN_BUS == 0
+  assert set(SENDCAN_ADDRS_WHILE_ACTIVE) == {0x2B9, 0x488}
+  # 0x45 is STW_ACTN_RQ, the parked capture's DTR_Dist_Rq source. Not 0x2bf.
+  chassis = {0x45, 0x2B9, 0x488}
+  fingerprint = {0: {addr: 1 for addr in chassis}}
+  platform = classify_tesla_platform(fingerprint)
+  assert classify_ap1_chassis(chassis) == TeslaPlatform.ap1_s
+  assert platform == TeslaPlatform.ap1_s
+  assert platform not in (TeslaPlatform.preap, TeslaPlatform.ap1_x, TeslaPlatform.ap2)
+  assert long_control_allowed(platform) is False
+  assert 0x2BF not in chassis

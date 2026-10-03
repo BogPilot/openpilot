@@ -51,6 +51,6 @@ NOTE = (
 def dual_panda_powertrain_seen(addr_0x2bf_count=ADDR_0X2BF_COUNT):
   """The interface long-control gate needs 0x2bf on bus 6. A zero count is not that gate.
 
-  classify_tesla_platform does not read this address. ap1_s does not require it.
+  ap1_s does not require this address. A zero count still is not that gate.
   """
   return addr_0x2bf_count > 0

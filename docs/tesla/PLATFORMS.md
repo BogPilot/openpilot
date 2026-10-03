@@ -17,16 +17,18 @@ Nothing below is commanded by this commit.
 | Platform | Production recognition | Lateral | Longitudinal |
 | --- | --- | --- | --- |
 | `preap` | unmatched (`None`) | not commanded | not allowed |
-| `ap1_s` | `CAR.TESLA_AP1_MODELS` | not commanded | not allowed |
+| `ap1_s` | `CAR.TESLA_AP1_MODELS`, or chassis bus 0 with `0x45`, `0x2b9`, and `0x488` | not commanded | not allowed |
 | `ap1_x` | unmatched (`None`) | not commanded | not allowed |
 | `ap2` | `CAR.TESLA_AP2_MODELS`, or `None` if AP1 is also present | not commanded | not allowed; full control not enabled |
 | Raven (`CAR.TESLA_MODELS_RAVEN`) | not an early platform | unchanged by this commit | unchanged by this commit |
 
 ## How `ap1_s` is recognized
 
-`CAR.TESLA_AP1_MODELS` is the only AP1 Model S identity in this tree. `selfdrive/car/tesla/fingerprints.py` `FW_VERSIONS` lists `TESLA_AP2_MODELS` and `TESLA_MODELS_RAVEN` only. There is no AP1 Model S firmware row to prove, and this commit does not add CAN message-count fingerprints.
+`CAR.TESLA_AP1_MODELS` is the AP1 Model S identity already in this tree. `selfdrive/car/tesla/fingerprints.py` `FW_VERSIONS` lists `TESLA_AP2_MODELS` and `TESLA_MODELS_RAVEN` only. There is no AP1 Model S firmware row. The classifier still maps that platform member, and the name `TESLA_AP1_MODELS`, to `ap1_s`. It does not look at `CarSpecs` or `dbc_dict`. Those are shared with `TESLA_AP2_MODELS` in `values.py`, so matching them would also match AP2.
 
-The classifier maps that existing platform member (and the same member's name, `TESLA_AP1_MODELS`) to `ap1_s`. It does not look at `CarSpecs` or `dbc_dict`. Those are shared with `TESLA_AP2_MODELS` in `values.py`, so matching them would also match AP2.
+AP1 is also recognized from the chassis bus (bus 0) when `0x45` (`STW_ACTN_RQ`), `0x2b9` (`DAS_control`), and `0x488` (`DAS_steeringControl`) are present. Those names are in `opendbc/tesla_can.dbc`. `0x2bf` is powertrain `DAS_control` in the upstream Model 3 / second-panda check and is not required. Extra addresses do not change the result. A set that is only `0x2bf` does not match. pre-AP and AP2 are not fingerprinted by this rule and stay deferred. `dashcamOnly` is still true. This does not command the car.
+
+BogPilot is not a product. No warranty. The driver remains responsible. Comply with local law. Not validated on a bench or in a car.
 
 ## `ap2` and Raven
 
