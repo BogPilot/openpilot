@@ -2,6 +2,8 @@
 
 BogPilot is not a product. No warranty. The driver remains responsible. Comply with local law. This commit is not validated on a bench or in a car.
 
+`CAR.TESLA_AP1_MODELS` sets `dashcamOnly` false so lateral can engage behind `TESLA_AP1_STEERING_LIMITS`. That is an explicit user exception for the Mobileye chassis port, not a Model 3 change. AP2 and Raven stay `dashcamOnly` true. `openpilotLongitudinalControl` is still not enabled for AP1, and `0x2bf` is not required. This is not a driving validation.
+
 ## This commit
 
 Phase 3 layer 1, on the comma 3X / Tesla Model S AP1 target. Recognize a platform. Do not command lateral or longitudinal control.

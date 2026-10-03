@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from cereal import car
-from openpilot.selfdrive.car.tesla.safety_flags import flags_for_candidate
+from openpilot.selfdrive.car.tesla.safety_flags import dashcam_only_for_candidate, flags_for_candidate
 from openpilot.selfdrive.car.tesla.values import CANBUS
 from openpilot.selfdrive.car import get_safety_config
 from openpilot.selfdrive.car.interfaces import CarInterfaceBase
@@ -13,8 +13,10 @@ class CarInterface(CarInterfaceBase):
 
     # There is no safe way to do steer blending with user torque,
     # so the steering behaves like autopilot. This is not
-    # how openpilot should be, hence dashcamOnly
-    ret.dashcamOnly = True
+    # how openpilot should be, hence dashcamOnly.
+    # AP1 is an explicit user exception for the Mobileye chassis port,
+    # not a Model 3 change.
+    ret.dashcamOnly = dashcam_only_for_candidate(candidate)
 
     ret.steerControlType = car.CarParams.SteerControlType.angle
 

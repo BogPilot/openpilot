@@ -36,7 +36,7 @@ def test_stalk_follow_defaults_on_and_explicit_off_is_off():
 def test_preferences_are_not_applied_to_car_params():
   assert APPLIED_TO_CAR_PARAMS is False
   interface = (ROOT / "selfdrive/car/tesla/interface.py").read_text()
-  assert "ret.dashcamOnly = True" in interface
+  assert "dashcam_only_for_candidate(candidate)" in interface
   assert "TeslaLongControl" not in interface
   assert "TeslaStalkFollow" not in interface
   variables = (ROOT / "frogpilot/common/frogpilot_variables.py").read_text()

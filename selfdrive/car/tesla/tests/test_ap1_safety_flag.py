@@ -1,15 +1,15 @@
 """AP1 safety flag is bit 8 and only for TESLA_AP1_MODELS.
 
 CarInterface cannot be constructed here: importing it loads opendbc parser_pyx.
-flags_for_candidate is the pure helper interface.py calls. dashcamOnly stays true.
-This does not enable openpilot longitudinal control.
+flags_for_candidate is the pure helper interface.py calls. dashcam_only_for_candidate
+is false only for AP1. This does not enable openpilot longitudinal control.
 """
 
 from pathlib import Path
 
 from panda import Panda
 
-from openpilot.selfdrive.car.tesla.safety_flags import FLAG_TESLA_AP1, flags_for_candidate
+from openpilot.selfdrive.car.tesla.safety_flags import FLAG_TESLA_AP1, dashcam_only_for_candidate, flags_for_candidate
 from openpilot.selfdrive.car.tesla.values import CANBUS, CAR
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -64,9 +64,11 @@ def test_chassis_0x2bf_does_not_select_powertrain_flags():
   assert flags_for_candidate(CAR.TESLA_AP2_MODELS, fp) == (0,)
 
 
-def test_interface_source_keeps_dashcam_and_does_not_force_ap1_long():
-  assert "ret.dashcamOnly = True" in INTERFACE
-  assert "dashcamOnly = False" not in INTERFACE
+def test_dashcam_only_false_for_ap1_true_for_ap2_and_raven():
+  assert dashcam_only_for_candidate(CAR.TESLA_AP1_MODELS) is False
+  assert dashcam_only_for_candidate(CAR.TESLA_AP2_MODELS) is True
+  assert dashcam_only_for_candidate(CAR.TESLA_MODELS_RAVEN) is True
+  assert "dashcam_only_for_candidate(candidate)" in INTERFACE
   assert "flags_for_candidate(candidate, fingerprint)" in INTERFACE
   assert "ret.openpilotLongitudinalControl = False" in INTERFACE
   assert "ret.openpilotLongitudinalControl = not frogpilot_toggles.disable_openpilot_long" in INTERFACE

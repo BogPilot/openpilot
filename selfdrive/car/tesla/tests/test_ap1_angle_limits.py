@@ -1,7 +1,7 @@
 """AP1 panda angle-rate table is Tinkla's. The shared table stays for non-AP1.
 
 No panda firmware test is compiled here. This checks the safety header the
-Python Tesla tests already read. dashcamOnly stays true. The AP1 flag is applied
+Python Tesla tests already read. Dashcam is not decided here. The AP1 flag is applied
 by flags_for_candidate, not by this table test.
 """
 
@@ -60,9 +60,8 @@ def test_tx_hook_picks_ap1_table_only_when_flag_is_set():
   assert "steer_angle_cmd_checks(desired_angle, steer_control_enabled, limits)" in HEADER
 
 
-def test_interface_keeps_dashcam_and_delegates_ap1_flag():
-  assert "ret.dashcamOnly = True" in INTERFACE
-  assert "dashcamOnly = False" not in INTERFACE
+def test_interface_delegates_dashcam_and_ap1_flag():
+  assert "dashcam_only_for_candidate(candidate)" in INTERFACE
   assert "flags_for_candidate(candidate, fingerprint)" in INTERFACE
   # The bit is applied in safety_flags.py, not inlined here.
   assert "FLAG_TESLA_AP1" not in INTERFACE
