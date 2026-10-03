@@ -1,6 +1,7 @@
 import crcmod
 
 from openpilot.common.conversions import Conversions as CV
+from openpilot.selfdrive.car.tesla.actuator_plan import steering_control_type
 from openpilot.selfdrive.car.tesla.values import CANBUS, CarControllerParams
 
 
@@ -21,7 +22,7 @@ class TeslaCAN:
     values = {
       "DAS_steeringAngleRequest": -angle,
       "DAS_steeringHapticRequest": 0,
-      "DAS_steeringControlType": 1 if enabled else 0,
+      "DAS_steeringControlType": steering_control_type(enabled),
       "DAS_steeringControlCounter": counter,
     }
 

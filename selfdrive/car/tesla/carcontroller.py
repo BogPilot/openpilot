@@ -1,9 +1,8 @@
-from openpilot.common.numpy_fast import clip
 from opendbc.can.packer import CANPacker
-from openpilot.selfdrive.car import apply_std_steer_angle_limits
 from openpilot.selfdrive.car.interfaces import CarControllerBase
+from openpilot.selfdrive.car.tesla.actuator_plan import build_actuator_plan
 from openpilot.selfdrive.car.tesla.teslacan import TeslaCAN
-from openpilot.selfdrive.car.tesla.values import DBC, CANBUS, CarControllerParams
+from openpilot.selfdrive.car.tesla.values import DBC, CANBUS
 
 
 class CarController(CarControllerBase):
@@ -17,46 +16,40 @@ class CarController(CarControllerBase):
 
   def update(self, CC, CS, now_nanos, frogpilot_toggles):
     actuators = CC.actuators
-    pcm_cancel_cmd = CC.cruiseControl.cancel
-
-    can_sends = []
 
     # Temp disable steering on a hands_on_fault, and allow for user override
     hands_on_fault = CS.steer_warning == "EAC_ERROR_HANDS_ON" and CS.hands_on_level >= 3
-    lkas_enabled = CC.latActive and not hands_on_fault
+    plan = build_actuator_plan(
+      self.frame,
+      CC.latActive,
+      hands_on_fault,
+      self.CP.openpilotLongitudinalControl,
+      CS.out.steeringAngleDeg,
+      actuators.steeringAngleDeg,
+      self.apply_angle_last,
+      CS.out.vEgo,
+      actuators.accel,
+      CS.acc_state,
+      CS.das_control_counters,
+      CC.cruiseControl.cancel,
+    )
+    self.apply_angle_last = plan.apply_angle_last
 
-    if self.frame % 2 == 0:
-      if lkas_enabled:
-        # Angular rate limit based on speed
-        apply_angle = apply_std_steer_angle_limits(actuators.steeringAngleDeg, self.apply_angle_last, CS.out.vEgo, CarControllerParams)
+    can_sends = []
 
-        # To not fault the EPS
-        apply_angle = clip(apply_angle, CS.out.steeringAngleDeg - 20, CS.out.steeringAngleDeg + 20)
-      else:
-        apply_angle = CS.out.steeringAngleDeg
-
-      self.apply_angle_last = apply_angle
-      can_sends.append(self.tesla_can.create_steering_control(apply_angle, lkas_enabled, (self.frame // 2) % 16))
+    if plan.steer is not None:
+      can_sends.append(self.tesla_can.create_steering_control(plan.steer.angle_deg, plan.steer.enabled, plan.steer.counter))
 
     # Longitudinal control (in sync with stock message, about 40Hz)
-    if self.CP.openpilotLongitudinalControl:
-      target_accel = actuators.accel
-      target_speed = max(CS.out.vEgo + (target_accel * CarControllerParams.ACCEL_TO_SPEED_MULTIPLIER), 0)
-      max_accel = 0 if target_accel < 0 else target_accel
-      min_accel = 0 if target_accel > 0 else target_accel
-
-      while len(CS.das_control_counters) > 0:
-        can_sends.extend(self.tesla_can.create_longitudinal_commands(CS.acc_state, target_speed, min_accel, max_accel, CS.das_control_counters.popleft()))
+    for cmd in plan.longitudinal:
+      can_sends.extend(self.tesla_can.create_longitudinal_commands(cmd.acc_state, cmd.target_speed, cmd.min_accel, cmd.max_accel, cmd.counter))
 
     # Cancel on user steering override, since there is no steering torque blending
-    if hands_on_fault:
-      pcm_cancel_cmd = True
-
-    if self.frame % 10 == 0 and pcm_cancel_cmd:
+    if plan.cancel:
       # Spam every possible counter value, otherwise it might not be accepted
       for counter in range(16):
-        can_sends.append(self.tesla_can.create_action_request(CS.msg_stw_actn_req, pcm_cancel_cmd, CANBUS.chassis, counter))
-        can_sends.append(self.tesla_can.create_action_request(CS.msg_stw_actn_req, pcm_cancel_cmd, CANBUS.autopilot_chassis, counter))
+        can_sends.append(self.tesla_can.create_action_request(CS.msg_stw_actn_req, True, CANBUS.chassis, counter))
+        can_sends.append(self.tesla_can.create_action_request(CS.msg_stw_actn_req, True, CANBUS.autopilot_chassis, counter))
 
     # TODO: HUD control
 

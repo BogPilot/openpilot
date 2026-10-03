@@ -50,3 +50,34 @@ These are the index comments already in `selfdrive/car/tesla/values.py` `CANBUS`
 - Longitudinal harness: `powertrain` 4, `private` 5, `autopilot_powertrain` 6
 
 Harness type for the car is not decided here.
+
+## Engagement
+
+Comma 3X. Tesla Model S AP1 (`ap1_s`). This commit does not enable lateral or longitudinal control. BogPilot is not a product. No warranty. The driver remains responsible. Comply with local law. Not validated on a bench or in a car.
+
+`selfdrive/car/tesla/interface.py` still assigns dashcam mode before the safety config. That assignment was not changed:
+
+```
+ret.dashcamOnly = True
+```
+
+`frog_ap1` set this false. This tree does not.
+
+The safety model is still `car.CarParams.SafetyModel.tesla`. The flag names in that file are unchanged:
+
+- `Panda.FLAG_TESLA_RAVEN` is applied only when `candidate == CAR.TESLA_MODELS_RAVEN`. AP1 Model S does not take it.
+- `Panda.FLAG_TESLA_LONG_CONTROL` is applied only when `0x2bf` is present on `CANBUS.autopilot_powertrain`.
+- `Panda.FLAG_TESLA_POWERTRAIN` is applied only on the second panda config in that same branch.
+
+The openpilot-long param in that branch is `not frogpilot_toggles.disable_openpilot_long`. The long flag above is set whenever `0x2bf` is present, even if that toggle disables the param.
+
+AP1 Model S with no `0x2bf` on that bus gets one safety config and a flags value of `0`. That is not the bridge change that deleted the longitudinal gate. `panda/board/safety/safety_tesla.h` was not edited. `tesla_tx_hook` still refuses `DAS_control` when `TESLA_FLAG_LONGITUDINAL_CONTROL` is unset (`tesla_longitudinal` is false, and the else branch sets `violation`). Lateral TX still goes through `steer_angle_cmd_checks` and `TESLA_STEERING_LIMITS`. When the long flag is on, accel still goes through `longitudinal_accel_checks` and `TESLA_LONG_LIMITS`.
+
+`CarController.update` was not executed in this environment. `opendbc/can/packer_pyx.so` is AArch64, and importing the controller also needs `parser_pyx` and `msgq`. The disengaged decision is `build_actuator_plan` in `selfdrive/car/tesla/actuator_plan.py`, which `update` calls, and `TeslaCAN.create_steering_control` packs it.
+
+On an even frame with lateral inactive, the steering message is still `DAS_steeringControl` (`0x488` in `TESLA_TX_MSGS`) with `DAS_steeringControlType` 0. Type 0 is NONE. `tesla_tx_hook` does not treat 0 or 3 as steer control enabled. The angle field echoes the measured angle. It is not a request to move EPAS to the actuator angle. Odd frames send no steering message. No `DAS_control` is planned unless `CP.openpilotLongitudinalControl` is true.
+
+Gap, not changed: `update` does not read `CC.enabled` or `CC.longActive`. If `openpilotLongitudinalControl` is true, a laterally inactive call still plans `DAS_control` (`0x2b9` on chassis, `0x2bf` on powertrain in `safety_tesla.h`) with `DAS_setSpeed`, `DAS_accelMin`, and `DAS_accelMax` taken from `actuators.accel`. There is no fixed set-speed of 145 or 0 in this controller. That frame is a longitudinal command, not a cancel. This commit does not turn the param on and does not add a command. Interface sets the param true only in the `0x2bf` branch above.
+
+There is no pre-AP command builder. `long_control_allowed` is false for `preap`. The messages this controller can pack are `DAS_steeringControl`, `STW_ACTN_RQ`, and `DAS_control`. No iBooster apply and no friction-brake command. `BrakeMessage` (`0x20a` chassis, `0x1f8` powertrain) is an RX check in `safety_tesla.h`, not a TX message.
+
