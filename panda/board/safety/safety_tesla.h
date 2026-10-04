@@ -53,6 +53,17 @@ const CanMsg TESLA_TX_MSGS[] = {
   {0x2b9, 0, 8},  // DAS_control
 };
 
+// AP1 only. 0x349 is Tinkla DAS warning matrix 3. The tx hook allows only
+// the all-zero clear (DAS_gas_to_resume, bit 1 of byte 0, held at 0).
+// Not added to TESLA_TX_MSGS, so Model 3/Y and non-AP1 cannot send it.
+const CanMsg TESLA_AP1_TX_MSGS[] = {
+  {0x488, 0, 4},  // DAS_steeringControl
+  {0x45, 0, 8},   // STW_ACTN_RQ
+  {0x45, 2, 8},   // STW_ACTN_RQ
+  {0x2b9, 0, 8},  // DAS_control
+  {0x349, 0, 8},  // Hold clear
+};
+
 const CanMsg TESLA_PT_TX_MSGS[] = {
   {0x2bf, 0, 8},  // DAS_control
 };
@@ -236,6 +247,15 @@ static bool tesla_tx_hook(const CANPacket_t *to_send) {
     }
   }
 
+  // AP1 Hold clear. Reject any warning bit. Tinkla packs DAS_gas_to_resume
+  // as (DAS_gas_to_resume << 1) in byte 0 of 0x349.
+  if (tesla_ap1 && (addr == 0x349)) {
+    if ((GET_BYTE(to_send, 0) | GET_BYTE(to_send, 1) | GET_BYTE(to_send, 2) | GET_BYTE(to_send, 3) |
+         GET_BYTE(to_send, 4) | GET_BYTE(to_send, 5) | GET_BYTE(to_send, 6) | GET_BYTE(to_send, 7)) != 0U) {
+      violation = true;
+    }
+  }
+
   if (violation) {
     tx = false;
   }
@@ -308,6 +328,8 @@ static safety_config tesla_init(uint16_t param) {
     ret = BUILD_SAFETY_CFG(tesla_pt_rx_checks, TESLA_PT_TX_MSGS);
   } else if (tesla_raven) {
     ret = BUILD_SAFETY_CFG(tesla_raven_rx_checks, TESLA_TX_MSGS);
+  } else if (tesla_ap1) {
+    ret = BUILD_SAFETY_CFG(tesla_rx_checks, TESLA_AP1_TX_MSGS);
   } else {
     ret = BUILD_SAFETY_CFG(tesla_rx_checks, TESLA_TX_MSGS);
   }

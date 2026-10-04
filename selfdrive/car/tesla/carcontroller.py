@@ -1,6 +1,11 @@
 from opendbc.can.packer import CANPacker
 from openpilot.selfdrive.car.interfaces import CarControllerBase
-from openpilot.selfdrive.car.tesla.actuator_plan import DAS_CONTROL_POWERTRAIN, build_actuator_plan
+from openpilot.selfdrive.car.tesla.actuator_plan import (
+  DAS_CONTROL_POWERTRAIN,
+  ap1_should_send_hold_clear,
+  build_actuator_plan,
+  longitudinal_command_allowed,
+)
 from openpilot.selfdrive.car.tesla.teslacan import TeslaCAN
 from openpilot.selfdrive.car.tesla.values import DBC, CANBUS, CAR
 
@@ -57,7 +62,12 @@ class CarController(CarControllerBase):
         can_sends.append(self.tesla_can.create_action_request(CS.msg_stw_actn_req, True, CANBUS.chassis, counter))
         can_sends.append(self.tesla_can.create_action_request(CS.msg_stw_actn_req, True, CANBUS.autopilot_chassis, counter))
 
-    # TODO: HUD control
+    # AP1 Hold clear. Tinkla HUD_module zeros DAS_gas_to_resume (bit 1 of
+    # 0x349 byte 0) and sends the frame. Not sent unless longitudinal is allowed.
+    long_allowed = longitudinal_command_allowed(
+      self.CP.openpilotLongitudinalControl, CC.enabled, CC.longActive)
+    if ap1_should_send_hold_clear(chassis_das_only, long_allowed, CS.acc_state, self.frame):
+      can_sends.append(self.tesla_can.create_ap1_hold_clear())
 
     new_actuators = actuators.as_builder()
     new_actuators.steeringAngleDeg = self.apply_angle_last

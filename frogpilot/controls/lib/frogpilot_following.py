@@ -2,6 +2,7 @@
 import numpy as np
 
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import COMFORT_BRAKE, STOP_DISTANCE, desired_follow_distance, get_jerk_factor, get_T_FOLLOW
+from openpilot.selfdrive.car.tesla.stalk_follow import apply_stalk_t_follow
 
 from openpilot.frogpilot.common.frogpilot_variables import CITY_SPEED_LIMIT, CRUISING_SPEED, MAX_T_FOLLOW
 
@@ -58,6 +59,14 @@ class FrogPilotFollowing:
       self.danger_jerk = 0
       self.speed_jerk = 0
       self.t_follow = 0
+
+    # AP1 stalk scroll. speedOffset is the mapped follow seconds, or 0.
+    # Other platforms pass enabled False so their t_follow is unchanged.
+    self.t_follow = apply_stalk_t_follow(
+      self.t_follow,
+      sm["carState"].cruiseState.speedOffset,
+      sm["controlsState"].enabled and sm["carParams"].carFingerprint == "TESLA_AP1_MODELS",
+    )
 
     self.following_lead = self.frogpilot_planner.tracking_lead and self.frogpilot_planner.lead_one.dRel < (self.t_follow * 2) * v_ego
 

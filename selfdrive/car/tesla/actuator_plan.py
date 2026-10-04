@@ -26,6 +26,11 @@ STEERING_CONTROL_ANGLE = 1
 DAS_CONTROL_CHASSIS = 0x2B9
 DAS_CONTROL_POWERTRAIN = 0x2BF
 
+# tesla_can.dbc VAL_ 697 DAS_accState. Tinkla create_ap1_long_control uses
+# 4 (ACC_ON) in drive and 3 (ACC_HOLD) only for static cruise.
+ACC_HOLD = 3
+ACC_ON = 4
+
 
 @dataclass(frozen=True)
 class SteerCommand:
@@ -63,6 +68,33 @@ def steering_control_type(enabled: bool) -> int:
   if enabled:
     return STEERING_CONTROL_ANGLE
   return STEERING_CONTROL_NONE
+
+
+def ap1_long_acc_state(camera_acc_state, chassis_das_only):
+  """ACC state openpilot may put in chassis DAS_control.
+
+  AP1 openpilot longitudinal is adaptive cruise in drive, not Tinkla static
+  cruise. Tinkla selfdrive/car/tesla/teslacan.py create_ap1_long_control sets
+  DAS_accState to 4 while in drive, and to 3 only when static_cruise and
+  cruise are both on. Copying the camera ACC_HOLD (3) made the car wait for
+  the accelerator at a stop. Non-AP1 still passes the camera state through.
+  """
+  if chassis_das_only and camera_acc_state == ACC_HOLD:
+    return ACC_ON
+  return camera_acc_state
+
+
+def ap1_should_send_hold_clear(ap1, long_allowed, camera_acc_state, frame):
+  """When to TX the all-zero 0x349 clear.
+
+  Tinkla HUD_module sends warning matrix 3 at 1 Hz with DAS_gas_to_resume
+  forced to 0. Also send while the camera is still reporting ACC_HOLD so the
+  clear is on the bus for that stop, not only on the 1 Hz tick.
+  Disengaged longitudinal does not send it.
+  """
+  if not ap1 or not long_allowed:
+    return False
+  return camera_acc_state == ACC_HOLD or (frame % 100) == 0
 
 
 def longitudinal_command_allowed(openpilot_longitudinal_control, enabled, long_active):
@@ -113,6 +145,7 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
     max_accel = 0 if target_accel < 0 else target_accel
     min_accel = 0 if target_accel > 0 else target_accel
 
+    acc_state = ap1_long_acc_state(acc_state, chassis_das_only)
     while len(das_counters) > 0:
       longitudinal.append(LongCommand(acc_state, target_speed, min_accel, max_accel, das_counters.popleft()))
     if longitudinal:

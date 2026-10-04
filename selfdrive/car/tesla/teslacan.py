@@ -98,3 +98,20 @@ class TeslaCAN:
       values["DAS_controlChecksum"] = self.checksum(0x2b9, data[:7])
       messages.append(packer.make_can_msg("DAS_control", bus, values))
     return messages
+
+  @staticmethod
+  def create_ap1_hold_clear(bus=CANBUS.chassis):
+    """All-zero chassis 0x349. Clears Tesla Hold's press-accelerator prompt.
+
+    Bit layout is Tinkla earlytesla-openpilot (tesla_unity_dev,
+    501c7de91b59c70510e9dc1585acfde9b7102c93)
+    selfdrive/car/tesla/teslacan.py create_das_warningMatrix3:
+
+        (DAS_gas_to_resume << 1) + (stopSignWarning << 3) + (stopLightWarning << 4)
+
+    That is bit 1 of byte 0. HUD_module.py sets DAS_gas_to_resume = 0 before
+    the send. This frame is that clear: every warning bit 0. 0x349 is not in
+    tesla_can.dbc, so this does not invent a DBC signal name.
+    Message shape matches can_list_to_can_capnp: address, busTime, dat, src.
+    """
+    return [0x349, 0, b"\x00" * 8, bus]

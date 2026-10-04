@@ -4,6 +4,8 @@ from openpilot.selfdrive.controls.lib.drive_helpers import CRUISE_LONG_PRESS
 from openpilot.selfdrive.controls.lib.events import ET
 
 from openpilot.frogpilot.common.frogpilot_variables import ERROR_LOGS_PATH, GearShifter, NON_DRIVING_GEARS, params, params_memory
+from openpilot.selfdrive.car.tesla.stalk_follow import ap1_stalk_commands
+from openpilot.selfdrive.car.tesla.values import CAR
 
 ButtonType = car.CarState.ButtonEvent.Type
 FrogPilotButtonType = custom.FrogPilotCarState.ButtonEvent.Type
@@ -32,6 +34,7 @@ class FrogPilotCard:
     self.pause_longitudinal = False
     self.prev_distance_button = False
     self.traffic_mode_enabled = False
+    self._ap1_stalk_personality = None
 
     self.gap_counter = 0
 
@@ -86,6 +89,25 @@ class FrogPilotCard:
       self.pause_longitudinal = not self.pause_longitudinal
     elif sm["carControl"].longActive and self.car.frogpilot_toggles.traffic_mode_via_lkas:
       self.traffic_mode_enabled = not self.traffic_mode_enabled
+
+  def _apply_ap1_stalk(self):
+    """AP1 distance stalk drives the existing personality icon and traffic mode.
+
+    Follow seconds are published separately on carState.cruiseState.speedOffset.
+    Named detents write LongitudinalPersonality, which controlsd already reads.
+    No new param key.
+    """
+    if self.car.CP.carFingerprint != CAR.TESLA_AP1_MODELS:
+      return
+    cs = getattr(getattr(self.car, "CI", None), "CS", None)
+    traffic, personality = ap1_stalk_commands(getattr(cs, "stalk_follow", None))
+    if traffic is None:
+      return
+    self.traffic_mode_enabled = traffic
+    if personality is None or personality == self._ap1_stalk_personality:
+      return
+    params.put_nonblocking("LongitudinalPersonality", str(personality))
+    self._ap1_stalk_personality = personality
 
   def update(self, carState, frogpilotCarState, sm):
     self.always_on_lateral_enabled = self.car.frogpilot_toggles.always_on_lateral_set
@@ -142,6 +164,7 @@ class FrogPilotCard:
     frogpilotCarState.isParked = carState.gearShifter == GearShifter.park
     frogpilotCarState.pauseLateral = self.pause_lateral
     frogpilotCarState.pauseLongitudinal = self.pause_longitudinal
+    self._apply_ap1_stalk()
     frogpilotCarState.trafficModeEnabled = self.traffic_mode_enabled
 
     return frogpilotCarState

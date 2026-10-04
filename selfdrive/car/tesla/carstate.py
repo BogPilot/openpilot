@@ -2,7 +2,8 @@ import copy
 from collections import deque
 from cereal import car, custom
 from openpilot.common.conversions import Conversions as CV
-from openpilot.selfdrive.car.tesla.stalk_follow import dtr_sample, parse_stalk_raw
+from openpilot.selfdrive.car.tesla.stalk_follow import dtr_sample, follow_seconds, parse_stalk_raw
+from openpilot.selfdrive.car.tesla.steer_fault import steer_fault_temporary
 from openpilot.selfdrive.car.tesla.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTTONS
 from openpilot.selfdrive.car.interfaces import CarStateBase
 from opendbc.can.parser import CANParser
@@ -52,7 +53,10 @@ class CarState(CarStateBase):
     ret.steeringTorque = -epas_status["EPAS_torsionBarTorque"]
     ret.steeringPressed = (self.hands_on_level > 0)
     ret.steerFaultPermanent = steer_status == "EAC_FAULT"
-    ret.steerFaultTemporary = (self.steer_warning not in ("EAC_ERROR_IDLE", "EAC_ERROR_HANDS_ON"))
+    # AP1: error code 6 (EAC_ERROR_HIGH_ANGLE_REQ) is not a temporary fault.
+    # Other platforms keep the IDLE / HANDS_ON gate only.
+    ret.steerFaultTemporary = steer_fault_temporary(
+      self.steer_warning, self.CP.carFingerprint == CAR.TESLA_AP1_MODELS)
 
     # Cruise state
     cruise_state = self.can_define.dv["DI_state"]["DI_cruiseState"].get(int(cp.vl["DI_state"]["DI_cruiseState"]), None)
@@ -110,6 +114,11 @@ class CarState(CarStateBase):
     else:
       raw = dtr_sample(stw.get("DTR_Dist_Rq"), ts_map.get("DTR_Dist_Rq", 0))
     self.stalk_follow = parse_stalk_raw(raw, self.stalk_follow)
+    # Existing cruiseState.speedOffset is unused on Tesla. AP1 publishes the
+    # stalk follow seconds there so FrogPilotFollowing can set tFollow.
+    # 0 means no ready detent. 255 holds the last seconds via parse_stalk_raw.
+    if self.CP.carFingerprint == CAR.TESLA_AP1_MODELS:
+      ret.cruiseState.speedOffset = follow_seconds(self.stalk_follow)
 
     # Messages needed by carcontroller
     self.msg_stw_actn_req = copy.copy(cp.vl["STW_ACTN_RQ"])

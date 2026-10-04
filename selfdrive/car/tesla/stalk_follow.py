@@ -15,17 +15,16 @@ Follow seconds are the stock FrogPilot defaults, not live params:
 Intermediate detents use the midpoint of the neighboring named times. Each midpoint
 is equidistant from those neighbors, so collapsing onto a cereal personality would
 be arbitrary. get_T_FOLLOW is not imported: that module pulls car interfaces and
-setproctitle. Do not edit get_T_FOLLOW, long_mpc, or frogpilot_following to add a profile.
+setproctitle. Do not edit get_T_FOLLOW or long_mpc to add a profile.
 
 Car state calls parse_stalk_raw and keeps the decision on the CarState
-instance (stalk_follow). Cereal is not extended: no new field, and this
-module does not write trafficModeEnabled or LongitudinalPersonality.
-Do not call it from controlsd yet. When a later layer applies it, pass
-decision.follow_s through the t_follow argument FrogPilotFollowing and
-desired_follow_distance already take. Detent 1 would set traffic mode
-(frogpilotCarState.trafficModeEnabled), not LongitudinalPersonality.
-Detents 3, 5, and 7 are LongitudinalPersonality aggressive, standard, and relaxed.
-Detents 2, 4, and 6 are follow times only. No new persisted param.
+instance (stalk_follow). Cereal is not extended. AP1 publishes follow_s on
+the existing cruiseState.speedOffset (0 when not ready). FrogPilotFollowing
+copies that into tFollow. Detent 1 sets trafficModeEnabled. Detents 3, 5,
+and 7 write the existing LongitudinalPersonality param (aggressive, standard,
+relaxed) so the on-screen personality icon changes. Detents 2, 4, and 6 are
+follow times only. 255 holds the last detent inside map_stalk_follow.
+No new persisted param.
 """
 
 from dataclasses import dataclass
@@ -169,3 +168,49 @@ def _hold(previous: StalkFollowDecision | None, raw: int | None, keep_valid: boo
 
 def _not_ready(raw: int | None) -> StalkFollowDecision:
   return StalkFollowDecision(False, False, None, None, False, None, raw)
+
+
+# LongitudinalPersonality cereal values. Not a new UI.
+_PERSONALITY = {
+  "aggressive": 0,
+  "standard": 1,
+  "relaxed": 2,
+}
+
+
+def follow_seconds(decision) -> float:
+  """Seconds to publish, or 0 when the stalk decision is not ready.
+
+  0 is not a follow time. A held 255 sample stays ready and keeps follow_s.
+  """
+  if decision is None or not decision.ready or decision.follow_s is None:
+    return 0.0
+  return float(decision.follow_s)
+
+
+def ap1_stalk_commands(decision):
+  """Existing FrogPilot controls for one stalk decision.
+
+  Returns (traffic_mode, personality). personality is the
+  LongitudinalPersonality int for detents 3, 5, and 7 only.
+  Detent 1 is traffic mode and does not change personality.
+  Detents 2, 4, and 6 are follow times only: traffic_mode is False and
+  personality is None so the last named personality is held.
+  Not ready returns (None, None): leave both controls alone.
+  """
+  if decision is None or not decision.ready:
+    return None, None
+  if decision.traffic:
+    return True, None
+  return False, _PERSONALITY.get(decision.profile)
+
+
+def apply_stalk_t_follow(t_follow, speed_offset, enabled):
+  """Replace the personality follow time with the stalk seconds when set.
+
+  enabled is true only for AP1 while controls are on. speed_offset 0 means
+  no ready detent. Does not invent a second follow controller.
+  """
+  if enabled and speed_offset > 0.0:
+    return float(speed_offset)
+  return t_follow
