@@ -46,6 +46,11 @@ class CarController(CarControllerBase):
       CS.das_control_counters,
       CC.cruiseControl.cancel,
       chassis_das_only=chassis_das_only,
+      # Code 6 is AP1-only. Model 3/Y still treats it as a temporary fault
+      # and does not take the measured-angle ANGLE fallback.
+      epas_error=CS.steer_warning if ap1 else None,
+      eac_fault=bool(CS.eac_fault) if ap1 else False,
+      hands_on_level=CS.hands_on_level if ap1 else 0,
     )
     self.apply_angle_last = plan.apply_angle_last
 

@@ -4,9 +4,12 @@ CarController.update packs exactly the messages this plan names. No CAN
 packing happens here. While disengaged, the plan has no steering frame so
 stock Mobileye 0x488 can keep flowing (AP1 interceptor). While AP1 cruise is
 enabled but path lateral is not, 0x488 is still sent: the measured angle and
-control type NONE. That is Tinkla's human-control and non-idle EPAS path.
-A planned angle is sent only while lat is active and there is no hands-on
-fault. DAS_control is planned only when the car params allow openpilot
+control type NONE. That is Tinkla's human-control and non-idle EPAS path,
+except EAC_ERROR_HIGH_ANGLE_REQ (6). Code 6 is not a path block. While enabled,
+hands are below the HSO threshold, and EPAS is not EAC_FAULT, 0x488 is ANGLE:
+the planned angle when lat is active, otherwise the measured angle, rate
+limited and clipped to the measured wheel +/- 20 deg. DAS_control is planned
+only when the car params allow openpilot
 longitudinal control and CarControl.enabled and CarControl.longActive are
 both true. Otherwise the plan has no longitudinal command.
 """
@@ -15,6 +18,7 @@ from dataclasses import dataclass
 
 from openpilot.common.numpy_fast import clip
 from openpilot.selfdrive.car import apply_std_steer_angle_limits
+from openpilot.selfdrive.car.tesla.hso import AP1_HANDS_ON_LEVEL
 from openpilot.selfdrive.car.tesla.values import CarControllerParams
 
 # safety_tesla.h tesla_tx_hook: type 0 is NONE and type 3 is DISABLED.
@@ -109,32 +113,63 @@ def longitudinal_command_allowed(openpilot_longitudinal_control, enabled, long_a
   return bool(openpilot_longitudinal_control) and bool(enabled) and bool(long_active)
 
 
+def _ap1_limited_angle(requested_angle_deg, last_angle_deg, measured_angle_deg, v_ego):
+  """Rate limit, then Tinkla's +/- 20 deg clip around the measured wheel.
+
+  The clip is the "to not fault the EPS" bound. It is applied after the
+  speed-based rate limit. A requested angle inside that window is unchanged
+  aside from the rate step.
+  """
+  apply_angle = apply_std_steer_angle_limits(requested_angle_deg, last_angle_deg, v_ego, CarControllerParams)
+  return clip(apply_angle, measured_angle_deg - 20, measured_angle_deg + 20)
+
+
 def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudinal_control,
                         enabled, long_active,
                         measured_angle_deg, requested_angle_deg, last_angle_deg, v_ego, accel,
-                        acc_state, das_counters, pcm_cancel, chassis_das_only=False):
+                        acc_state, das_counters, pcm_cancel, chassis_das_only=False,
+                        epas_error=None, eac_fault=False, hands_on_level=0):
   """Same steering branches CarController.update had before this function existed.
 
   Disengaged lateral: no steering frame. Sending type-NONE 0x488 while
   disengaged replaced stock Mobileye commands on AP1. AP1 with cruise enabled
-  and lat inactive still sends 0x488 at the measured angle with type NONE
-  (Tinkla: enabled and human_control, or a non-idle EPAS code). A planned
-  angle is type ANGLE, rate limited, then clipped to measured +/- 20 deg.
-  apply_angle_last tracks the commanded angle so the next path command starts
-  from the wheel. Longitudinal messages are built only when
-  longitudinal_command_allowed is true. An inactive long plan is empty.
+  and lat inactive still sends 0x488 at the measured angle with type NONE,
+  except error code 6. Code 6 does not force NONE. While enabled, hands are
+  below 2, and EPAS is not EAC_FAULT, code 6 sends ANGLE: the planned angle
+  when lat is active, otherwise the measured angle, rate limited and clipped
+  to measured +/- 20 deg. Other non-idle codes still take the NONE branch.
+  Hands at or above 2 also take NONE and do not cancel. apply_angle_last
+  tracks the commanded angle so the next path command starts from the wheel.
+  Longitudinal messages are built only when longitudinal_command_allowed is
+  true. An inactive long plan is empty.
   """
 
   lkas_enabled = lat_active and not hands_on_fault
   apply_angle_last = last_angle_deg
   steer = None
+  # AP1 only. Hands pause and EAC_FAULT still win over a latched code 6.
+  hands_pause = bool(chassis_das_only) and hands_on_level >= AP1_HANDS_ON_LEVEL
+  code6_angle = (
+    bool(chassis_das_only)
+    and bool(enabled)
+    and not hands_on_fault
+    and not hands_pause
+    and not eac_fault
+    and epas_error == "EAC_ERROR_HIGH_ANGLE_REQ"
+  )
+  if chassis_das_only and eac_fault:
+    lkas_enabled = False
 
   if frame % 2 == 0:
-    if lkas_enabled:
-      # Angular rate limit based on speed
-      apply_angle = apply_std_steer_angle_limits(requested_angle_deg, last_angle_deg, v_ego, CarControllerParams)
-      # To not fault the EPS
-      apply_angle = clip(apply_angle, measured_angle_deg - 20, measured_angle_deg + 20)
+    if lkas_enabled and not hands_pause:
+      # Angular rate limit based on speed, then the EPS clip.
+      apply_angle = _ap1_limited_angle(requested_angle_deg, last_angle_deg, measured_angle_deg, v_ego)
+      apply_angle_last = apply_angle
+      steer = SteerCommand(apply_angle, True, (frame // 2) % 16)
+    elif code6_angle:
+      # Planner angle is not active. Command the measured wheel as ANGLE
+      # so EPAS can leave code 6. Still rate limited and clipped.
+      apply_angle = _ap1_limited_angle(measured_angle_deg, last_angle_deg, measured_angle_deg, v_ego)
       apply_angle_last = apply_angle
       steer = SteerCommand(apply_angle, True, (frame // 2) % 16)
     elif chassis_das_only and enabled and not hands_on_fault:

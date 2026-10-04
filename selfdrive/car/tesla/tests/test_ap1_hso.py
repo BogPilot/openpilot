@@ -1,8 +1,8 @@
 """AP1 hands-on pause matches Tinkla HSO, not a FrogPilot cancel.
 
 Not a product, no warranty, driver remains responsible, comply with local law.
-This does not make the car safe to drive. Continuous EPAS error code 6 still
-blocks path lateral.
+This does not make the car safe to drive. EPAS error code 6 does not by itself
+block AP1 path lateral. Other error codes still do.
 """
 
 from collections import deque
@@ -81,14 +81,70 @@ def test_hands_drop_resumes_path_angle_without_cancel():
   assert plan.steer.angle_deg == 10.0
 
 
-def test_code_6_keeps_measured_none_not_the_plan():
-  # lat_active is already false because code 6 is steerFaultTemporary.
-  plan = _plan(lat_active=False, requested_angle_deg=25.0, measured_angle_deg=4.0)
+def test_code_6_sends_angle_within_20_deg_not_none():
+  # Planner is active. Request past the EPS clip is cut to measured + 20.
+  # last is already at the clip so the rate step does not hide it.
+  plan = _plan(lat_active=True, requested_angle_deg=40.0, measured_angle_deg=0.0,
+               last_angle_deg=20.0, v_ego=0.0,
+               epas_error="EAC_ERROR_HIGH_ANGLE_REQ")
+  assert plan.cancel is False
+  assert plan.steer is not None
+  assert plan.steer.enabled is True
+  assert plan.steer.control_type == STEERING_CONTROL_ANGLE
+  assert plan.steer.angle_deg == 20.0
+
+  # Planner unavailable: measured wheel as ANGLE, not the far request, not NONE.
+  held = _plan(lat_active=False, requested_angle_deg=25.0, measured_angle_deg=4.0,
+               last_angle_deg=4.0, epas_error="EAC_ERROR_HIGH_ANGLE_REQ")
+  assert held.cancel is False
+  assert held.steer is not None
+  assert held.steer.control_type == STEERING_CONTROL_ANGLE
+  assert held.steer.angle_deg == 4.0
+  assert held.steer.angle_deg != 25.0
+  assert len(held.longitudinal) == 1
+
+
+def test_other_epas_codes_still_send_measured_none():
+  plan = _plan(lat_active=False, requested_angle_deg=25.0, measured_angle_deg=4.0,
+               epas_error="EAC_ERROR_HIGH_ANGLE_RATE_REQ")
   assert plan.cancel is False
   assert plan.steer is not None
   assert plan.steer.control_type == STEERING_CONTROL_NONE
   assert plan.steer.angle_deg == 4.0
-  assert plan.steer.angle_deg != 25.0
+  assert plan.steer.enabled is False
+
+
+def test_code_6_hands_on_still_none_and_does_not_cancel():
+  plan = _plan(lat_active=True, requested_angle_deg=25.0, measured_angle_deg=4.0,
+               last_angle_deg=4.0, hands_on_level=2,
+               epas_error="EAC_ERROR_HIGH_ANGLE_REQ")
+  assert plan.cancel is False
+  assert len(plan.longitudinal) == 1
+  assert plan.steer is not None
+  assert plan.steer.control_type == STEERING_CONTROL_NONE
+  assert plan.steer.angle_deg == 4.0
+
+
+def test_code_6_eac_fault_does_not_send_angle():
+  plan = _plan(lat_active=True, requested_angle_deg=10.0, measured_angle_deg=4.0,
+               last_angle_deg=4.0, eac_fault=True,
+               epas_error="EAC_ERROR_HIGH_ANGLE_REQ")
+  assert plan.steer is not None
+  assert plan.steer.control_type == STEERING_CONTROL_NONE
+  assert plan.steer.angle_deg == 4.0
+
+
+def test_code_6_while_disengaged_sends_no_steering_frame():
+  plan = _plan(enabled=False, long_active=False, lat_active=False,
+               epas_error="EAC_ERROR_HIGH_ANGLE_REQ")
+  assert plan.steer is None
+  assert plan.longitudinal == ()
+
+
+def test_model3_code_6_does_not_take_the_ap1_angle_fallback():
+  plan = _plan(chassis_das_only=False, enabled=True, lat_active=False,
+               epas_error="EAC_ERROR_HIGH_ANGLE_REQ", measured_angle_deg=4.0)
+  assert plan.steer is None
 
 
 def test_disengaged_ap1_still_sends_no_steering_frame():
@@ -123,6 +179,9 @@ def test_wiring_keeps_model3_cancel_and_ap1_pause():
   controller = (ROOT / "selfdrive/car/tesla/carcontroller.py").read_text()
   assert "hands_on_fault = (not ap1)" in controller
   assert "ap1_lat_active(CC.latActive, CS.hands_on_level)" in controller
+  assert "epas_error=CS.steer_warning if ap1 else None" in controller
+  assert "eac_fault=bool(CS.eac_fault) if ap1 else False" in controller
+  assert "hands_on_level=CS.hands_on_level if ap1 else 0" in controller
   controlsd = (ROOT / "selfdrive/controls/controlsd.py").read_text()
   assert 'self.CP.carFingerprint == "TESLA_AP1_MODELS" and CS.steeringPressed' in controlsd
   assert "not ap1_hands_pause" in controlsd
