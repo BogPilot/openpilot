@@ -2,6 +2,7 @@ import copy
 from collections import deque
 from cereal import car, custom
 from openpilot.common.conversions import Conversions as CV
+from openpilot.selfdrive.car.tesla.hso import ap1_steering_pressed
 from openpilot.selfdrive.car.tesla.stalk_follow import dtr_sample, follow_seconds, parse_stalk_raw
 from openpilot.selfdrive.car.tesla.steer_fault import steer_fault_temporary
 from openpilot.selfdrive.car.tesla.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTTONS
@@ -51,12 +52,16 @@ class CarState(CarStateBase):
     ret.steeringAngleDeg = -epas_status["EPAS_internalSAS"]
     ret.steeringRateDeg = -cp.vl["STW_ANGLHP_STAT"]["StW_AnglHP_Spd"] # This is from a different angle sensor, and at different rate
     ret.steeringTorque = -epas_status["EPAS_torsionBarTorque"]
-    ret.steeringPressed = (self.hands_on_level > 0)
+    # AP1 matches TinklaHandsOnLevel 2. Model 3/Y stays any non-zero level.
+    ap1 = self.CP.carFingerprint == CAR.TESLA_AP1_MODELS
+    if ap1:
+      ret.steeringPressed = ap1_steering_pressed(self.hands_on_level)
+    else:
+      ret.steeringPressed = (self.hands_on_level > 0)
     ret.steerFaultPermanent = steer_status == "EAC_FAULT"
-    # AP1: error code 6 (EAC_ERROR_HIGH_ANGLE_REQ) is not a temporary fault.
-    # Other platforms keep the IDLE / HANDS_ON gate only.
-    ret.steerFaultTemporary = steer_fault_temporary(
-      self.steer_warning, self.CP.carFingerprint == CAR.TESLA_AP1_MODELS)
+    # AP1: only EAC_ERROR_IDLE is not a temporary fault. Code 6 and HANDS_ON warn.
+    # Other platforms keep the IDLE / HANDS_ON gate. Code 6 still faults there.
+    ret.steerFaultTemporary = steer_fault_temporary(self.steer_warning, ap1)
 
     # Cruise state
     cruise_state = self.can_define.dv["DI_state"]["DI_cruiseState"].get(int(cp.vl["DI_state"]["DI_cruiseState"]), None)

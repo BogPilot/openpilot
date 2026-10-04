@@ -40,15 +40,15 @@ _NAMED = {
 }
 
 
-def test_ap1_error_code_6_is_not_a_temporary_steer_fault():
-  assert steer_fault_temporary("EAC_ERROR_HIGH_ANGLE_REQ", True) is False
+def test_ap1_only_idle_is_not_a_temporary_steer_fault():
+  # Tinkla: only EAC_ERROR_IDLE is not a warning. Code 6 and HANDS_ON are.
   assert steer_fault_temporary("EAC_ERROR_IDLE", True) is False
-  assert steer_fault_temporary("EAC_ERROR_HANDS_ON", True) is False
-  # Other codes still block lat on AP1.
+  assert steer_fault_temporary("EAC_ERROR_HIGH_ANGLE_REQ", True) is True
+  assert steer_fault_temporary("EAC_ERROR_HANDS_ON", True) is True
   assert steer_fault_temporary("EAC_ERROR_HIGH_ANGLE_RATE_REQ", True) is True
   assert steer_fault_temporary("EAC_ERROR_TMP_FAULT", True) is True
   assert steer_fault_temporary(None, True) is True
-  # Model 3/Y and the other Tesla platforms still fault on code 6.
+  # Model 3/Y is unchanged: code 6 faults, HANDS_ON does not.
   assert steer_fault_temporary("EAC_ERROR_HIGH_ANGLE_REQ", False) is True
   assert steer_fault_temporary("EAC_ERROR_IDLE", False) is False
   assert steer_fault_temporary("EAC_ERROR_HANDS_ON", False) is False

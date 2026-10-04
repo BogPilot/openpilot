@@ -6,6 +6,7 @@ from openpilot.selfdrive.car.tesla.actuator_plan import (
   build_actuator_plan,
   longitudinal_command_allowed,
 )
+from openpilot.selfdrive.car.tesla.hso import ap1_lat_active
 from openpilot.selfdrive.car.tesla.teslacan import TeslaCAN
 from openpilot.selfdrive.car.tesla.values import DBC, CANBUS, CAR
 
@@ -22,13 +23,16 @@ class CarController(CarControllerBase):
   def update(self, CC, CS, now_nanos, frogpilot_toggles):
     actuators = CC.actuators
 
-    # Temp disable steering on a hands_on_fault, and allow for user override
-    hands_on_fault = CS.steer_warning == "EAC_ERROR_HANDS_ON" and CS.hands_on_level >= 3
+    # Model 3/Y still cancels cruise when HANDS_ON and hands_on_level >= 3.
+    # AP1 does not. Tinkla HSO pauses lateral and leaves long engaged.
+    ap1 = self.CP.carFingerprint == CAR.TESLA_AP1_MODELS
+    hands_on_fault = (not ap1) and CS.steer_warning == "EAC_ERROR_HANDS_ON" and CS.hands_on_level >= 3
+    lat_active = ap1_lat_active(CC.latActive, CS.hands_on_level) if ap1 else CC.latActive
     # AP1 longitudinal is chassis 0x2b9. Do not also plan powertrain 0x2bf.
-    chassis_das_only = self.CP.carFingerprint == CAR.TESLA_AP1_MODELS
+    chassis_das_only = ap1
     plan = build_actuator_plan(
       self.frame,
-      CC.latActive,
+      lat_active,
       hands_on_fault,
       self.CP.openpilotLongitudinalControl,
       CC.enabled,

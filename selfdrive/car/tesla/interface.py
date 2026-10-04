@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from cereal import car
+from openpilot.selfdrive.car.tesla.hso import ap1_hso_event_names
 from openpilot.selfdrive.car.tesla.safety_flags import dashcam_only_for_candidate, flags_for_candidate
 from openpilot.selfdrive.car.tesla.values import CANBUS, CAR
 from openpilot.selfdrive.car import get_safety_config
@@ -50,6 +51,23 @@ class CarInterface(CarInterfaceBase):
   def _update(self, c, frogpilot_toggles):
     ret, fp_ret = self.CS.update(self.cp, self.cp_cam, frogpilot_toggles)
 
-    ret.events = self.create_common_events(ret).to_msg()
+    events = self.create_common_events(ret)
+    if self.CP.carFingerprint == CAR.TESLA_AP1_MODELS:
+      events = self._ap1_hso_events(events)
+    ret.events = events.to_msg()
 
     return ret, fp_ret
+
+  def _ap1_hso_events(self, events):
+    """Tinkla HSO: a temporary steer warning does not soft-disable or block entry.
+
+    steerUnavailable from EAC_FAULT is not rewritten.
+    """
+    from openpilot.selfdrive.controls.lib.events import Events
+    EventName = car.CarEvent.EventName
+    by_raw = {int(v): k for k, v in EventName.schema.enumerants.items()}
+    names = ap1_hso_event_names([by_raw[int(name)] for name in events.names])
+    rebuilt = Events()
+    for name in names:
+      rebuilt.add(getattr(EventName, name))
+    return rebuilt
