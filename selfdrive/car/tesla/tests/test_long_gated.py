@@ -12,7 +12,6 @@ from openpilot.common.conversions import Conversions as CV
 from openpilot.selfdrive.car.tesla.actuator_plan import (
   DAS_CONTROL_CHASSIS,
   DAS_CONTROL_POWERTRAIN,
-  STEERING_CONTROL_NONE,
   build_actuator_plan,
   longitudinal_command_allowed,
 )
@@ -56,11 +55,9 @@ def _plan(counters=None, **kwargs):
 
 
 def _assert_inactive_lateral(plan):
-  assert plan.steer is not None
-  assert plan.steer.enabled is False
-  assert plan.steer.control_type == STEERING_CONTROL_NONE
-  assert plan.steer.angle_deg == 12.5
-  assert plan.steer.angle_deg != 40.0
+  # Interceptor: disengaged lateral plans no 0x488 at all.
+  assert plan.steer is None
+  assert plan.apply_angle_last == 12.5
 
 
 def test_long_param_false_plans_no_das_control():

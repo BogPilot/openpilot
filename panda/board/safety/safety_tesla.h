@@ -92,6 +92,25 @@ bool tesla_ap1 = false;
 
 bool tesla_stock_aeb = false;
 
+// Tinkla-style substitution window: drop a stock DAS frame from bus 2 only
+// while openpilot has recently transmitted its own replacement on bus 0.
+// Periods match TESLA_AP_FWD_MODDED (0x488 ~20 Hz, 0x2b9 ~40 Hz); timeout is 2x.
+// Without a recent OP TX, stock frames are forwarded. Do not block for the
+// whole time Tesla safety mode is active.
+const uint32_t TESLA_STEER_SUBSTITUTE_TIMEOUT_US = 100000U;  // 100 ms
+const uint32_t TESLA_LONG_SUBSTITUTE_TIMEOUT_US = 50000U;    // 50 ms
+uint32_t tesla_last_steer_tx_ts = 0;
+uint32_t tesla_last_long_tx_ts = 0;
+bool tesla_steer_tx_seen = false;
+bool tesla_long_tx_seen = false;
+
+static bool tesla_op_recently_sent(uint32_t last_ts, bool seen, uint32_t timeout_us) {
+  if (!seen) {
+    return false;
+  }
+  return get_ts_elapsed(microsecond_timer_get(), last_ts) < timeout_us;
+}
+
 static void tesla_rx_hook(const CANPacket_t *to_push) {
   int bus = GET_BUS(to_push);
   int addr = GET_ADDR(to_push);
@@ -221,6 +240,19 @@ static bool tesla_tx_hook(const CANPacket_t *to_send) {
     tx = false;
   }
 
+  // Record allowed OP transmits so fwd_hook can drop matching stock copies
+  // only while a replacement is actually being sent (Tinkla FWD_MODDED idea).
+  if (tx) {
+    if (!tesla_powertrain && (addr == 0x488)) {
+      tesla_last_steer_tx_ts = microsecond_timer_get();
+      tesla_steer_tx_seen = true;
+    }
+    if (addr == (tesla_powertrain ? 0x2bf : 0x2b9)) {
+      tesla_last_long_tx_ts = microsecond_timer_get();
+      tesla_long_tx_seen = true;
+    }
+  }
+
   return tx;
 }
 
@@ -236,13 +268,19 @@ static int tesla_fwd_hook(int bus_num, int addr) {
     // Autopilot to chassis/PT
     int das_control_addr = (tesla_powertrain ? 0x2bf : 0x2b9);
 
+    // Interceptor: stock DAS frames keep flowing unless OP is substituting.
+    // Unconditional block of 0x488 / flag-gated block of 0x2b9 killed stock
+    // Autopilot and AEB at boot (rlog 2026-10-04: stock bus-2 copies left
+    // bus 0 ~0.1s after safety param 10).
     bool block_msg = false;
     if (!tesla_powertrain && (addr == 0x488)) {
-      block_msg = true;
+      block_msg = tesla_op_recently_sent(tesla_last_steer_tx_ts, tesla_steer_tx_seen,
+                                         TESLA_STEER_SUBSTITUTE_TIMEOUT_US);
     }
 
     if (tesla_longitudinal && (addr == das_control_addr) && !tesla_stock_aeb) {
-      block_msg = true;
+      block_msg = tesla_op_recently_sent(tesla_last_long_tx_ts, tesla_long_tx_seen,
+                                         TESLA_LONG_SUBSTITUTE_TIMEOUT_US);
     }
 
     if(!block_msg) {
@@ -260,6 +298,10 @@ static safety_config tesla_init(uint16_t param) {
   tesla_ap1 = GET_FLAG(param, TESLA_FLAG_AP1);
 
   tesla_stock_aeb = false;
+  tesla_steer_tx_seen = false;
+  tesla_long_tx_seen = false;
+  tesla_last_steer_tx_ts = 0;
+  tesla_last_long_tx_ts = 0;
 
   safety_config ret;
   if (tesla_powertrain) {

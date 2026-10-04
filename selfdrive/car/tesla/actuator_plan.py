@@ -1,9 +1,12 @@
 """Actuator decision for Tesla CarController.
 
 CarController.update packs exactly the messages this plan names. No CAN
-packing happens here. DAS_control is planned only when the car params allow
-openpilot longitudinal control and CarControl.enabled and CarControl.longActive
-are both true. Otherwise the plan has no longitudinal command.
+packing happens here. DAS_steeringControl is planned only while lat is active
+and there is no hands-on fault. While disengaged, the plan has no steering
+frame so stock Mobileye 0x488 can keep flowing (AP1 interceptor). DAS_control
+is planned only when the car params allow openpilot longitudinal control and
+CarControl.enabled and CarControl.longActive are both true. Otherwise the plan
+has no longitudinal command.
 """
 
 from dataclasses import dataclass
@@ -78,9 +81,11 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
                         acc_state, das_counters, pcm_cancel, chassis_das_only=False):
   """Same steering branches CarController.update had before this function existed.
 
-  Disengaged lateral (lat_active false, or hands_on_fault): the steering
-  frame echoes measured_angle_deg and enabled is false. Longitudinal
-  messages are built only when longitudinal_command_allowed is true.
+  Disengaged lateral (lat_active false, or hands_on_fault): no steering frame.
+  Sending type-NONE 0x488 while disengaged replaced stock Mobileye commands on
+  AP1 and, with the old unconditional fwd block, dropped Autopilot and AEB.
+  apply_angle_last tracks the measured angle so the next engage starts clean.
+  Longitudinal messages are built only when longitudinal_command_allowed is true.
   An inactive long plan is empty. It does not send a zeroed DAS_control.
   """
 
@@ -94,11 +99,11 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
       apply_angle = apply_std_steer_angle_limits(requested_angle_deg, last_angle_deg, v_ego, CarControllerParams)
       # To not fault the EPS
       apply_angle = clip(apply_angle, measured_angle_deg - 20, measured_angle_deg + 20)
+      apply_angle_last = apply_angle
+      steer = SteerCommand(apply_angle, True, (frame // 2) % 16)
     else:
-      apply_angle = measured_angle_deg
-
-    apply_angle_last = apply_angle
-    steer = SteerCommand(apply_angle, lkas_enabled, (frame // 2) % 16)
+      # Interceptor: do not TX 0x488 while disengaged; stock DAS must pass.
+      apply_angle_last = measured_angle_deg
 
   longitudinal = []
   longitudinal_addrs = ()
