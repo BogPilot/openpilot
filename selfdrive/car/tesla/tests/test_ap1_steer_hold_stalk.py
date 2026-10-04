@@ -4,6 +4,7 @@ Not a product, no warranty, driver remains responsible, comply with local law.
 This does not make the car safe to drive.
 """
 
+import ast
 from collections import deque
 from pathlib import Path
 
@@ -175,3 +176,24 @@ def test_stalk_detents_set_personality_traffic_and_tfollow():
   carstate = (ROOT / "selfdrive/car/tesla/carstate.py").read_text()
   assert "follow_seconds(self.stalk_follow)" in carstate
   assert "TESLA_AP1_MODELS" in carstate
+
+
+def test_frogpilot_process_subscribes_to_carparams():
+  """FrogPilotFollowing reads sm['carParams']. The process must subscribe or it KeyErrors on engage."""
+  source = (ROOT / "frogpilot/frogpilot_process.py").read_text()
+  tree = ast.parse(source)
+  services = None
+  for node in ast.walk(tree):
+    if not isinstance(node, ast.Call):
+      continue
+    func = node.func
+    name = func.attr if isinstance(func, ast.Attribute) else func.id if isinstance(func, ast.Name) else None
+    if name != "SubMaster" or not node.args or not isinstance(node.args[0], ast.List):
+      continue
+    services = [elt.value for elt in node.args[0].elts if isinstance(elt, ast.Constant)]
+  assert services is not None
+  assert "carParams" in services
+
+  following = (ROOT / "frogpilot/controls/lib/frogpilot_following.py").read_text()
+  assert "apply_stalk_t_follow(" in following
+  assert 'sm["carParams"].carFingerprint' in following

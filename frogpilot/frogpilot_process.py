@@ -71,7 +71,7 @@ def frogpilot_thread():
   toggles_last_updated = datetime.datetime.now(datetime.timezone.utc)
 
   pm = messaging.PubMaster(["frogpilotPlan"])
-  sm = messaging.SubMaster(["carControl", "carState", "controlsState", "deviceState", "driverMonitoringState",
+  sm = messaging.SubMaster(["carControl", "carParams", "carState", "controlsState", "deviceState", "driverMonitoringState",
                             "liveLocationKalman", "liveParameters", "managerState", "modelV2", "onroadEvents",
                             "pandaStates", "radarState", "frogpilotCarState", "frogpilotControlsState",
                             "frogpilotModelV2", "frogpilotNavigation", "frogpilotOnroadEvents"],
