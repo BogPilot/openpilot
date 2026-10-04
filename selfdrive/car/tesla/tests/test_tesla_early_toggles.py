@@ -40,8 +40,8 @@ def test_preferences_are_not_applied_to_car_params():
   assert "TeslaLongControl" not in interface
   assert "TeslaStalkFollow" not in interface
   variables = (ROOT / "frogpilot/common/frogpilot_variables.py").read_text()
-  assert '("TeslaLongControl", "off", 2, "off")' in variables
-  assert '("TeslaStalkFollow", "1", 2, "1")' in variables
+  assert '("TeslaLongControl", "off", 2, "off")' not in variables
+  assert '("TeslaStalkFollow", "1", 2, "1")' not in variables
   assert "toggle.tesla_long_control" not in variables
   assert "toggle.tesla_stalk_follow" not in variables
   assert "TeslaPlatform" not in variables
