@@ -109,17 +109,17 @@ class FrogPilotCard:
     params.put_nonblocking("LongitudinalPersonality", str(personality))
     self._ap1_stalk_personality = personality
 
-  def _apply_ap1_stalk_tip(self):
-    """AP1 cruise-stalk tip toggles Experimental Mode (FrogPilot existing hook).
+  def _apply_ap1_pull_hold(self):
+    """AP1 long RWD stalk pull (~2 s) toggles Experimental Mode once.
 
-    VSL_Enbl_Rq edge is one press. Uses handle_experimental_mode so prebuilt
-    ExperimentalMode / CEStatus params stay as-is. No new param key.
+    Uses CarState.stalk_pull_toggle from stalk_pull_hold. Existing
+    handle_experimental_mode hook; no new Params keys. Short pulls and the
+    engage pull itself do not toggle.
     """
     if self.car.CP.carFingerprint != CAR.TESLA_AP1_MODELS:
       return
     cs = getattr(getattr(self.car, "CI", None), "CS", None)
-    tip = getattr(cs, "stalk_tip", None)
-    if tip is None or not tip.pressed:
+    if not getattr(cs, "stalk_pull_toggle", False):
       return
     handle_experimental_mode(self.car.frogpilot_toggles.conditional_experimental_mode)
 
@@ -179,7 +179,7 @@ class FrogPilotCard:
     frogpilotCarState.pauseLateral = self.pause_lateral
     frogpilotCarState.pauseLongitudinal = self.pause_longitudinal
     self._apply_ap1_stalk()
-    self._apply_ap1_stalk_tip()
+    self._apply_ap1_pull_hold()
     frogpilotCarState.trafficModeEnabled = self.traffic_mode_enabled
 
     return frogpilotCarState

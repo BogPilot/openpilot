@@ -2,10 +2,11 @@ import copy
 from collections import deque
 from cereal import car, custom
 from openpilot.common.conversions import Conversions as CV
+from openpilot.common.realtime import DT_CTRL
 from openpilot.selfdrive.car.tesla.cluster import CLUSTER_ADDRS, COUNTER_SIGNALS, MSG_NAMES
 from openpilot.selfdrive.car.tesla.hso import ap1_driver_input
 from openpilot.selfdrive.car.tesla.stalk_follow import dtr_sample, follow_seconds, parse_stalk_raw
-from openpilot.selfdrive.car.tesla.stalk_tip import parse_stalk_tip, tip_hold_cruise
+from openpilot.selfdrive.car.tesla.stalk_pull_hold import StalkPullHold
 from openpilot.selfdrive.car.tesla.steer_fault import steer_fault_temporary
 from openpilot.selfdrive.car.tesla.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTTONS
 from openpilot.selfdrive.car.interfaces import CarStateBase
@@ -28,9 +29,9 @@ class CarState(CarStateBase):
     self.das_control_counters = deque(maxlen=32)
     # DTR_Dist_Rq decision. Python only; cereal was not extended.
     self.stalk_follow = None
-    # AP1 stalk-end tip button (VSL_Enbl_Rq). Python only.
-    self.stalk_tip = None
-    self._tip_hold_cruise = False
+    # AP1 long RWD pull → Experimental Mode (see stalk_pull_hold.py).
+    self.stalk_pull_hold = StalkPullHold()
+    self.stalk_pull_toggle = False
     # AP1 only. {addr: decoded values} for stock cluster frames (bus 2) that
     # arrived this step. Read by CarController for the cluster frames.
     self.cluster_stock = {}
@@ -94,28 +95,6 @@ class CarState(CarStateBase):
     ret.cruiseState.available = ((cruise_state == "STANDBY") or ret.cruiseState.enabled)
     ret.cruiseState.standstill = False # This needs to be false, since we can resume from stop without sending anything special
 
-    # AP1 tip button: edge-detect VSL_Enbl_Rq and hold cruiseState.enabled so
-    # stock ACC dropping to STANDBY on tip does not pcmDisable openpilot.
-    # Forward-push SpdCtrlLvr=1 and brake still clear the hold (real cancel).
-    if self.CP.carFingerprint == CAR.TESLA_AP1_MODELS:
-      stw_tip = cp.vl.get("STW_ACTN_RQ")
-      vsl_raw = stw_tip.get("VSL_Enbl_Rq") if isinstance(stw_tip, dict) else None
-      self.stalk_tip = parse_stalk_tip(vsl_raw, self.stalk_tip)
-      spd_raw = stw_tip.get("SpdCtrlLvr_Stat") if isinstance(stw_tip, dict) else None
-      prev_cs = getattr(self, "out", None)
-      was_enabled = bool(prev_cs.cruiseState.enabled) if prev_cs is not None else False
-      self._tip_hold_cruise = tip_hold_cruise(
-        self._tip_hold_cruise,
-        bool(self.stalk_tip.pressed),
-        bool(acc_enabled),
-        spd_raw,
-        bool(ret.brakePressed),
-        was_enabled,
-      )
-      if self._tip_hold_cruise:
-        ret.cruiseState.enabled = True
-        ret.cruiseState.available = True
-
     # Gear
     ret.gearShifter = GEAR_MAP[self.can_define.dv["DI_torque2"]["DI_gear"].get(int(cp.vl["DI_torque2"]["DI_gear"]), "DI_GEAR_INVALID")]
 
@@ -163,6 +142,15 @@ class CarState(CarStateBase):
     # 0 means no ready detent. 255 holds the last seconds via parse_stalk_raw.
     if self.CP.carFingerprint == CAR.TESLA_AP1_MODELS:
       ret.cruiseState.speedOffset = follow_seconds(self.stalk_follow)
+
+    # AP1: long RWD pull while already engaged → one Experimental Mode toggle.
+    # Uses prior cruise enabled so the engage pull itself does not fire.
+    self.stalk_pull_toggle = False
+    if self.CP.carFingerprint == CAR.TESLA_AP1_MODELS:
+      prev = getattr(self, "out", None)
+      was_engaged = bool(prev.cruiseState.enabled) if prev is not None else False
+      spd = cp.vl["STW_ACTN_RQ"].get("SpdCtrlLvr_Stat")
+      self.stalk_pull_toggle = self.stalk_pull_hold.update(spd, was_engaged, DT_CTRL)
 
     # Messages needed by carcontroller
     self.msg_stw_actn_req = copy.copy(cp.vl["STW_ACTN_RQ"])
