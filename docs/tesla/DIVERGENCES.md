@@ -20,15 +20,38 @@ In earlytesla-openpilot `selfdrive/car/tesla/carstate.py`, when `self.enableHAO`
 
 BogPilot does not port HAO. Current `selfdrive/car/tesla/carstate.py` keeps `ret.gasPressed = (ret.gas > 0)`. Panda Tesla RX sets `gas_pressed` from the gas pedal byte in `panda/board/safety/safety_tesla.h`. Generic safety then clears controls on a rising gas edge in `panda/board/safety.h` (`generic_rx_checks`: `if (gas_pressed && !gas_pressed_prev && !(alternative_experience & ALT_EXP_DISABLE_DISENGAGE_ON_GAS)) { controls_allowed = false; }`). That gas-pressed disengage path is stricter than Tinkla HAO hiding the press. HAO stays deferred.
 
-## Instrument-cluster frames deferred
+## Instrument-cluster frames (AP1)
 
-In this tree's `opendbc/tesla_can.dbc`:
+Branch `bogpilot-tesla-cluster`. Code: `selfdrive/car/tesla/cluster.py`, wired in `carstate.py` / `carcontroller.py`; panda `board/safety/safety_tesla.h`. Behavior reference: Tinkla earlytesla-openpilot `501c7de` `selfdrive/car/tesla/HUD_module.py` and `teslacan.py` (`create_das_status`, `create_das_status2`, `create_lane_message`), earlytesla-panda `f7751e4` (`TESLA_AP_FWD_MODDED`, `tesla_fwd_hook`). BogPilot's own code.
 
-- `DAS_object` is absent.
-- `DAS_telemetry` is absent.
-- CAN id `0x399` (decimal 921) is `BO_ 921 AutopilotStatus`, not a `DAS_status` frame name at that id.
+**How it differs from Tinkla's mechanism.** Tinkla's panda edits each stock bus-2 frame in the forward hook: it keeps the stock bits named by a mask and writes openpilot's bits over the rest. BogPilot's forward hook gets only `(bus, addr)` and cannot edit a frame. So openpilot rebuilds each new stock frame from its decoded DBC signals, writes the same openpilot fields, and sends it on bus 0 with stock counter + 1. The panda drops the stock copy only while openpilot sent that address within 1.5x its stock period (750 ms for 0x399 and 0x389, 150 ms for 0x239). Without `TESLA_FLAG_AP1`, or without a recent openpilot TX, stock frames pass as before. openpilot sends nothing for an address until it has a stock frame for it. Known edge: when substitution stops, one stock frame of that address is dropped (about 0.5 s for 0x399 / 0x389, 0.1 s for 0x239). Counters stay continuous.
 
-IC lead-car and telemetry frames that depended on those missing definitions are deferred. No invented signals.
+**Frames.**
+
+| id | this tree's DBC name | sent | openpilot fields (everything else is stock) |
+| --- | --- | --- | --- |
+| 0x399 | `AutopilotStatus` (Tinkla: `DAS_status`) | engaged, and 4 s after | engaged: `autopilotStatus` 5 (stock 3..5 left alone), `DAS_autopilotHandsOnState` 2 / 3 (quiet steer-required or hands on) / 5 (with chime), `DAS_autoLaneChangeState` 8 / 6 / 7 / 1 from the stock Mobileye lane bits, 9 / 10 during an openpilot lane change, FCW 1 and LDW 1 (left) / 2 (right) only when openpilot has one. After: `autopilotStatus` 1 becomes 2, nothing else |
+| 0x389 | `DAS_status2` | engaged, and 4 s after | `DAS_activationFailureStatus` 0. Engaged also: `DAS_driverInteractionLevel` 0, CSA state 2 (bits 32-33), `DAS_longCollisionWarning` 1 only when openpilot has an FCW |
+| 0x239 | `DAS_lanes` | engaged | C0 0, C1 0, C2 = curvature / 2 x (1 / 0.5)^2 clipped to +/-0.0025, C3 0, view range 50 m, line usage 2 (FUSED) for a lane the stock frame reports, else 0 |
+
+Checksum for 0x399 and 0x389 is `(addr & 0xFF) + (addr >> 8) + sum(bytes 0..6)` in byte 7, the same as Tinkla's `tesla_compute_checksum`; it matches every stock frame in the AP1 rlogs on the box. 0x239 has no checksum.
+
+**Narrower than Tinkla on purpose.**
+
+- openpilot warnings only add. Tinkla overwrote `DAS_forwardCollisionWarning`, `DAS_laneDepartureWarning`, and `DAS_longCollisionWarning` with openpilot's values (0x0F SNA when none), which could hide a stock Mobileye warning. Here a stock warning is always kept.
+- Post-disengage: Tinkla forced `DAS_autopilotState` to 2 for 4 s regardless of the stock value. Here only stock 1 (UNAVAILABLE) becomes 2.
+- Panda rejects a 0x399 with autopilot state 3, 4, or 5 unless `controls_allowed`. Tinkla had no such check.
+- Tinkla's constant is `TIME_TO_HIDE_ERRORS = 4000000` us; its comment says 3 s. 4 s is used.
+- No toggle. Tinkla had `enableICIntegration`; this tree does not add params (prebuilt `params_pyx.so`). Only `CAR.TESLA_AP1_MODELS` sends cluster frames.
+- Lane presence comes from the stock Mobileye `DAS_lanes` bits and the path from `CarControl.actuators.curvature`. Tinkla used modelV2 lane-line probabilities and a cubic fit; CarController does not subscribe to modelV2 (the old Tinkla process style is not revived). Tinkla also put lane quality in the fork signals; forks stay stock here.
+
+**DBC disagreement.** This tree's `tesla_can.dbc` and Tinkla's (`BogGyver/opendbc` `9c0b6fe`) disagree for 0x399 bits 27-36 and 0x389 bits 31-33. Only one openpilot field lands there: CSA state, which Tinkla's DBC puts at 0x389 32|2 (this tree calls bits 31-33 `DAS_lssState`). AP1 rlogs only ever set bits 32-33 of that region, which fits Tinkla's layout, so `cluster.py` writes CSA there as a raw 2-bit field with that citation. Every other field is written by this tree's DBC name. Over 10218 stock 0x399 / 0x389 / 0x239 frames in the rlogs, every set bit is inside a signal of this tree's DBC, so the rebuild is byte-exact.
+
+**Deferred.**
+
+- 0x3e9 `DAS_bodyControls`. It carries turn-signal, hazard, headlight, and wiper requests, not display. BogPilot has no ALCA or hazard feature to drive it, so replacing it could only suppress stock requests. Stock frames also set bits 22, 23, 26, 28 that no DBC signal covers, so a rebuilt frame would change them. Not in the panda TX list.
+- `DAS_object` (0x309) and `DAS_telemetry` (0x3a9): not `BO_` lines in this tree's DBC. No invented signals.
+- Warning matrices 0x329 / 0x369 (0x349 stays the all-zero Hold clear only), pre-AP 0x659.
 
 ## Angle steering and dashcamOnly
 
