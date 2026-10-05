@@ -539,7 +539,7 @@ def test_lanes_use_model_path_when_present():
   v = c.unpack(0x239, _send(c.ClusterController(), hud(model_path=path, curvature=0.01),
                             {0x239: stock(0x239)}, NS)[0x239])
   assert v["DAS_virtualLaneC0"] == pytest.approx(0.35, abs=0.035)
-  assert v["DAS_virtualLaneC1"] == pytest.approx(-0.05, abs=0.0016)
+  assert v["DAS_virtualLaneC1"] == pytest.approx(0.0, abs=0.0016)  # Tinkla: C1 suppressed
   assert v["DAS_virtualLaneC2"] == pytest.approx(0.0012, abs=2e-05)
   assert v["DAS_virtualLaneC3"] == pytest.approx(0.0, abs=2.4e-07)
   assert v["DAS_virtualLaneViewRange"] == 72
@@ -572,7 +572,7 @@ def test_path_from_model_v2_fits_poly_and_scales():
   assert path is not None
   f = 1.0 / c.IC_LANE_SCALE
   assert path.c0 == pytest.approx(0.2, abs=0.05)
-  assert path.c1 == pytest.approx(0.01 * f, abs=0.02)
+  assert path.c1 == 0.0  # Tinkla suppress_x_coord
   assert path.c2 == pytest.approx(0.0001 * f * f, abs=2e-4)
   assert path.c3 == 0.0
   assert path.view_range_m == 60

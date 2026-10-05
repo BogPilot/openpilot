@@ -119,6 +119,8 @@ VIEW_RANGE_MIN_M = 0
 VIEW_RANGE_MAX_M = 160
 # Minimum usable model path length before falling back to actuator curvature.
 MODEL_PATH_MIN_M = 5.0
+# Tinkla HUD_module fits the path out to 100 m (max_distance).
+MODEL_FIT_MAX_M = 100.0
 LINE_USAGE_FUSED = 2
 LINE_USAGE_REJECTED = 0
 
@@ -336,7 +338,7 @@ def path_from_model_v2(model_v2) -> Optional[ModelPath]:
   if xs.size < 4:
     return None
   # Cap the fit window so a long noisy tail does not blow up C2.
-  near = xs <= max(MODEL_PATH_MIN_M, min(float(xs[-1]), float(VIEW_RANGE_MAX_M)))
+  near = xs <= max(MODEL_PATH_MIN_M, min(float(xs[-1]), MODEL_FIT_MAX_M))
   if int(near.sum()) >= 4:
     xs = xs[near]
     ys = ys[near]
@@ -351,7 +353,10 @@ def path_from_model_v2(model_v2) -> Optional[ModelPath]:
   f = 1.0 / IC_LANE_SCALE
   return ModelPath(
     c0=_clip(c0, C0_RANGE),
-    c1=_clip(c1 * f, C1_RANGE),
+    # Tinkla sets suppress_x_coord = True, so C1 (heading) is always 0.
+    # Sending the fitted heading drew the path diagonally across the car
+    # on the AP1 cluster (979dbf8 drive, 2026-10-05).
+    c1=0.0,
     c2=_clip(c2 * (f * f), C2_RANGE),
     c3=0.0,
     view_range_m=float(clamp_view_range_m(view)),
@@ -362,7 +367,8 @@ def lanes_path_values(h: HudInputs):
   """C0..C3 and view range for DAS_lanes. Model path or curvature fallback."""
   if h.model_path is not None:
     p = h.model_path
-    return p.c0, p.c1, p.c2, p.c3, clamp_view_range_m(p.view_range_m)
+    # C1 stays 0 like Tinkla (see path_from_model_v2).
+    return p.c0, 0.0, p.c2, p.c3, clamp_view_range_m(p.view_range_m)
   return 0.0, 0.0, lane_c2(h.curvature), 0.0, LANE_VIEW_RANGE_M
 
 
