@@ -317,9 +317,15 @@ def build_das_status2(stock, h, mode):
 
 
 def build_das_lanes(stock, h):
+  """Rewrite path coefficients only. Keep stock lane presence and usage.
+
+  AP1 rlogs: Mobileye often leaves DAS_*LaneExists at 0 while DAS_*LineUsage
+  is 2 (FUSED). The IC draws from LineUsage. Overwriting usage from the
+  Exists bits cleared both sides and hid the lines while engaged (stock
+  still had usage 2,2 on bus 2). Tinkla set Exists/Usage from model probs;
+  without modelV2 here, stock usage/exists are left alone.
+  """
   v = dict(stock)
-  left = bool(stock.get("DAS_leftLaneExists", 0))
-  right = bool(stock.get("DAS_rightLaneExists", 0))
   # Tinkla draws openpilot's path. C0 and C1 are 0 (Tinkla suppresses C1 and
   # its C0 is the model offset at x=0). C3 is 0: only curvature is known here.
   v["DAS_virtualLaneC0"] = 0.0
@@ -327,8 +333,6 @@ def build_das_lanes(stock, h):
   v["DAS_virtualLaneC2"] = lane_c2(h.curvature)
   v["DAS_virtualLaneC3"] = 0.0
   v["DAS_virtualLaneViewRange"] = LANE_VIEW_RANGE_M
-  v["DAS_leftLineUsage"] = LINE_USAGE_FUSED if left else LINE_USAGE_REJECTED
-  v["DAS_rightLineUsage"] = LINE_USAGE_FUSED if right else LINE_USAGE_REJECTED
   return pack(DAS_LANES, SIGNALS[DAS_LANES], v)
 
 

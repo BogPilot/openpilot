@@ -21,6 +21,7 @@ class CarState(CarStateBase):
     self.msg_stw_actn_req = None
     self.hands_on_level = 0
     self.steer_warning = None
+    self.eac_status = None
     self.eac_fault = False
     self.acc_state = 0
     self.das_control_counters = deque(maxlen=32)
@@ -53,6 +54,7 @@ class CarState(CarStateBase):
     self.hands_on_level = epas_status["EPAS_handsOnLevel"]
     self.steer_warning = self.can_define.dv["EPAS_sysStatus"]["EPAS_eacErrorCode"].get(int(epas_status["EPAS_eacErrorCode"]), None)
     steer_status = self.can_define.dv["EPAS_sysStatus"]["EPAS_eacStatus"].get(int(epas_status["EPAS_eacStatus"]), None)
+    self.eac_status = steer_status
 
     ret.steeringAngleDeg = -epas_status["EPAS_internalSAS"]
     ret.steeringRateDeg = -cp.vl["STW_ANGLHP_STAT"]["StW_AnglHP_Spd"] # This is from a different angle sensor, and at different rate

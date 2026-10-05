@@ -11,8 +11,11 @@ from pathlib import Path
 
 from openpilot.selfdrive.car.tesla.actuator_plan import (
   ACC_ON,
+  AP1_ENGAGE_SOFT_START_FRAMES,
+  EAC_ACTIVE,
   STEERING_CONTROL_ANGLE,
   STEERING_CONTROL_NONE,
+  ap1_hold_measured_angle,
   build_actuator_plan,
 )
 from openpilot.selfdrive.car.tesla.hso import (
@@ -42,6 +45,8 @@ def _plan(**kwargs):
     das_counters=deque([3]),
     pcm_cancel=False,
     chassis_das_only=True,
+    eac_status=EAC_ACTIVE,
+    soft_start=False,
   )
   args.update(kwargs)
   return build_actuator_plan(**args)
@@ -82,17 +87,17 @@ def test_hands_drop_resumes_path_angle_without_cancel():
   assert plan.steer.angle_deg == 10.0
 
 
-def test_code_6_sends_angle_within_20_deg_not_none():
-  # Planner is active. Request past the EPS clip is cut to measured + 20.
-  # last is already at the clip so the rate step does not hide it.
+def test_code_6_sends_measured_angle_not_planner():
+  # Latched code 6: always measured ANGLE so EPAS can recover, even if lat on.
   plan = _plan(lat_active=True, requested_angle_deg=40.0, measured_angle_deg=0.0,
-               last_angle_deg=20.0, v_ego=0.0,
+               last_angle_deg=0.0, v_ego=0.0,
                epas_error="EAC_ERROR_HIGH_ANGLE_REQ")
   assert plan.cancel is False
   assert plan.steer is not None
   assert plan.steer.enabled is True
   assert plan.steer.control_type == STEERING_CONTROL_ANGLE
-  assert plan.steer.angle_deg == 20.0
+  assert plan.steer.angle_deg == 0.0
+  assert plan.steer.angle_deg != 40.0
 
   # Planner unavailable: measured wheel as ANGLE, not the far request, not NONE.
   held = _plan(lat_active=False, requested_angle_deg=25.0, measured_angle_deg=4.0,
@@ -127,14 +132,14 @@ def test_latched_hands_on_sends_angle_after_hands_drop():
   assert held.steer.angle_deg != 25.0
   assert len(held.longitudinal) == 1
 
-  # Planner active: planned angle, still clipped within 20 deg of measured.
+  # Planner active but latched code 3: measured ANGLE until EPAS clears it.
   planned = _plan(lat_active=True, hands_on_level=0, eac_fault=False,
                   requested_angle_deg=40.0, measured_angle_deg=0.0,
-                  last_angle_deg=20.0, v_ego=0.0,
+                  last_angle_deg=0.0, v_ego=0.0,
                   epas_error="EAC_ERROR_HANDS_ON")
   assert planned.steer is not None
   assert planned.steer.control_type == STEERING_CONTROL_ANGLE
-  assert planned.steer.angle_deg == 20.0
+  assert planned.steer.angle_deg == 0.0
 
   # Hands still at or above 2: pause, measured angle, type NONE. Cruise stays.
   paused = _plan(lat_active=True, hands_on_level=2, eac_fault=False,
@@ -231,13 +236,66 @@ def test_wiring_keeps_model3_cancel_and_ap1_pause():
   assert "epas_error=CS.steer_warning if ap1 else None" in controller
   assert "eac_fault=bool(CS.eac_fault) if ap1 else False" in controller
   assert "hands_on_level=CS.hands_on_level if ap1 else 0" in controller
+  assert "eac_status=CS.eac_status if ap1 else None" in controller
+  assert "soft_start=soft_start" in controller
+  assert "self.eac_status = steer_status" in carstate
   controlsd = (ROOT / "selfdrive/controls/controlsd.py").read_text()
   assert 'self.CP.carFingerprint == "TESLA_AP1_MODELS" and CS.steeringPressed' in controlsd
   assert "not ap1_hands_pause" in controlsd
   interface = (ROOT / "selfdrive/car/tesla/interface.py").read_text()
   assert "ap1_hso_event_names" in interface
   assert "CAR.TESLA_AP1_MODELS" in interface
+  assert "_ap1_epas_inhibit_alert" in interface
+  assert "Steering not active" in (ROOT / "selfdrive/controls/lib/events.py").read_text()
   # Hold clear and stalk follow stay wired.
   assert "ap1_should_send_hold_clear" in controller
   card = (ROOT / "frogpilot/controls/frogpilot_card.py").read_text()
   assert "TeslaStalkFollow" not in card
+
+
+def test_inhibited_holds_measured_angle():
+  plan = _plan(lat_active=True, requested_angle_deg=25.0, measured_angle_deg=4.0,
+               last_angle_deg=4.0, v_ego=0.0, eac_status="EAC_INHIBITED")
+  assert plan.steer is not None
+  assert plan.steer.control_type == STEERING_CONTROL_ANGLE
+  assert plan.steer.angle_deg == 4.0
+  assert plan.steer.angle_deg != 25.0
+
+
+def test_available_holds_measured_until_active():
+  plan = _plan(lat_active=True, requested_angle_deg=25.0, measured_angle_deg=4.0,
+               last_angle_deg=4.0, v_ego=0.0, eac_status="EAC_AVAILABLE")
+  assert plan.steer.control_type == STEERING_CONTROL_ANGLE
+  assert plan.steer.angle_deg == 4.0
+
+
+def test_active_uses_planner_angle():
+  plan = _plan(lat_active=True, requested_angle_deg=10.0, measured_angle_deg=0.0,
+               last_angle_deg=0.0, v_ego=0.0, eac_status=EAC_ACTIVE)
+  assert plan.steer.control_type == STEERING_CONTROL_ANGLE
+  assert plan.steer.angle_deg == 10.0
+
+
+def test_engage_soft_start_holds_measured_even_when_active():
+  plan = _plan(lat_active=True, requested_angle_deg=10.0, measured_angle_deg=3.0,
+               last_angle_deg=3.0, v_ego=0.0, eac_status=EAC_ACTIVE, soft_start=True)
+  assert plan.steer.control_type == STEERING_CONTROL_ANGLE
+  assert plan.steer.angle_deg == 3.0
+  assert AP1_ENGAGE_SOFT_START_FRAMES == 30
+
+
+def test_hands_pause_still_none_while_inhibited():
+  plan = _plan(lat_active=True, hands_on_level=2, requested_angle_deg=25.0,
+               measured_angle_deg=4.0, last_angle_deg=4.0, eac_status="EAC_INHIBITED")
+  assert plan.steer.control_type == STEERING_CONTROL_NONE
+  assert plan.steer.angle_deg == 4.0
+  assert plan.cancel is False
+
+
+def test_ap1_hold_measured_helper():
+  assert ap1_hold_measured_angle(True, True, False, False, "EAC_INHIBITED", None, False) is True
+  assert ap1_hold_measured_angle(True, True, False, False, EAC_ACTIVE, None, False) is False
+  assert ap1_hold_measured_angle(True, True, False, False, EAC_ACTIVE, "EAC_ERROR_HIGH_ANGLE_REQ", False) is True
+  assert ap1_hold_measured_angle(True, True, False, False, EAC_ACTIVE, None, True) is True
+  assert ap1_hold_measured_angle(True, True, False, True, "EAC_INHIBITED", None, False) is False
+  assert ap1_hold_measured_angle(True, True, False, False, None, None, False) is False

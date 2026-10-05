@@ -54,9 +54,30 @@ class CarInterface(CarInterfaceBase):
     events = self.create_common_events(ret)
     if self.CP.carFingerprint == CAR.TESLA_AP1_MODELS:
       events = self._ap1_hso_events(events)
+      events = self._ap1_epas_inhibit_alert(events, c, ret)
     ret.events = events.to_msg()
 
     return ret, fp_ret
+
+  def _ap1_epas_inhibit_alert(self, events, c, ret):
+    """Quiet non-disengage alert when EPAS stays INHIBITED while we want lat.
+
+    controlsd clears steerTempUnavailableSilent when steerFaultTemporary is
+    false unless CS.events still requests it; we keep adding it here.
+    """
+    from openpilot.common.realtime import DT_CTRL
+    EventName = car.CarEvent.EventName
+    # ~1 s at controlsd rate. card/_update runs at the same 100 Hz.
+    inhibit_frames = int(1.0 / DT_CTRL)
+    want_lat = bool(c.enabled) and bool(getattr(c, "latActive", False))
+    inhibited = self.CS.eac_status == "EAC_INHIBITED"
+    if want_lat and inhibited and not ret.steerFaultPermanent:
+      self.ap1_inhibit_alert_frames = getattr(self, "ap1_inhibit_alert_frames", 0) + 1
+    else:
+      self.ap1_inhibit_alert_frames = 0
+    if self.ap1_inhibit_alert_frames >= inhibit_frames:
+      events.add(EventName.steerTempUnavailableSilent)
+    return events
 
   def _ap1_hso_events(self, events):
     """Tinkla HSO: a temporary steer warning does not soft-disable or block entry.

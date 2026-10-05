@@ -468,8 +468,11 @@ class Controls:
     if self.resumeRequired_shown and not CS.cruiseState.standstill and not self.CP.autoResumeSng:
       self.event_names_to_clear.add(EventName.resumeRequired)
 
+    # Keep the silent alert while the car interface still requests it (AP1
+    # EPAS inhibit has steerFaultTemporary false the whole time).
     if self.steerTempUnavailableSilent_shown and not CS.steerFaultTemporary:
-      self.event_names_to_clear.add(EventName.steerTempUnavailableSilent)
+      if not any(e.name == EventName.steerTempUnavailableSilent for e in CS.events):
+        self.event_names_to_clear.add(EventName.steerTempUnavailableSilent)
 
     if self.event_names_to_clear:
       self.events.events = [event for event in self.events.events if event not in self.event_names_to_clear]

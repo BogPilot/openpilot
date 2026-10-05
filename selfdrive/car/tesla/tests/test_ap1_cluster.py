@@ -230,10 +230,23 @@ def test_lanes_path_from_curvature():
     assert v["DAS_virtualLaneViewRange"] == 50
   lanes = stock(0x239)
   lanes["DAS_leftLaneExists"], lanes["DAS_rightLaneExists"] = 1, 0
+  lanes["DAS_leftLineUsage"], lanes["DAS_rightLineUsage"] = 2, 0
   v = c.unpack(0x239, _send(ctrl, hud(), {0x239: lanes}, NS)[0x239])
   assert (v["DAS_leftLineUsage"], v["DAS_rightLineUsage"]) == (2, 0)
+  assert (v["DAS_leftLaneExists"], v["DAS_rightLaneExists"]) == (1, 0)
   assert v["DAS_virtualLaneWidth"] == lanes["DAS_virtualLaneWidth"]
   assert v["DAS_leftFork"] == lanes["DAS_leftFork"]
+
+
+def test_lanes_preserves_stock_usage_when_exists_zero():
+  """AP1 stock: Exists often 0 while LineUsage is 2. Do not wipe usage."""
+  lanes = stock(0x239)
+  lanes["DAS_leftLaneExists"], lanes["DAS_rightLaneExists"] = 0, 0
+  lanes["DAS_leftLineUsage"], lanes["DAS_rightLineUsage"] = 2, 2
+  v = c.unpack(0x239, _send(c.ClusterController(), hud(), {0x239: lanes}, NS)[0x239])
+  assert (v["DAS_leftLaneExists"], v["DAS_rightLaneExists"]) == (0, 0)
+  assert (v["DAS_leftLineUsage"], v["DAS_rightLineUsage"]) == (2, 2)
+  assert v["DAS_virtualLaneViewRange"] == 50
 
 
 # --- when nothing is sent ---------------------------------------------------
@@ -398,7 +411,7 @@ def _cc_inputs(enabled, frame_counters, cluster_stock):
   CC.hudControl.visualAlert = car.CarControl.HUDControl.VisualAlert.steerRequired
   CS = SimpleNamespace(
     out=SimpleNamespace(steeringAngleDeg=1.0, vEgo=10.0),
-    steer_warning="EAC_ERROR_IDLE", hands_on_level=0, eac_fault=False, acc_state=4,
+    steer_warning="EAC_ERROR_IDLE", hands_on_level=0, eac_fault=False, eac_status="EAC_ACTIVE", acc_state=4,
     das_control_counters=deque(frame_counters), msg_stw_actn_req={}, cluster_stock=cluster_stock,
   )
   return CC.as_reader(), CS

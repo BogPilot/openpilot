@@ -3,6 +3,7 @@ from opendbc.can.packer import CANPacker
 from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.car.interfaces import CarControllerBase
 from openpilot.selfdrive.car.tesla.actuator_plan import (
+  AP1_ENGAGE_SOFT_START_FRAMES,
   DAS_CONTROL_POWERTRAIN,
   ap1_should_send_hold_clear,
   build_actuator_plan,
@@ -27,6 +28,9 @@ class CarController(CarControllerBase):
     self.tesla_can = TeslaCAN(self.packer, self.pt_packer)
     # AP1 only. Tinkla-style cluster frames (cluster.py).
     self.cluster = ClusterController() if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
+    # AP1 engage soft-start: hold measured ANGLE for ~300 ms after enable.
+    self.ap1_prev_enabled = False
+    self.ap1_engage_frame = None
 
   def update(self, CC, CS, now_nanos, frogpilot_toggles):
     actuators = CC.actuators
@@ -38,6 +42,16 @@ class CarController(CarControllerBase):
     lat_active = ap1_lat_active(CC.latActive, CS.hands_on_level) if ap1 else CC.latActive
     # AP1 longitudinal is chassis 0x2b9. Do not also plan powertrain 0x2bf.
     chassis_das_only = ap1
+    soft_start = False
+    if ap1:
+      enabled = bool(CC.enabled)
+      if enabled and not self.ap1_prev_enabled:
+        self.ap1_engage_frame = self.frame
+      if not enabled:
+        self.ap1_engage_frame = None
+      self.ap1_prev_enabled = enabled
+      if self.ap1_engage_frame is not None:
+        soft_start = (self.frame - self.ap1_engage_frame) < AP1_ENGAGE_SOFT_START_FRAMES
     plan = build_actuator_plan(
       self.frame,
       lat_active,
@@ -59,6 +73,8 @@ class CarController(CarControllerBase):
       epas_error=CS.steer_warning if ap1 else None,
       eac_fault=bool(CS.eac_fault) if ap1 else False,
       hands_on_level=CS.hands_on_level if ap1 else 0,
+      eac_status=CS.eac_status if ap1 else None,
+      soft_start=soft_start,
     )
     self.apply_angle_last = plan.apply_angle_last
 
