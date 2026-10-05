@@ -22,8 +22,11 @@ public:
     {cereal::FrogPilotControlsState::AlertStatus::NORMAL, QColor(0x15, 0x15, 0x15, 0xf1)},
     {cereal::FrogPilotControlsState::AlertStatus::USER_PROMPT, QColor(0xDA, 0x6F, 0x25, 0xf1)},
     {cereal::FrogPilotControlsState::AlertStatus::CRITICAL, QColor(0xC9, 0x22, 0x31, 0xf1)},
-    {cereal::FrogPilotControlsState::AlertStatus::FROGPILOT, QColor(0x00, 0x00, 0x00, 0xf1)},
+    {cereal::FrogPilotControlsState::AlertStatus::FROGPILOT, QColor(0x17, 0x86, 0x44, 0xf1)},
   };
+
+  // BogPilot: the startup alert (customStartupAlert) is painted black
+  const QColor startup_alert_color = QColor(0x00, 0x00, 0x00, 0xf1);
 
 protected:
   struct Alert {

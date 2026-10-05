@@ -48,6 +48,34 @@ NON_DRIVING_GEARS = [GearShifter.neutral, GearShifter.park, GearShifter.reverse,
 
 FROGPILOT_API = "https://frogpilot.com/api"
 
+# BogPilot startup alert. The old FrogPilot defaults may already be stored on a device from an earlier
+# install, so they are treated as unset and replaced with the BogPilot text. Custom strings are kept.
+STARTUP_MESSAGE_TOP = "Your m\u221ev"
+STARTUP_MESSAGE_BOTTOM = "Hands present, mind at ease"
+OLD_STARTUP_MESSAGES_TOP = {"Hop in and buckle up!"}
+OLD_STARTUP_MESSAGES_BOTTOM = {"Human-tested, frog-approved \U0001f438", "Human-tested, frog-approved"}
+
+def resolve_startup_message(value, old_values, new_value):
+  if value is None or value.strip() == "" or value.strip() in old_values:
+    return new_value
+  return value
+
+def migrate_startup_messages(*stores):
+  for store in stores:
+    if isinstance(store, str):
+      try:
+        store = Params(store)
+      except Exception:
+        continue
+    for key, old_values, new_value in (("StartupMessageTop", OLD_STARTUP_MESSAGES_TOP, STARTUP_MESSAGE_TOP),
+                                       ("StartupMessageBottom", OLD_STARTUP_MESSAGES_BOTTOM, STARTUP_MESSAGE_BOTTOM)):
+      try:
+        value = store.get(key, encoding="utf-8")
+        if value is not None and value.strip() in old_values:
+          store.put(key, new_value)
+      except Exception:
+        pass
+
 RESOURCES_REPO = "FrogAi/FrogPilot-Resources"
 
 ACTIVE_THEME_PATH = Path(__file__).parents[1] / "assets/active_theme"
@@ -446,8 +474,8 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("StandbyMode", "0", 1, "0"),
   ("StartAccel", "", 3, ""),
   ("StartAccelStock", "", 3, ""),
-  ("StartupMessageBottom", "Hands present, mind at ease", 0, "Always keep hands on wheel and eyes on road"),
-  ("StartupMessageTop", "Your m∞v", 0, "Be ready to take over at any time"),
+  ("StartupMessageBottom", STARTUP_MESSAGE_BOTTOM, 0, "Always keep hands on wheel and eyes on road"),
+  ("StartupMessageTop", STARTUP_MESSAGE_TOP, 0, "Be ready to take over at any time"),
   ("StaticPedalsOnUI", "0", 1, "0"),
   ("SteerDelay", "", 3, ""),
   ("SteerDelayStock", "", 3, ""),
@@ -1039,7 +1067,9 @@ class FrogPilotVariables:
     toggle.speed_limit_filler = params.get_bool("SpeedLimitFiller") if toggle.tuning_level >= level["SpeedLimitFiller"] else default.get_bool("SpeedLimitFiller")
 
     toggle.startup_alert_top = params.get("StartupMessageTop", encoding="utf-8") if toggle.tuning_level >= level["StartupMessageTop"] else default.get("StartupMessageTop", encoding="utf-8")
+    toggle.startup_alert_top = resolve_startup_message(toggle.startup_alert_top, OLD_STARTUP_MESSAGES_TOP, STARTUP_MESSAGE_TOP)
     toggle.startup_alert_bottom = params.get("StartupMessageBottom", encoding="utf-8") if toggle.tuning_level >= level["StartupMessageBottom"] else default.get("StartupMessageBottom", encoding="utf-8")
+    toggle.startup_alert_bottom = resolve_startup_message(toggle.startup_alert_bottom, OLD_STARTUP_MESSAGES_BOTTOM, STARTUP_MESSAGE_BOTTOM)
 
     toggle.subaru_sng = toggle.car_make == "subaru" and not (CP.flags & SubaruFlags.GLOBAL_GEN2 or CP.flags & SubaruFlags.HYBRID) and (params.get_bool("SubaruSNG") if toggle.tuning_level >= level["SubaruSNG"] else default.get_bool("SubaruSNG"))
 
