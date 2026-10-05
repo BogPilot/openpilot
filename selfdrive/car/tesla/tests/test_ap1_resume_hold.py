@@ -37,9 +37,9 @@ from openpilot.selfdrive.car.tesla.hso import (
 
 
 def test_hold_constant():
-  assert AP1_RESUME_HOLD_S == 0.8
+  assert AP1_RESUME_HOLD_S == 0.5
   assert AP1_CONTROL_HZ == 100
-  assert AP1_RESUME_HOLD_FRAMES == 80
+  assert AP1_RESUME_HOLD_FRAMES == 50
 
 
 def _run_yield(y, enabled, level, n):
