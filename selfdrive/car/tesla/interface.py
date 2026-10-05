@@ -53,6 +53,10 @@ class CarInterface(CarInterfaceBase):
 
     events = self.create_common_events(ret)
     if self.CP.carFingerprint == CAR.TESLA_AP1_MODELS:
+      if self._ap1_driver_yield_active():
+        # Resume hold: hands are back at 0 but 0x488 is still NONE. Keep
+        # controlsd in overriding so the border stays grey until lat resumes.
+        events.add(car.CarEvent.EventName.steerOverride)
       events = self._ap1_hso_events(events)
       events = self._ap1_epas_inhibit_alert(events, c, ret)
     ret.events = events.to_msg()
@@ -72,7 +76,7 @@ class CarInterface(CarInterfaceBase):
     want_lat = bool(c.enabled) and bool(getattr(c, "latActive", False))
     # The hands pause sends NONE on purpose (EPAS goes INHIBITED at level 3);
     # that is the driver steering, not EPAS refusing control.
-    want_lat = want_lat and not ap1_steering_pressed(self.CS.hands_on_level)
+    want_lat = want_lat and not ap1_steering_pressed(self.CS.hands_on_level) and not self._ap1_driver_yield_active()
     inhibited = self.CS.eac_status == "EAC_INHIBITED"
     if want_lat and inhibited and not ret.steerFaultPermanent:
       self.ap1_inhibit_alert_frames = getattr(self, "ap1_inhibit_alert_frames", 0) + 1
@@ -81,6 +85,11 @@ class CarInterface(CarInterfaceBase):
     if self.ap1_inhibit_alert_frames >= inhibit_frames:
       events.add(EventName.steerTempUnavailableSilent)
     return events
+
+  def _ap1_driver_yield_active(self):
+    """CarController's hands pause / resume hold from the last step."""
+    y = getattr(getattr(self, "CC", None), "ap1_yield", None)
+    return bool(getattr(y, "active", False))
 
   def _ap1_hso_events(self, events):
     """Tinkla HSO: a temporary steer warning does not soft-disable or block entry.

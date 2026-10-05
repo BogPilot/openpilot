@@ -12,7 +12,7 @@ from openpilot.selfdrive.car.tesla.actuator_plan import (
 from openpilot.selfdrive.car.tesla.cluster import (
   CLUSTER_BUS, ClusterController, HudInputs, path_from_model_v2,
 )
-from openpilot.selfdrive.car.tesla.hso import ap1_lat_active, ap1_steering_pressed
+from openpilot.selfdrive.car.tesla.hso import Ap1DriverYield, ap1_lat_active, ap1_steering_pressed
 from openpilot.selfdrive.car.tesla.teslacan import TeslaCAN
 from openpilot.selfdrive.car.tesla.toggles import enable_ic_integration
 from openpilot.selfdrive.car.tesla.values import DBC, CANBUS, CAR
@@ -37,6 +37,9 @@ class CarController(CarControllerBase):
     # AP1 engage soft-start: hold measured ANGLE for ~300 ms after enable.
     self.ap1_prev_enabled = False
     self.ap1_engage_frame = None
+    # AP1 hands pause + resume hold (hso.Ap1DriverYield). Read by the
+    # interface for the steerOverride event so the border stays grey.
+    self.ap1_yield = Ap1DriverYield()
 
   def update(self, CC, CS, now_nanos, frogpilot_toggles):
     actuators = CC.actuators
@@ -45,19 +48,29 @@ class CarController(CarControllerBase):
     # AP1 does not. Tinkla HSO pauses lateral and leaves long engaged.
     ap1 = self.CP.carFingerprint == CAR.TESLA_AP1_MODELS
     hands_on_fault = (not ap1) and CS.steer_warning == "EAC_ERROR_HANDS_ON" and CS.hands_on_level >= 3
-    lat_active = ap1_lat_active(CC.latActive, CS.hands_on_level) if ap1 else CC.latActive
     # AP1 longitudinal is chassis 0x2b9. Do not also plan powertrain 0x2bf.
     chassis_das_only = ap1
     soft_start = False
+    driver_yield = False
     if ap1:
       enabled = bool(CC.enabled)
+      # Hands >= 2 starts it; level 0 for AP1_RESUME_HOLD_S ends it. Only
+      # while enabled, so it never holds off disengage or a new engage.
+      driver_yield = self.ap1_yield.update(enabled, CS.hands_on_level)
       if enabled and not self.ap1_prev_enabled:
+        self.ap1_engage_frame = self.frame
+      if self.ap1_yield.resumed:
+        # Resume from the measured wheel through the engage soft-start.
         self.ap1_engage_frame = self.frame
       if not enabled:
         self.ap1_engage_frame = None
       self.ap1_prev_enabled = enabled
       if self.ap1_engage_frame is not None:
         soft_start = (self.frame - self.ap1_engage_frame) < AP1_ENGAGE_SOFT_START_FRAMES
+    if ap1:
+      lat_active = ap1_lat_active(CC.latActive, CS.hands_on_level) and not driver_yield
+    else:
+      lat_active = CC.latActive
     plan = build_actuator_plan(
       self.frame,
       lat_active,
@@ -81,6 +94,7 @@ class CarController(CarControllerBase):
       hands_on_level=CS.hands_on_level if ap1 else 0,
       eac_status=CS.eac_status if ap1 else None,
       soft_start=soft_start,
+      driver_yield=driver_yield,
     )
     self.apply_angle_last = plan.apply_angle_last
 

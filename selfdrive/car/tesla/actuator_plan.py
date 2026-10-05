@@ -161,7 +161,7 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
                         measured_angle_deg, requested_angle_deg, last_angle_deg, v_ego, accel,
                         acc_state, das_counters, pcm_cancel, chassis_das_only=False,
                         epas_error=None, eac_fault=False, hands_on_level=0,
-                        eac_status=None, soft_start=False):
+                        eac_status=None, soft_start=False, driver_yield=False):
   """Same steering branches CarController.update had before this function existed.
 
   Disengaged lateral: no steering frame. Sending type-NONE 0x488 while
@@ -172,8 +172,9 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
   EAC_ACTIVE, hands are below 2, and there is no latch/soft-start, lat active
   sends the planned angle. Other non-idle codes with lat inactive still take
   the NONE branch. Hands at or above 2 also take NONE and do not cancel.
-  apply_angle_last tracks the commanded angle so the next path command starts
-  from the wheel. Longitudinal messages are built only when
+  driver_yield (AP1 resume hold, hso.Ap1DriverYield) is treated exactly like
+  hands at or above 2. apply_angle_last tracks the commanded angle so the next
+  path command starts from the wheel. Longitudinal messages are built only when
   longitudinal_command_allowed is true. An inactive long plan is empty.
   """
 
@@ -183,7 +184,7 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
   # AP1 only. Hands pause and EAC_FAULT still win over a latched code 6 or 3.
   # Code 3 takes this path only after hands drop; at or above 2, hands_pause
   # keeps type NONE even though code 3 is not itself a temporary fault.
-  hands_pause = bool(chassis_das_only) and hands_on_level >= AP1_HANDS_ON_LEVEL
+  hands_pause = bool(chassis_das_only) and (hands_on_level >= AP1_HANDS_ON_LEVEL or bool(driver_yield))
   hold_measured = ap1_hold_measured_angle(
     chassis_das_only, enabled, eac_fault, hands_pause, eac_status, epas_error, soft_start)
   if chassis_das_only and eac_fault:

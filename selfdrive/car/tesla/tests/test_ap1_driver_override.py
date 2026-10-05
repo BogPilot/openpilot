@@ -147,7 +147,8 @@ def test_inhibit_alert_not_counted_during_hands_pause(carstate_mod):
       self.names.append(name)
 
   def run(level, frames=150):
-    fake = SimpleNamespace(CS=SimpleNamespace(eac_status="EAC_INHIBITED", hands_on_level=level))
+    fake = SimpleNamespace(CS=SimpleNamespace(eac_status="EAC_INHIBITED", hands_on_level=level),
+                           _ap1_driver_yield_active=lambda: False)
     c = SimpleNamespace(enabled=True, latActive=True)
     ret = SimpleNamespace(steerFaultPermanent=False)
     ev = _Events()

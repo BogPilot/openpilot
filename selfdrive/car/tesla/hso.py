@@ -13,8 +13,9 @@ levels 0, 1 and 3 only (never 2), so a >= 2 steeringPressed only fired on the
 brief level 3 peaks and the border stayed green while the driver steered.
 
 The 50-frame numb period and the 15 degree handoff in HSO_module.py are
-not applied. Resume is the next step after hands_on_level drops below 2,
-if cruise is still enabled and EPAS is not EAC_FAULT. Code 6 and a latched
+not applied. Resume waits for Ap1DriverYield: hands back at level 0 for
+AP1_RESUME_HOLD_S, then the measured-angle soft-start, if cruise is still
+enabled and EPAS is not EAC_FAULT. Code 6 and a latched
 code 3 do not block that resume. Any other non-idle name stays a steer warning.
 """
 
@@ -23,6 +24,19 @@ AP1_HANDS_ON_LEVEL = 2
 # carState.steeringPressed (override / grey border). Stock Tesla port and
 # frog_ap1: hands_on_level > 0.
 AP1_DRIVER_INPUT_LEVEL = 1
+
+# Resume hold after a hands pause. Once hands reach AP1_HANDS_ON_LEVEL while
+# engaged, 0x488 stays type NONE until EPAS has reported level 0 (no driver
+# torque at all) for this long; any level >= 1 restarts it. In logged AP1
+# drives 9 of 14 level 3 overrides dropped to 1 first and reached 0 up to
+# 2.9 s later. After reaching 0 the driver came back within 0.24-0.56 s in
+# 9 of 10 re-presses (next 1.0 s, then >= 2 s). Every gap between engaged
+# driver inputs up to 0.76 s is bridged by 0.8 s. Lateral then resumes through the 300 ms
+# measured-angle soft-start (AP1_ENGAGE_SOFT_START_FRAMES).
+AP1_RESUME_HOLD_S = 0.8
+# CarController runs at 100 Hz (DT_CTRL).
+AP1_CONTROL_HZ = 100
+AP1_RESUME_HOLD_FRAMES = int(round(AP1_RESUME_HOLD_S * AP1_CONTROL_HZ))
 
 _HARSH = "steerTempUnavailable"
 _SILENT = "steerTempUnavailableSilent"
@@ -40,6 +54,42 @@ def ap1_driver_input(hands_on_level):
   ap1_steering_pressed (>= 2) in CarController.
   """
   return hands_on_level >= AP1_DRIVER_INPUT_LEVEL
+
+
+class Ap1DriverYield:
+  """Engaged-only hands pause with a resume hold. One update per CarController step.
+
+  Enters at hands_on_level >= AP1_HANDS_ON_LEVEL while enabled. Stays active
+  until hands_on_level has been 0 for AP1_RESUME_HOLD_FRAMES in a row; a level
+  1 or higher restarts the count. Not enabled clears it at once, so disengage
+  and re-engage are not delayed. `resumed` is true only on the step the hold
+  ends, so CarController can restart the measured-angle soft-start.
+  """
+
+  def __init__(self):
+    self.active = False
+    self.quiet_frames = 0
+    self.resumed = False
+
+  def update(self, enabled, hands_on_level):
+    self.resumed = False
+    if not enabled:
+      self.active = False
+      self.quiet_frames = 0
+      return False
+    if ap1_steering_pressed(hands_on_level):
+      self.active = True
+      self.quiet_frames = 0
+    elif self.active:
+      if ap1_driver_input(hands_on_level):
+        self.quiet_frames = 0
+      else:
+        self.quiet_frames += 1
+        if self.quiet_frames >= AP1_RESUME_HOLD_FRAMES:
+          self.active = False
+          self.quiet_frames = 0
+          self.resumed = True
+    return self.active
 
 
 def ap1_lat_active(lat_active, hands_on_level):
