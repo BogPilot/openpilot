@@ -53,6 +53,10 @@ Checksum for 0x399 and 0x389 is `(addr & 0xFF) + (addr >> 8) + sum(bytes 0..6)` 
 - `DAS_object` (0x309) and `DAS_telemetry` (0x3a9): not `BO_` lines in this tree's DBC. No invented signals.
 - Warning matrices 0x329 / 0x369 (0x349 stays the all-zero Hold clear only), pre-AP 0x659.
 
+## Planner FCW while longitudinal control is off
+
+`selfdrive/controls/lib/fcw_gate.py` (used by `longitudinal_planner.py`): while `reset_state` is true (long control off / disengaged), `mpc.crash_cnt` is cleared and planner FCW is not set. FrogPilot publishes min/maxAcceleration = 0 while disengaged, which coasts the MPC into a closing lead and latches `crash_cnt`; without this clear, controlsd raises EventName.fcw ("BRAKE!" / "Risk of Collision") at the engage instant. Model FCW (`hardBrakePredicted`), stock AEB passthrough, and engaged planner FCW are unchanged.
+
 ## Angle steering and dashcamOnly
 
 Angle steering does not blend with driver torque. `selfdrive/car/tesla/interface.py` documents that and keeps `ret.dashcamOnly = True` for that reason. This document does not propose turning `dashcamOnly` off.

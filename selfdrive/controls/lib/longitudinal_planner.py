@@ -13,6 +13,7 @@ from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import Longi
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import T_IDXS as T_IDXS_MPC
 from openpilot.selfdrive.controls.lib.drive_helpers import V_CRUISE_MAX, V_CRUISE_UNSET, CONTROL_N, get_accel_from_plan
 from openpilot.common.swaglog import cloudlog
+from openpilot.selfdrive.controls.lib.fcw_gate import planner_fcw
 
 from openpilot.frogpilot.common.frogpilot_variables import MINIMUM_LATERAL_ACCELERATION
 
@@ -163,7 +164,8 @@ class LongitudinalPlanner:
     self.j_desired_trajectory = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC[:-1], self.mpc.j_solution)
 
     # TODO counter is only needed because radar is glitchy, remove once radar is gone
-    self.fcw = self.mpc.crash_cnt > 2 and not sm['carState'].standstill
+    self.fcw, self.mpc.crash_cnt = planner_fcw(
+      self.mpc.crash_cnt, sm['carState'].standstill, reset_state)
     if self.fcw:
       cloudlog.info("FCW triggered")
 
