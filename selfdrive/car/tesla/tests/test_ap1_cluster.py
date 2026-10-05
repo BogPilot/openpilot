@@ -38,7 +38,7 @@ NS = 1_000_000_000
 def hud(**kw):
   args = dict(enabled=True, fcw=False, steer_required=False, audible=False, human_steering=False,
               left_lane_depart=False, right_lane_depart=False, left_blinker=False, right_blinker=False,
-              curvature=0.0)
+              curvature=0.0, ic_integration=True, model_path=None)
   args.update(kw)
   return c.HudInputs(**args)
 
@@ -483,3 +483,160 @@ def test_panda_lists_cluster_addresses_for_ap1_only():
     assert addr not in pt
   for addr in ("0x3e9", "0x309", "0x3a9", "0x659"):
     assert addr not in ap1_list
+
+
+
+# --- enableICIntegration toggle + modelV2 path --------------------------------
+
+def test_enable_ic_integration_defaults():
+  from openpilot.selfdrive.car.tesla import toggles as tg
+  from openpilot.selfdrive.car.tesla.values import CAR
+  assert tg.enable_ic_integration(CAR.TESLA_AP1_MODELS, None) is True
+  assert tg.enable_ic_integration(CAR.TESLA_AP1_MODELS, "") is True
+  assert tg.enable_ic_integration(CAR.TESLA_AP1_MODELS, "1") is True
+  assert tg.enable_ic_integration(CAR.TESLA_AP1_MODELS, "0") is False
+  assert tg.enable_ic_integration(CAR.TESLA_AP1_MODELS, "off") is False
+  for fp in (CAR.TESLA_AP2_MODELS, CAR.TESLA_MODELS_RAVEN, None, "not_tesla"):
+    assert tg.enable_ic_integration(fp, None) is False
+    assert tg.enable_ic_integration(fp, "1") is False
+
+
+def test_enable_ic_integration_file_backed(tmp_path, monkeypatch):
+  from openpilot.selfdrive.car.tesla import toggles as tg
+  from openpilot.selfdrive.car.tesla.values import CAR
+  path = tmp_path / "EnableICIntegration"
+  monkeypatch.setattr(tg, "_ic_integration_path", path)
+  assert tg.enable_ic_integration(CAR.TESLA_AP1_MODELS) is True  # absent => on
+  tg.set_enable_ic_integration(False, path=path)
+  assert path.read_text() == "0"
+  assert tg.enable_ic_integration(CAR.TESLA_AP1_MODELS) is False
+  tg.set_enable_ic_integration(True, path=path)
+  assert tg.enable_ic_integration(CAR.TESLA_AP1_MODELS) is True
+
+
+def test_toggle_off_sends_nothing_even_when_engaged():
+  ctrl = c.ClusterController()
+  assert ctrl.update(hud(ic_integration=False), all_stock(), NS) == []
+  # Re-enable works after off.
+  out = _send(ctrl, hud(ic_integration=True), all_stock(), 2 * NS)
+  assert set(out) == set(c.CLUSTER_ADDRS)
+
+
+def test_toggle_off_clears_post_disengage_window():
+  ctrl = c.ClusterController()
+  _send(ctrl, hud(), all_stock(), 0)
+  # Enter post window
+  _send(ctrl, hud(enabled=False), all_stock(), NS)
+  # Toggle off mid-window: nothing, and state resets.
+  assert ctrl.update(hud(enabled=False, ic_integration=False), all_stock(), 2 * NS) == []
+  # Still disabled with toggle back on but never re-engaged: no post rewrite
+  # because toggle-off cleared disengaged_ns.
+  assert ctrl.update(hud(enabled=False, ic_integration=True), all_stock(), 3 * NS) == []
+
+
+def test_lanes_use_model_path_when_present():
+  path = c.ModelPath(c0=0.35, c1=-0.05, c2=0.0012, c3=0.0, view_range_m=72)
+  v = c.unpack(0x239, _send(c.ClusterController(), hud(model_path=path, curvature=0.01),
+                            {0x239: stock(0x239)}, NS)[0x239])
+  assert v["DAS_virtualLaneC0"] == pytest.approx(0.35, abs=0.035)
+  assert v["DAS_virtualLaneC1"] == pytest.approx(-0.05, abs=0.0016)
+  assert v["DAS_virtualLaneC2"] == pytest.approx(0.0012, abs=2e-05)
+  assert v["DAS_virtualLaneC3"] == pytest.approx(0.0, abs=2.4e-07)
+  assert v["DAS_virtualLaneViewRange"] == 72
+
+
+def test_view_range_clamped_to_dbc():
+  for raw, want in ((-5, 0), (0, 0), (50, 50), (160, 160), (200, 160), (72.4, 72)):
+    assert c.clamp_view_range_m(raw) == want
+  path = c.ModelPath(c0=0, c1=0, c2=0, c3=0, view_range_m=999)
+  v = c.unpack(0x239, _send(c.ClusterController(), hud(model_path=path),
+                            {0x239: stock(0x239)}, NS)[0x239])
+  assert v["DAS_virtualLaneViewRange"] == 160
+
+
+def test_model_path_missing_falls_back_to_curvature_and_50m():
+  v = c.unpack(0x239, _send(c.ClusterController(), hud(model_path=None, curvature=0.0002),
+                            {0x239: stock(0x239)}, NS)[0x239])
+  assert v["DAS_virtualLaneC0"] == pytest.approx(0.0, abs=0.035)
+  assert v["DAS_virtualLaneC1"] == pytest.approx(0.0, abs=0.0016)
+  assert v["DAS_virtualLaneC2"] == pytest.approx(0.0004, abs=2e-05)
+  assert v["DAS_virtualLaneViewRange"] == 50
+
+
+def test_path_from_model_v2_fits_poly_and_scales():
+  # Straight-ish path with offset and mild curve: y = 0.2 + 0.01 x + 0.0001 x^2
+  xs = [float(i) for i in range(1, 61)]
+  ys = [0.2 + 0.01 * x + 0.0001 * x * x for x in xs]
+  model = SimpleNamespace(position=SimpleNamespace(x=xs, y=ys))
+  path = c.path_from_model_v2(model)
+  assert path is not None
+  f = 1.0 / c.IC_LANE_SCALE
+  assert path.c0 == pytest.approx(0.2, abs=0.05)
+  assert path.c1 == pytest.approx(0.01 * f, abs=0.02)
+  assert path.c2 == pytest.approx(0.0001 * f * f, abs=2e-4)
+  assert path.c3 == 0.0
+  assert path.view_range_m == 60
+
+
+def test_path_from_model_v2_rejects_short_or_empty():
+  assert c.path_from_model_v2(SimpleNamespace(position=SimpleNamespace(x=[], y=[]))) is None
+  assert c.path_from_model_v2(SimpleNamespace(position=SimpleNamespace(x=[1, 2], y=[0, 0]))) is None
+  # xmax < MODEL_PATH_MIN_M
+  xs = [0.5, 1.0, 2.0, 3.0]
+  ys = [0.0, 0.0, 0.0, 0.0]
+  assert c.path_from_model_v2(SimpleNamespace(position=SimpleNamespace(x=xs, y=ys))) is None
+
+
+def test_stock_line_usage_preserved_with_model_path():
+  lanes = stock(0x239)
+  lanes["DAS_leftLaneExists"], lanes["DAS_rightLaneExists"] = 0, 0
+  lanes["DAS_leftLineUsage"], lanes["DAS_rightLineUsage"] = 2, 2
+  path = c.ModelPath(c0=0.1, c1=0.0, c2=0.0005, c3=0.0, view_range_m=40)
+  v = c.unpack(0x239, _send(c.ClusterController(), hud(model_path=path), {0x239: lanes}, NS)[0x239])
+  assert (v["DAS_leftLineUsage"], v["DAS_rightLineUsage"]) == (2, 2)
+  assert (v["DAS_leftLaneExists"], v["DAS_rightLaneExists"]) == (0, 0)
+
+
+def test_carcontroller_toggle_off_sends_no_cluster(tesla_modules, monkeypatch, tmp_path):
+  _, cc = tesla_modules
+  from openpilot.selfdrive.car.tesla import toggles as tg
+  from openpilot.selfdrive.car.tesla.values import CAR
+  path = tmp_path / "EnableICIntegration"
+  path.write_text("0")
+  monkeypatch.setattr(tg, "_ic_integration_path", path)
+  ctl = cc.CarController("tesla_can", _cp(CAR.TESLA_AP1_MODELS), None)
+  # Avoid real messaging
+  ctl._model_sm = False
+  CC, CS = _cc_inputs(True, [1], all_stock())
+  _, can = ctl.update(CC, CS, 0, None)
+  assert not [m for m in can if m[0] in c.CLUSTER_ADDRS]
+  # Actuators still present
+  assert any(m[0] == "DAS_steeringControl" for m in can)
+
+
+def test_carcontroller_uses_model_path_when_engaged(tesla_modules, monkeypatch):
+  _, cc = tesla_modules
+  from openpilot.selfdrive.car.tesla.values import CAR
+  ctl = cc.CarController("tesla_can", _cp(CAR.TESLA_AP1_MODELS), None)
+  path = c.ModelPath(c0=0.5, c1=0.02, c2=-0.001, c3=0.0, view_range_m=55)
+  monkeypatch.setattr(ctl, "_model_path_for_cluster", lambda enabled, ic_on: path if enabled and ic_on else None)
+  CC, CS = _cc_inputs(True, [1], {0x239: stock(0x239)})
+  _, can = ctl.update(CC, CS, 0, None)
+  lanes = [m for m in can if m[0] == 0x239]
+  assert len(lanes) == 1
+  v = c.unpack(0x239, lanes[0][2])
+  assert v["DAS_virtualLaneC0"] == pytest.approx(0.5, abs=0.035)
+  assert v["DAS_virtualLaneC2"] == pytest.approx(-0.001, abs=2e-05)
+  assert v["DAS_virtualLaneViewRange"] == 55
+
+
+def test_enable_ic_integration_not_in_frogpilot_default_params():
+  """Must not join frogpilot_default_params (params_pyx.so has no Tesla* keys)."""
+  src = (ROOT / "frogpilot/common/frogpilot_variables.py").read_text()
+  assert "TeslaLongControl and TeslaStalkFollow stay out of this list" in src
+  assert "params_bogpilot/EnableICIntegration" in src
+  defaults_block = src.split("frogpilot_default_params")[1].split(")")[0]
+  assert "EnableICIntegration" not in defaults_block
+  assert "TeslaLongControl" not in defaults_block
+  assert "TeslaStalkFollow" not in defaults_block
+

@@ -9,9 +9,12 @@ from openpilot.selfdrive.car.tesla.actuator_plan import (
   build_actuator_plan,
   longitudinal_command_allowed,
 )
-from openpilot.selfdrive.car.tesla.cluster import CLUSTER_BUS, ClusterController, HudInputs
+from openpilot.selfdrive.car.tesla.cluster import (
+  CLUSTER_BUS, ClusterController, HudInputs, path_from_model_v2,
+)
 from openpilot.selfdrive.car.tesla.hso import ap1_lat_active, ap1_steering_pressed
 from openpilot.selfdrive.car.tesla.teslacan import TeslaCAN
+from openpilot.selfdrive.car.tesla.toggles import enable_ic_integration
 from openpilot.selfdrive.car.tesla.values import DBC, CANBUS, CAR
 
 VisualAlert = car.CarControl.HUDControl.VisualAlert
@@ -28,6 +31,9 @@ class CarController(CarControllerBase):
     self.tesla_can = TeslaCAN(self.packer, self.pt_packer)
     # AP1 only. Tinkla-style cluster frames (cluster.py).
     self.cluster = ClusterController() if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
+    # Lazy SubMaster for modelV2 path only (no lead / object). None until first
+    # need; False after a permanent init failure (tests without messaging).
+    self._model_sm = None
     # AP1 engage soft-start: hold measured ANGLE for ~300 ms after enable.
     self.ap1_prev_enabled = False
     self.ap1_engage_frame = None
@@ -113,14 +119,44 @@ class CarController(CarControllerBase):
     self.frame += 1
     return new_actuators, can_sends
 
+  def _model_path_for_cluster(self, enabled, ic_on):
+    """Subscribe to modelV2 only while toggle on; use path only while engaged.
+
+    Stale/absent modelV2 returns None so build_das_lanes falls back to
+    actuator curvature + 50 m. Substitution itself is not stopped.
+    """
+    if not ic_on:
+      return None
+    if self._model_sm is False:
+      return None
+    try:
+      if self._model_sm is None:
+        import cereal.messaging as messaging
+        self._model_sm = messaging.SubMaster(['modelV2'])
+      self._model_sm.update(0)
+      if not enabled:
+        return None
+      # Use the latest value even when this step did not receive a new frame.
+      if not self._model_sm.seen['modelV2']:
+        return None
+      return path_from_model_v2(self._model_sm['modelV2'])
+    except Exception:
+      # Messaging unavailable (unit tests) or a bad model message: fallback.
+      if self._model_sm is None:
+        self._model_sm = False
+      return None
+
   def cluster_frames(self, CC, CS, now_nanos):
     """Cluster frames for this step. A failure here turns them off for the
     rest of the drive (stock frames then flow through the panda). It must not
     stop the steering and longitudinal frames already built."""
     try:
+      ic_on = enable_ic_integration(self.CP.carFingerprint)
+      enabled = bool(CC.enabled)
+      model_path = self._model_path_for_cluster(enabled, ic_on)
       hud = CC.hudControl
       h = HudInputs(
-        enabled=bool(CC.enabled),
+        enabled=enabled,
         fcw=hud.visualAlert == VisualAlert.fcw,
         steer_required=hud.visualAlert == VisualAlert.steerRequired,
         audible=hud.audibleAlert != AudibleAlert.none,
@@ -130,6 +166,8 @@ class CarController(CarControllerBase):
         left_blinker=bool(CC.leftBlinker),
         right_blinker=bool(CC.rightBlinker),
         curvature=float(CC.actuators.curvature),
+        ic_integration=ic_on,
+        model_path=model_path,
       )
       frames = self.cluster.update(h, CS.cluster_stock, now_nanos)
       return [[addr, 0, dat, CLUSTER_BUS] for addr, dat in frames]

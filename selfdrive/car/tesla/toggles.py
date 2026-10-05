@@ -5,12 +5,26 @@ dashcamOnly, panda safety flags, and controlsd do not read them.
 There is no TeslaPlatform param. The platform is classify_tesla_platform.
 A stored string cannot force preap, ap1_s, ap1_x, or ap2.
 
-The Qt vehicle panel (frogpilot/ui/qt/offroad/vehicle_settings.cc) does not
-render frogpilot/ui/layouts/settings/toggle_metadata.py. These keys are the
-same default-param list other toggles use. No new settings screen.
+EnableICIntegration gates AP1 instrument-cluster substitution. July
+prebuilt params_pyx.so has no Tesla* keys (same constraint as
+TeslaLongControl / TeslaStalkFollow): putting a new key in
+frogpilot_default_params raises UnknownKeyName at boot. So this toggle
+is file-backed under /data/params_bogpilot/EnableICIntegration, not a
+Params key. Absent file + AP1 fingerprint => on. Explicit 0/false/off
+=> off. Non-AP1 => always off.
+
+The Qt vehicle panel (frogpilot/ui/qt/offroad/vehicle_settings.cc) does
+not render frogpilot/ui/layouts/settings/toggle_metadata.py, and the
+device runs a July prebuilt UI binary, so this toggle is not shown in
+Settings. Change it on device with:
+  echo 0 > /data/params_bogpilot/EnableICIntegration   # off
+  echo 1 > /data/params_bogpilot/EnableICIntegration   # on
+then restart openpilot (or reboot). See docs/tesla/DIVERGENCES.md.
 
 Not a product. No warranty. The driver remains responsible. Comply with local law.
 """
+
+from pathlib import Path
 
 TESLA_LONG_CONTROL_VALUES = ("off", "lateral_only", "full")
 TESLA_LONG_CONTROL_DEFAULT = "off"
@@ -18,6 +32,12 @@ TESLA_STALK_FOLLOW_DEFAULT = True
 
 # Reading these helpers must not change CarParams. This constant is the contract.
 APPLIED_TO_CAR_PARAMS = False
+
+# File-backed: July params_pyx.so cannot store EnableICIntegration.
+IC_INTEGRATION_DIR = Path("/data/params_bogpilot")
+IC_INTEGRATION_PATH = IC_INTEGRATION_DIR / "EnableICIntegration"
+# Tests may override the path via this module attribute.
+_ic_integration_path = IC_INTEGRATION_PATH
 
 
 def tesla_long_control(stored: str | bytes | None) -> str:
@@ -49,6 +69,46 @@ def tesla_stalk_follow(stored: str | bytes | None) -> bool:
   if text in ("0", "false", "off"):
     return False
   return False
+
+
+def enable_ic_integration(fingerprint: str | None, stored: str | bytes | None = None) -> bool:
+  """Whether AP1 cluster substitution runs.
+
+  Non-AP1 fingerprints are always off (control hidden / inert).
+  AP1: default on when the file is absent. Explicit off stops all cluster
+  TX immediately so the panda forwards stock 0x399 / 0x389 / 0x239.
+  `stored` overrides the file when not None (tests). Not applied to CarParams.
+  """
+  from openpilot.selfdrive.car.tesla.values import CAR
+  if fingerprint != CAR.TESLA_AP1_MODELS:
+    return False
+  if stored is not None:
+    text = _as_text(stored)
+  else:
+    text = _read_ic_integration_file()
+  if text == "":
+    return True
+  if text in ("1", "true", "on"):
+    return True
+  if text in ("0", "false", "off"):
+    return False
+  return True
+
+
+def set_enable_ic_integration(enabled: bool, path: Path | None = None) -> None:
+  """Write the file-backed EnableICIntegration preference."""
+  target = path if path is not None else _ic_integration_path
+  target.parent.mkdir(parents=True, exist_ok=True)
+  target.write_text("1" if enabled else "0")
+
+
+def _read_ic_integration_file() -> str:
+  try:
+    if _ic_integration_path.is_file():
+      return _ic_integration_path.read_text(encoding="utf-8", errors="replace").strip()
+  except OSError:
+    pass
+  return ""
 
 
 def _as_text(stored: str | bytes | None) -> str:

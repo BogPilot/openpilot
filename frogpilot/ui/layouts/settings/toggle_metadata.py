@@ -2839,4 +2839,11 @@ TESLA_EARLY_TOGGLES = (
     parent_param="TeslaEarly",
     tuning_level=2,
   ),
+  ToggleDefinition(
+    title=("Instrument cluster integration"),
+    param="EnableICIntegration",
+    description=("<b>AP1 cluster substitution.</b> Default on for AP1-fingerprinted vehicles, off otherwise. When on, openpilot substitutes 0x399 / 0x389 / 0x239 while engaged (and briefly after). When off, openpilot sends no cluster frames and the panda forwards stock. July prebuilt params_pyx.so cannot store this key; it is file-backed at /data/params_bogpilot/EnableICIntegration (echo 0 or 1). The on-device vehicle panel does not render this metadata. Not applied to CarParams or panda safety flags."),
+    parent_param="TeslaEarly",
+    tuning_level=2,
+  ),
 )

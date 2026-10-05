@@ -95,6 +95,7 @@ Not applied to `CarParams`. `selfdrive/car/tesla/interface.py` is unchanged, inc
 | --- | --- | --- | --- |
 | `TeslaLongControl` | `off`, `lateral_only`, `full` | `off` | no |
 | `TeslaStalkFollow` | bool | on (`1`), early-Tesla preference only | no |
+| `EnableICIntegration` | file `/data/params_bogpilot/EnableICIntegration` (not a Params key; July `params_pyx.so`) | AP1 default on when absent; non-AP1 off | no (gates cluster TX only) |
 
 There is no `TeslaPlatform` param. `classify_tesla_platform` is the only platform source. The "Detected platform" row in `TESLA_EARLY_TOGGLES` is a label, not a fingerprint override. The on-device vehicle panel does not render this metadata tuple.
 

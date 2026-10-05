@@ -46,6 +46,9 @@ This does not make the car safe to drive.
 import os
 import re
 from dataclasses import dataclass
+from typing import Optional
+
+import numpy as np
 
 AUTOPILOT_STATUS = 0x399
 DAS_STATUS2 = 0x389
@@ -108,11 +111,22 @@ CSA_ENABLE = 2
 LONG_FCW_VEHICLE = 1
 
 # Tinkla HUD_module: IC_LANE_SCALE = 0.5, so path coefficients are scaled by
-# f = 2 (C2 * f^2). DAS_virtualLaneViewRange 50 m. LineUsage 2 is FUSED.
+# f = 2 (C_n * f^n). Fallback view range 50 m when modelV2 path is unusable.
+# LineUsage 2 is FUSED. DBC DAS_virtualLaneViewRange is [0|160] m.
 IC_LANE_SCALE = 0.5
 LANE_VIEW_RANGE_M = 50
+VIEW_RANGE_MIN_M = 0
+VIEW_RANGE_MAX_M = 160
+# Minimum usable model path length before falling back to actuator curvature.
+MODEL_PATH_MIN_M = 5.0
 LINE_USAGE_FUSED = 2
 LINE_USAGE_REJECTED = 0
+
+# DBC DAS_virtualLaneC0..C3 clip ranges (opendbc/tesla_can.dbc).
+C0_RANGE = (-3.5, 3.5)
+C1_RANGE = (-0.2, 0.2)
+C2_RANGE = (-0.0025, 0.0025)
+C3_RANGE = (-3e-5, 3e-5)
 
 
 @dataclass(frozen=True)
@@ -215,6 +229,16 @@ SIGNALS = load_signals()
 
 
 @dataclass(frozen=True)
+class ModelPath:
+  """Fitted DAS_lanes poly from modelV2.position (ego frame, y left+)."""
+  c0: float
+  c1: float
+  c2: float
+  c3: float
+  view_range_m: float
+
+
+@dataclass(frozen=True)
 class HudInputs:
   """Everything the cluster frames read. Built in CarController from CC/CS."""
   enabled: bool
@@ -227,6 +251,10 @@ class HudInputs:
   left_blinker: bool
   right_blinker: bool
   curvature: float
+  # When False, ClusterController sends nothing (panda forwards stock).
+  ic_integration: bool = True
+  # Engaged model path. None => actuator curvature + 50 m fallback.
+  model_path: Optional[ModelPath] = None
 
 
 def hands_on_state(h):
@@ -242,8 +270,9 @@ def hands_on_state(h):
 def alc_state(h, left_lane, right_lane):
   """Tinkla DAS_alca_state. Lane presence is the stock Mobileye DAS_lanes bit.
 
-  Tinkla used openpilot lane-line probabilities. CarController does not get
-  modelV2, so the stock camera's own left/right lane bits stand in.
+  Tinkla used openpilot lane-line probabilities. Lane presence still comes
+  from the stock camera's left/right lane bits (modelV2 is only for the path
+  poly / view range, not lane existence or lead cars).
   A lane change in progress is openpilot's (CC blinkers), 9 left, 10 right.
   """
   if h.left_blinker:
@@ -259,6 +288,11 @@ def alc_state(h, left_lane, right_lane):
   return ALC_NO_LANES
 
 
+def _clip(value, lo_hi):
+  lo, hi = lo_hi
+  return max(lo, min(hi, float(value)))
+
+
 def lane_c2(curvature):
   """Tinkla scales the path x^2 coefficient by (1/IC_LANE_SCALE)^2.
 
@@ -266,7 +300,70 @@ def lane_c2(curvature):
   Clipped to DBC DAS_virtualLaneC2 range.
   """
   f = 1.0 / IC_LANE_SCALE
-  return max(-0.0025, min(0.0025, (curvature / 2.0) * f * f))
+  return _clip((curvature / 2.0) * f * f, C2_RANGE)
+
+
+def clamp_view_range_m(meters):
+  """DBC DAS_virtualLaneViewRange is integer meters in [0|160]."""
+  return int(round(_clip(meters, (VIEW_RANGE_MIN_M, VIEW_RANGE_MAX_M))))
+
+
+def path_from_model_v2(model_v2) -> Optional[ModelPath]:
+  """Fit C0..C2 from modelV2.position x/y (ego frame). C3 stays 0.
+
+  Uses the planned-path position polynomial openpilot already publishes.
+  Coefficients are scaled by (1/IC_LANE_SCALE)^n like Tinkla, then clipped to
+  the DBC ranges. View range is the last valid x in meters, clamped to
+  [0|160]. Returns None when the path is missing or too short so the caller
+  can fall back to actuator curvature + 50 m.
+
+  Sign: y left-positive matches modelV2 and the actuator-curvature path
+  already shipped (route 0f stock Mobileye c2 agrees with this sign more
+  often than the negated fit; stock c0 is a different reference and is not
+  matched). Lead cars / DAS_object / DAS_telemetry are not read here.
+  """
+  try:
+    pos = model_v2.position
+    xs = np.asarray(pos.x, dtype=float)
+    ys = np.asarray(pos.y, dtype=float)
+  except Exception:
+    return None
+  if xs.size < 4 or ys.size < 4 or xs.size != ys.size:
+    return None
+  mask = (xs > 0.5) & np.isfinite(xs) & np.isfinite(ys)
+  xs = xs[mask]
+  ys = ys[mask]
+  if xs.size < 4:
+    return None
+  # Cap the fit window so a long noisy tail does not blow up C2.
+  near = xs <= max(MODEL_PATH_MIN_M, min(float(xs[-1]), float(VIEW_RANGE_MAX_M)))
+  if int(near.sum()) >= 4:
+    xs = xs[near]
+    ys = ys[near]
+  view = float(xs[-1])
+  if view < MODEL_PATH_MIN_M:
+    return None
+  try:
+    # np.polyfit returns highest degree first: C2, C1, C0 for deg=2.
+    c2, c1, c0 = np.polyfit(xs, ys, 2)
+  except Exception:
+    return None
+  f = 1.0 / IC_LANE_SCALE
+  return ModelPath(
+    c0=_clip(c0, C0_RANGE),
+    c1=_clip(c1 * f, C1_RANGE),
+    c2=_clip(c2 * (f * f), C2_RANGE),
+    c3=0.0,
+    view_range_m=float(clamp_view_range_m(view)),
+  )
+
+
+def lanes_path_values(h: HudInputs):
+  """C0..C3 and view range for DAS_lanes. Model path or curvature fallback."""
+  if h.model_path is not None:
+    p = h.model_path
+    return p.c0, p.c1, p.c2, p.c3, clamp_view_range_m(p.view_range_m)
+  return 0.0, 0.0, lane_c2(h.curvature), 0.0, LANE_VIEW_RANGE_M
 
 
 def build_autopilot_status(stock, h, stock_lanes, mode):
@@ -323,16 +420,18 @@ def build_das_lanes(stock, h):
   is 2 (FUSED). The IC draws from LineUsage. Overwriting usage from the
   Exists bits cleared both sides and hid the lines while engaged (stock
   still had usage 2,2 on bus 2). Tinkla set Exists/Usage from model probs;
-  without modelV2 here, stock usage/exists are left alone.
+  lane presence stays stock here. Path C0..C2 / view range come from
+  modelV2.position when HudInputs.model_path is set, else actuator
+  curvature + 50 m. C3 stays 0 (DBC has the signal; stock cubic terms are
+  tiny and a deg-3 fit is unstable at IC precision).
   """
   v = dict(stock)
-  # Tinkla draws openpilot's path. C0 and C1 are 0 (Tinkla suppresses C1 and
-  # its C0 is the model offset at x=0). C3 is 0: only curvature is known here.
-  v["DAS_virtualLaneC0"] = 0.0
-  v["DAS_virtualLaneC1"] = 0.0
-  v["DAS_virtualLaneC2"] = lane_c2(h.curvature)
-  v["DAS_virtualLaneC3"] = 0.0
-  v["DAS_virtualLaneViewRange"] = LANE_VIEW_RANGE_M
+  c0, c1, c2, c3, view = lanes_path_values(h)
+  v["DAS_virtualLaneC0"] = c0
+  v["DAS_virtualLaneC1"] = c1
+  v["DAS_virtualLaneC2"] = c2
+  v["DAS_virtualLaneC3"] = c3
+  v["DAS_virtualLaneViewRange"] = view
   return pack(DAS_LANES, SIGNALS[DAS_LANES], v)
 
 
@@ -341,9 +440,11 @@ class ClusterController:
 
   update() takes the newest decoded stock frame per address that arrived this
   step (or none). Nothing is sent for an address without a new stock frame.
-  While enabled: all three. For POST_DISENGAGE_NS after enabled drops:
-  AutopilotStatus and DAS_status2 with Tinkla's post-disengage rewrite only.
-  Otherwise nothing, and stock flows through the panda.
+  While enabled and HudInputs.ic_integration: all three. For POST_DISENGAGE_NS
+  after enabled drops: AutopilotStatus and DAS_status2 with Tinkla's
+  post-disengage rewrite only. When ic_integration is False, send nothing
+  immediately (panda forwards stock). Otherwise nothing, and stock flows
+  through the panda. Missing modelV2 never stops substitution by itself.
   """
 
   def __init__(self):
@@ -373,6 +474,11 @@ class ClusterController:
     """
     if DAS_LANES in new_stock:
       self.last_lanes = new_stock[DAS_LANES]
+    if not h.ic_integration:
+      # Toggle off: stop substitution immediately so stock frames forward.
+      self.prev_enabled = False
+      self.disengaged_ns = None
+      return []
     mode = self.mode(h.enabled, now_nanos)
     if mode is None:
       return []

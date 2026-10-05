@@ -546,6 +546,8 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   # TeslaLongControl and TeslaStalkFollow stay out of this list until
   # common/params_pyx.so is rebuilt. The prebuilt comma binary raises
   # UnknownKeyName for any key it was not compiled with.
+  # EnableICIntegration is also not a Params key: file-backed at
+  # /data/params_bogpilot/EnableICIntegration (see selfdrive/car/tesla/toggles.py).
   ("TetheringEnabled", "0", 0, "0"),
   ("ThemesDownloaded", "", 0, ""),
   ("ToyotaDoors", "1", 0, "0"),
