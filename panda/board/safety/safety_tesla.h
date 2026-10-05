@@ -103,6 +103,13 @@ bool tesla_longitudinal = false;
 bool tesla_powertrain = false;  // Are we the second panda intercepting the powertrain bus?
 bool tesla_raven = false;
 bool tesla_ap1 = false;
+// AP1 stalk-end tip (VSL_Enbl_Rq bit 6 of 0x45). Stock ACC goes STANDBY on
+// tip; keep controls_allowed through that DI drop only. Forward-push
+// SpdCtrlLvr==1 does not open this window. 300 ms covers the ~40 ms DI lag.
+uint8_t tesla_ap1_vsl_prev = 0;
+bool tesla_ap1_vsl_seen = false;
+uint32_t tesla_ap1_tip_ignore_cruise_ts = 0;
+#define TESLA_AP1_TIP_CRUISE_IGNORE_US 300000U
 
 bool tesla_stock_aeb = false;
 
@@ -178,6 +185,18 @@ static void tesla_rx_hook(const CANPacket_t *to_push) {
       brake_pressed = (((GET_BYTE(to_push, 0) & 0x0CU) >> 2) != 1U);
     }
 
+    // AP1 tip: VSL_Enbl_Rq is bit 6 of 0x45; SpdCtrlLvr is bits 0-5.
+    // Tip toggles VSL while Spd stays IDLE (0). Arm a short ignore window.
+    if (tesla_ap1 && !tesla_powertrain && (addr == 0x45)) {
+      int spd = GET_BYTE(to_push, 0) & 0x3FU;
+      uint8_t vsl = (GET_BYTE(to_push, 0) >> 6) & 1U;
+      if (tesla_ap1_vsl_seen && (vsl != tesla_ap1_vsl_prev) && (spd == 0)) {
+        tesla_ap1_tip_ignore_cruise_ts = microsecond_timer_get();
+      }
+      tesla_ap1_vsl_prev = vsl;
+      tesla_ap1_vsl_seen = true;
+    }
+
     if(addr == (tesla_powertrain ? 0x256 : 0x368)) {
       // Cruise state
       int cruise_state = (GET_BYTE(to_push, 1) >> 4);
@@ -194,7 +213,14 @@ static void tesla_rx_hook(const CANPacket_t *to_push) {
                             (cruise_state == 4) ||  // OVERRIDE
                             (cruise_state == 6) ||  // PRE_FAULT
                             (cruise_state == 7);    // PRE_CANCEL
-      pcm_cruise_check(cruise_engaged);
+      // Tip-induced stock STANDBY: keep controls_allowed. FWD cancel and
+      // other DI drops still clear it (no recent tip window).
+      if ((!cruise_engaged) && tesla_ap1 &&
+          (get_ts_elapsed(microsecond_timer_get(), tesla_ap1_tip_ignore_cruise_ts) < TESLA_AP1_TIP_CRUISE_IGNORE_US)) {
+        cruise_engaged_prev = false;
+      } else {
+        pcm_cruise_check(cruise_engaged);
+      }
     }
   }
 
@@ -366,6 +392,9 @@ static safety_config tesla_init(uint16_t param) {
   tesla_longitudinal = GET_FLAG(param, TESLA_FLAG_LONGITUDINAL_CONTROL);
   tesla_raven = GET_FLAG(param, TESLA_FLAG_RAVEN);
   tesla_ap1 = GET_FLAG(param, TESLA_FLAG_AP1);
+  tesla_ap1_vsl_prev = 0;
+  tesla_ap1_vsl_seen = false;
+  tesla_ap1_tip_ignore_cruise_ts = 0;
 
   tesla_stock_aeb = false;
   tesla_steer_tx_seen = false;
