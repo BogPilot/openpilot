@@ -639,12 +639,11 @@ class Controls:
 
     # Check which actuators can be enabled
     standstill = CS.vEgo <= max(self.CP.minSteerSpeed, MIN_LATERAL_CONTROL_SPEED) or CS.standstill
-    # AP1 only. steeringPressed is hands_on_level >= 2 (TinklaHandsOnLevel).
-    # Pauses path lateral and resets LaC. Does not change longActive.
-    ap1_hands_pause = self.CP.carFingerprint == "TESLA_AP1_MODELS" and CS.steeringPressed
+    # AP1: steeringPressed is any EPAS hands level (override / grey border) and
+    # does not clear latActive here. The Tinkla hands pause (level >= 2) is
+    # applied in selfdrive/car/tesla/carcontroller.py, which sends type NONE.
     CC.latActive = (self.active or self.sm['frogpilotCarState'].alwaysOnLateralEnabled) and not CS.steerFaultTemporary and not CS.steerFaultPermanent and \
-                   (not standstill or self.joystick_mode) and self.sm['frogpilotPlan'].lateralCheck and not self.sm['frogpilotCarState'].pauseLateral and \
-                   not ap1_hands_pause
+                   (not standstill or self.joystick_mode) and self.sm['frogpilotPlan'].lateralCheck and not self.sm['frogpilotCarState'].pauseLateral
     CC.longActive = self.enabled and not self.contains_event_type(ET.OVERRIDE_LONGITUDINAL) and not self.sm['frogpilotCarState'].pauseLongitudinal and self.CP.openpilotLongitudinalControl
 
     actuators = CC.actuators

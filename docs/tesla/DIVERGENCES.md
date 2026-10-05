@@ -57,6 +57,11 @@ Checksum for 0x399 and 0x389 is `(addr & 0xFF) + (addr >> 8) + sum(bytes 0..6)` 
 
 `selfdrive/controls/lib/fcw_gate.py` (used by `longitudinal_planner.py`): while `reset_state` is true (long control off / disengaged), `mpc.crash_cnt` is cleared and planner FCW is not set. FrogPilot publishes min/maxAcceleration = 0 while disengaged, which coasts the MPC into a closing lead and latches `crash_cnt`; without this clear, controlsd raises EventName.fcw ("BRAKE!" / "Risk of Collision") at the engage instant. Model FCW (`hardBrakePredicted`), stock AEB passthrough, and engaged planner FCW are unchanged.
 
+## AP1 driver steering input (override border and hands pause)
+
+- `carState.steeringPressed` on AP1 is any non-zero `EPAS_handsOnLevel` (`hso.ap1_driver_input`, `AP1_DRIVER_INPUT_LEVEL = 1`), the stock Tesla port and `frog_ap1` mapping. It raises `steerOverride`, controlsd enters `overriding`, and the prebuilt UI draws the grey border. `f8aadaa8` had raised it to >= 2 (TinklaHandsOnLevel); logged AP1 EPAS only reports levels 0, 1 and 3 (never 2), so the border only went grey on brief level 3 peaks.
+- The Tinkla hands pause is unchanged at level >= 2 (`hso.ap1_steering_pressed`): CarController sends 0x488 type NONE at the measured angle and cruise stays up. controlsd no longer clears `latActive` from `steeringPressed` on AP1, so a level 1 override keeps openpilot steering (as in `frog_ap1`) with the border grey. `_ap1_epas_inhibit_alert` does not count EPAS INHIBITED during the hands pause (EPAS reports INHIBITED with code 3 while the driver is at level 3).
+
 ## Angle steering and dashcamOnly
 
 Angle steering does not blend with driver torque. `selfdrive/car/tesla/interface.py` documents that and keeps `ret.dashcamOnly = True` for that reason. This document does not propose turning `dashcamOnly` off.

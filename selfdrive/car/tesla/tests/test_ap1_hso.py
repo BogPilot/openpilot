@@ -228,7 +228,7 @@ def test_temp_steer_event_is_silent_and_fault_is_not():
 
 def test_wiring_keeps_model3_cancel_and_ap1_pause():
   carstate = (ROOT / "selfdrive/car/tesla/carstate.py").read_text()
-  assert "ap1_steering_pressed(self.hands_on_level)" in carstate
+  assert "ap1_driver_input(self.hands_on_level)" in carstate
   assert "self.hands_on_level > 0" in carstate
   controller = (ROOT / "selfdrive/car/tesla/carcontroller.py").read_text()
   assert "hands_on_fault = (not ap1)" in controller
@@ -239,9 +239,10 @@ def test_wiring_keeps_model3_cancel_and_ap1_pause():
   assert "eac_status=CS.eac_status if ap1 else None" in controller
   assert "soft_start=soft_start" in controller
   assert "self.eac_status = steer_status" in carstate
+  # controlsd no longer clears latActive on AP1 steeringPressed (now any
+  # hands level). The >= 2 pause is the ap1_lat_active gate above.
   controlsd = (ROOT / "selfdrive/controls/controlsd.py").read_text()
-  assert 'self.CP.carFingerprint == "TESLA_AP1_MODELS" and CS.steeringPressed' in controlsd
-  assert "not ap1_hands_pause" in controlsd
+  assert "ap1_hands_pause" not in controlsd
   interface = (ROOT / "selfdrive/car/tesla/interface.py").read_text()
   assert "ap1_hso_event_names" in interface
   assert "CAR.TESLA_AP1_MODELS" in interface

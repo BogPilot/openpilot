@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from cereal import car
-from openpilot.selfdrive.car.tesla.hso import ap1_hso_event_names
+from openpilot.selfdrive.car.tesla.hso import ap1_hso_event_names, ap1_steering_pressed
 from openpilot.selfdrive.car.tesla.safety_flags import dashcam_only_for_candidate, flags_for_candidate
 from openpilot.selfdrive.car.tesla.values import CANBUS, CAR
 from openpilot.selfdrive.car import get_safety_config
@@ -70,6 +70,9 @@ class CarInterface(CarInterfaceBase):
     # ~1 s at controlsd rate. card/_update runs at the same 100 Hz.
     inhibit_frames = int(1.0 / DT_CTRL)
     want_lat = bool(c.enabled) and bool(getattr(c, "latActive", False))
+    # The hands pause sends NONE on purpose (EPAS goes INHIBITED at level 3);
+    # that is the driver steering, not EPAS refusing control.
+    want_lat = want_lat and not ap1_steering_pressed(self.CS.hands_on_level)
     inhibited = self.CS.eac_status == "EAC_INHIBITED"
     if want_lat and inhibited and not ret.steerFaultPermanent:
       self.ap1_inhibit_alert_frames = getattr(self, "ap1_inhibit_alert_frames", 0) + 1
