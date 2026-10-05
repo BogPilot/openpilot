@@ -1,4 +1,6 @@
+from cereal import car
 from opendbc.can.packer import CANPacker
+from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.car.interfaces import CarControllerBase
 from openpilot.selfdrive.car.tesla.actuator_plan import (
   DAS_CONTROL_POWERTRAIN,
@@ -6,9 +8,13 @@ from openpilot.selfdrive.car.tesla.actuator_plan import (
   build_actuator_plan,
   longitudinal_command_allowed,
 )
-from openpilot.selfdrive.car.tesla.hso import ap1_lat_active
+from openpilot.selfdrive.car.tesla.cluster import CLUSTER_BUS, ClusterController, HudInputs
+from openpilot.selfdrive.car.tesla.hso import ap1_lat_active, ap1_steering_pressed
 from openpilot.selfdrive.car.tesla.teslacan import TeslaCAN
 from openpilot.selfdrive.car.tesla.values import DBC, CANBUS, CAR
+
+VisualAlert = car.CarControl.HUDControl.VisualAlert
+AudibleAlert = car.CarControl.HUDControl.AudibleAlert
 
 
 class CarController(CarControllerBase):
@@ -19,6 +25,8 @@ class CarController(CarControllerBase):
     self.packer = CANPacker(dbc_name)
     self.pt_packer = CANPacker(DBC[CP.carFingerprint]['pt'])
     self.tesla_can = TeslaCAN(self.packer, self.pt_packer)
+    # AP1 only. Tinkla-style cluster frames (cluster.py).
+    self.cluster = ClusterController() if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
 
   def update(self, CC, CS, now_nanos, frogpilot_toggles):
     actuators = CC.actuators
@@ -78,8 +86,38 @@ class CarController(CarControllerBase):
     if ap1_should_send_hold_clear(chassis_das_only, long_allowed, CS.acc_state, self.frame):
       can_sends.append(self.tesla_can.create_ap1_hold_clear())
 
+    # AP1 cluster frames. Display only. Added after every actuator frame and
+    # never read by the actuator plan above.
+    if self.cluster is not None:
+      can_sends.extend(self.cluster_frames(CC, CS, now_nanos))
+
     new_actuators = actuators.as_builder()
     new_actuators.steeringAngleDeg = self.apply_angle_last
 
     self.frame += 1
     return new_actuators, can_sends
+
+  def cluster_frames(self, CC, CS, now_nanos):
+    """Cluster frames for this step. A failure here turns them off for the
+    rest of the drive (stock frames then flow through the panda). It must not
+    stop the steering and longitudinal frames already built."""
+    try:
+      hud = CC.hudControl
+      h = HudInputs(
+        enabled=bool(CC.enabled),
+        fcw=hud.visualAlert == VisualAlert.fcw,
+        steer_required=hud.visualAlert == VisualAlert.steerRequired,
+        audible=hud.audibleAlert != AudibleAlert.none,
+        human_steering=ap1_steering_pressed(CS.hands_on_level),
+        left_lane_depart=bool(hud.leftLaneDepart),
+        right_lane_depart=bool(hud.rightLaneDepart),
+        left_blinker=bool(CC.leftBlinker),
+        right_blinker=bool(CC.rightBlinker),
+        curvature=float(CC.actuators.curvature),
+      )
+      frames = self.cluster.update(h, CS.cluster_stock, now_nanos)
+      return [[addr, 0, dat, CLUSTER_BUS] for addr, dat in frames]
+    except Exception:
+      cloudlog.exception("tesla ap1 cluster frames disabled")
+      self.cluster = None
+      return []

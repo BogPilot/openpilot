@@ -100,10 +100,18 @@ def test_fwd_hook_not_unconditional_block():
   assert "tesla_op_recently_sent" in long_block_region
   assert "block_msg = true;" not in long_block_region
 
-  # No cluster / EPAS / GTW rewrite in this change.
-  for needle in ("0x399", "0x389", "0x239", "0x309", "0x3a9", "0x3e9", "0x329", "0x369", "0x349",
+  # No EPAS / GTW rewrite, and no other DAS frame is dropped. The AP1 cluster
+  # ids (0x399, 0x389, 0x239) are dropped only through the same recent-TX
+  # rule, per address, and only with TESLA_FLAG_AP1 (panda/tests/safety/
+  # test_tesla_ap1_cluster.py runs that against libpanda).
+  for needle in ("0x309", "0x3a9", "0x3e9", "0x329", "0x369", "0x349",
                  "EPAS_eacStatus", "GTW_autopilot", "GTW_carConfig"):
     assert needle not in fwd
+  cluster = fwd.split("tesla_ap1 && !tesla_powertrain")[1].split("if(!block_msg)")[0]
+  assert "tesla_ap1_cluster_index(addr)" in cluster
+  assert "tesla_op_recently_sent(tesla_ap1_cluster_tx_ts[idx], tesla_ap1_cluster_tx_seen[idx]" in cluster
+  assert "block_msg = true;" not in cluster
+  assert "TESLA_AP1_CLUSTER_ADDRS[TESLA_AP1_CLUSTER_LEN] = {0x399, 0x389, 0x239}" in SAFETY
 
   # Safety flags are not zeroed; AP1 still uses AP1|LONG.
   assert "TESLA_FLAG_AP1 = 8" in SAFETY

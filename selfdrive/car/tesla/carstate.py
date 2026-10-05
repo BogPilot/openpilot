@@ -2,6 +2,7 @@ import copy
 from collections import deque
 from cereal import car, custom
 from openpilot.common.conversions import Conversions as CV
+from openpilot.selfdrive.car.tesla.cluster import CLUSTER_ADDRS, COUNTER_SIGNALS, MSG_NAMES
 from openpilot.selfdrive.car.tesla.hso import ap1_steering_pressed
 from openpilot.selfdrive.car.tesla.stalk_follow import dtr_sample, follow_seconds, parse_stalk_raw
 from openpilot.selfdrive.car.tesla.steer_fault import steer_fault_temporary
@@ -25,6 +26,9 @@ class CarState(CarStateBase):
     self.das_control_counters = deque(maxlen=32)
     # DTR_Dist_Rq decision. Python only; cereal was not extended.
     self.stalk_follow = None
+    # AP1 only. {addr: decoded values} for stock cluster frames (bus 2) that
+    # arrived this step. Read by CarController for the cluster frames.
+    self.cluster_stock = {}
 
   def update(self, cp, cp_cam, frogpilot_toggles):
     ret = car.CarState.new_message()
@@ -134,8 +138,23 @@ class CarState(CarStateBase):
     self.msg_stw_actn_req = copy.copy(cp.vl["STW_ACTN_RQ"])
     self.acc_state = cp_cam.vl["DAS_control"]["DAS_accState"]
     self.das_control_counters.extend(cp_cam.vl_all["DAS_control"]["DAS_controlCounter"])
+    self.cluster_stock = self.new_cluster_frames(cp_cam) if ap1 else {}
 
     return ret, fp_ret
+
+  @staticmethod
+  def new_cluster_frames(cp_cam):
+    """Stock AutopilotStatus / DAS_status2 / DAS_lanes received this step.
+
+    A frame counts as new when its counter signal has a value in vl_all for
+    this update. vl holds the newest decoded values of that frame.
+    """
+    out = {}
+    for addr in CLUSTER_ADDRS:
+      name = MSG_NAMES[addr]
+      if len(cp_cam.vl_all[name].get(COUNTER_SIGNALS[addr], [])):
+        out[addr] = dict(cp_cam.vl[name])
+    return out
 
   @staticmethod
   def get_can_parser(CP, FPCP):
@@ -168,5 +187,12 @@ class CarState(CarStateBase):
 
     if CP.carFingerprint == CAR.TESLA_MODELS_RAVEN:
       messages.append(("EPAS3P_sysStatus", 100))
+
+    if CP.carFingerprint == CAR.TESLA_AP1_MODELS:
+      # Stock cluster frames for the AP1 cluster substitution. Frequency 0:
+      # the parser never marks them missing or timed out, so they cannot
+      # change canValid. A car without them just gets no cluster frames.
+      for addr in CLUSTER_ADDRS:
+        messages.append((MSG_NAMES[addr], 0))
 
     return CANParser(DBC[CP.carFingerprint]['chassis'], messages, CANBUS.autopilot_chassis)

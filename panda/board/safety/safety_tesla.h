@@ -62,6 +62,9 @@ const CanMsg TESLA_AP1_TX_MSGS[] = {
   {0x45, 2, 8},   // STW_ACTN_RQ
   {0x2b9, 0, 8},  // DAS_control
   {0x349, 0, 8},  // Hold clear
+  {0x399, 0, 8},  // AutopilotStatus (cluster)
+  {0x389, 0, 8},  // DAS_status2 (cluster)
+  {0x239, 0, 8},  // DAS_lanes (cluster)
 };
 
 const CanMsg TESLA_PT_TX_MSGS[] = {
@@ -114,6 +117,28 @@ uint32_t tesla_last_steer_tx_ts = 0;
 uint32_t tesla_last_long_tx_ts = 0;
 bool tesla_steer_tx_seen = false;
 bool tesla_long_tx_seen = false;
+
+// AP1 only. Cluster frames, Tinkla TESLA_AP_FWD_MODDED idea. openpilot sends
+// its own copy of each stock frame on bus 0 while engaged and for a short
+// time after. The stock copy from bus 2 is dropped only while openpilot has
+// sent that address within 1.5x its stock period (AutopilotStatus and
+// DAS_status2 2 Hz, DAS_lanes 10 Hz, from AP1 rlogs). With no recent OP TX,
+// or without TESLA_FLAG_AP1, stock frames are forwarded as before.
+#define TESLA_AP1_CLUSTER_LEN 3
+const int TESLA_AP1_CLUSTER_ADDRS[TESLA_AP1_CLUSTER_LEN] = {0x399, 0x389, 0x239};
+const uint32_t TESLA_AP1_CLUSTER_TIMEOUT_US[TESLA_AP1_CLUSTER_LEN] = {750000U, 750000U, 150000U};
+uint32_t tesla_ap1_cluster_tx_ts[TESLA_AP1_CLUSTER_LEN] = {0U, 0U, 0U};
+bool tesla_ap1_cluster_tx_seen[TESLA_AP1_CLUSTER_LEN] = {false, false, false};
+
+static int tesla_ap1_cluster_index(int addr) {
+  int idx = -1;
+  for (int i = 0; i < TESLA_AP1_CLUSTER_LEN; i++) {
+    if (TESLA_AP1_CLUSTER_ADDRS[i] == addr) {
+      idx = i;
+    }
+  }
+  return idx;
+}
 
 static bool tesla_op_recently_sent(uint32_t last_ts, bool seen, uint32_t timeout_us) {
   if (!seen) {
@@ -256,6 +281,15 @@ static bool tesla_tx_hook(const CANPacket_t *to_send) {
     }
   }
 
+  // AP1 cluster. AutopilotStatus may only show an active autopilot state
+  // (3, 4, 5) while controls are allowed. autopilotStatus is bits 0-3.
+  if (tesla_ap1 && (addr == 0x399)) {
+    int autopilot_state = GET_BYTE(to_send, 0) & 0x0FU;
+    if ((autopilot_state >= 3) && (autopilot_state <= 5) && !controls_allowed) {
+      violation = true;
+    }
+  }
+
   if (violation) {
     tx = false;
   }
@@ -270,6 +304,13 @@ static bool tesla_tx_hook(const CANPacket_t *to_send) {
     if (addr == (tesla_powertrain ? 0x2bf : 0x2b9)) {
       tesla_last_long_tx_ts = microsecond_timer_get();
       tesla_long_tx_seen = true;
+    }
+    if (tesla_ap1) {
+      int idx = tesla_ap1_cluster_index(addr);
+      if (idx >= 0) {
+        tesla_ap1_cluster_tx_ts[idx] = microsecond_timer_get();
+        tesla_ap1_cluster_tx_seen[idx] = true;
+      }
     }
   }
 
@@ -303,6 +344,15 @@ static int tesla_fwd_hook(int bus_num, int addr) {
                                          TESLA_LONG_SUBSTITUTE_TIMEOUT_US);
     }
 
+    // AP1 cluster: same rule, per address. Not AP1: never dropped here.
+    if (tesla_ap1 && !tesla_powertrain) {
+      int idx = tesla_ap1_cluster_index(addr);
+      if (idx >= 0) {
+        block_msg = tesla_op_recently_sent(tesla_ap1_cluster_tx_ts[idx], tesla_ap1_cluster_tx_seen[idx],
+                                           TESLA_AP1_CLUSTER_TIMEOUT_US[idx]);
+      }
+    }
+
     if(!block_msg) {
       bus_fwd = 0;
     }
@@ -322,6 +372,10 @@ static safety_config tesla_init(uint16_t param) {
   tesla_long_tx_seen = false;
   tesla_last_steer_tx_ts = 0;
   tesla_last_long_tx_ts = 0;
+  for (int i = 0; i < TESLA_AP1_CLUSTER_LEN; i++) {
+    tesla_ap1_cluster_tx_ts[i] = 0U;
+    tesla_ap1_cluster_tx_seen[i] = false;
+  }
 
   safety_config ret;
   if (tesla_powertrain) {
