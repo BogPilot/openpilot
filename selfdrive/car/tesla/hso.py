@@ -7,8 +7,8 @@ is warning-only. It is not no-entry and not a soft disable.
 
 The 50-frame numb period and the 15 degree handoff in HSO_module.py are
 not applied. Resume is the next step after hands_on_level drops below 2,
-if cruise is still enabled and EPAS is not EAC_FAULT. Code 6 does not block
-that resume. Any other non-idle name stays a steer warning.
+if cruise is still enabled and EPAS is not EAC_FAULT. Code 6 and a latched
+code 3 do not block that resume. Any other non-idle name stays a steer warning.
 """
 
 # selfdrive/car/tesla/carstate.py: load_float_param("TinklaHandsOnLevel", 2.0)

@@ -42,11 +42,12 @@ _NAMED = {
 
 
 def test_ap1_only_idle_is_not_a_temporary_steer_fault():
-  # Code 6 is not a warning on AP1. It stays latched until an angle is accepted,
-  # so it must not clear latActive. Other non-idle names still warn.
+  # Code 6 and latched HANDS_ON are not warnings on AP1. They stay set after
+  # the wheel is released, so they must not clear latActive. Other non-idle
+  # names still warn. Hands >= 2 pause lateral without this flag.
   assert steer_fault_temporary("EAC_ERROR_IDLE", True) is False
   assert steer_fault_temporary("EAC_ERROR_HIGH_ANGLE_REQ", True) is False
-  assert steer_fault_temporary("EAC_ERROR_HANDS_ON", True) is True
+  assert steer_fault_temporary("EAC_ERROR_HANDS_ON", True) is False
   assert steer_fault_temporary("EAC_ERROR_HIGH_ANGLE_RATE_REQ", True) is True
   assert steer_fault_temporary("EAC_ERROR_TMP_FAULT", True) is True
   assert steer_fault_temporary(None, True) is True

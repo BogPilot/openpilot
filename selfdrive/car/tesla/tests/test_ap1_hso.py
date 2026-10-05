@@ -1,8 +1,9 @@
 """AP1 hands-on pause matches Tinkla HSO, not a FrogPilot cancel.
 
 Not a product, no warranty, driver remains responsible, comply with local law.
-This does not make the car safe to drive. EPAS error code 6 does not by itself
-block AP1 path lateral. Other error codes still do.
+This does not make the car safe to drive. EPAS error code 6 and a latched
+hands-on code 3 do not by themselves block AP1 path lateral once hands are
+below 2. Other error codes still do. Hands at or above 2 still send NONE.
 """
 
 from collections import deque
@@ -102,6 +103,54 @@ def test_code_6_sends_angle_within_20_deg_not_none():
   assert held.steer.angle_deg == 4.0
   assert held.steer.angle_deg != 25.0
   assert len(held.longitudinal) == 1
+
+
+
+def test_latched_hands_on_sends_angle_after_hands_drop():
+  # Old behavior: code 3 kept steerFaultTemporary set, lat stayed off, and
+  # 0x488 stayed type NONE for the rest of the boot.
+  from openpilot.selfdrive.car.tesla.steer_fault import steer_fault_temporary
+  assert steer_fault_temporary("EAC_ERROR_HANDS_ON", True) is False
+  assert steer_fault_temporary("EAC_ERROR_HANDS_ON", False) is False
+  assert steer_fault_temporary("EAC_ERROR_HIGH_ANGLE_REQ", False) is True
+
+  # Planner not active, cruise enabled, hands back below 2, not EAC_FAULT.
+  # Name is HANDS_ON, not IDLE. Command is ANGLE at the measured wheel.
+  held = _plan(lat_active=False, hands_on_level=1, eac_fault=False,
+               requested_angle_deg=25.0, measured_angle_deg=4.0,
+               last_angle_deg=4.0, epas_error="EAC_ERROR_HANDS_ON")
+  assert held.cancel is False
+  assert held.steer is not None
+  assert held.steer.control_type == STEERING_CONTROL_ANGLE
+  assert held.steer.control_type != STEERING_CONTROL_NONE
+  assert held.steer.angle_deg == 4.0
+  assert held.steer.angle_deg != 25.0
+  assert len(held.longitudinal) == 1
+
+  # Planner active: planned angle, still clipped within 20 deg of measured.
+  planned = _plan(lat_active=True, hands_on_level=0, eac_fault=False,
+                  requested_angle_deg=40.0, measured_angle_deg=0.0,
+                  last_angle_deg=20.0, v_ego=0.0,
+                  epas_error="EAC_ERROR_HANDS_ON")
+  assert planned.steer is not None
+  assert planned.steer.control_type == STEERING_CONTROL_ANGLE
+  assert planned.steer.angle_deg == 20.0
+
+  # Hands still at or above 2: pause, measured angle, type NONE. Cruise stays.
+  paused = _plan(lat_active=True, hands_on_level=2, eac_fault=False,
+                 requested_angle_deg=25.0, measured_angle_deg=4.0,
+                 last_angle_deg=4.0, epas_error="EAC_ERROR_HANDS_ON")
+  assert paused.cancel is False
+  assert len(paused.longitudinal) == 1
+  assert paused.steer is not None
+  assert paused.steer.control_type == STEERING_CONTROL_NONE
+  assert paused.steer.enabled is False
+  assert paused.steer.angle_deg == 4.0
+
+  level3 = _plan(lat_active=True, hands_on_level=3,
+                 epas_error="EAC_ERROR_HANDS_ON")
+  assert level3.steer.control_type == STEERING_CONTROL_NONE
+  assert level3.cancel is False
 
 
 def test_other_epas_codes_still_send_measured_none():

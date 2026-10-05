@@ -61,10 +61,11 @@ class CarState(CarStateBase):
       ret.steeringPressed = (self.hands_on_level > 0)
     self.eac_fault = steer_status == "EAC_FAULT"
     ret.steerFaultPermanent = self.eac_fault
-    # AP1: idle and EAC_ERROR_HIGH_ANGLE_REQ (6) are not temporary faults.
-    # Code 6 stays latched until an angle command is accepted, so it must not
-    # clear latActive. Other non-idle names still warn. Model 3/Y still faults
-    # on code 6. HANDS_ON still warns on AP1.
+    # AP1: idle, code 6, and latched HANDS_ON (3) are not temporary faults.
+    # Both codes stay set after hands return below 2, so they must not keep
+    # latActive false. The hands pause is hands_on_level >= 2, not this flag.
+    # Other non-idle names still warn. Model 3/Y still faults on code 6 and
+    # still does not fault on HANDS_ON.
     ret.steerFaultTemporary = steer_fault_temporary(self.steer_warning, ap1)
 
     # Cruise state
