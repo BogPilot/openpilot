@@ -591,8 +591,8 @@ FrogPilotThemesPanel::FrogPilotThemesPanel(FrogPilotSettingsWindow *parent) : Fr
       QString stockTop = "Be ready to take over at any time";
       QString stockBottom = "Always keep hands on wheel and eyes on road";
 
-      QString frogpilotTop = "Hop in and buckle up!";
-      QString frogpilotBottom = "Human-tested, frog-approved 🐸";
+      QString frogpilotTop = "Your m∞v";
+      QString frogpilotBottom = "Hands present, mind at ease";
 
       if (currentTop == stockTop && currentBottom == stockBottom) {
         startupAlertButton->setCheckedButton(0);
