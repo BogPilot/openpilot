@@ -538,7 +538,7 @@ def test_lanes_use_model_path_when_present():
   path = c.ModelPath(c0=0.35, c1=-0.05, c2=0.0012, c3=0.0, view_range_m=72)
   v = c.unpack(0x239, _send(c.ClusterController(), hud(model_path=path, curvature=0.01),
                             {0x239: stock(0x239)}, NS)[0x239])
-  assert v["DAS_virtualLaneC0"] == pytest.approx(0.35, abs=0.035)
+  assert v["DAS_virtualLaneC0"] == pytest.approx(0.0, abs=0.035)  # path starts at the car
   assert v["DAS_virtualLaneC1"] == pytest.approx(0.0, abs=0.0016)  # Tinkla: C1 suppressed
   assert v["DAS_virtualLaneC2"] == pytest.approx(0.0012, abs=2e-05)
   assert v["DAS_virtualLaneC3"] == pytest.approx(0.0, abs=2.4e-07)
@@ -564,18 +564,33 @@ def test_model_path_missing_falls_back_to_curvature_and_50m():
 
 
 def test_path_from_model_v2_fits_poly_and_scales():
-  # Straight-ish path with offset and mild curve: y = 0.2 + 0.01 x + 0.0001 x^2
+  # Curved path from the car: y = 0.0001 x^2, out to 60 m.
   xs = [float(i) for i in range(1, 61)]
-  ys = [0.2 + 0.01 * x + 0.0001 * x * x for x in xs]
+  ys = [0.0001 * x * x for x in xs]
   model = SimpleNamespace(position=SimpleNamespace(x=xs, y=ys))
   path = c.path_from_model_v2(model)
   assert path is not None
   f = 1.0 / c.IC_LANE_SCALE
-  assert path.c0 == pytest.approx(0.2, abs=0.05)
+  assert path.c0 == 0.0
   assert path.c1 == 0.0  # Tinkla suppress_x_coord
-  assert path.c2 == pytest.approx(0.0001 * f * f, abs=2e-4)
+  assert path.c2 == pytest.approx(0.0001 * f * f, abs=2e-5)
   assert path.c3 == 0.0
   assert path.view_range_m == 60
+
+
+def test_path_from_model_v2_heading_does_not_tilt_or_offset_line():
+  # A slanted model path (979dbf8 regression) must not produce C0/C1.
+  xs = [float(i) for i in range(1, 101)]
+  ys = [0.3 + 0.05 * x for x in xs]
+  path = c.path_from_model_v2(SimpleNamespace(position=SimpleNamespace(x=xs, y=ys)))
+  assert path is not None
+  assert (path.c0, path.c1, path.c3) == (0.0, 0.0, 0.0)
+  assert path.view_range_m == 100  # Tinkla max_distance cap
+  path = c.ModelPath(c0=1.5, c1=0.2, c2=0.0, c3=0.0, view_range_m=60)
+  v = c.unpack(0x239, _send(c.ClusterController(), hud(model_path=path),
+                            {0x239: stock(0x239)}, NS)[0x239])
+  assert v["DAS_virtualLaneC0"] == pytest.approx(0.0, abs=0.035)
+  assert v["DAS_virtualLaneC1"] == pytest.approx(0.0, abs=0.0016)
 
 
 def test_path_from_model_v2_rejects_short_or_empty():
@@ -625,7 +640,7 @@ def test_carcontroller_uses_model_path_when_engaged(tesla_modules, monkeypatch):
   lanes = [m for m in can if m[0] == 0x239]
   assert len(lanes) == 1
   v = c.unpack(0x239, lanes[0][2])
-  assert v["DAS_virtualLaneC0"] == pytest.approx(0.5, abs=0.035)
+  assert v["DAS_virtualLaneC0"] == pytest.approx(0.0, abs=0.035)
   assert v["DAS_virtualLaneC2"] == pytest.approx(-0.001, abs=2e-05)
   assert v["DAS_virtualLaneViewRange"] == 55
 

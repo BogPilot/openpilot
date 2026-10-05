@@ -121,6 +121,9 @@ VIEW_RANGE_MAX_M = 160
 MODEL_PATH_MIN_M = 5.0
 # Tinkla HUD_module fits the path out to 100 m (max_distance).
 MODEL_FIT_MAX_M = 100.0
+# Curvature fit window. Through-origin fit over 50 m matched stock Mobileye
+# C2 sign ~98% on real curves in the 979dbf8 drive replay.
+MODEL_C2_FIT_M = 50.0
 LINE_USAGE_FUSED = 2
 LINE_USAGE_REJECTED = 0
 
@@ -311,7 +314,7 @@ def clamp_view_range_m(meters):
 
 
 def path_from_model_v2(model_v2) -> Optional[ModelPath]:
-  """Fit C0..C2 from modelV2.position x/y (ego frame). C3 stays 0.
+  """Fit C2 from modelV2.position x/y (ego frame). C0, C1, C3 stay 0.
 
   Uses the planned-path position polynomial openpilot already publishes.
   Coefficients are scaled by (1/IC_LANE_SCALE)^n like Tinkla, then clipped to
@@ -337,25 +340,30 @@ def path_from_model_v2(model_v2) -> Optional[ModelPath]:
   ys = ys[mask]
   if xs.size < 4:
     return None
-  # Cap the fit window so a long noisy tail does not blow up C2.
-  near = xs <= max(MODEL_PATH_MIN_M, min(float(xs[-1]), MODEL_FIT_MAX_M))
-  if int(near.sum()) >= 4:
-    xs = xs[near]
-    ys = ys[near]
-  view = float(xs[-1])
+  # View range: how far ahead the model path is valid, capped at Tinkla's
+  # 100 m max_distance (then clamped to the DBC range when packed).
+  view = min(float(xs[-1]), MODEL_FIT_MAX_M)
   if view < MODEL_PATH_MIN_M:
     return None
-  try:
-    # np.polyfit returns highest degree first: C2, C1, C0 for deg=2.
-    c2, c1, c0 = np.polyfit(xs, ys, 2)
-  except Exception:
+  # Fit y = c2 * x^2 through the origin over the near path. The model path
+  # starts at the car, so C0 (offset) and C1 (heading) are 0 by construction.
+  # A free fit traded C0 against C1 (corr -0.98 on the 979dbf8 drive) and
+  # drew the line off to one side and across the car; Tinkla also forces
+  # C1 = 0 (suppress_x_coord) and has C0 = 0 ("always center") as an option.
+  near = xs <= MODEL_C2_FIT_M
+  if int(near.sum()) < 4:
+    return None
+  xn = xs[near]
+  yn = ys[near]
+  denom = float(np.sum(xn ** 4))
+  if not np.isfinite(denom) or denom <= 0.0:
+    return None
+  c2 = float(np.sum(xn * xn * yn) / denom)
+  if not np.isfinite(c2):
     return None
   f = 1.0 / IC_LANE_SCALE
   return ModelPath(
-    c0=_clip(c0, C0_RANGE),
-    # Tinkla sets suppress_x_coord = True, so C1 (heading) is always 0.
-    # Sending the fitted heading drew the path diagonally across the car
-    # on the AP1 cluster (979dbf8 drive, 2026-10-05).
+    c0=0.0,
     c1=0.0,
     c2=_clip(c2 * (f * f), C2_RANGE),
     c3=0.0,
@@ -367,8 +375,8 @@ def lanes_path_values(h: HudInputs):
   """C0..C3 and view range for DAS_lanes. Model path or curvature fallback."""
   if h.model_path is not None:
     p = h.model_path
-    # C1 stays 0 like Tinkla (see path_from_model_v2).
-    return p.c0, 0.0, p.c2, p.c3, clamp_view_range_m(p.view_range_m)
+    # C0 and C1 stay 0 (see path_from_model_v2).
+    return 0.0, 0.0, p.c2, p.c3, clamp_view_range_m(p.view_range_m)
   return 0.0, 0.0, lane_c2(h.curvature), 0.0, LANE_VIEW_RANGE_M
 
 
