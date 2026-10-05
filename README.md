@@ -1,14 +1,31 @@
 # BogPilot
 
-BogPilot is a research fork of FrogPilot for early Tesla (pre-AP, AP1, AP2 Model S/X).
+BogPilot is an MIT-licensed research fork of FrogPilot for early Tesla Model S/X (pre-AP, AP1, AP2), with Autopilot 1 (AP1) as the current focus. AP1 support is a fresh port built from BogGyver's Tinkla project, the long-standing AP1 reference. It does not reuse Model 3/Y code.
 
-**Not a product. No warranty. The driver remains responsible. Comply with local law.** Not safe to drive until a human validates it on a bench and in a car.
+**Not a product. No warranty. The driver remains responsible. Comply with local law.** Not validated as safe to drive. The maintainer has driven it on one AP1 Model S with a comma 3X, but that is a personal impression, not a bench or safety validation. Pre-AP, AP2, and MCU2 have not been tested.
 
 Pinned FrogPilot SHA: `1e23dec6352cef5a36a87be0af7d7a082b7c48a4`.
 
-Alpha. No bus captures yet, so this tree is not a tagged release.
+## AP1 status (tag `ap1-driving-milestone-2`)
 
-The BogPilot install channel is not live. Do not enter `frogpilot.download` for this fork (that host installs upstream FrogPilot). `https://github.com/BogPilot/BogPilot` is the repository pointer only, not a download CDN.
+- Openpilot steering (angle control on `0x488`) and longitudinal control (`0x2b9`) through one harness and one panda on chassis CAN. A single stalk pull engages openpilot.
+- The steering takeover is gentle: a soft start at engage, a recovery when EPAS goes inactive, and a grey border whenever the driver touches the wheel. After a firm override, openpilot waits 0.5 s once the driver lets go, then eases back in from wherever the wheel is.
+- The stalk changes driving personality and follow distance, and Hold clears with the accelerator like Tinkla.
+- On the instrument cluster, openpilot shows its engaged state, its planned path from the driving model, and lane lines, using Tinkla's `0x399`/`0x389`/`0x239` approach. Turning off `EnableICIntegration` gives back the stock cluster.
+- The false "BRAKE!" alert that fired right at engage is fixed. Real collision warnings and the car's AEB are unchanged.
+- The device recognizes the car by EPS, brake booster, and radar firmware, not by VIN. Other AP1 owners can submit rlogs to have their versions added.
+
+Every place this tree knowingly differs from upstream or Tinkla is listed in `docs/tesla/DIVERGENCES.md`. Credits are in `CREDITS.md`.
+
+## Install
+
+On the comma 3X setup screen, choose custom software and enter:
+
+    installer.comma.ai/BogPilot/bogpilot-tesla
+
+Longitudinal control needs the DEBUG panda firmware that this branch builds. Do not enter `frogpilot.download`, which installs upstream FrogPilot.
+
+A sister AP1 port built on sunnypilot lives on `BogPilot/sunnypilot` branch `sunny-tesla`. It has not been road-tested.
 
 ---
 
@@ -208,8 +225,8 @@ And lots more! From safety enhancements to personalization options, **FrogPilot*
 ------
 | Branch                     | Install&nbsp;URL          | Description                                            | Recommended&nbsp;For     |
 |----------------------------|---------------------------|--------------------------------------------------------|--------------------------|
-| BogPilot                   | not live                  | This fork's stable name. No download CDN yet.          | Nobody yet (alpha)       |
-| bogpilot-tesla             | not live                  | Tesla early integration branch. No download CDN yet.   | Research only            |
+| bogpilot-tesla             | `installer.comma.ai/BogPilot/bogpilot-tesla` | Main BogPilot branch (Tesla early integration). | AP1 research, maintainer-driven |
+| bogpilot-tesla-cluster     | `installer.comma.ai/BogPilot/bogpilot-tesla-cluster` | AP1 cluster work branch, kept in sync with bogpilot-tesla. | AP1 research, maintainer-driven |
 | FrogPilot                  | upstream FrogPilot only   | Upstream FrogPilot release name. Still accepted here.  | Not this fork            |
 | FrogPilot&#8209;Staging    | upstream FrogPilot only   | Upstream beta. Not a BogPilot channel.                 | Not this fork            |
 | FrogPilot&#8209;Testing    | upstream FrogPilot only   | Upstream alpha. Not a BogPilot channel.                | Not this fork            |
@@ -219,19 +236,7 @@ And lots more! From safety enhancements to personalization options, **FrogPilot*
 🧰 How to Install
 ------
 
-BogPilot does not have a live install channel. The install channel is not live.
-
-Do not type `frogpilot.download` (or `staging.frogpilot.download` / `testing.frogpilot.download`) on the comma installation screen for this fork. Those hosts install upstream FrogPilot, and this tree must not update from them.
-
-Repository pointer only, not a download CDN:
-
-```
-https://github.com/BogPilot/BogPilot
-```
-
-Branches `FrogPilot`, `BogPilot`, and `bogpilot-tesla` are all accepted names. `BogPilot` and `bogpilot-tesla` are this fork. There is no tagged release.
-
-![](https://i.imgur.com/FsufQtO.png)
+See **Install** at the top of this page: on the comma 3X setup screen, choose custom software and enter `installer.comma.ai/BogPilot/bogpilot-tesla`. Do not enter `frogpilot.download` (or `staging.` / `testing.`), which install upstream FrogPilot.
 
 🐞 Bug Reports / Feature Requests
 ------
