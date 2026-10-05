@@ -12,6 +12,8 @@ Phase: **1** (base tree, docs, user-visible identity, failing early-platform smo
 
 `SOURCES.md` has the pin notes. `RENAME_MAP.md` is the path map. `PORT_PLAN.md` is the feature plan. `HOTSPOTS.md` is the Phase 0 read of the hot files. Those four files were copied from the Phase 0 inventory. Clone paths recorded in them are where the sources were read, not this product tree. Product docs live in `docs/tesla/` in this repo.
 
+Theme docs: [`THEME.md`](THEME.md) (BogPilot theme pack, color editing, startup alert note).
+
 ## Disclaimer
 
 BogPilot is not a product. No warranty. The driver remains responsible. Comply with local law. It is not safe to drive until a human has validated it on a bench and in a car.

@@ -12,13 +12,29 @@ from urllib.parse import quote_plus
 
 from openpilot.frogpilot.assets.download_functions import GITLAB_URL, download_file, get_repository_url, handle_error, handle_request_error, verify_download
 from openpilot.frogpilot.common.frogpilot_utilities import delete_file, extract_zip, load_json_file, update_json_file
-from openpilot.frogpilot.common.frogpilot_variables import ACTIVE_THEME_PATH, RANDOM_EVENTS_PATH, RESOURCES_REPO, THEME_SAVE_PATH, params, params_memory
+from openpilot.frogpilot.common.frogpilot_variables import ACTIVE_THEME_PATH, BOGPILOT_THEME, RANDOM_EVENTS_PATH, RESOURCES_REPO, THEME_SAVE_PATH, params, params_memory
 
 CANCEL_DOWNLOAD_PARAM = "CancelThemeDownload"
 DOWNLOAD_PROGRESS_PARAM = "ThemeDownloadProgress"
 
 HOLIDAY_THEME_PATH = Path(__file__).parent / "holiday_themes"
 STOCKOP_THEME_PATH = Path(__file__).parent / "stock_theme"
+
+# BogPilot theme: a bundled copy of the default FrogPilot theme. Edit the files in this folder to change it;
+# they are copied to /data/themes/theme_packs/BogPilot (and steering_wheels/BogPilot.png) on every boot.
+BOGPILOT_THEME_PATH = Path(__file__).parent / "bogpilot_theme"
+BOGPILOT_THEME_COMPONENTS = ("colors", "distance_icons", "icons", "signals", "sounds")
+
+def theme_pack_path(theme, theme_packs_path=None):
+  """Folder of a theme pack. The compiled theme picker lowercases names it stores, so match case-insensitively."""
+  theme_packs_path = theme_packs_path or THEME_SAVE_PATH / "theme_packs"
+  exact_path = theme_packs_path / theme
+  if exact_path.exists() or not theme_packs_path.is_dir():
+    return exact_path
+  for candidate in theme_packs_path.iterdir():
+    if candidate.is_dir() and candidate.name.lower() == theme.lower():
+      return candidate
+  return exact_path
 
 HOLIDAY_SLUGS = {
   "new_years": "New Year's",
@@ -73,6 +89,21 @@ class ThemeManager:
     return first_thursday + timedelta(days=21)
 
   @staticmethod
+  def copy_bogpilot_theme(theme_save_path=None):
+    theme_save_path = theme_save_path or THEME_SAVE_PATH
+
+    theme_pack_destination = theme_save_path / "theme_packs" / BOGPILOT_THEME
+    shutil.rmtree(theme_pack_destination, ignore_errors=True)
+    for component in BOGPILOT_THEME_COMPONENTS:
+      source_folder_path = BOGPILOT_THEME_PATH / component
+      if source_folder_path.is_dir():
+        shutil.copytree(source_folder_path, theme_pack_destination / component, dirs_exist_ok=True)
+
+    steering_wheel_save_path = theme_save_path / "steering_wheels" / f"{BOGPILOT_THEME}.png"
+    steering_wheel_save_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(BOGPILOT_THEME_PATH / "steering_wheel/wheel.png", steering_wheel_save_path)
+
+  @staticmethod
   def copy_default_theme():
     world_frog_day_theme_path = HOLIDAY_THEME_PATH / "world_frog_day"
 
@@ -92,6 +123,11 @@ class ThemeManager:
     steering_wheel_save_path = THEME_SAVE_PATH / "steering_wheels/frog.png"
     steering_wheel_save_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(steering_wheel_image_path, steering_wheel_save_path)
+
+    try:
+      ThemeManager.copy_bogpilot_theme()
+    except Exception as error:
+      print(f"Failed to install the BogPilot theme: {error}")
 
   def download_theme(self, theme_component, theme_name, asset_param, frogpilot_toggles):
     self.downloading_theme = True
@@ -482,7 +518,7 @@ class ThemeManager:
     elif f"{theme}_week" in HOLIDAY_SLUGS:
       asset_location = HOLIDAY_THEME_PATH / f"{theme}_week" / asset_type
     else:
-      asset_location = THEME_SAVE_PATH / "theme_packs" / theme / asset_type
+      asset_location = theme_pack_path(theme) / asset_type
 
     if not asset_location.exists() or theme == "stock":
       asset_location = STOCKOP_THEME_PATH / asset_type
@@ -641,7 +677,7 @@ class ThemeManager:
       theme_folder_name = raw_name.replace("_animated", "-animated")
 
       for component in components:
-        component_path = THEME_SAVE_PATH / "theme_packs" / theme_folder_name / component
+        component_path = theme_pack_path(theme_folder_name) / component
         if not component_path.is_dir() or not any(component_path.iterdir()):
           print(f"Missing or empty component '{component}' for theme '{theme_folder_name}'. Downloading...")
           self.download_theme(component, theme_folder_name, THEME_COMPONENT_PARAMS.get(component), frogpilot_toggles)

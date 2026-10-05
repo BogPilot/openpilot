@@ -85,6 +85,54 @@ MODELS_PATH = Path("/data/models")
 RANDOM_EVENTS_PATH = Path(__file__).parents[1] / "assets/random_events"
 THEME_SAVE_PATH = Path("/data/themes")
 
+# BogPilot theme. "BogPilot" is a bundled clone of the default FrogPilot theme (frogpilot/assets/bogpilot_theme)
+# that theme_manager.py installs to /data/themes on boot. It uses the existing theme params, so no new keys are needed.
+BOGPILOT_THEME = "BogPilot"
+BOGPILOT_THEME_MIGRATION_MARKER = THEME_SAVE_PATH / ".bogpilot_theme_migrated"
+FROGPILOT_THEME_DEFAULTS = {
+  "CustomColors": "frog",
+  "CustomDistanceIcons": "stock",
+  "CustomIcons": "frog-animated",
+  "CustomSignals": "frog",
+  "CustomSounds": "frog",
+  "WheelIcon": "frog",
+}
+
+def migrate_theme_params(*stores, marker_path=None):
+  """Move theme params still on the stock FrogPilot defaults to BogPilot, once per device.
+
+  A theme the user picked themselves is left alone, and after the one-time migration a user who
+  goes back to the FrogPilot theme keeps it. Returns True if the one-time migration ran.
+  """
+  marker = Path(marker_path) if marker_path is not None else BOGPILOT_THEME_MIGRATION_MARKER
+  first_run = not marker.exists()
+
+  for store in stores:
+    if isinstance(store, str):
+      try:
+        store = Params(store)
+      except Exception:
+        continue
+    for key, frogpilot_default in FROGPILOT_THEME_DEFAULTS.items():
+      try:
+        value = store.get(key, encoding="utf-8")
+        if value is None:
+          continue
+        if first_run and value.strip() == frogpilot_default:
+          store.put(key, BOGPILOT_THEME)
+        elif value != BOGPILOT_THEME and value.strip().lower() == BOGPILOT_THEME.lower():
+          store.put(key, BOGPILOT_THEME)
+      except Exception:
+        pass
+
+  if first_run:
+    try:
+      marker.parent.mkdir(parents=True, exist_ok=True)
+      marker.write_text("1\n")
+    except Exception:
+      pass
+  return first_run
+
 ERROR_LOGS_PATH = Path("/data/error_logs")
 SCREEN_RECORDINGS_PATH = Path("/data/media/screen_recordings")
 VIDEO_CACHE_PATH = Path("/data/video_cache")
@@ -245,14 +293,14 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("CurvatureData", "", 2, ""),
   ("CurveSpeedController", "1", 1, "0"),
   ("CustomAlerts", "0", 0, "0"),
-  ("CustomColors", "frog", 0, "stock"),
+  ("CustomColors", BOGPILOT_THEME, 0, "stock"),
   ("CustomCruise", "1", 2, "1"),
   ("CustomCruiseLong", "5", 2, "5"),
-  ("CustomDistanceIcons", "stock", 0, "stock"),
-  ("CustomIcons", "frog-animated", 0, "stock"),
+  ("CustomDistanceIcons", BOGPILOT_THEME, 0, "stock"),
+  ("CustomIcons", BOGPILOT_THEME, 0, "stock"),
   ("CustomPersonalities", "0", 2, "0"),
-  ("CustomSignals", "frog", 0, "stock"),
-  ("CustomSounds", "frog", 0, "stock"),
+  ("CustomSignals", BOGPILOT_THEME, 0, "stock"),
+  ("CustomSounds", BOGPILOT_THEME, 0, "stock"),
   ("CustomUI", "1", 1, "0"),
   ("DecelerationProfile", "1", 2, "0"),
   ("DeveloperMetrics", "1", 3, "0"),
@@ -522,7 +570,7 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("WarningSoftVolume", "101", 2, "101"),
   ("WeatherPresets", "0", 2, "0"),
   ("WeatherToken", "", 2, ""),
-  ("WheelIcon", "frog", 0, "stock"),
+  ("WheelIcon", BOGPILOT_THEME, 0, "stock"),
   ("WheelSpeed", "0", 2, "0")
 ]
 
