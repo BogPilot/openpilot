@@ -1,6 +1,6 @@
 """AP1 long RWD stalk-pull Experimental Mode helper. No PII."""
 
-from openpilot.selfdrive.car.tesla.stalk_pull_hold import PULL_HOLD_S, RWD, StalkPullHold
+from openpilot.selfdrive.car.tesla.stalk_pull_hold import PULL_HOLD_ENABLED, PULL_HOLD_S, RWD, StalkPullHold
 
 
 def test_short_rwd_while_engaged_does_not_toggle():
@@ -64,6 +64,8 @@ def test_non_rwd_values_ignored():
 def test_defaults():
   assert RWD == 2
   assert PULL_HOLD_S == 2.0
+  # Held RWD is a DI resume (restores the old set speed): toggle disabled.
+  assert PULL_HOLD_ENABLED is False
 
 
 def test_wiring():
@@ -72,6 +74,7 @@ def test_wiring():
   carstate = (root / "selfdrive/car/tesla/carstate.py").read_text()
   assert "StalkPullHold" in carstate
   assert "stalk_pull_toggle" in carstate
+  assert "if PULL_HOLD_ENABLED and" in carstate
   assert "parse_stalk_tip" not in carstate
   assert "tip_hold_cruise" not in carstate
   card = (root / "frogpilot/controls/frogpilot_card.py").read_text()

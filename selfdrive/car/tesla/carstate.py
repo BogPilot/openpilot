@@ -6,7 +6,7 @@ from openpilot.common.realtime import DT_CTRL
 from openpilot.selfdrive.car.tesla.cluster import CLUSTER_ADDRS, COUNTER_SIGNALS, MSG_NAMES
 from openpilot.selfdrive.car.tesla.hso import ap1_driver_input
 from openpilot.selfdrive.car.tesla.stalk_follow import dtr_sample, follow_seconds, parse_stalk_raw
-from openpilot.selfdrive.car.tesla.stalk_pull_hold import StalkPullHold
+from openpilot.selfdrive.car.tesla.stalk_pull_hold import PULL_HOLD_ENABLED, StalkPullHold
 from openpilot.selfdrive.car.tesla.speed_limit import dashboard_speed_limit_ms
 from openpilot.selfdrive.car.tesla.steer_fault import steer_fault_temporary
 from openpilot.selfdrive.car.tesla.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTTONS
@@ -146,8 +146,11 @@ class CarState(CarStateBase):
 
     # AP1: long RWD pull while already engaged → one Experimental Mode toggle.
     # Uses prior cruise enabled so the engage pull itself does not fire.
+    # Disabled (PULL_HOLD_ENABLED): the stock DI treats a held RWD pull as
+    # resume and restores the remembered set speed, so the gesture also
+    # changed the cruise speed (see stalk_pull_hold.py).
     self.stalk_pull_toggle = False
-    if self.CP.carFingerprint == CAR.TESLA_AP1_MODELS:
+    if PULL_HOLD_ENABLED and self.CP.carFingerprint == CAR.TESLA_AP1_MODELS:
       prev = getattr(self, "out", None)
       was_engaged = bool(prev.cruiseState.enabled) if prev is not None else False
       spd = cp.vl["STW_ACTN_RQ"].get("SpdCtrlLvr_Stat")
