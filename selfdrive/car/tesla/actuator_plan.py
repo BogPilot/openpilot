@@ -186,7 +186,8 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
                         measured_angle_deg, requested_angle_deg, last_angle_deg, v_ego, accel,
                         acc_state, das_counters, pcm_cancel, chassis_das_only=False,
                         epas_error=None, eac_fault=False, hands_on_level=0,
-                        eac_status=None, soft_start=False, driver_yield=False, gas_pressed=False):
+                        eac_status=None, soft_start=False, driver_yield=False, gas_pressed=False,
+                        steer_tick=None):
   """Same steering branches CarController.update had before this function existed.
 
   Disengaged lateral: no steering frame. Sending type-NONE 0x488 while
@@ -203,6 +204,10 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
   longitudinal_command_allowed is true, or as the neutral frame (accelMin =
   accelMax = 0, set speed = v_ego) when ap1_gas_neutral is true. Otherwise an
   inactive long plan is empty.
+
+  steer_tick (AP1, steer_counter.Ap1SteerCounterSync) replaces the frame % 2
+  cadence and (frame // 2) % 16 counter so 0x488 follows the stock DAS phase
+  and counter. None keeps the old cadence and counter.
   """
 
   lkas_enabled = lat_active and not hands_on_fault
@@ -217,21 +222,26 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
   if chassis_das_only and eac_fault:
     lkas_enabled = False
 
-  if frame % 2 == 0:
+  if steer_tick is None:
+    steer_send, steer_counter = frame % 2 == 0, (frame // 2) % 16
+  else:
+    steer_send, steer_counter = bool(steer_tick.send), int(steer_tick.counter) % 16
+
+  if steer_send:
     if hold_measured:
       # Measured ANGLE: EPAS inhibit recovery, latched 6/3, or engage soft-start.
       apply_angle = _ap1_limited_angle(measured_angle_deg, last_angle_deg, measured_angle_deg, v_ego)
       apply_angle_last = apply_angle
-      steer = SteerCommand(apply_angle, True, (frame // 2) % 16)
+      steer = SteerCommand(apply_angle, True, steer_counter)
     elif lkas_enabled and not hands_pause:
       # Angular rate limit based on speed, then the EPS clip.
       apply_angle = _ap1_limited_angle(requested_angle_deg, last_angle_deg, measured_angle_deg, v_ego)
       apply_angle_last = apply_angle
-      steer = SteerCommand(apply_angle, True, (frame // 2) % 16)
+      steer = SteerCommand(apply_angle, True, steer_counter)
     elif chassis_das_only and enabled and not hands_on_fault:
       # Cruise stays up. Do not send the planned path angle.
       apply_angle_last = measured_angle_deg
-      steer = SteerCommand(measured_angle_deg, False, (frame // 2) % 16)
+      steer = SteerCommand(measured_angle_deg, False, steer_counter)
     else:
       # Interceptor: do not TX 0x488 while disengaged; stock DAS must pass.
       apply_angle_last = measured_angle_deg

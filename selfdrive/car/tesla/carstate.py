@@ -36,6 +36,9 @@ class CarState(CarStateBase):
     # AP1 only. {addr: decoded values} for stock cluster frames (bus 2) that
     # arrived this step. Read by CarController for the cluster frames.
     self.cluster_stock = {}
+    # AP1 only. Stock DAS_steeringControlCounter values (bus 2) received this
+    # step, oldest first. CarController follows them (steer_counter.py).
+    self.stock_steer_counters = []
 
   def update(self, cp, cp_cam, frogpilot_toggles):
     ret = car.CarState.new_message()
@@ -161,6 +164,9 @@ class CarState(CarStateBase):
     self.acc_state = cp_cam.vl["DAS_control"]["DAS_accState"]
     self.das_control_counters.extend(cp_cam.vl_all["DAS_control"]["DAS_controlCounter"])
     self.cluster_stock = self.new_cluster_frames(cp_cam) if ap1 else {}
+    if ap1:
+      steer_ctrs = cp_cam.vl_all.get("DAS_steeringControl", {}).get("DAS_steeringControlCounter", [])
+      self.stock_steer_counters = [int(c) for c in steer_ctrs]
 
     # AP1: Mobileye fused (stock 0x399 on cp_cam / bus 2) then GTW UI map/mpp
     # into FrogPilot dashboardSpeedLimit (m/s). Cluster TX is on bus 0 and
@@ -233,5 +239,8 @@ class CarState(CarStateBase):
       # change canValid. A car without them just gets no cluster frames.
       for addr in CLUSTER_ADDRS:
         messages.append((MSG_NAMES[addr], 0))
+      # Stock 0x488 counter for handover continuity (steer_counter.py).
+      # Frequency 0: missing stock frames fall back to the old cadence.
+      messages.append(("DAS_steeringControl", 0))
 
     return CANParser(DBC[CP.carFingerprint]['chassis'], messages, CANBUS.autopilot_chassis)

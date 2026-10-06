@@ -13,6 +13,7 @@ from openpilot.selfdrive.car.tesla.cluster import (
   CLUSTER_BUS, ClusterController, HudInputs, path_from_model_v2,
 )
 from openpilot.selfdrive.car.tesla.hso import Ap1DriverYield, ap1_lat_active, ap1_steering_pressed
+from openpilot.selfdrive.car.tesla.steer_counter import Ap1SteerCounterSync
 from openpilot.selfdrive.car.tesla.teslacan import TeslaCAN
 from openpilot.selfdrive.car.tesla.toggles import enable_ic_integration
 from openpilot.selfdrive.car.tesla.values import DBC, CANBUS, CAR
@@ -40,6 +41,8 @@ class CarController(CarControllerBase):
     # AP1 hands pause + resume hold (hso.Ap1DriverYield). Read by the
     # interface for the steerOverride event so the border stays grey.
     self.ap1_yield = Ap1DriverYield()
+    # AP1 0x488 phase and counter follow the stock DAS (steer_counter.py).
+    self.ap1_steer_sync = Ap1SteerCounterSync() if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
 
   def update(self, CC, CS, now_nanos, frogpilot_toggles):
     actuators = CC.actuators
@@ -71,6 +74,9 @@ class CarController(CarControllerBase):
       lat_active = ap1_lat_active(CC.latActive, CS.hands_on_level) and not driver_yield
     else:
       lat_active = CC.latActive
+    steer_tick = None
+    if self.ap1_steer_sync is not None:
+      steer_tick = self.ap1_steer_sync.update(getattr(CS, "stock_steer_counters", ()), self.frame)
     plan = build_actuator_plan(
       self.frame,
       lat_active,
@@ -97,8 +103,11 @@ class CarController(CarControllerBase):
       driver_yield=driver_yield,
       # AP1: neutral DAS_control while the driver presses the accelerator.
       gas_pressed=bool(getattr(CS.out, "gasPressed", False)) if ap1 else False,
+      steer_tick=steer_tick,
     )
     self.apply_angle_last = plan.apply_angle_last
+    if plan.steer is not None and self.ap1_steer_sync is not None:
+      self.ap1_steer_sync.commit(plan.steer.counter, self.frame)
 
     can_sends = []
 
