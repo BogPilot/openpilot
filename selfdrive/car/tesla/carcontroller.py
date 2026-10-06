@@ -15,6 +15,7 @@ from openpilot.selfdrive.car.tesla.cluster import (
 from openpilot.selfdrive.car.tesla.hso import Ap1DriverYield, ap1_lat_active, ap1_steering_pressed
 from openpilot.selfdrive.car.tesla.steer_counter import Ap1SteerCounterSync
 from openpilot.selfdrive.car.tesla.teslacan import TeslaCAN
+from openpilot.selfdrive.car.tesla.slc_raise import cruise_set_mph
 from openpilot.selfdrive.car.tesla.toggles import enable_ic_integration
 from openpilot.selfdrive.car.tesla.values import DBC, CANBUS, CAR
 
@@ -193,6 +194,9 @@ class CarController(CarControllerBase):
         curvature=float(CC.actuators.curvature),
         ic_integration=ic_on,
         model_path=model_path,
+        # hudControl.setSpeed is the OP cruise target (m/s); may already include
+        # the AP1 SLC raise via controlsd's cluster_display_kph lift.
+        cruise_set_mph=cruise_set_mph(float(hud.setSpeed)) if enabled else None,
       )
       frames = self.cluster.update(h, CS.cluster_stock, now_nanos)
       return [[addr, 0, dat, CLUSTER_BUS] for addr, dat in frames]

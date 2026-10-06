@@ -38,7 +38,7 @@ NS = 1_000_000_000
 def hud(**kw):
   args = dict(enabled=True, fcw=False, steer_required=False, audible=False, human_steering=False,
               left_lane_depart=False, right_lane_depart=False, left_blinker=False, right_blinker=False,
-              curvature=0.0, ic_integration=True, model_path=None)
+              curvature=0.0, ic_integration=True, model_path=None, cruise_set_mph=None)
   args.update(kw)
   return c.HudInputs(**args)
 
@@ -127,6 +127,33 @@ def test_engaged_frames_counter_checksum_and_stock_fields():
   for keep in ("DAS_accSpeedLimit", "DAS_ACC_report", "DAS_robState", "DAS_ppOffsetDesiredRamp",
                "DAS_pmmSysFaultReason", "DAS_radarTelemetry"):
     assert st2[keep] == s2[keep], keep
+
+
+def test_das_acc_speed_limit_kept_when_cruise_set_unset():
+  # Default: stock DAS_accSpeedLimit preserved (no OP overlay).
+  st2 = c.unpack(0x389, _send(c.ClusterController(), hud(), all_stock(), NS)[0x389])
+  assert st2["DAS_accSpeedLimit"] == stock(0x389)["DAS_accSpeedLimit"]
+
+
+def test_das_acc_speed_limit_written_from_op_set_when_engaged():
+  # SLC raise path: IC set digit tracks OP cruise (mph), no stalk injection.
+  out = _send(c.ClusterController(), hud(cruise_set_mph=51.0), all_stock(), NS)
+  st2 = c.unpack(0x389, out[0x389])
+  assert st2["DAS_accSpeedLimit"] == pytest.approx(51.0, abs=0.2)  # DBC factor 0.2
+  # Fused speed-limit sign fields on 0x399 stay stock
+  ap = c.unpack(0x399, out[0x399])
+  s = stock(0x399)
+  assert ap["DAS_fusedSpeedLimit"] == s["DAS_fusedSpeedLimit"]
+
+
+def test_das_acc_speed_limit_not_written_in_post_disengage():
+  ctrl = c.ClusterController()
+  _send(ctrl, hud(cruise_set_mph=51.0), all_stock(), NS)  # engage
+  out = _send(ctrl, hud(enabled=False, cruise_set_mph=51.0), all_stock(), 2 * NS)
+  assert 0x389 in out
+  st2 = c.unpack(0x389, out[0x389])
+  # post mode must keep stock acc speed limit (no OP overlay)
+  assert st2["DAS_accSpeedLimit"] == stock(0x389)["DAS_accSpeedLimit"]
 
 
 def test_counter_wraps():

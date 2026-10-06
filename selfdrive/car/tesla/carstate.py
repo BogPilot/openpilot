@@ -106,10 +106,13 @@ class CarState(CarStateBase):
     acc_enabled = (cruise_state in ("ENABLED", "STANDSTILL", "OVERRIDE", "PRE_FAULT", "PRE_CANCEL"))
 
     ret.cruiseState.enabled = acc_enabled
+    # Tinkla-aligned: cruise set is DI_cruiseSet (ACC set), not DI_digitalSpeed
+    # (≈ ego). With pcmCruise, VCruiseHelper copies this into controlsState.vCruise
+    # so openpilot's set tracks the stalk set. Display/ego stay on ESP vEgo.
     if speed_units == "KPH":
-      ret.cruiseState.speed = cp.vl["DI_state"]["DI_digitalSpeed"] * CV.KPH_TO_MS
+      ret.cruiseState.speed = cp.vl["DI_state"]["DI_cruiseSet"] * CV.KPH_TO_MS
     elif speed_units == "MPH":
-      ret.cruiseState.speed = cp.vl["DI_state"]["DI_digitalSpeed"] * CV.MPH_TO_MS
+      ret.cruiseState.speed = cp.vl["DI_state"]["DI_cruiseSet"] * CV.MPH_TO_MS
     ret.cruiseState.available = ((cruise_state == "STANDBY") or ret.cruiseState.enabled)
     ret.cruiseState.standstill = False # This needs to be false, since we can resume from stop without sending anything special
 
