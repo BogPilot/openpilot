@@ -14,7 +14,9 @@ can accept control. Otherwise the planned angle is used when lat is active.
 Always rate limited and clipped to measured +/- 20 deg. DAS_control is planned
 only when the car params allow openpilot
 longitudinal control and CarControl.enabled and CarControl.longActive are
-both true. Otherwise the plan has no longitudinal command.
+both true, or (AP1 only) while the driver presses the accelerator during
+engagement, when the plan carries the neutral frame (ap1_gas_neutral).
+Otherwise the plan has no longitudinal command.
 """
 
 from dataclasses import dataclass
@@ -124,6 +126,29 @@ def longitudinal_command_allowed(openpilot_longitudinal_control, enabled, long_a
   return bool(openpilot_longitudinal_control) and bool(enabled) and bool(long_active)
 
 
+def ap1_gas_neutral(chassis_das_only, openpilot_longitudinal_control, enabled, gas_pressed):
+  """True when AP1 sends the neutral DAS_control frame for a driver gas press.
+
+  safety_tesla.h tesla_tx_hook checks DAS_accelMin and DAS_accelMax with
+  longitudinal_accel_checks. While the panda has seen the pedal pressed
+  (0x108 DI_pedalPos byte 6 != 0, the same test as carstate gasPressed),
+  get_longitudinal_allowed() is false and only inactive_accel (raw 375,
+  0.00 m/s^2) passes for both. Any other accel request is dropped.
+
+  controlsd drops longActive for the press, but carcontroller runs with the
+  new carState and the previous step's CarControl. On the first pressed step
+  that stale longActive=True frame was the one the panda rejected (route
+  00000010 segment 18, twice). Gas wins over longActive here.
+
+  Style: lukasloetkolben frog_ap1 teslacan.create_longitudinal_command keeps
+  sending DAS_control while long is inactive with accel 0 and DAS_setSpeed =
+  vEgo. Tinkla LONG_module also zeroes target_accel when the pedal is pressed
+  (CS.realPedalValue > 0). The driver pedal goes to the DI directly and is not
+  touched; releasing it returns to the normal path on the next step.
+  """
+  return bool(chassis_das_only) and bool(openpilot_longitudinal_control) and bool(enabled) and bool(gas_pressed)
+
+
 def _ap1_limited_angle(requested_angle_deg, last_angle_deg, measured_angle_deg, v_ego):
   """Rate limit, then Tinkla's +/- 20 deg clip around the measured wheel.
 
@@ -161,7 +186,7 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
                         measured_angle_deg, requested_angle_deg, last_angle_deg, v_ego, accel,
                         acc_state, das_counters, pcm_cancel, chassis_das_only=False,
                         epas_error=None, eac_fault=False, hands_on_level=0,
-                        eac_status=None, soft_start=False, driver_yield=False):
+                        eac_status=None, soft_start=False, driver_yield=False, gas_pressed=False):
   """Same steering branches CarController.update had before this function existed.
 
   Disengaged lateral: no steering frame. Sending type-NONE 0x488 while
@@ -175,7 +200,9 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
   driver_yield (AP1 resume hold, hso.Ap1DriverYield) is treated exactly like
   hands at or above 2. apply_angle_last tracks the commanded angle so the next
   path command starts from the wheel. Longitudinal messages are built only when
-  longitudinal_command_allowed is true. An inactive long plan is empty.
+  longitudinal_command_allowed is true, or as the neutral frame (accelMin =
+  accelMax = 0, set speed = v_ego) when ap1_gas_neutral is true. Otherwise an
+  inactive long plan is empty.
   """
 
   lkas_enabled = lat_active and not hands_on_fault
@@ -211,8 +238,10 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
 
   longitudinal = []
   longitudinal_addrs = ()
-  if longitudinal_command_allowed(openpilot_longitudinal_control, enabled, long_active):
-    target_accel = accel
+  gas_neutral = ap1_gas_neutral(chassis_das_only, openpilot_longitudinal_control, enabled, gas_pressed)
+  if gas_neutral or longitudinal_command_allowed(openpilot_longitudinal_control, enabled, long_active):
+    # Neutral: no accel request (both limits at 0.00 m/s^2, panda inactive_accel).
+    target_accel = 0.0 if gas_neutral else accel
     target_speed = max(v_ego + (target_accel * CarControllerParams.ACCEL_TO_SPEED_MULTIPLIER), 0)
     max_accel = 0 if target_accel < 0 else target_accel
     min_accel = 0 if target_accel > 0 else target_accel

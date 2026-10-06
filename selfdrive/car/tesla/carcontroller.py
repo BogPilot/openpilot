@@ -95,6 +95,8 @@ class CarController(CarControllerBase):
       eac_status=CS.eac_status if ap1 else None,
       soft_start=soft_start,
       driver_yield=driver_yield,
+      # AP1: neutral DAS_control while the driver presses the accelerator.
+      gas_pressed=bool(getattr(CS.out, "gasPressed", False)) if ap1 else False,
     )
     self.apply_angle_last = plan.apply_angle_last
 
