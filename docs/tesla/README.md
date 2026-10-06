@@ -14,6 +14,8 @@ Phase: **1** (base tree, docs, user-visible identity, failing early-platform smo
 
 Theme docs: [`THEME.md`](THEME.md) (BogPilot theme pack, color editing, startup alert note).
 
+Safety replay: [`panda/tests/safety_replay/README.md`](../../panda/tests/safety_replay/README.md). `replay_ap1.py` runs recorded rlogs through the AP1 panda safety before a change goes on the road.
+
 ## Disclaimer
 
 BogPilot is not a product. No warranty. The driver remains responsible. Comply with local law. It is not safe to drive until a human has validated it on a bench and in a car.
