@@ -413,13 +413,16 @@ class LongitudinalMpc:
 
     # Emulate lower COMFORT_BRAKE in the compiled desired_dist cost by shrinking
     # lead x_obstacle. Cruise obstacle keeps stock COMFORT_BRAKE (matches acados).
-    # Per-node v estimate assumes comfort braking from the current state so the
-    # delta shrinks as speed falls; at v=0 delta=0 and final gap is unchanged.
+    # Delta must use the planner's own predicted ego speed at each node so the
+    # emulated cost equals desired_new(v_node) at that node. An assumed braking
+    # coast underestimates later-node v (delta too small → obstacle too far →
+    # less conservative than stock for moving leads). Use previous solution
+    # speeds; on the first iteration fall back to constant current v_ego.
     if comfort_brake < COMFORT_BRAKE - 1e-9:
-      a_est = float(np.clip(self.x0[2], -comfort_brake, 0.0))
-      if a_est > -0.1:
-        a_est = -comfort_brake
-      v_horizon = np.maximum(v_ego + a_est * T_IDXS, 0.0)
+      v_horizon = np.maximum(self.v_solution, 0.0)
+      # First solve (or after reset): v_solution is zeros / stale — use v_ego.
+      if not np.any(v_horizon > 1e-3) or abs(float(v_horizon[0]) - float(v_ego)) > 5.0:
+        v_horizon = np.full(N + 1, max(float(v_ego), 0.0))
       lead_delta = comfort_distance_delta(v_horizon, comfort_brake)
       lead_0_obstacle = lead_0_obstacle - lead_delta
       lead_1_obstacle = lead_1_obstacle - lead_delta
