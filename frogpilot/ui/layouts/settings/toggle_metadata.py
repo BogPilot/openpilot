@@ -2846,4 +2846,11 @@ TESLA_EARLY_TOGGLES = (
     parent_param="TeslaEarly",
     tuning_level=2,
   ),
+  ToggleDefinition(
+    title=("Regen comfort braking"),
+    param="RegenComfortBrake",
+    description=("<b>AP1 regen-sized lead approaches.</b> Default on for AP1-fingerprinted vehicles, off otherwise. When on, the lead MPC desired-distance cost targets ~1.2 m/s² (regen-sized) so stops begin earlier and stay gentler; hard accel limits stay at ACCEL_MIN so cut-ins/FCW/AEB keep full braking. STOP_DISTANCE unchanged. July prebuilt params_pyx.so cannot store this key; it is file-backed at /data/params_bogpilot/RegenComfortBrake (echo 0 or 1). The on-device vehicle panel does not render this metadata. Not applied to CarParams or panda safety."),
+    parent_param="TeslaEarly",
+    tuning_level=2,
+  ),
 )

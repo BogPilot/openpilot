@@ -53,6 +53,11 @@ Checksum for 0x399 and 0x389 is `(addr & 0xFF) + (addr >> 8) + sum(bytes 0..6)` 
 - `DAS_object` (0x309) and `DAS_telemetry` (0x3a9): not `BO_` lines in this tree's DBC. No invented signals.
 - Warning matrices 0x329 / 0x369 (0x349 stays the all-zero Hold clear only), pre-AP 0x659.
 
+
+## AP1 regen-sized comfort braking
+
+File-backed toggle `/data/params_bogpilot/RegenComfortBrake` (July prebuilt cannot store new Params keys). AP1 fingerprint defaults **on** when the file is absent; non-AP1 is always off. When on, the lead MPC desired-distance cost uses a 1.2 m/s² comfort brake (regen-sized) via a runtime `x_obstacle` adjustment in `long_mpc.py`; the acados-generated solver still embeds stock `COMFORT_BRAKE=2.5` and is not regenerated. Hard accel limits stay at `ACCEL_MIN` (FCW/AEB/cut-in/danger keep full braking). `STOP_DISTANCE` and the panda braking floor are unchanged. Code: `selfdrive/car/tesla/regen_brake.py`, wired from `longitudinal_planner.py`.
+
 ## Planner FCW while longitudinal control is off
 
 `selfdrive/controls/lib/fcw_gate.py` (used by `longitudinal_planner.py`): while `reset_state` is true (long control off / disengaged), `mpc.crash_cnt` is cleared and planner FCW is not set. FrogPilot publishes min/maxAcceleration = 0 while disengaged, which coasts the MPC into a closing lead and latches `crash_cnt`; without this clear, controlsd raises EventName.fcw ("BRAKE!" / "Risk of Collision") at the engage instant. Model FCW (`hardBrakePredicted`), stock AEB passthrough, and engaged planner FCW are unchanged.

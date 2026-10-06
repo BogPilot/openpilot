@@ -548,6 +548,8 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   # UnknownKeyName for any key it was not compiled with.
   # EnableICIntegration is also not a Params key: file-backed at
   # /data/params_bogpilot/EnableICIntegration (see selfdrive/car/tesla/toggles.py).
+  # RegenComfortBrake is likewise file-backed at
+  # /data/params_bogpilot/RegenComfortBrake (see selfdrive/car/tesla/regen_brake.py).
   ("TetheringEnabled", "0", 0, "0"),
   ("ThemesDownloaded", "", 0, ""),
   ("ToyotaDoors", "1", 0, "0"),

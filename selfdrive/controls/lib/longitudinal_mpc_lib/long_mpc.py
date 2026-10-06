@@ -106,16 +106,31 @@ def get_T_FOLLOW(aggressive_follow=1.25, standard_follow=1.45, relaxed_follow=1.
     else:
       raise NotImplementedError("Longitudinal personality not supported")
 
-def get_stopped_equivalence_factor(v_lead):
-  return (v_lead**2) / (2 * COMFORT_BRAKE)
+def get_stopped_equivalence_factor(v_lead, comfort_brake=COMFORT_BRAKE):
+  return (v_lead**2) / (2 * comfort_brake)
 
-def get_safe_obstacle_distance(v_ego, t_follow):
-  return (v_ego**2) / (2 * COMFORT_BRAKE) + t_follow * v_ego + STOP_DISTANCE
+def get_safe_obstacle_distance(v_ego, t_follow, comfort_brake=COMFORT_BRAKE):
+  return (v_ego**2) / (2 * comfort_brake) + t_follow * v_ego + STOP_DISTANCE
 
-def desired_follow_distance(v_ego, v_lead, t_follow=None):
+def desired_follow_distance(v_ego, v_lead, t_follow=None, comfort_brake=COMFORT_BRAKE):
   if t_follow is None:
     t_follow = get_T_FOLLOW()
-  return get_safe_obstacle_distance(v_ego, t_follow) - get_stopped_equivalence_factor(v_lead)
+  return get_safe_obstacle_distance(v_ego, t_follow, comfort_brake) - get_stopped_equivalence_factor(v_lead, comfort_brake)
+
+
+def comfort_distance_delta(v_ego, comfort_brake):
+  """Extra desired follow distance vs stock COMFORT_BRAKE baked into acados.
+
+  The generated solver cost uses COMFORT_BRAKE=2.5. To emulate a lower comfort
+  brake at runtime without regenerating the solver, subtract this delta from
+  the lead x_obstacle parameter so
+    (x_obs - delta - x_ego) - desired_stock == (x_obs - x_ego) - desired_new.
+  At v=0 the delta is 0, so STOP_DISTANCE / final gap is unchanged.
+  """
+  if comfort_brake >= COMFORT_BRAKE - 1e-9:
+    return np.zeros_like(v_ego, dtype=float) if np.ndim(v_ego) else 0.0
+  scale = 0.5 * (1.0 / comfort_brake - 1.0 / COMFORT_BRAKE)
+  return scale * (np.maximum(v_ego, 0.0) ** 2)
 
 
 def gen_long_model():
@@ -378,7 +393,7 @@ class LongitudinalMpc:
     a_lead = np.clip(a_lead, -10., 5.)
     return self.extrapolate_lead(x_lead, v_lead, a_lead, a_lead_tau)
 
-  def update(self, v_cruise, modelV2, radarstate, x, v, a, j, t_follow, accel_min, accel_max, frogpilot_toggles, traffic_mode_active, personality=log.LongitudinalPersonality.standard):
+  def update(self, v_cruise, modelV2, radarstate, x, v, a, j, t_follow, accel_min, accel_max, frogpilot_toggles, traffic_mode_active, personality=log.LongitudinalPersonality.standard, comfort_brake=COMFORT_BRAKE):
     v_ego = self.x0[1]
     model_leads = modelV2.leadsV3
     self.status = model_leads[0].prob > frogpilot_toggles.lead_detection_probability or model_leads[1].prob > frogpilot_toggles.lead_detection_probability
@@ -391,8 +406,23 @@ class LongitudinalMpc:
     # To estimate a safe distance from a moving lead, we calculate how much stopping
     # distance that lead needs as a minimum. We can add that to the current distance
     # and then treat that as a stopped car/obstacle at this new distance.
-    lead_0_obstacle = lead_xv_0[:,0] + get_stopped_equivalence_factor(lead_xv_0[:,1])
-    lead_1_obstacle = lead_xv_1[:,0] + get_stopped_equivalence_factor(lead_xv_1[:,1])
+    # comfort_brake only reshapes the soft desired-distance cost for lead approaches
+    # (AP1 regen-sized). Hard accel limits stay at accel_min (typically ACCEL_MIN).
+    lead_0_obstacle = lead_xv_0[:,0] + get_stopped_equivalence_factor(lead_xv_0[:,1], comfort_brake)
+    lead_1_obstacle = lead_xv_1[:,0] + get_stopped_equivalence_factor(lead_xv_1[:,1], comfort_brake)
+
+    # Emulate lower COMFORT_BRAKE in the compiled desired_dist cost by shrinking
+    # lead x_obstacle. Cruise obstacle keeps stock COMFORT_BRAKE (matches acados).
+    # Per-node v estimate assumes comfort braking from the current state so the
+    # delta shrinks as speed falls; at v=0 delta=0 and final gap is unchanged.
+    if comfort_brake < COMFORT_BRAKE - 1e-9:
+      a_est = float(np.clip(self.x0[2], -comfort_brake, 0.0))
+      if a_est > -0.1:
+        a_est = -comfort_brake
+      v_horizon = np.maximum(v_ego + a_est * T_IDXS, 0.0)
+      lead_delta = comfort_distance_delta(v_horizon, comfort_brake)
+      lead_0_obstacle = lead_0_obstacle - lead_delta
+      lead_1_obstacle = lead_1_obstacle - lead_delta
 
     self.params[:,0] = accel_min
     self.params[:,1] = accel_max
@@ -454,6 +484,8 @@ class LongitudinalMpc:
 
     # Check if it got within lead comfort range
     # TODO This should be done cleaner
+    # Lead obstacles were shifted by comfort_distance_delta; use stock
+    # get_safe_obstacle_distance here so the comparison matches the solver cost.
     if self.mode == 'blended':
       if any((lead_0_obstacle - get_safe_obstacle_distance(self.x_sol[:,1], t_follow))- self.x_sol[:,0] < 0.0):
         self.source = 'lead0'

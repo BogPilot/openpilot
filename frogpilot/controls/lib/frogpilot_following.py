@@ -3,6 +3,7 @@ import numpy as np
 
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import COMFORT_BRAKE, STOP_DISTANCE, desired_follow_distance, get_jerk_factor, get_T_FOLLOW
 from openpilot.selfdrive.car.tesla.stalk_follow import apply_stalk_t_follow
+from openpilot.selfdrive.car.tesla.regen_brake import ap1_comfort_brake
 
 from openpilot.frogpilot.common.frogpilot_variables import CITY_SPEED_LIMIT, CRUISING_SPEED, MAX_T_FOLLOW
 
@@ -76,7 +77,8 @@ class FrogPilotFollowing:
     if sm["controlsState"].enabled and self.frogpilot_planner.tracking_lead:
       if not sm["frogpilotCarState"].trafficModeEnabled and frogpilot_toggles.human_following and frogpilot_toggles.has_radar and frogpilot_toggles.model_version != "v9":
         self.update_follow_values(self.frogpilot_planner.lead_one.dRel, v_ego, self.frogpilot_planner.lead_one.vLead, frogpilot_toggles)
-      self.desired_follow_distance = int(desired_follow_distance(v_ego, self.frogpilot_planner.lead_one.vLead, self.t_follow))
+      comfort_brake = ap1_comfort_brake(sm["carParams"].carFingerprint)
+      self.desired_follow_distance = int(desired_follow_distance(v_ego, self.frogpilot_planner.lead_one.vLead, self.t_follow, comfort_brake=comfort_brake))
     else:
       self.desired_follow_distance = 0
 
