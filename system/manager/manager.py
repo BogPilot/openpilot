@@ -23,6 +23,15 @@ from openpilot.frogpilot.common.frogpilot_variables import EXCLUDED_KEYS, frogpi
 
 
 def manager_init() -> None:
+  # BogPilot: restore wall clock from last drive before bootlog/loggerd so
+  # route names and rlog stamps are near real time instead of the AGNOS epoch.
+  # Best-effort; never block boot. GPS/NTP still correct later via timed.
+  try:
+    from openpilot.common.bogpilot_clock import maybe_restore_last_known_time
+    maybe_restore_last_known_time()
+  except Exception:
+    pass
+
   save_bootlog()
 
   build_metadata = get_build_metadata()

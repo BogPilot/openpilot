@@ -9,6 +9,7 @@ from timezonefinder import TimezoneFinder
 
 import cereal.messaging as messaging
 from openpilot.common.time import system_time_valid
+from openpilot.common.bogpilot_clock import maybe_save_last_known_time
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 from openpilot.system.hardware import AGNOS
@@ -35,7 +36,9 @@ def set_timezone(timezone):
 
 def set_time(new_time):
   diff = datetime.datetime.now() - new_time
-  if diff < datetime.timedelta(seconds=10):
+  # Match upstream: correct both a clock stuck in the past (AGNOS epoch) and
+  # one slightly ahead. Without abs(), GPS could never advance a 2023 clock.
+  if abs(diff) < datetime.timedelta(seconds=10):
     cloudlog.debug(f"Time diff too small: {diff}")
     return
 
@@ -74,6 +77,11 @@ def main() -> NoReturn:
     msg.valid = system_time_valid()
     msg.clocks.wallTimeNanos = time.time_ns()
     pm.send('clocks', msg)
+
+    # Persist a durable last-known stamp (~every 5 min once the clock is valid)
+    # so the next boot is near real time even before GPS/NTP. Runs whether or
+    # not GPS is up; rate-limited inside maybe_save_last_known_time.
+    maybe_save_last_known_time()
 
     llk = sm['liveLocationKalman']
     if not llk.gpsOK or (time.monotonic() - sm.logMonoTime['liveLocationKalman']/1e9) > 0.2:
