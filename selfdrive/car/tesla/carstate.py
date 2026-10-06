@@ -39,6 +39,10 @@ class CarState(CarStateBase):
     # AP1 only. Stock DAS_steeringControlCounter values (bus 2) received this
     # step, oldest first. CarController follows them (steer_counter.py).
     self.stock_steer_counters = []
+    # AP1 only. Last EPB_epasEACAllow seen. None until the first 0x214 frame
+    # (vl defaults to 0 before that, which would read as revoked).
+    self.epb_eac_allow = None
+    self.epb_eac_revoked = False
 
   def update(self, cp, cp_cam, frogpilot_toggles):
     ret = car.CarState.new_message()
@@ -78,6 +82,16 @@ class CarState(CarStateBase):
       ret.steeringPressed = (self.hands_on_level > 0)
     self.eac_fault = steer_status == "EAC_FAULT"
     ret.steerFaultPermanent = self.eac_fault
+    if ap1:
+      # EPB_epasEACAllow 0: the EPB revoked EAC. EPAS stays INHIBITED until a
+      # car power cycle (the comma reboot does not clear it). Report it as a
+      # permanent steer fault ("LKAS Fault: Restart the Car") instead of only
+      # the silent steer-unavailable warning.
+      epb = cp.vl_all.get("EPB_epasControl", {}).get("EPB_epasEACAllow", [])
+      if len(epb):
+        self.epb_eac_allow = int(epb[-1])
+      self.epb_eac_revoked = self.epb_eac_allow == 0
+      ret.steerFaultPermanent = ret.steerFaultPermanent or self.epb_eac_revoked
     # AP1: idle, code 6, and latched HANDS_ON (3) are not temporary faults.
     # Both codes stay set after hands return below 2, so they must not keep
     # latActive false. The hands pause is hands_on_level >= 2, not this flag.
@@ -220,6 +234,8 @@ class CarState(CarStateBase):
       # car without them does not trip canValid (same pattern as cluster RX).
       messages.append(("UI_driverAssistMapData", 0))
       messages.append(("UI_gpsVehicleSpeed", 0))
+      # EPB EAC allow (0x214) for the EPB revoke fault. Frequency 0, same reason.
+      messages.append(("EPB_epasControl", 0))
 
     return CANParser(DBC[CP.carFingerprint]['chassis'], messages, CANBUS.chassis)
 
