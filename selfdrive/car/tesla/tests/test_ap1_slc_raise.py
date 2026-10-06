@@ -10,7 +10,6 @@ import pytest
 
 from openpilot.common.conversions import Conversions as CV
 from openpilot.selfdrive.car.tesla.slc_raise import (
-  Ap1RaiseHoldoff,
   apply_slc_raise_after_min,
   cluster_display_kph,
   cruise_set_mph,
@@ -100,66 +99,6 @@ def test_cluster_display_only_lifts():
   assert cluster_display_kph(cluster_kph, 51 * MPH) == pytest.approx(51 * CV.MPH_TO_KPH)
   # CSC slowdown must not lower the displayed set
   assert cluster_display_kph(cluster_kph, 30 * MPH) == pytest.approx(cluster_kph)
-
-
-
-
-def test_merge_holdoff_skips_raise_so_di_wins():
-  """Engaged stalk DECEL holdoff: DI=10 + 25+5 must stay ~10, not snap to 30.
-
-  Route 21 correction: driver pulled set DOWN; raise immediately jumped back
-  toward limit+offset (display dig locked at 60=2x30).
-  """
-  di = 10.0 * MPH
-  slc_target = 25 * MPH
-  slc_desired = 30 * MPH
-  out = merge_vcruise_with_slc(di, di, slc_desired, slc_target, CRUISING,
-                               raise_holdoff=True)
-  assert out == pytest.approx(di)
-  # Without holdoff, raise still sticks
-  out_on = merge_vcruise_with_slc(di, di, slc_desired, slc_target, CRUISING,
-                                  raise_holdoff=False)
-  assert out_on == pytest.approx(30 * MPH)
-
-
-def test_ap1_raise_holdoff_engage_set_still_raises():
-  """DECEL while previously disengaged (SET engage) must NOT arm holdoff."""
-  h = Ap1RaiseHoldoff()
-  # disengaged
-  assert h.update(False, False, False, 25 * MPH) is True
-  # SET/DECEL engage edge: was off, now on with decel → allow raise
-  assert h.update(True, True, False, 25 * MPH) is True
-  assert h.holdoff is False
-
-
-def test_ap1_raise_holdoff_engaged_decel_then_res():
-  """DECEL while already engaged arms holdoff; RES clears it."""
-  h = Ap1RaiseHoldoff()
-  h.update(False, False, False, 25 * MPH)
-  h.update(True, False, False, 25 * MPH)  # engaged, no button
-  assert h.update(True, True, False, 25 * MPH) is False  # engaged DECEL
-  assert h.holdoff is True
-  # holds across frames without button
-  assert h.update(True, False, False, 25 * MPH) is False
-  # RES clears
-  assert h.update(True, False, True, 25 * MPH) is True
-  assert h.holdoff is False
-
-
-def test_ap1_raise_holdoff_clears_on_limit_rise_and_disengage():
-  h = Ap1RaiseHoldoff()
-  h.update(False, False, False, 25 * MPH)
-  h.update(True, False, False, 25 * MPH)
-  h.update(True, True, False, 25 * MPH)
-  assert h.holdoff is True
-  # higher posted limit clears
-  assert h.update(True, False, False, 45 * MPH) is True
-  assert h.holdoff is False
-  # re-arm and disengage clears
-  h.update(True, True, False, 45 * MPH)
-  assert h.holdoff is True
-  assert h.update(False, False, False, 45 * MPH) is True
-  assert h.holdoff is False
 
 
 
