@@ -10,10 +10,12 @@ import pytest
 
 from openpilot.common.conversions import Conversions as CV
 from openpilot.selfdrive.car.tesla.slc_raise import (
+  apply_slc_raise_after_min,
   cluster_display_kph,
   cruise_set_mph,
   is_ap1,
   lift_cruise_ms,
+  merge_vcruise_with_slc,
 )
 
 MPH = CV.MPH_TO_MS
@@ -43,6 +45,53 @@ def test_lift_cruise_does_not_raise_when_desired_lower():
 def test_lift_cruise_no_op_when_target_missing():
   assert lift_cruise_ms(36 * MPH, 51 * MPH, 0.0, CRUISING) == pytest.approx(36 * MPH)
   assert lift_cruise_ms(36 * MPH, 51 * MPH, 3.0, CRUISING) == pytest.approx(36 * MPH)
+
+
+def test_merge_raise_sticks_when_di_at_or_above_cruising():
+  """Regression: DI≈11.5 + limit 25 + offset 5 → 30, not collapse to 11.5.
+
+  Pre-fix lift-before-min undid the raise whenever DI_cruiseSet >= CRUISING_SPEED.
+  """
+  di = 11.5 * MPH
+  slc_target = 25 * MPH
+  slc_desired = 30 * MPH  # 25 + 5 offset
+  # CSC inactive: csc_target mirrors pre-lift DI seed (same as frogpilot_vcruise)
+  out = merge_vcruise_with_slc(di, di, slc_desired, slc_target, CRUISING,
+                               csc_controlling_speed=False)
+  assert out == pytest.approx(30 * MPH)
+
+  # Same for DI just above CRUISING (~11.18 mph) — the log oscillation case
+  di_hi = 11.5 * MPH
+  assert merge_vcruise_with_slc(di_hi, di_hi, slc_desired, slc_target, CRUISING) == pytest.approx(30 * MPH)
+
+  # DI below CRUISING also raises (was already OK pre-fix)
+  di_lo = 10.0 * MPH
+  assert merge_vcruise_with_slc(di_lo, di_lo, slc_desired, slc_target, CRUISING) == pytest.approx(30 * MPH)
+
+
+def test_merge_still_lowers_when_di_above_slc():
+  """DI=60 in a 25+5 zone must still min-cap down to 30."""
+  di = 60 * MPH
+  slc_target = 25 * MPH
+  slc_desired = 30 * MPH
+  out = merge_vcruise_with_slc(di, di, slc_desired, slc_target, CRUISING)
+  assert out == pytest.approx(30 * MPH)
+
+
+def test_merge_csc_still_caps_after_raise():
+  """Active CSC curve target must still cap below the SLC raise."""
+  di = 11.5 * MPH
+  slc_target = 25 * MPH
+  slc_desired = 30 * MPH
+  csc = 20 * MPH
+  out = merge_vcruise_with_slc(di, csc, slc_desired, slc_target, CRUISING,
+                               csc_controlling_speed=True)
+  assert out == pytest.approx(20 * MPH)
+
+  # Inactive CSC must NOT cap with the DI seed
+  out_off = apply_slc_raise_after_min(11.5 * MPH, slc_desired, slc_target, CRUISING,
+                                      False, di)
+  assert out_off == pytest.approx(30 * MPH)
 
 
 def test_cluster_display_only_lifts():

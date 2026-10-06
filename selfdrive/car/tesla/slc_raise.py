@@ -21,7 +21,8 @@ def lift_cruise_ms(v_cruise_ms: float, slc_desired_ms: float, slc_target_ms: flo
                    cruising_speed_ms: float) -> float:
   """Raise v_cruise toward a confirmed higher SLC target.
 
-  Caller still min()-caps with curve-speed / other targets afterward.
+  Intended to run AFTER the min() merge so a pre-lift DI/csc seed cannot undo
+  the raise. Caller re-caps with CSC only when CSC is actively controlling.
   No-op when the SLC target is missing or below cruising speed.
   """
   if slc_target_ms < cruising_speed_ms or slc_desired_ms < cruising_speed_ms:
@@ -29,6 +30,35 @@ def lift_cruise_ms(v_cruise_ms: float, slc_desired_ms: float, slc_target_ms: flo
   if slc_desired_ms > v_cruise_ms:
     return slc_desired_ms
   return v_cruise_ms
+
+
+def apply_slc_raise_after_min(v_cruise_ms: float, slc_desired_ms: float, slc_target_ms: float,
+                              cruising_speed_ms: float, csc_controlling_speed: bool,
+                              csc_target_ms: float) -> float:
+  """AP1 post-min raise: lift, then re-min with CSC only if CSC is active.
+
+  Used by frogpilot_vcruise after min(targets) so DI_cruiseSet sitting in
+  csc_target (CSC inactive) cannot collapse a confirmed SLC raise.
+  """
+  v = lift_cruise_ms(v_cruise_ms, slc_desired_ms, slc_target_ms, cruising_speed_ms)
+  if csc_controlling_speed:
+    v = min(v, csc_target_ms)
+  return v
+
+
+def merge_vcruise_with_slc(v_cruise_ms: float, csc_target_ms: float, slc_desired_ms: float,
+                           slc_target_ms: float, cruising_speed_ms: float,
+                           csc_controlling_speed: bool = False) -> float:
+  """Full AP1 merge order: min(targets) then apply_slc_raise_after_min.
+
+  Mirrors frogpilot_vcruise.py so unit tests cover the DI≥CRUISING_SPEED
+  regression (raise must stick at 30 when DI=11.5, limit 25, offset +5).
+  """
+  targets = [csc_target_ms, v_cruise_ms, slc_desired_ms]
+  v = min(t if t >= cruising_speed_ms else v_cruise_ms for t in targets)
+  return apply_slc_raise_after_min(
+    v, slc_desired_ms, slc_target_ms, cruising_speed_ms,
+    csc_controlling_speed, csc_target_ms)
 
 
 def cluster_display_kph(v_cruise_cluster_kph: float, frogpilot_v_cruise_ms: float) -> float:

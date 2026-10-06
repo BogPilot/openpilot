@@ -90,14 +90,18 @@ class FrogPilotVCruise:
       targets = [self.csc_target, v_cruise]
       if frogpilot_toggles.speed_limit_controller:
         slc_desired = max(self.slc.overridden_speed, self.slc_target + self.slc_offset) - v_ego_diff
-        # AP1 only: allow a confirmed higher SLC target to lift cruise (not only
-        # min()-cap). Respects SLCConfirmationHigher / override / denied via
-        # SpeedLimitController.target. No stalk TX / panda change.
-        if str(getattr(frogpilot_toggles, "car_model", "") or "") == "TESLA_AP1_MODELS":
-          from openpilot.selfdrive.car.tesla.slc_raise import lift_cruise_ms
-          v_cruise = lift_cruise_ms(v_cruise, slc_desired, self.slc_target, CRUISING_SPEED)
         targets.append(slc_desired)
 
       v_cruise = min([target if target >= CRUISING_SPEED else v_cruise for target in targets])
+      # AP1: lift AFTER min() so pre-lift DI/csc seed cannot undo the raise.
+      # Re-cap with CSC only when curve controller is actually active.
+      # Respects SLCConfirmationHigher / override / denied via SpeedLimitController.target.
+      # No stalk TX / panda change.
+      if frogpilot_toggles.speed_limit_controller and \
+         str(getattr(frogpilot_toggles, "car_model", "") or "") == "TESLA_AP1_MODELS":
+        from openpilot.selfdrive.car.tesla.slc_raise import apply_slc_raise_after_min
+        v_cruise = apply_slc_raise_after_min(
+          v_cruise, slc_desired, self.slc_target, CRUISING_SPEED,
+          self.csc_controlling_speed, self.csc_target)
 
     return v_cruise

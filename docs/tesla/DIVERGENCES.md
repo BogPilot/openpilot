@@ -88,7 +88,7 @@ Tinkla is the authority for AP1 angle rates. Source read: earlytesla-panda `boar
 
 ## AP1 speed-limit raise (low-conflict, no stalk injection)
 
-When FrogPilot **Speed Limit Controller** is on, a confirmed higher posted limit lifts openpilot's cruise target to limit+offset (e.g. 30 zone set 36 → 45 zone with +6 → 51) so longitudinal accelerates into the faster zone. Still min()-caps with curve-speed control. Uses existing SLC toggles: `SLCConfirmationHigher` must be off (or tip-up / accept) for unattended raises; override and denied limits are respected.
+When FrogPilot **Speed Limit Controller** is on, a confirmed higher posted limit lifts openpilot's cruise target to limit+offset (e.g. 30 zone set 36 → 45 zone with +6 → 51) so longitudinal accelerates into the faster zone. Lift runs **after** the min() merge so a low DI_cruiseSet seed cannot undo the raise; CSC re-caps only when the curve controller is actively controlling. Uses existing SLC toggles: `SLCConfirmationHigher` must be off (or tip-up / accept) for unattended raises; override and denied limits are respected.
 
 Cruise set source is `DI_cruiseSet` (Tinkla-aligned), not `DI_digitalSpeed`. The IC set digit is written via `DAS_accSpeedLimit` on 0x389 from the OP set (mph). Stock fused/vision speed-limit sign fields stay stock. **No** fake stalk on 0x45; panda CANCEL-only on 0x45 is unchanged. Code: `selfdrive/car/tesla/slc_raise.py`, `frogpilot/controls/lib/frogpilot_vcruise.py`, `cluster.py`, `controlsd.py` cluster display lift.
 
