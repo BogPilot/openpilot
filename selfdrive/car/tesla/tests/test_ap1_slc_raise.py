@@ -101,6 +101,21 @@ def test_cluster_display_only_lifts():
   assert cluster_display_kph(cluster_kph, 30 * MPH) == pytest.approx(cluster_kph)
 
 
+
+def test_carcontroller_does_not_feed_das_acc_speed_limit_overlay():
+  """Regression: never pass OP set into HudInputs.cruise_set_mph for CAN TX.
+
+  Route 21 @ bd26defe: overlaying DAS_accSpeedLimit=30 with DI_cruiseSet≈10
+  locked DI_digitalSpeed at 60 on the IC while long correctly targeted 30.
+  """
+  from pathlib import Path
+  src = (Path(__file__).resolve().parents[1] / "carcontroller.py").read_text()
+  assert "cruise_set_mph=None" in src
+  assert "cruise_set_mph(float(hud.setSpeed))" not in src
+  cluster_src = (Path(__file__).resolve().parents[1] / "cluster.py").read_text()
+  assert 'v["DAS_accSpeedLimit"] = float(h.cruise_set_mph)' not in cluster_src
+
+
 def test_cruise_set_mph_conversion():
   assert cruise_set_mph(None) is None
   assert cruise_set_mph(0.0) is None

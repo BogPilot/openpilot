@@ -135,12 +135,12 @@ def test_das_acc_speed_limit_kept_when_cruise_set_unset():
   assert st2["DAS_accSpeedLimit"] == stock(0x389)["DAS_accSpeedLimit"]
 
 
-def test_das_acc_speed_limit_written_from_op_set_when_engaged():
-  # SLC raise path: IC set digit tracks OP cruise (mph), no stalk injection.
+def test_das_acc_speed_limit_never_overlaid_even_when_cruise_set_passed():
+  # Route 21: OP DAS_accSpeedLimit overlay locked DI_digitalSpeed at 60.
+  # Keep stock always (Tinkla-aligned); cruise_set_mph is a no-op.
   out = _send(c.ClusterController(), hud(cruise_set_mph=51.0), all_stock(), NS)
   st2 = c.unpack(0x389, out[0x389])
-  assert st2["DAS_accSpeedLimit"] == pytest.approx(51.0, abs=0.2)  # DBC factor 0.2
-  # Fused speed-limit sign fields on 0x399 stay stock
+  assert st2["DAS_accSpeedLimit"] == stock(0x389)["DAS_accSpeedLimit"]
   ap = c.unpack(0x399, out[0x399])
   s = stock(0x399)
   assert ap["DAS_fusedSpeedLimit"] == s["DAS_fusedSpeedLimit"]

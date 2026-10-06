@@ -2,9 +2,12 @@
 
 When FrogPilot's Speed Limit Controller confirms a higher posted limit, lift
 openpilot's cruise target to limit+offset so longitudinal accelerates into the
-faster zone. The instrument-cluster set digit is updated by writing
-DAS_accSpeedLimit on 0x389 (see cluster.py). DI_cruiseSet still seeds the
-pcmCruise set; stalk UP/DN injection is intentionally not used.
+faster zone. DI_cruiseSet still seeds the pcmCruise set; stalk UP/DN injection
+is intentionally not used.
+
+The IC set digit (DAS_accSpeedLimit on 0x389) stays stock. Overlaying the OP
+raised set while DI_cruiseSet stayed low locked DI_digitalSpeed at 60 on AP1
+(route 21). Comma/HUD set may still lift via cluster_display_kph.
 
 Not a product. No warranty. The driver remains responsible. Comply with local law.
 """
@@ -74,7 +77,7 @@ def cluster_display_kph(v_cruise_cluster_kph: float, frogpilot_v_cruise_ms: floa
 
 
 def cruise_set_mph(set_speed_ms: float | None) -> float | None:
-  """Convert OP set speed (m/s) to mph for DAS_accSpeedLimit, or None to keep stock."""
+  """Convert OP set speed (m/s) to mph. Unused on CAN: DAS_accSpeedLimit stays stock."""
   if set_speed_ms is None:
     return None
   mph = float(set_speed_ms) * CV.MS_TO_MPH

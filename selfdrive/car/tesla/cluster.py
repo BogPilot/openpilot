@@ -260,9 +260,9 @@ class HudInputs:
   ic_integration: bool = True
   # Engaged model path. None => actuator curvature + 50 m fallback.
   model_path: Optional[ModelPath] = None
-  # OP cruise set in mph for DAS_accSpeedLimit on 0x389. None keeps stock
-  # (IC set digit follows DI / Mobileye). Used so the dash tracks an SLC raise
-  # without fake stalk on 0x45.
+  # Deprecated no-op: DAS_accSpeedLimit stays stock (see build_das_status2).
+  # Writing OP set desynced DI_digitalSpeed to 60 on AP1 (route 21). Kept so
+  # callers/tests can still pass the field without effect.
   cruise_set_mph: Optional[float] = None
 
 
@@ -422,10 +422,12 @@ def build_das_status2(stock, h, mode):
     v["DAS_driverInteractionLevel"] = 0
     if h.fcw:
       v["DAS_longCollisionWarning"] = LONG_FCW_VEHICLE
-    # Overlay OP set on the IC set-speed digit (mph). Stock fused/vision
-    # speed-limit fields stay untouched. None => keep stock DAS_accSpeedLimit.
-    if h.cruise_set_mph is not None and h.cruise_set_mph > 0:
-      v["DAS_accSpeedLimit"] = float(h.cruise_set_mph)
+    # Never overlay DAS_accSpeedLimit. Route 21 @ bd26defe: writing OP set
+    # (e.g. raised 30 while DI_cruiseSet≈10) made DI_digitalSpeed lock at 60
+    # on the IC speedometer while analog/ESP still tracked ego ~20. Tinkla
+    # panda FWD kept stock acc-speed bits for the same reason. Planner raise
+    # still works via frogpilotPlan.vCruise; IC set digit follows stock DI.
+    # h.cruise_set_mph is ignored (kept on HudInputs for API stability).
   elif mode != "post":
     raise ValueError(mode)
   word = pack(DAS_STATUS2, SIGNALS[DAS_STATUS2], v)
