@@ -141,10 +141,11 @@ static int tesla_ap1_cluster_index(int addr) {
 }
 
 static bool tesla_op_recently_sent(uint32_t last_ts, bool seen, uint32_t timeout_us) {
-  if (!seen) {
-    return false;
+  bool recent = false;
+  if (seen) {
+    recent = get_ts_elapsed(microsecond_timer_get(), last_ts) < timeout_us;
   }
-  return get_ts_elapsed(microsecond_timer_get(), last_ts) < timeout_us;
+  return recent;
 }
 
 static void tesla_rx_hook(const CANPacket_t *to_push) {
@@ -157,6 +158,18 @@ static void tesla_rx_hook(const CANPacket_t *to_push) {
       // Store it 1/10 deg to match steering request
       int angle_meas_new = (((GET_BYTE(to_push, 4) & 0x3FU) << 8) | GET_BYTE(to_push, 5)) - 8192U;
       update_sample(&angle_meas, angle_meas_new);
+
+      // AP1 only. While the angle rate check is not running (same gate as
+      // steer_angle_cmd_checks: neither controls_allowed nor always-on lateral),
+      // openpilot sends no 0x488, so desired_angle_last would otherwise keep the
+      // last angle of the previous engagement. Track the measured wheel instead,
+      // so the first 0x488 after engage is rate checked against the real wheel.
+      // Same 0.1 deg unit as the steering request. The rate tables and every
+      // other check are unchanged; once controls are allowed this does nothing.
+      bool aol_allowed = (acc_main_on || lkas_on) && ((alternative_experience & ALT_EXP_ALWAYS_ON_LATERAL) != 0);
+      if (tesla_ap1 && !controls_allowed && !aol_allowed) {
+        desired_angle_last = angle_meas_new;
+      }
     }
   }
 
