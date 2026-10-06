@@ -18,6 +18,9 @@ class FrogPilotVCruise:
     self.override_force_stop = False
 
     self.override_force_stop_timer = 0
+    # AP1: suppress SLC raise after engaged stalk DECEL (route 21 snapback).
+    from openpilot.selfdrive.car.tesla.slc_raise import Ap1RaiseHoldoff
+    self.ap1_raise_holdoff = Ap1RaiseHoldoff()
 
   def update(self, gps_position, now, time_validated, v_cruise, v_ego, sm, frogpilot_toggles):
     force_stop = self.frogpilot_planner.cem.stop_light_detected and sm["controlsState"].enabled and frogpilot_toggles.force_stops
@@ -95,13 +98,22 @@ class FrogPilotVCruise:
       v_cruise = min([target if target >= CRUISING_SPEED else v_cruise for target in targets])
       # AP1: lift AFTER min() so pre-lift DI/csc seed cannot undo the raise.
       # Re-cap with CSC only when curve controller is actually active.
+      # Engaged stalk DECEL holdoff: honor driver set-down until RES / limit rise.
       # Respects SLCConfirmationHigher / override / denied via SpeedLimitController.target.
       # No stalk TX / panda change.
       if frogpilot_toggles.speed_limit_controller and \
          str(getattr(frogpilot_toggles, "car_model", "") or "") == "TESLA_AP1_MODELS":
         from openpilot.selfdrive.car.tesla.slc_raise import apply_slc_raise_after_min
-        v_cruise = apply_slc_raise_after_min(
-          v_cruise, slc_desired, self.slc_target, CRUISING_SPEED,
-          self.csc_controlling_speed, self.csc_target)
+        fp_cs = sm["frogpilotCarState"]
+        allow_raise = self.ap1_raise_holdoff.update(
+          bool(sm["carState"].cruiseState.enabled),
+          bool(getattr(fp_cs, "decelPressed", False)),
+          bool(getattr(fp_cs, "accelPressed", False)),
+          float(self.slc_target),
+        )
+        if allow_raise:
+          v_cruise = apply_slc_raise_after_min(
+            v_cruise, slc_desired, self.slc_target, CRUISING_SPEED,
+            self.csc_controlling_speed, self.csc_target)
 
     return v_cruise
