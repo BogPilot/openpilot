@@ -7,6 +7,7 @@ from openpilot.selfdrive.car.tesla.cluster import CLUSTER_ADDRS, COUNTER_SIGNALS
 from openpilot.selfdrive.car.tesla.hso import ap1_driver_input
 from openpilot.selfdrive.car.tesla.stalk_follow import dtr_sample, follow_seconds, parse_stalk_raw
 from openpilot.selfdrive.car.tesla.stalk_pull_hold import StalkPullHold
+from openpilot.selfdrive.car.tesla.speed_limit import dashboard_speed_limit_ms
 from openpilot.selfdrive.car.tesla.steer_fault import steer_fault_temporary
 from openpilot.selfdrive.car.tesla.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTTONS
 from openpilot.selfdrive.car.interfaces import CarStateBase
@@ -158,6 +159,17 @@ class CarState(CarStateBase):
     self.das_control_counters.extend(cp_cam.vl_all["DAS_control"]["DAS_controlCounter"])
     self.cluster_stock = self.new_cluster_frames(cp_cam) if ap1 else {}
 
+    # AP1: Mobileye fused (stock 0x399 on cp_cam / bus 2) then GTW UI map/mpp
+    # into FrogPilot dashboardSpeedLimit (m/s). Cluster TX is on bus 0 and
+    # never reaches cp_cam. Freq-0 UI msgs on chassis; missing → 0.
+    if ap1:
+      fused = cp_cam.vl.get("AutopilotStatus", {}).get("DAS_fusedSpeedLimit")
+      ui_map = cp.vl.get("UI_driverAssistMapData", {}).get("UI_mapSpeedLimit")
+      gps = cp.vl.get("UI_gpsVehicleSpeed", {})
+      fp_ret.dashboardSpeedLimit = dashboard_speed_limit_ms(
+        fused, ui_map, gps.get("UI_mppSpeedLimit"), gps.get("UI_mapSpeedLimitUnits"),
+      )
+
     return ret, fp_ret
 
   @staticmethod
@@ -193,6 +205,12 @@ class CarState(CarStateBase):
       messages.append(("DriverSeat", 20))
     else:
       messages.append(("SDM1", 10))
+
+    if CP.carFingerprint == CAR.TESLA_AP1_MODELS:
+      # GTW map / mpp speed limits for dashboardSpeedLimit. Frequency 0 so a
+      # car without them does not trip canValid (same pattern as cluster RX).
+      messages.append(("UI_driverAssistMapData", 0))
+      messages.append(("UI_gpsVehicleSpeed", 0))
 
     return CANParser(DBC[CP.carFingerprint]['chassis'], messages, CANBUS.chassis)
 
