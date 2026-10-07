@@ -110,10 +110,19 @@ class FrogPilotVCruise:
         up = any(be.type == ButtonType.accelCruise and be.pressed for be in btns)
         dn = any(be.type == ButtonType.decelCruise and be.pressed for be in btns)
         rwd = any(be.type == ButtonType.resumeCruise and be.pressed for be in btns)
+        # Tip base: post-min set or SLC+offset desired (Max Set Speed floor).
+        set_hint = float(v_cruise)
+        if slc_desired is not None and slc_desired >= CRUISING_SPEED:
+          set_hint = max(set_hint, float(slc_desired))
         allow_raise, sticky_vego = self.ap1_raise_holdoff.update(
           bool(sm["carState"].cruiseState.enabled),
           dn, up, rwd, float(self.slc_target), float(v_ego),
+          current_set_ms=set_hint, dt=DT_MDL,
         )
+        tip_ms = float(self.ap1_raise_holdoff.tip_ms)
+        if tip_ms > 0:
+          # Keep Max Set Speed gas override returning to the tipped set.
+          self.slc.overridden_speed = max(float(self.slc.overridden_speed), tip_ms)
         if sticky_vego is not None:
           # UP/DN engage: hold latched current speed; SLC may still lower.
           v_cruise = float(sticky_vego)
@@ -125,5 +134,9 @@ class FrogPilotVCruise:
           v_cruise = apply_slc_raise_after_min(
             v_cruise, slc_desired, self.slc_target, CRUISING_SPEED,
             self.csc_controlling_speed, self.csc_target)
+        if tip_ms > 0:
+          v_cruise = max(float(v_cruise), tip_ms)
+          if self.csc_controlling_speed:
+            v_cruise = min(v_cruise, self.csc_target)
 
     return v_cruise

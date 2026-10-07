@@ -5,14 +5,19 @@ openpilot's cruise target to limit+offset so longitudinal accelerates into the
 faster zone. DI_cruiseSet still seeds the pcmCruise set; stalk UP/DN injection
 is intentionally not used.
 
-Engage policy (route 23 @ 64ed3232):
+Engage policy (route 23 @ 64ed3232, drive24 latch fix):
   - Stalk UP/DN engage → sticky vEgo (no immediate SLC raise)
   - Pull-toward (RWD / resumeCruise) engage → SLC+offset raise immediately
+  - Classify engage from stalk pressed within the last ~0.8 s (Tesla clears
+    buttonEvents 80–240 ms before enabled rises)
   - Engaged stalk DECEL → holdoff raise until RES/UP/RWD or higher SLC target
+  - Engaged stalk tip-up (accelCruise edge) → +1 mph via tip latch /
+    overridden_speed (no 0x45); clears on disengage, DECEL, or lower SLC
 
 IC set digit (DAS_accSpeedLimit on 0x389) tracks the OP set via the cluster
 pack path. DBC factor is 0.4. cruise_set_mph rejects V_CRUISE_UNSET (255 kph)
-so standstill DI set=0 cannot pack ~158 mph / dig~90 (route 23 segments 5/8).
+so standstill DI set=0 cannot pack ~158 mph / cluster digital set ~90
+(route 23 segments 5/8).
 
 Not a product. No warranty. The driver remains responsible. Comply with local law.
 """
@@ -80,62 +85,111 @@ def merge_vcruise_with_slc(v_cruise_ms: float, csc_target_ms: float, slc_desired
 
 
 class Ap1RaiseHoldoff:
-  """AP1 raise gate: engage stalk type + engaged-DECEL holdoff.
+  """AP1 raise gate: engage stalk type + engaged-DECEL holdoff + tip-up.
 
-  Desired (route 23):
+  Desired (route 23 / drive24):
     UP/DN engage → sticky vEgo (no SLC raise)
     RWD (pull-toward) engage → allow raise to SLC+offset immediately
+    Engage classified from stalk pressed within RECENT_S (not same-frame only)
     Engaged DECEL → holdoff raise until RES/UP/RWD or higher posted limit
+    Engaged accelCruise rising edge → +1 mph tip latch (cap V_CRUISE_MAX);
+      fed as slc.overridden_speed so Max Set Speed gas returns to the tip
   """
 
   LIMIT_RISE_MS = 0.5  # ~1 mph
+  RECENT_S = 0.8  # Tesla clears buttonEvents 80–240 ms before enabled rises
+  TIP_STEP_MS = 1.0 * CV.MPH_TO_MS
+  V_CRUISE_MAX_MS = 145.0 * CV.KPH_TO_MS
+  DT_DEFAULT = 0.05  # model tick; avoid importing realtime here
 
   def __init__(self):
     self.holdoff = False
     self.sticky_vego = False
     self.latched_vego_ms = 0.0
+    self.tip_ms = 0.0
     self._prev_enabled = False
     self._prev_slc_target = 0.0
+    self._prev_up = False
+    self._t = 0.0
+    self._last_up_t = -1e9
+    self._last_dn_t = -1e9
+    self._last_rwd_t = -1e9
 
   def update(self, enabled: bool, decel_pressed: bool, up_pressed: bool,
-             rwd_pressed: bool, slc_target_ms: float, v_ego_ms: float):
+             rwd_pressed: bool, slc_target_ms: float, v_ego_ms: float,
+             current_set_ms: float = 0.0, dt: float | None = None):
     """Update state.
 
     Returns (allow_raise, sticky_vego_ms|None).
     sticky_vego_ms is the latched engage speed when UP/DN sticky mode is active.
+    tip_ms (attribute) is the engaged tip-up latch in m/s when > 0.
     """
     enabled = bool(enabled)
     rising = enabled and not self._prev_enabled
+    dt = self.DT_DEFAULT if dt is None else float(dt)
+    self._t += dt
 
-    if float(slc_target_ms) > self._prev_slc_target + self.LIMIT_RISE_MS:
+    if up_pressed:
+      self._last_up_t = self._t
+    if decel_pressed:
+      self._last_dn_t = self._t
+    if rwd_pressed:
+      self._last_rwd_t = self._t
+
+    recent_up = (self._t - self._last_up_t) <= self.RECENT_S
+    recent_dn = (self._t - self._last_dn_t) <= self.RECENT_S
+    recent_rwd = (self._t - self._last_rwd_t) <= self.RECENT_S
+    up_edge = bool(up_pressed) and not self._prev_up
+
+    slc = float(slc_target_ms)
+    if slc > self._prev_slc_target + self.LIMIT_RISE_MS:
       self.holdoff = False
       self.sticky_vego = False
+    elif slc < self._prev_slc_target - self.LIMIT_RISE_MS:
+      # New lower posted limit: drop tip so Max Set Speed follows SLC+offset
+      self.tip_ms = 0.0
 
-    # Tip-up / RES / pull-toward while already engaged: resume raise path
+    # Engaged tip-up / RES / pull-toward: resume raise path; tip +1 mph on UP edge
     if enabled and self._prev_enabled and (up_pressed or rwd_pressed):
       self.holdoff = False
       self.sticky_vego = False
+      if up_edge:
+        base = max(float(self.tip_ms), float(current_set_ms), 0.0)
+        self.tip_ms = min(base + self.TIP_STEP_MS, self.V_CRUISE_MAX_MS)
 
     if rising:
-      if rwd_pressed and not (up_pressed or decel_pressed):
-        # Pull-toward engage → SLC+offset immediately
-        self.sticky_vego = False
-        self.holdoff = False
-      elif up_pressed or decel_pressed:
-        # UP/DN engage → sticky current speed
+      # Prefer the most recent stalk in the recent window (UP/DN sticky vs RWD raise)
+      candidates = []
+      if recent_up:
+        candidates.append(("up", self._last_up_t))
+      if recent_dn:
+        candidates.append(("dn", self._last_dn_t))
+      if recent_rwd:
+        candidates.append(("rwd", self._last_rwd_t))
+      kind = max(candidates, key=lambda c: c[1])[0] if candidates else None
+      if kind in ("up", "dn"):
         self.sticky_vego = True
         self.latched_vego_ms = max(float(v_ego_ms), 0.0)
         self.holdoff = True
+        self.tip_ms = 0.0
+      elif kind == "rwd":
+        self.sticky_vego = False
+        self.holdoff = False
+        self.tip_ms = 0.0
+      # else: no recent stalk → default allow_raise (legacy)
     elif enabled and self._prev_enabled and decel_pressed:
-      # Engaged stalk DECEL: honor driver set-down
+      # Engaged stalk DECEL: honor driver set-down; clear tip so it cannot fight holdoff
       self.holdoff = True
+      self.tip_ms = 0.0
 
     if not enabled:
       self.holdoff = False
       self.sticky_vego = False
+      self.tip_ms = 0.0
 
     self._prev_enabled = enabled
-    self._prev_slc_target = float(slc_target_ms)
+    self._prev_slc_target = slc
+    self._prev_up = bool(up_pressed)
 
     allow_raise = (not self.holdoff) and (not self.sticky_vego)
     sticky = self.latched_vego_ms if self.sticky_vego else None
@@ -165,7 +219,7 @@ def cruise_set_mph(set_speed_ms: float | None) -> float | None:
 
   Returns None (keep stock IC set) for missing/non-positive speeds and for the
   V_CRUISE_UNSET sentinel (255 kph ≈ 158 mph) that pcmCruise publishes when
-  DI_cruiseSet is 0 at standstill — packing that onto 0x389 made dig lock ~90
+  DI_cruiseSet is 0 at standstill — packing that onto 0x389 made the cluster digital set lock ~90
   (route 23 --5/--8). Also rejects values above V_CRUISE_MAX.
   """
   if set_speed_ms is None:

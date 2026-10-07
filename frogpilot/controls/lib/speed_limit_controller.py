@@ -55,27 +55,36 @@ class SpeedLimitController:
 
   @property
   def offset(self):
-    if self.frogpilot_toggles.is_metric:
-      offset_map = [
-        (0, 8.1, self.frogpilot_toggles.speed_limit_offset1),      # 0–29 km/h
-        (8.1, 13.6, self.frogpilot_toggles.speed_limit_offset2),   # 30–49
-        (13.6, 16.4, self.frogpilot_toggles.speed_limit_offset3),  # 50–59
-        (16.4, 21.9, self.frogpilot_toggles.speed_limit_offset4),  # 60–79
-        (21.9, 27.5, self.frogpilot_toggles.speed_limit_offset5),  # 80–99
-        (27.5, 33.1, self.frogpilot_toggles.speed_limit_offset6),  # 100–119
-        (33.1, 38.9, self.frogpilot_toggles.speed_limit_offset7),  # 120–140
-      ]
+    # Compare in rounded display units so band edges match posted limits.
+    # Imperial bug: 25 mph = 11.176 m/s fell in Offset1 via `low < target < high`
+    # with high=11.2 (comment claimed Offset2 is 25–34).
+    t = self.frogpilot_toggles
+    if t.is_metric:
+      band = int(round(float(self.target) * CV.MS_TO_KPH))
+      bands = (
+        (29, t.speed_limit_offset1),   # 0–29 km/h
+        (49, t.speed_limit_offset2),   # 30–49
+        (59, t.speed_limit_offset3),   # 50–59
+        (79, t.speed_limit_offset4),   # 60–79
+        (99, t.speed_limit_offset5),   # 80–99
+        (119, t.speed_limit_offset6),  # 100–119
+        (140, t.speed_limit_offset7),  # 120–140
+      )
     else:
-      offset_map = [
-        (0, 11.2, self.frogpilot_toggles.speed_limit_offset1),     # 0–24 mph
-        (11.2, 15.2, self.frogpilot_toggles.speed_limit_offset2),  # 25–34
-        (15.2, 19.6, self.frogpilot_toggles.speed_limit_offset3),  # 35–44
-        (19.6, 24.1, self.frogpilot_toggles.speed_limit_offset4),  # 45–54
-        (24.1, 28.6, self.frogpilot_toggles.speed_limit_offset5),  # 55–64
-        (28.6, 33.1, self.frogpilot_toggles.speed_limit_offset6),  # 65–74
-        (33.1, 44.2, self.frogpilot_toggles.speed_limit_offset7),  # 75–99
-      ]
-    return next((offset for low, high, offset in offset_map if low < self.target < high), 0)
+      band = int(round(float(self.target) * CV.MS_TO_MPH))
+      bands = (
+        (24, t.speed_limit_offset1),   # 0–24 mph
+        (34, t.speed_limit_offset2),   # 25–34
+        (44, t.speed_limit_offset3),   # 35–44
+        (54, t.speed_limit_offset4),   # 45–54
+        (64, t.speed_limit_offset5),   # 55–64
+        (74, t.speed_limit_offset6),   # 65–74
+        (99, t.speed_limit_offset7),   # 75–99
+      )
+    for high, offset in bands:
+      if band <= high:
+        return offset
+    return 0
 
   def get_mapbox_speed_limit(self, gps_position, now, time_validated, v_ego, sm):
     if not gps_position or not self.mapbox_token or (sm["carState"].steeringAngleDeg - sm["liveParameters"].angleOffsetDeg) >= 45:

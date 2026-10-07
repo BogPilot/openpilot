@@ -193,6 +193,145 @@ def test_ap1_raise_holdoff_clears_on_limit_rise_and_disengage():
   assert h.holdoff is False
 
 
+
+def test_ap1_raise_holdoff_recent_stalk_gap_sticky_and_rwd():
+  """drive24: buttonEvents clear 80–240 ms before enabled rises — still classify.
+
+  Press DN/UP → clear buttons → enable 80–200 ms later → sticky (no raise).
+  Mirror for RWD → allow raise. Same-frame press+enable still covered above.
+  """
+  dt = 0.05
+  vego = 27.0 * MPH
+  slc = 25 * MPH
+
+  # DN → gap ~150 ms (3 ticks) → enable rising → sticky
+  h = Ap1RaiseHoldoff()
+  h.update(False, False, False, False, slc, vego, dt=dt)
+  h.update(False, True, False, False, slc, vego, dt=dt)  # DN press
+  h.update(False, False, False, False, slc, vego, dt=dt)
+  h.update(False, False, False, False, slc, vego, dt=dt)
+  h.update(False, False, False, False, slc, vego, dt=dt)  # ~150 ms later
+  allow, sticky = h.update(True, False, False, False, slc, vego, dt=dt)
+  assert allow is False
+  assert sticky == pytest.approx(vego)
+  assert h.sticky_vego is True
+
+  # UP → gap ~200 ms (4 ticks) → sticky
+  h = Ap1RaiseHoldoff()
+  h.update(False, False, False, False, slc, vego, dt=dt)
+  h.update(False, False, True, False, slc, vego, dt=dt)  # UP press
+  for _ in range(4):
+    h.update(False, False, False, False, slc, vego, dt=dt)
+  allow, sticky = h.update(True, False, False, False, slc, vego, dt=dt)
+  assert allow is False and sticky == pytest.approx(vego)
+
+  # RWD → gap ~100 ms → allow raise
+  h = Ap1RaiseHoldoff()
+  h.update(False, False, False, False, slc, vego, dt=dt)
+  h.update(False, False, False, True, slc, vego, dt=dt)  # RWD
+  h.update(False, False, False, False, slc, vego, dt=dt)
+  h.update(False, False, False, False, slc, vego, dt=dt)
+  allow, sticky = h.update(True, False, False, False, slc, vego, dt=dt)
+  assert allow is True and sticky is None
+
+  # Both DN then later RWD: most recent wins → RWD raise
+  h = Ap1RaiseHoldoff()
+  h.update(False, False, False, False, slc, vego, dt=dt)
+  h.update(False, True, False, False, slc, vego, dt=dt)  # DN first
+  h.update(False, False, False, False, slc, vego, dt=dt)
+  h.update(False, False, False, True, slc, vego, dt=dt)  # RWD more recent
+  h.update(False, False, False, False, slc, vego, dt=dt)
+  allow, sticky = h.update(True, False, False, False, slc, vego, dt=dt)
+  assert allow is True and sticky is None
+
+
+def test_ap1_tip_up_plus_one_and_clears():
+  """Engaged accelCruise edge bumps tip +1 mph; DECEL/disengage/lower SLC clear it.
+
+  AP1 only sees binary pressed events, so tip is +1 per rising edge (not next-5).
+  Cap at V_CRUISE_MAX. Engaged DECEL holdoff still arms and tip cannot fight it.
+  """
+  dt = 0.05
+  slc = 25 * MPH
+  set30 = 30 * MPH  # Max Set Speed floor
+  h = Ap1RaiseHoldoff()
+  # Engage via RWD (allow raise), then tip-up
+  h.update(False, False, False, False, slc, 20 * MPH, current_set_ms=set30, dt=dt)
+  allow, sticky = h.update(True, False, False, True, slc, 20 * MPH, current_set_ms=set30, dt=dt)
+  assert allow is True and sticky is None
+  # Steady engaged, no buttons
+  h.update(True, False, False, False, slc, 20 * MPH, current_set_ms=set30, dt=dt)
+  # UP rising edge → tip 31
+  allow, sticky = h.update(True, False, True, False, slc, 20 * MPH, current_set_ms=set30, dt=dt)
+  assert allow is True
+  assert h.tip_ms == pytest.approx(31 * MPH)
+  # Hold UP pressed another frame: no second tip (edge only)
+  h.update(True, False, True, False, slc, 20 * MPH, current_set_ms=set30, dt=dt)
+  assert h.tip_ms == pytest.approx(31 * MPH)
+  # Release then tip again → 32
+  h.update(True, False, False, False, slc, 20 * MPH, current_set_ms=set30, dt=dt)
+  h.update(True, False, True, False, slc, 20 * MPH, current_set_ms=31 * MPH, dt=dt)
+  assert h.tip_ms == pytest.approx(32 * MPH)
+
+  # Engaged DECEL clears tip and arms holdoff
+  allow, sticky = h.update(True, True, False, False, slc, 20 * MPH, current_set_ms=32 * MPH, dt=dt)
+  assert allow is False and h.holdoff is True
+  assert h.tip_ms == 0.0
+
+  # Tip then disengage clears
+  h.update(True, False, False, False, slc, 20 * MPH, current_set_ms=set30, dt=dt)
+  h.update(True, False, True, False, slc, 20 * MPH, current_set_ms=set30, dt=dt)
+  assert h.tip_ms > 0
+  h.update(False, False, False, False, slc, 20 * MPH, current_set_ms=set30, dt=dt)
+  assert h.tip_ms == 0.0
+
+  # Tip then lower SLC clears
+  h = Ap1RaiseHoldoff()
+  h.update(True, False, False, False, 40 * MPH, 20 * MPH, current_set_ms=46 * MPH, dt=dt)
+  h.update(True, False, True, False, 40 * MPH, 20 * MPH, current_set_ms=46 * MPH, dt=dt)
+  assert h.tip_ms == pytest.approx(47 * MPH)
+  h.update(True, False, False, False, 25 * MPH, 20 * MPH, current_set_ms=set30, dt=dt)
+  assert h.tip_ms == 0.0
+
+
+def test_offset_25mph_uses_offset2():
+  """25 mph posted limit must select Offset2 (not Offset1 via 11.176 < 11.2).
+
+  Mirrors speed_limit_controller.offset rounded mph/kph bands; also asserts the
+  source uses round()+band so the 25 mph edge cannot regress to Offset1.
+  """
+  from pathlib import Path
+
+  def offset_for(target_ms, is_metric, offsets):
+    if is_metric:
+      band = int(round(float(target_ms) * CV.MS_TO_KPH))
+      highs = (29, 49, 59, 79, 99, 119, 140)
+    else:
+      band = int(round(float(target_ms) * CV.MS_TO_MPH))
+      highs = (24, 34, 44, 54, 64, 74, 99)
+    for high, off in zip(highs, offsets):
+      if band <= high:
+        return off
+    return 0
+
+  o1, o2, o3 = 5 * MPH, 6 * MPH, 6 * MPH
+  offs = (o1, o2, o3, o3, 10 * MPH, 10 * MPH, 10 * MPH)
+  assert offset_for(25 * MPH, False, offs) == pytest.approx(o2)
+  assert offset_for(24 * MPH, False, offs) == pytest.approx(o1)
+  assert offset_for(34 * MPH, False, offs) == pytest.approx(o2)
+  assert offset_for(35 * MPH, False, offs) == pytest.approx(o3)
+  assert offset_for(30 * CV.KPH_TO_MS, True, offs) == pytest.approx(o2)
+  assert offset_for(29 * CV.KPH_TO_MS, True, offs) == pytest.approx(o1)
+  # 11.176 m/s is exactly 25 mph — old `low < target < 11.2` wrongly took Offset1
+  assert offset_for(11.176, False, offs) == pytest.approx(o2)
+
+  src = (Path(__file__).resolve().parents[4] / "frogpilot" / "controls" / "lib" /
+         "speed_limit_controller.py").read_text()
+  assert "int(round(float(self.target) * CV.MS_TO_MPH))" in src
+  assert "if band <= high:" in src
+  assert "low < self.target < high" not in src
+
+
 def test_carstate_source_uses_di_cruise_set_not_digital():
 
   from pathlib import Path
