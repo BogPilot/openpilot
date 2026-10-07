@@ -40,6 +40,8 @@ Stop by to chat or ask questions!
 
 ## BogStar: Tesla AP1 Model S (branch `bogstar`)
 
+**BogPilot Tesla AP1 code is still in active development and has not been merged yet. Do not install until documentation has been updated.**
+
 The `bogstar` branch is StarPilot with BogPilot's Tesla AP1 Model S support
 (AP1 cars with the stock Mobileye/Bosch autopilot hardware, HW1). It is
 experimental and community-maintained. It is not a product, comes with no
