@@ -5,6 +5,7 @@ from openpilot.selfdrive.car.interfaces import CarControllerBase
 from openpilot.selfdrive.car.tesla.actuator_plan import (
   AP1_ENGAGE_SOFT_START_FRAMES,
   DAS_CONTROL_POWERTRAIN,
+  ap1_gas_neutral,
   ap1_should_send_hold_clear,
   build_actuator_plan,
   longitudinal_command_allowed,
@@ -13,6 +14,7 @@ from openpilot.selfdrive.car.tesla.cluster import (
   CLUSTER_BUS, ClusterController, HudInputs, path_from_model_v2,
 )
 from openpilot.selfdrive.car.tesla.hso import Ap1DriverYield, ap1_lat_active, ap1_steering_pressed
+from openpilot.selfdrive.car.tesla.long_smooth import Ap1AccelSmoother, Ap1JerkLimit
 from openpilot.selfdrive.car.tesla.steer_counter import Ap1SteerCounterSync
 from openpilot.selfdrive.car.tesla.teslacan import TeslaCAN
 from openpilot.selfdrive.car.tesla.slc_raise import cruise_set_mph
@@ -44,6 +46,12 @@ class CarController(CarControllerBase):
     self.ap1_yield = Ap1DriverYield()
     # AP1 0x488 phase and counter follow the stock DAS (steer_counter.py).
     self.ap1_steer_sync = Ap1SteerCounterSync() if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
+    # AP1 comfort-band accel slew (long_smooth.py). Requests at or below
+    # -0.5 m/s^2 that fall are passed through on the same step.
+    self.ap1_accel_smoother = Ap1AccelSmoother() if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
+    # AP1 DAS_jerkMin/Max: +/-1.5 in the comfort band, full +/-8 at or below
+    # -0.5 m/s^2 and below 1 m/s (long_smooth.Ap1JerkLimit).
+    self.ap1_jerk_limit = Ap1JerkLimit() if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
 
   def update(self, CC, CS, now_nanos, frogpilot_toggles):
     actuators = CC.actuators
@@ -75,6 +83,16 @@ class CarController(CarControllerBase):
       lat_active = ap1_lat_active(CC.latActive, CS.hands_on_level) and not driver_yield
     else:
       lat_active = CC.latActive
+    accel = actuators.accel
+    jerk_limits = {}
+    if self.ap1_accel_smoother is not None:
+      gas_pressed = bool(getattr(CS.out, "gasPressed", False))
+      long_allowed_now = longitudinal_command_allowed(self.CP.openpilotLongitudinalControl, CC.enabled, CC.longActive)
+      gas_neutral = ap1_gas_neutral(chassis_das_only, self.CP.openpilotLongitudinalControl, CC.enabled, gas_pressed)
+      accel = self.ap1_accel_smoother.update(actuators.accel, long_allowed_now, CS.out.vEgo, gas_neutral=gas_neutral)
+      jerk_min, jerk_max = self.ap1_jerk_limit.update(min(float(actuators.accel), accel), long_allowed_now,
+                                                      CS.out.vEgo, gas_neutral=gas_neutral)
+      jerk_limits = {"jerk_min": jerk_min, "jerk_max": jerk_max}
     steer_tick = None
     if self.ap1_steer_sync is not None:
       steer_tick = self.ap1_steer_sync.update(getattr(CS, "stock_steer_counters", ()), self.frame)
@@ -89,7 +107,7 @@ class CarController(CarControllerBase):
       actuators.steeringAngleDeg,
       self.apply_angle_last,
       CS.out.vEgo,
-      actuators.accel,
+      accel,
       CS.acc_state,
       CS.das_control_counters,
       CC.cruiseControl.cancel,
@@ -118,7 +136,7 @@ class CarController(CarControllerBase):
     # Longitudinal control (in sync with stock message, about 40Hz)
     chassis_only = DAS_CONTROL_POWERTRAIN not in plan.longitudinal_addrs
     for cmd in plan.longitudinal:
-      can_sends.extend(self.tesla_can.create_longitudinal_commands(cmd.acc_state, cmd.target_speed, cmd.min_accel, cmd.max_accel, cmd.counter, chassis_only=chassis_only))
+      can_sends.extend(self.tesla_can.create_longitudinal_commands(cmd.acc_state, cmd.target_speed, cmd.min_accel, cmd.max_accel, cmd.counter, chassis_only=chassis_only, **jerk_limits))
 
     # Cancel on user steering override, since there is no steering torque blending
     if plan.cancel:
@@ -141,6 +159,8 @@ class CarController(CarControllerBase):
 
     new_actuators = actuators.as_builder()
     new_actuators.steeringAngleDeg = self.apply_angle_last
+    if self.ap1_accel_smoother is not None:
+      new_actuators.accel = float(accel)
 
     self.frame += 1
     return new_actuators, can_sends

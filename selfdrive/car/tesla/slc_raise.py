@@ -6,7 +6,9 @@ faster zone. DI_cruiseSet still seeds the pcmCruise set; stalk UP/DN injection
 is intentionally not used.
 
 Engage / tip policy (simplified):
-  - Stalk UP/DN engage → sticky vEgo (no immediate SLC raise)
+  - Stalk UP/DN engage → sticky vEgo. The sticky set holds through posted-limit
+    changes in BOTH directions (no auto-raise into a faster zone, no cap by a
+    lower limit) until RWD pull or disengage — same as a tipped set.
   - Pull-toward (RWD / resumeCruise) engage → SLC+offset raise immediately
   - Classify engage from stalk pressed within the last ~0.8 s. Caller must
     feed continuous stalk *levels* (carstate.button_states via frogpilotCarState
@@ -16,14 +18,16 @@ Engage / tip policy (simplified):
     directions (+1 / next-5 up, −1 / next-lower-5 down). Tip base is the current
     software set (sticky latch / tip_ms / raised set). Sticky still wins first
     (never max(plan, SLC) while sticky — drive26/27). After RWD raise, vcruise
-    seeds tip_ms = raised SLC+offset and floors set_hint with slc_desired so
+    floors set_hint with slc_desired (no tip seed — SLC tracking, drive 2a) so
     tips never base off DI_cruiseSet (~vEgo/2 under overlay — drive28).
-    No DECEL raise holdoff. Engaged RWD/pull clears tip+sticky and re-allows raise
-    (then re-seeds tip from the new raise).
+    No DECEL raise holdoff. Engaged RWD/pull clears tip+sticky and re-allows raise.
   - Tipped / post-raise set is authority until stalk pull (re-latch SLC+offset)
     or disengage; SLC raise must not yank the set back up after a down tip.
     Never follow stale DI_cruiseSet under OP overlay. AP1 buttonEvents are binary
-    (UP_1ST/UP_2ND both map to accelCruise), so full vs short is hold duration.
+    (UP_1ST/UP_2ND both map to accelCruise), so full vs short tip comes from raw
+    SpdCtrlLvr_Stat (frogpilotCarState.spdCtrlLvr): UP_2ND/DN_2ND (4/8) on the
+    rising edge = full tip (next/prev 5); UP_1ST/DN_1ST (16/32) = ±1. A hold past
+    TIP_HOLD_S upgrades a ±1 press to next/prev 5 once, as a fallback only.
   - Tips adjust the software set only — they must not send cancel / FWD stalk TX
     (stock DI_cruiseState can soft-lock to STANDBY after cancel + stalk spam).
 
@@ -118,25 +122,30 @@ class Ap1RaiseHoldoff:
   """AP1 raise gate: engage stalk type + tip set authority (no DECEL holdoff).
 
   Desired:
-    UP/DN engage → sticky vEgo (no SLC raise)
+    UP/DN engage → sticky vEgo (no SLC raise; holds through limit changes in
+      both directions until RWD pull or disengage)
     RWD (pull-toward) engage → allow raise to SLC+offset immediately
     Engage classified from stalk pressed within RECENT_S (not same-frame only)
     Caller must pass continuous stalk levels (button_states), not edge-only events
       (UP/DN/RWD via accelPressed/decelPressed/resumePressed)
-    Engaged UP/DN → tip (±1 pos1 / next-5 pos2); hold upgrades if detent unknown
+    Engaged UP/DN → tip (±1 SpdCtrl 16/32 / next-5 SpdCtrl 4/8 on the rising
+      edge); a hold ≥ TIP_HOLD_S upgrades a ±1 press once as a fallback
     Tip current_set_ms from sticky latch / tip_ms / raised set — sticky first
       (never SLC floor while sticky); after pull raise, set_hint floors with
-      slc_desired and tip_ms is seeded to the raised set (never DI half-seed)
+      slc_desired (no tip seed; never DI half-seed)
     Tipped set is authority until RWD pull or disengage (zone changes do not
       clear tip); never follow DI_cruiseSet; SLC raise must not reclaim after tip.
     RWD pull clears tip and re-allows SLC raise (SLC tracking mode — no tip seed)
     tip_ms fed as slc.overridden_speed so Max Set Speed gas returns to the tip
   """
 
-  LIMIT_RISE_MS = 0.5  # ~1 mph
   RECENT_S = 0.8  # Tesla clears buttonEvents 80–240 ms before enabled rises
   TIP_STEP_MS = 1.0 * CV.MPH_TO_MS
-  TIP_HOLD_S = 0.45  # full lift ≈ held past first detent; tune with drive feel
+  # Lowest software set a down tip can reach. tip_ms == 0 means "no tip", so a
+  # tip to 0 used to drop into SLC tracking (raise to posted+offset). Not tied
+  # to the SLC posted-limit guard (15 mph floor) — tips may go below 15 mph.
+  TIP_MIN_MS = 1.0 * CV.MPH_TO_MS
+  TIP_HOLD_S = 0.45  # fallback only: hold upgrades ±1 → next/prev 5 once
   V_CRUISE_MAX_MS = 145.0 * CV.KPH_TO_MS
   DT_DEFAULT = 0.05  # model tick; avoid importing realtime here
 
@@ -150,7 +159,6 @@ class Ap1RaiseHoldoff:
     self._tip_press_active = False
     self._tip_upgraded = False
     self._prev_enabled = False
-    self._prev_slc_target = 0.0
     self._prev_up = False
     self._prev_dn = False
     self._t = 0.0
@@ -197,14 +205,11 @@ class Ap1RaiseHoldoff:
     up_edge = bool(up_pressed) and not self._prev_up
     dn_edge = bool(decel_pressed) and not self._prev_dn
 
-    slc = float(slc_target_ms)
     tip_full = bool(tip_full)
-    if slc > self._prev_slc_target + self.LIMIT_RISE_MS:
-      # Higher posted limit: sticky may raise into the new zone; tip stays
-      # authority until pull / disengage (do not clear tip_ms; do not auto-raise tip).
-      self.sticky_vego = False
-    # Lower posted limit: tip stays (driver set until pull). SLC tracking mode
-    # (tip_ms==0 after RWD) follows lowers via frogpilot_vcruise min(slc_desired).
+    # Posted-limit changes never touch sticky or tip: a stalk-tip engage (sticky)
+    # or engaged tip holds through higher AND lower limits until RWD pull or
+    # disengage (never auto-raise into a faster zone). slc_target_ms is unused
+    # here; SLC tracking (after a pull) follows limits in frogpilot_vcruise.
 
     # Engaged tip-up / tip-down / RES: continuous levels from caller (button_states).
     # tip_full (SpdCtrl 4/8) → next-5 / prev-5 on rising edge; else ±1.
@@ -236,10 +241,10 @@ class Ap1RaiseHoldoff:
         self._tip_press_active = True
         self.tip_dir = -1
         if tip_full:
-          self.tip_ms = max(prev_5_ms(base), 0.0)
+          self.tip_ms = max(prev_5_ms(base), self.TIP_MIN_MS)
           self._tip_upgraded = True
         else:
-          self.tip_ms = max(base - self.TIP_STEP_MS, 0.0)
+          self.tip_ms = max(base - self.TIP_STEP_MS, self.TIP_MIN_MS)
           self._tip_upgraded = False
       if self._tip_press_active and not self._tip_upgraded:
         # Mid-press reach of pos2, or long hold without detent info
@@ -248,7 +253,7 @@ class Ap1RaiseHoldoff:
             nxt = next_5_ms(self._tip_base_ms)
             self.tip_ms = min(max(float(self.tip_ms), nxt), self.V_CRUISE_MAX_MS)
           elif self.tip_dir < 0:
-            self.tip_ms = max(prev_5_ms(self._tip_base_ms), 0.0)
+            self.tip_ms = max(prev_5_ms(self._tip_base_ms), self.TIP_MIN_MS)
           self._tip_upgraded = True
         elif self.tip_dir > 0 and up_pressed:
           self._tip_hold_s += dt
@@ -259,7 +264,7 @@ class Ap1RaiseHoldoff:
         elif self.tip_dir < 0 and decel_pressed:
           self._tip_hold_s += dt
           if self._tip_hold_s >= self.TIP_HOLD_S:
-            self.tip_ms = max(prev_5_ms(self._tip_base_ms), 0.0)
+            self.tip_ms = max(prev_5_ms(self._tip_base_ms), self.TIP_MIN_MS)
             self._tip_upgraded = True
       # Release ends hold timing (tip_ms latched value remains until clear)
       if self.tip_dir > 0 and not up_pressed:
@@ -293,7 +298,6 @@ class Ap1RaiseHoldoff:
       self._clear_tip()
 
     self._prev_enabled = enabled
-    self._prev_slc_target = slc
     self._prev_up = bool(up_pressed)
     self._prev_dn = bool(decel_pressed)
 
@@ -302,6 +306,97 @@ class Ap1RaiseHoldoff:
     sticky = self.latched_vego_ms if self.sticky_vego else None
     return allow_raise, sticky
 
+
+class Ap1SlcLimitGuard:
+  """AP1 posted-limit sanity filter for SLC (drive 2a seg 5: 45→5 mph blip ~1.4 s).
+
+  Applied in frogpilot_vcruise to the SLC target/offset it uses and publishes
+  (frogpilotPlan.slcSpeedLimit[+Offset]), so SLC tracking after a pull, pull
+  engage (controlsd initialize_v_cruise) and the speed-limit sign all see it.
+  Tip-engage / engaged-tip holds ignore limits anyway.
+
+    - 0 / no limit (< 1 m/s): passed through unchanged (existing SLC behaviour).
+    - Posted limit below MIN_VALID_MPH (15): not a limit — keep the previous
+      accepted limit. 15 itself is valid (school zones).
+    - Rises and normal drops: accepted immediately (as before).
+    - Sudden drop (more than SUDDEN_DROP_MPH, or below SUDDEN_DROP_RATIO of the
+      accepted limit): must persist CONFIRM_S before it is accepted.
+  The offset is the one SLC reported for the accepted limit.
+  """
+
+  MIN_VALID_MPH = 15.0
+  SUDDEN_DROP_MPH = 15.0   # 45→30 / 55→40 (−15) stay immediate; 45→25 confirms
+  SUDDEN_DROP_RATIO = 0.5  # 30→15 stays immediate; 40→15 confirms
+  CONFIRM_S = 2.0          # 02a blip lasted ~1.4 s
+  SAME_MPH = 1.0           # candidate counts as "the same" within ±1 mph
+  EPS_MPH = 0.25           # kph/mph float noise around the thresholds
+
+  def __init__(self):
+    self.target_ms = 0.0
+    self.offset_ms = 0.0
+    self._pending_ms = 0.0
+    self._pending_s = 0.0
+
+  def _accept(self, target_ms: float, offset_ms: float):
+    self.target_ms = float(target_ms)
+    self.offset_ms = float(offset_ms)
+    self._pending_ms = 0.0
+    self._pending_s = 0.0
+
+  def update(self, raw_target_ms: float, raw_offset_ms: float, dt: float = 0.05):
+    """Returns (target_ms, offset_ms) to use for SLC."""
+    raw = float(raw_target_ms)
+    raw_mph = raw * CV.MS_TO_MPH
+    cur_mph = self.target_ms * CV.MS_TO_MPH
+    if raw < 1.0:
+      self._accept(raw, raw_offset_ms)
+    elif raw_mph < self.MIN_VALID_MPH - self.EPS_MPH:
+      self._pending_ms = 0.0
+      self._pending_s = 0.0
+    else:
+      sudden = cur_mph > 0.0 and raw_mph < cur_mph and (
+        (cur_mph - raw_mph) > self.SUDDEN_DROP_MPH + self.EPS_MPH or
+        raw_mph < cur_mph * self.SUDDEN_DROP_RATIO - self.EPS_MPH)
+      if not sudden:
+        self._accept(raw, raw_offset_ms)
+      else:
+        if self._pending_s > 0.0 and abs(raw - self._pending_ms) * CV.MS_TO_MPH <= self.SAME_MPH:
+          self._pending_s += float(dt)
+        else:
+          self._pending_ms = raw
+          self._pending_s = float(dt)
+        if self._pending_s >= self.CONFIRM_S - 1e-6:
+          self._accept(raw, raw_offset_ms)
+    return self.target_ms, self.offset_ms
+
+
+def ap1_cruise_ms(v_cruise_ms: float, sticky_vego_ms: float | None, tip_ms: float,
+                  allow_raise: bool, slc_desired_ms: float | None, slc_target_ms: float,
+                  cruising_speed_ms: float, csc_controlling_speed: bool,
+                  csc_target_ms: float) -> float:
+  """AP1 set authority after Ap1RaiseHoldoff.update (used by frogpilot_vcruise).
+
+  Sticky (stalk-tip engage) and tipped set are the driver's set: they hold
+  through posted-limit changes in BOTH directions until RWD pull / disengage.
+  Only an active Curve Speed Controller may lower them temporarily.
+  SLC tracking (after a pull, allow_raise) keeps the post-min value (follows
+  lower limits) and lifts to SLC+offset on higher limits.
+  """
+  if sticky_vego_ms is not None:
+    v = float(sticky_vego_ms)
+    if csc_controlling_speed:
+      v = min(v, csc_target_ms)
+    return v
+  if float(tip_ms) > 0.0:
+    v = float(tip_ms)
+    if csc_controlling_speed:
+      v = min(v, csc_target_ms)
+    return v
+  if allow_raise:
+    return apply_slc_raise_after_min(
+      v_cruise_ms, slc_desired_ms, slc_target_ms, cruising_speed_ms,
+      csc_controlling_speed, csc_target_ms)
+  return v_cruise_ms
 
 
 def cluster_display_kph(v_cruise_cluster_kph: float, frogpilot_v_cruise_ms: float) -> float:

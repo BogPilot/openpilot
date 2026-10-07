@@ -11,6 +11,8 @@ import pytest
 from openpilot.common.conversions import Conversions as CV
 from openpilot.selfdrive.car.tesla.slc_raise import (
   Ap1RaiseHoldoff,
+  Ap1SlcLimitGuard,
+  ap1_cruise_ms,
   apply_slc_raise_after_min,
   cluster_display_kph,
   cruise_set_mph,
@@ -939,3 +941,358 @@ def test_ap1_tip_stays_across_lower_zone_until_pull():
   # Pull → SLC tracking
   allow, _ = h.update(True, False, False, True, 30 * MPH, 27 * MPH, current_set_ms=50 * MPH, dt=dt)
   assert h.tip_ms == 0.0 and allow is True
+
+
+# --- Tip-engage (sticky) holds through posted-limit changes until pull ---------
+
+class _VCruiseSim:
+  """Soft-sim of the frogpilot_vcruise AP1 block (no tip override bookkeeping).
+
+  v_cruise into the block is post-min(DI, csc, slc_desired) like production.
+  """
+  DT = 0.05
+
+  def __init__(self, offset_mph=5.0, di_mph=12.0):
+    self.h = Ap1RaiseHoldoff()
+    self.offset = offset_mph * MPH
+    self.di = di_mph * MPH  # DI_cruiseSet ≈ vEgo/2 under OP overlay
+
+  def step(self, enabled, slc_mph, vego_mph, up=False, dn=False, rwd=False,
+           tip_full=False, csc=None):
+    slc = slc_mph * MPH
+    slc_desired = slc + self.offset
+    targets = [self.di, self.di, slc_desired]
+    v_cruise = min(t if t >= CRUISING else self.di for t in targets)
+    h = self.h
+    if h.sticky_vego and h.latched_vego_ms > 0.0:
+      set_hint = h.latched_vego_ms
+    elif h.tip_ms > 0.0:
+      set_hint = h.tip_ms
+    else:
+      set_hint = max(v_cruise, slc_desired)
+    allow, sticky = h.update(enabled, dn, up, rwd, slc, vego_mph * MPH,
+                             current_set_ms=set_hint, dt=self.DT, tip_full=tip_full)
+    return ap1_cruise_ms(v_cruise, sticky, h.tip_ms, allow, slc_desired, slc,
+                         CRUISING, csc is not None, csc if csc is not None else v_cruise)
+
+  def engage(self, kind, slc_mph, vego_mph):
+    """Stalk pressed one tick while disengaged, released, then enable rises."""
+    kw = {kind: True}
+    self.step(False, slc_mph, vego_mph, **kw)
+    self.step(False, slc_mph, vego_mph)
+    return self.step(True, slc_mph, vego_mph)
+
+
+@pytest.mark.parametrize("kind", ["up", "dn"])
+def test_ap1_tip_engage_holds_through_higher_limits(kind):
+  """School zone: tip-engage at 15 must not pick up 25 / 35 (+offset)."""
+  sim = _VCruiseSim()
+  v = sim.engage(kind, 15, 15)
+  assert v == pytest.approx(15 * MPH)
+  for slc_mph in (15, 25, 25, 35, 35):
+    for _ in range(20):
+      v = sim.step(True, slc_mph, 15)
+    assert v == pytest.approx(15 * MPH)
+    assert sim.h.sticky_vego is True and sim.h.tip_ms == 0.0
+
+
+@pytest.mark.parametrize("kind", ["up", "dn"])
+def test_ap1_tip_engage_holds_through_lower_limit(kind):
+  """Tip-engage at 40 in a 40 zone; limit drops to 30 → set stays 40."""
+  sim = _VCruiseSim()
+  v = sim.engage(kind, 40, 40)
+  assert v == pytest.approx(40 * MPH)
+  for _ in range(40):
+    v = sim.step(True, 30, 38)
+  assert v == pytest.approx(40 * MPH)  # was min(40, 30+5) = 35 before
+  assert sim.h.sticky_vego is True
+
+
+def test_ap1_pull_after_tip_engage_tracks_slc_both_ways():
+  """After tip-engage hold, RWD pull → posted+offset, then follows lower limits."""
+  sim = _VCruiseSim()
+  sim.engage("up", 15, 15)
+  for _ in range(10):
+    v = sim.step(True, 35, 15)
+  assert v == pytest.approx(15 * MPH)
+  v = sim.step(True, 35, 16, rwd=True)
+  assert v == pytest.approx(40 * MPH)  # 35 + 5
+  for _ in range(10):
+    v = sim.step(True, 35, 20)
+  assert v == pytest.approx(40 * MPH)
+  assert sim.h.sticky_vego is False and sim.h.tip_ms == 0.0
+  for _ in range(10):
+    v = sim.step(True, 25, 30)
+  assert v == pytest.approx(30 * MPH)  # follows lower limit 25 + 5
+  for _ in range(10):
+    v = sim.step(True, 45, 30)
+  assert v == pytest.approx(50 * MPH)  # raises to 45 + 5 in SLC tracking
+
+
+def test_ap1_engaged_tips_from_held_tip_engage_set():
+  """After a higher limit, tips still base off the held sticky set (±1 / next-5)."""
+  sim = _VCruiseSim()
+  sim.engage("dn", 15, 15)
+  for _ in range(10):
+    sim.step(True, 25, 15)
+  v = sim.step(True, 25, 15, up=True)  # pos1 UP
+  assert v == pytest.approx(16 * MPH)
+  sim.step(True, 25, 15)
+  v = sim.step(True, 25, 15, up=True, tip_full=True)  # full tip UP
+  assert v == pytest.approx(20 * MPH)
+  sim.step(True, 25, 15)
+  v = sim.step(True, 25, 15, dn=True)  # pos1 DN
+  assert v == pytest.approx(19 * MPH)
+  sim.step(True, 25, 15)
+  v = sim.step(True, 25, 15, dn=True, tip_full=True)  # full tip DN
+  assert v == pytest.approx(15 * MPH)
+  sim.step(True, 25, 15)
+  # Tipped set also holds through a higher limit until pull
+  for _ in range(10):
+    v = sim.step(True, 45, 15)
+  assert v == pytest.approx(15 * MPH)
+
+
+def test_ap1_tip_engage_csc_may_still_lower():
+  """Only an active curve-speed target may temporarily lower the held set."""
+  sim = _VCruiseSim()
+  sim.engage("up", 40, 40)
+  v = sim.step(True, 40, 40, csc=30 * MPH)
+  assert v == pytest.approx(30 * MPH)
+  v = sim.step(True, 40, 40)
+  assert v == pytest.approx(40 * MPH)
+
+
+def test_ap1_pull_engage_unchanged_tracks_slc():
+  """RWD (pull) engage → posted+offset immediately; follows lower, raises higher."""
+  sim = _VCruiseSim()
+  v = sim.engage("rwd", 30, 20)
+  assert v == pytest.approx(35 * MPH)
+  assert sim.h.sticky_vego is False and sim.h.tip_ms == 0.0
+  for _ in range(10):
+    v = sim.step(True, 25, 25)
+  assert v == pytest.approx(30 * MPH)
+  for _ in range(10):
+    v = sim.step(True, 40, 25)
+  assert v == pytest.approx(45 * MPH)
+
+
+def test_ap1_vcruise_uses_ap1_cruise_ms_without_sticky_slc_cap():
+  """Source: vcruise delegates to ap1_cruise_ms; sticky no longer min()s slc_desired."""
+  from pathlib import Path
+  vsrc = (Path(__file__).resolve().parents[4] / "frogpilot" / "controls" / "lib" /
+          "frogpilot_vcruise.py").read_text()
+  assert "ap1_cruise_ms(" in vsrc
+  assert "v_cruise = min(v_cruise, slc_desired)" not in vsrc
+  h = Ap1RaiseHoldoff()
+  assert not hasattr(h, "_prev_slc_target")
+  assert not hasattr(Ap1RaiseHoldoff, "LIMIT_RISE_MS")
+
+
+# --- AP1 posted-limit guard (drive 2a seg 5: 45→5 mph blip ~1.4 s) -----------
+
+def _guard_run(g, seq, dt=0.05):
+  """seq: [(limit_mph, offset_mph, seconds)] → list of (target_mph, offset_mph) per tick."""
+  out = []
+  for lim, off, secs in seq:
+    for _ in range(int(round(secs / dt))):
+      t, o = g.update(lim * MPH, off * MPH, dt)
+      out.append((round(t / MPH, 2), round(o / MPH, 2)))
+  return out
+
+
+def test_ap1_guard_ignores_1s_5mph_blip():
+  g = Ap1SlcLimitGuard()
+  out = _guard_run(g, [(45, 6, 2.0), (5, 5, 1.0), (45, 6, 2.0)])
+  assert all(x == (45, 6) for x in out)
+
+
+def test_ap1_guard_ignores_sub15_even_if_persistent():
+  g = Ap1SlcLimitGuard()
+  out = _guard_run(g, [(45, 6, 1.0), (8, 5, 30.0), (10, 5, 10.0), (14, 5, 10.0)])
+  assert all(x == (45, 6) for x in out)
+  # Fresh start with only a bogus value → still "no limit" (0)
+  g2 = Ap1SlcLimitGuard()
+  assert _guard_run(g2, [(5, 5, 5.0)])[-1] == (0, 0)
+
+
+def test_ap1_guard_accepts_15_school_zone():
+  g = Ap1SlcLimitGuard()
+  out = _guard_run(g, [(25, 5, 1.0), (15, 5, 0.05)])
+  assert out[-1] == (15, 5)  # 25→15: −10, not under half → immediate
+  g2 = Ap1SlcLimitGuard()
+  assert _guard_run(g2, [(15, 5, 0.05)])[-1] == (15, 5)  # first limit 15 is valid
+
+
+def test_ap1_guard_follows_real_45_to_30_immediately():
+  g = Ap1SlcLimitGuard()
+  out = _guard_run(g, [(45, 6, 1.0), (30, 6, 0.05)])
+  assert out[-1] == (30, 6)  # 2a 13:57:47 ME 30 — −15 is a normal step
+
+
+def test_ap1_guard_follows_real_35_to_25_immediately():
+  g = Ap1SlcLimitGuard()
+  out = _guard_run(g, [(35, 6, 1.0), (25, 6, 0.05)])
+  assert out[-1] == (25, 6)
+
+
+def test_ap1_guard_sudden_drop_needs_confirm():
+  # 45→20 (−25): blip of 1 s ignored, persistent value accepted after ~2 s
+  g = Ap1SlcLimitGuard()
+  out = _guard_run(g, [(45, 6, 1.0), (20, 5, 1.0), (45, 6, 1.0)])
+  assert all(x == (45, 6) for x in out)
+  out = _guard_run(g, [(20, 5, 1.9)])
+  assert out[-1] == (45, 6)
+  out = _guard_run(g, [(20, 5, 0.15)])
+  assert out[-1] == (20, 5)
+  # 40→15 (under half) also confirms; 30→15 (exactly half) is immediate
+  g2 = Ap1SlcLimitGuard()
+  assert _guard_run(g2, [(40, 6, 1.0), (15, 5, 1.0)])[-1] == (40, 6)
+  assert _guard_run(g2, [(15, 5, 1.0)])[-1] == (15, 5)
+  g3 = Ap1SlcLimitGuard()
+  assert _guard_run(g3, [(30, 6, 1.0), (15, 5, 0.05)])[-1] == (15, 5)
+
+
+def test_ap1_guard_rises_and_no_limit_unchanged():
+  g = Ap1SlcLimitGuard()
+  assert _guard_run(g, [(25, 6, 1.0), (45, 6, 0.05)])[-1] == (45, 6)
+  assert _guard_run(g, [(0, 0, 0.05)])[-1] == (0, 0)  # no limit passes through
+  # A rise cancels a pending sudden drop
+  g2 = Ap1SlcLimitGuard()
+  _guard_run(g2, [(45, 6, 1.0), (20, 5, 1.5)])
+  assert _guard_run(g2, [(50, 6, 0.05)])[-1] == (50, 6)
+  assert _guard_run(g2, [(20, 5, 1.5)])[-1] == (50, 6)  # timer restarted
+
+
+def test_ap1_guard_pull_engage_and_slc_tracking_use_filtered_limit():
+  """SLC tracking after a pull holds 45+6 through a 5 mph blip (no dip to ~6)."""
+  sim = _VCruiseSim(offset_mph=6.0)
+  g = Ap1SlcLimitGuard()
+
+  def step(raw_mph, **kw):
+    t, _ = g.update(raw_mph * MPH, (5 if raw_mph < 25 else 6) * MPH, sim.DT)
+    return sim.step(kw.pop("enabled", True), t / MPH, kw.pop("vego", 30), **kw)
+
+  # Pull engage while a bogus 5 is showing → still 45+6
+  step(45, enabled=False)
+  step(5, enabled=False, rwd=True)
+  step(5, enabled=False)
+  v = step(5)
+  assert v == pytest.approx(51 * MPH)
+  for _ in range(20):
+    v = step(5)
+  assert v == pytest.approx(51 * MPH)
+  for _ in range(20):
+    v = step(30)  # real 45→30 still followed
+  assert v == pytest.approx(36 * MPH)
+
+
+def test_ap1_vcruise_guard_is_ap1_scoped():
+  from pathlib import Path
+  vsrc = (Path(__file__).resolve().parents[4] / "frogpilot" / "controls" / "lib" /
+          "frogpilot_vcruise.py").read_text()
+  i_guard = vsrc.index("self.ap1_limit_guard.update(")
+  i_ap1 = vsrc.rindex('"TESLA_AP1_MODELS"', 0, i_guard)
+  assert i_guard - i_ap1 < 400
+  assert vsrc.index("self.ap1_limit_guard.update(") < vsrc.index("slc_desired = max(self.slc.overridden_speed")
+
+
+# --- Guard is SLC-only: manual tips / tip-engage may go below 15 mph ----------
+
+class _GuardedSim:
+  """_VCruiseSim fed through Ap1SlcLimitGuard, like frogpilot_vcruise on AP1."""
+
+  def __init__(self, offset_mph=5.0):
+    self.sim = _VCruiseSim(offset_mph=offset_mph)
+    self.g = Ap1SlcLimitGuard()
+    self.h = self.sim.h
+
+  def step(self, enabled, raw_slc_mph, vego_mph, **kw):
+    t, _ = self.g.update(raw_slc_mph * MPH, 5 * MPH, self.sim.DT)
+    return self.sim.step(enabled, t / MPH, vego_mph, **kw)
+
+  def engage(self, kind, raw_slc_mph, vego_mph):
+    self.step(False, raw_slc_mph, vego_mph, **{kind: True})
+    self.step(False, raw_slc_mph, vego_mph)
+    return self.step(True, raw_slc_mph, vego_mph)
+
+  def tip(self, raw_slc_mph, vego_mph, up=False, dn=False, tip_full=False):
+    v = self.step(True, raw_slc_mph, vego_mph, up=up, dn=dn, tip_full=tip_full)
+    self.step(True, raw_slc_mph, vego_mph)  # release
+    return v
+
+
+def test_ap1_engaged_tip_down_below_15_with_guard_and_bogus_slc():
+  """Tip DN from 15: full tip → 10, then −1 → 9, 8 … 1 mph; SLC blips/sub-15 ignored."""
+  s = _GuardedSim()
+  assert s.engage("dn", 15, 15) == pytest.approx(15 * MPH)
+  v = s.tip(15, 15, dn=True, tip_full=True)
+  assert v == pytest.approx(10 * MPH)
+  raws = [15, 5, 8, 5, 15, 10, 15, 5, 15]  # school zone with bogus sub-15 readings
+  for i, want in enumerate(range(9, 0, -1)):
+    v = s.tip(raws[i], 10, dn=True)
+    assert v == pytest.approx(want * MPH)
+    assert s.h.tip_ms == pytest.approx(want * MPH)
+    for _ in range(25):  # hold ~1.25 s while SLC reports a sub-15 value
+      v = s.step(True, 5, 8)
+    assert v == pytest.approx(want * MPH)
+  # Existing floor: further DN (±1 or full tip) never leaves tip mode / jumps to SLC
+  for full in (False, True, False):
+    v = s.tip(15, 1, dn=True, tip_full=full)
+    assert v == pytest.approx(1 * MPH)
+    assert s.h.tip_ms > 0.0 and s.h.sticky_vego is False
+  for _ in range(40):
+    v = s.step(True, 15, 1)
+  assert v == pytest.approx(1 * MPH)  # not 15+5 (SLC tracking) after reaching the floor
+  # Tip back up from the floor still works
+  assert s.tip(15, 1, up=True) == pytest.approx(2 * MPH)
+  assert s.tip(15, 2, up=True, tip_full=True) == pytest.approx(5 * MPH)
+
+
+def test_ap1_full_tip_down_from_5_floors_at_min_not_slc():
+  s = _GuardedSim()
+  s.engage("up", 25, 7)
+  assert s.tip(25, 7, dn=True, tip_full=True) == pytest.approx(5 * MPH)
+  v = s.tip(25, 6, dn=True, tip_full=True)
+  assert v == pytest.approx(Ap1RaiseHoldoff.TIP_MIN_MS)
+  for _ in range(40):
+    v = s.step(True, 25, 5)
+  assert v == pytest.approx(Ap1RaiseHoldoff.TIP_MIN_MS)
+
+
+@pytest.mark.parametrize("kind", ["up", "dn"])
+def test_ap1_tip_engage_at_9mph_holds_with_guard(kind):
+  """Tip-engage at ~9 mph holds while SLC reports 25, a sub-15 value, or a blip."""
+  s = _GuardedSim()
+  v = s.engage(kind, 25, 9)
+  assert v == pytest.approx(9 * MPH)
+  for raw, secs in ((25, 1.0), (8, 3.0), (5, 0.7), (25, 1.0), (10, 5.0), (35, 1.0), (15, 2.5), (5, 1.0)):
+    for _ in range(int(secs / 0.05)):
+      v = s.step(True, raw, 9)
+    assert v == pytest.approx(9 * MPH)
+    assert s.h.sticky_vego is True
+  # Guard really is active (35→15 confirmed after 2 s; later 5 ignored → keeps 15)
+  assert s.g.target_ms == pytest.approx(15 * MPH)
+  # Engaged tip from the 9 mph hold goes lower still
+  assert s.tip(5, 9, dn=True) == pytest.approx(8 * MPH)
+
+
+def test_ap1_guard_does_not_touch_tip_or_min_clamps():
+  """Source: the guard only rewrites slc_target/slc_offset; tips clamp at TIP_MIN_MS."""
+  import inspect
+  from pathlib import Path
+  from openpilot.selfdrive.car.tesla import slc_raise
+  gsrc = inspect.getsource(Ap1SlcLimitGuard)
+  for name in ("tip_ms", "latched_vego", "sticky", "MIN_VALID_MPH * ", "V_CRUISE"):
+    assert name not in gsrc
+  hsrc = inspect.getsource(Ap1RaiseHoldoff)
+  assert "MIN_VALID" not in hsrc and "Ap1SlcLimitGuard" not in hsrc
+  assert "TIP_MIN_MS" in hsrc
+  assert Ap1RaiseHoldoff.TIP_MIN_MS == pytest.approx(1.0 * MPH)
+  csrc = inspect.getsource(slc_raise.ap1_cruise_ms)
+  assert "MIN_VALID" not in csrc and "guard" not in csrc.lower()
+  vsrc = (Path(__file__).resolve().parents[4] / "frogpilot" / "controls" / "lib" /
+          "frogpilot_vcruise.py").read_text()
+  guard_line = [ln for ln in vsrc.splitlines() if "ap1_limit_guard.update(" in ln]
+  assert len(guard_line) == 1
+  assert guard_line[0].strip().startswith("self.slc_target, self.slc_offset = ")

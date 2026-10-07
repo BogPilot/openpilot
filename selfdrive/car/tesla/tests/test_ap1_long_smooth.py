@@ -1,0 +1,221 @@
+"""AP1 comfort-band accel slew (long_smooth.py) and its CarController wiring."""
+import random
+
+import pytest
+
+from openpilot.selfdrive.car.tesla.long_smooth import (
+  AP1_BRAKE_BYPASS_ACCEL, AP1_COMFORT_JERK_LIMIT, AP1_FALL_JERK, AP1_FULL_JERK_LIMIT, AP1_JERK_BLEND_START,
+  AP1_JERK_LIMIT_NARROW_RATE, AP1_RISE_JERK, AP1_SLEW_MIN_SPEED, Ap1AccelSmoother, Ap1JerkLimit, ap1_jerk_limit_target,
+)
+from openpilot.selfdrive.car.tesla.values import CarControllerParams
+
+UP = AP1_RISE_JERK * 0.01
+DN = AP1_FALL_JERK * 0.01
+V = 10.0
+
+
+def _run(seq, v=V, active=True):
+  s = Ap1AccelSmoother()
+  return [s.update(a, active, v) for a in seq]
+
+
+def test_steady_and_normal_ramps_pass_unchanged():
+  up = [0.01 * i for i in range(100)]  # 1 m/s^3
+  assert _run(up) == pytest.approx(up)
+  down = [-0.02 * i for i in range(100)]  # 2 m/s^3 into braking
+  assert _run(down) == pytest.approx(down)
+  assert _run([0.3] * 50) == pytest.approx([0.3] * 50)
+
+
+def test_step_up_is_slewed():
+  out = _run([0.0] + [0.5] * 30)
+  assert out[1] == pytest.approx(UP)
+  assert out[10] == pytest.approx(10 * UP)
+  assert out[-1] == pytest.approx(0.5)
+
+
+def test_brake_blip_reversal_is_smoothed():
+  # 02a 158.2: +0.48 -> -0.44 (one plan step) -> -0.16
+  seq = [0.48] * 5 + [-0.44] * 5 + [-0.16] * 20
+  out = _run(seq)
+  assert out[5] == pytest.approx(0.48 - DN)
+  assert min(out) >= -0.16 - 1e-9  # the -0.44 blip is not passed on
+  assert out[-1] == pytest.approx(-0.16)
+
+
+@pytest.mark.parametrize("target", [AP1_BRAKE_BYPASS_ACCEL, -0.8, -1.6, -3.5])
+def test_braking_at_or_below_bypass_is_never_delayed(target):
+  assert _run([0.4, target])[1] == target
+  assert _run([-0.2, target])[1] == target
+
+
+def test_comfort_band_braking_reaches_bypass_within_0p1s():
+  out = _run([0.0] + [-0.45] * 20)
+  assert out[1] == pytest.approx(-DN)
+  assert out[10] == pytest.approx(-0.45)
+
+
+def test_release_from_braking_is_slewed():
+  out = _run([-2.0, -0.2, -0.2])
+  assert out[1] == pytest.approx(-2.0 + UP)
+
+
+def test_property_bounded_and_hard_band_never_less_braking():
+  rnd = random.Random(7)
+  s = Ap1AccelSmoother()
+  a = 0.0
+  for _ in range(20000):
+    a = rnd.uniform(-3.5, 2.0) if rnd.random() < 0.1 else max(-3.5, min(2.0, a + rnd.uniform(-0.3, 0.3)))
+    prev = s.last
+    out = s.update(a, True, V)
+    if prev is not None:
+      assert min(prev, a) - 1e-12 <= out <= max(prev, a) + 1e-12
+      assert out <= prev + UP + 1e-12
+      if a <= AP1_BRAKE_BYPASS_ACCEL:
+        assert out <= a + 1e-12
+
+
+def test_inactive_resets_and_passes_through():
+  s = Ap1AccelSmoother()
+  s.update(0.0, True, V)
+  assert s.update(1.0, False, V) == 1.0
+  assert s.last is None
+  assert s.update(0.8, True, V) == 0.8  # first active frame seeds
+
+
+def test_gas_neutral_outputs_zero_and_release_ramps_from_zero():
+  s = Ap1AccelSmoother()
+  s.update(0.6, True, V)
+  assert s.update(0.6, True, V, gas_neutral=True) == 0.0
+  assert s.update(0.6, True, V) == pytest.approx(UP)
+
+
+def test_low_speed_passes_through():
+  s = Ap1AccelSmoother()
+  s.update(-2.0, True, 0.0)
+  assert s.update(0.3, True, AP1_SLEW_MIN_SPEED - 0.01) == 0.3
+  assert s.update(0.8, True, AP1_SLEW_MIN_SPEED + 0.5) == pytest.approx(0.3 + UP)
+
+
+# --- Jerk fields -------------------------------------------------------------
+
+def test_full_jerk_matches_existing_constant():
+  assert AP1_FULL_JERK_LIMIT == CarControllerParams.JERK_LIMIT_MAX == -CarControllerParams.JERK_LIMIT_MIN
+
+
+@pytest.mark.parametrize("a", [AP1_BRAKE_BYPASS_ACCEL, -0.8, -2.0, -3.5])
+def test_jerk_full_at_or_below_bypass(a):
+  assert ap1_jerk_limit_target(a) == AP1_FULL_JERK_LIMIT
+
+
+@pytest.mark.parametrize("a", [AP1_JERK_BLEND_START, -0.1, 0.0, 0.5, 2.0])
+def test_jerk_comfort_in_band(a):
+  assert ap1_jerk_limit_target(a) == AP1_COMFORT_JERK_LIMIT
+
+
+def test_jerk_blend_is_continuous_and_monotonic():
+  xs = [AP1_BRAKE_BYPASS_ACCEL - 0.1 + 0.001 * i for i in range(400)]
+  ys = [ap1_jerk_limit_target(x) for x in xs]
+  for y0, y1 in zip(ys, ys[1:]):
+    assert y1 <= y0 + 1e-12
+    assert abs(y1 - y0) < 0.05  # no step in the limit itself
+
+
+def test_jerk_widens_immediately_and_narrows_at_rate():
+  j = Ap1JerkLimit()
+  assert j.update(0.2, True, V) == (-(AP1_FULL_JERK_LIMIT - AP1_JERK_LIMIT_NARROW_RATE * 0.01),
+                                    AP1_FULL_JERK_LIMIT - AP1_JERK_LIMIT_NARROW_RATE * 0.01)
+  for _ in range(100):
+    lo, hi = j.update(0.2, True, V)
+  assert (lo, hi) == (-AP1_COMFORT_JERK_LIMIT, AP1_COMFORT_JERK_LIMIT)
+  assert j.update(-0.6, True, V) == (-AP1_FULL_JERK_LIMIT, AP1_FULL_JERK_LIMIT)  # same step
+
+
+def test_jerk_full_when_low_speed_inactive_or_gas_neutral():
+  for kw in ({"active": True, "v_ego": 0.5}, {"active": False, "v_ego": V}):
+    j = Ap1JerkLimit()
+    for _ in range(200):
+      out = j.update(0.1, kw["active"], kw["v_ego"])
+    assert out == (-AP1_FULL_JERK_LIMIT, AP1_FULL_JERK_LIMIT)
+  j = Ap1JerkLimit()
+  for _ in range(200):
+    j.update(0.1, True, V)
+  assert j.update(0.1, True, V, gas_neutral=True) == (-AP1_FULL_JERK_LIMIT, AP1_FULL_JERK_LIMIT)
+
+
+def test_jerk_fields_pack_inside_dbc_range():
+  # DAS_jerkMin 9 bit (0.03, -15.232), DAS_jerkMax 8 bit (0.059, 0)
+  for v in (-AP1_COMFORT_JERK_LIMIT, -AP1_FULL_JERK_LIMIT):
+    assert 0 <= round((v + 15.232) / 0.03) < 512
+  for v in (AP1_COMFORT_JERK_LIMIT, AP1_FULL_JERK_LIMIT):
+    assert 0 <= round(v / 0.059) < 256
+
+
+# --- CarController wiring (stub packer, same pattern as test_ap1_resume_hold) ---
+
+from openpilot.selfdrive.car.tesla.tests.test_ap1_resume_hold import cc_mod  # noqa: E402,F401
+
+
+def _das(cc_mod, accels, v=V, gas=False):
+  import ast
+  from collections import deque
+  from types import SimpleNamespace
+  from cereal import car
+  from openpilot.selfdrive.car.tesla.values import CAR
+  ctl = cc_mod.CarController("tesla_can", SimpleNamespace(
+    carFingerprint=CAR.TESLA_AP1_MODELS, openpilotLongitudinalControl=True), None)
+  ctl.cluster = None
+  sent = []
+  for i, a in enumerate(accels):
+    CC = car.CarControl.new_message()
+    CC.enabled = True
+    CC.latActive = True
+    CC.longActive = True
+    CC.actuators.accel = a
+    CS = SimpleNamespace(
+      out=SimpleNamespace(steeringAngleDeg=0.0, vEgo=v, gasPressed=gas),
+      steer_warning="EAC_ERROR_IDLE", hands_on_level=0, eac_fault=False, eac_status="EAC_ACTIVE",
+      acc_state=4, das_control_counters=deque([i % 8]), msg_stw_actn_req={}, cluster_stock={},
+    )
+    out, can = ctl.update(CC.as_reader(), CS, i * 10_000_000, None)
+    das = [dict(ast.literal_eval(m[2].decode())) for m in can if m[0] == "DAS_control"]
+    sent.append((out.accel, das[0]["DAS_accelMin"], das[0]["DAS_accelMax"], das[0]["DAS_jerkMin"], das[0]["DAS_jerkMax"]))
+  return sent
+
+
+def test_controller_slews_gas_step_into_das_control(cc_mod):  # noqa: F811
+  sent = _das(cc_mod, [0.0, 0.5, 0.5])
+  assert sent[1][2] == pytest.approx(UP)
+  assert sent[1][0] == pytest.approx(UP)
+
+
+def test_controller_brake_reaches_das_control_same_step(cc_mod):  # noqa: F811
+  sent = _das(cc_mod, [0.2, -1.5])
+  assert sent[1][1] == pytest.approx(-1.5)
+  assert sent[1][2] == 0
+
+
+def test_controller_gas_neutral_frame_unchanged(cc_mod):  # noqa: F811
+  sent = _das(cc_mod, [0.7, 0.7], gas=True)
+  assert all(s[1] == 0 and s[2] == 0 for s in sent)
+
+
+def test_controller_sends_comfort_jerk_then_full_for_braking(cc_mod):  # noqa: F811
+  sent = _das(cc_mod, [0.1] * 100 + [-1.0])
+  assert sent[0][3:] == (-(AP1_FULL_JERK_LIMIT - AP1_JERK_LIMIT_NARROW_RATE * 0.01), AP1_FULL_JERK_LIMIT - AP1_JERK_LIMIT_NARROW_RATE * 0.01)
+  assert sent[99][3:] == (-AP1_COMFORT_JERK_LIMIT, AP1_COMFORT_JERK_LIMIT)
+  assert sent[100][1] == pytest.approx(-1.0)
+  assert sent[100][3:] == (-AP1_FULL_JERK_LIMIT, AP1_FULL_JERK_LIMIT)
+
+
+def test_controller_low_speed_keeps_full_jerk(cc_mod):  # noqa: F811
+  sent = _das(cc_mod, [0.3] * 50, v=0.5)
+  assert all(s[3:] == (CarControllerParams.JERK_LIMIT_MIN, CarControllerParams.JERK_LIMIT_MAX) for s in sent)
+
+
+def test_teslacan_default_jerk_unchanged_for_other_callers():
+  import inspect
+  from openpilot.selfdrive.car.tesla.teslacan import TeslaCAN
+  sig = inspect.signature(TeslaCAN.create_longitudinal_commands)
+  assert sig.parameters["jerk_min"].default == CarControllerParams.JERK_LIMIT_MIN
+  assert sig.parameters["jerk_max"].default == CarControllerParams.JERK_LIMIT_MAX

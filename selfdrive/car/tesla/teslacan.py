@@ -74,14 +74,16 @@ class TeslaCAN:
     values["CRC_STW_ACTN_RQ"] = self.crc(data[:7])
     return self.packer.make_can_msg("STW_ACTN_RQ", bus, values)
 
-  def create_longitudinal_commands(self, acc_state, speed, min_accel, max_accel, cnt, chassis_only=False):
+  def create_longitudinal_commands(self, acc_state, speed, min_accel, max_accel, cnt, chassis_only=False,
+                                   jerk_min=CarControllerParams.JERK_LIMIT_MIN, jerk_max=CarControllerParams.JERK_LIMIT_MAX):
+    # AP1 passes comfort-band jerk limits (long_smooth.Ap1JerkLimit). Others keep +/-8.
     messages = []
     values = {
       "DAS_setSpeed": speed * CV.MS_TO_KPH,
       "DAS_accState": acc_state,
       "DAS_aebEvent": 0,
-      "DAS_jerkMin": CarControllerParams.JERK_LIMIT_MIN,
-      "DAS_jerkMax": CarControllerParams.JERK_LIMIT_MAX,
+      "DAS_jerkMin": jerk_min,
+      "DAS_jerkMax": jerk_max,
       "DAS_accelMin": min_accel,
       "DAS_accelMax": max_accel,
       "DAS_controlCounter": cnt,

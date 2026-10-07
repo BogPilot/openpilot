@@ -323,6 +323,22 @@ def test_stopped_lead_regen_obstacle_smaller_final_gap_formula_unchanged(monkeyp
   assert desired_follow_distance(0.0, 0.0, get_T_FOLLOW(), AP1_REGEN_COMFORT_BRAKE) == STOP_DISTANCE
 
 
+def test_ap1_comfort_target_is_regen_ceiling_1p0():
+  # 02a: regen alone topped out near 1.0 m/s^2 at 30-35 mph before friction joined.
+  assert AP1_REGEN_COMFORT_BRAKE == 1.0
+
+
+@pytest.mark.parametrize("comfort", [1.0, 1.2])
+def test_standstill_lead_obstacle_identical_to_stock_any_comfort(monkeypatch, comfort):
+  """Stopped behind a stopped lead: x_obstacle equals stock at every node, so the
+  stopped gap (STOP_DISTANCE, plus IncreasedStoppedDistance applied to dRel in
+  radard) does not depend on the comfort target."""
+  stock = _mpc_with_solution(monkeypatch, 0.0, 7.0, COMFORT_BRAKE, v_lead=0.0)
+  regen = _mpc_with_solution(monkeypatch, 0.0, 7.0, comfort, v_lead=0.0)
+  np.testing.assert_allclose(regen.params[:, 2], stock.params[:, 2], atol=1e-9)
+  assert desired_follow_distance(0.0, 0.0, get_T_FOLLOW(), comfort) == STOP_DISTANCE
+
+
 def test_cut_in_keeps_full_accel_min(monkeypatch):
   """(d) Close cut-in: a_min stays ACCEL_MIN for stock and regen."""
   for cb in (COMFORT_BRAKE, AP1_REGEN_COMFORT_BRAKE):
