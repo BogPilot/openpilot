@@ -24,6 +24,8 @@ class FrogPilotVCruise:
     # AP1: engage stalk policy + engaged-DECEL raise holdoff (route 23).
     from openpilot.selfdrive.car.tesla.slc_raise import Ap1RaiseHoldoff
     self.ap1_raise_holdoff = Ap1RaiseHoldoff()
+    # Tesla buttonEvents are edges only; tip next-5 needs continuous UP held.
+    self._ap1_accel_held = False
 
   def update(self, gps_position, now, time_validated, v_cruise, v_ego, sm, frogpilot_toggles):
     force_stop = self.frogpilot_planner.cem.stop_light_detected and sm["controlsState"].enabled and frogpilot_toggles.force_stops
@@ -107,7 +109,14 @@ class FrogPilotVCruise:
          str(getattr(frogpilot_toggles, "car_model", "") or "") == "TESLA_AP1_MODELS":
         from openpilot.selfdrive.car.tesla.slc_raise import apply_slc_raise_after_min
         btns = sm["carState"].buttonEvents
-        up = any(be.type == ButtonType.accelCruise and be.pressed for be in btns)
+        enabled = bool(sm["carState"].cruiseState.enabled)
+        # Edge buttonEvents → latch continuous accelCruise held for tip hold timing.
+        for be in btns:
+          if be.type == ButtonType.accelCruise:
+            self._ap1_accel_held = bool(be.pressed)
+        if not enabled:
+          self._ap1_accel_held = False  # drop latched hold across disengage
+        up = bool(self._ap1_accel_held)
         dn = any(be.type == ButtonType.decelCruise and be.pressed for be in btns)
         rwd = any(be.type == ButtonType.resumeCruise and be.pressed for be in btns)
         # Tip base: post-min set or SLC+offset desired (Max Set Speed floor).
@@ -115,7 +124,7 @@ class FrogPilotVCruise:
         if slc_desired is not None and slc_desired >= CRUISING_SPEED:
           set_hint = max(set_hint, float(slc_desired))
         allow_raise, sticky_vego = self.ap1_raise_holdoff.update(
-          bool(sm["carState"].cruiseState.enabled),
+          enabled,
           dn, up, rwd, float(self.slc_target), float(v_ego),
           current_set_ms=set_hint, dt=DT_MDL,
         )

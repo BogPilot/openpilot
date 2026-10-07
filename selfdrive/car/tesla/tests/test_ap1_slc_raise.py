@@ -17,6 +17,7 @@ from openpilot.selfdrive.car.tesla.slc_raise import (
   is_ap1,
   lift_cruise_ms,
   merge_vcruise_with_slc,
+  next_5_ms,
   V_CRUISE_UNSET_MS,
 )
 
@@ -245,11 +246,19 @@ def test_ap1_raise_holdoff_recent_stalk_gap_sticky_and_rwd():
   assert allow is True and sticky is None
 
 
-def test_ap1_tip_up_plus_one_and_clears():
-  """Engaged accelCruise edge bumps tip +1 mph; DECEL/disengage/lower SLC clear it.
+def test_next_5_ms_snap():
+  assert next_5_ms(30 * MPH) == pytest.approx(35 * MPH)
+  assert next_5_ms(36 * MPH) == pytest.approx(40 * MPH)
+  assert next_5_ms(35 * MPH) == pytest.approx(40 * MPH)
+  assert next_5_ms(39 * MPH) == pytest.approx(40 * MPH)
+  assert next_5_ms(40 * MPH) == pytest.approx(45 * MPH)
 
-  AP1 only sees binary pressed events, so tip is +1 per rising edge (not next-5).
-  Cap at V_CRUISE_MAX. Engaged DECEL holdoff still arms and tip cannot fight it.
+
+def test_ap1_tip_up_plus_one_and_clears():
+  """Engaged short accelCruise bumps tip +1 mph; DECEL/disengage/lower SLC clear it.
+
+  AP1 buttonEvents are binary (UP_1ST/UP_2ND both accelCruise). Short tip = rising
+  edge + release before TIP_HOLD_S → +1 only. Cap at V_CRUISE_MAX.
   """
   dt = 0.05
   slc = 25 * MPH
@@ -265,7 +274,7 @@ def test_ap1_tip_up_plus_one_and_clears():
   allow, sticky = h.update(True, False, True, False, slc, 20 * MPH, current_set_ms=set30, dt=dt)
   assert allow is True
   assert h.tip_ms == pytest.approx(31 * MPH)
-  # Hold UP pressed another frame: no second tip (edge only)
+  # Hold UP pressed another frame (< TIP_HOLD_S): still +1 only, no second tip
   h.update(True, False, True, False, slc, 20 * MPH, current_set_ms=set30, dt=dt)
   assert h.tip_ms == pytest.approx(31 * MPH)
   # Release then tip again → 32
@@ -292,6 +301,67 @@ def test_ap1_tip_up_plus_one_and_clears():
   assert h.tip_ms == pytest.approx(47 * MPH)
   h.update(True, False, False, False, 25 * MPH, 20 * MPH, current_set_ms=set30, dt=dt)
   assert h.tip_ms == 0.0
+
+
+def test_ap1_tip_up_next_5_on_long_hold():
+  """Full lift: rising +1 then held ≥ TIP_HOLD_S upgrades once to next-5 from press base.
+
+  36→40 (not 37 then +5). Short hold stays +1. Second long tip from 40→45.
+  UP-engage sticky is not cleared by sustained UP after engage (only up_edge).
+  """
+  dt = 0.05
+  slc = 35 * MPH
+  set36 = 36 * MPH
+  h = Ap1RaiseHoldoff()
+  h.update(True, False, False, False, slc, 30 * MPH, current_set_ms=set36, dt=dt)
+
+  # Rising edge → +1 (37)
+  h.update(True, False, True, False, slc, 30 * MPH, current_set_ms=set36, dt=dt)
+  assert h.tip_ms == pytest.approx(37 * MPH)
+
+  # Hold through TIP_HOLD_S → upgrade to 40 from base 36 (not 37+ something)
+  hold_frames = int(Ap1RaiseHoldoff.TIP_HOLD_S / dt) + 1
+  for _ in range(hold_frames):
+    h.update(True, False, True, False, slc, 30 * MPH, current_set_ms=set36, dt=dt)
+  assert h.tip_ms == pytest.approx(40 * MPH)
+  assert h._tip_upgraded is True
+
+  # Further hold does not tip again
+  for _ in range(5):
+    h.update(True, False, True, False, slc, 30 * MPH, current_set_ms=40 * MPH, dt=dt)
+  assert h.tip_ms == pytest.approx(40 * MPH)
+
+  # Release and long-tip again: 40 → 41 then upgrade to 45
+  h.update(True, False, False, False, slc, 30 * MPH, current_set_ms=40 * MPH, dt=dt)
+  h.update(True, False, True, False, slc, 30 * MPH, current_set_ms=40 * MPH, dt=dt)
+  assert h.tip_ms == pytest.approx(41 * MPH)
+  for _ in range(hold_frames):
+    h.update(True, False, True, False, slc, 30 * MPH, current_set_ms=40 * MPH, dt=dt)
+  assert h.tip_ms == pytest.approx(45 * MPH)
+
+  # Short tip only: 30 set → 31, release before hold threshold
+  h2 = Ap1RaiseHoldoff()
+  set30 = 30 * MPH
+  h2.update(True, False, False, False, 25 * MPH, 20 * MPH, current_set_ms=set30, dt=dt)
+  h2.update(True, False, True, False, 25 * MPH, 20 * MPH, current_set_ms=set30, dt=dt)
+  assert h2.tip_ms == pytest.approx(31 * MPH)
+  # 2 frames held (0.1 s) << 0.45 s then release
+  h2.update(True, False, True, False, 25 * MPH, 20 * MPH, current_set_ms=set30, dt=dt)
+  h2.update(True, False, False, False, 25 * MPH, 20 * MPH, current_set_ms=set30, dt=dt)
+  assert h2.tip_ms == pytest.approx(31 * MPH)
+
+  # UP engage sticky: sustained UP after engage must not clear sticky / tip
+  h3 = Ap1RaiseHoldoff()
+  vego = 27 * MPH
+  h3.update(False, False, False, False, 25 * MPH, vego, dt=dt)
+  h3.update(False, False, True, False, 25 * MPH, vego, dt=dt)  # UP before enable
+  allow, sticky = h3.update(True, False, True, False, 25 * MPH, vego, dt=dt)  # engage rising, UP still held
+  assert allow is False and sticky == pytest.approx(vego)
+  # Sustained UP while sticky — still sticky, no tip upgrade path
+  for _ in range(hold_frames):
+    allow, sticky = h3.update(True, False, True, False, 25 * MPH, vego, current_set_ms=30 * MPH, dt=dt)
+  assert allow is False and sticky == pytest.approx(vego)
+  assert h3.tip_ms == 0.0
 
 
 def test_offset_25mph_uses_offset2():

@@ -11,8 +11,11 @@ Engage policy (route 23 @ 64ed3232, drive24 latch fix):
   - Classify engage from stalk pressed within the last ~0.8 s (Tesla clears
     buttonEvents 80–240 ms before enabled rises)
   - Engaged stalk DECEL → holdoff raise until RES/UP/RWD or higher SLC target
-  - Engaged stalk tip-up (accelCruise edge) → +1 mph via tip latch /
-    overridden_speed (no 0x45); clears on disengage, DECEL, or lower SLC
+  - Engaged stalk tip-up (accelCruise): short hold → +1 mph; hold ≥ ~0.45 s →
+    next multiple of 5 mph from speed at press (36→40), via tip latch /
+    overridden_speed (no 0x45); clears on disengage, DECEL, or lower SLC.
+    AP1 buttonEvents are binary (UP_1ST/UP_2ND both map to accelCruise), so
+    full vs short is hold duration (rising=+1, sustained upgrades to next-5).
 
 IC set digit (DAS_accSpeedLimit on 0x389) tracks the OP set via the cluster
 pack path. DBC factor is 0.4. cruise_set_mph rejects V_CRUISE_UNSET (255 kph)
@@ -84,6 +87,13 @@ def merge_vcruise_with_slc(v_cruise_ms: float, csc_target_ms: float, slc_desired
     csc_controlling_speed, csc_target_ms)
 
 
+
+def next_5_ms(speed_ms: float) -> float:
+  """Next multiple of 5 mph above speed_ms (30→35, 36→40); exact multiples go +5."""
+  mph = round(float(speed_ms) * CV.MS_TO_MPH, 4)
+  return float((int(mph // 5.0) + 1) * 5.0) * CV.MPH_TO_MS
+
+
 class Ap1RaiseHoldoff:
   """AP1 raise gate: engage stalk type + engaged-DECEL holdoff + tip-up.
 
@@ -92,13 +102,16 @@ class Ap1RaiseHoldoff:
     RWD (pull-toward) engage → allow raise to SLC+offset immediately
     Engage classified from stalk pressed within RECENT_S (not same-frame only)
     Engaged DECEL → holdoff raise until RES/UP/RWD or higher posted limit
-    Engaged accelCruise rising edge → +1 mph tip latch (cap V_CRUISE_MAX);
-      fed as slc.overridden_speed so Max Set Speed gas returns to the tip
+    Engaged accelCruise: rising edge → +1 mph tip; held ≥ TIP_HOLD_S →
+      upgrade once to next multiple of 5 mph from speed at press (cap
+      V_CRUISE_MAX). Fed as slc.overridden_speed so Max Set Speed gas
+      returns to the tip. Caller must pass continuous UP held (not edge-only).
   """
 
   LIMIT_RISE_MS = 0.5  # ~1 mph
   RECENT_S = 0.8  # Tesla clears buttonEvents 80–240 ms before enabled rises
   TIP_STEP_MS = 1.0 * CV.MPH_TO_MS
+  TIP_HOLD_S = 0.45  # full lift ≈ held past first detent; tune with drive feel
   V_CRUISE_MAX_MS = 145.0 * CV.KPH_TO_MS
   DT_DEFAULT = 0.05  # model tick; avoid importing realtime here
 
@@ -107,6 +120,10 @@ class Ap1RaiseHoldoff:
     self.sticky_vego = False
     self.latched_vego_ms = 0.0
     self.tip_ms = 0.0
+    self._tip_base_ms = 0.0
+    self._tip_hold_s = 0.0
+    self._tip_press_active = False
+    self._tip_upgraded = False
     self._prev_enabled = False
     self._prev_slc_target = 0.0
     self._prev_up = False
@@ -114,6 +131,14 @@ class Ap1RaiseHoldoff:
     self._last_up_t = -1e9
     self._last_dn_t = -1e9
     self._last_rwd_t = -1e9
+
+
+  def _clear_tip(self):
+    self.tip_ms = 0.0
+    self._tip_base_ms = 0.0
+    self._tip_hold_s = 0.0
+    self._tip_press_active = False
+    self._tip_upgraded = False
 
   def update(self, enabled: bool, decel_pressed: bool, up_pressed: bool,
              rwd_pressed: bool, slc_target_ms: float, v_ego_ms: float,
@@ -147,15 +172,33 @@ class Ap1RaiseHoldoff:
       self.sticky_vego = False
     elif slc < self._prev_slc_target - self.LIMIT_RISE_MS:
       # New lower posted limit: drop tip so Max Set Speed follows SLC+offset
-      self.tip_ms = 0.0
+      self._clear_tip()
 
-    # Engaged tip-up / RES / pull-toward: resume raise path; tip +1 mph on UP edge
-    if enabled and self._prev_enabled and (up_pressed or rwd_pressed):
-      self.holdoff = False
-      self.sticky_vego = False
+    # Engaged tip-up / RES / pull-toward: resume raise path on UP edge or RWD.
+    # UP must be continuous-held from the caller (buttonEvents are edges only).
+    # Rising → +1 mph; held ≥ TIP_HOLD_S → upgrade once to next-5 from press base
+    # (avoids +1 then +5 double-count). Do not clear sticky on sustained UP after
+    # an UP-engage (only on up_edge / RWD).
+    if enabled and self._prev_enabled:
+      if up_edge or rwd_pressed:
+        self.holdoff = False
+        self.sticky_vego = False
       if up_edge:
         base = max(float(self.tip_ms), float(current_set_ms), 0.0)
+        self._tip_base_ms = base
+        self._tip_hold_s = 0.0
+        self._tip_press_active = True
+        self._tip_upgraded = False
         self.tip_ms = min(base + self.TIP_STEP_MS, self.V_CRUISE_MAX_MS)
+      if up_pressed and self._tip_press_active and not self._tip_upgraded:
+        self._tip_hold_s += dt
+        if self._tip_hold_s >= self.TIP_HOLD_S:
+          nxt = next_5_ms(self._tip_base_ms)
+          self.tip_ms = min(max(float(self.tip_ms), nxt), self.V_CRUISE_MAX_MS)
+          self._tip_upgraded = True
+      if not up_pressed:
+        self._tip_press_active = False
+        self._tip_hold_s = 0.0
 
     if rising:
       # Prefer the most recent stalk in the recent window (UP/DN sticky vs RWD raise)
@@ -171,21 +214,21 @@ class Ap1RaiseHoldoff:
         self.sticky_vego = True
         self.latched_vego_ms = max(float(v_ego_ms), 0.0)
         self.holdoff = True
-        self.tip_ms = 0.0
+        self._clear_tip()
       elif kind == "rwd":
         self.sticky_vego = False
         self.holdoff = False
-        self.tip_ms = 0.0
+        self._clear_tip()
       # else: no recent stalk → default allow_raise (legacy)
     elif enabled and self._prev_enabled and decel_pressed:
       # Engaged stalk DECEL: honor driver set-down; clear tip so it cannot fight holdoff
       self.holdoff = True
-      self.tip_ms = 0.0
+      self._clear_tip()
 
     if not enabled:
       self.holdoff = False
       self.sticky_vego = False
-      self.tip_ms = 0.0
+      self._clear_tip()
 
     self._prev_enabled = enabled
     self._prev_slc_target = slc
