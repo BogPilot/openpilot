@@ -21,11 +21,11 @@ class FrogPilotVCruise:
     self.override_force_stop = False
 
     self.override_force_stop_timer = 0
-    # AP1: engage stalk policy + engaged-DECEL raise holdoff (route 23).
+    # AP1: engage stalk policy + engaged tip-up/tip-down software set (drive25).
     from openpilot.selfdrive.car.tesla.slc_raise import Ap1RaiseHoldoff
     self.ap1_raise_holdoff = Ap1RaiseHoldoff()
-    # Tesla buttonEvents are edges only; tip next-5 needs continuous UP held.
-    self._ap1_accel_held = False
+    # RWD still uses buttonEvents (miss → allow_raise, which is correct for RWD).
+    self._ap1_resume_held = False
 
   def update(self, gps_position, now, time_validated, v_cruise, v_ego, sm, frogpilot_toggles):
     force_stop = self.frogpilot_planner.cem.stop_light_detected and sm["controlsState"].enabled and frogpilot_toggles.force_stops
@@ -110,15 +110,16 @@ class FrogPilotVCruise:
         from openpilot.selfdrive.car.tesla.slc_raise import apply_slc_raise_after_min
         btns = sm["carState"].buttonEvents
         enabled = bool(sm["carState"].cruiseState.enabled)
-        # Edge buttonEvents → latch continuous accelCruise held for tip hold timing.
+        fp_cs = sm["frogpilotCarState"]
+        # Continuous UP/DN levels from button_states (via frogpilot_card).
+        up = bool(fp_cs.accelPressed)
+        dn = bool(fp_cs.decelPressed)
+        # RWD: edge latch (no clear-before-update while disengaged). Miss on
+        # engage defaults to allow_raise — correct for pull-toward.
         for be in btns:
-          if be.type == ButtonType.accelCruise:
-            self._ap1_accel_held = bool(be.pressed)
-        if not enabled:
-          self._ap1_accel_held = False  # drop latched hold across disengage
-        up = bool(self._ap1_accel_held)
-        dn = any(be.type == ButtonType.decelCruise and be.pressed for be in btns)
-        rwd = any(be.type == ButtonType.resumeCruise and be.pressed for be in btns)
+          if be.type == ButtonType.resumeCruise:
+            self._ap1_resume_held = bool(be.pressed)
+        rwd = bool(self._ap1_resume_held)
         # Tip base: post-min set or SLC+offset desired (Max Set Speed floor).
         set_hint = float(v_cruise)
         if slc_desired is not None and slc_desired >= CRUISING_SPEED:
@@ -129,9 +130,13 @@ class FrogPilotVCruise:
           current_set_ms=set_hint, dt=DT_MDL,
         )
         tip_ms = float(self.ap1_raise_holdoff.tip_ms)
+        tip_dir = int(self.ap1_raise_holdoff.tip_dir)
         if tip_ms > 0:
-          # Keep Max Set Speed gas override returning to the tipped set.
-          self.slc.overridden_speed = max(float(self.slc.overridden_speed), tip_ms)
+          # Max Set Speed gas override returns to the software tip set.
+          if tip_dir < 0:
+            self.slc.overridden_speed = tip_ms
+          else:
+            self.slc.overridden_speed = max(float(self.slc.overridden_speed), tip_ms)
         if sticky_vego is not None:
           # UP/DN engage: hold latched current speed; SLC may still lower.
           v_cruise = float(sticky_vego)
@@ -139,13 +144,20 @@ class FrogPilotVCruise:
             v_cruise = min(v_cruise, slc_desired)
           if self.csc_controlling_speed:
             v_cruise = min(v_cruise, self.csc_target)
+        elif tip_ms > 0 and (tip_dir < 0 or not allow_raise):
+          # DECEL tip-down / holdoff software set — do NOT follow DI_cruiseSet.
+          v_cruise = tip_ms
+          if slc_desired is not None and slc_desired >= CRUISING_SPEED:
+            v_cruise = min(v_cruise, float(slc_desired))
+          if self.csc_controlling_speed:
+            v_cruise = min(v_cruise, self.csc_target)
         elif allow_raise:
           v_cruise = apply_slc_raise_after_min(
             v_cruise, slc_desired, self.slc_target, CRUISING_SPEED,
             self.csc_controlling_speed, self.csc_target)
-        if tip_ms > 0:
-          v_cruise = max(float(v_cruise), tip_ms)
-          if self.csc_controlling_speed:
-            v_cruise = min(v_cruise, self.csc_target)
+          if tip_ms > 0:
+            v_cruise = max(float(v_cruise), tip_ms)
+            if self.csc_controlling_speed:
+              v_cruise = min(v_cruise, self.csc_target)
 
     return v_cruise

@@ -18,6 +18,7 @@ from openpilot.selfdrive.car.tesla.slc_raise import (
   lift_cruise_ms,
   merge_vcruise_with_slc,
   next_5_ms,
+  prev_5_ms,
   V_CRUISE_UNSET_MS,
 )
 
@@ -145,7 +146,11 @@ def test_cluster_display_prefers_plan_over_unset():
 
 
 def test_merge_holdoff_skips_raise_so_di_wins():
-  """Engaged stalk DECEL holdoff: DI=10 + 25+5 must stay ~10, not snap to 30."""
+  """raise_holdoff skips SLC lift in merge helper (DI path alone still mins).
+
+  Drive25: frogpilot_vcruise must NOT leave the plan on this DI result after
+  DECEL — Ap1RaiseHoldoff tip-down supplies the software set instead.
+  """
   di = 10.0 * MPH
   out = merge_vcruise_with_slc(di, di, 30 * MPH, 25 * MPH, CRUISING, raise_holdoff=True)
   assert out == pytest.approx(10.0 * MPH)
@@ -255,7 +260,9 @@ def test_next_5_ms_snap():
 
 
 def test_ap1_tip_up_plus_one_and_clears():
-  """Engaged short accelCruise bumps tip +1 mph; DECEL/disengage/lower SLC clear it.
+  """Engaged short accelCruise bumps tip +1 mph; disengage/lower SLC clear it.
+
+  DECEL tip-downs the software set (−1) and arms holdoff (see tip-down test).
 
   AP1 buttonEvents are binary (UP_1ST/UP_2ND both accelCruise). Short tip = rising
   edge + release before TIP_HOLD_S → +1 only. Cap at V_CRUISE_MAX.
@@ -282,10 +289,11 @@ def test_ap1_tip_up_plus_one_and_clears():
   h.update(True, False, True, False, slc, 20 * MPH, current_set_ms=31 * MPH, dt=dt)
   assert h.tip_ms == pytest.approx(32 * MPH)
 
-  # Engaged DECEL clears tip and arms holdoff
+  # Engaged DECEL arms holdoff and tip-downs software set (−1 from 32 → 31)
   allow, sticky = h.update(True, True, False, False, slc, 20 * MPH, current_set_ms=32 * MPH, dt=dt)
   assert allow is False and h.holdoff is True
-  assert h.tip_ms == 0.0
+  assert h.tip_ms == pytest.approx(31 * MPH)
+  assert h.tip_dir == -1
 
   # Tip then disengage clears
   h.update(True, False, False, False, slc, 20 * MPH, current_set_ms=set30, dt=dt)
@@ -400,6 +408,133 @@ def test_offset_25mph_uses_offset2():
   assert "int(round(float(self.target) * CV.MS_TO_MPH))" in src
   assert "if band <= high:" in src
   assert "low < self.target < high" not in src
+
+
+def test_prev_5_ms_snap():
+  assert prev_5_ms(31 * MPH) == pytest.approx(30 * MPH)
+  assert prev_5_ms(30 * MPH) == pytest.approx(25 * MPH)
+  assert prev_5_ms(36 * MPH) == pytest.approx(35 * MPH)
+  assert prev_5_ms(35 * MPH) == pytest.approx(30 * MPH)
+  assert prev_5_ms(0.0) == pytest.approx(0.0)
+
+
+def test_ap1_level_held_across_missed_edge_still_sticky():
+  """drive25: short edge missed by events but level held → sticky on enable.
+
+  Models 20 Hz planner ticks that never see the 10 ms press edge; continuous
+  level True across the gap still arms _last_up/_dn_t. Gap 80–200 ms ≪ RECENT_S.
+  """
+  dt = 0.05
+  vego = 19.0 * MPH
+  slc = 25 * MPH
+
+  # UP level held while disengaged (no discrete "edge event" needed), gap, enable
+  h = Ap1RaiseHoldoff()
+  h.update(False, False, False, False, slc, vego, dt=dt)
+  # Level held for ~100 ms (2 ticks) while disengaged — arms _last_up_t every tick
+  h.update(False, False, True, False, slc, vego, dt=dt)
+  h.update(False, False, True, False, slc, vego, dt=dt)
+  # Release level, gap ~150 ms, then enable (btn_age style 80–200 ms)
+  h.update(False, False, False, False, slc, vego, dt=dt)
+  h.update(False, False, False, False, slc, vego, dt=dt)
+  h.update(False, False, False, False, slc, vego, dt=dt)
+  allow, sticky = h.update(True, False, False, False, slc, vego, dt=dt)
+  assert allow is False
+  assert sticky == pytest.approx(vego)
+  assert h.sticky_vego is True
+
+  # DN level while disengaged then enable ~100 ms later
+  h = Ap1RaiseHoldoff()
+  h.update(False, False, False, False, slc, vego, dt=dt)
+  h.update(False, True, False, False, slc, vego, dt=dt)  # DN level
+  h.update(False, True, False, False, slc, vego, dt=dt)
+  h.update(False, False, False, False, slc, vego, dt=dt)
+  h.update(False, False, False, False, slc, vego, dt=dt)
+  allow, sticky = h.update(True, False, False, False, slc, vego, dt=dt)
+  assert allow is False and sticky == pytest.approx(vego)
+
+  # Regression: UP level while !enabled must arm even if "held clear" patterns
+  # previously zeroed up before update — levels stay True across the press.
+  h = Ap1RaiseHoldoff()
+  h.update(False, False, False, False, slc, vego, dt=dt)
+  for _ in range(3):
+    h.update(False, False, True, False, slc, vego, dt=dt)  # UP held disengaged
+  allow, sticky = h.update(True, False, True, False, slc, vego, dt=dt)  # enable, UP still
+  assert allow is False and sticky == pytest.approx(vego)
+
+
+def test_ap1_decel_tip_down_no_di_chase():
+  """drive25: engaged DECEL latches software set; does not track DI downward.
+
+  Short DN → −1 mph from current set; long hold → next-lower-5. Plan must stay
+  on tip_ms (e.g. 30) even when DI sits at ~vEgo/2 (cliff was 31→12→3).
+  """
+  dt = 0.05
+  slc = 25 * MPH
+  set31 = 31 * MPH
+  h = Ap1RaiseHoldoff()
+  # Engage via RWD (allow raise), settle
+  h.update(False, False, False, False, slc, 24 * MPH, current_set_ms=set31, dt=dt)
+  h.update(True, False, False, True, slc, 24 * MPH, current_set_ms=set31, dt=dt)
+  h.update(True, False, False, False, slc, 24 * MPH, current_set_ms=set31, dt=dt)
+
+  # Short DECEL tip-down: 31 → 30, holdoff
+  allow, sticky = h.update(True, True, False, False, slc, 24 * MPH, current_set_ms=set31, dt=dt)
+  assert allow is False and sticky is None
+  assert h.holdoff is True
+  assert h.tip_ms == pytest.approx(30 * MPH)
+  assert h.tip_dir == -1
+  # Release before TIP_HOLD_S — stay at 30 (no further DI tracking)
+  h.update(True, False, False, False, slc, 20 * MPH, current_set_ms=30 * MPH, dt=dt)
+  assert h.tip_ms == pytest.approx(30 * MPH)
+  h.update(True, False, False, False, slc, 12 * MPH, current_set_ms=30 * MPH, dt=dt)
+  assert h.tip_ms == pytest.approx(30 * MPH)
+  assert h.holdoff is True
+
+  # Long DECEL: 31 → 30 then upgrade to 30's next-lower-5 = 25? base was 31 → prev_5=30
+  # Actually prev_5(31)=30. For long hold from base 31: short sets tip=30, upgrade to prev_5(31)=30.
+  # Use base 36 so short → 35, long → 35 (prev_5(36)=35). Better: base 32 → short 31, long prev_5(32)=30.
+  h2 = Ap1RaiseHoldoff()
+  set32 = 32 * MPH
+  h2.update(True, False, False, False, slc, 24 * MPH, current_set_ms=set32, dt=dt)
+  h2.update(True, True, False, False, slc, 24 * MPH, current_set_ms=set32, dt=dt)
+  assert h2.tip_ms == pytest.approx(31 * MPH)
+  hold_frames = int(Ap1RaiseHoldoff.TIP_HOLD_S / dt) + 1
+  for _ in range(hold_frames):
+    h2.update(True, True, False, False, slc, 24 * MPH, current_set_ms=set32, dt=dt)
+  assert h2.tip_ms == pytest.approx(30 * MPH)  # prev_5(32)
+  assert h2._tip_upgraded is True
+
+  # Long from exact multiple: 30 → short 29, long → 25
+  h3 = Ap1RaiseHoldoff()
+  set30 = 30 * MPH
+  h3.update(True, False, False, False, slc, 24 * MPH, current_set_ms=set30, dt=dt)
+  h3.update(True, True, False, False, slc, 24 * MPH, current_set_ms=set30, dt=dt)
+  assert h3.tip_ms == pytest.approx(29 * MPH)
+  for _ in range(hold_frames):
+    h3.update(True, True, False, False, slc, 24 * MPH, current_set_ms=set30, dt=dt)
+  assert h3.tip_ms == pytest.approx(25 * MPH)
+
+  # UP clears holdoff / tip-down; RWD clears holdoff
+  allow, _ = h3.update(True, False, True, False, slc, 24 * MPH, current_set_ms=25 * MPH, dt=dt)
+  assert h3.holdoff is False
+  assert h3.tip_dir == 1
+  assert allow is True
+
+
+def test_ap1_card_feeds_button_states_levels():
+  """frogpilot_card AP1 path must read CI.CS.button_states for accel/decel."""
+  from pathlib import Path
+  src = (Path(__file__).resolve().parents[4] / "frogpilot" / "controls" /
+         "frogpilot_card.py").read_text()
+  assert "_apply_ap1_stalk_levels" in src
+  assert "button_states" in src
+  assert "ButtonType.accelCruise" in src
+  vsrc = (Path(__file__).resolve().parents[4] / "frogpilot" / "controls" / "lib" /
+          "frogpilot_vcruise.py").read_text()
+  assert "fp_cs.accelPressed" in vsrc
+  assert "fp_cs.decelPressed" in vsrc
+  assert "_ap1_accel_held" not in vsrc  # edge latch removed (was clear-before-update bug)
 
 
 def test_carstate_source_uses_di_cruise_set_not_digital():

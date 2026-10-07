@@ -90,6 +90,23 @@ class FrogPilotCard:
     elif sm["carControl"].longActive and self.car.frogpilot_toggles.traffic_mode_via_lkas:
       self.traffic_mode_enabled = not self.traffic_mode_enabled
 
+  def _apply_ap1_stalk_levels(self):
+    """AP1: publish continuous UP/DN stalk levels onto accel/decelPressed.
+
+    Tesla carstate.button_states tracks SpdCtrlLvr_Stat while held; buttonEvents
+    only fire on transitions (~10 ms). Planner samples frogpilotCarState at
+    DT_MDL, so levels are required for sticky engage latch and tip hold timing.
+    accelPressed is UP-only (not OR resume) so tip-up does not fire on RWD.
+    """
+    if self.car.CP.carFingerprint != CAR.TESLA_AP1_MODELS:
+      return
+    cs = getattr(getattr(self.car, "CI", None), "CS", None)
+    bs = getattr(cs, "button_states", None) if cs is not None else None
+    if not isinstance(bs, dict):
+      return
+    self.accel_pressed = bool(bs.get(ButtonType.accelCruise, False))
+    self.decel_pressed = bool(bs.get(ButtonType.decelCruise, False))
+
   def _apply_ap1_stalk(self):
     """AP1 distance stalk drives the existing personality icon and traffic mode.
 
@@ -145,6 +162,10 @@ class FrogPilotCard:
 
     if sm.updated["frogpilotPlan"] or any(be.type == ButtonType.decelCruise for be in carState.buttonEvents):
       self.decel_pressed = any(be.type == ButtonType.decelCruise for be in carState.buttonEvents)
+
+    # AP1: continuous stalk levels from carstate.button_states (buttonEvents are
+    # ~10 ms edges; frogpilot_vcruise at 20 Hz misses ~half of them).
+    self._apply_ap1_stalk_levels()
 
     self.force_coast &= not (carState.brakePressed or carState.gasPressed)
 
