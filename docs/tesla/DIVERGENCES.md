@@ -1,18 +1,19 @@
 # Tesla safety and behavior divergences
 
-Not a product. No warranty. Driver remains responsible. Comply with local law. Not safe to drive until a human validates on a bench and in a car. This tree has not been validated on a bus (no captured route). `dashcamOnly` remains true.
+Not a product. No warranty. Driver remains responsible. Comply with local law. AP1 Model S has been driven and debugged via rlogs; this remains research code and is not safety-validated as a product.
 
 Recorded disagreements only where the cited files were read. No speculation.
 
 ## frog_ap1 vs BogPilot (safety gates)
 
-`frog_ap1` (`73a16cdd50033cb9f57a03fd619e2129558eef43`, classified in `docs/tesla/BRIDGE_DIFF.md`) set `dashcamOnly` false, set Tesla panda safety flags to 0, forced `FINGERPRINT=TESLA_AP1_MODELS`, and sent longitudinal commands without a long-active gate.
+Historical: `frog_ap1` (`73a16cdd50033cb9f57a03fd619e2129558eef43`, classified in `docs/tesla/BRIDGE_DIFF.md`) set `dashcamOnly` false, set Tesla panda safety flags to 0, forced `FINGERPRINT=TESLA_AP1_MODELS`, and sent longitudinal commands without a long-active gate.
 
-BogPilot keeps the stricter path:
+BogPilot AP1 today (`selfdrive/car/tesla/safety_flags.py`, `interface.py`):
 
-- `selfdrive/car/tesla/interface.py` still sets `ret.dashcamOnly = True`.
-- The Tesla safety model and its flags remain; they are not zeroed.
-- As of `f1bcae66833526e75df4d8c7898656bcc0ee4f42`, `DAS_control` is planned only when `openpilotLongitudinalControl` and `CC.enabled` and `CC.longActive` are all true. The gate is `longitudinal_command_allowed` in `selfdrive/car/tesla/actuator_plan.py`, called from `selfdrive/car/tesla/carcontroller.py`.
+- `dashcam_only_for_candidate` is false only for `CAR.TESLA_AP1_MODELS`; AP2, Raven, and other Tesla candidates stay `dashcamOnly`.
+- The Tesla panda safety model is kept; flags are not zeroed. AP1 gets `FLAG_TESLA_AP1 | FLAG_TESLA_LONG_CONTROL`.
+- As of `f1bcae66833526e75df4d8c7898656bcc0ee4f42`, `DAS_control` is planned only when `openpilotLongitudinalControl` and `CC.enabled` and `CC.longActive` are all true. The gate is `longitudinal_command_allowed` in `selfdrive/car/tesla/actuator_plan.py`, called from `selfdrive/car/tesla/carcontroller.py`. AP1 enables `openpilotLongitudinalControl` via toggle; long commands remain gated by that path.
+- Fingerprint is from firmware, not a forced `FINGERPRINT=TESLA_AP1_MODELS`.
 
 ## Tinkla human-accel override (HAO) not ported
 
@@ -66,12 +67,12 @@ File-backed toggle `/data/params_bogpilot/RegenComfortBrake` (July prebuilt cann
 
 - `carState.steeringPressed` on AP1 is any non-zero `EPAS_handsOnLevel` (`hso.ap1_driver_input`, `AP1_DRIVER_INPUT_LEVEL = 1`), the stock Tesla port and `frog_ap1` mapping. It raises `steerOverride`, controlsd enters `overriding`, and the prebuilt UI draws the grey border. `f8aadaa8` had raised it to >= 2 (TinklaHandsOnLevel); logged AP1 EPAS only reports levels 0, 1 and 3 (never 2), so the border only went grey on brief level 3 peaks.
 - The Tinkla hands pause is unchanged at level >= 2 (`hso.ap1_steering_pressed`): CarController sends 0x488 type NONE at the measured angle and cruise stays up. controlsd no longer clears `latActive` from `steeringPressed` on AP1, so a level 1 override keeps openpilot steering (as in `frog_ap1`) with the border grey. `_ap1_epas_inhibit_alert` does not count EPAS INHIBITED during the hands pause (EPAS reports INHIBITED with code 3 while the driver is at level 3).
-- Resume hold (`hso.AP1_RESUME_HOLD_S = 0.5`, `hso.Ap1DriverYield`, used by CarController). Once hands reach level >= 2 while engaged, 0x488 stays type NONE at the measured angle until `EPAS_handsOnLevel` has been 0 for 0.5 s in a row; any level >= 1 restarts the count. Lateral then resumes through the 300 ms measured-angle soft-start (`AP1_ENGAGE_SOFT_START_FRAMES`), the same one used at engage, so the first ANGLE frame is the wheel's own angle. Before this, lateral resumed as soon as the level fell to 1, which is still driver torque, so openpilot steered against the driver between level 3 peaks. During the hold the interface adds `steerOverride` so the border stays grey; `steeringPressed` itself is not extended. Not engaged clears the hold at once, so disengage, cancel, and re-engage are not delayed; longitudinal, FCW/AEB and driver monitoring are not touched. Tinkla's 50-frame numb period and 15 degree handoff are still not ported.
-- Hold length: first shipped at 0.8 s from the log evidence below; after driving it the user chose 0.5 s, which matches Tinkla's 50-frame HSO period (Tinkla also extends it on the turn-signal stalk and a 15 degree angle difference, which are not ported). Evidence for the original 0.8 s: in three logged AP1 drives (about 70k EPAS samples) 9 of 14 level 3 overrides dropped to level 1 first and reached level 0 up to 2.9 s later. After reaching 0, the driver pressed again within 0.24 to 0.56 s in 9 of 10 re-presses (the other at 1.0 s, then nothing under 2 s). 0.8 s bridges every engaged gap between driver inputs up to 0.76 s. Replaying those drives through `Ap1DriverYield`, openpilot no longer takes the wheel back between two overrides (10 times in under 1 s before, 0 after). Level 1 input without a level 2+ peak still keeps openpilot steering with the border grey, as in `frog_ap1`.
+- Resume hold (`hso.AP1_RESUME_HOLD_S = 0.3`, `hso.Ap1DriverYield`, used by CarController). Once hands reach level >= 2 while engaged, 0x488 stays type NONE at the measured angle until `EPAS_handsOnLevel` has been 0 for 0.3 s in a row; any level >= 1 restarts the count. Lateral then resumes through the 300 ms measured-angle soft-start (`AP1_ENGAGE_SOFT_START_FRAMES`), the same one used at engage, so the first ANGLE frame is the wheel's own angle. Before this, lateral resumed as soon as the level fell to 1, which is still driver torque, so openpilot steered against the driver between level 3 peaks. During the hold the interface adds `steerOverride` so the border stays grey; `steeringPressed` itself is not extended. Not engaged clears the hold at once, so disengage, cancel, and re-engage are not delayed; longitudinal, FCW/AEB and driver monitoring are not touched. Tinkla's 50-frame numb period and 15 degree handoff are still not ported.
+- Hold length: first shipped at 0.8 s from the log evidence below; after driving it the user chose 0.5 s (matching Tinkla's 50-frame HSO period), then 0.3 s for a sharper corner resume (Tinkla also extends the hold on the turn-signal stalk and a 15 degree angle difference, which are not ported). Evidence for the original 0.8 s: in three logged AP1 drives (about 70k EPAS samples) 9 of 14 level 3 overrides dropped to level 1 first and reached level 0 up to 2.9 s later. After reaching 0, the driver pressed again within 0.24 to 0.56 s in 9 of 10 re-presses (the other at 1.0 s, then nothing under 2 s). 0.8 s bridges every engaged gap between driver inputs up to 0.76 s. Replaying those drives through `Ap1DriverYield`, openpilot no longer takes the wheel back between two overrides (10 times in under 1 s before, 0 after). Level 1 input without a level 2+ peak still keeps openpilot steering with the border grey, as in `frog_ap1`.
 
 ## Angle steering and dashcamOnly
 
-Angle steering does not blend with driver torque. `selfdrive/car/tesla/interface.py` documents that and keeps `ret.dashcamOnly = True` for that reason. This document does not propose turning `dashcamOnly` off.
+Angle steering does not blend with driver torque. `selfdrive/car/tesla/interface.py` documents that. AP1 (`CAR.TESLA_AP1_MODELS`) is the explicit exception: `dashcam_only_for_candidate` returns false, so `ret.dashcamOnly` is false. Other Tesla candidates stay `dashcamOnly`. Angle steer still does not blend with torque.
 
 ## AP1 angle-rate table (Tinkla) vs shared Tesla table
 
@@ -84,7 +85,7 @@ Tinkla is the authority for AP1 angle rates. Source read: earlytesla-panda `boar
 
 `TESLA_FLAG_AP1` is bit 3, value 8. It does not overlap `TESLA_FLAG_POWERTRAIN` (1), `TESLA_FLAG_LONGITUDINAL_CONTROL` (2), or `TESLA_FLAG_RAVEN` (4). `tesla_tx_hook` passes `TESLA_AP1_STEERING_LIMITS` to `steer_angle_cmd_checks` only when that flag is set, and `TESLA_STEERING_LIMITS` otherwise. The choice does not read `0x2bf`.
 
-`flags_for_candidate` in `selfdrive/car/tesla/safety_flags.py` sets bit 8 (`Panda.FLAG_TESLA_AP1`, value 8) only when the candidate is `CAR.TESLA_AP1_MODELS`. Raven keeps `FLAG_TESLA_RAVEN` and does not get bit 8. AP2 gets neither. The `0x2bf` powertrain path still adds `FLAG_TESLA_LONG_CONTROL` and a second config with `FLAG_TESLA_POWERTRAIN`; those flags also include bit 8 only if the candidate is AP1. AP1 is not expected to have `0x2bf`. This does not set `openpilotLongitudinalControl` for AP1. `ret.dashcamOnly = True` is unchanged. The flag selects `TESLA_AP1_STEERING_LIMITS` in panda when that safety config is installed. It does not engage the car by itself.
+`flags_for_candidate` in `selfdrive/car/tesla/safety_flags.py` sets bit 8 (`Panda.FLAG_TESLA_AP1`, value 8) only when the candidate is `CAR.TESLA_AP1_MODELS`. Raven keeps `FLAG_TESLA_RAVEN` and does not get bit 8. AP2 gets neither. The `0x2bf` powertrain path still adds `FLAG_TESLA_LONG_CONTROL` and a second config with `FLAG_TESLA_POWERTRAIN`; those flags also include bit 8 only if the candidate is AP1. AP1 is not expected to have `0x2bf`. This does not set `openpilotLongitudinalControl` for AP1 (that is the interface toggle). `dashcam_only_for_candidate` is false only for AP1; other candidates stay `dashcamOnly`. The flag selects `TESLA_AP1_STEERING_LIMITS` in panda when that safety config is installed. It does not engage the car by itself.
 
 ## Last-known wall clock (device-global)
 
