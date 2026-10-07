@@ -12,7 +12,7 @@ Pinned FrogPilot SHA: `1e23dec6352cef5a36a87be0af7d7a082b7c48a4`.
 
 - Openpilot steering (angle control on `0x488`) and longitudinal control (`0x2b9`) through one harness and one panda on chassis CAN.
 - **Stalk engage:** tip UP or DN latches the current speed (vEgo); a stalk pull engages at the posted limit plus your offset (including while already engaged).
-- **While engaged:** tip UP/DN adjusts the set by ±1 mph (short tip) or to the next 5 mph mark (full tip). A tipped set stays until the next pull or disengage — it does **not** auto-raise when the speed-limit zone changes; pull the stalk when you want SLC.
+- **While engaged:** tip UP/DN — short tip (first position, ±1 mph) / full tip (second position, next 5). A tipped set stays until the next pull or disengage — it does **not** auto-raise when the speed-limit zone changes; pull the stalk when you want SLC.
 - **Instrument cluster set speed** via the `DAS_accSpeedLimit` HUD path (AP1 DBC scale fix), with a guard so unset cruise does not flash ~90 on the cluster.
 - Continuous stalk level reading so short tip/pull edges are not missed.
 - Soft steer takeover: gentle start at engage, recovery when EPAS goes inactive, grey border on wheel touch; after a firm override, 0.3 s wait then ease back in from wherever the wheel is.
