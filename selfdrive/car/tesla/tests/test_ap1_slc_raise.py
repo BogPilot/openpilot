@@ -10,12 +10,14 @@ import pytest
 
 from openpilot.common.conversions import Conversions as CV
 from openpilot.selfdrive.car.tesla.slc_raise import (
+  Ap1RaiseHoldoff,
   apply_slc_raise_after_min,
   cluster_display_kph,
   cruise_set_mph,
   is_ap1,
   lift_cruise_ms,
   merge_vcruise_with_slc,
+  V_CRUISE_UNSET_MS,
 )
 
 MPH = CV.MPH_TO_MS
@@ -125,7 +127,74 @@ def test_cruise_set_mph_conversion():
   assert cruise_set_mph(51 * MPH) == pytest.approx(51.0, abs=0.05)
 
 
+def test_cruise_set_mph_rejects_unset_sentinel():
+  """Route 23: pcmCruise standstill DI set=0 → VCruiseHelper UNSET must not hit IC."""
+  assert cruise_set_mph(V_CRUISE_UNSET_MS) is None
+  assert cruise_set_mph(V_CRUISE_UNSET_MS * 0.99) is None
+  # Legitimate highway set still packs
+  assert cruise_set_mph(80 * MPH) == pytest.approx(80.0, abs=0.1)
+
+
+def test_cluster_display_prefers_plan_over_unset():
+  """UNSET (255 kph) must not win over a real frogpilot plan digit."""
+  fp = 46 * MPH
+  assert cluster_display_kph(255.0, fp) == pytest.approx(46 * CV.MPH_TO_KPH)
+  # Normal lift still works
+  assert cluster_display_kph(30 * CV.MPH_TO_KPH, 46 * MPH) == pytest.approx(46 * CV.MPH_TO_KPH)
+
+
+def test_merge_holdoff_skips_raise_so_di_wins():
+  """Engaged stalk DECEL holdoff: DI=10 + 25+5 must stay ~10, not snap to 30."""
+  di = 10.0 * MPH
+  out = merge_vcruise_with_slc(di, di, 30 * MPH, 25 * MPH, CRUISING, raise_holdoff=True)
+  assert out == pytest.approx(10.0 * MPH)
+  assert merge_vcruise_with_slc(di, di, 30 * MPH, 25 * MPH, CRUISING, raise_holdoff=False) == pytest.approx(30 * MPH)
+
+
+def test_ap1_raise_holdoff_engage_set_still_sticky_not_raise():
+  """UP/DN engage → sticky vEgo; RWD engage → allow raise."""
+  h = Ap1RaiseHoldoff()
+  vego = 27.0 * MPH
+  # disengaged
+  allow, sticky = h.update(False, False, False, False, 25 * MPH, vego)
+  assert allow is True and sticky is None
+  # DN engage edge
+  allow, sticky = h.update(True, True, False, False, 25 * MPH, vego)
+  assert allow is False
+  assert sticky == pytest.approx(vego)
+  assert h.sticky_vego is True
+  # RWD engage from disengage
+  h2 = Ap1RaiseHoldoff()
+  h2.update(False, False, False, False, 25 * MPH, vego)
+  allow, sticky = h2.update(True, False, False, True, 25 * MPH, vego)
+  assert allow is True and sticky is None
+
+
+def test_ap1_raise_holdoff_engaged_decel_then_res():
+  """DECEL while already engaged arms holdoff; RWD clears it."""
+  h = Ap1RaiseHoldoff()
+  h.update(True, False, False, False, 25 * MPH, 20 * MPH)  # engaged
+  allow, sticky = h.update(True, True, False, False, 25 * MPH, 20 * MPH)  # engaged DECEL
+  assert allow is False and h.holdoff is True
+  allow, sticky = h.update(True, False, False, True, 25 * MPH, 20 * MPH)  # RWD
+  assert allow is True and h.holdoff is False
+
+
+def test_ap1_raise_holdoff_clears_on_limit_rise_and_disengage():
+  h = Ap1RaiseHoldoff()
+  h.update(True, False, False, False, 25 * MPH, 20 * MPH)
+  h.update(True, True, False, False, 25 * MPH, 20 * MPH)
+  assert h.holdoff is True
+  h.update(True, False, False, False, 40 * MPH, 20 * MPH)  # limit rise
+  assert h.holdoff is False
+  h.update(True, True, False, False, 40 * MPH, 20 * MPH)
+  assert h.holdoff is True
+  h.update(False, False, False, False, 40 * MPH, 20 * MPH)
+  assert h.holdoff is False
+
+
 def test_carstate_source_uses_di_cruise_set_not_digital():
+
   from pathlib import Path
   src = (Path(__file__).resolve().parents[1] / "carstate.py").read_text()
   assert 'cruiseState.speed = cp.vl["DI_state"]["DI_cruiseSet"]' in src
