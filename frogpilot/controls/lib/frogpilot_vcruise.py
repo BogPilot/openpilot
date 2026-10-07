@@ -18,6 +18,10 @@ class FrogPilotVCruise:
     self.override_force_stop = False
 
     self.override_force_stop_timer = 0
+    # AP1: engage stalk policy + engaged tip software set (tip authority until pull).
+    from openpilot.selfdrive.car.tesla.slc_raise import Ap1RaiseHoldoff
+    self.ap1_raise_holdoff = Ap1RaiseHoldoff()
+    self._ap1_tip_override_active = False
 
   def update(self, gps_position, now, time_validated, v_cruise, v_ego, sm, frogpilot_toggles):
     force_stop = self.frogpilot_planner.cem.stop_light_detected and sm["controlsState"].enabled and frogpilot_toggles.force_stops
@@ -88,9 +92,80 @@ class FrogPilotVCruise:
       self.tracked_model_length = self.frogpilot_planner.model_length
 
       targets = [self.csc_target, v_cruise]
+      slc_desired = None
       if frogpilot_toggles.speed_limit_controller:
-        targets.append(max(self.slc.overridden_speed, self.slc_target + self.slc_offset) - v_ego_diff)
+        slc_desired = max(self.slc.overridden_speed, self.slc_target + self.slc_offset) - v_ego_diff
+        targets.append(slc_desired)
 
       v_cruise = min([target if target >= CRUISING_SPEED else v_cruise for target in targets])
+      # AP1: lift AFTER min() so pre-lift DI/csc seed cannot undo the raise.
+      # Engage: UP/DN → sticky vEgo; RWD → raise. Engaged UP/DN → tip set
+      # (authority until pull). No stalk TX / panda change.
+      if frogpilot_toggles.speed_limit_controller and \
+         str(getattr(frogpilot_toggles, "car_model", "") or "") == "TESLA_AP1_MODELS":
+        from openpilot.selfdrive.car.tesla.slc_raise import apply_slc_raise_after_min
+        enabled = bool(sm["carState"].cruiseState.enabled)
+        fp_cs = sm["frogpilotCarState"]
+        # Continuous UP/DN/RWD levels from button_states (via frogpilot_card).
+        up = bool(fp_cs.accelPressed)
+        dn = bool(fp_cs.decelPressed)
+        rwd = bool(getattr(fp_cs, "resumePressed", False))
+        # Tip base = current software set (sticky latch / tip / raised set).
+        # NEVER use raw post-min DI alone after a pull raise — DI_cruiseSet is
+        # ~vEgo/2 under OP overlay (drive28: tip DN from 51 latched ~21/24.5).
+        # Sticky still wins first so engaged tip-from-sticky is not SLC-floored
+        # (drive26/27 F2). When neither sticky nor tip (post-pull allow_raise),
+        # floor the hint with slc_desired so tip ±1 from the raised set.
+        hold = self.ap1_raise_holdoff
+        if hold.sticky_vego and float(hold.latched_vego_ms) > 0.0:
+          set_hint = float(hold.latched_vego_ms)
+        elif float(hold.tip_ms) > 0.0:
+          set_hint = float(hold.tip_ms)
+        else:
+          set_hint = float(v_cruise)
+          if slc_desired is not None and float(slc_desired) >= CRUISING_SPEED:
+            set_hint = max(set_hint, float(slc_desired))
+        # SpdCtrl 4/8 = pos2 next-5; 16/32 = pos1 ±1 (drive 2a).
+        spd = int(getattr(fp_cs, "spdCtrlLvr", 0) or 0)
+        tip_full = spd in (4, 8)  # UP_2ND / DN_2ND
+        allow_raise, sticky_vego = hold.update(
+          enabled,
+          dn, up, rwd, float(self.slc_target), float(v_ego),
+          current_set_ms=set_hint, dt=DT_MDL, tip_full=tip_full,
+        )
+        tip_ms = float(self.ap1_raise_holdoff.tip_ms)
+        tip_dir = int(self.ap1_raise_holdoff.tip_dir)
+        if tip_ms > 0:
+          # Max Set Speed gas override returns to the software tip set.
+          if tip_dir < 0:
+            self.slc.overridden_speed = tip_ms
+          else:
+            self.slc.overridden_speed = max(float(self.slc.overridden_speed), tip_ms)
+          self._ap1_tip_override_active = True
+        elif getattr(self, "_ap1_tip_override_active", False):
+          # Tip cleared (pull / disengage): drop stale override so SLC+offset
+          # can apply (drive 2a ME30 — tip seed had floored desired at 51).
+          self.slc.overridden_speed = 0.0
+          self._ap1_tip_override_active = False
+          slc_desired = max(0.0, float(self.slc_target) + float(self.slc_offset)) - v_ego_diff
+        if sticky_vego is not None:
+          # UP/DN engage: hold latched current speed; SLC may still lower.
+          v_cruise = float(sticky_vego)
+          if slc_desired is not None and slc_desired >= CRUISING_SPEED:
+            v_cruise = min(v_cruise, slc_desired)
+          if self.csc_controlling_speed:
+            v_cruise = min(v_cruise, self.csc_target)
+        elif tip_ms > 0:
+          # Tipped set is authority — do NOT apply SLC raise or follow DI_cruiseSet.
+          # Tip stays across zone changes; only pull/disengage clears (2a policy).
+          v_cruise = tip_ms
+          if self.csc_controlling_speed:
+            v_cruise = min(v_cruise, self.csc_target)
+        elif allow_raise:
+          # SLC tracking mode after RWD pull (no tip seed — 2a ME30).
+          # set_hint already floors with slc_desired so tips base off raised set.
+          v_cruise = apply_slc_raise_after_min(
+            v_cruise, slc_desired, self.slc_target, CRUISING_SPEED,
+            self.csc_controlling_speed, self.csc_target)
 
     return v_cruise

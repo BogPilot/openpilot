@@ -29,6 +29,8 @@ class FrogPilotCard:
 
     self.accel_pressed = False
     self.decel_pressed = False
+    self.resume_pressed = False
+    self.spd_ctrl_lvr = 0
     self.force_coast = False
     self.pause_lateral = False
     self.pause_longitudinal = False
@@ -90,6 +92,26 @@ class FrogPilotCard:
     elif sm["carControl"].longActive and self.car.frogpilot_toggles.traffic_mode_via_lkas:
       self.traffic_mode_enabled = not self.traffic_mode_enabled
 
+  def _apply_ap1_stalk_levels(self):
+    """AP1: publish continuous UP/DN/RWD stalk levels onto frogpilotCarState.
+
+    Tesla carstate.button_states tracks SpdCtrlLvr_Stat while held; buttonEvents
+    only fire on transitions (~10 ms). Planner samples frogpilotCarState at
+    DT_MDL, so levels are required for sticky engage latch, tip hold timing,
+    and engaged RWD pull (re-latch SLC+offset). accelPressed is UP-only (not
+    OR resume) so tip-up does not fire on RWD; resumePressed carries pull.
+    """
+    if self.car.CP.carFingerprint != CAR.TESLA_AP1_MODELS:
+      return
+    cs = getattr(getattr(self.car, "CI", None), "CS", None)
+    bs = getattr(cs, "button_states", None) if cs is not None else None
+    if not isinstance(bs, dict):
+      return
+    self.accel_pressed = bool(bs.get(ButtonType.accelCruise, False))
+    self.decel_pressed = bool(bs.get(ButtonType.decelCruise, False))
+    self.resume_pressed = bool(bs.get(ButtonType.resumeCruise, False))
+    self.spd_ctrl_lvr = int(getattr(cs, "spd_ctrl_lvr", 0) or 0)
+
   def _apply_ap1_stalk(self):
     """AP1 distance stalk drives the existing personality icon and traffic mode.
 
@@ -123,6 +145,21 @@ class FrogPilotCard:
       return
     handle_experimental_mode(self.car.frogpilot_toggles.conditional_experimental_mode)
 
+  def _apply_ap1_fwd_hold(self):
+    """AP1 long FWD stalk (~2 s) while disengaged toggles Experimental Mode once.
+
+    Uses CarState.stalk_fwd_toggle from stalk_fwd_hold. Same
+    handle_experimental_mode hook as RWD pull — no longActive gate (distance /
+    LKAS experimental paths require longActive; this path must work while
+    disengaged). Cancel-while-engaged and short FWD do not toggle.
+    """
+    if self.car.CP.carFingerprint != CAR.TESLA_AP1_MODELS:
+      return
+    cs = getattr(getattr(self.car, "CI", None), "CS", None)
+    if not getattr(cs, "stalk_fwd_toggle", False):
+      return
+    handle_experimental_mode(self.car.frogpilot_toggles.conditional_experimental_mode)
+
   def update(self, carState, frogpilotCarState, sm):
     self.always_on_lateral_enabled = self.car.frogpilot_toggles.always_on_lateral_set
 
@@ -145,6 +182,10 @@ class FrogPilotCard:
 
     if sm.updated["frogpilotPlan"] or any(be.type == ButtonType.decelCruise for be in carState.buttonEvents):
       self.decel_pressed = any(be.type == ButtonType.decelCruise for be in carState.buttonEvents)
+
+    # AP1: continuous UP/DN/RWD levels from carstate.button_states (buttonEvents
+    # are ~10 ms edges; frogpilot_vcruise at 20 Hz misses short holds).
+    self._apply_ap1_stalk_levels()
 
     self.force_coast &= not (carState.brakePressed or carState.gasPressed)
 
@@ -172,6 +213,8 @@ class FrogPilotCard:
     frogpilotCarState.accelPressed = self.accel_pressed
     frogpilotCarState.alwaysOnLateralEnabled = self.always_on_lateral_enabled
     frogpilotCarState.decelPressed = self.decel_pressed
+    frogpilotCarState.resumePressed = self.resume_pressed
+    frogpilotCarState.spdCtrlLvr = int(getattr(self, 'spd_ctrl_lvr', 0) or 0)
     frogpilotCarState.distanceLongPressed = self.very_long_press_threshold > self.gap_counter >= self.long_press_threshold
     frogpilotCarState.distanceVeryLongPressed = self.gap_counter >= self.very_long_press_threshold
     frogpilotCarState.forceCoast = self.force_coast
@@ -180,6 +223,7 @@ class FrogPilotCard:
     frogpilotCarState.pauseLongitudinal = self.pause_longitudinal
     self._apply_ap1_stalk()
     self._apply_ap1_pull_hold()
+    self._apply_ap1_fwd_hold()
     frogpilotCarState.trafficModeEnabled = self.traffic_mode_enabled
 
     return frogpilotCarState

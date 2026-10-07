@@ -528,6 +528,16 @@ class Controls:
 
     self.v_cruise_helper.update_v_cruise(CS, self.enabled, self.is_metric, self.sm['frogpilotPlan'].speedLimitChanged, self.frogpilot_toggles)
 
+    # AP1 SLC raise: pcmCruise keeps v_cruise from DI_cruiseSet, but the planner
+    # may have lifted frogpilotPlan.vCruise into a faster zone. Lift the cluster
+    # display / HUD set digit to match (never lower for CSC slowdowns).
+    from openpilot.selfdrive.car.tesla.slc_raise import cluster_display_kph, is_ap1
+    if is_ap1(self.CP.carFingerprint) and self.sm.recv_frame.get('frogpilotPlan', -1) >= 0:
+      self.v_cruise_helper.v_cruise_cluster_kph = cluster_display_kph(
+        self.v_cruise_helper.v_cruise_cluster_kph,
+        float(self.sm['frogpilotPlan'].vCruise),
+      )
+
     # decrement the soft disable timer at every step, as it's reset on
     # entrance in SOFT_DISABLING state
     self.soft_disable_timer = max(0, self.soft_disable_timer - 1)

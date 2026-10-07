@@ -38,7 +38,7 @@ NS = 1_000_000_000
 def hud(**kw):
   args = dict(enabled=True, fcw=False, steer_required=False, audible=False, human_steering=False,
               left_lane_depart=False, right_lane_depart=False, left_blinker=False, right_blinker=False,
-              curvature=0.0, ic_integration=True, model_path=None)
+              curvature=0.0, ic_integration=True, model_path=None, cruise_set_mph=None)
   args.update(kw)
   return c.HudInputs(**args)
 
@@ -64,6 +64,8 @@ def test_signals_come_from_this_trees_dbc():
   assert geom(0x389, "DAS_activationFailureStatus") == (14, 2)
   c2 = c.SIGNALS[0x239]["DAS_virtualLaneC2"]
   assert (c2.start, c2.size, c2.factor, c2.offset) == (32, 8, 2e-05, -0.0025)
+  acc = c.SIGNALS[0x389]["DAS_accSpeedLimit"]
+  assert (acc.start, acc.size, acc.factor, acc.offset) == (0, 10, 0.4, 0.0)
   for addr, name in c.COUNTER_SIGNALS.items():
     assert geom(addr, name) == (60 if addr == c.DAS_LANES else 52, 4)
   for addr, name in c.CHECKSUM_SIGNALS.items():
@@ -127,6 +129,51 @@ def test_engaged_frames_counter_checksum_and_stock_fields():
   for keep in ("DAS_accSpeedLimit", "DAS_ACC_report", "DAS_robState", "DAS_ppOffsetDesiredRamp",
                "DAS_pmmSysFaultReason", "DAS_radarTelemetry"):
     assert st2[keep] == s2[keep], keep
+
+
+def test_das_acc_speed_limit_kept_when_cruise_set_unset():
+  # Default: stock DAS_accSpeedLimit preserved (no OP overlay).
+  st2 = c.unpack(0x389, _send(c.ClusterController(), hud(), all_stock(), NS)[0x389])
+  assert st2["DAS_accSpeedLimit"] == stock(0x389)["DAS_accSpeedLimit"]
+
+
+def test_das_acc_speed_limit_written_from_op_set_when_engaged():
+  # SLC raise path: IC set digit tracks OP cruise (mph), no stalk injection.
+  out = _send(c.ClusterController(), hud(cruise_set_mph=51.0), all_stock(), NS)
+  st2 = c.unpack(0x389, out[0x389])
+  assert st2["DAS_accSpeedLimit"] == pytest.approx(51.0, abs=0.4)  # DBC factor 0.4
+  # Fused speed-limit sign fields on 0x399 stay stock
+  ap = c.unpack(0x399, out[0x399])
+  s = stock(0x399)
+  assert ap["DAS_fusedSpeedLimit"] == s["DAS_fusedSpeedLimit"]
+
+
+def test_das_acc_speed_limit_30_packs_as_dig_30_not_60():
+  """Regression: DBC 0.4 so raised 30 → raw 75 → dig 30 (not raw 150 → dig 60).
+
+  Route 21 @ bd26defe packed 30 with legacy factor 0.2 (raw=150); IC scales
+  0.4 and showed dig 60 (=2×). Factor 0.4 packs raw=75 → dig 30.
+  """
+  out = _send(c.ClusterController(), hud(cruise_set_mph=30.0), all_stock(), NS)
+  dat = out[0x389]
+  word = int.from_bytes(dat, "little")
+  raw = c.get_raw(word, 0, 10)
+  assert raw == 75, f"expected raw 75 for 30 mph @0.4, got {raw} (legacy 0.2 would be 150)"
+  assert raw != 150
+  st2 = c.unpack(0x389, dat)
+  assert st2["DAS_accSpeedLimit"] == pytest.approx(30.0, abs=0.4)
+  # Dig as IC would show with 0.4 scale
+  assert raw * 0.4 == pytest.approx(30.0)
+
+
+def test_das_acc_speed_limit_not_written_in_post_disengage():
+  ctrl = c.ClusterController()
+  _send(ctrl, hud(cruise_set_mph=51.0), all_stock(), NS)  # engage
+  out = _send(ctrl, hud(enabled=False, cruise_set_mph=51.0), all_stock(), 2 * NS)
+  assert 0x389 in out
+  st2 = c.unpack(0x389, out[0x389])
+  # post mode must keep stock acc speed limit (no OP overlay)
+  assert st2["DAS_accSpeedLimit"] == stock(0x389)["DAS_accSpeedLimit"]
 
 
 def test_counter_wraps():

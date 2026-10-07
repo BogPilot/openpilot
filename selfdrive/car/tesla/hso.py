@@ -30,11 +30,11 @@ AP1_DRIVER_INPUT_LEVEL = 1
 # torque at all) for this long; any level >= 1 restarts it. In logged AP1
 # drives 9 of 14 level 3 overrides dropped to 1 first and reached 0 up to
 # 2.9 s later. After reaching 0 the driver came back within 0.24-0.56 s in
-# 9 of 10 re-presses (next 1.0 s, then >= 2 s). The first build used 0.8 s;
-# after driving it the user chose 0.5 s (Tinkla's HSO numb period is also
-# 50 frames = 0.5 s). Lateral then resumes through the 300 ms measured-angle
-# soft-start (AP1_ENGAGE_SOFT_START_FRAMES).
-AP1_RESUME_HOLD_S = 0.5
+# 9 of 10 re-presses (next 1.0 s, then >= 2 s). Builds used 0.8 s then 0.5 s
+# (Tinkla's HSO numb period is 50 frames = 0.5 s); shortened to 0.3 s.
+# Lateral then resumes through the 300 ms measured-angle soft-start
+# (AP1_ENGAGE_SOFT_START_FRAMES).
+AP1_RESUME_HOLD_S = 0.3
 # CarController runs at 100 Hz (DT_CTRL).
 AP1_CONTROL_HZ = 100
 AP1_RESUME_HOLD_FRAMES = int(round(AP1_RESUME_HOLD_S * AP1_CONTROL_HZ))

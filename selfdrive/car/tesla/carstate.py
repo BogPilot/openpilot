@@ -7,6 +7,7 @@ from openpilot.selfdrive.car.tesla.cluster import CLUSTER_ADDRS, COUNTER_SIGNALS
 from openpilot.selfdrive.car.tesla.hso import ap1_driver_input
 from openpilot.selfdrive.car.tesla.stalk_follow import dtr_sample, follow_seconds, parse_stalk_raw
 from openpilot.selfdrive.car.tesla.stalk_pull_hold import PULL_HOLD_ENABLED, StalkPullHold
+from openpilot.selfdrive.car.tesla.stalk_fwd_hold import FWD_HOLD_ENABLED, StalkFwdHold
 from openpilot.selfdrive.car.tesla.speed_limit import dashboard_speed_limit_ms
 from openpilot.selfdrive.car.tesla.steer_fault import steer_fault_temporary
 from openpilot.selfdrive.car.tesla.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTTONS
@@ -29,10 +30,14 @@ class CarState(CarStateBase):
     self.acc_state = 0
     self.das_control_counters = deque(maxlen=32)
     # DTR_Dist_Rq decision. Python only; cereal was not extended.
+    self.spd_ctrl_lvr = 0
     self.stalk_follow = None
     # AP1 long RWD pull → Experimental Mode (see stalk_pull_hold.py).
     self.stalk_pull_hold = StalkPullHold()
     self.stalk_pull_toggle = False
+    # AP1 long FWD hold while disengaged → Experimental Mode (stalk_fwd_hold.py).
+    self.stalk_fwd_hold = StalkFwdHold()
+    self.stalk_fwd_toggle = False
     # AP1 only. {addr: decoded values} for stock cluster frames (bus 2) that
     # arrived this step. Read by CarController for the cluster frames.
     self.cluster_stock = {}
@@ -106,10 +111,13 @@ class CarState(CarStateBase):
     acc_enabled = (cruise_state in ("ENABLED", "STANDSTILL", "OVERRIDE", "PRE_FAULT", "PRE_CANCEL"))
 
     ret.cruiseState.enabled = acc_enabled
+    # Tinkla-aligned: cruise set is DI_cruiseSet (ACC set), not DI_digitalSpeed
+    # (≈ ego). With pcmCruise, VCruiseHelper copies this into controlsState.vCruise
+    # so openpilot's set tracks the stalk set. Display/ego stay on ESP vEgo.
     if speed_units == "KPH":
-      ret.cruiseState.speed = cp.vl["DI_state"]["DI_digitalSpeed"] * CV.KPH_TO_MS
+      ret.cruiseState.speed = cp.vl["DI_state"]["DI_cruiseSet"] * CV.KPH_TO_MS
     elif speed_units == "MPH":
-      ret.cruiseState.speed = cp.vl["DI_state"]["DI_digitalSpeed"] * CV.MPH_TO_MS
+      ret.cruiseState.speed = cp.vl["DI_state"]["DI_cruiseSet"] * CV.MPH_TO_MS
     ret.cruiseState.available = ((cruise_state == "STANDBY") or ret.cruiseState.enabled)
     ret.cruiseState.standstill = False # This needs to be false, since we can resume from stop without sending anything special
 
@@ -146,6 +154,12 @@ class CarState(CarStateBase):
     # AEB
     ret.stockAeb = (cp_cam.vl["DAS_control"]["DAS_aebEvent"] == 1)
 
+    # AP1 tip detent: raw SpdCtrlLvr_Stat (UP_2ND=4 / DN_2ND=8 vs 1ST).
+    try:
+      self.spd_ctrl_lvr = int(cp.vl["STW_ACTN_RQ"].get("SpdCtrlLvr_Stat") or 0)
+    except Exception:
+      self.spd_ctrl_lvr = 0
+
     # Stalk follow detent. STW_ACTN_RQ is already subscribed. No cereal field.
     # A zero timestamp is the parser default, not ACC_DIST_1.
     stw = cp.vl.get("STW_ACTN_RQ")
@@ -163,15 +177,19 @@ class CarState(CarStateBase):
 
     # AP1: long RWD pull while already engaged → one Experimental Mode toggle.
     # Uses prior cruise enabled so the engage pull itself does not fire.
-    # Disabled (PULL_HOLD_ENABLED): the stock DI treats a held RWD pull as
-    # resume and restores the remembered set speed, so the gesture also
-    # changed the cruise speed (see stalk_pull_hold.py).
+    # DI may bump set speed mid-hold (resume); accepted — see stalk_pull_hold.py.
+    # AP1: long FWD hold while already disengaged → one Experimental Mode toggle.
+    # Cancel-while-engaged is disarmed; engage mid-hold aborts (stalk_fwd_hold.py).
     self.stalk_pull_toggle = False
-    if PULL_HOLD_ENABLED and self.CP.carFingerprint == CAR.TESLA_AP1_MODELS:
+    self.stalk_fwd_toggle = False
+    if self.CP.carFingerprint == CAR.TESLA_AP1_MODELS:
       prev = getattr(self, "out", None)
       was_engaged = bool(prev.cruiseState.enabled) if prev is not None else False
       spd = cp.vl["STW_ACTN_RQ"].get("SpdCtrlLvr_Stat")
-      self.stalk_pull_toggle = self.stalk_pull_hold.update(spd, was_engaged, DT_CTRL)
+      if PULL_HOLD_ENABLED:
+        self.stalk_pull_toggle = self.stalk_pull_hold.update(spd, was_engaged, DT_CTRL)
+      if FWD_HOLD_ENABLED:
+        self.stalk_fwd_toggle = self.stalk_fwd_hold.update(spd, was_engaged, DT_CTRL)
 
     # Messages needed by carcontroller
     self.msg_stw_actn_req = copy.copy(cp.vl["STW_ACTN_RQ"])

@@ -260,6 +260,11 @@ class HudInputs:
   ic_integration: bool = True
   # Engaged model path. None => actuator curvature + 50 m fallback.
   model_path: Optional[ModelPath] = None
+  # OP cruise set in mph for DAS_accSpeedLimit on 0x389. None keeps stock
+  # (IC set digit follows DI / Mobileye). DBC factor is 0.4 so OP 30 packs
+  # as dig 30 (route 21 dig=60 was 0.2 packing vs IC 0.4). Used so the dash
+  # tracks an SLC raise without fake stalk on 0x45.
+  cruise_set_mph: Optional[float] = None
 
 
 def hands_on_state(h):
@@ -418,6 +423,12 @@ def build_das_status2(stock, h, mode):
     v["DAS_driverInteractionLevel"] = 0
     if h.fcw:
       v["DAS_longCollisionWarning"] = LONG_FCW_VEHICLE
+    # Overlay OP set on the IC set-speed digit (mph). DBC factor 0.4 matches
+    # the IC (route 21 dig=60 was packing 30 with legacy 0.2 → raw 150 →
+    # IC@0.4 showed 60). Stock fused/vision speed-limit fields stay untouched.
+    # None => keep stock DAS_accSpeedLimit.
+    if h.cruise_set_mph is not None and h.cruise_set_mph > 0:
+      v["DAS_accSpeedLimit"] = float(h.cruise_set_mph)
   elif mode != "post":
     raise ValueError(mode)
   word = pack(DAS_STATUS2, SIGNALS[DAS_STATUS2], v)
