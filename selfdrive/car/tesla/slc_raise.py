@@ -5,19 +5,18 @@ openpilot's cruise target to limit+offset so longitudinal accelerates into the
 faster zone. DI_cruiseSet still seeds the pcmCruise set; stalk UP/DN injection
 is intentionally not used.
 
-Engage policy (route 23 / drive24 / drive25):
+Engage / tip policy (simplified):
   - Stalk UP/DN engage → sticky vEgo (no immediate SLC raise)
   - Pull-toward (RWD / resumeCruise) engage → SLC+offset raise immediately
   - Classify engage from stalk pressed within the last ~0.8 s. Caller must
     feed continuous stalk *levels* (carstate.button_states via frogpilotCarState),
     not 10 ms buttonEvents — frogpilot_vcruise samples at 20 Hz and misses edges.
-  - Engaged stalk DECEL → software set tip-down (−1 short / next-lower-5 long)
-    + holdoff; never follow stale DI_cruiseSet under OP overlay
-  - Engaged stalk tip-up (accelCruise): short hold → +1 mph; hold ≥ ~0.45 s →
-    next multiple of 5 mph from speed at press (36→40), via tip latch /
-    overridden_speed (no 0x45); clears on disengage or lower SLC.
-    AP1 buttonEvents are binary (UP_1ST/UP_2ND both map to accelCruise), so
-    full vs short is hold duration (rising=+1, sustained upgrades to next-5).
+  - While engaged, stalk UP/DN only adjust the software set the same way both
+    directions (+1 / next-5 up, −1 / next-lower-5 down). No DECEL raise holdoff.
+  - Tipped set is authority until stalk pull (re-latch SLC+offset) or disengage;
+    SLC raise must not yank the set back up after a down tip. Never follow stale
+    DI_cruiseSet under OP overlay. AP1 buttonEvents are binary (UP_1ST/UP_2ND
+    both map to accelCruise), so full vs short is hold duration.
 
 IC set digit (DAS_accSpeedLimit on 0x389) tracks the OP set via the cluster
 pack path. DBC factor is 0.4. cruise_set_mph rejects V_CRUISE_UNSET (255 kph)
@@ -78,7 +77,7 @@ def merge_vcruise_with_slc(v_cruise_ms: float, csc_target_ms: float, slc_desired
 
   Mirrors frogpilot_vcruise.py so unit tests cover the DI≥CRUISING_SPEED
   regression (raise must stick at 30 when DI=11.5, limit 25, offset +5).
-  When raise_holdoff is True (engaged stalk DECEL / UP-DN sticky), skip lift.
+  When raise_holdoff is True (tip/sticky authority — skip SLC lift), return min only.
   """
   targets = [csc_target_ms, v_cruise_ms, slc_desired_ms]
   v = min(t if t >= cruising_speed_ms else v_cruise_ms for t in targets)
@@ -107,19 +106,17 @@ def prev_5_ms(speed_ms: float) -> float:
 
 
 class Ap1RaiseHoldoff:
-  """AP1 raise gate: engage stalk type + engaged-DECEL holdoff + tip-up.
+  """AP1 raise gate: engage stalk type + tip set authority (no DECEL holdoff).
 
-  Desired (route 23 / drive24 / drive25):
+  Desired:
     UP/DN engage → sticky vEgo (no SLC raise)
     RWD (pull-toward) engage → allow raise to SLC+offset immediately
     Engage classified from stalk pressed within RECENT_S (not same-frame only)
     Caller must pass continuous stalk levels (button_states), not edge-only events
-    Engaged DECEL → tip-down software set (−1 / next-lower-5) + holdoff until
-      RES/UP/RWD or higher posted limit; never track DI_cruiseSet downward
-    Engaged accelCruise: rising edge → +1 mph tip; held ≥ TIP_HOLD_S →
-      upgrade once to next multiple of 5 mph from speed at press (cap
-      V_CRUISE_MAX). Fed as slc.overridden_speed so Max Set Speed gas
-      returns to the tip. tip_ms is the software set for both tip-up and tip-down.
+    Engaged UP/DN → software set tip (±1 short / ± next-5 long); same both ways
+    Tipped set is authority until RWD pull (re-latch SLC+offset) or disengage;
+      never follow DI_cruiseSet; SLC raise must not reclaim after a down tip
+    tip_ms fed as slc.overridden_speed so Max Set Speed gas returns to the tip
   """
 
   LIMIT_RISE_MS = 0.5  # ~1 mph
@@ -130,7 +127,6 @@ class Ap1RaiseHoldoff:
   DT_DEFAULT = 0.05  # model tick; avoid importing realtime here
 
   def __init__(self):
-    self.holdoff = False
     self.sticky_vego = False
     self.latched_vego_ms = 0.0
     self.tip_ms = 0.0
@@ -148,7 +144,6 @@ class Ap1RaiseHoldoff:
     self._last_dn_t = -1e9
     self._last_rwd_t = -1e9
 
-
   def _clear_tip(self):
     self.tip_ms = 0.0
     self.tip_dir = 0
@@ -164,7 +159,7 @@ class Ap1RaiseHoldoff:
 
     Returns (allow_raise, sticky_vego_ms|None).
     sticky_vego_ms is the latched engage speed when UP/DN sticky mode is active.
-    tip_ms (attribute) is the engaged tip-up latch in m/s when > 0.
+    tip_ms (attribute) is the engaged tip latch in m/s when > 0 (authority).
     """
     enabled = bool(enabled)
     rising = enabled and not self._prev_enabled
@@ -186,22 +181,24 @@ class Ap1RaiseHoldoff:
 
     slc = float(slc_target_ms)
     if slc > self._prev_slc_target + self.LIMIT_RISE_MS:
-      self.holdoff = False
+      # Higher posted limit: sticky engage may raise into the new zone; tip stays
+      # authority until pull / disengage (do not clear tip_ms here).
       self.sticky_vego = False
     elif slc < self._prev_slc_target - self.LIMIT_RISE_MS:
       # New lower posted limit: drop tip so Max Set Speed follows SLC+offset
       self._clear_tip()
 
     # Engaged tip-up / tip-down / RES: continuous levels from caller (button_states).
-    # UP rising → +1; held ≥ TIP_HOLD_S → next-5 once. DN rising → −1 + holdoff;
+    # UP rising → +1; held ≥ TIP_HOLD_S → next-5 once. DN rising → −1 (no holdoff);
     # held ≥ TIP_HOLD_S → next-lower-5 once. tip_ms is the software set — never
-    # follow DI_cruiseSet under holdoff. Do not clear sticky on sustained UP after
-    # an UP-engage (only on up_edge / RWD).
+    # follow DI_cruiseSet. RWD pull clears tip and re-allows SLC raise.
+    # Do not clear sticky on sustained UP after an UP-engage (only on up_edge / RWD).
     if enabled and self._prev_enabled:
-      if up_edge or rwd_pressed:
-        self.holdoff = False
+      if rwd_pressed:
         self.sticky_vego = False
-      if up_edge:
+        self._clear_tip()
+      elif up_edge:
+        self.sticky_vego = False
         base = max(float(self.tip_ms), float(current_set_ms), 0.0)
         self._tip_base_ms = base
         self._tip_hold_s = 0.0
@@ -210,7 +207,8 @@ class Ap1RaiseHoldoff:
         self.tip_dir = 1
         self.tip_ms = min(base + self.TIP_STEP_MS, self.V_CRUISE_MAX_MS)
       elif dn_edge:
-        # Engaged DECEL: software set-down + holdoff (no DI chase)
+        # Engaged DECEL: software set-down like UP (no mute / holdoff timer)
+        self.sticky_vego = False
         base = max(float(self.tip_ms), float(current_set_ms), 0.0)
         self._tip_base_ms = base
         self._tip_hold_s = 0.0
@@ -218,8 +216,6 @@ class Ap1RaiseHoldoff:
         self._tip_upgraded = False
         self.tip_dir = -1
         self.tip_ms = max(base - self.TIP_STEP_MS, 0.0)
-        self.holdoff = True
-        self.sticky_vego = False
       if self._tip_press_active and not self._tip_upgraded:
         if self.tip_dir > 0 and up_pressed:
           self._tip_hold_s += dt
@@ -253,16 +249,13 @@ class Ap1RaiseHoldoff:
       if kind in ("up", "dn"):
         self.sticky_vego = True
         self.latched_vego_ms = max(float(v_ego_ms), 0.0)
-        self.holdoff = True
         self._clear_tip()
       elif kind == "rwd":
         self.sticky_vego = False
-        self.holdoff = False
         self._clear_tip()
       # else: no recent stalk → default allow_raise (legacy)
 
     if not enabled:
-      self.holdoff = False
       self.sticky_vego = False
       self._clear_tip()
 
@@ -271,9 +264,11 @@ class Ap1RaiseHoldoff:
     self._prev_up = bool(up_pressed)
     self._prev_dn = bool(decel_pressed)
 
-    allow_raise = (not self.holdoff) and (not self.sticky_vego)
+    # Tip or sticky blocks SLC raise; RWD pull clears tip so raise may re-latch.
+    allow_raise = (not self.sticky_vego) and (float(self.tip_ms) <= 0.0)
     sticky = self.latched_vego_ms if self.sticky_vego else None
     return allow_raise, sticky
+
 
 
 def cluster_display_kph(v_cruise_cluster_kph: float, frogpilot_v_cruise_ms: float) -> float:

@@ -109,7 +109,7 @@ def test_cluster_display_only_lifts():
 def test_carcontroller_feeds_das_acc_speed_limit_overlay_with_04_scale():
   """OP set is written to DAS_accSpeedLimit; DBC factor must be 0.4 (not 0.2).
 
-  Route 21 dig=60 was packing raised 30 with factor 0.2 (raw 150 → IC@0.4 = 60).
+  Route 21 cluster digital set=60 was packing raised 30 with factor 0.2 (raw 150 → IC@0.4 = 60).
   """
   from pathlib import Path
   src = (Path(__file__).resolve().parents[1] / "carcontroller.py").read_text()
@@ -148,8 +148,8 @@ def test_cluster_display_prefers_plan_over_unset():
 def test_merge_holdoff_skips_raise_so_di_wins():
   """raise_holdoff skips SLC lift in merge helper (DI path alone still mins).
 
-  Drive25: frogpilot_vcruise must NOT leave the plan on this DI result after
-  DECEL — Ap1RaiseHoldoff tip-down supplies the software set instead.
+  Tip/sticky authority: frogpilot_vcruise must NOT leave the plan on this DI
+  result after a tip — Ap1RaiseHoldoff tip_ms supplies the software set instead.
   """
   di = 10.0 * MPH
   out = merge_vcruise_with_slc(di, di, 30 * MPH, 25 * MPH, CRUISING, raise_holdoff=True)
@@ -176,27 +176,43 @@ def test_ap1_raise_holdoff_engage_set_still_sticky_not_raise():
   assert allow is True and sticky is None
 
 
-def test_ap1_raise_holdoff_engaged_decel_then_res():
-  """DECEL while already engaged arms holdoff; RWD clears it."""
+def test_ap1_engaged_dn_does_not_arm_holdoff():
+  """Engaged DN tips software set; does not arm a raise-holdoff mute timer."""
   h = Ap1RaiseHoldoff()
-  h.update(True, False, False, False, 25 * MPH, 20 * MPH)  # engaged
-  allow, sticky = h.update(True, True, False, False, 25 * MPH, 20 * MPH)  # engaged DECEL
-  assert allow is False and h.holdoff is True
-  allow, sticky = h.update(True, False, False, True, 25 * MPH, 20 * MPH)  # RWD
-  assert allow is True and h.holdoff is False
+  set30 = 30 * MPH
+  h.update(True, False, False, False, 25 * MPH, 20 * MPH, current_set_ms=set30)
+  allow, sticky = h.update(True, True, False, False, 25 * MPH, 20 * MPH, current_set_ms=set30)
+  assert sticky is None
+  assert h.tip_ms == pytest.approx(29 * MPH)
+  assert h.tip_dir == -1
+  assert allow is False  # tip authority blocks raise — not a DECEL holdoff flag
+  assert not hasattr(h, "holdoff") or getattr(h, "holdoff", False) is False
 
 
-def test_ap1_raise_holdoff_clears_on_limit_rise_and_disengage():
+def test_ap1_tip_authority_until_pull_or_disengage():
+  """After DN tip, SLC raise does not reclaim until RWD pull; disengage clears tip."""
+  dt = 0.05
+  slc = 25 * MPH
+  set30 = 30 * MPH
   h = Ap1RaiseHoldoff()
-  h.update(True, False, False, False, 25 * MPH, 20 * MPH)
-  h.update(True, True, False, False, 25 * MPH, 20 * MPH)
-  assert h.holdoff is True
-  h.update(True, False, False, False, 40 * MPH, 20 * MPH)  # limit rise
-  assert h.holdoff is False
-  h.update(True, True, False, False, 40 * MPH, 20 * MPH)
-  assert h.holdoff is True
-  h.update(False, False, False, False, 40 * MPH, 20 * MPH)
-  assert h.holdoff is False
+  h.update(True, False, False, False, slc, 20 * MPH, current_set_ms=set30, dt=dt)
+  allow, _ = h.update(True, True, False, False, slc, 20 * MPH, current_set_ms=set30, dt=dt)
+  assert h.tip_ms == pytest.approx(29 * MPH)
+  assert allow is False
+  # Limit rise must NOT clear tip / reclaim raise
+  allow, _ = h.update(True, False, False, False, 40 * MPH, 20 * MPH, current_set_ms=29 * MPH, dt=dt)
+  assert h.tip_ms == pytest.approx(29 * MPH)
+  assert allow is False
+  # RWD pull clears tip and re-allows SLC raise
+  allow, sticky = h.update(True, False, False, True, 40 * MPH, 20 * MPH, current_set_ms=29 * MPH, dt=dt)
+  assert h.tip_ms == 0.0
+  assert allow is True and sticky is None
+  # Tip then disengage clears
+  h.update(True, False, False, False, 40 * MPH, 20 * MPH, current_set_ms=46 * MPH, dt=dt)
+  h.update(True, True, False, False, 40 * MPH, 20 * MPH, current_set_ms=46 * MPH, dt=dt)
+  assert h.tip_ms > 0
+  h.update(False, False, False, False, 40 * MPH, 20 * MPH, current_set_ms=46 * MPH, dt=dt)
+  assert h.tip_ms == 0.0
 
 
 
@@ -262,7 +278,7 @@ def test_next_5_ms_snap():
 def test_ap1_tip_up_plus_one_and_clears():
   """Engaged short accelCruise bumps tip +1 mph; disengage/lower SLC clear it.
 
-  DECEL tip-downs the software set (−1) and arms holdoff (see tip-down test).
+  DECEL tip-downs the software set (−1) the same way (no holdoff); tip is authority.
 
   AP1 buttonEvents are binary (UP_1ST/UP_2ND both accelCruise). Short tip = rising
   edge + release before TIP_HOLD_S → +1 only. Cap at V_CRUISE_MAX.
@@ -277,9 +293,9 @@ def test_ap1_tip_up_plus_one_and_clears():
   assert allow is True and sticky is None
   # Steady engaged, no buttons
   h.update(True, False, False, False, slc, 20 * MPH, current_set_ms=set30, dt=dt)
-  # UP rising edge → tip 31
+  # UP rising edge → tip 31; tip authority blocks further SLC raise
   allow, sticky = h.update(True, False, True, False, slc, 20 * MPH, current_set_ms=set30, dt=dt)
-  assert allow is True
+  assert allow is False
   assert h.tip_ms == pytest.approx(31 * MPH)
   # Hold UP pressed another frame (< TIP_HOLD_S): still +1 only, no second tip
   h.update(True, False, True, False, slc, 20 * MPH, current_set_ms=set30, dt=dt)
@@ -289,9 +305,9 @@ def test_ap1_tip_up_plus_one_and_clears():
   h.update(True, False, True, False, slc, 20 * MPH, current_set_ms=31 * MPH, dt=dt)
   assert h.tip_ms == pytest.approx(32 * MPH)
 
-  # Engaged DECEL arms holdoff and tip-downs software set (−1 from 32 → 31)
+  # Engaged DECEL tip-downs software set (−1 from 32 → 31); tip authority blocks raise
   allow, sticky = h.update(True, True, False, False, slc, 20 * MPH, current_set_ms=32 * MPH, dt=dt)
-  assert allow is False and h.holdoff is True
+  assert allow is False
   assert h.tip_ms == pytest.approx(31 * MPH)
   assert h.tip_dir == -1
 
@@ -468,6 +484,7 @@ def test_ap1_decel_tip_down_no_di_chase():
 
   Short DN → −1 mph from current set; long hold → next-lower-5. Plan must stay
   on tip_ms (e.g. 30) even when DI sits at ~vEgo/2 (cliff was 31→12→3).
+  No raise-holdoff flag — tip_ms alone is authority until pull.
   """
   dt = 0.05
   slc = 25 * MPH
@@ -478,22 +495,19 @@ def test_ap1_decel_tip_down_no_di_chase():
   h.update(True, False, False, True, slc, 24 * MPH, current_set_ms=set31, dt=dt)
   h.update(True, False, False, False, slc, 24 * MPH, current_set_ms=set31, dt=dt)
 
-  # Short DECEL tip-down: 31 → 30, holdoff
+  # Short DECEL tip-down: 31 → 30; tip authority blocks raise (no holdoff flag)
   allow, sticky = h.update(True, True, False, False, slc, 24 * MPH, current_set_ms=set31, dt=dt)
   assert allow is False and sticky is None
-  assert h.holdoff is True
   assert h.tip_ms == pytest.approx(30 * MPH)
   assert h.tip_dir == -1
   # Release before TIP_HOLD_S — stay at 30 (no further DI tracking)
   h.update(True, False, False, False, slc, 20 * MPH, current_set_ms=30 * MPH, dt=dt)
   assert h.tip_ms == pytest.approx(30 * MPH)
-  h.update(True, False, False, False, slc, 12 * MPH, current_set_ms=30 * MPH, dt=dt)
+  allow, _ = h.update(True, False, False, False, slc, 12 * MPH, current_set_ms=30 * MPH, dt=dt)
   assert h.tip_ms == pytest.approx(30 * MPH)
-  assert h.holdoff is True
+  assert allow is False  # still tip authority
 
-  # Long DECEL: 31 → 30 then upgrade to 30's next-lower-5 = 25? base was 31 → prev_5=30
-  # Actually prev_5(31)=30. For long hold from base 31: short sets tip=30, upgrade to prev_5(31)=30.
-  # Use base 36 so short → 35, long → 35 (prev_5(36)=35). Better: base 32 → short 31, long prev_5(32)=30.
+  # Long DECEL: base 32 → short 31, long → prev_5(32)=30
   h2 = Ap1RaiseHoldoff()
   set32 = 32 * MPH
   h2.update(True, False, False, False, slc, 24 * MPH, current_set_ms=set32, dt=dt)
@@ -514,12 +528,86 @@ def test_ap1_decel_tip_down_no_di_chase():
   for _ in range(hold_frames):
     h3.update(True, True, False, False, slc, 24 * MPH, current_set_ms=set30, dt=dt)
   assert h3.tip_ms == pytest.approx(25 * MPH)
+  assert h3.update(True, False, False, False, slc, 24 * MPH, current_set_ms=25 * MPH, dt=dt)[0] is False
 
-  # UP clears holdoff / tip-down; RWD clears holdoff
+  # UP tips up from tipped set (still tip authority); RWD pull clears tip → allow raise
   allow, _ = h3.update(True, False, True, False, slc, 24 * MPH, current_set_ms=25 * MPH, dt=dt)
-  assert h3.holdoff is False
   assert h3.tip_dir == 1
+  assert h3.tip_ms == pytest.approx(26 * MPH)
+  assert allow is False  # tip still authority
+  allow, _ = h3.update(True, False, False, True, slc, 24 * MPH, current_set_ms=26 * MPH, dt=dt)
+  assert h3.tip_ms == 0.0
   assert allow is True
+
+
+def test_ap1_up_dn_sticky_engage_and_rwd_raise():
+  """UP and DN engage → sticky vEgo; RWD engage → allow SLC raise."""
+  vego = 27.0 * MPH
+  slc = 25 * MPH
+  for dn, up in ((True, False), (False, True)):
+    h = Ap1RaiseHoldoff()
+    h.update(False, False, False, False, slc, vego)
+    allow, sticky = h.update(True, dn, up, False, slc, vego)
+    assert allow is False
+    assert sticky == pytest.approx(vego)
+  h = Ap1RaiseHoldoff()
+  h.update(False, False, False, False, slc, vego)
+  allow, sticky = h.update(True, False, False, True, slc, vego)
+  assert allow is True and sticky is None
+
+
+def test_ap1_tip_plus_minus_one_and_five():
+  """Engaged UP/DN: short ±1 mph; long hold → next-5 / next-lower-5."""
+  dt = 0.05
+  slc = 25 * MPH
+  set36 = 36 * MPH
+  hold_frames = int(Ap1RaiseHoldoff.TIP_HOLD_S / dt) + 1
+
+  h = Ap1RaiseHoldoff()
+  h.update(True, False, False, False, slc, 30 * MPH, current_set_ms=set36, dt=dt)
+  h.update(True, False, True, False, slc, 30 * MPH, current_set_ms=set36, dt=dt)
+  assert h.tip_ms == pytest.approx(37 * MPH)
+  for _ in range(hold_frames):
+    h.update(True, False, True, False, slc, 30 * MPH, current_set_ms=set36, dt=dt)
+  assert h.tip_ms == pytest.approx(40 * MPH)
+
+  h2 = Ap1RaiseHoldoff()
+  h2.update(True, False, False, False, slc, 30 * MPH, current_set_ms=set36, dt=dt)
+  h2.update(True, True, False, False, slc, 30 * MPH, current_set_ms=set36, dt=dt)
+  assert h2.tip_ms == pytest.approx(35 * MPH)
+  for _ in range(hold_frames):
+    h2.update(True, True, False, False, slc, 30 * MPH, current_set_ms=set36, dt=dt)
+  assert h2.tip_ms == pytest.approx(35 * MPH)  # prev_5(36)=35
+  # From 40: short 39, long → 35
+  h3 = Ap1RaiseHoldoff()
+  set40 = 40 * MPH
+  h3.update(True, False, False, False, slc, 30 * MPH, current_set_ms=set40, dt=dt)
+  h3.update(True, True, False, False, slc, 30 * MPH, current_set_ms=set40, dt=dt)
+  assert h3.tip_ms == pytest.approx(39 * MPH)
+  for _ in range(hold_frames):
+    h3.update(True, True, False, False, slc, 30 * MPH, current_set_ms=set40, dt=dt)
+  assert h3.tip_ms == pytest.approx(35 * MPH)
+
+
+def test_ap1_after_dn_tip_slc_raise_not_until_pull():
+  """After DN tip below SLC+offset, allow_raise stays False until RWD pull."""
+  dt = 0.05
+  slc = 25 * MPH
+  set30 = 30 * MPH  # SLC+offset
+  h = Ap1RaiseHoldoff()
+  h.update(False, False, False, False, slc, 24 * MPH, current_set_ms=set30, dt=dt)
+  allow, _ = h.update(True, False, False, True, slc, 24 * MPH, current_set_ms=set30, dt=dt)
+  assert allow is True
+  h.update(True, False, False, False, slc, 24 * MPH, current_set_ms=set30, dt=dt)
+  allow, _ = h.update(True, True, False, False, slc, 24 * MPH, current_set_ms=set30, dt=dt)
+  assert h.tip_ms == pytest.approx(29 * MPH)
+  assert allow is False
+  for _ in range(10):
+    allow, _ = h.update(True, False, False, False, slc, 24 * MPH, current_set_ms=29 * MPH, dt=dt)
+    assert allow is False
+    assert h.tip_ms == pytest.approx(29 * MPH)
+  allow, _ = h.update(True, False, False, True, slc, 24 * MPH, current_set_ms=29 * MPH, dt=dt)
+  assert allow is True and h.tip_ms == 0.0
 
 
 def test_ap1_card_feeds_button_states_levels():
