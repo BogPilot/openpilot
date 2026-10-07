@@ -14,7 +14,7 @@ from openpilot.selfdrive.car.tesla.cluster import (
   CLUSTER_BUS, ClusterController, HudInputs, path_from_model_v2,
 )
 from openpilot.selfdrive.car.tesla.hso import Ap1DriverYield, ap1_lat_active, ap1_steering_pressed
-from openpilot.selfdrive.car.tesla.long_smooth import Ap1AccelSmoother, Ap1JerkLimit
+from openpilot.selfdrive.car.tesla.long_smooth import Ap1AccelSmoother, Ap1JerkLimit, ap1_brake_urgent
 from openpilot.selfdrive.car.tesla.steer_counter import Ap1SteerCounterSync
 from openpilot.selfdrive.car.tesla.teslacan import TeslaCAN
 from openpilot.selfdrive.car.tesla.slc_raise import cruise_set_mph
@@ -46,11 +46,12 @@ class CarController(CarControllerBase):
     self.ap1_yield = Ap1DriverYield()
     # AP1 0x488 phase and counter follow the stock DAS (steer_counter.py).
     self.ap1_steer_sync = Ap1SteerCounterSync() if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
-    # AP1 comfort-band accel slew (long_smooth.py). Requests at or below
-    # -0.5 m/s^2 that fall are passed through on the same step.
+    # AP1 accel slew (long_smooth.py): drive release at 5 m/s^3, regen ramps in
+    # at 2.0 m/s^3 (faster for deeper requests). Requests at or below -2.0 m/s^2,
+    # FCW and the stopping state pass through on the same step.
     self.ap1_accel_smoother = Ap1AccelSmoother() if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
-    # AP1 DAS_jerkMin/Max: +/-1.5 in the comfort band, full +/-8 at or below
-    # -0.5 m/s^2 and below 1 m/s (long_smooth.Ap1JerkLimit).
+    # AP1 DAS_jerkMin/Max: +/-1.5 in the comfort band, full +/-8 once the request
+    # sent is at or below -0.5 m/s^2, on urgent frames and below 1 m/s (long_smooth.Ap1JerkLimit).
     self.ap1_jerk_limit = Ap1JerkLimit() if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
 
   def update(self, CC, CS, now_nanos, frogpilot_toggles):
@@ -89,9 +90,12 @@ class CarController(CarControllerBase):
       gas_pressed = bool(getattr(CS.out, "gasPressed", False))
       long_allowed_now = longitudinal_command_allowed(self.CP.openpilotLongitudinalControl, CC.enabled, CC.longActive)
       gas_neutral = ap1_gas_neutral(chassis_das_only, self.CP.openpilotLongitudinalControl, CC.enabled, gas_pressed)
-      accel = self.ap1_accel_smoother.update(actuators.accel, long_allowed_now, CS.out.vEgo, gas_neutral=gas_neutral)
-      jerk_min, jerk_max = self.ap1_jerk_limit.update(min(float(actuators.accel), accel), long_allowed_now,
-                                                      CS.out.vEgo, gas_neutral=gas_neutral)
+      # FCW or the LongControl stopping state: braking passes through unramped.
+      urgent = ap1_brake_urgent(CC)
+      accel = self.ap1_accel_smoother.update(actuators.accel, long_allowed_now, CS.out.vEgo, gas_neutral=gas_neutral,
+                                             urgent=urgent)
+      jerk_min, jerk_max = self.ap1_jerk_limit.update(accel, long_allowed_now, CS.out.vEgo, gas_neutral=gas_neutral,
+                                                      urgent=urgent)
       jerk_limits = {"jerk_min": jerk_min, "jerk_max": jerk_max}
     steer_tick = None
     if self.ap1_steer_sync is not None:
