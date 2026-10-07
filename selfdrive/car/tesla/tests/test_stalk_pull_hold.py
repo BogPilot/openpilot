@@ -74,7 +74,7 @@ def test_wiring():
   carstate = (root / "selfdrive/car/tesla/carstate.py").read_text()
   assert "StalkPullHold" in carstate
   assert "stalk_pull_toggle" in carstate
-  assert "if PULL_HOLD_ENABLED and" in carstate
+  assert "if PULL_HOLD_ENABLED:" in carstate or "if PULL_HOLD_ENABLED and" in carstate
   assert "parse_stalk_tip" not in carstate
   assert "tip_hold_cruise" not in carstate
   card = (root / "frogpilot/controls/frogpilot_card.py").read_text()

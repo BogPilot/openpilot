@@ -145,6 +145,21 @@ class FrogPilotCard:
       return
     handle_experimental_mode(self.car.frogpilot_toggles.conditional_experimental_mode)
 
+  def _apply_ap1_fwd_hold(self):
+    """AP1 long FWD stalk (~2 s) while disengaged toggles Experimental Mode once.
+
+    Uses CarState.stalk_fwd_toggle from stalk_fwd_hold. Same
+    handle_experimental_mode hook as RWD pull — no longActive gate (distance /
+    LKAS experimental paths require longActive; this path must work while
+    disengaged). Cancel-while-engaged and short FWD do not toggle.
+    """
+    if self.car.CP.carFingerprint != CAR.TESLA_AP1_MODELS:
+      return
+    cs = getattr(getattr(self.car, "CI", None), "CS", None)
+    if not getattr(cs, "stalk_fwd_toggle", False):
+      return
+    handle_experimental_mode(self.car.frogpilot_toggles.conditional_experimental_mode)
+
   def update(self, carState, frogpilotCarState, sm):
     self.always_on_lateral_enabled = self.car.frogpilot_toggles.always_on_lateral_set
 
@@ -208,6 +223,7 @@ class FrogPilotCard:
     frogpilotCarState.pauseLongitudinal = self.pause_longitudinal
     self._apply_ap1_stalk()
     self._apply_ap1_pull_hold()
+    self._apply_ap1_fwd_hold()
     frogpilotCarState.trafficModeEnabled = self.traffic_mode_enabled
 
     return frogpilotCarState
