@@ -173,9 +173,7 @@ class CarState(CarStateBase):
 
     # AP1: long RWD pull while already engaged → one Experimental Mode toggle.
     # Uses prior cruise enabled so the engage pull itself does not fire.
-    # Disabled (PULL_HOLD_ENABLED): the stock DI treats a held RWD pull as
-    # resume and restores the remembered set speed, so the gesture also
-    # changed the cruise speed (see stalk_pull_hold.py).
+    # DI may bump set speed mid-hold (resume); accepted — see stalk_pull_hold.py.
     self.stalk_pull_toggle = False
     if PULL_HOLD_ENABLED and self.CP.carFingerprint == CAR.TESLA_AP1_MODELS:
       prev = getattr(self, "out", None)

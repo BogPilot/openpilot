@@ -64,8 +64,8 @@ def test_non_rwd_values_ignored():
 def test_defaults():
   assert RWD == 2
   assert PULL_HOLD_S == 2.0
-  # Held RWD is a DI resume (restores the old set speed): toggle disabled.
-  assert PULL_HOLD_ENABLED is False
+  # Re-enabled; DI may bump set mid-hold (accepted).
+  assert PULL_HOLD_ENABLED is True
 
 
 def test_wiring():
