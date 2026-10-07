@@ -1,6 +1,27 @@
-# BogPilot Tesla early (Phase 1)
+# BogPilot Tesla docs
 
-Phase: **1** (base tree, docs, user-visible identity, failing early-platform smoke test). No Tesla actuation is in this phase. This is not a tagged release.
+Status: **AP1 Model S driving, tag `ap1-driving-milestone-3`** (2026-10-07) on `bogpilot-tesla`. openpilot steers (angle control on `0x488`) and controls longitudinal (`0x2b9`) on AP1 through one harness and one panda. Other Tesla platforms stay `dashcamOnly`. Research code, not a product or a safety certification. Install: `installer.comma.ai/BogPilot/bogpilot-tesla`.
+
+This file started as the Phase 1 note (base tree, docs, identity, no actuation). Phase 1 is long done; [`PHASE1_STATUS.md`](PHASE1_STATUS.md) is kept as history.
+
+## AP1 cruise and stalk (milestone 3)
+
+With FrogPilot Speed Limit Controller on, AP1 adds (details and code references in [`STALK.md`](STALK.md) and [`DIVERGENCES.md`](DIVERGENCES.md)):
+
+- **SLC raise:** openpilot's set speed can go above the stock limit to posted limit + offset (`slc_raise.py`, `frogpilot_vcruise.py`). Posted limit from the stock Mobileye sign first, then the car's map limit (`speed_limit.py`).
+- **Cluster set speed:** `DAS_accSpeedLimit` on 0x389 carries openpilot's set speed (DBC factor 0.4), with a guard against the UNSET value that showed ~90 mph when stopped.
+- **Engage:** tip up/down latches the current speed (sticky); pull engages at posted limit + offset.
+- **Engaged tips:** first position ±1 mph; full tip (raw `SpdCtrlLvr_Stat` 4 / 8) next multiple of 5. A tipped set stays through speed limit zone changes until a pull or disengage. A pull returns to posted limit + offset and follows lower limits too.
+- **Experimental Mode:** hold the stalk pulled ~2 s while engaged (`stalk_pull_hold.py`), or forward ~2 s while disengaged (`stalk_fwd_hold.py`).
+- **Soft-steer resume:** after a firm override, 0.3 s at hands level 0 before lateral eases back in (`hso.AP1_RESUME_HOLD_S`).
+
+## Doc index
+
+- [`STALK.md`](STALK.md): full AP1 stalk map (engage, tips, pull, forward, Experimental holds, follow distance).
+- [`DIVERGENCES.md`](DIVERGENCES.md): every known difference from upstream FrogPilot or Tinkla.
+- [`PLATFORMS.md`](PLATFORMS.md): Tesla platform recognition and safety flags.
+- [`THEME.md`](THEME.md): BogPilot theme pack, color editing, startup alert note.
+- Phase 0 / 1 history: `SOURCES.md`, `RENAME_MAP.md`, `PORT_PLAN.md`, `HOTSPOTS.md`, `BRIDGE_DIFF.md`, `PHASE1_STATUS.md`.
 
 ## Pinned SHAs
 
@@ -12,10 +33,8 @@ Phase: **1** (base tree, docs, user-visible identity, failing early-platform smo
 
 `SOURCES.md` has the pin notes. `RENAME_MAP.md` is the path map. `PORT_PLAN.md` is the feature plan. `HOTSPOTS.md` is the Phase 0 read of the hot files. Those four files were copied from the Phase 0 inventory. Clone paths recorded in them are where the sources were read, not this product tree. Product docs live in `docs/tesla/` in this repo.
 
-Theme docs: [`THEME.md`](THEME.md) (BogPilot theme pack, color editing, startup alert note).
-
 Safety replay: [`panda/tests/safety_replay/README.md`](../../panda/tests/safety_replay/README.md). `replay_ap1.py` runs recorded rlogs through the AP1 panda safety before a change goes on the road.
 
 ## Disclaimer
 
-BogPilot is not a product. No warranty. The driver remains responsible. Comply with local law. It is not safe to drive until a human has validated it on a bench and in a car.
+BogPilot is not a product. No warranty. The driver remains responsible. Comply with local law. AP1 has been driven by the maintainer on one Model S with a comma 3X; that is a personal impression, not a bench or safety validation.
