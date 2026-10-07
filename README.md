@@ -1,25 +1,38 @@
 # BogPilot
 
-BogPilot is an MIT-licensed research fork of FrogPilot for early Tesla Model S/X (pre-AP, AP1, AP2), with Autopilot 1 (AP1) as the current focus. AP1 support is a fresh port built from BogGyver's Tinkla project, the long-standing AP1 reference. It does not reuse Model 3/Y code.
+BogPilot is an MIT-licensed research fork of FrogPilot, **Tesla Model S AP1 focused for now**. AP1 support is a fresh port built from BogGyver's Tinkla project, the long-standing AP1 reference. It does not reuse Model 3/Y code.
 
-**Not a product. No warranty. The driver remains responsible. Comply with local law.** Not validated as safe to drive. The maintainer has driven it on one AP1 Model S with a comma 3X, but that is a personal impression, not a bench or safety validation. Pre-AP, AP2, and MCU2 have not been tested.
+Owners of other legacy Teslas — **Pre-AP, Model X AP1, and Model S/X AP2** — are welcome to submit rlogs for fingerprinting and integration **in the future**, once all Model S AP1 features have been implemented.
+
+**Not a product. No warranty. The driver remains responsible. Comply with local law.** Not validated as safe to drive. The maintainer has driven it on one AP1 Model S with a comma 3X, but that is a personal impression, not a bench or safety validation.
 
 Pinned FrogPilot SHA: `1e23dec6352cef5a36a87be0af7d7a082b7c48a4`.
 
 ## AP1 status (tag `ap1-driving-milestone-2`)
 
-- Openpilot steering (angle control on `0x488`) and longitudinal control (`0x2b9`) through one harness and one panda on chassis CAN. A single stalk pull engages openpilot.
-- The steering takeover is gentle: a soft start at engage, a recovery when EPAS goes inactive, and a grey border whenever the driver touches the wheel. After a firm override, openpilot waits 0.5 s once the driver lets go, then eases back in from wherever the wheel is.
-- The stalk changes driving personality and follow distance, and Hold clears with the accelerator like Tinkla.
-- On the instrument cluster, openpilot shows its engaged state, its planned path from the driving model, and lane lines, using Tinkla's `0x399`/`0x389`/`0x239` approach. Turning off `EnableICIntegration` gives back the stock cluster.
-- The false "BRAKE!" alert that fired right at engage is fixed. Real collision warnings and the car's AEB are unchanged.
-- The device recognizes the car by EPS, brake booster, and radar firmware, not by VIN. Other AP1 owners can submit rlogs to have their versions added.
+- Openpilot steering (angle control on `0x488`) and longitudinal control (`0x2b9`) through one harness and one panda on chassis CAN.
+- **Stalk engage:** tip UP or DN latches the current speed (vEgo); a stalk pull engages at the posted limit plus your offset (including while already engaged).
+- **While engaged:** tip UP/DN adjusts the set by ±1 mph (short tip) or to the next 5 mph mark (long hold). A tipped set stays until the next pull or disengage — it does **not** auto-raise when the speed-limit zone changes; pull the stalk when you want SLC.
+- **Instrument cluster set speed** via the `DAS_accSpeedLimit` HUD path (AP1 DBC scale fix), with a guard so unset cruise does not flash ~90 on the cluster.
+- **Speed-limit offset bands:** a 25 mph limit uses the 25–34 mph offset (Offset2).
+- Continuous stalk level reading so short tip/pull edges are not missed.
+- Soft steer takeover: gentle start at engage, recovery when EPAS goes inactive, grey border on wheel touch; after a firm override, 0.5 s wait then ease back in from wherever the wheel is.
+- Stalk changes driving personality and follow distance; Hold clears with the accelerator like Tinkla.
+- Instrument cluster shows engaged state, planned path, and lane lines (`0x399`/`0x389`/`0x239`); turn off `EnableICIntegration` for the stock cluster.
+- False "BRAKE!" at engage is fixed; real collision warnings and AEB are unchanged.
+- Firmware fingerprinting (EPS, brake booster, radar) — not VIN. Other AP1 owners can submit rlogs to have their versions added.
 
 Every place this tree knowingly differs from upstream or Tinkla is listed in `docs/tesla/DIVERGENCES.md`. Credits are in `CREDITS.md`.
 
 ## Install
 
+The latest SLC / stalk cruise UX lives on the testing branch `bogpilot-tesla-slc-raise`. Main (`bogpilot-tesla`) does **not** include these stalk tip/pull and set-speed HUD changes yet.
+
 On the comma 3X setup screen, choose custom software and enter:
+
+    installer.comma.ai/BogPilot/bogpilot-tesla-slc-raise
+
+For the main AP1 branch without the new SLC stalk UX:
 
     installer.comma.ai/BogPilot/bogpilot-tesla
 
@@ -225,7 +238,8 @@ And lots more! From safety enhancements to personalization options, **FrogPilot*
 ------
 | Branch                     | Install&nbsp;URL          | Description                                            | Recommended&nbsp;For     |
 |----------------------------|---------------------------|--------------------------------------------------------|--------------------------|
-| bogpilot-tesla             | `installer.comma.ai/BogPilot/bogpilot-tesla` | Main BogPilot branch (Tesla early integration). | AP1 research, maintainer-driven |
+| bogpilot-tesla             | `installer.comma.ai/BogPilot/bogpilot-tesla` | Main BogPilot branch (Tesla early integration). Does not yet include the SLC stalk UX below. | AP1 research, maintainer-driven |
+| bogpilot-tesla-slc-raise   | `installer.comma.ai/BogPilot/bogpilot-tesla-slc-raise` | Testing branch with SLC / stalk cruise UX (tip UP/DN, pull for posted+offset, IC set speed). | AP1 research, testing the latest stalk UX |
 | bogpilot-tesla-cluster     | `installer.comma.ai/BogPilot/bogpilot-tesla-cluster` | AP1 cluster work branch, kept in sync with bogpilot-tesla. | AP1 research, maintainer-driven |
 | FrogPilot                  | upstream FrogPilot only   | Upstream FrogPilot release name. Still accepted here.  | Not this fork            |
 | FrogPilot&#8209;Staging    | upstream FrogPilot only   | Upstream beta. Not a BogPilot channel.                 | Not this fork            |
@@ -236,7 +250,7 @@ And lots more! From safety enhancements to personalization options, **FrogPilot*
 🧰 How to Install
 ------
 
-See **Install** at the top of this page: on the comma 3X setup screen, choose custom software and enter `installer.comma.ai/BogPilot/bogpilot-tesla`. Do not enter `frogpilot.download` (or `staging.` / `testing.`), which install upstream FrogPilot.
+See **Install** at the top of this page. For the latest SLC / stalk cruise UX, use `installer.comma.ai/BogPilot/bogpilot-tesla-slc-raise`; main is `installer.comma.ai/BogPilot/bogpilot-tesla`. Do not enter `frogpilot.download` (or `staging.` / `testing.`), which install upstream FrogPilot.
 
 🐞 Bug Reports / Feature Requests
 ------
