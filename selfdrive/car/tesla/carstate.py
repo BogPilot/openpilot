@@ -29,6 +29,7 @@ class CarState(CarStateBase):
     self.acc_state = 0
     self.das_control_counters = deque(maxlen=32)
     # DTR_Dist_Rq decision. Python only; cereal was not extended.
+    self.spd_ctrl_lvr = 0
     self.stalk_follow = None
     # AP1 long RWD pull → Experimental Mode (see stalk_pull_hold.py).
     self.stalk_pull_hold = StalkPullHold()
@@ -148,6 +149,12 @@ class CarState(CarStateBase):
 
     # AEB
     ret.stockAeb = (cp_cam.vl["DAS_control"]["DAS_aebEvent"] == 1)
+
+    # AP1 tip detent: raw SpdCtrlLvr_Stat (UP_2ND=4 / DN_2ND=8 vs 1ST).
+    try:
+      self.spd_ctrl_lvr = int(cp.vl["STW_ACTN_RQ"].get("SpdCtrlLvr_Stat") or 0)
+    except Exception:
+      self.spd_ctrl_lvr = 0
 
     # Stalk follow detent. STW_ACTN_RQ is already subscribed. No cereal field.
     # A zero timestamp is the parser default, not ACC_DIST_1.

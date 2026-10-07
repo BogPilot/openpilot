@@ -30,6 +30,7 @@ class FrogPilotCard:
     self.accel_pressed = False
     self.decel_pressed = False
     self.resume_pressed = False
+    self.spd_ctrl_lvr = 0
     self.force_coast = False
     self.pause_lateral = False
     self.pause_longitudinal = False
@@ -109,6 +110,7 @@ class FrogPilotCard:
     self.accel_pressed = bool(bs.get(ButtonType.accelCruise, False))
     self.decel_pressed = bool(bs.get(ButtonType.decelCruise, False))
     self.resume_pressed = bool(bs.get(ButtonType.resumeCruise, False))
+    self.spd_ctrl_lvr = int(getattr(cs, "spd_ctrl_lvr", 0) or 0)
 
   def _apply_ap1_stalk(self):
     """AP1 distance stalk drives the existing personality icon and traffic mode.
@@ -197,6 +199,7 @@ class FrogPilotCard:
     frogpilotCarState.alwaysOnLateralEnabled = self.always_on_lateral_enabled
     frogpilotCarState.decelPressed = self.decel_pressed
     frogpilotCarState.resumePressed = self.resume_pressed
+    frogpilotCarState.spdCtrlLvr = int(getattr(self, 'spd_ctrl_lvr', 0) or 0)
     frogpilotCarState.distanceLongPressed = self.very_long_press_threshold > self.gap_counter >= self.long_press_threshold
     frogpilotCarState.distanceVeryLongPressed = self.gap_counter >= self.very_long_press_threshold
     frogpilotCarState.forceCoast = self.force_coast

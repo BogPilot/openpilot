@@ -21,6 +21,7 @@ class FrogPilotVCruise:
     # AP1: engage stalk policy + engaged tip software set (tip authority until pull).
     from openpilot.selfdrive.car.tesla.slc_raise import Ap1RaiseHoldoff
     self.ap1_raise_holdoff = Ap1RaiseHoldoff()
+    self._ap1_tip_override_active = False
 
   def update(self, gps_position, now, time_validated, v_cruise, v_ego, sm, frogpilot_toggles):
     force_stop = self.frogpilot_planner.cem.stop_light_detected and sm["controlsState"].enabled and frogpilot_toggles.force_stops
@@ -124,10 +125,13 @@ class FrogPilotVCruise:
           set_hint = float(v_cruise)
           if slc_desired is not None and float(slc_desired) >= CRUISING_SPEED:
             set_hint = max(set_hint, float(slc_desired))
+        # SpdCtrl 4/8 = pos2 next-5; 16/32 = pos1 ±1 (drive 2a).
+        spd = int(getattr(fp_cs, "spdCtrlLvr", 0) or 0)
+        tip_full = spd in (4, 8)  # UP_2ND / DN_2ND
         allow_raise, sticky_vego = hold.update(
           enabled,
           dn, up, rwd, float(self.slc_target), float(v_ego),
-          current_set_ms=set_hint, dt=DT_MDL,
+          current_set_ms=set_hint, dt=DT_MDL, tip_full=tip_full,
         )
         tip_ms = float(self.ap1_raise_holdoff.tip_ms)
         tip_dir = int(self.ap1_raise_holdoff.tip_dir)
@@ -137,6 +141,13 @@ class FrogPilotVCruise:
             self.slc.overridden_speed = tip_ms
           else:
             self.slc.overridden_speed = max(float(self.slc.overridden_speed), tip_ms)
+          self._ap1_tip_override_active = True
+        elif getattr(self, "_ap1_tip_override_active", False):
+          # Tip cleared (pull / disengage): drop stale override so SLC+offset
+          # can apply (drive 2a ME30 — tip seed had floored desired at 51).
+          self.slc.overridden_speed = 0.0
+          self._ap1_tip_override_active = False
+          slc_desired = max(0.0, float(self.slc_target) + float(self.slc_offset)) - v_ego_diff
         if sticky_vego is not None:
           # UP/DN engage: hold latched current speed; SLC may still lower.
           v_cruise = float(sticky_vego)
@@ -146,20 +157,15 @@ class FrogPilotVCruise:
             v_cruise = min(v_cruise, self.csc_target)
         elif tip_ms > 0:
           # Tipped set is authority — do NOT apply SLC raise or follow DI_cruiseSet.
+          # Tip stays across zone changes; only pull/disengage clears (2a policy).
           v_cruise = tip_ms
-          if slc_desired is not None and slc_desired >= CRUISING_SPEED:
-            v_cruise = min(v_cruise, float(slc_desired))
           if self.csc_controlling_speed:
             v_cruise = min(v_cruise, self.csc_target)
         elif allow_raise:
+          # SLC tracking mode after RWD pull (no tip seed — 2a ME30).
+          # set_hint already floors with slc_desired so tips base off raised set.
           v_cruise = apply_slc_raise_after_min(
             v_cruise, slc_desired, self.slc_target, CRUISING_SPEED,
             self.csc_controlling_speed, self.csc_target)
-          # Seed tip authority from the raised set so subsequent tips ±1/±5
-          # from SLC+offset and never fall through to DI half-speed (drive28).
-          if float(v_cruise) > 0.0 and float(hold.tip_ms) <= 0.0:
-            hold.tip_ms = float(v_cruise)
-            hold.tip_dir = 0
-            self.slc.overridden_speed = max(float(self.slc.overridden_speed), float(v_cruise))
 
     return v_cruise

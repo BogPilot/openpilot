@@ -123,12 +123,13 @@ class Ap1RaiseHoldoff:
     Engage classified from stalk pressed within RECENT_S (not same-frame only)
     Caller must pass continuous stalk levels (button_states), not edge-only events
       (UP/DN/RWD via accelPressed/decelPressed/resumePressed)
-    Engaged UP/DN → software set tip (±1 short / ± next-5 long); same both ways
+    Engaged UP/DN → tip (±1 pos1 / next-5 pos2); hold upgrades if detent unknown
     Tip current_set_ms from sticky latch / tip_ms / raised set — sticky first
       (never SLC floor while sticky); after pull raise, set_hint floors with
       slc_desired and tip_ms is seeded to the raised set (never DI half-seed)
-    Tipped / seeded-raise set is authority until RWD pull or disengage;
-      never follow DI_cruiseSet; SLC raise must not reclaim after a down tip
+    Tipped set is authority until RWD pull or disengage (zone changes do not
+      clear tip); never follow DI_cruiseSet; SLC raise must not reclaim after tip.
+    RWD pull clears tip and re-allows SLC raise (SLC tracking mode — no tip seed)
     tip_ms fed as slc.overridden_speed so Max Set Speed gas returns to the tip
   """
 
@@ -167,8 +168,12 @@ class Ap1RaiseHoldoff:
 
   def update(self, enabled: bool, decel_pressed: bool, up_pressed: bool,
              rwd_pressed: bool, slc_target_ms: float, v_ego_ms: float,
-             current_set_ms: float = 0.0, dt: float | None = None):
+             current_set_ms: float = 0.0, dt: float | None = None,
+             tip_full: bool = False):
     """Update state.
+
+    tip_full: True when SpdCtrl is UP_2ND (4) or DN_2ND (8) — next-5 on rising
+    edge (and mid-press upgrade). False → ±1 on edge; hold ≥ TIP_HOLD_S upgrades.
 
     Returns (allow_raise, sticky_vego_ms|None).
     sticky_vego_ms is the latched engage speed when UP/DN sticky mode is active.
@@ -193,18 +198,18 @@ class Ap1RaiseHoldoff:
     dn_edge = bool(decel_pressed) and not self._prev_dn
 
     slc = float(slc_target_ms)
+    tip_full = bool(tip_full)
     if slc > self._prev_slc_target + self.LIMIT_RISE_MS:
-      # Higher posted limit: sticky engage may raise into the new zone; tip stays
-      # authority until pull / disengage (do not clear tip_ms here).
+      # Higher posted limit: sticky may raise into the new zone; tip stays
+      # authority until pull / disengage (do not clear tip_ms; do not auto-raise tip).
       self.sticky_vego = False
-    elif slc < self._prev_slc_target - self.LIMIT_RISE_MS:
-      # New lower posted limit: drop tip so Max Set Speed follows SLC+offset
-      self._clear_tip()
+    # Lower posted limit: tip stays (driver set until pull). SLC tracking mode
+    # (tip_ms==0 after RWD) follows lowers via frogpilot_vcruise min(slc_desired).
 
     # Engaged tip-up / tip-down / RES: continuous levels from caller (button_states).
-    # UP rising → +1; held ≥ TIP_HOLD_S → next-5 once. DN rising → −1 (no holdoff);
-    # held ≥ TIP_HOLD_S → next-lower-5 once. tip_ms is the software set — never
-    # follow DI_cruiseSet. RWD pull clears tip and re-allows SLC raise.
+    # tip_full (SpdCtrl 4/8) → next-5 / prev-5 on rising edge; else ±1.
+    # Hold ≥ TIP_HOLD_S upgrades once when detent unknown. Mid-press tip_full
+    # also upgrades once (DN_1ST→DN_2ND). RWD pull clears tip → SLC tracking.
     # Do not clear sticky on sustained UP after an UP-engage (only on up_edge / RWD).
     if enabled and self._prev_enabled:
       if rwd_pressed:
@@ -216,21 +221,36 @@ class Ap1RaiseHoldoff:
         self._tip_base_ms = base
         self._tip_hold_s = 0.0
         self._tip_press_active = True
-        self._tip_upgraded = False
         self.tip_dir = 1
-        self.tip_ms = min(base + self.TIP_STEP_MS, self.V_CRUISE_MAX_MS)
+        if tip_full:
+          self.tip_ms = min(next_5_ms(base), self.V_CRUISE_MAX_MS)
+          self._tip_upgraded = True
+        else:
+          self.tip_ms = min(base + self.TIP_STEP_MS, self.V_CRUISE_MAX_MS)
+          self._tip_upgraded = False
       elif dn_edge:
-        # Engaged DECEL: software set-down like UP (no mute / holdoff timer)
         self.sticky_vego = False
         base = max(float(self.tip_ms), float(current_set_ms), 0.0)
         self._tip_base_ms = base
         self._tip_hold_s = 0.0
         self._tip_press_active = True
-        self._tip_upgraded = False
         self.tip_dir = -1
-        self.tip_ms = max(base - self.TIP_STEP_MS, 0.0)
+        if tip_full:
+          self.tip_ms = max(prev_5_ms(base), 0.0)
+          self._tip_upgraded = True
+        else:
+          self.tip_ms = max(base - self.TIP_STEP_MS, 0.0)
+          self._tip_upgraded = False
       if self._tip_press_active and not self._tip_upgraded:
-        if self.tip_dir > 0 and up_pressed:
+        # Mid-press reach of pos2, or long hold without detent info
+        if tip_full:
+          if self.tip_dir > 0:
+            nxt = next_5_ms(self._tip_base_ms)
+            self.tip_ms = min(max(float(self.tip_ms), nxt), self.V_CRUISE_MAX_MS)
+          elif self.tip_dir < 0:
+            self.tip_ms = max(prev_5_ms(self._tip_base_ms), 0.0)
+          self._tip_upgraded = True
+        elif self.tip_dir > 0 and up_pressed:
           self._tip_hold_s += dt
           if self._tip_hold_s >= self.TIP_HOLD_S:
             nxt = next_5_ms(self._tip_base_ms)

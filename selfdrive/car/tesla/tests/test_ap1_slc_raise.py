@@ -276,7 +276,7 @@ def test_next_5_ms_snap():
 
 
 def test_ap1_tip_up_plus_one_and_clears():
-  """Engaged short accelCruise bumps tip +1 mph; disengage/lower SLC clear it.
+  """Engaged short accelCruise bumps tip +1 mph; disengage clears it (zone change does not).
 
   DECEL tip-downs the software set (−1) the same way (no holdoff); tip is authority.
 
@@ -318,13 +318,16 @@ def test_ap1_tip_up_plus_one_and_clears():
   h.update(False, False, False, False, slc, 20 * MPH, current_set_ms=set30, dt=dt)
   assert h.tip_ms == 0.0
 
-  # Tip then lower SLC clears
+  # Tip then lower SLC: tip STAYS (authority until pull / disengage — drive 2a)
   h = Ap1RaiseHoldoff()
   h.update(True, False, False, False, 40 * MPH, 20 * MPH, current_set_ms=46 * MPH, dt=dt)
   h.update(True, False, True, False, 40 * MPH, 20 * MPH, current_set_ms=46 * MPH, dt=dt)
   assert h.tip_ms == pytest.approx(47 * MPH)
   h.update(True, False, False, False, 25 * MPH, 20 * MPH, current_set_ms=set30, dt=dt)
-  assert h.tip_ms == 0.0
+  assert h.tip_ms == pytest.approx(47 * MPH)
+  # Pull clears tip → SLC tracking
+  allow, _ = h.update(True, False, False, True, 25 * MPH, 20 * MPH, current_set_ms=set30, dt=dt)
+  assert h.tip_ms == 0.0 and allow is True
 
 
 def test_ap1_tip_up_next_5_on_long_hold():
@@ -729,7 +732,9 @@ def test_ap1_vcruise_tip_base_prefers_sticky_over_slc():
   i_plan = vsrc.index("set_hint = float(v_cruise)")
   assert i_sticky < i_tip < i_plan
   assert "set_hint = max(set_hint, float(slc_desired))" in vsrc
-  assert "hold.tip_ms = float(v_cruise)" in vsrc  # seed tip after raise
+  # drive 2a: do NOT seed tip after raise (SLC tracking until stalk tip)
+  assert "hold.tip_ms = float(v_cruise)" not in vsrc
+  assert "SLC tracking mode" in vsrc
 
 
 def test_ap1_tip_after_raise_not_di_half_seed():
@@ -755,49 +760,41 @@ def test_ap1_tip_after_raise_not_di_half_seed():
       hint = max(hint, float(slc_desired))
     return hint
 
-  def apply_raise_and_seed(hold, v_cruise_post_min, slc_desired):
+  def apply_raise_no_seed(hold, v_cruise_post_min, slc_desired):
     from openpilot.selfdrive.car.tesla.slc_raise import apply_slc_raise_after_min
-    v = apply_slc_raise_after_min(
+    return apply_slc_raise_after_min(
       v_cruise_post_min, slc_desired, slc, 1.0 * MPH, False, v_cruise_post_min)
-    if float(v) > 0.0 and float(hold.tip_ms) <= 0.0:
-      hold.tip_ms = float(v)
-      hold.tip_dir = 0
-    return v
 
   # --- OLD bug path (no floor / no seed): tip from DI half ---
   h_old = Ap1RaiseHoldoff()
   h_old.update(True, False, False, False, slc, vego, current_set_ms=di_half, dt=dt)
-  # RWD while engaged clears tip (already 0) → allow_raise
   allow, sticky = h_old.update(True, False, False, True, slc, vego, current_set_ms=di_half, dt=dt)
   assert allow is True and sticky is None and h_old.tip_ms == 0.0
   h_old.update(True, False, False, False, slc, vego, current_set_ms=di_half, dt=dt)
-  # Buggy set_hint = post-min DI only
   bad_hint = di_half
   allow, _ = h_old.update(True, True, False, False, slc, vego, current_set_ms=bad_hint, dt=dt)
   assert h_old.tip_ms == pytest.approx(di_half - 1.0 * MPH)  # ~21 — the cliff
 
-  # --- NEW fix: set_hint floors with raised; raise seeds tip ---
+  # --- NEW (2a): set_hint floors with raised; NO tip seed (SLC tracking until tip)
   h = Ap1RaiseHoldoff()
   h.update(True, False, False, False, slc, vego, current_set_ms=di_half, dt=dt)
   allow, sticky = h.update(True, False, False, True, slc, vego,
                            current_set_ms=set_hint_for(h, di_half, raised), dt=dt)
   assert allow is True and h.tip_ms == 0.0
-  # Same frame as allow_raise: seed tip from raised set
-  v = apply_raise_and_seed(h, di_half, raised)
+  v = apply_raise_no_seed(h, di_half, raised)
   assert v == pytest.approx(raised)
-  assert h.tip_ms == pytest.approx(raised)
-  assert h.tip_dir == 0
-  # Release RWD; tip authority holds raised (allow_raise False)
+  assert h.tip_ms == 0.0  # no seed — stay in SLC tracking
+  # Release RWD; still allow_raise (tracks SLC)
   allow, sticky = h.update(True, False, False, False, slc, vego,
                            current_set_ms=set_hint_for(h, di_half, raised), dt=dt)
-  assert allow is False and h.tip_ms == pytest.approx(raised)
-  # Tip DN: base = tip_ms (raised), not DI → 50
+  assert allow is True and h.tip_ms == 0.0
+  # Tip DN: set_hint floors to raised → 50 (not DI half)
   hint = set_hint_for(h, di_half, raised)
   assert hint == pytest.approx(raised)
   allow, _ = h.update(True, True, False, False, slc, vego, current_set_ms=hint, dt=dt)
   assert h.tip_ms == pytest.approx(raised - 1.0 * MPH)
   assert h.tip_ms == pytest.approx(50 * MPH)
-  # Further DN stays latched on tip path
+  assert allow is False  # now tip authority
   h.update(True, False, False, False, slc, vego, current_set_ms=h.tip_ms, dt=dt)
   tip_before = h.tip_ms
   h.update(True, True, False, False, slc, vego, current_set_ms=tip_before, dt=dt)
@@ -812,10 +809,10 @@ def test_ap1_vcruise_set_hint_after_raise_floors_slc_not_di():
           "frogpilot_vcruise.py").read_text()
   assert "drive28" in vsrc
   assert "vEgo/2" in vsrc
-  # Seed after apply_slc_raise_after_min
-  i_raise = vsrc.index("apply_slc_raise_after_min")
-  i_seed = vsrc.index("hold.tip_ms = float(v_cruise)")
-  assert i_raise < i_seed
+  assert "set_hint = max(set_hint, float(slc_desired))" in vsrc
+  # drive 2a: raise path must not seed tip_ms (SLC tracking until stalk tip)
+  assert "hold.tip_ms = float(v_cruise)" not in vsrc
+  assert "tip_full" in vsrc and "spdCtrlLvr" in vsrc
 
 
 def test_carstate_source_uses_di_cruise_set_not_digital():
@@ -887,3 +884,58 @@ def test_carstate_cruise_speed_tracks_di_cruise_set(carstate_mod):
   cp.vl["DI_state"]["DI_digitalSpeed"] = 70.0
   ret, _fp = CS.update(cp, cp_cam, None)
   assert ret.cruiseState.speed == pytest.approx(60.0 * CV.KPH_TO_MS)
+
+
+def test_ap1_tip_full_pos2_next_5_on_edge():
+  """drive 2a: SpdCtrl DN_2ND/UP_2ND (tip_full) → next-5 on rising edge, no hold.
+
+  Pos1 (tip_full=False) stays ±1. Matches stock IC briefly showing 45 then OP
+  used to overwrite to 49 when pos1+pos2 collapsed into one level.
+  """
+  dt = 0.05
+  slc = 45 * MPH
+  set50 = 50 * MPH
+  h = Ap1RaiseHoldoff()
+  h.update(True, False, False, False, slc, 33 * MPH, current_set_ms=set50, dt=dt)
+
+  # Pos1 DN → 49
+  h.update(True, True, False, False, slc, 33 * MPH, current_set_ms=set50, dt=dt, tip_full=False)
+  assert h.tip_ms == pytest.approx(49 * MPH)
+  h.update(True, False, False, False, slc, 33 * MPH, current_set_ms=49 * MPH, dt=dt)
+
+  # Reset to 50 then pos2 DN → 45 immediately
+  h = Ap1RaiseHoldoff()
+  h.update(True, False, False, False, slc, 33 * MPH, current_set_ms=set50, dt=dt)
+  h.update(True, True, False, False, slc, 33 * MPH, current_set_ms=set50, dt=dt, tip_full=True)
+  assert h.tip_ms == pytest.approx(45 * MPH)
+  assert h._tip_upgraded is True
+  # Short release — stays 45 (no ±1 stomp)
+  h.update(True, False, False, False, slc, 33 * MPH, current_set_ms=45 * MPH, dt=dt)
+  assert h.tip_ms == pytest.approx(45 * MPH)
+
+  # Pos2 UP from 45 → 50
+  h.update(True, False, True, False, slc, 33 * MPH, current_set_ms=45 * MPH, dt=dt, tip_full=True)
+  assert h.tip_ms == pytest.approx(50 * MPH)
+
+  # Mid-press: pos1 edge then tip_full becomes True → upgrade from press base
+  h2 = Ap1RaiseHoldoff()
+  h2.update(True, False, False, False, slc, 33 * MPH, current_set_ms=set50, dt=dt)
+  h2.update(True, True, False, False, slc, 33 * MPH, current_set_ms=set50, dt=dt, tip_full=False)
+  assert h2.tip_ms == pytest.approx(49 * MPH)
+  h2.update(True, True, False, False, slc, 33 * MPH, current_set_ms=49 * MPH, dt=dt, tip_full=True)
+  assert h2.tip_ms == pytest.approx(45 * MPH)  # prev_5 from base 50
+
+
+def test_ap1_tip_stays_across_lower_zone_until_pull():
+  """Manual tip is authority across SLC drop; RWD clears → allow_raise (ME30 path)."""
+  dt = 0.05
+  h = Ap1RaiseHoldoff()
+  h.update(True, False, False, False, 45 * MPH, 30 * MPH, current_set_ms=51 * MPH, dt=dt)
+  h.update(True, True, False, False, 45 * MPH, 30 * MPH, current_set_ms=51 * MPH, dt=dt, tip_full=False)
+  assert h.tip_ms == pytest.approx(50 * MPH)
+  # SLC 45 → 30: tip stays
+  allow, _ = h.update(True, False, False, False, 30 * MPH, 27 * MPH, current_set_ms=50 * MPH, dt=dt)
+  assert h.tip_ms == pytest.approx(50 * MPH) and allow is False
+  # Pull → SLC tracking
+  allow, _ = h.update(True, False, False, True, 30 * MPH, 27 * MPH, current_set_ms=50 * MPH, dt=dt)
+  assert h.tip_ms == 0.0 and allow is True

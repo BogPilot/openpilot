@@ -131,6 +131,9 @@ struct FrogPilotCarState @0xda96579883444c35 {
   # AP1: continuous RWD / pull-toward (SpdCtrlLvr_Stat=2 / resumeCruise) level
   # from carstate.button_states — same path as accel/decelPressed (not buttonEvents).
   resumePressed @16 :Bool;
+  # AP1: raw SpdCtrlLvr_Stat (0 IDLE, 2 RWD, 4 UP_2ND, 8 DN_2ND, 16 UP_1ST, 32 DN_1ST).
+  # Tip next-5 uses 4/8; ±1 uses 16/32. button_states OR pos1+pos2 so detent is here.
+  spdCtrlLvr @17 :UInt8;
 
   struct ButtonEvent {
     enum Type {
