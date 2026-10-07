@@ -5,10 +5,10 @@ openpilot's cruise target to limit+offset so longitudinal accelerates into the
 faster zone. DI_cruiseSet still seeds the pcmCruise set; stalk UP/DN injection
 is intentionally not used.
 
-The IC set digit (DAS_accSpeedLimit on 0x389) stays stock. Overlaying the OP
-raised set while DI_cruiseSet stayed low locked DI_digitalSpeed at 60 on AP1
-(route 21 @ bd26defe; dig==60 == 2x raised set). Comma/HUD set may still lift
-via cluster_display_kph. No Ap1RaiseHoldoff / stalk-DECEL suppress.
+The IC set digit (DAS_accSpeedLimit on 0x389) tracks the OP raised set via the
+cluster pack path. DBC factor is 0.4 so a raised 30 packs as dig 30 (route 21
+dig=60 was packing with legacy 0.2 against an IC that scales 0.4). Comma/HUD
+also lifts via cluster_display_kph. No Ap1RaiseHoldoff / stalk-DECEL suppress.
 
 Not a product. No warranty. The driver remains responsible. Comply with local law.
 """
@@ -78,7 +78,7 @@ def cluster_display_kph(v_cruise_cluster_kph: float, frogpilot_v_cruise_ms: floa
 
 
 def cruise_set_mph(set_speed_ms: float | None) -> float | None:
-  """Convert OP set speed (m/s) to mph. Unused on CAN: DAS_accSpeedLimit stays stock."""
+  """Convert OP set speed (m/s) to mph for DAS_accSpeedLimit (DBC factor 0.4)."""
   if set_speed_ms is None:
     return None
   mph = float(set_speed_ms) * CV.MS_TO_MPH

@@ -102,18 +102,21 @@ def test_cluster_display_only_lifts():
 
 
 
-def test_carcontroller_does_not_feed_das_acc_speed_limit_overlay():
-  """Regression: never pass OP set into HudInputs.cruise_set_mph for CAN TX.
+def test_carcontroller_feeds_das_acc_speed_limit_overlay_with_04_scale():
+  """OP set is written to DAS_accSpeedLimit; DBC factor must be 0.4 (not 0.2).
 
-  Route 21 @ bd26defe: overlaying DAS_accSpeedLimit=30 with DI_cruiseSet≈10
-  locked DI_digitalSpeed at 60 (=2× raised 30) on the IC while long targeted 30.
+  Route 21 dig=60 was packing raised 30 with factor 0.2 (raw 150 → IC@0.4 = 60).
   """
   from pathlib import Path
   src = (Path(__file__).resolve().parents[1] / "carcontroller.py").read_text()
-  assert "cruise_set_mph=None" in src
-  assert "cruise_set_mph(float(hud.setSpeed))" not in src
+  assert "cruise_set_mph(float(hud.setSpeed)) if enabled else None" in src
+  assert "cruise_set_mph=None," not in src  # must not hardcode stock-only
   cluster_src = (Path(__file__).resolve().parents[1] / "cluster.py").read_text()
-  assert 'v["DAS_accSpeedLimit"] = float(h.cruise_set_mph)' not in cluster_src
+  assert 'v["DAS_accSpeedLimit"] = float(h.cruise_set_mph)' in cluster_src
+  # parents: tests -> tesla -> car -> selfdrive -> repo root
+  dbc = (Path(__file__).resolve().parents[4] / "opendbc" / "tesla_can.dbc").read_text()
+  assert 'SG_ DAS_accSpeedLimit : 0|10@1+ (0.4,0)' in dbc
+  assert 'SG_ DAS_accSpeedLimit : 0|10@1+ (0.2,0)' not in dbc
 
 
 def test_cruise_set_mph_conversion():
