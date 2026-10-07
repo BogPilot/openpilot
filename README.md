@@ -16,7 +16,7 @@ Pinned FrogPilot SHA: `1e23dec6352cef5a36a87be0af7d7a082b7c48a4`.
 - **Instrument cluster set speed** via the `DAS_accSpeedLimit` HUD path (AP1 DBC scale fix), with a guard so unset cruise does not flash ~90 on the cluster.
 - Continuous stalk level reading so short tip/pull edges are not missed.
 - Soft steer takeover: gentle start at engage, recovery when EPAS goes inactive, grey border on wheel touch; after a firm override, 0.5 s wait then ease back in from wherever the wheel is.
-- Stalk changes driving personality and follow distance; Hold clears with the accelerator like Tinkla.
+- Stalk changes driving personality and follow distance; Tesla Hold auto-clears when stopped behind a lead car (like Tinkla), or when the driver presses the accelerator.
 - Instrument cluster shows engaged state, planned path, and lane lines (`0x399`/`0x389`/`0x239`); turn off `EnableICIntegration` for the stock cluster.
 - False "BRAKE!" at engage is fixed; real collision warnings and AEB are unchanged.
 - Firmware fingerprinting (EPS, brake booster, radar) — not VIN. Other AP1 owners can submit rlogs to have their versions added.
