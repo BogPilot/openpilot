@@ -128,6 +128,9 @@ struct FrogPilotCarState @0xda96579883444c35 {
   pauseLongitudinal @13 :Bool;
   sportGear @14 :Bool;
   trafficModeEnabled @15 :Bool;
+  # AP1: continuous RWD / pull-toward (SpdCtrlLvr_Stat=2 / resumeCruise) level
+  # from carstate.button_states — same path as accel/decelPressed (not buttonEvents).
+  resumePressed @16 :Bool;
 
   struct ButtonEvent {
     enum Type {

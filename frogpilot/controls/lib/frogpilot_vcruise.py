@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from cereal import car
 from openpilot.common.conversions import Conversions as CV
 from openpilot.common.realtime import DT_MDL
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import COMFORT_BRAKE
@@ -7,8 +6,6 @@ from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import COMFO
 from openpilot.frogpilot.common.frogpilot_variables import CRUISING_SPEED, PLANNER_TIME
 from openpilot.frogpilot.controls.lib.curve_speed_controller import CurveSpeedController
 from openpilot.frogpilot.controls.lib.speed_limit_controller import SpeedLimitController
-
-ButtonType = car.CarState.ButtonEvent.Type
 
 class FrogPilotVCruise:
   def __init__(self, FrogPilotPlanner):
@@ -24,8 +21,6 @@ class FrogPilotVCruise:
     # AP1: engage stalk policy + engaged tip software set (tip authority until pull).
     from openpilot.selfdrive.car.tesla.slc_raise import Ap1RaiseHoldoff
     self.ap1_raise_holdoff = Ap1RaiseHoldoff()
-    # RWD still uses buttonEvents (miss → allow_raise, which is correct for RWD).
-    self._ap1_resume_held = False
 
   def update(self, gps_position, now, time_validated, v_cruise, v_ego, sm, frogpilot_toggles):
     force_stop = self.frogpilot_planner.cem.stop_light_detected and sm["controlsState"].enabled and frogpilot_toggles.force_stops
@@ -108,23 +103,22 @@ class FrogPilotVCruise:
       if frogpilot_toggles.speed_limit_controller and \
          str(getattr(frogpilot_toggles, "car_model", "") or "") == "TESLA_AP1_MODELS":
         from openpilot.selfdrive.car.tesla.slc_raise import apply_slc_raise_after_min
-        btns = sm["carState"].buttonEvents
         enabled = bool(sm["carState"].cruiseState.enabled)
         fp_cs = sm["frogpilotCarState"]
-        # Continuous UP/DN levels from button_states (via frogpilot_card).
+        # Continuous UP/DN/RWD levels from button_states (via frogpilot_card).
         up = bool(fp_cs.accelPressed)
         dn = bool(fp_cs.decelPressed)
-        # RWD: edge latch (no clear-before-update while disengaged). Miss on
-        # engage defaults to allow_raise — correct for pull-toward.
-        for be in btns:
-          if be.type == ButtonType.resumeCruise:
-            self._ap1_resume_held = bool(be.pressed)
-        rwd = bool(self._ap1_resume_held)
-        # Tip base: post-min set or SLC+offset desired (Max Set Speed floor).
-        set_hint = float(v_cruise)
-        if slc_desired is not None and slc_desired >= CRUISING_SPEED:
-          set_hint = max(set_hint, float(slc_desired))
-        allow_raise, sticky_vego = self.ap1_raise_holdoff.update(
+        rwd = bool(getattr(fp_cs, "resumePressed", False))
+        # Tip base = current software set (sticky latch / tip / plan). NEVER
+        # floor with slc_desired — that made engaged DN from sticky ~21 tip to ~30.
+        hold = self.ap1_raise_holdoff
+        if hold.sticky_vego and float(hold.latched_vego_ms) > 0.0:
+          set_hint = float(hold.latched_vego_ms)
+        elif float(hold.tip_ms) > 0.0:
+          set_hint = float(hold.tip_ms)
+        else:
+          set_hint = float(v_cruise)
+        allow_raise, sticky_vego = hold.update(
           enabled,
           dn, up, rwd, float(self.slc_target), float(v_ego),
           current_set_ms=set_hint, dt=DT_MDL,

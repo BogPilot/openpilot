@@ -611,18 +611,123 @@ def test_ap1_after_dn_tip_slc_raise_not_until_pull():
 
 
 def test_ap1_card_feeds_button_states_levels():
-  """frogpilot_card AP1 path must read CI.CS.button_states for accel/decel."""
+  """frogpilot_card AP1 path must read CI.CS.button_states for accel/decel/RWD."""
   from pathlib import Path
   src = (Path(__file__).resolve().parents[4] / "frogpilot" / "controls" /
          "frogpilot_card.py").read_text()
   assert "_apply_ap1_stalk_levels" in src
   assert "button_states" in src
   assert "ButtonType.accelCruise" in src
+  assert "ButtonType.resumeCruise" in src
+  assert "resumePressed" in src
   vsrc = (Path(__file__).resolve().parents[4] / "frogpilot" / "controls" / "lib" /
           "frogpilot_vcruise.py").read_text()
   assert "fp_cs.accelPressed" in vsrc
   assert "fp_cs.decelPressed" in vsrc
+  assert "resumePressed" in vsrc
   assert "_ap1_accel_held" not in vsrc  # edge latch removed (was clear-before-update bug)
+  assert "_ap1_resume_held" not in vsrc  # RWD now continuous level, not buttonEvents
+  # Tip base must not floor with slc_desired (drive26/27 sticky→SLC tip jump)
+  assert "max(set_hint, float(slc_desired))" not in vsrc
+  assert "latched_vego_ms" in vsrc
+
+
+def test_ap1_short_rwd_while_enabled_clears_sticky_and_allows_raise():
+  """drive26 F1: short RWD hold while sticky must clear tip/sticky → allow_raise.
+
+  Models continuous resumePressed level seen for ~100 ms (2×50 ms ticks) while
+  enabled — the buttonEvents edge-only path missed these on route 26.
+  """
+  dt = 0.05
+  slc = 25 * MPH
+  vego = 20.9 * MPH
+  h = Ap1RaiseHoldoff()
+  # UP sticky engage
+  h.update(False, False, True, False, slc, vego, dt=dt)
+  allow, sticky = h.update(True, False, True, False, slc, vego, current_set_ms=vego, dt=dt)
+  assert allow is False and sticky == pytest.approx(vego)
+  h.update(True, False, False, False, slc, vego, current_set_ms=vego, dt=dt)
+  assert h.sticky_vego is True
+  # Short RWD level while enabled (two ticks ≈ 100 ms, no long hold needed)
+  allow, sticky = h.update(True, False, False, True, slc, vego, current_set_ms=vego, dt=dt)
+  assert h.tip_ms == 0.0
+  assert h.sticky_vego is False
+  assert sticky is None
+  assert allow is True
+  # Level released — raise still allowed
+  allow, sticky = h.update(True, False, False, False, slc, vego, current_set_ms=vego, dt=dt)
+  assert allow is True and sticky is None
+
+  # Same while tip authority is active: RWD clears tip → allow raise
+  h2 = Ap1RaiseHoldoff()
+  set30 = 30 * MPH
+  h2.update(True, False, False, False, slc, 24 * MPH, current_set_ms=set30, dt=dt)
+  h2.update(True, True, False, False, slc, 24 * MPH, current_set_ms=set30, dt=dt)
+  assert h2.tip_ms == pytest.approx(29 * MPH)
+  allow, _ = h2.update(True, False, False, True, slc, 24 * MPH, current_set_ms=29 * MPH, dt=dt)
+  assert h2.tip_ms == 0.0 and allow is True
+
+
+def test_ap1_tip_base_from_sticky_not_slc_floor():
+  """drive26/27 F2: engaged tip from sticky uses latch, not max(plan, SLC+offset).
+
+  DN from sticky ~20.9 → ~19.9 (not ~30). UP from sticky → +1 from sticky (not 31).
+  """
+  dt = 0.05
+  slc = 25 * MPH
+  vego = 20.9 * MPH
+  slc_floor = 31 * MPH  # what the buggy set_hint = max(plan, slc_desired) fed
+
+  # DN from sticky: tip base = latched vEgo (correct), not SLC floor
+  h = Ap1RaiseHoldoff()
+  h.update(False, False, False, True, slc, vego, dt=dt)  # arm nothing; settle
+  h.update(False, True, False, False, slc, vego, dt=dt)  # DN before enable
+  allow, sticky = h.update(True, True, False, False, slc, vego, current_set_ms=vego, dt=dt)
+  assert allow is False and sticky == pytest.approx(vego)
+  h.update(True, False, False, False, slc, vego, current_set_ms=vego, dt=dt)
+  # Second DN while sticky — pass sticky latch as current_set (vcruise fix)
+  allow, sticky = h.update(True, True, False, False, slc, vego, current_set_ms=vego, dt=dt)
+  assert sticky is None  # tip mode clears sticky
+  assert h.tip_ms == pytest.approx(vego - 1.0 * MPH)
+  assert h.tip_ms == pytest.approx(19.9 * MPH)
+  # Contrast: buggy SLC floor would have tipped to ~30
+  h_bad = Ap1RaiseHoldoff()
+  h_bad.update(True, False, False, False, slc, vego, current_set_ms=vego, dt=dt)
+  h_bad.sticky_vego = True
+  h_bad.latched_vego_ms = vego
+  h_bad._prev_enabled = True
+  allow, _ = h_bad.update(True, True, False, False, slc, vego, current_set_ms=slc_floor, dt=dt)
+  assert h_bad.tip_ms == pytest.approx(30 * MPH)  # documents the bug class
+
+  # UP from sticky: +1 from sticky, not jump to 31/32
+  h2 = Ap1RaiseHoldoff()
+  h2.update(False, False, True, False, slc, vego, dt=dt)
+  allow, sticky = h2.update(True, False, True, False, slc, vego, current_set_ms=vego, dt=dt)
+  assert sticky == pytest.approx(vego)
+  h2.update(True, False, False, False, slc, vego, current_set_ms=vego, dt=dt)
+  allow, sticky = h2.update(True, False, True, False, slc, vego, current_set_ms=vego, dt=dt)
+  assert h2.tip_ms == pytest.approx(vego + 1.0 * MPH)
+  assert h2.tip_ms == pytest.approx(21.9 * MPH)
+  assert allow is False
+
+  # After tip, further tip uses tip_ms (not SLC floor) as base
+  h2.update(True, False, False, False, slc, vego, current_set_ms=h2.tip_ms, dt=dt)
+  tip_before = h2.tip_ms
+  h2.update(True, True, False, False, slc, vego, current_set_ms=tip_before, dt=dt)
+  assert h2.tip_ms == pytest.approx(tip_before - 1.0 * MPH)
+
+
+def test_ap1_vcruise_tip_base_prefers_sticky_over_slc():
+  """Source: frogpilot_vcruise tip set_hint order is sticky → tip → plan."""
+  from pathlib import Path
+  vsrc = (Path(__file__).resolve().parents[4] / "frogpilot" / "controls" / "lib" /
+          "frogpilot_vcruise.py").read_text()
+  # sticky latch before tip_ms before plan
+  i_sticky = vsrc.index("hold.sticky_vego")
+  i_tip = vsrc.index("hold.tip_ms")
+  i_plan = vsrc.index("set_hint = float(v_cruise)")
+  assert i_sticky < i_tip < i_plan
+
 
 
 def test_carstate_source_uses_di_cruise_set_not_digital():

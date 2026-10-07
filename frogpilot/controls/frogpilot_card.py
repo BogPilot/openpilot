@@ -29,6 +29,7 @@ class FrogPilotCard:
 
     self.accel_pressed = False
     self.decel_pressed = False
+    self.resume_pressed = False
     self.force_coast = False
     self.pause_lateral = False
     self.pause_longitudinal = False
@@ -91,12 +92,13 @@ class FrogPilotCard:
       self.traffic_mode_enabled = not self.traffic_mode_enabled
 
   def _apply_ap1_stalk_levels(self):
-    """AP1: publish continuous UP/DN stalk levels onto accel/decelPressed.
+    """AP1: publish continuous UP/DN/RWD stalk levels onto frogpilotCarState.
 
     Tesla carstate.button_states tracks SpdCtrlLvr_Stat while held; buttonEvents
     only fire on transitions (~10 ms). Planner samples frogpilotCarState at
-    DT_MDL, so levels are required for sticky engage latch and tip hold timing.
-    accelPressed is UP-only (not OR resume) so tip-up does not fire on RWD.
+    DT_MDL, so levels are required for sticky engage latch, tip hold timing,
+    and engaged RWD pull (re-latch SLC+offset). accelPressed is UP-only (not
+    OR resume) so tip-up does not fire on RWD; resumePressed carries pull.
     """
     if self.car.CP.carFingerprint != CAR.TESLA_AP1_MODELS:
       return
@@ -106,6 +108,7 @@ class FrogPilotCard:
       return
     self.accel_pressed = bool(bs.get(ButtonType.accelCruise, False))
     self.decel_pressed = bool(bs.get(ButtonType.decelCruise, False))
+    self.resume_pressed = bool(bs.get(ButtonType.resumeCruise, False))
 
   def _apply_ap1_stalk(self):
     """AP1 distance stalk drives the existing personality icon and traffic mode.
@@ -163,8 +166,8 @@ class FrogPilotCard:
     if sm.updated["frogpilotPlan"] or any(be.type == ButtonType.decelCruise for be in carState.buttonEvents):
       self.decel_pressed = any(be.type == ButtonType.decelCruise for be in carState.buttonEvents)
 
-    # AP1: continuous stalk levels from carstate.button_states (buttonEvents are
-    # ~10 ms edges; frogpilot_vcruise at 20 Hz misses ~half of them).
+    # AP1: continuous UP/DN/RWD levels from carstate.button_states (buttonEvents
+    # are ~10 ms edges; frogpilot_vcruise at 20 Hz misses short holds).
     self._apply_ap1_stalk_levels()
 
     self.force_coast &= not (carState.brakePressed or carState.gasPressed)
@@ -193,6 +196,7 @@ class FrogPilotCard:
     frogpilotCarState.accelPressed = self.accel_pressed
     frogpilotCarState.alwaysOnLateralEnabled = self.always_on_lateral_enabled
     frogpilotCarState.decelPressed = self.decel_pressed
+    frogpilotCarState.resumePressed = self.resume_pressed
     frogpilotCarState.distanceLongPressed = self.very_long_press_threshold > self.gap_counter >= self.long_press_threshold
     frogpilotCarState.distanceVeryLongPressed = self.gap_counter >= self.very_long_press_threshold
     frogpilotCarState.forceCoast = self.force_coast
