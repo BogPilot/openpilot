@@ -627,9 +627,10 @@ def test_ap1_card_feeds_button_states_levels():
   assert "resumePressed" in vsrc
   assert "_ap1_accel_held" not in vsrc  # edge latch removed (was clear-before-update bug)
   assert "_ap1_resume_held" not in vsrc  # RWD now continuous level, not buttonEvents
-  # Tip base must not floor with slc_desired (drive26/27 sticky→SLC tip jump)
-  assert "max(set_hint, float(slc_desired))" not in vsrc
+  # Sticky latch must still beat slc_desired (drive26/27); post-pull floor is ok (drive28)
+  assert "hold.sticky_vego" in vsrc
   assert "latched_vego_ms" in vsrc
+  assert vsrc.index("hold.sticky_vego") < vsrc.index("max(set_hint, float(slc_desired))")
 
 
 def test_ap1_short_rwd_while_enabled_clears_sticky_and_allows_raise():
@@ -718,16 +719,103 @@ def test_ap1_tip_base_from_sticky_not_slc_floor():
 
 
 def test_ap1_vcruise_tip_base_prefers_sticky_over_slc():
-  """Source: frogpilot_vcruise tip set_hint order is sticky → tip → plan."""
+  """Source: frogpilot_vcruise tip set_hint order is sticky → tip → raised/plan."""
   from pathlib import Path
   vsrc = (Path(__file__).resolve().parents[4] / "frogpilot" / "controls" / "lib" /
           "frogpilot_vcruise.py").read_text()
-  # sticky latch before tip_ms before plan
+  # sticky latch before tip_ms before plan; post-pull floors with slc_desired
   i_sticky = vsrc.index("hold.sticky_vego")
   i_tip = vsrc.index("hold.tip_ms")
   i_plan = vsrc.index("set_hint = float(v_cruise)")
   assert i_sticky < i_tip < i_plan
+  assert "set_hint = max(set_hint, float(slc_desired))" in vsrc
+  assert "hold.tip_ms = float(v_cruise)" in vsrc  # seed tip after raise
 
+
+def test_ap1_tip_after_raise_not_di_half_seed():
+  """drive28: after RWD raise to SLC+offset, tip DN must be raised−1, not DI≈vEgo/2.
+
+  Logged: fp=51 dig=51 di_set/cs_v≈22; tip DN → fp/over=21 (half cliff).
+  User wanted 51→50. Root cause: tip_ms cleared on raise; set_hint=post-min DI.
+  """
+  dt = 0.05
+  slc = 45 * MPH
+  raised = 51 * MPH  # 45+6
+  di_half = 22.0 * MPH  # post-min DI / cs_v while overlay shows 51
+  vego = 44.2 * MPH
+
+  # Soft-sim of frogpilot_vcruise set_hint + tip seed (drive28 fix)
+  def set_hint_for(hold, v_cruise_post_min, slc_desired):
+    if hold.sticky_vego and float(hold.latched_vego_ms) > 0.0:
+      return float(hold.latched_vego_ms)
+    if float(hold.tip_ms) > 0.0:
+      return float(hold.tip_ms)
+    hint = float(v_cruise_post_min)
+    if slc_desired is not None and float(slc_desired) >= 1.0:  # CRUISING-ish
+      hint = max(hint, float(slc_desired))
+    return hint
+
+  def apply_raise_and_seed(hold, v_cruise_post_min, slc_desired):
+    from openpilot.selfdrive.car.tesla.slc_raise import apply_slc_raise_after_min
+    v = apply_slc_raise_after_min(
+      v_cruise_post_min, slc_desired, slc, 1.0 * MPH, False, v_cruise_post_min)
+    if float(v) > 0.0 and float(hold.tip_ms) <= 0.0:
+      hold.tip_ms = float(v)
+      hold.tip_dir = 0
+    return v
+
+  # --- OLD bug path (no floor / no seed): tip from DI half ---
+  h_old = Ap1RaiseHoldoff()
+  h_old.update(True, False, False, False, slc, vego, current_set_ms=di_half, dt=dt)
+  # RWD while engaged clears tip (already 0) → allow_raise
+  allow, sticky = h_old.update(True, False, False, True, slc, vego, current_set_ms=di_half, dt=dt)
+  assert allow is True and sticky is None and h_old.tip_ms == 0.0
+  h_old.update(True, False, False, False, slc, vego, current_set_ms=di_half, dt=dt)
+  # Buggy set_hint = post-min DI only
+  bad_hint = di_half
+  allow, _ = h_old.update(True, True, False, False, slc, vego, current_set_ms=bad_hint, dt=dt)
+  assert h_old.tip_ms == pytest.approx(di_half - 1.0 * MPH)  # ~21 — the cliff
+
+  # --- NEW fix: set_hint floors with raised; raise seeds tip ---
+  h = Ap1RaiseHoldoff()
+  h.update(True, False, False, False, slc, vego, current_set_ms=di_half, dt=dt)
+  allow, sticky = h.update(True, False, False, True, slc, vego,
+                           current_set_ms=set_hint_for(h, di_half, raised), dt=dt)
+  assert allow is True and h.tip_ms == 0.0
+  # Same frame as allow_raise: seed tip from raised set
+  v = apply_raise_and_seed(h, di_half, raised)
+  assert v == pytest.approx(raised)
+  assert h.tip_ms == pytest.approx(raised)
+  assert h.tip_dir == 0
+  # Release RWD; tip authority holds raised (allow_raise False)
+  allow, sticky = h.update(True, False, False, False, slc, vego,
+                           current_set_ms=set_hint_for(h, di_half, raised), dt=dt)
+  assert allow is False and h.tip_ms == pytest.approx(raised)
+  # Tip DN: base = tip_ms (raised), not DI → 50
+  hint = set_hint_for(h, di_half, raised)
+  assert hint == pytest.approx(raised)
+  allow, _ = h.update(True, True, False, False, slc, vego, current_set_ms=hint, dt=dt)
+  assert h.tip_ms == pytest.approx(raised - 1.0 * MPH)
+  assert h.tip_ms == pytest.approx(50 * MPH)
+  # Further DN stays latched on tip path
+  h.update(True, False, False, False, slc, vego, current_set_ms=h.tip_ms, dt=dt)
+  tip_before = h.tip_ms
+  h.update(True, True, False, False, slc, vego, current_set_ms=tip_before, dt=dt)
+  assert h.tip_ms == pytest.approx(tip_before - 1.0 * MPH)
+  assert h.tip_ms == pytest.approx(49 * MPH)
+
+
+def test_ap1_vcruise_set_hint_after_raise_floors_slc_not_di():
+  """Source+policy: post-pull set_hint must max with slc_desired (not DI alone)."""
+  from pathlib import Path
+  vsrc = (Path(__file__).resolve().parents[4] / "frogpilot" / "controls" / "lib" /
+          "frogpilot_vcruise.py").read_text()
+  assert "drive28" in vsrc
+  assert "vEgo/2" in vsrc
+  # Seed after apply_slc_raise_after_min
+  i_raise = vsrc.index("apply_slc_raise_after_min")
+  i_seed = vsrc.index("hold.tip_ms = float(v_cruise)")
+  assert i_raise < i_seed
 
 
 def test_carstate_source_uses_di_cruise_set_not_digital():

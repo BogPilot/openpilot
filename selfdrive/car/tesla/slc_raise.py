@@ -14,12 +14,16 @@ Engage / tip policy (simplified):
     frogpilot_vcruise samples at 20 Hz and misses short holds (drive26 RWD).
   - While engaged, stalk UP/DN only adjust the software set the same way both
     directions (+1 / next-5 up, −1 / next-lower-5 down). Tip base is the current
-    software set (sticky latch / tip_ms / plan) — never max(plan, SLC+offset).
-    No DECEL raise holdoff. Engaged RWD/pull clears tip+sticky and re-allows raise.
-  - Tipped set is authority until stalk pull (re-latch SLC+offset) or disengage;
-    SLC raise must not yank the set back up after a down tip. Never follow stale
-    DI_cruiseSet under OP overlay. AP1 buttonEvents are binary (UP_1ST/UP_2ND
-    both map to accelCruise), so full vs short is hold duration.
+    software set (sticky latch / tip_ms / raised set). Sticky still wins first
+    (never max(plan, SLC) while sticky — drive26/27). After RWD raise, vcruise
+    seeds tip_ms = raised SLC+offset and floors set_hint with slc_desired so
+    tips never base off DI_cruiseSet (~vEgo/2 under overlay — drive28).
+    No DECEL raise holdoff. Engaged RWD/pull clears tip+sticky and re-allows raise
+    (then re-seeds tip from the new raise).
+  - Tipped / post-raise set is authority until stalk pull (re-latch SLC+offset)
+    or disengage; SLC raise must not yank the set back up after a down tip.
+    Never follow stale DI_cruiseSet under OP overlay. AP1 buttonEvents are binary
+    (UP_1ST/UP_2ND both map to accelCruise), so full vs short is hold duration.
   - Tips adjust the software set only — they must not send cancel / FWD stalk TX
     (stock DI_cruiseState can soft-lock to STANDBY after cancel + stalk spam).
 
@@ -120,8 +124,10 @@ class Ap1RaiseHoldoff:
     Caller must pass continuous stalk levels (button_states), not edge-only events
       (UP/DN/RWD via accelPressed/decelPressed/resumePressed)
     Engaged UP/DN → software set tip (±1 short / ± next-5 long); same both ways
-    Tip current_set_ms from sticky latch / tip_ms / plan — never SLC+offset floor
-    Tipped set is authority until RWD pull (re-latch SLC+offset) or disengage;
+    Tip current_set_ms from sticky latch / tip_ms / raised set — sticky first
+      (never SLC floor while sticky); after pull raise, set_hint floors with
+      slc_desired and tip_ms is seeded to the raised set (never DI half-seed)
+    Tipped / seeded-raise set is authority until RWD pull or disengage;
       never follow DI_cruiseSet; SLC raise must not reclaim after a down tip
     tip_ms fed as slc.overridden_speed so Max Set Speed gas returns to the tip
   """

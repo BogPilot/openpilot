@@ -109,8 +109,12 @@ class FrogPilotVCruise:
         up = bool(fp_cs.accelPressed)
         dn = bool(fp_cs.decelPressed)
         rwd = bool(getattr(fp_cs, "resumePressed", False))
-        # Tip base = current software set (sticky latch / tip / plan). NEVER
-        # floor with slc_desired — that made engaged DN from sticky ~21 tip to ~30.
+        # Tip base = current software set (sticky latch / tip / raised set).
+        # NEVER use raw post-min DI alone after a pull raise — DI_cruiseSet is
+        # ~vEgo/2 under OP overlay (drive28: tip DN from 51 latched ~21/24.5).
+        # Sticky still wins first so engaged tip-from-sticky is not SLC-floored
+        # (drive26/27 F2). When neither sticky nor tip (post-pull allow_raise),
+        # floor the hint with slc_desired so tip ±1 from the raised set.
         hold = self.ap1_raise_holdoff
         if hold.sticky_vego and float(hold.latched_vego_ms) > 0.0:
           set_hint = float(hold.latched_vego_ms)
@@ -118,6 +122,8 @@ class FrogPilotVCruise:
           set_hint = float(hold.tip_ms)
         else:
           set_hint = float(v_cruise)
+          if slc_desired is not None and float(slc_desired) >= CRUISING_SPEED:
+            set_hint = max(set_hint, float(slc_desired))
         allow_raise, sticky_vego = hold.update(
           enabled,
           dn, up, rwd, float(self.slc_target), float(v_ego),
@@ -149,5 +155,11 @@ class FrogPilotVCruise:
           v_cruise = apply_slc_raise_after_min(
             v_cruise, slc_desired, self.slc_target, CRUISING_SPEED,
             self.csc_controlling_speed, self.csc_target)
+          # Seed tip authority from the raised set so subsequent tips ±1/±5
+          # from SLC+offset and never fall through to DI half-speed (drive28).
+          if float(v_cruise) > 0.0 and float(hold.tip_ms) <= 0.0:
+            hold.tip_ms = float(v_cruise)
+            hold.tip_dir = 0
+            self.slc.overridden_speed = max(float(self.slc.overridden_speed), float(v_cruise))
 
     return v_cruise
