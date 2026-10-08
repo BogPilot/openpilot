@@ -5215,10 +5215,6 @@ Developer - こだわりのある上級者向けの高度にカスタマイズ�
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&lt;b&gt;Show how confident the driving model is&lt;/b&gt; with a small ball on the right edge of the driving screen, like the comma four.&lt;br&gt;&lt;br&gt;&lt;b&gt;High and green&lt;/b&gt;: the model expects to keep driving without help&lt;br&gt;&lt;b&gt;Lower and orange&lt;/b&gt;: under 50%, it thinks you may need to brake or steer soon&lt;br&gt;&lt;b&gt;Low and red&lt;/b&gt;: under 20%, be ready to take over&lt;br&gt;&lt;b&gt;White / grey&lt;/b&gt;: you are overriding openpilot&lt;br&gt;&lt;br&gt;The ball slides out of view when openpilot is off. Display only. It doesn't change how openpilot drives.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Developer HUD</source>
         <translation type="unfinished"></translation>
     </message>
@@ -5228,6 +5224,18 @@ Developer - こだわりのある上級者向けの高度にカスタマイズ�
     </message>
     <message>
         <source>&lt;b&gt;Custom BogPilot widgets&lt;/b&gt; for the driving screen.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Show how confident the driving model is&lt;/b&gt; with a small ball on the edge of the driving screen, like the comma four.&lt;br&gt;&lt;br&gt;&lt;b&gt;Left&lt;/b&gt; (default) or &lt;b&gt;Right&lt;/b&gt; picks the edge. When the map covers that side, the ball moves to the other edge until the map closes.&lt;br&gt;&lt;br&gt;&lt;b&gt;High and green&lt;/b&gt;: the model expects to keep driving without help&lt;br&gt;&lt;b&gt;Lower and orange&lt;/b&gt;: under 50%, it thinks you may need to brake or steer soon&lt;br&gt;&lt;b&gt;Low and red&lt;/b&gt;: under 20%, be ready to take over&lt;br&gt;&lt;b&gt;White / grey&lt;/b&gt;: you are overriding openpilot&lt;br&gt;&lt;br&gt;The ball slides out of view when openpilot is off. Display only. It doesn't change how openpilot drives.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
