@@ -7,6 +7,8 @@
 #include "selfdrive/ui/qt/offroad/onboarding.h"
 #include "selfdrive/ui/qt/offroad/settings.h"
 
+#include "frogpilot/ui/screenstream/screen_stream.h"
+
 class MainWindow : public QWidget {
   Q_OBJECT
 
@@ -25,4 +27,7 @@ private:
 
   // FrogPilot variables
   Params params;
+
+  // BogPilot: view-only browser stream of this window (port 8888)
+  ScreenStream *screenStream;
 };
