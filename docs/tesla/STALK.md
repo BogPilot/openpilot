@@ -2,7 +2,7 @@
 
 BogPilot is not a product. No warranty. The driver remains responsible. Comply with local law. This is research code; it has been driven on one AP1 Model S, which is not a safety validation.
 
-The AP1 cruise stalk reports two signals on `STW_ACTN_RQ` (0x45): `SpdCtrlLvr_Stat` (tip up / down, pull, push forward) and `DTR_Dist_Rq` (twist for follow distance). This page covers both, as of tag `ap1-driving-milestone-3`.
+The AP1 cruise stalk reports two signals on `STW_ACTN_RQ` (0x45): `SpdCtrlLvr_Stat` (tip up / down, pull, push forward) and `DTR_Dist_Rq` (twist for follow distance). This page covers both, as of tag `ap1-driving-milestone-3` plus the tip-engage hold, 1 mph tip floor, and SLC posted-limit guard that follow it.
 
 ## Cruise stalk (`SpdCtrlLvr_Stat`)
 
@@ -34,7 +34,7 @@ From `opendbc/tesla_can.dbc` (`VAL_ 69 SpdCtrlLvr_Stat`) and `BUTTONS` in `selfd
 
 | Gesture | Raw | When disengaged | When engaged |
 | --- | --- | --- | --- |
-| Tip up or down (first position or full tip) | 16, 32, 4, 8 | Stock cruise engages. openpilot latches the **current speed** (sticky). It does not jump to the posted limit. | First position: set ± 1 mph. Full tip: next multiple of 5 up / next-lower multiple of 5 down. |
+| Tip up or down (first position or full tip) | 16, 32, 4, 8 | Stock cruise engages. openpilot latches the **current speed** (sticky) and holds it through posted-limit changes in both directions until a pull or a disengage. It does not jump to the posted limit. | First position: set ± 1 mph. Full tip: next multiple of 5 up / next-lower multiple of 5 down. |
 | Short pull | 2 | Stock cruise engages. openpilot sets **posted limit + offset** and tracks the limit. | Clears any tip or sticky latch and returns to **posted limit + offset** (tracking). |
 | Pull held ~2 s | 2 | Same as a short pull. The engage pull never toggles Experimental Mode. | One Experimental Mode toggle (see below). The pull itself also returns to posted limit + offset. |
 | Short push forward | 1 | Nothing from openpilot. | Stock cancel. openpilot disengages; tip and sticky latch are cleared. |
@@ -44,7 +44,7 @@ From `opendbc/tesla_can.dbc` (`VAL_ 69 SpdCtrlLvr_Stat`) and `BUTTONS` in `selfd
 
 On the rising edge of `cruiseState.enabled`, `Ap1RaiseHoldoff` looks at which stalk input was pressed most recently within the last 0.8 s (`RECENT_S`; Tesla clears the stalk 80–240 ms before cruise reports enabled):
 
-- UP or DN → **sticky**: the set speed is the current speed at engage (`latched_vego_ms`). A lower posted limit + offset still caps it, and curve speed control can still slow below it. If SLC then sees a higher posted limit (a rise of more than 0.5 m/s, about 1 mph, `LIMIT_RISE_MS`), the sticky latch ends and the set speed rises to the new limit + offset. An engaged tip also ends the sticky latch and starts a tip from the latched speed.
+- UP or DN → **sticky**: the set speed is the current speed at engage (`latched_vego_ms`). Like a tipped set, it holds through posted-limit changes in both directions until a pull or a disengage: a higher limit does not raise it (a tip-engage at 15 in a school zone does not pick up a 25 or 35 sign) and a lower limit does not lower it. Only curve speed control can slow below it. An engaged tip ends the sticky latch and starts a tip from the latched speed. A tip-engage below 15 mph (for example about 9 mph) holds the same way.
 - RWD (pull) → **SLC tracking**: the set speed is posted limit + offset, lifted after FrogPilot's `min()` merge so a low `DI_cruiseSet` cannot undo it, and it follows the limit up and down.
 - No stalk input in the window → same as a pull.
 
@@ -55,9 +55,18 @@ On the rising edge of `cruiseState.enabled`, `Ap1RaiseHoldoff` looks at which st
 - Full tip (4 / 8), straight to the second position or reached during the same press: the next multiple of 5 above the base (`next_5_ms`: 50 → 55, 51 → 55) or the next-lower multiple of 5 (`prev_5_ms`: 50 → 45, 51 → 50). Example from route `0000002a`: at a set of 50, a full tip down gives 45, and again gives 40.
 - Holding the full tip does one 5 mph step. There is no repeating scroll; release and tip again for the next step.
 - Fallback: holding the first position for 0.45 s (`TIP_HOLD_S`) without reaching the second position also upgrades that press to the next-5 step once.
-- Range: capped at `V_CRUISE_MAX` (145 km/h) and floored at 0.
+- Range: capped at `V_CRUISE_MAX` (145 km/h) and floored at 1 mph (`TIP_MIN_MS`). Tips can go below 15 mph (a full tip down from 15 gives 10, then ±1 to 9, 8, … 1); a further tip down stays at 1. The floor keeps a tip from reaching 0, which the code treats as "no tip" and which used to drop back to SLC tracking at posted limit + offset.
 - **A tipped set is authority until a pull or a disengage.** Speed limit zone changes do not clear it in either direction: a higher posted limit does not raise it (a 15 mph school-zone tip does not pick up a 25 or 35 sign) and a lower posted limit does not lower it. Curve speed control can still slow below it. The tip is also written to SLC's `overridden_speed`, so FrogPilot's gas-pedal override returns to the tip.
 - Tips change the software set only. openpilot sends no cancel or stalk frame for a tip.
+
+### Posted-limit guard (SLC only)
+
+`Ap1SlcLimitGuard` (`slc_raise.py`, applied in `frogpilot_vcruise.py` on AP1 with SLC on) filters the posted limit that SLC tracking and pull engage use, and the limit openpilot publishes as `frogpilotPlan.slcSpeedLimit`. It does not touch tips, tip-engage, or the tip floor.
+
+- A posted limit under 15 mph is ignored, even if it persists: openpilot keeps the previous valid limit (or no limit if there was none). 15 mph itself is valid (school zones). Route `0000002a` had a ~1.4 s Mobileye 5 mph reading in a 45 zone that dropped the SLC-tracking set from 51 to about 6 mph; with the guard it stays at 51.
+- A sudden drop, more than 15 mph or to below half the current limit (45 → 25, 65 → 45, 40 → 15), must persist for 2 s before SLC tracking follows it. Normal one-sign drops of 15 mph or less (45 → 30, 35 → 25, 30 → 15) apply immediately, as before.
+- Rises apply immediately. "No limit" (0) passes through unchanged.
+- The car's own cluster speed-limit sign comes from the car and is not changed.
 
 ### Pull while engaged
 

@@ -1,7 +1,7 @@
 """AP1 regen-sized comfort braking preference.
 
 On 2012–2016 Model S AP1 the brake pedal is friction-only; regen happens on
-accelerator lift and tops out around 1–1.5 m/s². Stock openpilot COMFORT_BRAKE
+accelerator lift and tops out around 1–1.5 m/s² (about 1.0 at 30–35 mph). Stock openpilot COMFORT_BRAKE
 is 2.5 m/s², so lead approaches start late and need friction. This module
 exposes a file-backed toggle and the AP1 comfort-brake target used by the
 longitudinal MPC lead cost (runtime x_obstacle adjustment; acados solver
@@ -29,8 +29,11 @@ from pathlib import Path
 STOCK_COMFORT_BRAKE = 2.5
 
 # Regen-sized comfort target for AP1 lead approaches (m/s²).
-# Friction on this car appears around ~0.9–1.0 m/s² requested; regen tops ~1–1.5.
-AP1_REGEN_COMFORT_BRAKE = 1.2
+# Route 0000002a: at 30–35 mph regen alone topped out near 1.0 m/s² actual
+# decel before the friction brakes joined, so the comfort target is 1.0.
+# At v = 0 the lead cost reduces to STOP_DISTANCE for any value here, so the
+# stopped gap does not change.
+AP1_REGEN_COMFORT_BRAKE = 1.0
 
 REGEN_COMFORT_DIR = Path("/data/params_bogpilot")
 REGEN_COMFORT_PATH = REGEN_COMFORT_DIR / "RegenComfortBrake"
