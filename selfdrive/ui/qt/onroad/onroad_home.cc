@@ -52,12 +52,16 @@ OnroadWindow::OnroadWindow(QWidget *parent) : QWidget(parent) {
   // FrogPilot variables
   frogpilot_onroad = new FrogPilotOnroadWindow(this);
   frogpilot_onroad->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+
+  // BogPilot confidence ball, above the border overlay
+  confidence_ball = new ConfidenceBall(this);
 }
 
 void OnroadWindow::resizeEvent(QResizeEvent *event) {
   QWidget::resizeEvent(event);
 
   frogpilot_onroad->setGeometry(rect());
+  confidence_ball->placeIn(rect());
 }
 
 void OnroadWindow::updateState(const UIState &s, const FrogPilotUIState &fs) {
@@ -88,6 +92,9 @@ void OnroadWindow::updateState(const UIState &s, const FrogPilotUIState &fs) {
   nvg->frogpilot_nvg->alertHeight = alerts->alertHeight;
 
   frogpilot_onroad->updateState(s, fs);
+
+  // Hidden while the map covers the right edge
+  confidence_ball->updateState(s, !isMapVisible() || (s.scene.map_on_left && nvg->isVisible()));
 }
 
 void OnroadWindow::mousePressEvent(QMouseEvent* e) {

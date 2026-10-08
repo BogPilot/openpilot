@@ -1,6 +1,7 @@
 #pragma once
 
 #include "frogpilot/ui/qt/offroad/frogpilot_settings.h"
+#include "frogpilot/ui/qt/onroad/confidence_ball.h"
 
 class FrogPilotVisualsPanel : public FrogPilotListWidget {
   Q_OBJECT
