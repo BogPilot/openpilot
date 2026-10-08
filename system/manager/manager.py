@@ -86,6 +86,15 @@ def manager_init() -> None:
   params.remove("DoToggleReset")
   params.remove("DoToggleResetStock")
 
+  # BogPilot: one-time AP1 toggle profile. A toggle reset re-applies it; a reset to stock does not.
+  try:
+    from openpilot.selfdrive.car.tesla.ap1_defaults import apply_ap1_defaults_once, clear_ap1_defaults_marker
+    if reset_toggles:
+      clear_ap1_defaults_marker()
+    apply_ap1_defaults_once(params)
+  except Exception:
+    pass
+
   frogpilot_boot_functions(build_metadata, params_cache)
 
   # Create folders needed for msgq

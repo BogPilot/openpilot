@@ -15,6 +15,7 @@ from openpilot.frogpilot.common.frogpilot_variables import ERROR_LOGS_PATH, Frog
 from openpilot.frogpilot.controls.frogpilot_planner import FrogPilotPlanner
 from openpilot.frogpilot.system.frogpilot_stats import send_stats
 from openpilot.frogpilot.system.frogpilot_tracking import FrogPilotTracking
+from openpilot.selfdrive.car.tesla.ap1_defaults import apply_ap1_defaults_once
 
 ASSET_CHECK_RATE = (1 / DT_MDL)
 
@@ -128,6 +129,10 @@ def frogpilot_thread():
       assets_checks(model_manager, theme_manager, frogpilot_toggles)
 
     if params_memory.get_bool("FrogPilotTogglesUpdated") or theme_manager.theme_updated:
+      # BogPilot: an owner who just picked AP1 in Vehicle Settings gets the AP1 profile once, offroad
+      if not started:
+        apply_ap1_defaults_once(params, refresh=False)
+
       previous_holiday_themes = frogpilot_toggles.holiday_themes
       previous_random_themes = frogpilot_toggles.random_themes
 
