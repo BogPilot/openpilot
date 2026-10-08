@@ -17,9 +17,17 @@ No new Params keys (the prebuilt params_pyx.so raises on unknown keys): the
 marker and the file toggles live in /data/params_bogpilot. Nothing here touches
 CarParams, panda safety, or driving code; it only stores toggle values.
 
-The profile only lists values that differ from the table defaults. Keys that
-are secret, personal, or tied to one device or car are never part of it (see
+The profile only lists values that differ from the table defaults, except the
+few in EXPLICIT_DEFAULT_KEYS that are spelled out on purpose. Keys that are
+secret, personal, or tied to one device or car are never part of it (see
 NEVER_PROFILE_KEYS); the tests enforce that.
+
+Speed-limit offsets are kept in mph (AP1_SPEED_OFFSETS_MPH). On a metric device
+(IsMetric) they are converted to km/h and rounded before writing, because the
+Offset params are stored in the device's display unit.
+
+The theme is left on the table default, the BogPilot theme, which renders like
+the stock openpilot look (see BOGPILOT_THEME_RESOLVES_TO in frogpilot_variables).
 """
 
 from pathlib import Path
@@ -59,12 +67,33 @@ NEVER_PROFILE_KEYS = frozenset({
   "MinimumBackupSize", "LastKnownTime",
   # connectivity, uploads, data sharing, updates
   "SshEnabled", "TetheringEnabled", "GsmRoaming", "NoUploads", "NoLogging", "DisableOnroadUploads",
-  "UseKonikServer", "HigherBitrate", "DeviceManagement", "AutomaticUpdates", "FrogPilotTelemetry",
+  "UseKonikServer", "HigherBitrate", "DeviceManagement", "AutomaticUpdates",
   # units are the owner's locale, not an AP1 recommendation
   "IsMetric", "Fahrenheit", "UseSI",
   # driving model: a fresh device won't have the maintainer's model downloaded
   "Model",
 })
+
+# Keys deliberately listed even though the value equals the table default, so the
+# profile states the maintainer's full choice for them.
+EXPLICIT_DEFAULT_KEYS = frozenset({"AccelerationProfile"})
+
+# Theme params. The profile never sets them: AP1 installs keep the table default,
+# the BogPilot theme.
+THEME_KEYS = ("CustomColors", "CustomDistanceIcons", "CustomIcons", "CustomSignals", "CustomSounds", "WheelIcon")
+
+# Speed-limit controller offsets in mph, by posted-limit band (the bands are the
+# settings labels for Offset1..Offset7 and speed_limit_controller.py's mph table).
+AP1_SPEED_OFFSETS_MPH: dict[str, int] = {
+  "Offset1": 4,                          # 0-24 mph limits: +4
+  "Offset2": 5,                          # 25-34 mph: +5
+  "Offset3": 5,                          # 35-44 mph: +5
+  "Offset4": 5,                          # 45-54 mph: +5
+  "Offset5": 7,                          # 55-64 mph: +7
+  "Offset6": 8,                          # 65-74 mph: +8
+  "Offset7": 10,                         # 75-99 mph: +10 (same as the table default)
+}
+MPH_TO_KPH = 1.609344
 
 # Recommended Params values. Strings are stored exactly as the settings UI writes them.
 AP1_PARAM_PROFILE: dict[str, str] = {
@@ -74,16 +103,17 @@ AP1_PARAM_PROFILE: dict[str, str] = {
   "CENavigationIntersections": "1",      # CE child: EM for nav intersections (inert while CE is off)
   "CustomPersonalities": "1",            # custom follow-distance personalities on
   "RelaxedFollow": "2.000000",           # Relaxed personality follow time 2.0 s (default 1.75 s)
-  "DecelerationProfile": "2",            # deceleration profile Sport (firmer braking; default Eco)
+  # Profile enums (longitudinal_settings.cc): acceleration 0 Standard, 1 Eco, 2 Sport, 3 Sport+;
+  # deceleration 0 Standard, 1 Eco, 2 Eco+.
+  "AccelerationProfile": "2",            # acceleration profile Sport (same as the table default, listed on purpose)
+  "DecelerationProfile": "2",            # deceleration profile Eco+ (coasts more, brakes as softly as possible; default Eco)
   "NewLongAPI": "0",                     # comma new long API off (Hyundai-only, no effect on Tesla)
   "SLCOverride": "2",                    # SLC override after driving faster: Max Set Speed
   "SLCPriority1": "Dashboard",           # SLC source 1: Dashboard (BogPilot feeds AP1 cluster limits here)
   "SLCPriority3": "Navigation",          # SLC source 3: Navigation
   "SLCLookaheadHigher": "1.000000",      # look 1 s ahead for a higher upcoming limit
   "SLCLookaheadLower": "1.000000",       # look 1 s ahead for a lower upcoming limit
-  "Offset2": "6.000000",                 # SLC offset 25-34 mph: +6 (device units)
-  "Offset3": "6.000000",                 # SLC offset 35-54 mph: +6 (device units)
-  "Offset4": "6.000000",                 # SLC offset 55-99 mph: +6 (device units)
+  # Offset1..Offset7 come from AP1_SPEED_OFFSETS_MPH (unit-aware), not from this table.
 
   # --- Lateral ---
   "AlwaysOnLateral": "0",                # Always On Lateral off
@@ -103,14 +133,12 @@ AP1_PARAM_PROFILE: dict[str, str] = {
   "CameraView": "0",                     # camera view Auto (default Wide)
   "DriverCamera": "1",                   # show driver camera in reverse
   "MapStyle": "0",                       # map style: stock openpilot
-  "CustomColors": "stock",               # theme colors: stock (default BogPilot)
-  "CustomIcons": "stock",                # theme icons: stock (default BogPilot)
-  "CustomSignals": "none",               # turn-signal animation: none (default BogPilot)
-  "CustomSounds": "stock",               # theme sounds: stock (default BogPilot)
-  "WheelIcon": "stock",                  # steering wheel icon: stock (default BogPilot)
+  # Theme: not set here. The table default BogPilot theme already looks like stock (see THEME_KEYS).
 
   # --- Alerts / sounds ---
   "AlertVolumeControl": "1",             # per-alert volume control on
+  # Engage/disengage chimes muted: current Tesla firmware forces the car's own AP engage/disengage
+  # sounds on, so AP1 owners already hear the car and a BogPilot chime on top is redundant.
   "EngageVolume": "0.000000",            # engage chime muted (default 101 = auto)
   "DisengageVolume": "0.000000",         # disengage chime muted (default 101 = auto); warnings unaffected
   "CustomAlerts": "1",                   # FrogPilot custom alerts on
@@ -119,6 +147,10 @@ AP1_PARAM_PROFILE: dict[str, str] = {
 
   # --- System ---
   "PreferredSchedule": "1",              # OSM map update schedule: Weekly (default Monthly)
+  # Forced telemetry opt-out: FrogPilot telemetry and stats uploads off (default 1 = on). This is the one
+  # data-sharing key the profile sets, and only toward sharing less. Same once-only rule as the rest, so an
+  # owner who later opts in keeps that choice.
+  "FrogPilotTelemetry": "0",
   "TuningLevel": "3",                    # Developer tuning level (needed for the level-3 toggles above)
   "TuningLevelConfirmed": "1",           # mark the level chosen so the first-open popup keeps Developer
 }
@@ -168,6 +200,43 @@ def _persistent_fingerprint(params) -> str | None:
     return None
 
 
+def _is_metric(params) -> bool:
+  try:
+    return _text(params.get("IsMetric")) == "1"
+  except Exception:
+    return False
+
+
+def speed_offsets_for_units(metric: bool) -> dict[str, str]:
+  """Offset1..7 as stored text: mph as-is, or converted to km/h and rounded on a metric device."""
+  out = {}
+  for key, mph in AP1_SPEED_OFFSETS_MPH.items():
+    value = round(mph * MPH_TO_KPH) if metric else mph
+    out[key] = f"{value:.6f}"
+  return out
+
+
+def _profile_for_units(params) -> dict[str, str]:
+  profile = dict(AP1_PARAM_PROFILE)
+  profile.update(speed_offsets_for_units(_is_metric(params)))
+  return profile
+
+
+def _is_converted_default(key, current, table, metric) -> bool:
+  """On a metric device the settings UI converted the mph table default to km/h (truncating), e.g. 5 -> 8.
+
+  Treat that converted value as "still default" so a metric owner who never touched an offset gets the profile.
+  """
+  if not metric or key not in AP1_SPEED_OFFSETS_MPH:
+    return False
+  try:
+    default_mph = float(table[key])
+    cur = float(_text(current))
+  except (TypeError, ValueError, KeyError):
+    return False
+  return cur in (int(default_mph * MPH_TO_KPH), round(default_mph * MPH_TO_KPH))
+
+
 def is_ap1(params) -> bool:
   try:
     if _text(params.get("CarModel")) == AP1_CAR_MODEL:
@@ -206,18 +275,19 @@ def apply_ap1_defaults_once(params=None, bogpilot_dir: Path | None = None, defau
       return []
 
     table = default_table if default_table is not None else _default_table()
+    metric = _is_metric(params)
     written = []
 
     # Tuning level: only for an owner who never confirmed one, and only as a pair.
     tuning_unset = all(values_equal(params.get(k), table.get(k)) or params.get(k) is None for k in TUNING_LEVEL_KEYS)
 
-    for key, value in AP1_PARAM_PROFILE.items():
+    for key, value in _profile_for_units(params).items():
       if key not in table or key in NEVER_PROFILE_KEYS:
         continue
       if key in TUNING_LEVEL_KEYS and not tuning_unset:
         continue
       current = params.get(key)
-      if current is None or values_equal(current, table[key]):
+      if current is None or values_equal(current, table[key]) or _is_converted_default(key, current, table, metric):
         params.put(key, value)
         written.append(key)
 

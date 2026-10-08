@@ -1,8 +1,38 @@
 # BogPilot theme
 
-BogPilot ships its own theme pack, named **BogPilot**, as a full copy of the
-current default FrogPilot theme. It is selected by default. The original
-FrogPilot theme stays available in the theme picker.
+BogPilot ships its own theme pack, named **BogPilot**. It is selected by
+default. The original FrogPilot theme stays available in the theme picker.
+
+## What the BogPilot theme looks like
+
+Since the AP1 defaults update (October 2026) the BogPilot theme renders like
+the stock openpilot look, matching the maintainer's own device:
+
+| Component | BogPilot theme renders as | Before |
+| --- | --- | --- |
+| Colors (path, lane lines, lead marker, sidebar) | stock openpilot | FrogPilot green |
+| Sidebar icons (home / flag / settings) | stock openpilot | animated frog icons |
+| Engage / disengage sounds | stock openpilot | FrogPilot frog sounds |
+| Turn-signal animation | none | FrogPilot frog animation + blind-spot frame |
+| Steering wheel icon | stock openpilot wheel | frog wheel |
+| Follow-distance icons | BogPilot icons (unchanged) | BogPilot icons |
+
+Two parts make that work, both Python or assets, so no UI rebuild is needed:
+
+1. `frogpilot/common/frogpilot_variables.py` (`BOGPILOT_THEME_RESOLVES_TO`,
+   `resolve_bogpilot_theme`): when a theme param is `BogPilot`, the toggle the
+   UI and soundd read is `stock` (or `none` for turn signals). The prebuilt UI
+   only uses its built-in stock rendering (stock path gradient, red lead
+   chevron, stock wheel with the experimental-mode icon) when the value is
+   literally `stock`, which a colors.json cannot reproduce.
+2. The pack itself (`frogpilot/assets/bogpilot_theme`) now carries the stock
+   assets, so the picker, random themes and The Pond see the same look:
+   `colors/colors.json` is the stock color file, `icons` and `sounds` link to
+   `selfdrive/assets/images` and `selfdrive/assets/sounds`,
+   `steering_wheel/wheel.png` links to the stock wheel, and `signals/` holds no
+   frames.
+
+Holiday themes still take over during holiday weeks when "Holiday Themes" is on.
 
 ## How themes work here
 
@@ -43,11 +73,15 @@ Keys: `LaneLines`, `LeadMarker`, `Path`, `PathEdge`, `Sidebar1`, `Sidebar2`,
 
 Other assets live under the same folder:
 
-- `icons/` — sidebar / home / settings icons
-- `sounds/` — engage / disengage wavs
-- `signals/` — turn-signal frames
+- `icons/` — sidebar / home / settings icons (link to the stock images)
+- `sounds/` — engage / disengage wavs (link to the stock sounds)
+- `signals/` — turn-signal frames (empty: no animation)
 - `distance_icons/` — follow-distance button icons
-- `steering_wheel/wheel.png` — top-right wheel icon
+- `steering_wheel/wheel.png` — top-right wheel icon (link to the stock wheel)
+
+Colors, icons, sounds, signals and the wheel are also mapped to stock in
+`BOGPILOT_THEME_RESOLVES_TO`; to give BogPilot its own colors or sounds again,
+remove that component from the map as well as editing the files here.
 
 Do not edit `/data/themes/...` alone; that tree is overwritten from
 `bogpilot_theme` on boot.

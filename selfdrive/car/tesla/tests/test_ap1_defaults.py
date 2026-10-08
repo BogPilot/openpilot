@@ -6,7 +6,7 @@ import pytest
 
 from cereal import car
 from openpilot.common.params import Params
-from openpilot.frogpilot.common.frogpilot_variables import EXCLUDED_KEYS, frogpilot_default_params
+from openpilot.frogpilot.common.frogpilot_variables import BOGPILOT_THEME, EXCLUDED_KEYS, frogpilot_default_params
 from openpilot.selfdrive.car.tesla import ap1_defaults as ap1
 from openpilot.selfdrive.car.tesla.values import CAR
 
@@ -49,7 +49,48 @@ def test_profile_keys_exist_in_table_and_params():
 
 def test_profile_only_lists_changes():
   for key, value in ap1.AP1_PARAM_PROFILE.items():
+    if key in ap1.EXPLICIT_DEFAULT_KEYS:
+      assert ap1.values_equal(value, TABLE[key]), f"{key} is listed as an explicit default but differs"
+      continue
     assert not ap1.values_equal(value, TABLE[key]), f"{key} equals the table default"
+
+
+def test_offset_keys_exist():
+  probe = Params()
+  assert list(ap1.AP1_SPEED_OFFSETS_MPH) == [f"Offset{i}" for i in range(1, 8)]
+  for key in ap1.AP1_SPEED_OFFSETS_MPH:
+    assert key in TABLE, key
+    probe.check_key(key)
+    assert key not in ap1.AP1_PARAM_PROFILE  # offsets only come from the unit-aware table
+
+
+def test_offset_bands_match_settings_labels():
+  src = (ROOT / "frogpilot/ui/qt/offroad/longitudinal_settings.cc").read_text()
+  bands = dict(re.findall(r'\{"(Offset[1-7])", tr\("Speed Offset \((\d+–\d+) mph\)"\)', src))
+  assert bands == {"Offset1": "0–24", "Offset2": "25–34", "Offset3": "35–44", "Offset4": "45–54",
+                   "Offset5": "55–64", "Offset6": "65–74", "Offset7": "75–99"}
+
+
+def test_owner_profile_values():
+  # Sport acceleration, Eco+ deceleration (enum 2 for both; see longitudinal_settings.cc)
+  assert ap1.AP1_PARAM_PROFILE["AccelerationProfile"] == "2"
+  assert ap1.AP1_PARAM_PROFILE["DecelerationProfile"] == "2"
+  src = (ROOT / "frogpilot/ui/qt/offroad/longitudinal_settings.cc").read_text()
+  assert 'accelerationProfiles{tr("Standard"), tr("Eco"), tr("Sport"), tr("Sport+")}' in src
+  assert 'decelerationProfiles{tr("Standard"), tr("Eco"), tr("Eco+")}' in src
+  # chimes muted, telemetry opted out
+  assert ap1.values_equal(ap1.AP1_PARAM_PROFILE["EngageVolume"], 0)
+  assert ap1.values_equal(ap1.AP1_PARAM_PROFILE["DisengageVolume"], 0)
+  assert ap1.AP1_PARAM_PROFILE["FrogPilotTelemetry"] == "0"
+  assert "FrogPilotTelemetry" not in ap1.NEVER_PROFILE_KEYS
+  assert ap1.AP1_SPEED_OFFSETS_MPH == {"Offset1": 4, "Offset2": 5, "Offset3": 5, "Offset4": 5,
+                                       "Offset5": 7, "Offset6": 8, "Offset7": 10}
+
+
+def test_theme_stays_bogpilot():
+  for key in ap1.THEME_KEYS:
+    assert key not in ap1.AP1_PARAM_PROFILE, key
+    assert TABLE[key] == BOGPILOT_THEME, key
 
 
 def test_no_denied_or_private_key_in_profile():
@@ -98,9 +139,14 @@ def test_applies_on_fresh_ap1(env):
   params, bp_dir = env
   params.put("CarModel", ap1.AP1_CAR_MODEL)
   written = run(params, bp_dir)
-  assert set(written) == set(ap1.AP1_PARAM_PROFILE) | set(ap1.AP1_FILE_TOGGLE_PROFILE)
+  assert set(written) == set(ap1.AP1_PARAM_PROFILE) | set(ap1.AP1_SPEED_OFFSETS_MPH) | set(ap1.AP1_FILE_TOGGLE_PROFILE)
   for key, value in ap1.AP1_PARAM_PROFILE.items():
     assert params.get(key, encoding="utf-8") == value
+  for key, mph in ap1.AP1_SPEED_OFFSETS_MPH.items():
+    assert params.get_int(key) == mph
+  assert params.get_bool("FrogPilotTelemetry") is False
+  for key in ap1.THEME_KEYS:
+    assert params.get(key, encoding="utf-8") == BOGPILOT_THEME
   assert (bp_dir / "DeveloperHUD").read_text() == "1"
   assert ap1.marker_path(bp_dir).exists()
   assert params.get("CarModel", encoding="utf-8") == ap1.AP1_CAR_MODEL
@@ -136,9 +182,43 @@ def test_never_overwrites_owner_changes(env):
 def test_numeric_default_formats_count_as_default(env):
   params, bp_dir = env
   params.put("CarModel", ap1.AP1_CAR_MODEL)
-  params.put("Offset2", "5.000000")  # UI float format of the table default "5"
+  params.put("Offset1", "5.000000")  # UI float format of the table default "5"
+  params.put("DecelerationProfile", "1.000000")
   run(params, bp_dir)
-  assert params.get("Offset2", encoding="utf-8") == ap1.AP1_PARAM_PROFILE["Offset2"]
+  assert params.get_int("Offset1") == 4
+  assert params.get("DecelerationProfile", encoding="utf-8") == "2"
+
+
+def test_metric_device_gets_kph_offsets(env):
+  params, bp_dir = env
+  params.put("CarModel", ap1.AP1_CAR_MODEL)
+  params.put("IsMetric", "1")
+  run(params, bp_dir)
+  got = {key: params.get_int(key) for key in ap1.AP1_SPEED_OFFSETS_MPH}
+  assert got == {"Offset1": 6, "Offset2": 8, "Offset3": 8, "Offset4": 8, "Offset5": 11, "Offset6": 13, "Offset7": 16}
+
+
+def test_metric_ui_converted_defaults_count_as_default(env):
+  params, bp_dir = env
+  params.put("CarModel", ap1.AP1_CAR_MODEL)
+  params.put("IsMetric", "1")
+  params.put("Offset1", "8")    # settings UI converted the mph default 5 to km/h (truncated)
+  params.put("Offset5", "16")   # 10 mph -> 16 km/h
+  params.put("Offset6", "12")   # owner's own km/h choice: kept
+  run(params, bp_dir)
+  assert params.get_int("Offset1") == 6
+  assert params.get_int("Offset5") == 11
+  assert params.get_int("Offset6") == 12
+
+
+def test_imperial_owner_offset_change_kept(env):
+  params, bp_dir = env
+  params.put("CarModel", ap1.AP1_CAR_MODEL)
+  params.put("Offset3", "3")
+  params.put("FrogPilotTelemetry", "0")
+  written = run(params, bp_dir)
+  assert "Offset3" not in written and "FrogPilotTelemetry" not in written
+  assert params.get_int("Offset3") == 3
 
 
 def test_confirmed_tuning_level_is_respected(env):

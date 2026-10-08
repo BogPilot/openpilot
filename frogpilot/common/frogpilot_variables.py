@@ -88,6 +88,25 @@ THEME_SAVE_PATH = Path("/data/themes")
 # BogPilot theme. "BogPilot" is a bundled clone of the default FrogPilot theme (frogpilot/assets/bogpilot_theme)
 # that theme_manager.py installs to /data/themes on boot. It uses the existing theme params, so no new keys are needed.
 BOGPILOT_THEME = "BogPilot"
+# What the BogPilot theme looks like. It renders like the stock openpilot look (stock colors, sidebar icons,
+# sounds and steering wheel, no turn-signal animation) and keeps only its BogPilot follow-distance icons.
+# The toggle values below are what the prebuilt UI and soundd act on: "stock" switches on their built-in
+# stock rendering (stock path gradient, red lead chevron, stock wheel with the experimental-mode icon),
+# which a theme pack's colors.json alone cannot reproduce. Python only, so no UI rebuild is needed.
+BOGPILOT_THEME_RESOLVES_TO = {
+  "color_scheme": "stock",
+  "icon_pack": "stock",
+  "signal_icons": "none",
+  "sound_pack": "stock",
+  "wheel_image": "stock",
+}
+
+def resolve_bogpilot_theme(toggle_name, value):
+  """Map a theme param value of "BogPilot" to what the BogPilot theme renders as for that component."""
+  if isinstance(value, str) and value.strip().lower() == BOGPILOT_THEME.lower():
+    return BOGPILOT_THEME_RESOLVES_TO.get(toggle_name, BOGPILOT_THEME)
+  return value
+
 BOGPILOT_THEME_MIGRATION_MARKER = THEME_SAVE_PATH / ".bogpilot_theme_migrated"
 FROGPILOT_THEME_DEFAULTS = {
   "CustomColors": "frog",
@@ -1024,14 +1043,14 @@ class FrogPilotVariables:
       toggle.old_long_api |= toggle.openpilot_longitudinal and toggle.car_make == "hyundai" and not (params.get_bool("NewLongAPI") if toggle.tuning_level >= level["NewLongAPI"] else default.get_bool("NewLongAPI"))
 
     personalize_openpilot = params.get_bool("PersonalizeOpenpilot") if toggle.tuning_level >= level["PersonalizeOpenpilot"] else default.get_bool("PersonalizeOpenpilot")
-    toggle.color_scheme = toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("CustomColors", encoding="utf-8") if personalize_openpilot else "stock"
+    toggle.color_scheme = resolve_bogpilot_theme("color_scheme", toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("CustomColors", encoding="utf-8") if personalize_openpilot else "stock")
     toggle.distance_icons = toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("CustomDistanceIcons", encoding="utf-8") if personalize_openpilot else "stock"
-    toggle.icon_pack = toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("CustomIcons", encoding="utf-8") if personalize_openpilot else "stock"
+    toggle.icon_pack = resolve_bogpilot_theme("icon_pack", toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("CustomIcons", encoding="utf-8") if personalize_openpilot else "stock")
     toggle.random_themes = personalize_openpilot and (params.get_bool("RandomThemes") if toggle.tuning_level >= level["RandomThemes"] else default.get_bool("RandomThemes"))
-    toggle.signal_icons = toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("CustomSignals", encoding="utf-8") if personalize_openpilot else "stock"
-    toggle.sound_pack = toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("CustomSounds", encoding="utf-8") if personalize_openpilot else "stock"
+    toggle.signal_icons = resolve_bogpilot_theme("signal_icons", toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("CustomSignals", encoding="utf-8") if personalize_openpilot else "stock")
+    toggle.sound_pack = resolve_bogpilot_theme("sound_pack", toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("CustomSounds", encoding="utf-8") if personalize_openpilot else "stock")
     if not toggle.random_themes:
-      toggle.wheel_image = toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("WheelIcon", encoding="utf-8") if personalize_openpilot else "stock"
+      toggle.wheel_image = resolve_bogpilot_theme("wheel_image", toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("WheelIcon", encoding="utf-8") if personalize_openpilot else "stock")
     else:
       toggle.wheel_image = next((file.resolve().stem for file in (ACTIVE_THEME_PATH / "steering_wheel").glob("wheel.*")), "stock")
 
