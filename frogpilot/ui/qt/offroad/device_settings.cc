@@ -1,4 +1,5 @@
 #include "frogpilot/ui/screenrecorder/screenrecorder.h"
+#include "frogpilot/ui/screenstream/screen_stream.h"
 #include "frogpilot/ui/qt/offroad/device_settings.h"
 
 FrogPilotDevicePanel::FrogPilotDevicePanel(FrogPilotSettingsWindow *parent) : FrogPilotListWidget(parent), parent(parent) {
@@ -44,6 +45,7 @@ FrogPilotDevicePanel::FrogPilotDevicePanel(FrogPilotSettingsWindow *parent) : Fr
     {"UseKonikServer", tr("Use Konik Server"), tr("<b>Upload driving data to \"connect.konik.ai\" instead of \"connect.comma.ai\".</b>"), ""},
 
     {"ScreenManagement", tr("Screen Settings"), tr("<b>Settings that control screen brightness, screen recording, and timeout duration.</b>"), "../../frogpilot/assets/toggle_icons/icon_light.png"},
+    {"RemoteUIStream", tr("Remote Screen Viewer"), QString("<b>%1</b> %2<br><br>%3").arg(tr("Let a browser on the car's Wi-Fi watch the driving screen")).arg(tr("at http://&lt;comma IP&gt;:8888. View-only: nothing can be tapped or changed from the browser, and it uses no extra CPU until someone opens the page.")).arg(tr("Tesla's browser blocks private addresses (192.168.x.x, 10.x.x.x, 172.16-31.x.x), so connect the comma through a router that hands out a non-private range.")), ""},
     {"ScreenBrightness", tr("Screen Brightness (Offroad)"), tr("<b>The screen brightness while not driving.</b>"), ""},
     {"ScreenBrightnessOnroad", tr("Screen Brightness (Onroad)"), tr("<b>The screen brightness while driving.</b>"), ""},
     {"ScreenRecorder", tr("Screen Recorder"), tr("<b>Add a button to the driving screen to record the display.</b>"), ""},
@@ -109,6 +111,13 @@ FrogPilotDevicePanel::FrogPilotDevicePanel(FrogPilotSettingsWindow *parent) : Fr
       });
       recorderToggle->setVisibleButton(1, false);
       deviceToggle = recorderToggle;
+    } else if (param == "RemoteUIStream") {
+      // File-backed (see screen_stream.h), so a plain toggle rather than ParamControl.
+      ToggleControl *streamToggle = new ToggleControl(title, desc, icon, screen_stream::enabled());
+      QObject::connect(streamToggle, &ToggleControl::toggleFlipped, [](bool state) {
+        screen_stream::setEnabled(state);
+      });
+      deviceToggle = streamToggle;
     } else if (param == "ScreenTimeout" || param == "ScreenTimeoutOnroad") {
       deviceToggle = new FrogPilotParamValueControl(param, title, desc, icon, 5, 60, tr(" seconds"), {}, 5);
 

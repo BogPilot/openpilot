@@ -63,6 +63,8 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
     }
   )");
   setAttribute(Qt::WA_NoSystemBackground);
+
+  screenStream = new ScreenStream(this, this);
 }
 
 void MainWindow::openSettings(int index, const QString &param) {
