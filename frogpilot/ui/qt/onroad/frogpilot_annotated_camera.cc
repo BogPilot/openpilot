@@ -158,6 +158,12 @@ void FrogPilotAnnotatedCameraWidget::updateState(const FrogPilotUIState &fs, con
     standstillTimer.invalidate();
   }
 
+  // BogPilot developer HUD: file-backed toggle, re-read every 2 s
+  if (developerHudCheckFrame-- <= 0) {
+    developerHudEnabled = developerHudFileEnabled();
+    developerHudCheckFrame = UI_FREQ * 2;
+  }
+
   static int lastFrameIndex;
   if (lastFrameIndex > animationFrameIndex && frogpilot_toggles.value("signal_icons").toString() == "frog") {
     frogHopCount++;
@@ -244,6 +250,10 @@ void FrogPilotAnnotatedCameraWidget::paintFrogPilotWidgets(QPainter &p, UIState 
 
   if (scene.track_vertices.length() >= 1 && frogpilotPlan.getRedLight() && frogpilot_toggles.value("show_stopping_point").toBool()) {
     paintStoppingPoint(p, scene, frogpilot_scene, frogpilot_toggles);
+  }
+
+  if (developerHudEnabled && !bigMapOpen && !frogpilot_scene.reverse) {
+    paintDeveloperHUDPanel(p, s, sm, fpsm, frogpilot_toggles);
   }
 
   if (!bigMapOpen && (carState.getLeftBlinker() || carState.getRightBlinker()) && signalStyle != "None") {
@@ -497,6 +507,60 @@ void FrogPilotAnnotatedCameraWidget::paintCurveSpeedControl(QPainter &p, const c
   p.drawPixmap(curveSpeedPoint, curveSpeedImage);
 
   p.restore();
+}
+
+void FrogPilotAnnotatedCameraWidget::paintDeveloperHUDPanel(QPainter &p, UIState &s, SubMaster &sm, SubMaster &fpsm, QJsonObject &frogpilot_toggles) {
+  const cereal::CarControl::Reader &carControl = fpsm["carControl"].getCarControl();
+  const cereal::CarState::Reader &carState = fpsm["carState"].getCarState();
+  const cereal::ControlsState::Reader &controlsState = fpsm["controlsState"].getControlsState();
+  const cereal::DeviceState::Reader &deviceState = fpsm["deviceState"].getDeviceState();
+  const cereal::LiveParametersData::Reader &liveParameters = fpsm["liveParameters"].getLiveParameters();
+  const cereal::LiveTorqueParametersData::Reader &liveTorqueParameters = fpsm["liveTorqueParameters"].getLiveTorqueParameters();
+  const cereal::RadarState::LeadData::Reader &leadOne = sm["radarState"].getRadarState().getLeadOne();
+  const auto lateralState = controlsState.getLateralControlState();
+
+  DeveloperHudInputs in;
+  in.is_metric = s.scene.is_metric;
+  in.a_ego = carState.getAEgo();
+  in.v_ego = carState.getVEgo();
+  in.steering_angle_deg = carState.getSteeringAngleDeg();
+  in.steering_pressed = carState.getSteeringPressed();
+  in.lat_active = carControl.getLatActive();
+  in.lead_status = leadOne.getStatus();
+  in.lead_d_rel = leadOne.getDRel();
+  in.lead_v_rel = leadOne.getVRel();
+  in.curvature = controlsState.getCurvature();
+  in.desired_curvature = controlsState.getDesiredCurvature();
+  in.roll = liveParameters.getRoll();
+  in.torque_control = lateralState.which() == cereal::ControlsState::LateralControlState::TORQUE_STATE;
+  if (lateralState.which() == cereal::ControlsState::LateralControlState::ANGLE_STATE) {
+    in.steer_angle_desired = lateralState.getAngleState().getSteeringAngleDesiredDeg();
+  } else if (lateralState.which() == cereal::ControlsState::LateralControlState::PID_STATE) {
+    in.steer_angle_desired = lateralState.getPidState().getSteeringAngleDesiredDeg();
+  }
+  in.friction = liveTorqueParameters.getFrictionCoefficientFiltered();
+  in.friction_live = liveTorqueParameters.getLiveValid();
+  for (const char *gps : {"gpsLocationExternal", "gpsLocation"}) {
+    if (fpsm.alive(gps)) {
+      const cereal::GpsLocationData::Reader &gpsData = std::string(gps) == "gpsLocation" ? fpsm[gps].getGpsLocation() : fpsm[gps].getGpsLocationExternal();
+      if (gpsData.getHasFix() || gpsData.getFlags() % 2) {
+        in.gps_valid = true;
+        in.altitude = gpsData.getAltitude();
+        break;
+      }
+    }
+  }
+  in.memory_usage_percent = deviceState.getMemoryUsagePercent();
+
+  // Right side, under the Experimental Mode button (left of the pedal icons when they are on),
+  // and above the bottom-right compass / weather / map button row.
+  int right = width() - UI_BORDER_SIZE;
+  if (frogpilot_toggles.value("pedals_on_ui").toBool()) {
+    right = experimentalButtonPosition.x() - UI_BORDER_SIZE;
+  }
+  const int top = UI_BORDER_SIZE + btn_size + UI_BORDER_SIZE;
+  const int bottom = (dmIconPosition.y() != 0 ? dmIconPosition.y() : height() - UI_BORDER_SIZE - btn_size / 2) - widget_size / 2 - UI_BORDER_SIZE;
+  paintDeveloperHud(p, QPoint(right, top), bottom - top, in);
 }
 
 void FrogPilotAnnotatedCameraWidget::paintLateralPaused(QPainter &p, FrogPilotUIScene &frogpilot_scene) {
