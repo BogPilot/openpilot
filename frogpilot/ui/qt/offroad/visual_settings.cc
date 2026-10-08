@@ -51,6 +51,8 @@ FrogPilotVisualsPanel::FrogPilotVisualsPanel(FrogPilotSettingsWindow *parent) : 
   visualsLayout->addWidget(qualityOfLifePanel);
 
   const std::vector<std::tuple<QString, QString, QString, QString>> visualToggles {
+    {"ConfidenceBall", tr("BogPilot Confidence Ball"), tr("<b>Show how confident the driving model is</b> with a small ball on the right edge of the driving screen, like the comma four.<br><br><b>High and green</b>: the model expects to keep driving without help<br><b>Lower and orange</b>: under 50%, it thinks you may need to brake or steer soon<br><b>Low and red</b>: under 20%, be ready to take over<br><b>White / grey</b>: you are overriding openpilot<br><br>The ball slides out of view when openpilot is off. Display only. It doesn't change how openpilot drives."), "../../frogpilot/assets/toggle_icons/icon_display.png"},
+
     {"AdvancedCustomUI", tr("Advanced UI Controls"), tr("<b>Advanced visual changes</b> to fine-tune how the driving screen looks."), "../../frogpilot/assets/toggle_icons/icon_advanced_device.png"},
     {"HideSpeed", tr("Hide Current Speed"), tr("<b>Hide the current speed</b> from the driving screen."), ""},
     {"HideLeadMarker", tr("Hide Lead Marker"), tr("<b>Hide the lead-vehicle marker</b> from the driving screen."), ""},
@@ -123,6 +125,13 @@ FrogPilotVisualsPanel::FrogPilotVisualsPanel(FrogPilotSettingsWindow *parent) : 
         visualsLayout->setCurrentWidget(advancedCustomPanel);
       });
       visualToggle = advancedCustomUIToggle;
+    } else if (param == "ConfidenceBall") {
+      // File-backed (/data/params_bogpilot/ConfidenceBall, default on): the prebuilt params_pyx.so cannot store new Params keys
+      ToggleControl *confidenceBallToggle = new ToggleControl(title, desc, icon, bogpilot_confidence::fileEnabled());
+      QObject::connect(confidenceBallToggle, &ToggleControl::toggleFlipped, [](bool state) {
+        bogpilot_confidence::setFileEnabled(state);
+      });
+      visualToggle = confidenceBallToggle;
     } else if (param == "HideMapIcon") {
       std::vector<QString> mapIconToggles{"HideMap"};
       std::vector<QString> mapIconToggleNames{tr("Hide Map")};
@@ -388,6 +397,9 @@ FrogPilotVisualsPanel::FrogPilotVisualsPanel(FrogPilotSettingsWindow *parent) : 
       update();
     });
   }
+
+  // The confidence ball is a stand-alone switch on the main Visuals page, not a group header
+  parentKeys.remove("ConfidenceBall");
 
   QSet<QString> forceUpdateKeys = {"HideLeadMarker", "ShowSpeedLimits"};
   for (const QString &key : forceUpdateKeys) {

@@ -3,6 +3,7 @@
 #include "selfdrive/ui/qt/onroad/alerts.h"
 #include "selfdrive/ui/qt/onroad/annotated_camera.h"
 
+#include "frogpilot/ui/qt/onroad/confidence_ball.h"
 #include "frogpilot/ui/qt/onroad/frogpilot_onroad.h"
 
 class OnroadWindow : public QWidget {
@@ -30,6 +31,9 @@ private:
   void resizeEvent(QResizeEvent *event);
 
   FrogPilotOnroadWindow *frogpilot_onroad;
+
+  // BogPilot confidence ball (right edge, over the status border)
+  ConfidenceBall *confidence_ball;
 
 private slots:
   void offroadTransition(bool offroad);
