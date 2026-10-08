@@ -413,7 +413,7 @@
     <name>DriveStats</name>
     <message>
         <source>FROGPILOT</source>
-        <translation>개구리파일럿</translation>
+        <translation type="vanished">개구리파일럿</translation>
     </message>
     <message>
         <source>Drives</source>
@@ -446,6 +446,10 @@
     <message>
         <source>PAST WEEK</source>
         <translation type="gpt-5-generated">지난 주</translation>
+    </message>
+    <message>
+        <source>BOGPILOT</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -998,6 +1002,30 @@
         <source>Time Driven (Weather):</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>BogPilot Backups</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Create, delete, or restore BogPilot backups.&lt;/b&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose a BogPilot backup to delete</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>BogPilot Stats</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;View your collected BogPilot stats.&lt;/b&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Are you sure you want to reset all of your BogPilot stats?</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotDevicePanel</name>
@@ -1183,6 +1211,22 @@
     </message>
     <message>
         <source>&lt;b&gt;Automatically share anonymized driving data with FrogPilot to help improve it.&lt;/b&gt;&lt;br&gt;&lt;br&gt;Only driving signals are shared: no video, no GPS or location, no VIN, and no identifiers. Turn this off to opt out.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remote Screen Viewer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Let a browser on the car's Wi-Fi watch the driving screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>at http://&amp;lt;comma IP&amp;gt;:8888. View-only: nothing can be tapped or changed from the browser, and it uses no extra CPU until someone opens the page.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tesla's browser blocks private addresses (192.168.x.x, 10.x.x.x, 172.16-31.x.x), so connect the comma through a router that hands out a non-private range.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -3329,7 +3373,7 @@ It will reset in %1 hours and %2 minutes.</source>
         <translation type="gpt-5-generated">시크릿 Mapbox 키를 입력하세요</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Automatically collect missing or incorrect speed limits while you drive&lt;/b&gt; using speeds limits sourced from your dashboard (if supported), Mapbox, and "Navigate on openpilot".&lt;br&gt;&lt;br&gt;When you're parked, FrogPilot will automatically process this data into a file to be used with the tool located at "SpeedLimitFiller.frogpilot.com".&lt;br&gt;&lt;br&gt;You can download this file from "The Pond" in the "Download Speed Limits" menu.&lt;br&gt;&lt;br&gt;Need a step-by-step guide? Visit &lt;b&gt;#speed-limit-filler&lt;/b&gt; in the FrogPilot Discord!</source>
+        <source>&lt;b&gt;Automatically collect missing or incorrect speed limits while you drive&lt;/b&gt; using speeds limits sourced from your dashboard (if supported), Mapbox, and "Navigate on openpilot".&lt;br&gt;&lt;br&gt;When you're parked, BogPilot will automatically process this data into a file to be used with the tool located at "SpeedLimitFiller.frogpilot.com".&lt;br&gt;&lt;br&gt;You can download this file from "The Pond" in the "Download Speed Limits" menu.&lt;br&gt;&lt;br&gt;Need a step-by-step guide? Visit &lt;b&gt;#speed-limit-filler&lt;/b&gt; in the FrogPilot Discord!</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -3484,6 +3528,14 @@ Developer - Highly customizable settings for seasoned enthusiasts</source>
         <source>All toggle descriptions are currently expanded. You can tap a toggle's name to open or close its description at any time!</source>
         <translation type="gpt-5-generated">모든 토글 설명이 현재 펼쳐져 있습니다. 언제든지 토글 이름을 탭하여 설명을 열거나 닫을 수 있습니다!</translation>
     </message>
+    <message>
+        <source>&lt;b&gt;Fine-tune custom BogPilot acceleration, braking, and steering controls.&lt;/b&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Manage backups, device settings, screen options, storage, and tools to keep BogPilot running smoothly.&lt;/b&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotSoundsPanel</name>
@@ -3610,6 +3662,14 @@ Developer - Highly customizable settings for seasoned enthusiasts</source>
     <message>
         <source>Test</source>
         <translation type="gpt-5-generated">테스트</translation>
+    </message>
+    <message>
+        <source>BogPilot Alerts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Optional BogPilot alerts&lt;/b&gt; that highlight driving events in a more noticeable way.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3832,7 +3892,7 @@ Developer - Highly customizable settings for seasoned enthusiasts</source>
     </message>
     <message>
         <source>FROGPILOT</source>
-        <translation>개구리파일럿</translation>
+        <translation type="vanished">개구리파일럿</translation>
     </message>
     <message>
         <source>CUSTOM</source>
@@ -3897,6 +3957,10 @@ Developer - Highly customizable settings for seasoned enthusiasts</source>
     <message>
         <source>GitHub and GitLab are offline...</source>
         <translation type="gpt-5-generated">GitHub과 GitLab이 오프라인입니다...</translation>
+    </message>
+    <message>
+        <source>BOGPILOT</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4096,6 +4160,10 @@ Developer - Highly customizable settings for seasoned enthusiasts</source>
     <message>
         <source>Are you sure you want to reset all toggles to match stock openpilot?</source>
         <translation type="gpt-5-generated">모든 토글을 기본 openpilot 설정으로 초기화하시겠습니까?</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Use BogPilot's developer metrics on your next drive&lt;/b&gt; to diagnose issues and improve bug reports.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4394,6 +4462,58 @@ Developer - Highly customizable settings for seasoned enthusiasts</source>
     </message>
     <message>
         <source>&lt;b&gt;Enable openpilot longitudinal control using a DSU re-route harness.&lt;/b&gt; This harness wires the DSU's ACC messages onto the camera CAN bus so openpilot can send its own longitudinal commands. Only enable this after physically installing the harness on your TSS-P vehicle.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;BogPilot features for General Motors vehicles.&lt;/b&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;BogPilot features for Genesis, Hyundai, and Kia vehicles.&lt;/b&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;BogPilot features for Acura and Honda vehicles.&lt;/b&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;BogPilot features for Subaru vehicles.&lt;/b&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tesla AP1 Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;BogPilot features for Tesla Model S and X with Autopilot 1.&lt;/b&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dash Cluster Integration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show openpilot on the Tesla dash cluster while engaged: the cluster set speed (including curve and speed limit targets), the Autosteer icon, hands-on reminders, and the path line.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn off to leave the dash cluster completely stock. openpilot then sends no cluster messages. Driving is the same either way. Takes effect right away.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Earlier, Gentler Regen Stops</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start slowing for a car ahead sooner and more gently, sized to what regen alone can do (about 1.0 m/s²).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hard braking for cut-ins, collision warnings, and emergencies is unchanged, and so is the stopped distance. Turn off for stock openpilot following. Takes effect right away.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;BogPilot features for Lexus and Toyota vehicles.&lt;/b&gt;</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -5091,6 +5211,26 @@ Developer - Highly customizable settings for seasoned enthusiasts</source>
         <source>Longitudinal MPC: Danger Factor</source>
         <translation type="gpt-5-generated">종방향 MPC: 위험 요인</translation>
     </message>
+    <message>
+        <source>BogPilot Confidence Ball</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Show how confident the driving model is&lt;/b&gt; with a small ball on the right edge of the driving screen, like the comma four.&lt;br&gt;&lt;br&gt;&lt;b&gt;High and green&lt;/b&gt;: the model expects to keep driving without help&lt;br&gt;&lt;b&gt;Lower and orange&lt;/b&gt;: under 50%, it thinks you may need to brake or steer soon&lt;br&gt;&lt;b&gt;Low and red&lt;/b&gt;: under 20%, be ready to take over&lt;br&gt;&lt;b&gt;White / grey&lt;/b&gt;: you are overriding openpilot&lt;br&gt;&lt;br&gt;The ball slides out of view when openpilot is off. Display only. It doesn't change how openpilot drives.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Developer HUD</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Show a live data panel on the right side of the driving screen&lt;/b&gt;: acceleration, lead distance and speed, actual and desired steering angle, lateral acceleration, altitude, and memory use. Values turn green while openpilot is steering, grey while you are overriding, and orange or red when a lead is close or closing fast.&lt;br&gt;&lt;br&gt;Display only. It doesn't change how openpilot drives. Based on sunnypilot's Developer UI (MIT).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Custom BogPilot widgets&lt;/b&gt; for the driving screen.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotWheelPanel</name>
@@ -5360,6 +5500,10 @@ Developer - Highly customizable settings for seasoned enthusiasts</source>
         <source>openpilot crashed 💩</source>
         <translation type="gpt-5-generated">openpilot가 충돌했습니다 💩</translation>
     </message>
+    <message>
+        <source>Please report the "Error Log" on the BogPilot GitHub!</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>PairingPopup</name>
@@ -5483,7 +5627,7 @@ Developer - Highly customizable settings for seasoned enthusiasts</source>
     </message>
     <message>
         <source>FrogPilot</source>
-        <translation>개구리파일럿</translation>
+        <translation type="vanished">개구리파일럿</translation>
     </message>
     <message>
         <source>0 MB</source>
@@ -5520,6 +5664,10 @@ Developer - Highly customizable settings for seasoned enthusiasts</source>
     <message>
         <source> seconds</source>
         <translation type="gpt-5-generated"> 초</translation>
+    </message>
+    <message>
+        <source>BogPilot</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5598,7 +5746,7 @@ This may take up to a minute.</source>
     </message>
     <message>
         <source>FrogPilot</source>
-        <translation>개구리파일럿</translation>
+        <translation type="vanished">개구리파일럿</translation>
     </message>
     <message>
         <source>Welcome to FrogPilot! Since you're new to openpilot, the "Minimal" toggle preset has been applied, but you can change this at any time via the "Tuning Level" button!</source>
@@ -5623,6 +5771,30 @@ This may take up to a minute.</source>
     <message>
         <source>Since you're very experienced with FrogPilot, the "Advanced" toggle preset has been applied, but you can change this at any time via the "Tuning Level" button!</source>
         <translation type="gpt-5-generated">FrogPilot에 익숙하신 것으로 판단되어 “고급” 토글 프리셋이 적용되었습니다. 언제든지 “튜닝 수준” 버튼을 통해 변경할 수 있습니다!</translation>
+    </message>
+    <message>
+        <source>BogPilot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Welcome to BogPilot! Since you're new to openpilot, the "Minimal" toggle preset has been applied, but you can change this at any time via the "Tuning Level" button!</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Welcome to BogPilot! Since you're new to BogPilot, the "Minimal" toggle preset has been applied, but you can change this at any time via the "Tuning Level" button!</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Since you're fairly new to BogPilot, the "Minimal" toggle preset has been applied, but you can change this at any time via the "Tuning Level" button!</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Since you're experienced with BogPilot, the "Standard" toggle preset has been applied, but you can change this at any time via the "Tuning Level" button!</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Since you're very experienced with BogPilot, the "Advanced" toggle preset has been applied, but you can change this at any time via the "Tuning Level" button!</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5922,7 +6094,7 @@ This may take up to a minute.</source>
     </message>
     <message>
         <source>Automatically Update FrogPilot</source>
-        <translation>개구리파일럿 자동 업데이트</translation>
+        <translation type="vanished">개구리파일럿 자동 업데이트</translation>
     </message>
     <message>
         <source>FrogPilot will automatically update itself and it's assets when you're offroad and have an active internet connection.</source>
@@ -5967,6 +6139,14 @@ This may take up to a minute.</source>
     <message>
         <source>finalizing update...</source>
         <translation type="gpt-5-generated">업데이트 마무리 중...</translation>
+    </message>
+    <message>
+        <source>Automatically Update BogPilot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>BogPilot will automatically update itself and its assets when you're offroad and have an active internet connection. The install channel is not live.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
