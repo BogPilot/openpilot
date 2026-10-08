@@ -87,10 +87,65 @@ def test_owner_profile_values():
                                        "Offset5": 7, "Offset6": 8, "Offset7": 10}
 
 
-def test_theme_stays_bogpilot():
+def test_theme_is_bogpilot_everywhere():
+  assert ap1.BOGPILOT_THEME == BOGPILOT_THEME
   for key in ap1.THEME_KEYS:
-    assert key not in ap1.AP1_PARAM_PROFILE, key
+    assert ap1.AP1_PARAM_PROFILE[key] == BOGPILOT_THEME, key
+    assert key in ap1.EXPLICIT_DEFAULT_KEYS, key
     assert TABLE[key] == BOGPILOT_THEME, key
+  assert ap1.AP1_PARAM_PROFILE["PersonalizeOpenpilot"] == "1"
+  assert ap1.AP1_PARAM_PROFILE["RandomThemes"] == "0"
+  # the one-time step only moves values that pick the stock look, never distance icons or a "none" wheel
+  assert set(ap1.STOCK_LOOK_THEME_VALUES) == set(ap1.THEME_KEYS) - {"CustomDistanceIcons"}
+  assert "none" not in ap1.STOCK_LOOK_THEME_VALUES["WheelIcon"]
+
+
+def test_owner_device_on_stock_moves_to_bogpilot_once(env):
+  # The maintainer's device: profile already applied earlier, theme menus on stock / none.
+  params, bp_dir = env
+  params.put("CarModel", ap1.AP1_CAR_MODEL)
+  bp_dir.mkdir(parents=True)
+  ap1.marker_path(bp_dir).write_text("1\n")
+  for key in ("CustomColors", "CustomIcons", "CustomSounds", "WheelIcon"):
+    params.put(key, "stock")
+  params.put("CustomSignals", "none")
+  params.put("CustomDistanceIcons", BOGPILOT_THEME)
+  params.put("LeadInfo", "1")  # main profile must not run again
+  written = run(params, bp_dir)
+  assert set(written) == {"CustomColors", "CustomIcons", "CustomSounds", "WheelIcon", "CustomSignals"}
+  for key in ap1.THEME_KEYS:
+    assert params.get(key, encoding="utf-8") == BOGPILOT_THEME, key
+  assert params.get("LeadInfo", encoding="utf-8") == "1"
+  assert ap1.theme_marker_path(bp_dir).exists()
+  # once only: an owner who goes back to stock keeps it
+  params.put("CustomColors", "stock")
+  assert run(params, bp_dir) == []
+  assert params.get("CustomColors", encoding="utf-8") == "stock"
+
+
+def test_theme_step_leaves_other_choices_alone(env):
+  params, bp_dir = env
+  params.put("CarModel", ap1.AP1_CAR_MODEL)
+  params.put("CustomColors", "frog")
+  params.put("CustomIcons", "frog-animated")
+  params.put("WheelIcon", "none")
+  params.put("CustomDistanceIcons", "stock")
+  params.put("CustomSounds", "Stock")
+  run(params, bp_dir)
+  assert params.get("CustomColors", encoding="utf-8") == "frog"
+  assert params.get("CustomIcons", encoding="utf-8") == "frog-animated"
+  assert params.get("WheelIcon", encoding="utf-8") == "none"
+  assert params.get("CustomDistanceIcons", encoding="utf-8") == "stock"
+  assert params.get("CustomSounds", encoding="utf-8") == BOGPILOT_THEME
+
+
+def test_theme_step_not_for_other_cars(env):
+  params, bp_dir = env
+  params.put("CarModel", "TESLA_AP2_MODELS")
+  params.put("CustomColors", "stock")
+  assert run(params, bp_dir) == []
+  assert params.get("CustomColors", encoding="utf-8") == "stock"
+  assert not ap1.theme_marker_path(bp_dir).exists()
 
 
 def test_no_denied_or_private_key_in_profile():
@@ -130,6 +185,7 @@ def test_only_fires_for_ap1(env, car_model):
     params.put("CarModel", car_model)
   assert run(params, bp_dir) == []
   assert not ap1.marker_path(bp_dir).exists()
+  assert not ap1.theme_marker_path(bp_dir).exists()
   assert not (bp_dir / "DeveloperHUD").exists()
   for key in ap1.AP1_PARAM_PROFILE:
     assert params.get(key, encoding="utf-8") == TABLE[key]
@@ -149,6 +205,7 @@ def test_applies_on_fresh_ap1(env):
     assert params.get(key, encoding="utf-8") == BOGPILOT_THEME
   assert (bp_dir / "DeveloperHUD").read_text() == "1"
   assert ap1.marker_path(bp_dir).exists()
+  assert ap1.theme_marker_path(bp_dir).exists()
   assert params.get("CarModel", encoding="utf-8") == ap1.AP1_CAR_MODEL
   assert params.get_int("IncreasedStoppedDistance") == 0
 
@@ -251,6 +308,7 @@ def test_reset_clears_marker_and_reapplies(env):
   assert run(params, bp_dir) == []
   ap1.clear_ap1_defaults_marker(bp_dir)
   assert not ap1.marker_path(bp_dir).exists()
+  assert not ap1.theme_marker_path(bp_dir).exists()
   assert run(params, bp_dir)
   assert params.get("LeadInfo", encoding="utf-8") == "0"
 

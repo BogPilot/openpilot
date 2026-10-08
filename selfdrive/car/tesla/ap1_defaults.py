@@ -26,8 +26,13 @@ Speed-limit offsets are kept in mph (AP1_SPEED_OFFSETS_MPH). On a metric device
 (IsMetric) they are converted to km/h and rounded before writing, because the
 Offset params are stored in the device's display unit.
 
-The theme is left on the table default, the BogPilot theme, which renders like
-the stock openpilot look (see BOGPILOT_THEME_RESOLVES_TO in frogpilot_variables).
+Theme: every theme selector is set to the BogPilot theme, whose assets are
+copies of the stock openpilot look (frogpilot/assets/bogpilot_theme). A separate
+one-time step (marker AP1ThemeBogPilot) also moves theme values that only pick
+the stock look ("stock", or "none" for turn signals) to BogPilot, because those
+render the same today. It runs once per device even where the main profile
+already ran, and never touches a downloaded or user-made theme, a "none"
+steering wheel, or stock distance icons (BogPilot's distance icons differ).
 """
 
 from pathlib import Path
@@ -36,6 +41,8 @@ AP1_CAR_MODEL = "TESLA_AP1_MODELS"
 
 BOGPILOT_DIR = Path("/data/params_bogpilot")
 MARKER_NAME = "AP1DefaultsApplied"
+THEME_MARKER_NAME = "AP1ThemeBogPilot"
+BOGPILOT_THEME = "BogPilot"
 
 # BogPilot file-backed toggles (not Params keys). Absent file = that toggle's built-in default.
 FILE_TOGGLE_KEYS = ("ConfidenceBall", "ConfidenceBallSide", "DeveloperHUD", "RemoteUIStream",
@@ -76,11 +83,22 @@ NEVER_PROFILE_KEYS = frozenset({
 
 # Keys deliberately listed even though the value equals the table default, so the
 # profile states the maintainer's full choice for them.
-EXPLICIT_DEFAULT_KEYS = frozenset({"AccelerationProfile"})
-
-# Theme params. The profile never sets them: AP1 installs keep the table default,
-# the BogPilot theme.
+# Theme params: all set to the BogPilot theme (also the table default).
 THEME_KEYS = ("CustomColors", "CustomDistanceIcons", "CustomIcons", "CustomSignals", "CustomSounds", "WheelIcon")
+
+EXPLICIT_DEFAULT_KEYS = frozenset({"AccelerationProfile", "PersonalizeOpenpilot", "RandomThemes", *THEME_KEYS})
+
+# Theme values that only select the stock look, per key, which the BogPilot theme
+# reproduces exactly today. The one-time theme step moves these to BogPilot.
+# Not listed on purpose: CustomDistanceIcons (BogPilot has its own distance icons,
+# so stock ones would change) and WheelIcon "none" (no wheel drawn at all).
+STOCK_LOOK_THEME_VALUES: dict[str, frozenset[str]] = {
+  "CustomColors": frozenset({"stock"}),
+  "CustomIcons": frozenset({"stock"}),
+  "CustomSounds": frozenset({"stock"}),
+  "CustomSignals": frozenset({"stock", "none"}),
+  "WheelIcon": frozenset({"stock"}),
+}
 
 # Speed-limit controller offsets in mph, by posted-limit band (the bands are the
 # settings labels for Offset1..Offset7 and speed_limit_controller.py's mph table).
@@ -133,7 +151,15 @@ AP1_PARAM_PROFILE: dict[str, str] = {
   "CameraView": "0",                     # camera view Auto (default Wide)
   "DriverCamera": "1",                   # show driver camera in reverse
   "MapStyle": "0",                       # map style: stock openpilot
-  # Theme: not set here. The table default BogPilot theme already looks like stock (see THEME_KEYS).
+  # --- Theme: BogPilot in every theme menu (assets are copies of the stock look) ---
+  "PersonalizeOpenpilot": "1",           # Custom Themes on, so the theme selections below apply (table default)
+  "RandomThemes": "0",                   # no random theme per drive (table default)
+  "CustomColors": BOGPILOT_THEME,        # Color Scheme
+  "CustomDistanceIcons": BOGPILOT_THEME, # Distance Button
+  "CustomIcons": BOGPILOT_THEME,         # Icon Pack
+  "CustomSounds": BOGPILOT_THEME,        # Sound Pack
+  "WheelIcon": BOGPILOT_THEME,           # Steering Wheel
+  "CustomSignals": BOGPILOT_THEME,       # Turn Signal (BogPilot has no frames, same as "None")
 
   # --- Alerts / sounds ---
   "AlertVolumeControl": "1",             # per-alert volume control on
@@ -250,12 +276,33 @@ def marker_path(bogpilot_dir: Path | None = None) -> Path:
   return Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR) / MARKER_NAME
 
 
+def theme_marker_path(bogpilot_dir: Path | None = None) -> Path:
+  return Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR) / THEME_MARKER_NAME
+
+
 def clear_ap1_defaults_marker(bogpilot_dir: Path | None = None) -> None:
   """Called on DoToggleReset so the next run re-applies the AP1 profile."""
-  try:
-    marker_path(bogpilot_dir).unlink(missing_ok=True)
-  except Exception:
-    pass
+  for path in (marker_path(bogpilot_dir), theme_marker_path(bogpilot_dir)):
+    try:
+      path.unlink(missing_ok=True)
+    except Exception:
+      pass
+
+
+def _apply_theme_once(params, directory: Path) -> list[str]:
+  """Move theme values that only pick the stock look to BogPilot, once per device."""
+  marker = theme_marker_path(directory)
+  if marker.exists():
+    return []
+  written = []
+  for key, stock_values in STOCK_LOOK_THEME_VALUES.items():
+    current = _text(params.get(key))
+    if current is not None and current.strip().lower() in stock_values:
+      params.put(key, BOGPILOT_THEME)
+      written.append(key)
+  directory.mkdir(parents=True, exist_ok=True)
+  marker.write_text("1\n")
+  return written
 
 
 def apply_ap1_defaults_once(params=None, bogpilot_dir: Path | None = None, default_table: dict | None = None,
@@ -271,36 +318,16 @@ def apply_ap1_defaults_once(params=None, bogpilot_dir: Path | None = None, defau
     directory = Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR)
     marker = marker_path(directory)
 
-    if marker.exists() or not is_ap1(params):
+    if not is_ap1(params) or (marker.exists() and theme_marker_path(directory).exists()):
       return []
 
-    table = default_table if default_table is not None else _default_table()
-    metric = _is_metric(params)
     written = []
+    if not marker.exists():
+      written += _apply_profile(params, directory, default_table)
+      marker.write_text("1\n")
+    written += [key for key in _apply_theme_once(params, directory) if key not in written]
 
-    # Tuning level: only for an owner who never confirmed one, and only as a pair.
-    tuning_unset = all(values_equal(params.get(k), table.get(k)) or params.get(k) is None for k in TUNING_LEVEL_KEYS)
-
-    for key, value in _profile_for_units(params).items():
-      if key not in table or key in NEVER_PROFILE_KEYS:
-        continue
-      if key in TUNING_LEVEL_KEYS and not tuning_unset:
-        continue
-      current = params.get(key)
-      if current is None or values_equal(current, table[key]) or _is_converted_default(key, current, table, metric):
-        params.put(key, value)
-        written.append(key)
-
-    directory.mkdir(parents=True, exist_ok=True)
-    for key, value in AP1_FILE_TOGGLE_PROFILE.items():
-      path = directory / key
-      if not path.exists():
-        path.write_text(value)
-        written.append(key)
-
-    marker.write_text("1\n")
-
-    if refresh:
+    if written and refresh:
       try:
         from openpilot.frogpilot.common.frogpilot_variables import update_frogpilot_toggles
         update_frogpilot_toggles()
@@ -309,3 +336,30 @@ def apply_ap1_defaults_once(params=None, bogpilot_dir: Path | None = None, defau
     return written
   except Exception:
     return []
+
+
+def _apply_profile(params, directory: Path, default_table: dict | None) -> list[str]:
+  table = default_table if default_table is not None else _default_table()
+  metric = _is_metric(params)
+  written = []
+
+  # Tuning level: only for an owner who never confirmed one, and only as a pair.
+  tuning_unset = all(values_equal(params.get(k), table.get(k)) or params.get(k) is None for k in TUNING_LEVEL_KEYS)
+
+  for key, value in _profile_for_units(params).items():
+    if key not in table or key in NEVER_PROFILE_KEYS:
+      continue
+    if key in TUNING_LEVEL_KEYS and not tuning_unset:
+      continue
+    current = params.get(key)
+    if current is None or values_equal(current, table[key]) or _is_converted_default(key, current, table, metric):
+      params.put(key, value)
+      written.append(key)
+
+  directory.mkdir(parents=True, exist_ok=True)
+  for key, value in AP1_FILE_TOGGLE_PROFILE.items():
+    path = directory / key
+    if not path.exists():
+      path.write_text(value)
+      written.append(key)
+  return written

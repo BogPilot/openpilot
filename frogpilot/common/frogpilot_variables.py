@@ -85,26 +85,44 @@ MODELS_PATH = Path("/data/models")
 RANDOM_EVENTS_PATH = Path(__file__).parents[1] / "assets/random_events"
 THEME_SAVE_PATH = Path("/data/themes")
 
-# BogPilot theme. "BogPilot" is a bundled clone of the default FrogPilot theme (frogpilot/assets/bogpilot_theme)
-# that theme_manager.py installs to /data/themes on boot. It uses the existing theme params, so no new keys are needed.
+# BogPilot theme. "BogPilot" is a bundled theme pack (frogpilot/assets/bogpilot_theme) that theme_manager.py
+# installs to /data/themes on boot. It uses the existing theme params, so no new keys are needed. Its colors,
+# icons, sounds and steering wheel are real copies of the stock openpilot assets, it has no turn-signal frames,
+# and it keeps the BogPilot follow-distance icons. Edit those files to change the theme.
 BOGPILOT_THEME = "BogPilot"
-# What the BogPilot theme looks like. It renders like the stock openpilot look (stock colors, sidebar icons,
-# sounds and steering wheel, no turn-signal animation) and keeps only its BogPilot follow-distance icons.
-# The toggle values below are what the prebuilt UI and soundd act on: "stock" switches on their built-in
-# stock rendering (stock path gradient, red lead chevron, stock wheel with the experimental-mode icon),
-# which a theme pack's colors.json alone cannot reproduce. Python only, so no UI rebuild is needed.
-BOGPILOT_THEME_RESOLVES_TO = {
-  "color_scheme": "stock",
-  "icon_pack": "stock",
-  "signal_icons": "none",
-  "sound_pack": "stock",
-  "wheel_image": "stock",
+BOGPILOT_THEME_PATH = Path(__file__).parents[1] / "assets/bogpilot_theme"
+STOCK_THEME_PATH = Path(__file__).parents[1] / "assets/stock_theme"
+
+# Narrow stand-in until the UI is rebuilt with bogpilot_theme_stock_rendering.patch. The prebuilt UI keys two
+# looks on the literal value "stock": the stock path / lane-line / path-edge / sidebar rendering
+# (color_scheme, frogpilot_ui.cc) and the stock wheel that swaps to the Experimental Mode icon (wheel_image,
+# buttons.cc). A theme pack's files cannot reproduce either. So, only while the BogPilot pack's colors.json or
+# wheel.png is still identical to the stock file, those two toggles are passed on as "stock". As soon as
+# someone edits that BogPilot file, the alias switches itself off and the edited asset is what shows.
+# Icons, sounds, signals and distance icons are always read from the BogPilot pack.
+BOGPILOT_STOCK_ALIAS_FILES = {
+  "color_scheme": ("colors/colors.json", "colors/colors.json"),
+  "wheel_image": ("steering_wheel/wheel.png", "steering_wheel/wheel.png"),
 }
 
-def resolve_bogpilot_theme(toggle_name, value):
-  """Map a theme param value of "BogPilot" to what the BogPilot theme renders as for that component."""
+def bogpilot_asset_matches_stock(toggle_name, bogpilot_path=None, stock_path=None):
+  files = BOGPILOT_STOCK_ALIAS_FILES.get(toggle_name)
+  if files is None:
+    return False
+  try:
+    bogpilot_file = Path(bogpilot_path or BOGPILOT_THEME_PATH) / files[0]
+    stock_file = Path(stock_path or STOCK_THEME_PATH) / files[1]
+    if bogpilot_file.suffix == ".json":
+      return json.loads(bogpilot_file.read_text()) == json.loads(stock_file.read_text())
+    return bogpilot_file.read_bytes() == stock_file.read_bytes()
+  except Exception:
+    return False
+
+def resolve_bogpilot_theme(toggle_name, value, bogpilot_path=None, stock_path=None):
+  """Pass "BogPilot" through, except as "stock" for colors / wheel while those BogPilot files equal stock."""
   if isinstance(value, str) and value.strip().lower() == BOGPILOT_THEME.lower():
-    return BOGPILOT_THEME_RESOLVES_TO.get(toggle_name, BOGPILOT_THEME)
+    if bogpilot_asset_matches_stock(toggle_name, bogpilot_path, stock_path):
+      return "stock"
   return value
 
 BOGPILOT_THEME_MIGRATION_MARKER = THEME_SAVE_PATH / ".bogpilot_theme_migrated"
@@ -1045,10 +1063,10 @@ class FrogPilotVariables:
     personalize_openpilot = params.get_bool("PersonalizeOpenpilot") if toggle.tuning_level >= level["PersonalizeOpenpilot"] else default.get_bool("PersonalizeOpenpilot")
     toggle.color_scheme = resolve_bogpilot_theme("color_scheme", toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("CustomColors", encoding="utf-8") if personalize_openpilot else "stock")
     toggle.distance_icons = toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("CustomDistanceIcons", encoding="utf-8") if personalize_openpilot else "stock"
-    toggle.icon_pack = resolve_bogpilot_theme("icon_pack", toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("CustomIcons", encoding="utf-8") if personalize_openpilot else "stock")
+    toggle.icon_pack = toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("CustomIcons", encoding="utf-8") if personalize_openpilot else "stock"
     toggle.random_themes = personalize_openpilot and (params.get_bool("RandomThemes") if toggle.tuning_level >= level["RandomThemes"] else default.get_bool("RandomThemes"))
-    toggle.signal_icons = resolve_bogpilot_theme("signal_icons", toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("CustomSignals", encoding="utf-8") if personalize_openpilot else "stock")
-    toggle.sound_pack = resolve_bogpilot_theme("sound_pack", toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("CustomSounds", encoding="utf-8") if personalize_openpilot else "stock")
+    toggle.signal_icons = toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("CustomSignals", encoding="utf-8") if personalize_openpilot else "stock"
+    toggle.sound_pack = toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("CustomSounds", encoding="utf-8") if personalize_openpilot else "stock"
     if not toggle.random_themes:
       toggle.wheel_image = resolve_bogpilot_theme("wheel_image", toggle.current_holiday_theme if toggle.current_holiday_theme != "stock" else params.get("WheelIcon", encoding="utf-8") if personalize_openpilot else "stock")
     else:

@@ -17,20 +17,48 @@ the stock openpilot look, matching the maintainer's own device:
 | Steering wheel icon | stock openpilot wheel | frog wheel |
 | Follow-distance icons | BogPilot icons (unchanged) | BogPilot icons |
 
-Two parts make that work, both Python or assets, so no UI rebuild is needed:
+The BogPilot pack (`frogpilot/assets/bogpilot_theme`) holds real copies of
+the stock files, not links, so it is BogPilot's own theme to edit:
 
-1. `frogpilot/common/frogpilot_variables.py` (`BOGPILOT_THEME_RESOLVES_TO`,
-   `resolve_bogpilot_theme`): when a theme param is `BogPilot`, the toggle the
-   UI and soundd read is `stock` (or `none` for turn signals). The prebuilt UI
-   only uses its built-in stock rendering (stock path gradient, red lead
-   chevron, stock wheel with the experimental-mode icon) when the value is
-   literally `stock`, which a colors.json cannot reproduce.
-2. The pack itself (`frogpilot/assets/bogpilot_theme`) now carries the stock
-   assets, so the picker, random themes and The Pond see the same look:
-   `colors/colors.json` is the stock color file, `icons` and `sounds` link to
-   `selfdrive/assets/images` and `selfdrive/assets/sounds`,
-   `steering_wheel/wheel.png` links to the stock wheel, and `signals/` holds no
-   frames.
+- `colors/colors.json`: copy of `stock_theme/colors/colors.json`
+- `icons/button_flag.png`, `button_home.png`, `button_settings.png`: copies of
+  `selfdrive/assets/images`
+- `sounds/*.wav` (engage, disengage, prompt, prompt_distracted, refuse,
+  warning_immediate, warning_soft): copies of `selfdrive/assets/sounds`
+- `steering_wheel/wheel.png`: copy of `selfdrive/assets/img_chffr_wheel.png`
+- `signals/`: no frames (same as Turn Signal "None")
+- `distance_icons/`: BogPilot's own follow-distance icons
+
+Icons, sounds, turn signals and distance icons are always read from the
+BogPilot pack, so an edit there shows on the next boot.
+
+### Colors and steering wheel: the "stock" stand-in
+
+The prebuilt UI keys two looks on the literal value `stock`, and no theme file
+can reproduce them:
+
+- `CustomColors` (`frogpilot_ui.cc` `use_stock_colors`): with `stock` the UI
+  draws the stock path (green HSL gradient, 0.4 → 0 alpha), lane lines with
+  alpha = min(probability, 0.7), stock path edges, and the sidebar and
+  developer sidebar in plain white. With a theme, the same colors.json values
+  give a solid path at full alpha fading to 0.1 (much more opaque), lane lines
+  at 0.70 × probability, path edges in the PathEdge color, and the TEMP status
+  and developer sidebar text at alpha 178. The lead chevron is the same red
+  either way.
+- `WheelIcon` (`buttons.cc` `use_stock_wheel`): with `stock` the wheel button
+  switches to the Experimental Mode icon while Experimental Mode is on. A theme
+  wheel always shows the wheel image.
+
+So `frogpilot_variables.py` (`resolve_bogpilot_theme`) passes `BogPilot` on as
+`stock` for those two toggles only while the BogPilot `colors.json` /
+`wheel.png` are still identical to the stock files. Edit either file and the
+stand-in switches off by itself, and the edited asset shows (with theme-style
+rendering for colors, and no Experimental Mode icon swap for the wheel).
+
+The optional UI patch `bogpilot_theme_stock_rendering.patch` (kept outside this
+branch; needs a device UI rebuild) makes both behaviours theme assets instead:
+`"StockRendering": true` in a colors.json selects the stock rendering, and a
+theme can ship `steering_wheel/experimental.*` for the Experimental Mode swap.
 
 Holiday themes still take over during holiday weeks when "Holiday Themes" is on.
 
@@ -73,15 +101,11 @@ Keys: `LaneLines`, `LeadMarker`, `Path`, `PathEdge`, `Sidebar1`, `Sidebar2`,
 
 Other assets live under the same folder:
 
-- `icons/` — sidebar / home / settings icons (link to the stock images)
-- `sounds/` — engage / disengage wavs (link to the stock sounds)
+- `icons/` — sidebar / home / settings icons
+- `sounds/` — openpilot alert wavs (any missing file falls back to stock)
 - `signals/` — turn-signal frames (empty: no animation)
 - `distance_icons/` — follow-distance button icons
-- `steering_wheel/wheel.png` — top-right wheel icon (link to the stock wheel)
-
-Colors, icons, sounds, signals and the wheel are also mapped to stock in
-`BOGPILOT_THEME_RESOLVES_TO`; to give BogPilot its own colors or sounds again,
-remove that component from the map as well as editing the files here.
+- `steering_wheel/wheel.png` — top-right wheel icon
 
 Do not edit `/data/themes/...` alone; that tree is overwritten from
 `bogpilot_theme` on boot.
@@ -106,3 +130,13 @@ distance icons) are moved to `BogPilot`. A one-time marker
 `/data/themes/.bogpilot_theme_migrated` prevents that from happening again, so
 choosing FrogPilot later keeps FrogPilot. A non-default theme the user already
 picked is left alone.
+
+## AP1 installs
+
+The Tesla AP1 profile (`selfdrive/car/tesla/ap1_defaults.py`) sets every theme
+menu (Color Scheme, Distance Button, Icon Pack, Sound Pack, Steering Wheel,
+Turn Signal) to BogPilot, with Custom Themes on and Random Themes off. A
+one-time step (`/data/params_bogpilot/AP1ThemeBogPilot`) also moves values that
+only pick the stock look (`stock`, or `none` for Turn Signal) to BogPilot.
+Stock distance icons, a "None" steering wheel and any other theme are left
+alone.

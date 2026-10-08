@@ -20,7 +20,7 @@ DOWNLOAD_PROGRESS_PARAM = "ThemeDownloadProgress"
 HOLIDAY_THEME_PATH = Path(__file__).parent / "holiday_themes"
 STOCKOP_THEME_PATH = Path(__file__).parent / "stock_theme"
 
-# BogPilot theme: a bundled copy of the default FrogPilot theme. Edit the files in this folder to change it;
+# BogPilot theme: copies of the stock openpilot assets plus BogPilot distance icons. Edit the files in this folder to change it;
 # they are copied to /data/themes/theme_packs/BogPilot (and steering_wheels/BogPilot.png) on every boot.
 BOGPILOT_THEME_PATH = Path(__file__).parent / "bogpilot_theme"
 BOGPILOT_THEME_COMPONENTS = ("colors", "distance_icons", "icons", "signals", "sounds")
