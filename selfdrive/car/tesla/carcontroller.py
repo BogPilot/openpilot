@@ -14,7 +14,7 @@ from openpilot.selfdrive.car.tesla.cluster import (
   CLUSTER_BUS, ClusterController, HudInputs, path_from_model_v2,
 )
 from openpilot.selfdrive.car.tesla.hso import Ap1DriverYield, ap1_lat_active, ap1_steering_pressed
-from openpilot.selfdrive.car.tesla.long_smooth import Ap1AccelSmoother, Ap1JerkLimit, ap1_brake_urgent
+from openpilot.selfdrive.car.tesla.long_smooth import Ap1AccelSmoother, Ap1JerkLimit, ap1_brake_urgent, ap1_fcw
 from openpilot.selfdrive.car.tesla.steer_counter import Ap1SteerCounterSync
 from openpilot.selfdrive.car.tesla.teslacan import TeslaCAN
 from openpilot.selfdrive.car.tesla.slc_raise import cruise_set_mph
@@ -92,10 +92,13 @@ class CarController(CarControllerBase):
       gas_neutral = ap1_gas_neutral(chassis_das_only, self.CP.openpilotLongitudinalControl, CC.enabled, gas_pressed)
       # FCW or the LongControl stopping state: braking passes through unramped.
       urgent = ap1_brake_urgent(CC)
+      fcw = ap1_fcw(CC)
+      # Standstill: relax a deeper hold request to AP1_STANDSTILL_HOLD_ACCEL (stock DAS
+      # sends accelMin 0) so the DI latches less HOLD pressure to dump at the launch.
       accel = self.ap1_accel_smoother.update(actuators.accel, long_allowed_now, CS.out.vEgo, gas_neutral=gas_neutral,
-                                             urgent=urgent)
+                                             urgent=urgent, standstill=bool(getattr(CS.out, "standstill", False)), fcw=fcw)
       jerk_min, jerk_max = self.ap1_jerk_limit.update(accel, long_allowed_now, CS.out.vEgo, gas_neutral=gas_neutral,
-                                                      urgent=urgent)
+                                                      urgent=urgent, fcw=fcw)
       jerk_limits = {"jerk_min": jerk_min, "jerk_max": jerk_max}
     steer_tick = None
     if self.ap1_steer_sync is not None:

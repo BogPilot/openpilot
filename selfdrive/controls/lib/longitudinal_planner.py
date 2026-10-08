@@ -15,6 +15,7 @@ from openpilot.selfdrive.controls.lib.drive_helpers import V_CRUISE_MAX, V_CRUIS
 from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.controls.lib.fcw_gate import planner_fcw
 from openpilot.selfdrive.car.tesla.regen_brake import ap1_comfort_brake
+from openpilot.selfdrive.car.tesla.throttle_gate import ap1_throttle_gate_for, apply_cut
 
 from openpilot.frogpilot.common.frogpilot_variables import MINIMUM_LATERAL_ACCELERATION
 
@@ -64,6 +65,9 @@ class LongitudinalPlanner:
     self.fcw = False
     self.dt = dt
     self.allow_throttle = True
+    # AP1-only allowThrottle smoothing (tesla/throttle_gate.py); None elsewhere.
+    self.throttle_cut = 0.0
+    self.ap1_throttle_gate = ap1_throttle_gate_for(CP.carFingerprint)
 
     self.a_desired = init_a
     self.v_desired_filter = FirstOrderFilter(init_v, 2.0, self.dt)
@@ -145,12 +149,18 @@ class LongitudinalPlanner:
     self.v_desired_filter.x = max(0.0, self.v_desired_filter.update(v_ego))
     x, v, a, j, throttle_prob = self.parse_model(sm['modelV2'], v_ego, frogpilot_toggles.taco_tune)
     # Don't clip at low speeds since throttle_prob doesn't account for creep
-    self.allow_throttle = throttle_prob > ALLOW_THROTTLE_THRESHOLD or v_ego <= MIN_ALLOW_THROTTLE_SPEED
-
-    if not self.allow_throttle:
-      clipped_accel_coast = max(accel_coast, accel_clip[0])
-      clipped_accel_coast_interp = np.interp(v_ego, [MIN_ALLOW_THROTTLE_SPEED, MIN_ALLOW_THROTTLE_SPEED*2], [accel_clip[1], clipped_accel_coast])
-      accel_clip[1] = min(accel_clip[1], clipped_accel_coast_interp)
+    raw_allow_throttle = throttle_prob > ALLOW_THROTTLE_THRESHOLD or v_ego <= MIN_ALLOW_THROTTLE_SPEED
+    clipped_accel_coast = max(accel_coast, accel_clip[0])
+    coast_limit = np.interp(v_ego, [MIN_ALLOW_THROTTLE_SPEED, MIN_ALLOW_THROTTLE_SPEED*2], [accel_clip[1], clipped_accel_coast])
+    if self.ap1_throttle_gate is not None:
+      # AP1: 0..1 cut fraction (tesla/throttle_gate.py) instead of a 0/1 step.
+      throttle_cut = self.ap1_throttle_gate.update(raw_allow_throttle, low_speed=v_ego <= MIN_ALLOW_THROTTLE_SPEED, reset=reset_state)
+      self.allow_throttle = throttle_cut < 0.5
+    else:
+      throttle_cut = 0.0 if raw_allow_throttle else 1.0
+      self.allow_throttle = raw_allow_throttle
+    accel_clip[1] = apply_cut(accel_clip[1], coast_limit, throttle_cut)
+    self.throttle_cut = throttle_cut
 
     if force_slow_decel:
       v_cruise = 0.0
