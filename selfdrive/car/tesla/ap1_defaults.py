@@ -26,13 +26,16 @@ Speed-limit offsets are kept in mph (AP1_SPEED_OFFSETS_MPH). On a metric device
 (IsMetric) they are converted to km/h and rounded before writing, because the
 Offset params are stored in the device's display unit.
 
-Theme: every theme selector is set to the BogPilot theme, whose assets are
-copies of the stock openpilot look (frogpilot/assets/bogpilot_theme). A separate
-one-time step (marker AP1ThemeBogPilot) also moves theme values that only pick
-the stock look ("stock", or "none" for turn signals) to BogPilot, because those
-render the same today. It runs once per device even where the main profile
-already ran, and never touches a downloaded or user-made theme, a "none"
-steering wheel, or stock distance icons (BogPilot's distance icons differ).
+Theme: Icon Pack, Sound Pack, Turn Signal and Distance Button are set to the
+BogPilot theme, whose icons and sounds are copies of the stock openpilot files
+(frogpilot/assets/bogpilot_theme). Color Scheme and Steering Wheel are set to
+the literal "stock" for now, because the prebuilt UI only draws the stock path /
+sidebar colors and the stock wheel with its Experimental Mode icon for that
+value. A separate one-time step (marker AP1ThemeBogPilot) also moves Icon Pack,
+Sound Pack and Turn Signal values that only pick the stock look ("stock", or
+"none" for turn signals) to BogPilot, because those render the same. It runs
+once per device even where the main profile already ran, and never touches Color
+Scheme, Steering Wheel, Distance Button, or a downloaded or user-made theme.
 """
 
 from pathlib import Path
@@ -83,21 +86,26 @@ NEVER_PROFILE_KEYS = frozenset({
 
 # Keys deliberately listed even though the value equals the table default, so the
 # profile states the maintainer's full choice for them.
-# Theme params: all set to the BogPilot theme (also the table default).
+# Theme params.
 THEME_KEYS = ("CustomColors", "CustomDistanceIcons", "CustomIcons", "CustomSignals", "CustomSounds", "WheelIcon")
+# Set to the BogPilot theme (equal to the table default, listed on purpose).
+BOGPILOT_THEME_KEYS = ("CustomDistanceIcons", "CustomIcons", "CustomSignals", "CustomSounds")
+# Kept on the literal "stock" for now (differs from the table default BogPilot): the prebuilt UI keys the stock
+# path / lane-line / sidebar colors (frogpilot_ui.cc) and the stock wheel with its Experimental Mode icon
+# (buttons.cc) on that exact value.
+STOCK_THEME_KEYS = ("CustomColors", "WheelIcon")
 
-EXPLICIT_DEFAULT_KEYS = frozenset({"AccelerationProfile", "PersonalizeOpenpilot", "RandomThemes", *THEME_KEYS})
+EXPLICIT_DEFAULT_KEYS = frozenset({"AccelerationProfile", "PersonalizeOpenpilot", "RandomThemes", *BOGPILOT_THEME_KEYS})
 
 # Theme values that only select the stock look, per key, which the BogPilot theme
 # reproduces exactly today. The one-time theme step moves these to BogPilot.
-# Not listed on purpose: CustomDistanceIcons (BogPilot has its own distance icons,
-# so stock ones would change) and WheelIcon "none" (no wheel drawn at all).
+# Not listed on purpose: CustomColors and WheelIcon (kept on literal "stock", see
+# STOCK_THEME_KEYS) and CustomDistanceIcons (BogPilot has its own distance icons,
+# so stock ones would change).
 STOCK_LOOK_THEME_VALUES: dict[str, frozenset[str]] = {
-  "CustomColors": frozenset({"stock"}),
   "CustomIcons": frozenset({"stock"}),
   "CustomSounds": frozenset({"stock"}),
   "CustomSignals": frozenset({"stock", "none"}),
-  "WheelIcon": frozenset({"stock"}),
 }
 
 # Speed-limit controller offsets in mph, by posted-limit band (the bands are the
@@ -151,14 +159,14 @@ AP1_PARAM_PROFILE: dict[str, str] = {
   "CameraView": "0",                     # camera view Auto (default Wide)
   "DriverCamera": "1",                   # show driver camera in reverse
   "MapStyle": "0",                       # map style: stock openpilot
-  # --- Theme: BogPilot in every theme menu (assets are copies of the stock look) ---
+  # --- Theme: BogPilot where the BogPilot files give the stock look, literal stock for colors and wheel ---
   "PersonalizeOpenpilot": "1",           # Custom Themes on, so the theme selections below apply (table default)
   "RandomThemes": "0",                   # no random theme per drive (table default)
-  "CustomColors": BOGPILOT_THEME,        # Color Scheme
+  "CustomColors": "stock",               # Color Scheme: Stock (stock path gradient / sidebar white need literal stock)
+  "WheelIcon": "stock",                  # Steering Wheel: Stock (stock wheel + Experimental Mode icon need literal stock)
   "CustomDistanceIcons": BOGPILOT_THEME, # Distance Button
-  "CustomIcons": BOGPILOT_THEME,         # Icon Pack
-  "CustomSounds": BOGPILOT_THEME,        # Sound Pack
-  "WheelIcon": BOGPILOT_THEME,           # Steering Wheel
+  "CustomIcons": BOGPILOT_THEME,         # Icon Pack (copies of the stock icons)
+  "CustomSounds": BOGPILOT_THEME,        # Sound Pack (copies of the stock sounds)
   "CustomSignals": BOGPILOT_THEME,       # Turn Signal (BogPilot has no frames, same as "None")
 
   # --- Alerts / sounds ---

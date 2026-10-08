@@ -133,10 +133,28 @@ picked is left alone.
 
 ## AP1 installs
 
-The Tesla AP1 profile (`selfdrive/car/tesla/ap1_defaults.py`) sets every theme
-menu (Color Scheme, Distance Button, Icon Pack, Sound Pack, Steering Wheel,
-Turn Signal) to BogPilot, with Custom Themes on and Random Themes off. A
-one-time step (`/data/params_bogpilot/AP1ThemeBogPilot`) also moves values that
-only pick the stock look (`stock`, or `none` for Turn Signal) to BogPilot.
-Stock distance icons, a "None" steering wheel and any other theme are left
-alone.
+The Tesla AP1 profile (`selfdrive/car/tesla/ap1_defaults.py`) sets, for a new
+AP1 install still on the defaults (Custom Themes on, Random Themes off):
+
+| Menu | Param | AP1 value |
+| --- | --- | --- |
+| Color Scheme | `CustomColors` | `stock` |
+| Steering Wheel | `WheelIcon` | `stock` |
+| Icon Pack | `CustomIcons` | `BogPilot` |
+| Sound Pack | `CustomSounds` | `BogPilot` |
+| Turn Signal | `CustomSignals` | `BogPilot` |
+| Distance Button | `CustomDistanceIcons` | `BogPilot` |
+
+Color Scheme and Steering Wheel stay on the literal `stock` for now, because of
+the two hard-coded `stock` looks described above. The BogPilot copies of those
+files stay in the pack, ready for later.
+
+A one-time step (`/data/params_bogpilot/AP1ThemeBogPilot`) also moves Icon
+Pack, Sound Pack and Turn Signal values that only pick the stock look (`stock`,
+or `none` for Turn Signal) to BogPilot. It never touches Color Scheme, Steering
+Wheel, Distance Button or any other theme.
+
+The colors / wheel stand-in in `frogpilot_variables.py` is kept: devices that
+are not AP1 (or AP1 owners who picked BogPilot themselves) still have
+`CustomColors` / `WheelIcon` = `BogPilot`, the table default, and without the
+stand-in they would get the theme-style path and no Experimental Mode wheel.

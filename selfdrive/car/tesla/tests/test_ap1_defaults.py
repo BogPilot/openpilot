@@ -87,17 +87,31 @@ def test_owner_profile_values():
                                        "Offset5": 7, "Offset6": 8, "Offset7": 10}
 
 
-def test_theme_is_bogpilot_everywhere():
+def test_theme_profile():
   assert ap1.BOGPILOT_THEME == BOGPILOT_THEME
-  for key in ap1.THEME_KEYS:
+  assert set(ap1.BOGPILOT_THEME_KEYS) | set(ap1.STOCK_THEME_KEYS) == set(ap1.THEME_KEYS)
+  for key in ap1.BOGPILOT_THEME_KEYS:
     assert ap1.AP1_PARAM_PROFILE[key] == BOGPILOT_THEME, key
     assert key in ap1.EXPLICIT_DEFAULT_KEYS, key
     assert TABLE[key] == BOGPILOT_THEME, key
+  assert ap1.STOCK_THEME_KEYS == ("CustomColors", "WheelIcon")
+  for key in ap1.STOCK_THEME_KEYS:
+    assert ap1.AP1_PARAM_PROFILE[key] == "stock", key
+    assert key not in ap1.EXPLICIT_DEFAULT_KEYS, key  # differs from the table default, so a real change
   assert ap1.AP1_PARAM_PROFILE["PersonalizeOpenpilot"] == "1"
   assert ap1.AP1_PARAM_PROFILE["RandomThemes"] == "0"
-  # the one-time step only moves values that pick the stock look, never distance icons or a "none" wheel
-  assert set(ap1.STOCK_LOOK_THEME_VALUES) == set(ap1.THEME_KEYS) - {"CustomDistanceIcons"}
-  assert "none" not in ap1.STOCK_LOOK_THEME_VALUES["WheelIcon"]
+  # the one-time step never touches colors, wheel or distance icons
+  assert set(ap1.STOCK_LOOK_THEME_VALUES) == {"CustomIcons", "CustomSounds", "CustomSignals"}
+
+
+def test_fresh_ap1_theme_values(env):
+  params, bp_dir = env
+  params.put("CarModel", ap1.AP1_CAR_MODEL)
+  run(params, bp_dir)
+  assert params.get("CustomColors", encoding="utf-8") == "stock"
+  assert params.get("WheelIcon", encoding="utf-8") == "stock"
+  for key in ap1.BOGPILOT_THEME_KEYS:
+    assert params.get(key, encoding="utf-8") == BOGPILOT_THEME, key
 
 
 def test_owner_device_on_stock_moves_to_bogpilot_once(env):
@@ -112,15 +126,17 @@ def test_owner_device_on_stock_moves_to_bogpilot_once(env):
   params.put("CustomDistanceIcons", BOGPILOT_THEME)
   params.put("LeadInfo", "1")  # main profile must not run again
   written = run(params, bp_dir)
-  assert set(written) == {"CustomColors", "CustomIcons", "CustomSounds", "WheelIcon", "CustomSignals"}
-  for key in ap1.THEME_KEYS:
+  assert set(written) == {"CustomIcons", "CustomSounds", "CustomSignals"}
+  for key in ap1.BOGPILOT_THEME_KEYS:
     assert params.get(key, encoding="utf-8") == BOGPILOT_THEME, key
+  assert params.get("CustomColors", encoding="utf-8") == "stock"
+  assert params.get("WheelIcon", encoding="utf-8") == "stock"
   assert params.get("LeadInfo", encoding="utf-8") == "1"
   assert ap1.theme_marker_path(bp_dir).exists()
   # once only: an owner who goes back to stock keeps it
-  params.put("CustomColors", "stock")
+  params.put("CustomIcons", "stock")
   assert run(params, bp_dir) == []
-  assert params.get("CustomColors", encoding="utf-8") == "stock"
+  assert params.get("CustomIcons", encoding="utf-8") == "stock"
 
 
 def test_theme_step_leaves_other_choices_alone(env):
@@ -201,8 +217,10 @@ def test_applies_on_fresh_ap1(env):
   for key, mph in ap1.AP1_SPEED_OFFSETS_MPH.items():
     assert params.get_int(key) == mph
   assert params.get_bool("FrogPilotTelemetry") is False
-  for key in ap1.THEME_KEYS:
+  for key in ap1.BOGPILOT_THEME_KEYS:
     assert params.get(key, encoding="utf-8") == BOGPILOT_THEME
+  for key in ap1.STOCK_THEME_KEYS:
+    assert params.get(key, encoding="utf-8") == "stock"
   assert (bp_dir / "DeveloperHUD").read_text() == "1"
   assert ap1.marker_path(bp_dir).exists()
   assert ap1.theme_marker_path(bp_dir).exists()
