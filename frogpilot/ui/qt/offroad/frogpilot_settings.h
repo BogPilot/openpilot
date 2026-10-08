@@ -40,6 +40,7 @@ public:
   bool isHonda = true;
   bool isHondaNidec = true;
   bool isSubaru = false;
+  bool isTeslaAP1 = true;
   bool isTorqueCar = false;
   bool isToyota = true;
   bool isTSK = false;
