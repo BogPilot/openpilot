@@ -54,9 +54,9 @@ EPAS_ERR = {"EAC_ERROR_IDLE": 0, "EAC_ERROR_HANDS_ON": 3, "EAC_ERROR_HIGH_ANGLE_
 def test_thresholds_and_hold_constant():
   assert AP1_HANDS_ON_LEVEL == 2
   assert AP1_DRIVER_INPUT_LEVEL == 1
-  assert AP1_RESUME_HOLD_S == 0.5
+  assert AP1_RESUME_HOLD_S == 0.3  # BogPilot milestone 3 (84bb60fb)
   assert AP1_CONTROL_HZ == 100
-  assert AP1_RESUME_HOLD_FRAMES == 50
+  assert AP1_RESUME_HOLD_FRAMES == 30
   assert AP1_ENGAGE_SOFT_START_FRAMES == 30
   assert AP1_INHIBIT_ALERT_FRAMES == 100
 
@@ -372,7 +372,7 @@ def test_override_hold_resume():
   for _ in range(100):
     cs, _, sends = car.tick(ci, make_cc())
     assert all(t == STEERING_CONTROL_NONE for t, _ in steer_frames(sends))
-  # Hands off: NONE for the 0.5 s resume hold
+  # Hands off: NONE for the 0.3 s resume hold
   car.hands = 0
   for i in range(AP1_RESUME_HOLD_FRAMES - 1):
     cs, _, sends = car.tick(ci, make_cc())

@@ -56,6 +56,8 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_tracked_lead_catchup_headway_margins,
 )
 from openpilot.selfdrive.controls.lib.drive_helpers import CONTROL_N
+from opendbc.car.tesla.ap1_regen_brake import ap1_comfort_brake
+from opendbc.car.tesla.ap1_throttle_gate import ap1_throttle_gate_for, apply_cut
 from openpilot.selfdrive.car.cruise import V_CRUISE_UNSET
 from openpilot.common.swaglog import cloudlog
 from cereal import log
@@ -585,6 +587,13 @@ class LongitudinalPlanner:
     self.model_allow_throttle = True
     self.model_allow_throttle_transition_t = 0.0
     self.allow_throttle = True
+    # Tesla AP1 only (BogStar, BogPilot milestone 4): 0..1 throttle cut fraction from the raw
+    # gasPressProb flag with an asymmetric filter (opendbc tesla ap1_throttle_gate.py) instead of
+    # StarPilot's confirmed 0/1 gate. None on every other car.
+    self.throttle_cut = 0.0
+    self.ap1_throttle_gate = ap1_throttle_gate_for(CP.carFingerprint)
+    # Tesla AP1 regen comfort brake for the lead cost (stock COMFORT_BRAKE elsewhere).
+    self.ap1_comfort_brake = ap1_comfort_brake(CP.carFingerprint)
     self.mode = 'acc'
     self.is_preap = (
       CP.brand == "tesla" and CP.carFingerprint == "TESLA_MODEL_S_PREAP" and
@@ -2106,7 +2115,27 @@ class LongitudinalPlanner:
         self.model_allow_throttle_transition_t = 0.0
     self.allow_throttle = self.model_allow_throttle and not sm['starpilotPlan'].disableThrottle
 
-    if not self.allow_throttle:
+    # File-backed toggle (/data/params_bogpilot/RegenComfortBrake), re-read like BogPilot.
+    self.ap1_comfort_brake = ap1_comfort_brake(self.CP.carFingerprint)
+    if self.ap1_throttle_gate is not None:
+      # Tesla AP1: blend the max accel toward the coast cap by a filtered cut fraction (fast toward
+      # "no throttle", slow back), from the raw flag so single-frame model hints still add caution.
+      # Same coast limit as BogPilot (ramped between MIN_ALLOW_THROTTLE_SPEED and twice that).
+      raw_allow_throttle = (throttle_prob > ALLOW_THROTTLE_THRESHOLD or v_ego <= MIN_ALLOW_THROTTLE_SPEED) and \
+                           not sm['starpilotPlan'].disableThrottle
+      clipped_accel_coast = max(accel_coast, accel_limits_turns[0])
+      coast_limit = float(np.interp(v_ego, [MIN_ALLOW_THROTTLE_SPEED, MIN_ALLOW_THROTTLE_SPEED * 2],
+                                    [accel_limits_turns[1], clipped_accel_coast]))
+      throttle_cut = self.ap1_throttle_gate.update(raw_allow_throttle, low_speed=v_ego <= MIN_ALLOW_THROTTLE_SPEED,
+                                                   reset=reset_state)
+      if sm['starpilotPlan'].disableThrottle:
+        throttle_cut = 1.0
+        self.ap1_throttle_gate.cut = 1.0
+        coast_limit = min(coast_limit, clipped_accel_coast)
+      self.throttle_cut = throttle_cut
+      self.allow_throttle = throttle_cut < 0.5
+      accel_limits_turns[1] = apply_cut(accel_limits_turns[1], coast_limit, throttle_cut)
+    elif not self.allow_throttle:
       clipped_accel_coast = max(accel_coast, accel_limits_turns[0])
       # Hold the output cap to the physical coasting limit until throttle is
       # allowed again. Relaxing back toward positive accel while the gate is
@@ -2391,7 +2420,10 @@ class LongitudinalPlanner:
                     tracked_lead_catchup_bias_cap=self.tracked_lead_catchup_bias_cap,
                     tracked_lead_catchup_speed_range=self.tracked_lead_catchup_speed_range,
                     tracked_lead_catchup_fade_margins=self.tracked_lead_catchup_fade_margins,
-                    tracked_lead_catchup_cruise_error_full=self.tracked_lead_catchup_cruise_error_full)
+                    tracked_lead_catchup_cruise_error_full=self.tracked_lead_catchup_cruise_error_full,
+                    # Tesla AP1 only: regen-sized lead comfort brake (1.0 m/s^2) through a runtime
+                    # x_obstacle shift. Other cars and the toggle off keep stock COMFORT_BRAKE.
+                    comfort_brake=self.ap1_comfort_brake)
 
     self.a_desired_trajectory_full = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.a_solution)
     self.v_desired_trajectory = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.v_solution)

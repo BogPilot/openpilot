@@ -358,6 +358,12 @@ class Car:
         desired_speed_limit=desired_speed_limit,
       )
 
+    if self.tesla_ap1_hooks is not None:
+      # AP1: pcmCruise keeps v_cruise from DI_cruiseSet, but the planner may have set a different
+      # AP1 set (SLC raise / tip / sticky). Lift the cluster / HUD set to the planner set.
+      self.v_cruise_helper.v_cruise_cluster_kph = self.tesla_ap1_hooks.cluster_set_kph(
+        self.v_cruise_helper.v_cruise_cluster_kph, self.sm)
+
     # TODO: mirror the carState.cruiseState struct?
     CS.vCruise = float(self.v_cruise_helper.v_cruise_kph)
     CS.vCruiseCluster = float(self.v_cruise_helper.v_cruise_cluster_kph)
@@ -376,7 +382,7 @@ class Car:
       self.CI.CS.preap_lateral_authorized = preap_authorized
     FPCS = self.starpilot_card.update(CS, FPCS, self.sm, self.starpilot_toggles, preap_authorized=preap_authorized)
     if self.tesla_ap1_hooks is not None:
-      self.tesla_ap1_hooks.after_state_update(self.CI.CS, self.sm, self.starpilot_card, self.starpilot_toggles)
+      self.tesla_ap1_hooks.after_state_update(self.CI.CS, self.sm, self.starpilot_card, self.starpilot_toggles, FPCS=FPCS)
     return CS, RD, FPCS
 
   def state_publish(self, CS: car.CarState, RD: structs.RadarDataT | None, FPCS: custom.StarPilotCarState):

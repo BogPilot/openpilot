@@ -160,6 +160,27 @@ def longitudinal_command_allowed(openpilot_longitudinal_control, enabled, long_a
   return bool(openpilot_longitudinal_control) and bool(enabled) and bool(long_active)
 
 
+def ap1_gas_neutral(chassis_das_only, openpilot_longitudinal_control, enabled, gas_pressed):
+  """True when AP1 sends the neutral DAS_control frame for a driver gas press.
+
+  BogPilot 4ded2e35. tesla_ap1.h checks DAS_accelMin and DAS_accelMax with
+  longitudinal_accel_checks. While the panda has seen the pedal pressed
+  (0x108 DI_pedalPos byte 6 != 0, the same test as carstate gasPressed),
+  longitudinal is not allowed and only inactive_accel (raw 375, 0.00 m/s^2)
+  passes for both. Any other accel request is dropped.
+
+  controlsd drops longActive for the press, but the car controller runs with the
+  new carState and the previous step's CarControl. On the first pressed step
+  that stale longActive=True frame was the one the panda rejected (BogPilot
+  route 00000010 segment 18, twice). Gas wins over longActive here.
+
+  Tinkla LONG_module also zeroes target_accel when the pedal is pressed. The
+  driver pedal goes to the DI directly and is not touched; releasing it returns
+  to the normal path on the next step.
+  """
+  return bool(chassis_das_only) and bool(openpilot_longitudinal_control) and bool(enabled) and bool(gas_pressed)
+
+
 def _ap1_limited_angle(requested_angle_deg, last_angle_deg, measured_angle_deg, v_ego):
   """Rate limit, then Tinkla's +/- 20 deg clip around the measured wheel.
 
@@ -198,7 +219,7 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
                         acc_state, das_counters, pcm_cancel, chassis_das_only=False,
                         epas_error=None, eac_fault=False, hands_on_level=0,
                         eac_status=None, soft_start=False, driver_yield=False,
-                        lat_enabled=None):
+                        lat_enabled=None, gas_pressed=False, steer_tick=None):
   """Steering and longitudinal decision for one CarController step.
 
   Disengaged lateral: no steering frame. Sending type-NONE 0x488 while
@@ -219,6 +240,13 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
   CarControl.enabled or an active MADS lateral, so a MADS lateral-only state
   gets the same NONE / measured-angle handling as a full engage.
   Longitudinal always uses `enabled`.
+
+  gas_pressed (BogPilot 4ded2e35): with ap1_gas_neutral true the long plan carries the
+  neutral frame (accelMin = accelMax = 0, set speed = v_ego) instead of nothing.
+
+  steer_tick (BogPilot 0904bb35, ap1_steer_counter.Ap1SteerCounterSync) replaces the
+  frame % 2 cadence and (frame // 2) % 16 counter so 0x488 follows the stock DAS phase
+  and counter. None keeps the old cadence and counter.
   """
 
   steer_enabled = enabled if lat_enabled is None else lat_enabled
@@ -234,29 +262,36 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
   if chassis_das_only and eac_fault:
     lkas_enabled = False
 
-  if frame % 2 == 0:
+  if steer_tick is None:
+    steer_send, steer_counter = frame % 2 == 0, (frame // 2) % 16
+  else:
+    steer_send, steer_counter = bool(steer_tick.send), int(steer_tick.counter) % 16
+
+  if steer_send:
     if hold_measured:
       # Measured ANGLE: EPAS inhibit recovery, latched 6/3, or engage soft-start.
       apply_angle = _ap1_limited_angle(measured_angle_deg, last_angle_deg, measured_angle_deg, v_ego)
       apply_angle_last = apply_angle
-      steer = SteerCommand(apply_angle, True, (frame // 2) % 16)
+      steer = SteerCommand(apply_angle, True, steer_counter)
     elif lkas_enabled and not hands_pause:
       # Angular rate limit based on speed, then the EPS clip.
       apply_angle = _ap1_limited_angle(requested_angle_deg, last_angle_deg, measured_angle_deg, v_ego)
       apply_angle_last = apply_angle
-      steer = SteerCommand(apply_angle, True, (frame // 2) % 16)
+      steer = SteerCommand(apply_angle, True, steer_counter)
     elif chassis_das_only and steer_enabled and not hands_on_fault:
       # Cruise stays up. Do not send the planned path angle.
       apply_angle_last = measured_angle_deg
-      steer = SteerCommand(measured_angle_deg, False, (frame // 2) % 16)
+      steer = SteerCommand(measured_angle_deg, False, steer_counter)
     else:
       # Interceptor: do not TX 0x488 while disengaged; stock DAS must pass.
       apply_angle_last = measured_angle_deg
 
   longitudinal = []
   longitudinal_addrs = ()
-  if longitudinal_command_allowed(openpilot_longitudinal_control, enabled, long_active):
-    target_accel = accel
+  gas_neutral = ap1_gas_neutral(chassis_das_only, openpilot_longitudinal_control, enabled, gas_pressed)
+  if gas_neutral or longitudinal_command_allowed(openpilot_longitudinal_control, enabled, long_active):
+    # Neutral: no accel request (both limits at 0.00 m/s^2, panda inactive_accel).
+    target_accel = 0.0 if gas_neutral else accel
     target_speed = max(v_ego + (target_accel * _ACCEL_TO_SPEED_MULTIPLIER), 0)
     max_accel = 0 if target_accel < 0 else target_accel
     min_accel = 0 if target_accel > 0 else target_accel

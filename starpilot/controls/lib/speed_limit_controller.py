@@ -35,6 +35,28 @@ OFFSET_MAP_METRIC = [
   (33.1, 38.9, "speed_limit_offset7"),  # 120–140
 ]
 
+# Upper edge (inclusive) of each offset band in display units (mph / km/h). The m/s maps above are
+# kept for reference / other importers; get_offset uses these (BogPilot milestone 3 band fix).
+OFFSET_BANDS_IMPERIAL = (
+  (24, "speed_limit_offset1"),   # 0-24 mph
+  (34, "speed_limit_offset2"),   # 25-34
+  (44, "speed_limit_offset3"),   # 35-44
+  (54, "speed_limit_offset4"),   # 45-54
+  (64, "speed_limit_offset5"),   # 55-64
+  (74, "speed_limit_offset6"),   # 65-74
+  (99, "speed_limit_offset7"),   # 75-99
+)
+
+OFFSET_BANDS_METRIC = (
+  (29, "speed_limit_offset1"),   # 0-29 km/h
+  (49, "speed_limit_offset2"),   # 30-49
+  (59, "speed_limit_offset3"),   # 50-59
+  (79, "speed_limit_offset4"),   # 60-79
+  (99, "speed_limit_offset5"),   # 80-99
+  (119, "speed_limit_offset6"),  # 100-119
+  (140, "speed_limit_offset7"),  # 120-140
+)
+
 SLC_OVERRIDE_DISABLE_CLEAR_TIME = 0.75
 # Minimum set-speed increase (m/s) counted as a deliberate +/- press. Below the smallest
 # real step (1 km/h ≈ 0.28 m/s), above cluster/float jitter.
@@ -54,6 +76,11 @@ class SpeedLimitController:
     self._prev_v_cruise = None
     self._persistent_override_speed = 0.0
     self._set_speed_override_input_consumed = False
+    # Tesla AP1 (BogStar): the AP1 set-speed layer in starpilot_vcruise owns the set (sticky / tip /
+    # pull to SLC+offset). Set-speed driven persistent overrides are off there, because the pcmCruise
+    # set (DI_cruiseSet) and the lifted cluster set would otherwise re-arm an override that keeps a
+    # pull from re-latching SLC+offset. The gas override stays.
+    self.set_speed_override_enabled = True
 
     self.denied_target = 0
     self.map_speed_limit = 0
@@ -111,8 +138,18 @@ class SpeedLimitController:
   def get_offset(self, target_speed):
     if self.starpilot_toggles is None:
       return 0
-    offset_map = OFFSET_MAP_METRIC if self.starpilot_toggles.is_metric else OFFSET_MAP_IMPERIAL
-    return next((getattr(self.starpilot_toggles, offset) for low, high, offset in offset_map if low <= target_speed < high), 0)
+    # Compare in rounded display units so band edges match posted limits (BogPilot milestone 3).
+    # The m/s map put 25 mph (11.176 m/s) in Offset1 (high edge 11.2) although Offset2 is 25-34 mph.
+    if self.starpilot_toggles.is_metric:
+      band = int(round(float(target_speed) * CV.MS_TO_KPH))
+      bands = OFFSET_BANDS_METRIC
+    else:
+      band = int(round(float(target_speed) * CV.MS_TO_MPH))
+      bands = OFFSET_BANDS_IMPERIAL
+    for high, offset in bands:
+      if band <= high:
+        return getattr(self.starpilot_toggles, offset)
+    return 0
 
   @property
   def offset(self):
@@ -553,7 +590,9 @@ class SpeedLimitController:
     set_speed = v_cruise + v_cruise_diff
     bidirectional_set_speed = getattr(self.starpilot_toggles, "redneck_cruise", False)
 
-    if self._persistent_override_speed > 0:
+    if not self.set_speed_override_enabled:
+      self.clear_persistent_override()
+    elif self._persistent_override_speed > 0:
       if bidirectional_set_speed:
         if set_speed <= 0:
           self.clear_persistent_override()

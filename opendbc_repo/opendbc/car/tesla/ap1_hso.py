@@ -30,11 +30,11 @@ AP1_DRIVER_INPUT_LEVEL = 1
 
 # Resume hold after a hands pause. Once hands reach AP1_HANDS_ON_LEVEL while
 # engaged, 0x488 stays type NONE until EPAS has reported level 0 (no driver
-# torque at all) for this long; any level >= 1 restarts it. BogPilot first
-# shipped 0.8 s from log evidence; after driving it the user chose 0.5 s
-# (Tinkla's HSO numb period is also 50 frames = 0.5 s). Lateral then resumes
-# through the 300 ms measured-angle soft-start (AP1_ENGAGE_SOFT_START_FRAMES).
-AP1_RESUME_HOLD_S = 0.5
+# torque at all) for this long; any level >= 1 restarts it. BogPilot builds
+# used 0.8 s then 0.5 s (Tinkla's HSO numb period is 50 frames = 0.5 s); BogPilot
+# 84bb60fb (milestone 3) shortened it to 0.3 s. Lateral then resumes through the
+# 300 ms measured-angle soft-start (AP1_ENGAGE_SOFT_START_FRAMES).
+AP1_RESUME_HOLD_S = 0.3
 # CarController runs at 100 Hz (DT_CTRL).
 AP1_CONTROL_HZ = 100
 AP1_RESUME_HOLD_FRAMES = int(round(AP1_RESUME_HOLD_S * AP1_CONTROL_HZ))

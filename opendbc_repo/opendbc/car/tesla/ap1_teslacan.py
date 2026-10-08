@@ -92,13 +92,17 @@ class Ap1TeslaCAN:
     values["CRC_STW_ACTN_RQ"] = _stw_crc(bytes(data[:7]))
     return self.packer.make_can_msg("STW_ACTN_RQ", bus, values)
 
-  def create_longitudinal_commands(self, acc_state, speed, min_accel, max_accel, cnt):
+  def create_longitudinal_commands(self, acc_state, speed, min_accel, max_accel, cnt,
+                                   jerk_min=CarControllerParams.AP1_JERK_LIMIT_MIN,
+                                   jerk_max=CarControllerParams.AP1_JERK_LIMIT_MAX):
+    # The AP1 controller passes comfort-band jerk limits (ap1_long_smooth.Ap1JerkLimit, BogPilot
+    # milestone 4). The defaults keep the old +/-8.
     values = {
       "DAS_setSpeed": speed * CV.MS_TO_KPH,
       "DAS_accState": acc_state,
       "DAS_aebEvent": 0,
-      "DAS_jerkMin": CarControllerParams.AP1_JERK_LIMIT_MIN,
-      "DAS_jerkMax": CarControllerParams.AP1_JERK_LIMIT_MAX,
+      "DAS_jerkMin": jerk_min,
+      "DAS_jerkMax": jerk_max,
       "DAS_accelMin": min_accel,
       "DAS_accelMax": max_accel,
       "DAS_controlCounter": cnt,

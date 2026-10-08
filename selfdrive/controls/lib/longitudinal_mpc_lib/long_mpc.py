@@ -262,16 +262,32 @@ def get_T_FOLLOW(aggressive_follow=1.25, standard_follow=1.45, relaxed_follow=1.
     else:
       raise NotImplementedError("Longitudinal personality not supported")
 
-def get_stopped_equivalence_factor(v_lead):
-  return (v_lead**2) / (2 * COMFORT_BRAKE)
+def get_stopped_equivalence_factor(v_lead, comfort_brake=COMFORT_BRAKE):
+  return (v_lead**2) / (2 * comfort_brake)
 
-def get_safe_obstacle_distance(v_ego, t_follow):
-  return (v_ego**2) / (2 * COMFORT_BRAKE) + t_follow * v_ego + STOP_DISTANCE
+def get_safe_obstacle_distance(v_ego, t_follow, comfort_brake=COMFORT_BRAKE):
+  return (v_ego**2) / (2 * comfort_brake) + t_follow * v_ego + STOP_DISTANCE
 
-def desired_follow_distance(v_ego, v_lead, t_follow=None):
+def desired_follow_distance(v_ego, v_lead, t_follow=None, comfort_brake=COMFORT_BRAKE):
   if t_follow is None:
     t_follow = get_T_FOLLOW()
-  return get_safe_obstacle_distance(v_ego, t_follow) - get_stopped_equivalence_factor(v_lead)
+  return get_safe_obstacle_distance(v_ego, t_follow, comfort_brake) - get_stopped_equivalence_factor(v_lead, comfort_brake)
+
+
+def comfort_distance_delta(v_ego, comfort_brake):
+  """Extra desired follow distance vs stock COMFORT_BRAKE baked into acados.
+
+  The generated solver cost uses COMFORT_BRAKE=2.5. To emulate a lower comfort
+  brake at runtime without regenerating the solver, subtract this delta from
+  the lead x_obstacle parameter so
+    (x_obs - delta - x_ego) - desired_stock == (x_obs - x_ego) - desired_new.
+  At v=0 the delta is 0, so STOP_DISTANCE / final gap is unchanged.
+  Used only for the Tesla AP1 regen comfort brake (opendbc tesla ap1_regen_brake.py).
+  """
+  if comfort_brake >= COMFORT_BRAKE - 1e-9:
+    return np.zeros_like(v_ego, dtype=float) if np.ndim(v_ego) else 0.0
+  scale = 0.5 * (1.0 / comfort_brake - 1.0 / COMFORT_BRAKE)
+  return scale * (np.maximum(v_ego, 0.0) ** 2)
 
 
 def soften_far_radar_lead_accel(d_rel, v_lead, a_lead, v_ego, t_follow, *, radar=True):
@@ -927,7 +943,7 @@ class LongitudinalMpc:
              lead_obstacle_bias=(0.0, 0.0), tracked_lead_catchup_headway_margins=None,
              tracked_lead_catchup_bias_gain=None, tracked_lead_catchup_bias_cap=None,
              tracked_lead_catchup_speed_range=None, tracked_lead_catchup_fade_margins=None,
-             tracked_lead_catchup_cruise_error_full=None):
+             tracked_lead_catchup_cruise_error_full=None, comfort_brake=COMFORT_BRAKE):
     v_ego = self.x0[1]
     lead_one = radarstate.leadOne
     lead_two = radarstate.leadTwo
@@ -945,8 +961,21 @@ class LongitudinalMpc:
     # To estimate a safe distance from a moving lead, we calculate how much stopping
     # distance that lead needs as a minimum. We can add that to the current distance
     # and then treat that as a stopped car/obstacle at this new distance.
-    lead_0_obstacle = lead_xv_0[:,0] + get_stopped_equivalence_factor(lead_xv_0[:,1])
-    lead_1_obstacle = lead_xv_1[:,0] + get_stopped_equivalence_factor(lead_xv_1[:,1])
+    # comfort_brake only reshapes the soft desired-distance cost for lead approaches
+    # (Tesla AP1 regen-sized). Hard accel limits stay at ACCEL_MIN.
+    lead_0_obstacle = lead_xv_0[:,0] + get_stopped_equivalence_factor(lead_xv_0[:,1], comfort_brake)
+    lead_1_obstacle = lead_xv_1[:,0] + get_stopped_equivalence_factor(lead_xv_1[:,1], comfort_brake)
+    # Emulate a lower COMFORT_BRAKE in the compiled desired_dist cost by shrinking the lead
+    # x_obstacle (BogPilot milestone 4). The cruise obstacle keeps stock COMFORT_BRAKE. The delta
+    # uses the planner's own predicted ego speed at each node (previous solution); on the first
+    # solve, or after a reset, it falls back to constant current v_ego.
+    if comfort_brake < COMFORT_BRAKE - 1e-9:
+      v_horizon = np.maximum(self.v_solution, 0.0)
+      if not np.any(v_horizon > 1e-3) or abs(float(v_horizon[0]) - float(v_ego)) > 5.0:
+        v_horizon = np.full(N + 1, max(float(v_ego), 0.0))
+      lead_delta = comfort_distance_delta(v_horizon, comfort_brake)
+      lead_0_obstacle = lead_0_obstacle - lead_delta
+      lead_1_obstacle = lead_1_obstacle - lead_delta
     lead_0_obstacle -= float(lead_obstacle_bias[0])
     lead_1_obstacle -= float(lead_obstacle_bias[1])
 

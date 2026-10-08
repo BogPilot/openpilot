@@ -25,6 +25,11 @@
 //  - 0x349 (all-zero Hold clear) is only allowed with longitudinal control.
 //  - longitudinal is only honored in ALLOW_DEBUG builds (BogGyver/Tinkla honored it in all builds).
 //
+// Angle resync (BogPilot 1d6669ae, milestone 4): while neither controls_allowed nor always-on lateral is
+// active, each EPAS_sysStatus (0x370) sets desired_angle_last to the measured wheel angle, so the first
+// 0x488 after an engage is rate checked against the real wheel instead of the previous engagement's last
+// angle. Rate tables, the inactive-angle rule, accel limits, the TX list and forwarding are unchanged.
+//
 // Instrument-cluster frames (BogPilot milestone 2, Tinkla TESLA_AP_FWD_MODDED idea): openpilot rebuilds each new
 // stock 0x399 AutopilotStatus / 0x389 DAS_status2 / 0x239 DAS_lanes from bus 2 and sends it on bus 0 with stock
 // counter + 1. The stock copy from bus 2 is dropped only while openpilot sent that address within 1.5x its stock
@@ -78,6 +83,18 @@ static void tesla_ap1_rx_hook(const CANPacket_t *msg) {
     if (msg->addr == 0x370U) {
       const int angle_meas_new = (((msg->data[4] & 0x3FU) << 8) | msg->data[5]) - 8192U;
       update_sample(&angle_meas, angle_meas_new);
+
+      // While the angle rate check is not running (same gate as steer_angle_cmd_checks: neither
+      // controls_allowed nor always-on lateral), openpilot sends no 0x488 (stock DAS passes), so
+      // desired_angle_last would keep the last angle of the previous engagement. Track the measured
+      // wheel instead, so the first 0x488 after engage is rate checked against the real wheel.
+      // Same 0.1 deg unit as the steering request. The rate tables and every other check are
+      // unchanged; once controls are allowed this does nothing (BogPilot 1d6669ae).
+      // Same expression as safety.h aol_allowed, evaluated now (the global is refreshed after this hook).
+      const bool aol_now = (acc_main_on || lkas_on) && ((alternative_experience & ALT_EXP_ALWAYS_ON_LATERAL) != 0);
+      if (!controls_allowed && !aol_now) {
+        desired_angle_last = angle_meas_new;
+      }
     }
 
     // DI_torque2: DI_vehicleSpeed, ((0.05 * val) - 25) mph

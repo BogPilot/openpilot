@@ -9,6 +9,7 @@ from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import COMFO
 
 from openpilot.starpilot.common.longitudinal_personality_profiles import active_personality_id, interpolate_category_curve, resolve_personality_category
 from openpilot.starpilot.common.starpilot_variables import CITY_SPEED_LIMIT, MAX_T_FOLLOW
+from opendbc.car.tesla.ap1_regen_brake import ap1_comfort_brake
 
 TRAFFIC_MODE_BP = [0., CITY_SPEED_LIMIT]
 PERSONALITY_BP = [45. * CV.MPH_TO_MS, 70. * CV.MPH_TO_MS]
@@ -140,7 +141,10 @@ class StarPilotFollowing:
 
     if long_control_active and self.starpilot_planner.tracking_lead:
       self.update_follow_values(self.starpilot_planner.lead_one.dRel, v_ego, self.starpilot_planner.lead_one.vLead, starpilot_toggles)
-      self.desired_follow_distance = int(desired_follow_distance(v_ego, self.starpilot_planner.lead_one.vLead, self.t_follow))
+      # Tesla AP1: the published gap uses the regen comfort brake the lead MPC uses (stock elsewhere).
+      comfort_brake = ap1_comfort_brake(getattr(starpilot_toggles, "car_model", ""))
+      self.desired_follow_distance = int(desired_follow_distance(v_ego, self.starpilot_planner.lead_one.vLead, self.t_follow,
+                                                                 comfort_brake=comfort_brake))
     else:
       self.desired_follow_distance = 0
 

@@ -266,6 +266,11 @@ class HudInputs:
   ic_integration: bool = True
   # Engaged model path. None => actuator curvature + 50 m fallback.
   model_path: ModelPath | None = None
+  # openpilot cruise set in mph for DAS_accSpeedLimit on 0x389 (BogPilot a311a902 / 64ed3232).
+  # None keeps stock (cluster set speed follows DI / Mobileye). DBC factor is 0.4 so an OP set of
+  # 30 packs as a cluster set speed of 30. The cluster set speed then follows the planner set
+  # (CSC / SLC / tip) without any fake stalk on 0x45.
+  cruise_set_mph: float | None = None
 
 
 def hands_on_state(h):
@@ -436,6 +441,10 @@ def build_das_status2(stock, h, mode):
     v["DAS_driverInteractionLevel"] = 0
     if h.fcw:
       v["DAS_longCollisionWarning"] = LONG_FCW_VEHICLE
+    # Overlay the openpilot set on the cluster set speed (mph, DBC factor 0.4). Stock fused /
+    # vision speed-limit fields stay untouched. None keeps stock DAS_accSpeedLimit.
+    if h.cruise_set_mph is not None and h.cruise_set_mph > 0:
+      v["DAS_accSpeedLimit"] = float(h.cruise_set_mph)
   elif mode != "post":
     raise ValueError(mode)
   word = pack(DAS_STATUS2, SIGNALS[DAS_STATUS2], v)

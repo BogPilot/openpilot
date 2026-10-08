@@ -61,8 +61,30 @@ booster, radar and EPAS firmware):
 * Instrument cluster integration (`AutopilotStatus`, `DAS_status2`, `DAS_lanes`).
 * Speed limits read from CAN and shown through StarPilot's dashboard speed limit.
 * Holding the cruise stalk pulled for about 2 seconds toggles Experimental Mode
-  while engaged; the stalk follow-distance setting selects the driving personality.
+  while engaged; holding it forward for about 2 seconds while disengaged also
+  toggles Experimental Mode. The stalk follow-distance setting selects the
+  driving personality.
+* AP1 set speed with Speed Limit Controller on (BogPilot milestone 3): stalk up or
+  down engages at the current speed; a pull engages at the posted limit plus
+  offset. Engaged up/down tips change the set by 1 mph (a full tip goes to the next
+  or previous 5) and the tipped set stays put across speed-limit zone changes until
+  the next pull. Posted limits under 15 mph are ignored and big sudden drops must
+  persist for 2 seconds. The cluster set speed follows the planner set.
+* Longitudinal smoothing (BogPilot milestone 4): accel slew and a comfort jerk band
+  on DAS_control, a standstill hold that relaxes to -1.0 m/s² (no launch thunk), a
+  neutral DAS_control while the driver presses the accelerator, a filtered throttle
+  cap instead of an on/off cut, and an earlier, gentler regen-sized lead approach
+  (comfort brake 1.0 m/s² for the lead cost only; hard braking limits are
+  unchanged). Turn the regen comfort brake off with
+  `echo 0 > /data/params_bogpilot/RegenComfortBrake` and restart.
+* Steering frames stay in counter step with the stock DAS, the EPB "EAC not
+  allowed" signal faults lateral, and the panda resyncs its steering-angle rate
+  limit to the wheel while disengaged (no rate-limit faults on re-engage). Panda
+  limits are unchanged.
 * A "BogPilot" startup-alert preset in the StarPilot appearance settings.
+
+The AP1 set-speed layer adds two Python-read fields to `starpilotCarState`
+(`resumePressed`, `spdCtrlLvr`).
 
 Credits: the AP1 CAN and safety logic follows the work of
 [BogGyver](https://github.com/BogGyver) and the Tinkla project, ported through

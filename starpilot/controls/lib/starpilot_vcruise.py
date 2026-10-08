@@ -15,6 +15,7 @@ from openpilot.starpilot.controls.lib.curve_speed_controller import (
   is_manual_speed_control,
 )
 from openpilot.starpilot.controls.lib.speed_limit_controller import SpeedLimitController
+from opendbc.car.tesla.ap1_slc_raise import Ap1RaiseHoldoff, Ap1SlcLimitGuard, ap1_cruise_ms, is_ap1
 from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_force_stop_distance_bias,
   get_force_stop_handoff_distance,
@@ -213,6 +214,65 @@ class StarPilotVCruise:
     self.csc_glow_release_timer = 0.0
     self.csc_override = False
     self.csc_target = 0.0
+
+    # Tesla AP1 (BogStar, BogPilot milestones 3 / 4): engage stalk policy and engaged tip software set
+    # (tip authority until pull), plus the posted-limit guard. Only used when car_model is AP1.
+    self.ap1_raise_holdoff = Ap1RaiseHoldoff()
+    self.ap1_limit_guard = Ap1SlcLimitGuard()
+    self._ap1_tip_override_active = False
+
+  def _ap1_set_speed(self, v_cruise, v_ego, v_ego_diff, slc_control_target, sm):
+    """Tesla AP1 set authority, applied after min(targets) (BogPilot frogpilot_vcruise, milestones 3 / 4).
+
+    Engage: stalk UP/DN -> sticky vEgo; RWD pull -> SLC+offset. Engaged UP/DN -> tip software set
+    (+/-1, full tip = next / previous 5), which holds through posted-limit changes until a pull or
+    disengage. After a pull the set tracks SLC+offset. Only an active CSC may lower a sticky or tipped
+    set. No stalk TX and no panda change.
+    """
+    enabled = bool(sm["carState"].cruiseState.enabled)
+    fp_cs = sm["starpilotCarState"]
+    # Continuous UP/DN/RWD levels from the AP1 carstate button states (TeslaAp1CardHooks).
+    up = bool(fp_cs.accelPressed)
+    dn = bool(fp_cs.decelPressed)
+    rwd = bool(getattr(fp_cs, "resumePressed", False))
+    # 0.0 when there is no SLC target (ap1_cruise_ms then keeps the post-min value).
+    slc_desired = max(float(slc_control_target), 0.0)
+
+    # Tip base = current software set (sticky latch / tip / raised set). Never the raw post-min
+    # DI_cruiseSet after a pull raise. Sticky wins first so a tip from sticky is not SLC-floored.
+    hold = self.ap1_raise_holdoff
+    if hold.sticky_vego and float(hold.latched_vego_ms) > 0.0:
+      set_hint = float(hold.latched_vego_ms)
+    elif float(hold.tip_ms) > 0.0:
+      set_hint = float(hold.tip_ms)
+    else:
+      set_hint = float(v_cruise)
+      if slc_desired >= CRUISING_SPEED:
+        set_hint = max(set_hint, slc_desired)
+    # SpdCtrlLvr_Stat 4 / 8 = full tip (next 5); 16 / 32 = +/-1.
+    spd = int(getattr(fp_cs, "spdCtrlLvr", 0) or 0)
+    tip_full = spd in (4, 8)
+    allow_raise, sticky_vego = hold.update(
+      enabled, dn, up, rwd, float(self.slc_target), float(v_ego),
+      current_set_ms=set_hint, dt=DT_MDL, tip_full=tip_full,
+    )
+    tip_ms = float(hold.tip_ms)
+    if tip_ms > 0.0:
+      # Published as the SLC override so the UI shows the driver's set.
+      if hold.tip_dir < 0:
+        self.slc.overridden_speed = tip_ms
+      else:
+        self.slc.overridden_speed = max(float(self.slc.overridden_speed), tip_ms)
+      self._ap1_tip_override_active = True
+    elif self._ap1_tip_override_active:
+      # Tip cleared (pull / disengage): drop the stale override so SLC+offset applies.
+      self.slc.clear_override()
+      self._ap1_tip_override_active = False
+      target_with_offset = float(self.slc_target) + float(self.slc_offset)
+      slc_desired = max(0.0, target_with_offset - v_ego_diff) if target_with_offset > 0.0 else 0.0
+    return ap1_cruise_ms(
+      v_cruise, sticky_vego, tip_ms, allow_raise, slc_desired, self.slc_target,
+      CRUISING_SPEED, self.csc_controlling_speed, self.csc_target)
 
   def _update_nav_instruction_state(self):
     raw = self.starpilot_planner.params_memory.get("NavInstructionState") or {}
@@ -640,12 +700,20 @@ class StarPilotVCruise:
     # Pfeiferj's Speed Limit Controller
     self.slc.starpilot_toggles = starpilot_toggles
 
+    ap1 = is_ap1(getattr(starpilot_toggles, "car_model", ""))
+    # AP1: the AP1 layer below owns the set speed, so no set-speed persistent SLC override.
+    self.slc.set_speed_override_enabled = not ap1
+
     if starpilot_toggles.speed_limit_controller:
       self.slc.update_limits(sm["starpilotCarState"].dashboardSpeedLimit, now, time_validated, v_cruise, v_ego, sm)
       self.slc.update_override(v_cruise, v_cruise_diff, v_ego, v_ego_diff, sm)
 
       self.slc_offset = self.slc.offset
       self.slc_target = self.slc.target
+      if ap1:
+        # AP1: ignore bogus < 15 mph limits, confirm sudden big drops (route 2a 45 -> 5 mph blip).
+        # Feeds SLC tracking, the pull engage and the published limit.
+        self.slc_target, self.slc_offset = self.ap1_limit_guard.update(self.slc_target, self.slc_offset, DT_MDL)
     elif starpilot_toggles.show_speed_limits:
       self.slc.update_limits(sm["starpilotCarState"].dashboardSpeedLimit, now, time_validated, v_cruise, v_ego, sm, display_only=True)
 
@@ -795,6 +863,9 @@ class StarPilotVCruise:
           targets.append(math.sqrt(2.0 * FORCE_STOP_APPROACH_DECEL * (approach_d - force_stop_handoff_m)))
 
       v_cruise = min(targets)
+
+      if ap1 and starpilot_toggles.speed_limit_controller:
+        v_cruise = self._ap1_set_speed(v_cruise, v_ego, v_ego_diff, slc_control_target, sm)
 
     self.controls_enabled_previously = controls_enabled
     return v_cruise

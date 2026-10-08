@@ -5,7 +5,7 @@ selfdrive/car/tesla/carcontroller.py AP1 path:
 
 - Engage soft-start: ~300 ms of ANGLE at the measured wheel after engage.
 - Hands pause at EPAS level >= 2 plus the resume hold (ap1_hso.Ap1DriverYield):
-  0x488 stays type NONE until the hands level has been 0 for 0.5 s, then the
+  0x488 stays type NONE until the hands level has been 0 for 0.3 s, then the
   same soft-start. Not engaged clears it at once.
 - EPAS not EAC_ACTIVE, or a latched code 6 / 3: ANGLE at the measured wheel.
 - AP1 cluster frames (ap1_cluster). StarPilot/BogStar: always on for AP1 (BogPilot
@@ -18,6 +18,16 @@ same pause, resume hold and soft-start. Longitudinal still uses CC.enabled.
 
 The cluster path (0x239) uses modelV2 position x / y that StarPilot's card copies into
 model_path_x / model_path_y before each apply (AP1 only). Empty -> actuator curvature + 50 m.
+
+BogStar milestone 3 / 4 (BogPilot bogpilot-tesla fe06ec7a):
+- Accel smoothing (ap1_long_smooth.Ap1AccelSmoother): rise 2.5 m/s^3, drive release 2.0 m/s^3
+  with an S-curve, regen onset 2.0 m/s^3, requests at or below -2.0 m/s^2 / FCW / stopping pass
+  through, standstill hold relaxed to -1.0 m/s^2 at 1.0 m/s^3 (launch thunk fix).
+- DAS_jerkMin / DAS_jerkMax from ap1_long_smooth.Ap1JerkLimit (+/-1.5 comfort band, +/-8 urgent).
+- Neutral DAS_control while the driver presses the accelerator (ap1_actuator_plan.ap1_gas_neutral).
+- 0x488 phase and counter follow the stock DAS (ap1_steer_counter.Ap1SteerCounterSync).
+- DAS_accSpeedLimit on 0x389 shows openpilot's set (hudControl.setSpeed), DBC factor 0.4.
+- The smoothed accel is written back into the returned actuators (carOutput).
 """
 
 from opendbc.can import CANPacker
@@ -27,12 +37,16 @@ from opendbc.car.carlog import carlog
 from opendbc.car.interfaces import CarControllerBase
 from opendbc.car.tesla.ap1_actuator_plan import (
   AP1_ENGAGE_SOFT_START_FRAMES,
+  ap1_gas_neutral,
   ap1_should_send_hold_clear,
   build_actuator_plan,
   longitudinal_command_allowed,
 )
 from opendbc.car.tesla.ap1_cluster import CLUSTER_BUS, ClusterController, HudInputs, path_from_xy
 from opendbc.car.tesla.ap1_hso import Ap1DriverYield, ap1_lat_active, ap1_steering_pressed
+from opendbc.car.tesla.ap1_long_smooth import Ap1AccelSmoother, Ap1JerkLimit, ap1_brake_urgent, ap1_fcw
+from opendbc.car.tesla.ap1_slc_raise import cruise_set_mph
+from opendbc.car.tesla.ap1_steer_counter import Ap1SteerCounterSync
 from opendbc.car.tesla.ap1_teslacan import Ap1TeslaCAN
 from opendbc.car.tesla.values import CANBUS, DBC
 
@@ -65,6 +79,13 @@ class Ap1CarController(CarControllerBase):
     # modelV2 position x / y (ego frame), filled by StarPilot's card for the 0x239 path.
     self.model_path_x: list[float] = []
     self.model_path_y: list[float] = []
+    # 0x488 phase and counter follow the stock DAS (ap1_steer_counter.py).
+    self.ap1_steer_sync = Ap1SteerCounterSync()
+    # Accel slew and standstill hold floor (ap1_long_smooth.py).
+    self.ap1_accel_smoother = Ap1AccelSmoother()
+    # DAS_jerkMin / Max: +/-1.5 in the comfort band, full +/-8 once the request sent is at or
+    # below -0.5 m/s^2, on urgent frames and below 1 m/s (ap1_long_smooth.Ap1JerkLimit).
+    self.ap1_jerk_limit = Ap1JerkLimit()
 
   def update(self, CC, CS, now_nanos, starpilot_toggles=None):
     actuators = CC.actuators
@@ -87,6 +108,21 @@ class Ap1CarController(CarControllerBase):
 
     lat_active = ap1_lat_active(CC.latActive, CS.hands_on_level) and not driver_yield
     self.lat_wanted = lat_engaged and bool(CC.latActive)
+
+    gas_pressed = bool(CS.out.gasPressed)
+    long_allowed_now = longitudinal_command_allowed(self.CP.openpilotLongitudinalControl, CC.enabled, CC.longActive)
+    gas_neutral = ap1_gas_neutral(True, self.CP.openpilotLongitudinalControl, CC.enabled, gas_pressed)
+    # FCW or the LongControl stopping state: braking passes through unramped.
+    urgent = ap1_brake_urgent(CC)
+    fcw = ap1_fcw(CC)
+    # Standstill: relax a deeper hold request to AP1_STANDSTILL_HOLD_ACCEL (stock DAS sends
+    # accelMin 0) so the DI latches less HOLD pressure to dump at the launch.
+    accel = self.ap1_accel_smoother.update(actuators.accel, long_allowed_now, CS.out.vEgo, gas_neutral=gas_neutral,
+                                           urgent=urgent, standstill=bool(CS.out.standstill), fcw=fcw)
+    jerk_min, jerk_max = self.ap1_jerk_limit.update(accel, long_allowed_now, CS.out.vEgo, gas_neutral=gas_neutral,
+                                                    urgent=urgent, fcw=fcw)
+    steer_tick = self.ap1_steer_sync.update(getattr(CS, "stock_steer_counters", ()), self.frame)
+
     plan = build_actuator_plan(
       self.frame,
       lat_active,
@@ -98,7 +134,7 @@ class Ap1CarController(CarControllerBase):
       actuators.steeringAngleDeg,
       self.apply_angle_last,
       CS.out.vEgo,
-      actuators.accel,
+      accel,
       CS.acc_state,
       CS.das_control_counters,
       CC.cruiseControl.cancel,
@@ -110,8 +146,13 @@ class Ap1CarController(CarControllerBase):
       soft_start=soft_start,
       driver_yield=driver_yield,
       lat_enabled=lat_engaged,
+      # Neutral DAS_control while the driver presses the accelerator.
+      gas_pressed=gas_pressed,
+      steer_tick=steer_tick,
     )
     self.apply_angle_last = plan.apply_angle_last
+    if plan.steer is not None:
+      self.ap1_steer_sync.commit(plan.steer.counter, self.frame)
 
     can_sends = []
 
@@ -121,7 +162,8 @@ class Ap1CarController(CarControllerBase):
 
     for cmd in plan.longitudinal:
       can_sends.extend(self.tesla_can.create_longitudinal_commands(
-        cmd.acc_state, cmd.target_speed, cmd.min_accel, cmd.max_accel, cmd.counter))
+        cmd.acc_state, cmd.target_speed, cmd.min_accel, cmd.max_accel, cmd.counter,
+        jerk_min=jerk_min, jerk_max=jerk_max))
 
     if plan.cancel and CS.msg_stw_actn_req is not None:
       for counter in range(16):
@@ -144,6 +186,7 @@ class Ap1CarController(CarControllerBase):
 
     new_actuators = actuators.as_builder()
     new_actuators.steeringAngleDeg = float(self.apply_angle_last)
+    new_actuators.accel = float(accel)
     self.frame += 1
     return new_actuators, can_sends
 
@@ -176,6 +219,9 @@ class Ap1CarController(CarControllerBase):
         curvature=float(CC.actuators.curvature),
         ic_integration=self.ic_integration,
         model_path=model_path,
+        # hudControl.setSpeed is openpilot's cruise set (m/s), already lifted to the AP1 planner set
+        # (CSC / SLC / tip) by selfdrived. Packed with DBC factor 0.4 so the cluster set speed matches.
+        cruise_set_mph=cruise_set_mph(float(hud.setSpeed)) if enabled else None,
       )
       frames = self.cluster.update(h, CS.cluster_stock, now_nanos)
       return [CanData(addr, dat, CLUSTER_BUS) for addr, dat in frames]

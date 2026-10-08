@@ -12,6 +12,12 @@ Evidence from AP1 rlogs (routes 10/11/12/17): RWD asserts continuously
 for the pulse seen on the bus (spring stalk). Observed RWD holds were
 70–140 ms (taps). No ≥0.5 s hold appeared in those logs — a 2.0 s hold
 requires holding against the spring so SpdCtrlLvr stays at 2.
+
+RE-ENABLED (PULL_HOLD_ENABLED = True, BogPilot milestone 3). A BogPilot drive
+showed the stock DI treats a held RWD pull as resume: ~0.7 s into the hold the
+cruise set speed may jump back to the remembered set (e.g. 15 -> 31 mph) before
+Experimental Mode toggles. That DI side-effect is accepted: engaged-only ~2 s
+hold toggles Experimental once; short pulls and the engage pull itself stay disarmed.
 """
 
 from __future__ import annotations
@@ -20,6 +26,8 @@ from __future__ import annotations
 RWD = 2
 # Require this continuous assertion while engaged before toggling once.
 PULL_HOLD_S = 2.0
+# CarState only runs the helper when this is True. See module docstring.
+PULL_HOLD_ENABLED = True
 
 
 class StalkPullHold:

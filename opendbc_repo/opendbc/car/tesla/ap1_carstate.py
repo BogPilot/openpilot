@@ -14,6 +14,13 @@ StarPilot / BogStar additions (from BogPilot bogpilot-tesla d218414f / d8063e62)
   then GTW UI_mapSpeedLimit / UI_mppSpeedLimit (ap1_speed_limit.py).
 - self.stalk_pull_toggle: one frame after a ~2 s RWD stalk hold while already engaged
   (ap1_stalk_pull_hold.py). card.py turns it into one Experimental Mode toggle.
+
+BogStar milestone 3 / 4 (BogPilot bogpilot-tesla fe06ec7a):
+- cruiseState.speed is DI_cruiseSet (the ACC set), not DI_digitalSpeed (about ego).
+- self.spd_ctrl_lvr: raw SpdCtrlLvr_Stat for the full tip (UP_2ND / DN_2ND) vs +/-1 detent.
+- self.stalk_fwd_toggle: one frame after a ~2 s FWD hold while disengaged (ap1_stalk_fwd_hold.py).
+- EPB_epasEACAllow 0 (0x214) is a permanent steer fault (EPAS stays inhibited until a car power cycle).
+- self.stock_steer_counters: stock DAS_steeringControlCounter values this step (ap1_steer_counter.py).
 """
 
 from __future__ import annotations
@@ -29,7 +36,8 @@ from opendbc.car.interfaces import CarStateBase
 from opendbc.car.tesla.ap1_cluster import CLUSTER_ADDRS, COUNTER_SIGNALS, MSG_NAMES
 from opendbc.car.tesla.ap1_hso import ap1_driver_input
 from opendbc.car.tesla.ap1_speed_limit import dashboard_speed_limit_ms
-from opendbc.car.tesla.ap1_stalk_pull_hold import StalkPullHold
+from opendbc.car.tesla.ap1_stalk_fwd_hold import FWD_HOLD_ENABLED, StalkFwdHold
+from opendbc.car.tesla.ap1_stalk_pull_hold import PULL_HOLD_ENABLED, StalkPullHold
 from opendbc.car.tesla.ap1_stalk_follow import ap1_stalk_personality, dtr_sample, follow_seconds, parse_stalk_raw
 from opendbc.car.tesla.ap1_steer_fault import steer_fault_temporary
 from opendbc.car.tesla.values import CANBUS, DBC, GEAR_MAP
@@ -74,6 +82,17 @@ class Ap1CarState(CarStateBase):
     # AP1 long RWD pull while already engaged -> one Experimental Mode toggle (card.py).
     self.stalk_pull_hold = StalkPullHold()
     self.stalk_pull_toggle = False
+    # AP1 long FWD hold while disengaged -> one Experimental Mode toggle (ap1_stalk_fwd_hold.py).
+    self.stalk_fwd_hold = StalkFwdHold()
+    self.stalk_fwd_toggle = False
+    # Raw SpdCtrlLvr_Stat (0 IDLE, 1 FWD, 2 RWD, 4 UP_2ND, 8 DN_2ND, 16 UP_1ST, 32 DN_1ST).
+    self.spd_ctrl_lvr = 0
+    # Stock DAS_steeringControlCounter values (bus 2) received this step, oldest first.
+    self.stock_steer_counters: list[int] = []
+    # Last EPB_epasEACAllow seen. None until the first 0x214 frame (vl defaults to 0 before
+    # that, which would read as revoked).
+    self.epb_eac_allow = None
+    self.epb_eac_revoked = False
 
   def update(self, can_parsers, starpilot_toggles=None):
     cp = can_parsers[Bus.chassis]
@@ -111,6 +130,14 @@ class Ap1CarState(CarStateBase):
     self.eac_status = steer_status
     self.eac_fault = steer_status == "EAC_FAULT"
     ret.steerFaultPermanent = self.eac_fault
+    # EPB_epasEACAllow 0: the EPB revoked EAC. EPAS stays INHIBITED until a car power cycle
+    # (a comma reboot does not clear it). Report a permanent steer fault ("Restart the Car")
+    # instead of only the silent steer-unavailable warning (BogPilot milestone 4).
+    epb = cp.vl_all.get("EPB_epasControl", {}).get("EPB_epasEACAllow", [])
+    if len(epb):
+      self.epb_eac_allow = int(epb[-1])
+    self.epb_eac_revoked = self.epb_eac_allow == 0
+    ret.steerFaultPermanent = ret.steerFaultPermanent or self.epb_eac_revoked
     ret.steerFaultTemporary = steer_fault_temporary(self.steer_warning, True)
 
     # Cruise state
@@ -121,10 +148,13 @@ class Ap1CarState(CarStateBase):
 
     acc_enabled = cruise_state in ("ENABLED", "STANDSTILL", "OVERRIDE", "PRE_FAULT", "PRE_CANCEL")
     ret.cruiseState.enabled = acc_enabled
+    # Tinkla-aligned: the cruise set is DI_cruiseSet (ACC set), not DI_digitalSpeed (about ego).
+    # With pcmCruise the set seeds openpilot's v_cruise; the AP1 layer in starpilot_vcruise
+    # (sticky / tip / SLC raise) then owns the planner set. Display and ego stay on ESP vEgo.
     if speed_units == "KPH":
-      ret.cruiseState.speed = cp.vl["DI_state"]["DI_digitalSpeed"] * CV.KPH_TO_MS
+      ret.cruiseState.speed = cp.vl["DI_state"]["DI_cruiseSet"] * CV.KPH_TO_MS
     elif speed_units == "MPH":
-      ret.cruiseState.speed = cp.vl["DI_state"]["DI_digitalSpeed"] * CV.MPH_TO_MS
+      ret.cruiseState.speed = cp.vl["DI_state"]["DI_cruiseSet"] * CV.MPH_TO_MS
     ret.cruiseState.available = (cruise_state == "STANDBY") or ret.cruiseState.enabled
     ret.cruiseState.standstill = False
 
@@ -175,16 +205,29 @@ class Ap1CarState(CarStateBase):
 
     # Long RWD pull while already engaged -> one Experimental Mode toggle. Uses the previous
     # step's cruise state so the engage pull itself never fires (BogPilot d8063e62).
+    # Long FWD hold while already disengaged -> one Experimental Mode toggle. Cancel while
+    # engaged is disarmed; engage mid-hold aborts (ap1_stalk_fwd_hold.py).
     prev = getattr(self, "out", None)
     was_engaged = bool(prev.cruiseState.enabled) if prev is not None else False
     spd = cp.vl["STW_ACTN_RQ"].get("SpdCtrlLvr_Stat")
-    self.stalk_pull_toggle = self.stalk_pull_hold.update(spd, was_engaged, DT_CTRL)
+    try:
+      self.spd_ctrl_lvr = int(spd or 0)
+    except (TypeError, ValueError):
+      self.spd_ctrl_lvr = 0
+    self.stalk_pull_toggle = False
+    self.stalk_fwd_toggle = False
+    if PULL_HOLD_ENABLED:
+      self.stalk_pull_toggle = self.stalk_pull_hold.update(spd, was_engaged, DT_CTRL)
+    if FWD_HOLD_ENABLED:
+      self.stalk_fwd_toggle = self.stalk_fwd_hold.update(spd, was_engaged, DT_CTRL)
 
     # Messages needed by carcontroller
     self.msg_stw_actn_req = copy.copy(cp.vl["STW_ACTN_RQ"])
     self.acc_state = int(cp_cam.vl["DAS_control"]["DAS_accState"])
     self.das_control_counters.extend(cp_cam.vl_all["DAS_control"]["DAS_controlCounter"])
     self.cluster_stock = self.new_cluster_frames(cp_cam)
+    steer_ctrs = cp_cam.vl_all.get("DAS_steeringControl", {}).get("DAS_steeringControlCounter", [])
+    self.stock_steer_counters = [int(c) for c in steer_ctrs]
 
     # Posted speed limit: Mobileye fused (stock 0x399 on bus 2; openpilot's cluster copy goes out on bus 0
     # and never reaches this parser), then the GTW UI map / mpp limits. m/s, 0 when none.
@@ -228,6 +271,8 @@ class Ap1CarState(CarStateBase):
       # without them cannot trip canValid.
       ("UI_driverAssistMapData", math.nan),
       ("UI_gpsVehicleSpeed", math.nan),
+      # EPB EAC allow (0x214) for the EPB revoke fault. Optional, same reason.
+      ("EPB_epasControl", math.nan),
     ]
     cam_msgs = [
       ("DAS_control", 40),
@@ -237,10 +282,16 @@ class Ap1CarState(CarStateBase):
     # can never change canValid. A car without them just gets no cluster frames.
     for addr in CLUSTER_ADDRS:
       cam_msgs.append((MSG_NAMES[addr], math.nan))
+    # Stock 0x488 counter for handover continuity (ap1_steer_counter.py). Optional: missing
+    # stock frames fall back to the old frame-based cadence.
+    cam_msgs.append(("DAS_steeringControl", math.nan))
     cp_cam = CANParser(DBC[CP.carFingerprint][Bus.chassis], cam_msgs, CANBUS.autopilot_chassis)
     for addr in CLUSTER_ADDRS:
       cp_cam.message_states[addr].ignore_counter = True
       cp_cam.message_states[addr].ignore_checksum = True
+    # 0x488: only the counter value is read; stock counter / checksum quirks must not matter.
+    cp_cam.message_states[0x488].ignore_counter = True
+    cp_cam.message_states[0x488].ignore_checksum = True
     return {
       Bus.chassis: CANParser(DBC[CP.carFingerprint][Bus.chassis], chassis_msgs, CANBUS.chassis),
       # ap_party key keeps CarInterfaceBase / Ext call sites consistent; physical bus is 2.

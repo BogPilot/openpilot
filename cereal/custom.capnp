@@ -110,6 +110,12 @@ struct StarPilotCarState @0xf35cc4560bbf6ec2 {
   accelHardCruise @28 :Bool;  # current/releasing accel cruise button came from GM hard-press signal
   decelHardCruise @29 :Bool;  # current/releasing decel cruise button came from GM hard-press signal
   pulseAndGlide @30 :Bool;  # developer-only wheel-button pulse-and-glide mode is enabled
+  # Tesla AP1 (BogStar): continuous RWD / pull-toward (SpdCtrlLvr_Stat 2) level from the AP1 carstate
+  # button states, for the AP1 set-speed layer in starpilot_vcruise (pull engage / re-latch SLC+offset).
+  resumePressed @31 :Bool;
+  # Tesla AP1 (BogStar): raw SpdCtrlLvr_Stat (0 IDLE, 1 FWD, 2 RWD, 4 UP_2ND, 8 DN_2ND, 16 UP_1ST,
+  # 32 DN_1ST). 4 / 8 is the full tip (next 5), 16 / 32 is +/-1.
+  spdCtrlLvr @32 :UInt8;
 }
 
 struct StarPilotDeviceState @0xda96579883444c35 {
