@@ -3,6 +3,7 @@ from collections import deque
 from cereal import car, custom
 from openpilot.common.conversions import Conversions as CV
 from openpilot.common.realtime import DT_CTRL
+from openpilot.selfdrive.car.tesla.blindspot import Ap1Blindspot, frames_from_vl_all
 from openpilot.selfdrive.car.tesla.cluster import CLUSTER_ADDRS, COUNTER_SIGNALS, MSG_NAMES
 from openpilot.selfdrive.car.tesla.hso import ap1_driver_input
 from openpilot.selfdrive.car.tesla.stalk_follow import dtr_sample, follow_seconds, parse_stalk_raw
@@ -48,6 +49,8 @@ class CarState(CarStateBase):
     # (vl defaults to 0 before that, which would read as revoked).
     self.epb_eac_allow = None
     self.epb_eac_revoked = False
+    # AP1 only. Stock 0x399 blind-spot fields with a per-side hold (blindspot.py).
+    self.ap1_bsm = Ap1Blindspot()
 
   def update(self, cp, cp_cam, frogpilot_toggles):
     ret = car.CarState.new_message()
@@ -149,7 +152,11 @@ class CarState(CarStateBase):
     else:
       ret.seatbeltUnlatched = (cp.vl["SDM1"]["SDM_bcklDrivStatus"] != 1)
 
-    # TODO: blindspot
+    # Blindspot. AP1 only: stock DAS_blindSpotRearLeft/Right from 0x399 on
+    # cp_cam (1/2 = warning, 3 = SNA ignored, bad checksum skipped), held
+    # BSM_HOLD_S per side because 0x399 is ~2.4 Hz. Other Teslas: no BSM.
+    if ap1:
+      ret.leftBlindspot, ret.rightBlindspot = self.ap1_bsm.update(frames_from_vl_all(cp_cam), DT_CTRL)
 
     # AEB
     ret.stockAeb = (cp_cam.vl["DAS_control"]["DAS_aebEvent"] == 1)
