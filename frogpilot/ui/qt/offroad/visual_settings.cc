@@ -1,4 +1,5 @@
 #include "frogpilot/ui/qt/offroad/visual_settings.h"
+#include "frogpilot/ui/qt/onroad/developer_hud.h"
 
 FrogPilotVisualsPanel::FrogPilotVisualsPanel(FrogPilotSettingsWindow *parent) : FrogPilotListWidget(parent), parent(parent) {
   QJsonObject shownDescriptions = QJsonDocument::fromJson(QString::fromStdString(params.get("ShownToggleDescriptions")).toUtf8()).object();
@@ -64,6 +65,7 @@ FrogPilotVisualsPanel::FrogPilotVisualsPanel(FrogPilotSettingsWindow *parent) : 
     {"DeveloperMetrics", tr("Developer Metrics"), tr("<b>Performance data, sensor readings, and system metrics</b> for debugging and optimizing openpilot."), ""},
     {"BorderMetrics", tr("Border Metrics"), tr("<b>Show statuses along the border of the driving screen.</b><br><br><b>Blind Spot</b>: The border turns red when a vehicle is in a blind spot<br><b>Steering Torque</b>: The border goes from green to red according to how much steering torque is being used<br><b>Turn Signal</b>: The border flashes yellow when a turn signal is on"), ""},
     {"LeadInfo", tr("Lead Info"), tr("<b>Show each tracked vehicle's distance and speed</b> below its marker."), ""},
+    {"DeveloperHUD", tr("Developer HUD"), tr("<b>Show a live data panel on the right side of the driving screen</b>: acceleration, lead distance and speed, actual and desired steering angle, lateral acceleration, altitude, and memory use. Values turn green while openpilot is steering, grey while you are overriding, and orange or red when a lead is close or closing fast.<br><br>Display only. It doesn't change how openpilot drives. Based on sunnypilot's Developer UI (MIT)."), ""},
     {"FPSCounter", tr("FPS Display"), tr("<b>Show the frames per second (FPS)</b> at the bottom of the driving screen."), ""},
     {"NumericalTemp", tr("Numerical Temperature Gauge"), tr("<b>Show a numerical temperature in the sidebar</b> instead of the status labels."), ""},
     {"SidebarMetrics", tr("Sidebar Metrics"), tr("<b>Display system information</b> (CPU, GPU, RAM usage, IP address, device storage) in the sidebar."), ""},
@@ -147,6 +149,13 @@ FrogPilotVisualsPanel::FrogPilotVisualsPanel(FrogPilotSettingsWindow *parent) : 
       std::vector<QString> borderToggleNames{tr("Blind Spot"), tr("Steering Torque"), tr("Turn Signal")};
       borderMetricsButton = new FrogPilotButtonToggleControl(param, title, desc, icon, borderToggles, borderToggleNames);
       visualToggle = borderMetricsButton;
+    } else if (param == "DeveloperHUD") {
+      // File-backed (/data/params_bogpilot/DeveloperHUD): the prebuilt params_pyx.so cannot store new Params keys
+      ToggleControl *developerHudToggle = new ToggleControl(title, desc, icon, developerHudFileEnabled());
+      QObject::connect(developerHudToggle, &ToggleControl::toggleFlipped, [](bool state) {
+        setDeveloperHudFileEnabled(state);
+      });
+      visualToggle = developerHudToggle;
     } else if (param == "NumericalTemp") {
       std::vector<QString> temperatureToggles{"Fahrenheit"};
       std::vector<QString> temperatureToggleNames{tr("Fahrenheit")};
@@ -503,6 +512,10 @@ void FrogPilotVisualsPanel::updateToggles() {
 
     else if (key == "BlindSpotPath") {
       setVisible &= parent->hasBSM;
+    }
+
+    else if (key == "DeveloperHUD") {
+      setVisible = parent->tuningLevel >= 3;
     }
 
     else if (key == "HideLeadMarker") {

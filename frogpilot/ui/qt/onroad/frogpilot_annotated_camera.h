@@ -3,6 +3,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
+#include "frogpilot/ui/qt/onroad/developer_hud.h"
 #include "selfdrive/ui/qt/onroad/buttons.h"
 #include "selfdrive/ui/qt/widgets/cameraview.h"
 
@@ -23,6 +24,7 @@ public:
   void updateState(const FrogPilotUIState &fs, const QJsonObject &frogpilot_toggles);
 
   bool bigMapOpen;
+  bool developerHudEnabled = false;
   bool hideBottomIcons;
   bool isCruiseSet;
   bool mapButtonVisible;
@@ -67,6 +69,7 @@ private:
   void paintCEMStatus(QPainter &p, const cereal::FrogPilotPlan::Reader &frogpilotPlan, FrogPilotUIScene &frogpilot_scene, SubMaster &sm);
   void paintCompass(QPainter &p, QJsonObject &frogpilot_toggles);
   void paintCurveSpeedControl(QPainter &p, const cereal::FrogPilotPlan::Reader &frogpilotPlan);
+  void paintDeveloperHUDPanel(QPainter &p, UIState &s, SubMaster &sm, SubMaster &fpsm, QJsonObject &frogpilot_toggles);
   void paintLateralPaused(QPainter &p, FrogPilotUIScene &frogpilot_scene);
   void paintLongitudinalPaused(QPainter &p, FrogPilotUIScene &frogpilot_scene);
   void paintPedalIcons(QPainter &p, const cereal::CarState::Reader &carState, const cereal::FrogPilotCarState::Reader &frogpilotCarState, FrogPilotUIScene &frogpilot_scene, QJsonObject &frogpilot_toggles);
@@ -82,6 +85,7 @@ private:
   void updateSignals();
 
   int animationFrameIndex;
+  int developerHudCheckFrame = 0;
   int signalAnimationLength;
   int signalHeight;
   int signalMovement;
