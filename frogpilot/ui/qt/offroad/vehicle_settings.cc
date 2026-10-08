@@ -2,6 +2,7 @@
 #include <QTextStream>
 
 #include "frogpilot/ui/qt/offroad/vehicle_settings.h"
+#include "frogpilot/ui/qt/widgets/bogpilot_file_toggle.h"
 
 QStringList getCarNames(const QString &carMake, QMap<QString, QString> &carModels) {
   static QMap<QString, QString> makeMap = {
@@ -152,6 +153,7 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
   FrogPilotListWidget *hkgList = new FrogPilotListWidget(this);
   FrogPilotListWidget *hondaList = new FrogPilotListWidget(this);
   FrogPilotListWidget *subaruList = new FrogPilotListWidget(this);
+  FrogPilotListWidget *teslaList = new FrogPilotListWidget(this);
   FrogPilotListWidget *toyotaList = new FrogPilotListWidget(this);
   FrogPilotListWidget *vehicleInfoList = new FrogPilotListWidget(this);
 
@@ -159,6 +161,7 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
   ScrollView *hkgPanel = new ScrollView(hkgList, this);
   ScrollView *hondaPanel = new ScrollView(hondaList, this);
   ScrollView *subaruPanel = new ScrollView(subaruList, this);
+  ScrollView *teslaPanel = new ScrollView(teslaList, this);
   ScrollView *toyotaPanel = new ScrollView(toyotaList, this);
   ScrollView *vehicleInfoPanel = new ScrollView(vehicleInfoList, this);
 
@@ -166,28 +169,33 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
   vehiclesLayout->addWidget(hkgPanel);
   vehiclesLayout->addWidget(hondaPanel);
   vehiclesLayout->addWidget(subaruPanel);
+  vehiclesLayout->addWidget(teslaPanel);
   vehiclesLayout->addWidget(toyotaPanel);
   vehiclesLayout->addWidget(vehicleInfoPanel);
 
   std::vector<std::tuple<QString, QString, QString, QString>> vehicleToggles {
-    {"GMToggles", tr("General Motors Settings"), tr("<b>FrogPilot features for General Motors vehicles.</b>"), ""},
+    {"GMToggles", tr("General Motors Settings"), tr("<b>BogPilot features for General Motors vehicles.</b>"), ""},
     {"ExperimentalGMTune", tr("FrogsGoMoo's Experimental Tune"), tr("<b>Experimental GM tune by FrogsGoMoo</b> that attempts to smoothen stopping and takeoff control. Use at your own risk!"), ""},
     {"LongPitch", tr("Smooth Pedal Response on Hills"), tr("<b>Smoothen acceleration and braking</b> when driving downhill/uphill."), ""},
     {"VoltSNG", tr("Stop-and-Go Hack"), tr("<b>Force stop-and-go</b> on the 2017 Chevy Volt."), ""},
 
-    {"HKGToggles", tr("Hyundai/Kia/Genesis Settings"), tr("<b>FrogPilot features for Genesis, Hyundai, and Kia vehicles.</b>"), ""},
+    {"HKGToggles", tr("Hyundai/Kia/Genesis Settings"), tr("<b>BogPilot features for Genesis, Hyundai, and Kia vehicles.</b>"), ""},
     {"NewLongAPI", tr("comma's New Longitudinal API"), tr("<b>comma's new gas and brake control system</b> that improves acceleration and braking but may cause issues on some Genesis/Hyundai/Kia vehicles."), ""},
     {"TacoTuneHacks", tr("\"Taco Bell Run\" Torque Hack"), tr("<b>The steering torque hack from comma's 2022 \"Taco Bell Run\".</b> Designed to increase steering torque at low speeds for left and right turns."), ""},
 
-    {"HondaToggles", tr("Acura/Honda Settings"), tr("<b>FrogPilot features for Acura and Honda vehicles.</b>"), ""},
+    {"HondaToggles", tr("Acura/Honda Settings"), tr("<b>BogPilot features for Acura and Honda vehicles.</b>"), ""},
     {"HondaAltTune", tr("Gentle Following"), tr("<b>Reduces jerky acceleration and braking when following a lead vehicle.</b> Ideal for stop-and-go traffic."), ""},
     {"HondaMaxBrake", tr("Increased Braking Force"), tr("<b>Increases the maximum braking force for improved stopping performance.</b>"), ""},
     {"HondaLowSpeedPedal", tr("Responsive Pedal at Low Speeds"), tr("<b>Improves acceleration from a standstill for a more responsive throttle feel in city driving.</b>"), ""},
 
-    {"SubaruToggles", tr("Subaru Settings"), tr("<b>FrogPilot features for Subaru vehicles.</b>"), ""},
+    {"SubaruToggles", tr("Subaru Settings"), tr("<b>BogPilot features for Subaru vehicles.</b>"), ""},
     {"SubaruSNG", tr("Stop and Go"), tr("Stop and go for supported Subaru vehicles."), ""},
 
-    {"ToyotaToggles", tr("Toyota/Lexus Settings"), tr("<b>FrogPilot features for Lexus and Toyota vehicles.</b>"), ""},
+    {"TeslaAP1Toggles", tr("Tesla AP1 Settings"), tr("<b>BogPilot features for Tesla Model S and X with Autopilot 1.</b>"), ""},
+    {"EnableICIntegration", tr("Dash Cluster Integration"), QString("<b>%1</b><br><br>%2").arg(tr("Show openpilot on the Tesla dash cluster while engaged: the cluster set speed (including curve and speed limit targets), the Autosteer icon, hands-on reminders, and the path line.")).arg(tr("Turn off to leave the dash cluster completely stock. openpilot then sends no cluster messages. Driving is the same either way. Takes effect right away.")), ""},
+    {"RegenComfortBrake", tr("Earlier, Gentler Regen Stops"), QString("<b>%1</b><br><br>%2").arg(tr("Start slowing for a car ahead sooner and more gently, sized to what regen alone can do (about 1.0 m/s²).")).arg(tr("Hard braking for cut-ins, collision warnings, and emergencies is unchanged, and so is the stopped distance. Turn off for stock openpilot following. Takes effect right away.")), ""},
+
+    {"ToyotaToggles", tr("Toyota/Lexus Settings"), tr("<b>BogPilot features for Lexus and Toyota vehicles.</b>"), ""},
     {"ToyotaDoors", tr("Automatically Lock/Unlock Doors"), tr("<b>Automatically lock/unlock doors</b> when shifting in and out of drive."), ""},
     {"ClusterOffset", tr("Dashboard Speed Offset"), tr("<b>The speed offset openpilot uses to match the speed on the dashboard display.</b>"), ""},
     {"ToyotaDSUBypass", tr("DSU Re-Route Harness"), tr("<b>Enable openpilot longitudinal control using a DSU re-route harness.</b> This harness wires the DSU's ACC messages onto the camera CAN bus so openpilot can send its own longitudinal commands. Only enable this after physically installing the harness on your TSS-P vehicle."), ""},
@@ -240,6 +248,17 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
       });
       vehicleToggle = subaruButton;
 
+    } else if (param == "TeslaAP1Toggles") {
+      ButtonControl *teslaButton = new ButtonControl(title, tr("MANAGE"), desc);
+      QObject::connect(teslaButton, &ButtonControl::clicked, [vehiclesLayout, teslaPanel, this]() {
+        openDescriptions(forceOpenDescriptions, toggles);
+        vehiclesLayout->setCurrentWidget(teslaPanel);
+      });
+      vehicleToggle = teslaButton;
+    } else if (teslaKeys.contains(param)) {
+      // File-backed (see bogpilot_file_toggle.h). Absent file = on, the car code's default.
+      vehicleToggle = new bogpilot::FileToggleControl(param, true, title, desc, icon);
+
     } else if (param == "ToyotaToggles") {
       ButtonControl *toyotaButton = new ButtonControl(title, tr("MANAGE"), desc);
       QObject::connect(toyotaButton, &ButtonControl::clicked, [vehiclesLayout, toyotaPanel, this]() {
@@ -290,6 +309,8 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
       hondaList->addItem(vehicleToggle);
     } else if (subaruKeys.contains(param)) {
       subaruList->addItem(vehicleToggle);
+    } else if (teslaKeys.contains(param)) {
+      teslaList->addItem(vehicleToggle);
     } else if (toyotaKeys.contains(param)) {
       toyotaList->addItem(vehicleToggle);
     } else if (vehicleInfoKeys.contains(param)) {
@@ -406,6 +427,8 @@ void FrogPilotVehiclesPanel::updateToggles() {
       setVisible &= parent->isHonda;
     } else if (subaruKeys.contains(key)) {
       setVisible &= parent->isSubaru;
+    } else if (teslaKeys.contains(key)) {
+      setVisible &= parent->isTeslaAP1;
     } else if (toyotaKeys.contains(key)) {
       setVisible &= parent->isToyota;
     } else if (vehicleInfoKeys.contains(key)) {
@@ -459,6 +482,8 @@ void FrogPilotVehiclesPanel::updateToggles() {
         toggles["HondaToggles"]->setVisible(true);
       } else if (subaruKeys.contains(key)) {
         toggles["SubaruToggles"]->setVisible(true);
+      } else if (teslaKeys.contains(key)) {
+        toggles["TeslaAP1Toggles"]->setVisible(true);
       } else if (toyotaKeys.contains(key)) {
         toggles["ToyotaToggles"]->setVisible(true);
       } else if (vehicleInfoKeys.contains(key)) {

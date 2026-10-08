@@ -87,9 +87,9 @@ void FrogPilotSettingsWindow::createPanelButtons(FrogPilotListWidget *list) {
 
   std::vector<std::tuple<QString, QString, QString>> panelInfo = {
     {tr("Alerts and Sounds"), tr("<b>Adjust alert volumes and enable custom notifications.</b>"), "../../frogpilot/assets/toggle_icons/icon_sound.png"},
-    {tr("Driving Controls"), tr("<b>Fine-tune custom FrogPilot acceleration, braking, and steering controls.</b>"), "../../frogpilot/assets/toggle_icons/icon_steering.png"},
+    {tr("Driving Controls"), tr("<b>Fine-tune custom BogPilot acceleration, braking, and steering controls.</b>"), "../../frogpilot/assets/toggle_icons/icon_steering.png"},
     {tr("Navigation"), tr("<b>Download map data for the \"Speed Limit Controller\" and configure \"Navigate on openpilot\" (NOO).</b>"), "../../frogpilot/assets/toggle_icons/icon_map.png"},
-    {tr("System Settings"), tr("<b>Manage backups, device settings, screen options, storage, and tools to keep FrogPilot running smoothly.</b>"), "../../frogpilot/assets/toggle_icons/icon_system.png"},
+    {tr("System Settings"), tr("<b>Manage backups, device settings, screen options, storage, and tools to keep BogPilot running smoothly.</b>"), "../../frogpilot/assets/toggle_icons/icon_system.png"},
     {tr("Theme and Appearance"), tr("<b>Customize the look of the driving screen and interface, including themes!</b>"), "../../frogpilot/assets/toggle_icons/icon_display.png"},
     {tr("Vehicle Settings"), tr("<b>Configure car-specific options and steering wheel button mappings.</b>"), "../../frogpilot/assets/toggle_icons/icon_vehicle.png"}
   };
@@ -316,6 +316,7 @@ void FrogPilotSettingsWindow::updateVariables() {
     isHonda = carMake == "honda";
     isHondaNidec = isHonda && safetyModel == cereal::CarParams::SafetyModel::HONDA_NIDEC;
     isSubaru = carMake == "subaru";
+    isTeslaAP1 = carFingerprint == "TESLA_AP1_MODELS";
     isTorqueCar = CP.getLateralTuning().which() == cereal::CarParams::LateralTuning::TORQUE;
     isToyota = carMake == "toyota";
     isTSK = CP.getSecOcRequired();

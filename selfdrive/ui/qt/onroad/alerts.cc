@@ -41,14 +41,14 @@ OnroadAlerts::Alert OnroadAlerts::getAlert(const SubMaster &sm, const SubMaster 
         displayFerg = true;
       } else {
         a = {tr("openpilot crashed 💩"),
-             tr("Please post the \"Error Log\" in the FrogPilot Discord!"),
+             tr("Please report the \"Error Log\" on the BogPilot GitHub!"),
              "openpilotCrashedRandomEvent",
              cereal::ControlsState::AlertSize::MID,
              cereal::ControlsState::AlertStatus::CRITICAL};
       }
     } else {
       a = {tr("openpilot crashed"),
-           tr("Please post the \"Error Log\" in the FrogPilot Discord!"),
+           tr("Please report the \"Error Log\" on the BogPilot GitHub!"),
            "openpilotCrashed",
            cereal::ControlsState::AlertSize::MID,
            cereal::ControlsState::AlertStatus::CRITICAL};
