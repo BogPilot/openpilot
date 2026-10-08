@@ -23,7 +23,7 @@ public:
   void paintRainbowPath(QPainter &p, QLinearGradient &bg, float lin_grad_point, SubMaster &sm);
   void updateState(const FrogPilotUIState &fs, const QJsonObject &frogpilot_toggles);
 
-  bool bigMapOpen;
+  bool bigMapOpen = false;  // BogPilot: was uninitialized; only set once a map widget exists
   bool developerHudEnabled = false;
   bool hideBottomIcons;
   bool isCruiseSet;
@@ -70,6 +70,10 @@ private:
   void paintCompass(QPainter &p, QJsonObject &frogpilot_toggles);
   void paintCurveSpeedControl(QPainter &p, const cereal::FrogPilotPlan::Reader &frogpilotPlan);
   void paintDeveloperHUDPanel(QPainter &p, UIState &s, SubMaster &sm, SubMaster &fpsm, QJsonObject &frogpilot_toggles);
+  bool developerHudShown(const FrogPilotUIScene &frogpilot_scene);
+  int bottomCornerWidgetX();
+  int mapButtonShift();
+  QRect developerHudPanelRect();
   void paintLateralPaused(QPainter &p, FrogPilotUIScene &frogpilot_scene);
   void paintLongitudinalPaused(QPainter &p, FrogPilotUIScene &frogpilot_scene);
   void paintPedalIcons(QPainter &p, const cereal::CarState::Reader &carState, const cereal::FrogPilotCarState::Reader &frogpilotCarState, FrogPilotUIScene &frogpilot_scene, QJsonObject &frogpilot_toggles);
@@ -85,6 +89,7 @@ private:
   void updateSignals();
 
   int animationFrameIndex;
+  bool hudShown = false;
   int developerHudCheckFrame = 0;
   int signalAnimationLength;
   int signalHeight;

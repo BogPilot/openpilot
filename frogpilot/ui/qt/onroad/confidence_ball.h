@@ -9,13 +9,16 @@
 // above 50%, orange above 20%, red below. Driver override: white to grey. Disengaged: the target is
 // -0.5, so a dark ball slides out of the bottom of the screen.
 //
-// Layout for the comma 3X (2160x1080): a 60 px strip on the right edge of the onroad window that
-// covers the 30 px status border and the 30 px camera margin, so the ball never overlaps the
-// Experimental button, pedal icons, compass, bottom-right icons or the Developer HUD panel
-// (all of those end 30 px inside the camera view).
+// Layout for the comma 3X (2160x1080): a 60 px strip on the left (default) or right edge of the onroad
+// window that covers the 30 px status border and the 30 px camera margin, so the ball never overlaps the
+// MAX / speed-limit box, the personality button, the driver-monitoring icon, the Experimental button or
+// the Developer HUD panel (all of those start 30 px inside the camera view). The left edge is the default
+// because a rear-view mirror can hide the top half of the right side of the screen. When the map panel
+// covers the chosen side, the ball moves to the other edge until the map closes.
 //
-// Display only. On/off is a file, /data/params_bogpilot/ConfidenceBall ("0"/"false"/"off" hides it,
-// anything else or no file shows it), because the prebuilt params_pyx.so cannot store new Params keys.
+// Display only. Settings are files, because the prebuilt params_pyx.so cannot store new Params keys:
+//   /data/params_bogpilot/ConfidenceBall      "0"/"false"/"off" hides it, anything else or no file shows it
+//   /data/params_bogpilot/ConfidenceBallSide  "right" puts it on the right edge, anything else or no file: left
 
 #include <algorithm>
 #include <utility>
@@ -52,6 +55,36 @@ inline void setFileEnabled(bool on, const QString &path = togglePath()) {
   if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
     file.write(on ? "1" : "0");
   }
+}
+
+inline QString sidePath() {
+  return QStringLiteral("/data/params_bogpilot/ConfidenceBallSide");
+}
+
+// Default left: only "right" (any case, surrounding whitespace ignored) selects the right edge.
+inline bool fileRightSide(const QString &path = sidePath()) {
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly)) {
+    return false;
+  }
+  return file.read(64).trimmed().toLower() == "right";
+}
+
+inline void setFileRightSide(bool right, const QString &path = sidePath()) {
+  QDir().mkpath(QFileInfo(path).absolutePath());
+  QFile file(path);
+  if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    file.write(right ? "right" : "left");
+  }
+}
+
+// Which edge to draw on: the chosen side, unless the open map panel covers it (then the other edge).
+// map_open: the map panel is showing; map_on_left: it sits on the left side of the camera view.
+inline bool useRightEdge(bool prefer_right, bool map_open, bool map_on_left) {
+  if (map_open && prefer_right != map_on_left) {
+    return !prefer_right;  // the map covers the chosen edge
+  }
+  return prefer_right;
 }
 
 // Any active openpilot status (engaged, Always On Lateral, traffic mode, ...) counts as engaged.
@@ -122,16 +155,26 @@ public:
     setVisible(false);
   }
 
-  // Right edge of the parent, full height.
+  // Left or right edge of the parent, full height.
   void placeIn(const QRect &parent_rect) {
-    setGeometry(parent_rect.right() + 1 - STRIP_WIDTH, parent_rect.top(), STRIP_WIDTH, parent_rect.height());
+    parent_area = parent_rect;
+    const int x = on_right ? parent_rect.right() + 1 - STRIP_WIDTH : parent_rect.left();
+    setGeometry(x, parent_rect.top(), STRIP_WIDTH, parent_rect.height());
   }
 
-  // Called every UI tick (20 Hz). camera_at_right_edge is false when the map covers the right side.
-  void updateState(const UIState &s, bool camera_at_right_edge) {
+  // Called every UI tick (20 Hz). map_open / map_on_left describe the map panel; camera_visible is false
+  // when the full-screen map hides the camera view (both edges covered).
+  void updateState(const UIState &s, bool map_open, bool map_on_left, bool camera_visible) {
     if (check_frame-- <= 0) {
       enabled = bogpilot_confidence::fileEnabled();
-      check_frame = UI_FREQ * 2;  // re-read the file every 2 s
+      prefer_right = bogpilot_confidence::fileRightSide();
+      check_frame = UI_FREQ * 2;  // re-read the files every 2 s
+    }
+
+    const bool right_now = bogpilot_confidence::useRightEdge(prefer_right, map_open, map_on_left);
+    if (right_now != on_right) {
+      on_right = right_now;
+      placeIn(parent_area);
     }
 
     status = s.status;
@@ -141,7 +184,7 @@ public:
       filter.update(bogpilot_confidence::modelConfidence((*s.sm)["modelV2"].getModelV2()));
     }
 
-    const bool visible_now = enabled && s.scene.started && camera_at_right_edge;
+    const bool visible_now = enabled && s.scene.started && camera_visible;
     if (visible_now != isVisible()) {
       setVisible(visible_now);
       if (visible_now) raise();
@@ -172,6 +215,9 @@ private:
   FirstOrderFilter filter = FirstOrderFilter(-0.5f, 0.5f, 1.0f / UI_FREQ);
   UIStatus status = STATUS_DISENGAGED;
   bool enabled = true;
+  bool prefer_right = false;
+  bool on_right = false;
+  QRect parent_area;
   int check_frame = 0;
   int drawn_y = -1;
   QColor drawn_top;

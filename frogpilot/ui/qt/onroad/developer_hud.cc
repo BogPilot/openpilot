@@ -142,10 +142,18 @@ QSize developerHudSize() {
   return QSize(COL_W * 2 + PAD * 2, ROW_H * 5 + PAD * 2);
 }
 
-QRect paintDeveloperHud(QPainter &p, const QPoint &topRight, int maxHeight, const DeveloperHudInputs &in) {
+QRect developerHudRect(const QPoint &bottomRight, int maxHeight, int maxWidth) {
   const QSize base = developerHudSize();
-  const qreal scale = std::clamp(maxHeight / qreal(base.height()), 0.6, 1.0);
-  const QRect panel(topRight.x() - int(base.width() * scale), topRight.y(), int(base.width() * scale), int(base.height() * scale));
+  // Height fit stays in 0.6 to 1.0; a narrow view (map open) may shrink it to 0.5 to keep it clear of the DM icon / map button
+  const qreal scale = std::clamp(std::min(std::clamp(maxHeight / qreal(base.height()), 0.6, 1.0), maxWidth / qreal(base.width())), 0.5, 1.0);
+  const int w = int(base.width() * scale);
+  const int h = int(base.height() * scale);
+  return QRect(bottomRight.x() - w, bottomRight.y() - h, w, h);
+}
+
+void paintDeveloperHud(QPainter &p, const QRect &panel, const DeveloperHudInputs &in) {
+  const QSize base = developerHudSize();
+  const qreal scale = panel.height() / qreal(base.height());
 
   const QVector<DeveloperHudCell> cells = developerHudCells(in);
 
@@ -203,5 +211,4 @@ QRect paintDeveloperHud(QPainter &p, const QPoint &topRight, int maxHeight, cons
   }
 
   p.restore();
-  return panel;
 }

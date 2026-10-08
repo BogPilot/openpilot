@@ -93,8 +93,8 @@ void OnroadWindow::updateState(const UIState &s, const FrogPilotUIState &fs) {
 
   frogpilot_onroad->updateState(s, fs);
 
-  // Hidden while the map covers the right edge
-  confidence_ball->updateState(s, !isMapVisible() || (s.scene.map_on_left && nvg->isVisible()));
+  // Switches to the other edge while the map covers the chosen one; hidden behind the full-screen map
+  confidence_ball->updateState(s, isMapVisible(), s.scene.map_on_left, nvg->isVisible());
 }
 
 void OnroadWindow::mousePressEvent(QMouseEvent* e) {

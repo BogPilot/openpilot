@@ -51,7 +51,7 @@ FrogPilotVisualsPanel::FrogPilotVisualsPanel(FrogPilotSettingsWindow *parent) : 
   visualsLayout->addWidget(qualityOfLifePanel);
 
   const std::vector<std::tuple<QString, QString, QString, QString>> visualToggles {
-    {"ConfidenceBall", tr("BogPilot Confidence Ball"), tr("<b>Show how confident the driving model is</b> with a small ball on the right edge of the driving screen, like the comma four.<br><br><b>High and green</b>: the model expects to keep driving without help<br><b>Lower and orange</b>: under 50%, it thinks you may need to brake or steer soon<br><b>Low and red</b>: under 20%, be ready to take over<br><b>White / grey</b>: you are overriding openpilot<br><br>The ball slides out of view when openpilot is off. Display only. It doesn't change how openpilot drives."), "../../frogpilot/assets/toggle_icons/icon_display.png"},
+    {"ConfidenceBall", tr("BogPilot Confidence Ball"), tr("<b>Show how confident the driving model is</b> with a small ball on the edge of the driving screen, like the comma four.<br><br><b>Left</b> (default) or <b>Right</b> picks the edge. When the map covers that side, the ball moves to the other edge until the map closes.<br><br><b>High and green</b>: the model expects to keep driving without help<br><b>Lower and orange</b>: under 50%, it thinks you may need to brake or steer soon<br><b>Low and red</b>: under 20%, be ready to take over<br><b>White / grey</b>: you are overriding openpilot<br><br>The ball slides out of view when openpilot is off. Display only. It doesn't change how openpilot drives."), "../../frogpilot/assets/toggle_icons/icon_display.png"},
 
     {"AdvancedCustomUI", tr("Advanced UI Controls"), tr("<b>Advanced visual changes</b> to fine-tune how the driving screen looks."), "../../frogpilot/assets/toggle_icons/icon_advanced_device.png"},
     {"HideSpeed", tr("Hide Current Speed"), tr("<b>Hide the current speed</b> from the driving screen."), ""},
@@ -126,12 +126,17 @@ FrogPilotVisualsPanel::FrogPilotVisualsPanel(FrogPilotSettingsWindow *parent) : 
       });
       visualToggle = advancedCustomUIToggle;
     } else if (param == "ConfidenceBall") {
-      // File-backed (/data/params_bogpilot/ConfidenceBall, default on): the prebuilt params_pyx.so cannot store new Params keys
-      ToggleControl *confidenceBallToggle = new ToggleControl(title, desc, icon, bogpilot_confidence::fileEnabled());
-      QObject::connect(confidenceBallToggle, &ToggleControl::toggleFlipped, [](bool state) {
-        bogpilot_confidence::setFileEnabled(state);
+      // File-backed (/data/params_bogpilot/ConfidenceBall on/off, default on, and ConfidenceBallSide, default left):
+      // the prebuilt params_pyx.so cannot store new Params keys
+      FrogPilotButtonsControl *confidenceBallControl = new FrogPilotButtonsControl(title, desc, icon, {tr("Off"), tr("Left"), tr("Right")}, true, true);
+      confidenceBallControl->setCheckedButton(!bogpilot_confidence::fileEnabled() ? 0 : bogpilot_confidence::fileRightSide() ? 2 : 1);
+      QObject::connect(confidenceBallControl, &FrogPilotButtonsControl::buttonClicked, [](int id) {
+        bogpilot_confidence::setFileEnabled(id != 0);
+        if (id != 0) {
+          bogpilot_confidence::setFileRightSide(id == 2);
+        }
       });
-      visualToggle = confidenceBallToggle;
+      visualToggle = confidenceBallControl;
     } else if (param == "HideMapIcon") {
       std::vector<QString> mapIconToggles{"HideMap"};
       std::vector<QString> mapIconToggleNames{tr("Hide Map")};
@@ -398,7 +403,7 @@ FrogPilotVisualsPanel::FrogPilotVisualsPanel(FrogPilotSettingsWindow *parent) : 
     });
   }
 
-  // The confidence ball is a stand-alone switch on the main Visuals page, not a group header
+  // The confidence ball is a stand-alone control on the main Visuals page, not a group header
   parentKeys.remove("ConfidenceBall");
 
   QSet<QString> forceUpdateKeys = {"HideLeadMarker", "ShowSpeedLimits"};

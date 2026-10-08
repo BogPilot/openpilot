@@ -32,7 +32,7 @@ private:
 
   FrogPilotOnroadWindow *frogpilot_onroad;
 
-  // BogPilot confidence ball (right edge, over the status border)
+  // BogPilot confidence ball (left or right edge, over the status border)
   ConfidenceBall *confidence_ball;
 
 private slots:

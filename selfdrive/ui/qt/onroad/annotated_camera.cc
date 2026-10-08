@@ -20,8 +20,8 @@ AnnotatedCameraWidget::AnnotatedCameraWidget(VisionStreamType type, QWidget* par
   experimental_btn = new ExperimentalButton(this);
   main_layout->addWidget(experimental_btn, 0, Qt::AlignTop | Qt::AlignRight);
 
+  // BogPilot: placed by hand next to the driver-monitoring icon in updateState()
   map_settings_btn = new MapSettingsButton(this);
-  main_layout->addWidget(map_settings_btn, 0, Qt::AlignBottom | Qt::AlignRight);
 
   dm_img = loadPixmap("../assets/img_driver_face.png", {img_size + 5, img_size + 5});
 
@@ -105,19 +105,24 @@ void AnnotatedCameraWidget::updateState(const UIState &s, const FrogPilotUIState
   // DM icon transition
   dm_fade_state = std::clamp(dm_fade_state+0.2*(0.5-dmActive), 0.0, 1.0);
 
-  // hide map settings button for alerts and flip for right hand DM
-  map_settings_btn->road_name_ui = frogpilot_toggles.value("road_name_ui").toBool();
-  if (map_settings_btn->isEnabled()) {
-    map_settings_btn->setVisible(!hideBottomIcons && !frogpilot_toggles.value("hide_map_icon").toBool());
-    main_layout->setAlignment(map_settings_btn, (rightHandDM ? Qt::AlignLeft : Qt::AlignRight) | Qt::AlignBottom);
-  }
-
   // FrogPilot variables
   distance_btn->setEnabled(frogpilot_nvg->dmIconPosition != QPoint(0, 0) && !hideBottomIcons && frogpilot_toggles.value("onroad_distance_button").toBool());
   distance_btn->setVisible(distance_btn->isEnabled());
   if (distance_btn->isEnabled()) {
     distance_btn->move(rightHandDM ? width() - UI_BORDER_SIZE - distance_btn->width() - (UI_BORDER_SIZE / 2) : UI_BORDER_SIZE, frogpilot_nvg->dmIconPosition.y() - distance_btn->height() / 2);
     distance_btn->updateState(s.scene, fs.frogpilot_scene);
+  }
+
+  // hide map settings button for alerts. BogPilot: it sits on the driver-monitoring row, directly beside the
+  // DM icon on the side away from the screen edge (right of it, or left of it for right hand DM), so the
+  // bottom-right corner stays free for the Developer HUD
+  map_settings_btn->road_name_ui = frogpilot_toggles.value("road_name_ui").toBool();
+  if (map_settings_btn->isEnabled()) {
+    map_settings_btn->setVisible(!hideBottomIcons && !frogpilot_toggles.value("hide_map_icon").toBool());
+    const QPoint dm = dmIconCenter(frogpilot_toggles);
+    const int x = rightHandDM ? dm.x() - btn_size / 2 - UI_BORDER_SIZE - btn_size : dm.x() + btn_size / 2 + UI_BORDER_SIZE;
+    // The button is btn_size wide and btn_size + UI_BORDER_SIZE tall; its icon centre is UI_BORDER_SIZE lower without the road name
+    map_settings_btn->move(x, dm.y() - btn_size / 2 - (map_settings_btn->road_name_ui ? 0 : UI_BORDER_SIZE));
   }
   experimental_btn->setVisible(!frogpilot_nvg->bigMapOpen);
   screen_recorder->setVisible(frogpilot_nvg->standstillDuration == 0 && !fs.frogpilot_scene.map_open && !(frogpilot_nvg->signalStyle == "static" && car_state.getRightBlinker()) && frogpilot_toggles.value("screen_recorder").toBool());
@@ -399,12 +404,8 @@ void AnnotatedCameraWidget::drawLaneLines(QPainter &painter, const UIState *s, c
   painter.restore();
 }
 
-void AnnotatedCameraWidget::drawDriverState(QPainter &painter, const UIState *s, const QJsonObject &frogpilot_toggles) {
-  const UIScene &scene = s->scene;
-
-  painter.save();
-
-  // base icon
+// Centre of the driver-monitoring icon: bottom corner on the driver's side, after the personality button
+QPoint AnnotatedCameraWidget::dmIconCenter(const QJsonObject &frogpilot_toggles) {
   int offset = UI_BORDER_SIZE + btn_size / 2;
   int x = rightHandDM ? width() - offset : offset;
   if (distance_btn->isEnabled()) {
@@ -417,7 +418,18 @@ void AnnotatedCameraWidget::drawDriverState(QPainter &painter, const UIState *s,
   if (frogpilot_toggles.value("road_name_ui").toBool()) {
     offset += UI_BORDER_SIZE;
   }
-  int y = height() - offset;
+  return QPoint(x, height() - offset);
+}
+
+void AnnotatedCameraWidget::drawDriverState(QPainter &painter, const UIState *s, const QJsonObject &frogpilot_toggles) {
+  const UIScene &scene = s->scene;
+
+  painter.save();
+
+  // base icon
+  const QPoint dm_center = dmIconCenter(frogpilot_toggles);
+  int x = dm_center.x();
+  int y = dm_center.y();
   frogpilot_nvg->dmIconPosition.setX(x);
   frogpilot_nvg->dmIconPosition.setY(y);
   float opacity = dmActive ? 0.65 : 0.2;

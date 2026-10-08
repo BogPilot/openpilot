@@ -82,5 +82,9 @@ QVector<DeveloperHudCell> developerHudCells(const DeveloperHudInputs &in);
 // Panel size at scale 1.0 (2 columns x 5 rows).
 QSize developerHudSize();
 
-// Paints the panel with its top-right corner at topRight, scaled to fit maxHeight.
-QRect paintDeveloperHud(QPainter &p, const QPoint &topRight, int maxHeight, const DeveloperHudInputs &in);
+// Panel rectangle with its bottom-right corner at bottomRight, scaled (0.6 to 1.0) to fit maxHeight,
+// and down to 0.5 if needed to fit maxWidth.
+QRect developerHudRect(const QPoint &bottomRight, int maxHeight, int maxWidth);
+
+// Paints the panel into a rectangle from developerHudRect().
+void paintDeveloperHud(QPainter &p, const QRect &panel, const DeveloperHudInputs &in);

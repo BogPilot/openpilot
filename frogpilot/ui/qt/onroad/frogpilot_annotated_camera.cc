@@ -183,6 +183,8 @@ void FrogPilotAnnotatedCameraWidget::paintFrogPilotWidgets(QPainter &p, UIState 
   const cereal::FrogPilotPlan::Reader &frogpilotPlan = fpsm["frogpilotPlan"].getFrogpilotPlan();
   const cereal::ModelDataV2::Reader &model = sm["modelV2"].getModelV2();
 
+  hudShown = developerHudShown(frogpilot_scene);
+
   if (!hideBottomIcons && frogpilot_toggles.value("cem_status").toBool()) {
     paintCEMStatus(p, frogpilotPlan, frogpilot_scene, sm);
   } else {
@@ -252,7 +254,7 @@ void FrogPilotAnnotatedCameraWidget::paintFrogPilotWidgets(QPainter &p, UIState 
     paintStoppingPoint(p, scene, frogpilot_scene, frogpilot_toggles);
   }
 
-  if (developerHudEnabled && !bigMapOpen && !frogpilot_scene.reverse) {
+  if (hudShown) {
     paintDeveloperHUDPanel(p, s, sm, fpsm, frogpilot_toggles);
   }
 
@@ -349,7 +351,7 @@ void FrogPilotAnnotatedCameraWidget::paintCEMStatus(QPainter &p, const cereal::F
 
   p.save();
 
-  cemStatusPosition.rx() = dmIconPosition.x();
+  cemStatusPosition.rx() = dmIconPosition.x() + mapButtonShift();
   cemStatusPosition.ry() = dmIconPosition.y() - widget_size / 2;
   cemStatusPosition.rx() += (rightHandDM ? -img_size - widget_size : widget_size) / (frogpilot_scene.map_open ? 1.25 : 1);
 
@@ -393,14 +395,7 @@ void FrogPilotAnnotatedCameraWidget::paintCEMStatus(QPainter &p, const cereal::F
 void FrogPilotAnnotatedCameraWidget::paintCompass(QPainter &p, QJsonObject &frogpilot_toggles) {
   p.save();
 
-  compassPosition.rx() = rightHandDM ? UI_BORDER_SIZE + widget_size / 2 : width() - UI_BORDER_SIZE - btn_size;
-  if (mapButtonVisible) {
-    if (rightHandDM) {
-      compassPosition.rx() += btn_size - UI_BORDER_SIZE;
-    } else {
-      compassPosition.rx() -= btn_size + UI_BORDER_SIZE;
-    }
-  }
+  compassPosition.rx() = bottomCornerWidgetX();
   compassPosition.ry() = dmIconPosition.y() - widget_size / 2;
 
   QRect compassWidget(compassPosition, QSize(widget_size, widget_size));
@@ -552,15 +547,46 @@ void FrogPilotAnnotatedCameraWidget::paintDeveloperHUDPanel(QPainter &p, UIState
   }
   in.memory_usage_percent = deviceState.getMemoryUsagePercent();
 
-  // Right side, under the Experimental Mode button (left of the pedal icons when they are on),
-  // and above the bottom-right compass / weather / map button row.
-  int right = width() - UI_BORDER_SIZE;
-  if (frogpilot_toggles.value("pedals_on_ui").toBool()) {
-    right = experimentalButtonPosition.x() - UI_BORDER_SIZE;
+  // Drawn even while an alert is up: the alert banner is painted above it and may cover its lower part
+  paintDeveloperHud(p, developerHudPanelRect(), in);
+}
+
+// BogPilot: the Developer HUD sits in the bottom corner opposite the DM icon (bottom-right for LHD, where the map
+// button used to be), kept in the bottom half of the camera view because a rear-view mirror can hide the top half of
+// the right side. It is well below the Experimental button and pedal icons, so neither moves it. When the camera view
+// is narrow (map open) the panel shrinks so it stays clear of the DM icon / map button.
+QRect FrogPilotAnnotatedCameraWidget::developerHudPanelRect() {
+  const int bottom = height() - UI_BORDER_SIZE;
+  int maxWidth = width() - UI_BORDER_SIZE * 2;
+  if (dmIconPosition != QPoint(0, 0)) {
+    const int clusterEdge = rightHandDM ? dmIconPosition.x() - btn_size / 2 + mapButtonShift() : dmIconPosition.x() + btn_size / 2 + mapButtonShift();
+    maxWidth = rightHandDM ? clusterEdge - UI_BORDER_SIZE * 2 : width() - UI_BORDER_SIZE * 2 - clusterEdge;
   }
-  const int top = UI_BORDER_SIZE + btn_size + UI_BORDER_SIZE;
-  const int bottom = (dmIconPosition.y() != 0 ? dmIconPosition.y() : height() - UI_BORDER_SIZE - btn_size / 2) - widget_size / 2 - UI_BORDER_SIZE;
-  paintDeveloperHud(p, QPoint(right, top), bottom - top, in);
+  const QRect panel = developerHudRect(QPoint(width() - UI_BORDER_SIZE, bottom), bottom - height() / 2, maxWidth);
+  return rightHandDM ? panel.translated(UI_BORDER_SIZE - panel.left(), 0) : panel;
+}
+
+bool FrogPilotAnnotatedCameraWidget::developerHudShown(const FrogPilotUIScene &frogpilot_scene) {
+  return developerHudEnabled && !bigMapOpen && !frogpilot_scene.reverse;
+}
+
+// The map settings button sits beside the DM icon, so the CEM / paused icons that follow it start one button further out
+int FrogPilotAnnotatedCameraWidget::mapButtonShift() {
+  if (!mapButtonVisible) {
+    return 0;
+  }
+  return rightHandDM ? -(btn_size + UI_BORDER_SIZE) : btn_size + UI_BORDER_SIZE;
+}
+
+// Left edge of the first compass / weather box in the bottom corner opposite the DM icon: beside the Developer HUD when it is shown
+int FrogPilotAnnotatedCameraWidget::bottomCornerWidgetX() {
+  if (rightHandDM) {
+    return hudShown ? developerHudPanelRect().right() + UI_BORDER_SIZE : UI_BORDER_SIZE + widget_size / 2;
+  }
+  if (hudShown) {
+    return developerHudPanelRect().left() - UI_BORDER_SIZE - widget_size;
+  }
+  return width() - UI_BORDER_SIZE - btn_size;
 }
 
 void FrogPilotAnnotatedCameraWidget::paintLateralPaused(QPainter &p, FrogPilotUIScene &frogpilot_scene) {
@@ -573,7 +599,7 @@ void FrogPilotAnnotatedCameraWidget::paintLateralPaused(QPainter &p, FrogPilotUI
   if (cemStatusPosition != QPoint(0, 0)) {
     lateralPausedPosition = cemStatusPosition;
   } else {
-    lateralPausedPosition.rx() = dmIconPosition.x();
+    lateralPausedPosition.rx() = dmIconPosition.x() + mapButtonShift();
     lateralPausedPosition.ry() = dmIconPosition.y() - widget_size / 2;
   }
   lateralPausedPosition.rx() += (rightHandDM ? -UI_BORDER_SIZE - widget_size - UI_BORDER_SIZE : UI_BORDER_SIZE + widget_size + UI_BORDER_SIZE) / (frogpilot_scene.map_open ? 1.25 : 1);
@@ -651,7 +677,7 @@ void FrogPilotAnnotatedCameraWidget::paintLongitudinalPaused(QPainter &p, FrogPi
   } else if (cemStatusPosition != QPoint(0, 0)) {
     longitudinalIconPosition = cemStatusPosition;
   } else {
-    longitudinalIconPosition.rx() = dmIconPosition.x();
+    longitudinalIconPosition.rx() = dmIconPosition.x() + mapButtonShift();
     longitudinalIconPosition.ry() = dmIconPosition.y() - widget_size / 2;
   }
   longitudinalIconPosition.rx() += (rightHandDM ? -UI_BORDER_SIZE - widget_size - UI_BORDER_SIZE : UI_BORDER_SIZE + widget_size + UI_BORDER_SIZE) / (frogpilot_scene.map_open ? 1.25 : 1);
@@ -1056,14 +1082,7 @@ void FrogPilotAnnotatedCameraWidget::paintWeather(QPainter &p, const cereal::Fro
     weatherIconPosition = compassPosition;
     weatherIconPosition.rx() += (rightHandDM ? UI_BORDER_SIZE + widget_size + UI_BORDER_SIZE : -UI_BORDER_SIZE - widget_size - UI_BORDER_SIZE) / (frogpilot_scene.map_open ? 1.25 : 1);
   } else {
-    weatherIconPosition.rx() = rightHandDM ? UI_BORDER_SIZE + widget_size / 2 : width() - UI_BORDER_SIZE - btn_size;
-    if (mapButtonVisible) {
-      if (rightHandDM) {
-        weatherIconPosition.rx() += btn_size - UI_BORDER_SIZE;
-      } else {
-        weatherIconPosition.rx() -= btn_size + UI_BORDER_SIZE;
-      }
-    }
+    weatherIconPosition.rx() = bottomCornerWidgetX();
     weatherIconPosition.ry() = dmIconPosition.y() - widget_size / 2;
   }
 
