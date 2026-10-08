@@ -44,6 +44,10 @@ class CarInterface(CarInterfaceBase):
       ret.openpilotLongitudinalControl = False
       ret.safetyConfigs = [get_safety_config(car.CarParams.SafetyModel.tesla, safety_params[0])]
 
+    # AP1 only: the stock DAS blind-spot flags (0x399, read-only) feed
+    # carState.left/rightBlindspot. Other Teslas keep enableBsm False.
+    ret.enableBsm = candidate == CAR.TESLA_AP1_MODELS
+
     ret.steerLimitTimer = 1.0
     ret.steerActuatorDelay = 0.25
     return ret
