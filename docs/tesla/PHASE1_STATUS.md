@@ -1,6 +1,6 @@
 # Phase 1 status
 
-> **Historical (Phase 1).** This page records the Phase 1 base tree. It is no longer the state of `bogpilot-tesla`: AP1 Model S now has openpilot lateral and longitudinal control (tag `ap1-driving-milestone-3`), `TeslaPlatform` exists in `selfdrive/car/tesla/values.py`, and `test_early_platform_smoke.py` no longer fails on the missing enum. Current status: [`README.md`](README.md), [`STALK.md`](STALK.md), [`DIVERGENCES.md`](DIVERGENCES.md).
+> **Historical (Phase 1).** This page records the Phase 1 base tree. It is no longer the state of `bogpilot-tesla`: AP1 Model S now has openpilot lateral and longitudinal control (tag `ap1-driving-milestone-4`), `TeslaPlatform` exists in `selfdrive/car/tesla/values.py`, and `test_early_platform_smoke.py` no longer fails on the missing enum. Current status: [`README.md`](README.md), [`STALK.md`](STALK.md), [`DIVERGENCES.md`](DIVERGENCES.md).
 
 Branch `bogpilot-tesla` is the pinned FrogPilot SHA plus the Phase 1 docs, rebrand, and this red test. No Tesla actuation. Not a tagged release. Not safe to drive.
 

@@ -8,15 +8,22 @@ Owners of other legacy Teslas — **Pre-AP, Model X AP1, and Model S/X AP2** —
 
 Pinned FrogPilot SHA: `1e23dec6352cef5a36a87be0af7d7a082b7c48a4`.
 
-## AP1 status (tag `ap1-driving-milestone-3`)
+## AP1 status (tag `ap1-driving-milestone-4`)
 
-Milestone 3 (2026-10-07) is the speed-limit and stalk cruise work, merged into the main branch after the maintainer's drives.
+Milestone 4 (2026-10-07) is longitudinal smoothing, merged into the main branch after the maintainer's drive. It sits on top of milestone 3 (the speed-limit and stalk cruise work below).
+
+- **Longitudinal smoothing** (AP1 only; panda safety, `ACCEL_MIN`, stopped distance and the set-speed logic are unchanged):
+  - **Brake onset ramp:** regen eases in at 2 m/s³ instead of jumping in one frame; deeper requests ramp faster, and −2 m/s² or harder, FCW and stopping still go through at once.
+  - **Drive release 2.0:** lifting off drive torque is a soft S-curve at 2 m/s³ (+1.3 → 0 in about 0.8 s instead of 0.25 s), so a lift no longer feels like regen grabbing.
+  - **Throttle cap:** the driving model's on/off "allow throttle" hint is filtered (quick cut, slow release). Throttle/coast chatter dropped from about 24 to about 3 flips a minute on the maintainer's drives.
+  - **Standstill hold floor:** while stopped, openpilot asks for at most −1.0 m/s² (was −2.0), so the car latches less Hold pressure to dump at the launch; launch jerk is stock-like (1.5 m/s³).
+- **Stalk / SLC refinements since milestone 3:** a tip-engage now holds through speed limit changes in both directions until you pull or disengage; tips go down to 1 mph (never 0); a posted limit under 15 mph is ignored, and a very large sudden drop must persist 2 s before SLC tracking follows it.
 
 - Openpilot steering (angle control on `0x488`) and longitudinal control (`0x2b9`) through one harness and one panda on chassis CAN.
 - **Speed limit control (SLC) raise:** with FrogPilot's Speed Limit Controller on, openpilot can set cruise above the stock limit, up to the posted limit plus your offset. From the car, SLC reads the Mobileye sign first, then the car's map limit (FrogPilot's own map sources still apply per your SLC settings).
 - **Instrument cluster set speed** follows openpilot's set speed (`DAS_accSpeedLimit`, AP1 DBC scale fix), with a guard so a stopped car no longer flashes ~90 on the cluster.
 - **Stalk engage** (the stalk modes below need Speed Limit Controller on; with it off, openpilot uses the car's own cruise set):
-  - Tip up or down to engage: holds your **current speed**. It does not jump to the posted limit. A lower posted limit still caps it, and if you haven't tipped since engaging, a higher posted limit moves it up to that limit plus offset.
+  - Tip up or down to engage: holds your **current speed**. It does not jump to the posted limit, and it stays put through speed limit changes, up or down, until you pull the stalk or disengage (curve speed control can still slow below it).
   - Pull the stalk toward you to engage: goes to the **posted limit plus your offset** and follows the limit.
 - **While engaged:**
   - Tip up/down to the first position: ±1 mph.
@@ -36,6 +43,7 @@ The full stalk map is in `docs/tesla/STALK.md`. Every place this tree knowingly 
 
 ### Earlier milestones
 
+- `ap1-driving-milestone-3` (2026-10-07): SLC raise to posted limit + offset, cluster set speed, sticky stalk engage, full-tip next-5, zone-hold tips, stalk-hold Experimental toggles, 0.3 s soft-steer resume.
 - `ap1-driving-milestone-2` (2026-10-05): model-path cluster lanes, FCW engage fix, grey override border, 0.5 s resume hold.
 - `ap1-driving-milestone-1` (2026-10-04): first AP1 drive with openpilot steering, chassis longitudinal, hands-on pause/resume, and stalk follow profiles.
 
@@ -45,7 +53,7 @@ On the comma 3X setup screen, choose custom software and enter:
 
     installer.comma.ai/BogPilot/bogpilot-tesla
 
-The main branch now includes the SLC / stalk cruise work above. Longitudinal control needs the DEBUG panda firmware that this branch builds. Do not enter `frogpilot.download`, which installs upstream FrogPilot.
+The main branch now includes the SLC / stalk cruise work and the milestone 4 longitudinal smoothing above. Longitudinal control needs the DEBUG panda firmware that this branch builds. Do not enter `frogpilot.download`, which installs upstream FrogPilot.
 
 A sister AP1 port built on sunnypilot lives on `BogPilot/sunnypilot` branch `sunny-tesla`. It has not been road-tested.
 
@@ -247,8 +255,8 @@ And lots more! From safety enhancements to personalization options, **FrogPilot*
 ------
 | Branch                     | Install&nbsp;URL          | Description                                            | Recommended&nbsp;For     |
 |----------------------------|---------------------------|--------------------------------------------------------|--------------------------|
-| bogpilot-tesla             | `installer.comma.ai/BogPilot/bogpilot-tesla` | Main BogPilot branch (AP1 milestone 3, including the SLC / stalk cruise work). | AP1 research, maintainer-driven |
-| bogpilot-tesla-slc-raise   | `installer.comma.ai/BogPilot/bogpilot-tesla-slc-raise` | Former testing branch for the SLC / stalk cruise work, now merged into bogpilot-tesla. Use main. | Not needed |
+| bogpilot-tesla             | `installer.comma.ai/BogPilot/bogpilot-tesla` | Main BogPilot branch (AP1 milestone 4: SLC / stalk cruise work plus longitudinal smoothing). | AP1 research, maintainer-driven |
+| bogpilot-tesla-slc-raise   | `installer.comma.ai/BogPilot/bogpilot-tesla-slc-raise` | Testing branch for the SLC / stalk cruise and longitudinal smoothing work, merged into bogpilot-tesla at milestone 4. Use main. | Not needed |
 | bogpilot-tesla-cluster     | `installer.comma.ai/BogPilot/bogpilot-tesla-cluster` | Older AP1 cluster work branch. Behind bogpilot-tesla; use main. | Not needed |
 | FrogPilot                  | upstream FrogPilot only   | Upstream FrogPilot release name. Still accepted here.  | Not this fork            |
 | FrogPilot&#8209;Staging    | upstream FrogPilot only   | Upstream beta. Not a BogPilot channel.                 | Not this fork            |

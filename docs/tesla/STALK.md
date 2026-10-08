@@ -2,7 +2,7 @@
 
 BogPilot is not a product. No warranty. The driver remains responsible. Comply with local law. This is research code; it has been driven on one AP1 Model S, which is not a safety validation.
 
-The AP1 cruise stalk reports two signals on `STW_ACTN_RQ` (0x45): `SpdCtrlLvr_Stat` (tip up / down, pull, push forward) and `DTR_Dist_Rq` (twist for follow distance). This page covers both, as of tag `ap1-driving-milestone-3` plus the tip-engage hold, 1 mph tip floor, and SLC posted-limit guard that follow it.
+The AP1 cruise stalk reports two signals on `STW_ACTN_RQ` (0x45): `SpdCtrlLvr_Stat` (tip up / down, pull, push forward) and `DTR_Dist_Rq` (twist for follow distance). This page covers both, as of tag `ap1-driving-milestone-4` (which includes the tip-engage hold, 1 mph tip floor, and SLC posted-limit guard).
 
 ## Cruise stalk (`SpdCtrlLvr_Stat`)
 

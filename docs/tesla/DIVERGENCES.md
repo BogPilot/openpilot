@@ -65,14 +65,19 @@ File-backed toggle `/data/params_bogpilot/RegenComfortBrake` (July prebuilt cann
 
 - **Rising requests** (more accel or a brake release) are limited to 2.5 m/s³.
 - **Braking ramp** (falling requests, shaped like the stock DI after a cruise cancel):
-  - While the last output is above 0, drive torque is released at 5 m/s³.
+  - **Drive release** (while the last output is above 0): released at `AP1_DRIVE_RELEASE_JERK` = 2.0 m/s³ with a 0.2 s soft start (`AP1_DRIVE_RELEASE_RAMP_S`). A pure lift (request at or above 0) tapers onto the request (S-curve), so +1.3 → 0 takes about 0.8 s (e3574753 released at 5 m/s³, about 0.25 s, which felt like regen grabbing). A lift into braking blends the cap from 2.0 at 0 to 5.0 m/s³ at -0.5 m/s² and back to the onset jerk over the last 0.3 m/s² of drive, so it meets the regen ramp at 0 without a jerk step. Below -1.0 m/s² there is no soft start.
   - At or below 0, regen ramps in at `AP1_BRAKE_ONSET_JERK` = 2.0 m/s³. That rate blends linearly up to 8 m/s³ as the request goes from -1.0 to -2.0 m/s².
   - For reference, the stock DI's own cancel ramp on `0000002e` averaged about 0.6 m/s³; ISO 15622 comfort guidance at speed is 2.5.
   - Time to reach from 0: -0.9 in 0.45 s, -1.0 in 0.50 s, -1.5 in 0.30 s, -1.95 in 0.26 s. From +1.5, -1.0 takes 0.80 s.
 - **Never ramped (same step):** a request at or below -2.0 m/s², FCW (`hudControl.visualAlert == fcw`), the LongControl stopping state, below 1 m/s (standstill hold, launch, creep), while long control is not active, and on the gas-neutral frame.
 - The output always lies between the last output and the planner value.
 - **Unchanged:** `ACCEL_MIN` / `ACCEL_MAX`, the panda limits, `STOP_DISTANCE` and the planner.
-- **Full-log open-loop replay:** every frame passes the panda TX check on `0000002a` and `0000002e`, and every planner request at or below -2.0 m/s² is sent unchanged on the same frame.
+- **Standstill hold floor** (`AP1_STANDSTILL_HOLD_ACCEL` = -1.0 m/s²): at standstill (`CarState.standstill`) and without FCW, a request below -1.0 is held at -1.0, reached from a deeper last output at 1 m/s³. The DI latches its HOLD brake pressure from the request at HOLD entry and dumps it in 0.13–0.24 s at the launch, so the iBooster returns the pedal to rest in about 0.4–0.55 s; the stock DAS sends accelMin 0 there. Launch requests pass through on the same step, and nothing changes while moving (v ≥ 0.1 m/s). Route `00000032`: flat-ground HOLD 0x148 176–182 (e3574753: 216 after a -2.0 hold, 185 after -1.68); the DI applies more on its own on a hill (482 at about +6.7°, no rollback).
+- **Full-log open-loop replay:** every frame passes the panda TX check on `0000002a`, `0000002e`, `0000002f`, `00000030` and `00000031`, and every planner request at or below -2.0 m/s² is sent unchanged on the same frame.
+
+## AP1 throttle cap (`allowThrottle` smoothing)
+
+Upstream caps the MPC max accel at the coast accel (about -0.3 m/s²) whenever the driving model's `gasPressProbs[1]` is below 0.4 (`allowThrottle`). On routes `0000002f`/`30`/`31` (e3574753) that flag flipped 10–46 times a minute while engaged, often for one 50 ms plan step, and each flip moved the max-accel limit from about +2 to -0.3 in one step; the planner's `aTarget` formula turned the collapse into steps of up to -2.2 m/s². `Ap1ThrottleCap` (`selfdrive/car/tesla/throttle_gate.py`, used by `longitudinal_planner.py`, AP1 only) turns the flag into a cut fraction with a fast attack (`AP1_THROTTLE_CUT_TAU` = 0.15 s) and slow release (`AP1_THROTTLE_RELEASE_TAU` = 1.5 s) and blends the MPC max accel toward the coast limit by that fraction. At creep speed and while the planner is reset it follows the raw flag. Braking limits, FCW, the lead cost and `ACCEL_MIN` are unchanged; other cars keep the stock 0/1 cut. Route `00000032`: about 3.2 flips a minute (e3574753: about 24).
 
 ## AP1 `DAS_control` jerk limits
 
@@ -82,7 +87,8 @@ Upstream sends `DAS_jerkMin` / `DAS_jerkMax` = ±8 m/s³ (`CarControllerParams.J
 
 - ±1.5 in the comfort band.
 - Blends linearly to the full ±8 as the request sent falls from -0.3 to -0.5 m/s².
-- Full ±8 at or below -0.5, on urgent frames (FCW, stopping), below 1 m/s, while long control is not active, and on the gas-neutral frame.
+- Full ±8 at or below -0.5, on urgent frames (FCW, stopping), while long control is not active, and on the gas-neutral frame.
+- Below 1 m/s (standstill hold, launch, creep) without FCW: `DAS_jerkMax` = `AP1_LAUNCH_JERK_MAX` = 1.5 (stock DAS sends about 1.2 there), `DAS_jerkMin` stays at the full 8 so braking is never limited.
 - Widening is instant. Narrowing back to ±1.5 is rate-limited (10 m/s³ per s, about 0.65 s), so the limit never steps down.
 
 `teslacan.create_longitudinal_commands` takes the values as arguments; non-AP1 Teslas keep ±8. No panda change (the panda accepts the full jerk range).
