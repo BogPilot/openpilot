@@ -133,28 +133,24 @@ picked is left alone.
 
 ## AP1 installs
 
-The Tesla AP1 profile (`selfdrive/car/tesla/ap1_defaults.py`) sets, for a new
-AP1 install still on the defaults (Custom Themes on, Random Themes off):
+The Tesla AP1 profile (`selfdrive/car/tesla/ap1_defaults.py`) sets every theme
+menu to BogPilot (Custom Themes on, Random Themes off):
 
 | Menu | Param | AP1 value |
 | --- | --- | --- |
-| Color Scheme | `CustomColors` | `stock` |
-| Steering Wheel | `WheelIcon` | `stock` |
+| Color Scheme | `CustomColors` | `BogPilot` |
+| Steering Wheel | `WheelIcon` | `BogPilot` |
 | Icon Pack | `CustomIcons` | `BogPilot` |
 | Sound Pack | `CustomSounds` | `BogPilot` |
 | Turn Signal | `CustomSignals` | `BogPilot` |
 | Distance Button | `CustomDistanceIcons` | `BogPilot` |
 
-Color Scheme and Steering Wheel stay on the literal `stock` for now, because of
-the two hard-coded `stock` looks described above. The BogPilot copies of those
-files stay in the pack, ready for later.
+Color Scheme and Steering Wheel look exactly stock through the stand-in above
+(while the BogPilot `colors.json` / `wheel.png` equal the stock files).
 
-A one-time step (`/data/params_bogpilot/AP1ThemeBogPilot`) also moves Icon
-Pack, Sound Pack and Turn Signal values that only pick the stock look (`stock`,
-or `none` for Turn Signal) to BogPilot. It never touches Color Scheme, Steering
-Wheel, Distance Button or any other theme.
-
-The colors / wheel stand-in in `frogpilot_variables.py` is kept: devices that
-are not AP1 (or AP1 owners who picked BogPilot themselves) still have
-`CustomColors` / `WheelIcon` = `BogPilot`, the table default, and without the
-stand-in they would get the theme-style path and no Experimental Mode wheel.
+A one-time step (`/data/params_bogpilot/AP1ThemeBogPilot2`) also moves values
+that only pick the stock look (`stock`, or `none` for Turn Signal) to BogPilot
+for Color Scheme, Steering Wheel, Icon Pack, Sound Pack and Turn Signal. Stock
+distance icons, a "None" steering wheel and any other theme are left alone. The
+marker is new ("2") because the earlier step (`AP1ThemeBogPilot`) left Color
+Scheme and Steering Wheel on stock; "Reset toggles to default" clears both.
