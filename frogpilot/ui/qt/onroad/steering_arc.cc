@@ -21,6 +21,7 @@ const QColor PURPLE(150, 100, 255);
 const QColor YELLOW(255, 200, 0);
 const QColor ORANGE(255, 115, 0);
 const QColor DOT_GREY(182, 182, 182);
+const QColor HUMAN_CYAN(90, 205, 255);
 
 float interp(float x, float x0, float x1, float y0, float y1) {
   if (x <= x0) return y0;
@@ -98,31 +99,56 @@ float SteeringArc::angleUtilization(float curvature, float desired_curvature, fl
   const float desired = desired_curvature * v_ego * v_ego;
   const float roll_compensation = roll * GRAVITY * interp(v_ego, 5.0f, 15.0f, 0.0f, 1.0f);
   const float max_lat = max_lat_accel > 0.1f ? max_lat_accel : DEFAULT_MAX_LAT_ACCEL;
-  return -std::clamp((actual - roll_compensation + (desired - actual)) / max_lat, -1.0f, 1.0f);
+  return std::clamp((actual - roll_compensation + (desired - actual)) / max_lat, -1.0f, 1.0f);
 }
 
-void SteeringArc::update(float utilization, bool lat_active, bool active, bool engaged_colors, bool experimental) {
-  const float target = lat_active ? std::clamp(utilization, -1.0f, 1.0f) : 0.0f;
+float SteeringArc::humanUtilization(float curvature, float steering_angle_deg, float v_ego, float roll, float max_lat_accel,
+                                    float *lat_weight) {
+  const float lat = angleUtilization(curvature, curvature, v_ego, roll, max_lat_accel);
+  const float angle = std::clamp(-steering_angle_deg / HUMAN_FULL_ANGLE_DEG, -1.0f, 1.0f);
+  const float w = interp(v_ego, HUMAN_ANGLE_SPEED_LO, HUMAN_ANGLE_SPEED_HI, 0.0f, 1.0f);
+  if (lat_weight) *lat_weight = w;
+  return std::clamp(w * lat + (1.0f - w) * angle, -1.0f, 1.0f);
+}
+
+void SteeringArc::update(const Inputs &in) {
+  // Driver source while lateral is off or the driver is overriding; switch only after the request has held 0.3 s
+  const bool want_human = !in.lat_active || in.override_;
+  if (want_human != human_) {
+    if (++human_frames_ >= SOURCE_HYSTERESIS_FRAMES) {
+      human_ = want_human;
+      human_frames_ = 0;
+    }
+  } else {
+    human_frames_ = 0;
+  }
+
+  const float target = human_ ? std::clamp(in.human, -1.0f, 1.0f) : (in.lat_active ? std::clamp(in.op, -1.0f, 1.0f) : 0.0f);
   torque_ = (1.0f - FILTER_K) * torque_ + FILTER_K * target;
-  alpha_ = (1.0f - FILTER_K) * alpha_ + FILTER_K * (active ? 1.0f : 0.55f);
-  engaged_colors_ = engaged_colors;
-  experimental_ = experimental;
+  const float op = in.lat_active ? std::clamp(in.op, -1.0f, 1.0f) : 0.0f;
+  op_target_ = (1.0f - FILTER_K) * op_target_ + FILTER_K * op;
+  alpha_ = (1.0f - FILTER_K) * alpha_ + FILTER_K * (in.active ? 1.0f : 0.55f);
+  human_orange_ = std::clamp(in.human_lat_weight, 0.0f, 1.0f);
+  show_tick_ = human_ && in.lat_active && in.override_;
+  engaged_colors_ = in.engaged_colors;
+  experimental_ = in.experimental;
 }
 
 QRectF SteeringArc::tapRect(const QRect &view) const {
-  const float r_mid = 1200 * SCALE + 8.5f * SCALE / 2;
+  const float r_mid = RADIUS + THICKNESS_HI / 2;
   const float hw = r_mid * std::sin(rad(SPAN_DEG / 2)) + 30;
+  const float h = OFFSET_HI + THICKNESS_HI + 40;   // top of the bar at full lock plus margin, down to the view bottom
   const float cx = view.left() + view.width() / 2.0f;
-  return QRectF(cx - hw, view.bottom() + 1 - 150, 2 * hw, 150);
+  return QRectF(cx - hw, view.bottom() + 1 - h, 2 * hw, h);
 }
 
 void SteeringArc::paint(QPainter &p, const QRect &view) const {
   const float s = SCALE;
   const float at = std::fabs(torque_);
   const float alpha = std::max(alpha_, 0.05f);
-  const float offset = interp(at, 0.5f, 1.0f, 22 * s, 26 * s);
-  const float thickness = interp(at, 0.5f, 1.0f, 8.5f * s, 23 * s);   // upstream 14 -> 56 at mici scale; thinner here
-  const float radius = 1200 * s;
+  const float offset = interp(at, 0.5f, 1.0f, OFFSET_LO, OFFSET_HI);
+  const float thickness = interp(at, 0.5f, 1.0f, THICKNESS_LO, THICKNESS_HI);
+  const float radius = RADIUS;
   const float mid_r = radius + thickness / 2;
   const float cx = view.left() + view.width() / 2.0f;
   const float cy = view.bottom() + 1 + radius - offset;
@@ -136,7 +162,8 @@ void SteeringArc::paint(QPainter &p, const QRect &view) const {
   // track (+ a faint dark edge so it reads over a bright path)
   const QPolygonF bg = arcBarPolygon(mid_r, thickness, top - SPAN_DEG / 2, top + SPAN_DEG / 2, 7 * s);
   float bg_alpha = interp(at, 0.5f, 1.0f, 0.25f, 0.5f) * alpha;
-  if (!engaged_colors_) bg_alpha = 0.15f * alpha;
+  if (!engaged_colors_ && !human_) bg_alpha = 0.15f * alpha;
+  if (human_ && alpha_ < 0.9f) bg_alpha = 0.15f + 0.1f * std::max(0.0f, at - 0.5f) * 2.0f;   // dim track while disengaged
   // soft dark halo (stacked round-joined strokes stand in for the mockup's blur)
   p.setBrush(Qt::NoBrush);
   for (const int w : {28, 24, 20, 16, 12, 8, 4}) {
@@ -147,19 +174,38 @@ void SteeringArc::paint(QPainter &p, const QRect &view) const {
   p.setBrush(withAlpha(WHITE, bg_alpha));
   p.drawPolygon(bg);
 
-  // fill from the centre toward the steer side
+  // fill from the centre toward the steer side (negative = left)
   if (at > 0.005f) {
     const QPolygonF fill = arcBarPolygon(mid_r, thickness, top, top + SPAN_DEG / 2 * torque_, 7 * s);
-    const float k = std::max(0.0f, at - 0.75f) * 4.0f;
-    QColor c0 = blend(withAlpha(base, 0.9f * alpha), withAlpha(experimental_ ? PURPLE : YELLOW, alpha), k);
-    QColor c1 = blend(withAlpha(base, 0.9f * alpha), withAlpha(ORANGE, alpha), k);
-    if (!engaged_colors_) c0 = c1 = withAlpha(WHITE, 0.35f * alpha);
+    QColor c0, c1;
+    if (human_) {
+      // driver steering: soft cyan at full strength even when the track is dim; orange only for the lat-accel share
+      const float k = std::max(0.0f, at - 0.75f) * 4.0f * human_orange_;
+      c0 = withAlpha(HUMAN_CYAN, 0.95f);
+      c1 = blend(withAlpha(HUMAN_CYAN, 0.95f), withAlpha(ORANGE, 1.0f), k);
+    } else {
+      const float k = std::max(0.0f, at - 0.75f) * 4.0f;
+      c0 = blend(withAlpha(base, 0.9f * alpha), withAlpha(experimental_ ? PURPLE : YELLOW, alpha), k);
+      c1 = blend(withAlpha(base, 0.9f * alpha), withAlpha(ORANGE, alpha), k);
+      if (!engaged_colors_) c0 = c1 = withAlpha(WHITE, 0.35f * alpha);
+    }
     const qreal edge = torque_ < 0 ? bg.boundingRect().left() : bg.boundingRect().right();
     QLinearGradient g(0, 0, edge * 0.65, 0);
     g.setColorAt(0.0, c0);
     g.setColorAt(1.0, c1);
     p.setBrush(g);
     p.drawPolygon(fill);
+  }
+
+  // override: thin white tick across the bar where openpilot wants to be
+  if (show_tick_) {
+    const float a = rad(top + SPAN_DEG / 2 * std::clamp(op_target_, -1.0f, 1.0f));
+    const float r0 = radius - 11, r1 = radius + thickness + 11;
+    p.setPen(QPen(QColor(0, 0, 0, 110), 10, Qt::SolidLine, Qt::RoundCap));
+    p.drawLine(QPointF(std::cos(a) * r0, std::sin(a) * r0), QPointF(std::cos(a) * r1, std::sin(a) * r1));
+    p.setPen(QPen(QColor(255, 255, 255, 245), 6, Qt::SolidLine, Qt::RoundCap));
+    p.drawLine(QPointF(std::cos(a) * r0, std::sin(a) * r0), QPointF(std::cos(a) * r1, std::sin(a) * r1));
+    p.setPen(Qt::NoPen);
   }
 
   // centre dot

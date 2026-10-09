@@ -201,7 +201,8 @@ void FrogPilotAnnotatedCameraWidget::paintFrogPilotWidgets(QPainter &p, UIState 
     compassPosition.setY(0);
   }
 
-  if (!frogpilot_scene.map_open && !frogpilotPlan.getSpeedLimitChanged() && !(signalStyle == "static" && carState.getLeftBlinker()) && frogpilot_toggles.value("csc_status").toBool()) {
+  // BogPilot redesign: the Curve Speed Controller is drawn in the speed row's MAX slot instead (AnnotatedCameraWidget)
+  if (!redesign && !frogpilot_scene.map_open && !frogpilotPlan.getSpeedLimitChanged() && !(signalStyle == "static" && carState.getLeftBlinker()) && frogpilot_toggles.value("csc_status").toBool()) {
     if (frogpilotPlan.getCscTraining()) {
       paintSmartControllerTraining(p, frogpilotPlan);
     } else {

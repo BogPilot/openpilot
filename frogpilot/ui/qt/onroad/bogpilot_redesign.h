@@ -76,6 +76,14 @@ struct SpeedRowInputs {
   QString offset;                      // "+5"; empty = no badge
   qreal limit_opacity = 1.0;           // 0.25 while the SLC limit is overridden
   bool traffic_mode = false;           // red capsule outline
+
+  // Curve Speed Controller in the MAX slot (approved design A). Replaces the old popup while the redesign is on.
+  bool csc_active = false;             // amber-tinted slot: curve glyph, target number, "from N" label
+  bool csc_training = false;           // learning: pulsing amber ring + glyph, MAX keeps the set speed, label below
+  bool csc_left = true;                // glyph bends left (mirrored for right curves)
+  QString csc_speed;                   // target speed shown in the slot
+  QString csc_label;                   // "from 35" (active) or "training" (training)
+  qreal csc_pulse = 0.0;               // 0..1, training ring strength
 };
 
 struct SpeedRowGeometry {
@@ -86,6 +94,10 @@ struct SpeedRowGeometry {
 };
 
 SpeedRowGeometry speedRowGeometry(const SpeedRowInputs &in);
+// MAX slot of the capsule inset 6 px (widget x 36..200, y 30..158; screen 66..230 x 60..188)
+QRectF maxSlotRect();
+// Warning-sign style curved arrow centred on c: stem up, quarter bend, arrowhead toward the turn side
+void paintCurveGlyph(QPainter &p, const QPointF &c, qreal size, const QColor &color, bool left, qreal stroke);
 SpeedRowGeometry paintSpeedRow(QPainter &p, const SpeedRowInputs &in);
 
 // ---- personality: segmented pill Aggressive | Standard | Relaxed (cereal LongitudinalPersonality 0, 1, 2) ----
@@ -109,7 +121,7 @@ void paintIconButton(QPainter &p, const QRectF &r, const QPixmap &icon, qreal op
 
 // ---- alert banner ----
 // Banner for small / mid alerts in a widget of size `widget` (widget space = screen minus the 30 px border):
-// screen x 690-1660, bottom y 872 on the 2160 px screen; full width minus 40 px margins when narrower.
+// screen x 690-1660, bottom y 864 on the 2160 px screen; full width minus 40 px margins when narrower.
 QRect alertBannerRect(const QSize &widget, bool mid);
 void paintAlertBanner(QPainter &p, const QRect &r, bool mid, const QString &text1, const QString &text2, const QColor &fill);
 

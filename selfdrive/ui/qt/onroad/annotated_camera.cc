@@ -202,16 +202,23 @@ void AnnotatedCameraWidget::updateState(const UIState &s, const FrogPilotUIState
 
     const auto &car_control = fpsm["carControl"].getCarControl();
     const auto lateral_state = cs.getLateralControlState();
-    float utilization;
+    const float roll = fpsm["liveParameters"].getLiveParameters().getRoll();
+    const float max_lat = sm["carParams"].getCarParams().getMaxLateralAccel();
+    SteeringArc::Inputs arc;
     if (lateral_state.which() == cereal::ControlsState::LateralControlState::ANGLE_STATE) {
-      utilization = SteeringArc::angleUtilization(cs.getCurvature(), cs.getDesiredCurvature(), car_state.getVEgo(),
-                                                  fpsm["liveParameters"].getLiveParameters().getRoll(),
-                                                  sm["carParams"].getCarParams().getMaxLateralAccel());
+      arc.op = SteeringArc::angleUtilization(cs.getCurvature(), cs.getDesiredCurvature(), car_state.getVEgo(), roll, max_lat);
     } else {
-      utilization = -car_control.getActuators().getSteer();
+      arc.op = -car_control.getActuators().getSteer();
     }
-    const bool active = s.status != STATUS_DISENGAGED;
-    steering_arc.update(utilization, car_control.getLatActive(), active, active && s.status != STATUS_OVERRIDE, cs.getExperimentalMode());
+    // Driver steering (shown while lateral is off or the driver overrides): actual lateral accel, steering angle at low speed
+    arc.human = SteeringArc::humanUtilization(cs.getCurvature(), car_state.getSteeringAngleDeg(), car_state.getVEgo(), roll, max_lat,
+                                              &arc.human_lat_weight);
+    arc.lat_active = car_control.getLatActive();
+    arc.override_ = s.status == STATUS_OVERRIDE;
+    arc.active = s.status != STATUS_DISENGAGED;
+    arc.engaged_colors = arc.active && s.status != STATUS_OVERRIDE;
+    arc.experimental = cs.getExperimentalMode();
+    steering_arc.update(arc);
 
     if (cs_alive) {
       accel_graph.push(car_control.getActuators().getAccel(), car_state.getAEgo());
@@ -403,6 +410,27 @@ void AnnotatedCameraWidget::drawRedesignHud(QPainter &p, const cereal::FrogPilot
   }
   in.limit_opacity = overridden ? 0.25 : 1.0;
   in.traffic_mode = fs.frogpilot_scene.traffic_mode_enabled;
+
+  // Curve Speed Controller in the MAX slot (same visibility as FrogPilotAnnotatedCameraWidget::paintCurveSpeedControl).
+  // N = the set speed MAX shows (controlsState.vCruiseCluster, which AP1's cluster_display_kph never lowers for a curve);
+  // target = min(N, frogpilotPlan.cscSpeed).
+  const auto &car_state = (*uiState()->sm)["carState"].getCarState();
+  const bool csc_visible = !fs.frogpilot_scene.map_open && !frogpilotPlan.getSpeedLimitChanged() &&
+                           !(frogpilot_nvg->signalStyle == "static" && car_state.getLeftBlinker()) &&
+                           frogpilot_toggles.value("csc_status").toBool();
+  if (csc_visible) {
+    in.csc_left = frogpilotPlan.getRoadCurvature() < 0;   // same flip as the old popup's icon
+    if (frogpilotPlan.getCscTraining()) {
+      in.csc_training = true;
+      in.csc_label = tr("training");
+      in.csc_pulse = 0.5 + 0.5 * std::sin(std::fmod(millis_since_boot(), 2000.0) / 2000.0 * 2 * M_PI);
+    } else if (is_cruise_set && frogpilotPlan.getCscControllingSpeed()) {
+      const float csc_speed = frogpilotPlan.getCscSpeed() * (is_metric ? MS_TO_KPH : MS_TO_MPH);
+      in.csc_active = true;
+      in.csc_speed = QString::number(std::nearbyint(std::fmin(setSpeed, csc_speed)));
+      in.csc_label = tr("from %1").arg(setSpeedStr);
+    }
+  }
 
   p.save();
   const bogpilot::SpeedRowGeometry g = bogpilot::paintSpeedRow(p, in);

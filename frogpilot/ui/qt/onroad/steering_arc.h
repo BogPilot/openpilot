@@ -24,9 +24,11 @@ THE SOFTWARE.
 BogPilot steering arc: a QPainter port of upstream openpilot's comma four torque bar
 (selfdrive/ui/mici/onroad/torque_bar.py, MIT): rounded thick-arc polygon (arc_bar_pts), first-order
 filtered lateral utilisation, thickness/offset growth past 50 %, centre-to-65 % gradient that blends to
-yellow/orange past 75 %, and the grey centre dot below 50 %. BogPilot changes: 14 degree span, 2.6x scale
-for the 2160 px screen, purple in Experimental Mode, stays visible (dimmed) while disengaged because it is
-also the Experimental Mode tap target, and the fill grows toward the turn direction.
+yellow/orange past 75 %, and the grey centre dot below 50 %. BogPilot changes: arc "B" geometry for the
+2160 px screen (1800 px radius, 24 degree span, raised 112 px so it clears the road-name pill), purple in
+Experimental Mode, stays visible (dimmed) while disengaged because it is also the Experimental Mode tap
+target, the fill grows toward the turn direction (left turn fills left), and the driver's own steering is
+shown in soft cyan while disengaged or overriding, with a white tick at openpilot's target during an override.
 ***/
 #pragma once
 
@@ -37,32 +39,70 @@ also the Experimental Mode tap target, and the fill grows toward the turn direct
 
 class SteeringArc {
 public:
-  static constexpr float SPAN_DEG = 14.0f;
+  // Geometry (screen px; the 2.6x SCALE is kept for the cap radius and the centre dot)
+  static constexpr float SPAN_DEG = 24.0f;
   static constexpr float SCALE = 2.6f;
+  static constexpr float RADIUS = 1800.0f;          // inner radius of the bar
+  static constexpr float OFFSET_LO = 112.0f;        // inner edge above the view bottom, |util| <= 0.5
+  static constexpr float OFFSET_HI = 122.4f;        // ... at |util| = 1 (upstream 22 -> 26 growth, 10.4 px)
+  static constexpr float THICKNESS_LO = 22.1f;      // 8.5 * SCALE
+  static constexpr float THICKNESS_HI = 52.0f;      // 20 * SCALE
   static constexpr float DEFAULT_MAX_LAT_ACCEL = 3.0f;  // m/s^2
 
-  // utilization in [-1, 1]; negative fills left. lat_active=false decays the fill to zero.
-  // active: openpilot engaged in any form (track at full strength). engaged_colors: engaged / lateral-only
-  // (white or purple fill); otherwise the fill is drawn faded white like upstream.
-  void update(float utilization, bool lat_active, bool active, bool engaged_colors, bool experimental);
+  // Driver-steering display: below HUMAN_ANGLE_SPEED_LO the fill follows the steering-wheel angle
+  // (HUMAN_FULL_ANGLE_DEG = full arc), above HUMAN_ANGLE_SPEED_HI it follows lateral acceleration like openpilot's
+  // value, linearly blended in between. 180 deg is about where the two agree around 7 m/s on a Model S
+  // (steer ratio ~15, wheelbase ~3 m), so the hand-over is smooth. The near-limit orange only applies to the
+  // lateral-acceleration part.
+  static constexpr float HUMAN_FULL_ANGLE_DEG = 180.0f;
+  static constexpr float HUMAN_ANGLE_SPEED_LO = 5.0f;   // m/s
+  static constexpr float HUMAN_ANGLE_SPEED_HI = 9.0f;   // m/s
+  static constexpr int SOURCE_HYSTERESIS_FRAMES = 6;    // 0.3 s at UI_FREQ 20 Hz
+
+  struct Inputs {
+    float op = 0.0f;              // openpilot utilisation [-1, 1], negative fills left
+    float human = 0.0f;           // driver utilisation [-1, 1] (humanUtilization)
+    float human_lat_weight = 1.0f;  // share of the lateral-acceleration term in `human` (scales the orange blend)
+    bool lat_active = false;      // carControl.latActive
+    bool override_ = false;       // UI status is STATUS_OVERRIDE (driver steering while engaged)
+    bool active = false;          // openpilot engaged in any form (track at full strength)
+    bool engaged_colors = false;  // white / purple OP fill; otherwise faded white like upstream
+    bool experimental = false;
+  };
+
+  void update(const Inputs &in);
   void setFilteredValue(float v) { torque_ = v; }   // demos / tests
+  void setOpTarget(float v) { op_target_ = v; }     // demos / tests
+  void setHumanSource(bool human) { human_ = human; human_frames_ = 0; }   // demos / tests (skips hysteresis)
   float value() const { return torque_; }
+  bool humanSource() const { return human_; }
 
   void paint(QPainter &p, const QRect &view) const;
   // Generous tap target around the arc (replaces the removed top-right wheel button)
   QRectF tapRect(const QRect &view) const;
 
   // Upstream utilisation for angle / curvature lateral control:
-  // (curvature*v^2 - roll*g*interp(v,[5,15],[0,1]) + (desired - actual lateral accel)) / maxLateralAccel,
-  // negated so a left turn (positive curvature) fills to the left.
+  // (curvature*v^2 - roll*g*interp(v,[5,15],[0,1]) + (desired - actual lateral accel)) / maxLateralAccel.
+  // controlsState.curvature is -VM.calc_curvature(steeringAngle), so positive curvature is a RIGHT turn and a
+  // left turn comes out negative, which fills to the left (same as upstream torque_bar.py, no extra negation).
   static float angleUtilization(float curvature, float desired_curvature, float v_ego, float roll, float max_lat_accel);
+  // Driver steering: angleUtilization(curvature, curvature, ...) (actual lateral acceleration, no OP target) blended
+  // with -steeringAngleDeg / HUMAN_FULL_ANGLE_DEG at low speed (steeringAngleDeg is positive to the left).
+  // lat_weight (optional) receives the lateral-acceleration share.
+  static float humanUtilization(float curvature, float steering_angle_deg, float v_ego, float roll, float max_lat_accel,
+                                float *lat_weight = nullptr);
 
   // Rounded thick-arc polygon centred on the origin (upstream arc_bar_pts), angles in degrees, y down.
   static QPolygonF arcBarPolygon(float r_mid, float thickness, float a0_deg, float a1_deg, float cap_radius);
 
 private:
-  float torque_ = 0.0f;
+  float torque_ = 0.0f;       // filtered displayed value (OP or driver)
+  float op_target_ = 0.0f;    // filtered OP value, drawn as a tick during an override
   float alpha_ = 0.0f;
+  float human_orange_ = 1.0f;
+  bool human_ = false;        // displaying the driver's steering
+  int human_frames_ = 0;      // frames the requested source has differed from the shown one
+  bool show_tick_ = false;
   bool engaged_colors_ = false;
   bool experimental_ = false;
 };

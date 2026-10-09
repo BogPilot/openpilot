@@ -133,6 +133,14 @@
         <source>LIMIT</source>
         <translation type="gpt-5-generated">LİMİT</translation>
     </message>
+    <message>
+        <source>training</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>from %1</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ConfirmationDialog</name>

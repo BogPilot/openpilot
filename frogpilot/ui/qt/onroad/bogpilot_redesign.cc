@@ -95,6 +95,39 @@ SpeedRowGeometry speedRowGeometry(const SpeedRowInputs &in) {
   return g;
 }
 
+QRectF maxSlotRect() {
+  return QRectF(QPointF(EDGE + 6, SPEED_ROW_TOP + 6), QPointF(DIV_1 - 6, SPEED_ROW_TOP + SPEED_ROW_HEIGHT - 6));
+}
+
+void paintCurveGlyph(QPainter &p, const QPointF &c, qreal size, const QColor &color, bool left, qreal stroke) {
+  const qreal sgn = left ? -1.0 : 1.0;
+  const qreal R = size * 0.30;
+  const qreal stem = c.x() - sgn * size * 0.16;
+  const qreal top = c.y() + size * 0.06;
+  QPainterPath path(QPointF(stem, c.y() + size * 0.48));
+  path.lineTo(stem, top);
+  const qreal ccx = stem + sgn * R;
+  QPointF end;
+  for (int i = 1; i <= 24; ++i) {
+    const qreal a = M_PI / 2 * i / 24;
+    end = QPointF(ccx - sgn * R * std::cos(a), top - R * std::sin(a));
+    path.lineTo(end);
+  }
+  p.save();
+  p.setRenderHint(QPainter::Antialiasing);
+  p.setBrush(Qt::NoBrush);
+  p.setPen(QPen(color, stroke, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+  p.drawPath(path);
+  const qreal ah = size * 0.30;
+  QPolygonF head;
+  head << QPointF(end.x() + sgn * ah * 0.75, end.y()) << QPointF(end.x() - sgn * 0.02 * ah, end.y() - ah * 0.55)
+       << QPointF(end.x() - sgn * 0.02 * ah, end.y() + ah * 0.55);
+  p.setPen(Qt::NoPen);
+  p.setBrush(color);
+  p.drawPolygon(head);
+  p.restore();
+}
+
 SpeedRowGeometry paintSpeedRow(QPainter &p, const SpeedRowInputs &in) {
   const SpeedRowGeometry g = speedRowGeometry(in);
   const qreal y0 = g.capsule.top(), y1 = g.capsule.bottom();
@@ -108,14 +141,37 @@ SpeedRowGeometry paintSpeedRow(QPainter &p, const SpeedRowInputs &in) {
     paintPanel(p, g.capsule, CAP_RADIUS);
   }
 
-  // MAX (cluster set speed)
-  if (in.show_max) {
-    p.setFont(font(SIDE_PX, QFont::DemiBold));
-    p.setPen(in.set_speed_color);
-    drawCentredBaseline(p, COL_MAX, BASELINE, in.set_speed);
-    p.setFont(font(LABEL_PX, QFont::DemiBold));
-    p.setPen(in.max_color);
-    drawCentredBaseline(p, COL_MAX, LABEL_BASELINE, spaced(in.max_label));
+  // MAX (cluster set speed), or the Curve Speed Controller slot while it is lowering the speed
+  static const QColor CSC_AMBER(255, 176, 32);
+  if (in.csc_active) {
+    const QRectF slot = maxSlotRect();
+    p.setPen(QPen(QColor(255, 176, 32, 210), 3));
+    p.setBrush(QColor(255, 176, 32, 46));
+    p.drawRoundedRect(slot, 30, 30);
+    paintCurveGlyph(p, QPointF(COL_MAX, y0 + 27), 34, CSC_AMBER, in.csc_left, 5.5);
+    p.setFont(font(50, QFont::DemiBold));
+    p.setPen(CSC_AMBER);
+    drawCentredBaseline(p, COL_MAX, BASELINE + 3, in.csc_speed);
+    p.setFont(font(21, QFont::DemiBold));
+    p.setPen(QColor(255, 205, 110, 245));
+    drawCentredBaseline(p, COL_MAX, LABEL_BASELINE + 4, in.csc_label);
+  } else {
+    if (in.csc_training) {
+      const qreal k = std::clamp(in.csc_pulse, 0.0, 1.0);
+      p.setPen(QPen(QColor(255, 176, 32, int(70 + 140 * k)), 2 + k));
+      p.setBrush(Qt::NoBrush);
+      p.drawRoundedRect(maxSlotRect(), 30, 30);
+      paintCurveGlyph(p, QPointF(COL_MAX, y0 + 27), 30, QColor(255, 176, 32, 200), in.csc_left, 5);
+    }
+    if (in.show_max || in.csc_training) {
+      p.setFont(font(SIDE_PX, QFont::DemiBold));
+      p.setPen(in.set_speed_color);
+      drawCentredBaseline(p, COL_MAX, in.csc_training ? BASELINE + 3 : BASELINE, in.set_speed);
+      p.setFont(font(in.csc_training ? 19 : LABEL_PX, QFont::DemiBold));
+      p.setPen(in.csc_training ? QColor(255, 205, 110, 220) : in.max_color);
+      drawCentredBaseline(p, COL_MAX, in.csc_training ? LABEL_BASELINE + 4 : LABEL_BASELINE,
+                          in.csc_training ? in.csc_label : spaced(in.max_label));
+    }
   }
 
   // current speed
@@ -326,7 +382,7 @@ void paintIconButton(QPainter &p, const QRectF &r, const QPixmap &icon, qreal op
 
 QRect alertBannerRect(const QSize &widget, bool mid) {
   const int h = mid ? 156 : 110;
-  const int bottom = widget.height() - 178;
+  const int bottom = widget.height() - 186;   // screen y 864: clears the raised steering arc (arc B)
   if (widget.width() >= 1800) {
     return QRect(QPoint(660, bottom - h), QPoint(1630, bottom));
   }

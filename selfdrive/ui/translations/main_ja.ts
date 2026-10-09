@@ -133,6 +133,14 @@
         <source>LIMIT</source>
         <translation>制限速度</translation>
     </message>
+    <message>
+        <source>training</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>from %1</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ConfirmationDialog</name>
