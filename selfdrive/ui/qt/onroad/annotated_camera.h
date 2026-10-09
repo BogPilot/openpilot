@@ -6,7 +6,9 @@
 #include "selfdrive/ui/qt/onroad/buttons.h"
 #include "selfdrive/ui/qt/widgets/cameraview.h"
 
+#include "frogpilot/ui/qt/onroad/accel_graph.h"
 #include "frogpilot/ui/qt/onroad/frogpilot_annotated_camera.h"
+#include "frogpilot/ui/qt/onroad/steering_arc.h"
 #include "frogpilot/ui/qt/onroad/frogpilot_buttons.h"
 #include "frogpilot/ui/screenrecorder/screenrecorder.h"
 
@@ -24,6 +26,9 @@ public:
 
   FrogPilotAnnotatedCameraWidget *frogpilot_nvg;
   ScreenRecorder *screen_recorder;
+
+  // BogPilot redesign (file toggle /data/params_bogpilot/RedesignUI, missing = on)
+  bool redesign = false;
 
 private:
   void drawText(QPainter &p, int x, int y, const QString &text, int alpha = 255);
@@ -56,6 +61,20 @@ private:
   void resizeEvent(QResizeEvent *event);
 
   DistanceButton *distance_btn;
+
+  // BogPilot redesign
+  void applyRedesign(bool on);
+  void drawRedesignHud(QPainter &p, const cereal::FrogPilotPlan::Reader &frogpilotPlan, const FrogPilotUIState &fs, const QJsonObject &frogpilot_toggles,
+                       const QString &speedLimitStr, const QString &speedStr, const QString &setSpeedStr, const QColor &set_speed_color);
+  void mousePressEvent(QMouseEvent *e) override;
+  void placeScreenRecorder();
+
+  bool redesign_applied = false;
+  bool hideCluster = false;
+  int redesign_check_frame = 0;
+  QPointF rec_center;
+  AccelGraph accel_graph;
+  SteeringArc steering_arc;
 
 protected:
   void paintGL() override;

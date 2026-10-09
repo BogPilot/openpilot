@@ -1,11 +1,49 @@
 #include "frogpilot/ui/qt/onroad/frogpilot_buttons.h"
 
+#include <QMouseEvent>
+
+#include "frogpilot/ui/qt/onroad/bogpilot_redesign.h"
+
 DistanceButton::DistanceButton(QWidget *parent) : QPushButton(parent) {
   setFixedSize(btn_size + UI_BORDER_SIZE, btn_size);
 
   QObject::connect(frogpilotUIState(), &FrogPilotUIState::themeUpdated, this, &DistanceButton::updateTheme);
-  QObject::connect(this, &QPushButton::pressed, [this] {params_memory.putBool("OnroadDistanceButtonPressed", true);});
-  QObject::connect(this, &QPushButton::released, [this] {params_memory.putBool("OnroadDistanceButtonPressed", false);});
+  // The redesign pill selects a personality directly in mouseReleaseEvent instead of emulating the distance button
+  QObject::connect(this, &QPushButton::pressed, [this] {if (!redesign) params_memory.putBool("OnroadDistanceButtonPressed", true);});
+  QObject::connect(this, &QPushButton::released, [this] {if (!redesign) params_memory.putBool("OnroadDistanceButtonPressed", false);});
+}
+
+void DistanceButton::setRedesign(bool on) {
+  if (redesign == on) {
+    return;
+  }
+  redesign = on;
+  if (redesign) {
+    setFixedSize(bogpilot::PILL_W, bogpilot::PILL_H + bogpilot::PILL_LABEL_SPACE);
+  } else {
+    setFixedSize(btn_size + UI_BORDER_SIZE, btn_size);
+  }
+  update();
+}
+
+QRectF DistanceButton::pillRect() const {
+  return QRectF(0, bogpilot::PILL_LABEL_SPACE, bogpilot::PILL_W, bogpilot::PILL_H);
+}
+
+void DistanceButton::mouseReleaseEvent(QMouseEvent *event) {
+  QPushButton::mouseReleaseEvent(event);
+  if (!redesign) {
+    return;
+  }
+  // Same param the Driving Personality setting and controlsd's distance-button handling write; controlsd re-reads it every 0.1 s
+  const int selected = bogpilot::personalityAt(pillRect(), event->pos());
+  if (selected >= 0 && (selected != personality - 1 || traffic_mode_active)) {
+    params.putNonBlocking("LongitudinalPersonality", std::to_string(selected));
+    personality = selected + 1;  // show the new selection immediately; updateState confirms it from controlsState
+    pending_personality = selected;
+    pending_timer.start();
+    update();
+  }
 }
 
 void DistanceButton::showEvent(QShowEvent *event) {
@@ -38,6 +76,14 @@ void DistanceButton::updateTheme() {
 }
 
 void DistanceButton::updateState(const UIScene &scene, const FrogPilotUIScene &frogpilot_scene) {
+  // Hold a tapped selection until controlsd reports it (or 1.5 s pass) so the pill does not flick back
+  if (pending_personality >= 0) {
+    if (static_cast<int>(scene.personality) != pending_personality && pending_timer.elapsed() < 1500) {
+      return;
+    }
+    pending_personality = -1;
+  }
+
   bool state_changed = (traffic_mode_active != frogpilot_scene.traffic_mode_enabled) ||
                        (personality != static_cast<int>(scene.personality) + 1 && !traffic_mode_active);
 
@@ -54,6 +100,13 @@ void DistanceButton::updateState(const UIScene &scene, const FrogPilotUIScene &f
 void DistanceButton::paintEvent(QPaintEvent *event) {
   QPainter p(this);
   p.setRenderHint(QPainter::Antialiasing);
+
+  if (redesign) {
+    static const QStringList names = {tr("Aggressive"), tr("Standard"), tr("Relaxed")};
+    const int selected = std::clamp(personality - 1, 0, 2);
+    bogpilot::paintPersonalityPill(p, pillRect(), selected, traffic_mode_active, traffic_mode_active ? tr("Traffic") : names[selected]);
+    return;
+  }
 
   QPair<QPixmap, QSharedPointer<QMovie>> icon = icon_map.value(traffic_mode_active ? 0 : personality);
   QPixmap img = icon.first;

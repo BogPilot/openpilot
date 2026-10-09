@@ -1,0 +1,363 @@
+#include "frogpilot/ui/qt/onroad/bogpilot_redesign.h"
+
+#include <algorithm>
+#include <cmath>
+
+#include <QFile>
+#include <QFontMetricsF>
+#include <QPainterPath>
+
+bool bogpilotRedesignFileEnabled(const QString &path) {
+  QFile f(path);
+  if (!f.open(QIODevice::ReadOnly)) return true;
+  const QString text = QString::fromUtf8(f.read(16)).trimmed().toLower();
+  return !(text == "0" || text == "false" || text == "off");
+}
+
+namespace bogpilot {
+
+namespace {
+
+constexpr qreal CAP_RADIUS = 36;
+constexpr qreal COL_MAX = 120, COL_SPEED = 292, COL_LIMIT = 470;
+constexpr qreal DIV_1 = 206, DIV_2 = 378;
+constexpr qreal BASELINE = SPEED_ROW_TOP + 86;   // shared numeral baseline (screen y 140)
+constexpr qreal LABEL_BASELINE = BASELINE + 26;
+constexpr int SIDE_PX = 52, BIG_PX = 78, LABEL_PX = 18;
+constexpr int TILE_LABEL_PX = 13;
+
+const QColor SIGN_FILL(244, 244, 242, 238);
+const QColor SIGN_EDGE(20, 20, 20);
+const QColor SIGN_INK(14, 14, 14);
+const QColor SIGN_LABEL(55, 55, 55);
+
+}  // namespace
+
+QFont font(int px, QFont::Weight weight) {
+  QFont f("Inter");
+  f.setPixelSize(px);
+  f.setWeight(weight);
+  return f;
+}
+
+void paintPanel(QPainter &p, const QRectF &r, qreal radius, const QColor &fill, const QColor &stroke, qreal stroke_w) {
+  p.save();
+  p.setRenderHint(QPainter::Antialiasing);
+  p.setBrush(fill);
+  p.setPen(stroke.alpha() > 0 ? QPen(stroke, stroke_w) : QPen(Qt::NoPen));
+  p.drawRoundedRect(r, radius, radius);
+  p.restore();
+}
+
+void drawCentredBaseline(QPainter &p, qreal cx, qreal baseline, const QString &text) {
+  const qreal w = QFontMetricsF(p.font()).horizontalAdvance(text);
+  p.drawText(QPointF(cx - w / 2, baseline), text);
+}
+
+QString spaced(const QString &s) {
+  QString out;
+  for (int i = 0; i < s.size(); ++i) {
+    if (i) out += ' ';
+    out += s[i];
+  }
+  return out;
+}
+
+// ---------------- speed row ----------------
+
+SpeedRowGeometry speedRowGeometry(const SpeedRowInputs &in) {
+  SpeedRowGeometry g;
+  const qreal y0 = SPEED_ROW_TOP, y1 = SPEED_ROW_TOP + SPEED_ROW_HEIGHT;
+  qreal x1 = DIV_2 + 14;
+  if (in.show_limit) {
+    qreal tx0, tx1, ty0, ty1;
+    if (in.vienna) {
+      const qreal d = 101;
+      tx0 = COL_LIMIT - d / 2; tx1 = COL_LIMIT + d / 2;
+      ty0 = BASELINE - 66; ty1 = ty0 + d;
+    } else {
+      const qreal nw = QFontMetricsF(font(SIDE_PX, QFont::Bold)).horizontalAdvance(in.limit);
+      const qreal lw = QFontMetricsF(font(TILE_LABEL_PX, QFont::Bold)).horizontalAdvance(in.limit_label);
+      const qreal half = std::max(nw, lw) / 2 + 18;
+      tx0 = COL_LIMIT - half; tx1 = COL_LIMIT + half;
+      ty0 = BASELINE - 66; ty1 = BASELINE + 35;
+    }
+    g.tile = QRectF(QPointF(tx0, ty0), QPointF(tx1, ty1));
+    x1 = tx1 + 44;
+    if (!in.offset.isEmpty()) {
+      const qreal bw = QFontMetricsF(font(17, QFont::Bold)).horizontalAdvance(in.offset) + 16;
+      const qreal bx = tx1 - 4, by = std::max(ty0 + 2, y0 + 19);
+      g.badge = QRectF(bx - bw / 2, by - 13, bw, 26);
+    }
+  }
+  g.capsule = QRectF(QPointF(EDGE, y0), QPointF(x1, y1));
+  g.rec_center = QPointF(x1 + 52, (y0 + y1) / 2);
+  return g;
+}
+
+SpeedRowGeometry paintSpeedRow(QPainter &p, const SpeedRowInputs &in) {
+  const SpeedRowGeometry g = speedRowGeometry(in);
+  const qreal y0 = g.capsule.top(), y1 = g.capsule.bottom();
+
+  p.save();
+  p.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing);
+
+  if (in.traffic_mode) {
+    paintPanel(p, g.capsule, CAP_RADIUS, PANEL, QColor(201, 34, 49), 5);
+  } else {
+    paintPanel(p, g.capsule, CAP_RADIUS);
+  }
+
+  // MAX (cluster set speed)
+  if (in.show_max) {
+    p.setFont(font(SIDE_PX, QFont::DemiBold));
+    p.setPen(in.set_speed_color);
+    drawCentredBaseline(p, COL_MAX, BASELINE, in.set_speed);
+    p.setFont(font(LABEL_PX, QFont::DemiBold));
+    p.setPen(in.max_color);
+    drawCentredBaseline(p, COL_MAX, LABEL_BASELINE, spaced(in.max_label));
+  }
+
+  // current speed
+  if (in.show_speed) {
+    p.setFont(font(BIG_PX, QFont::Bold));
+    p.setPen(QColor(255, 255, 255));
+    drawCentredBaseline(p, COL_SPEED, BASELINE, in.speed);
+    p.setFont(font(LABEL_PX, QFont::DemiBold));
+    p.setPen(MUTED);
+    drawCentredBaseline(p, COL_SPEED, LABEL_BASELINE, spaced(in.unit.toUpper()));
+  }
+
+  p.setPen(QPen(QColor(255, 255, 255, 36), 2));
+  p.drawLine(QPointF(DIV_1, y0 + 32), QPointF(DIV_1, y1 - 32));
+  if (in.show_limit) {
+    p.drawLine(QPointF(DIV_2, y0 + 32), QPointF(DIV_2, y1 - 32));
+  }
+
+  // LIMIT tile (US) or round sign (EU)
+  if (in.show_limit) {
+    p.save();
+    p.setOpacity(in.limit_opacity);
+    if (in.vienna) {
+      p.setPen(Qt::NoPen);
+      p.setBrush(QColor(255, 255, 255));
+      p.drawEllipse(g.tile);
+      p.setPen(QPen(QColor(220, 30, 30), 10));
+      p.setBrush(Qt::NoBrush);
+      p.drawEllipse(g.tile.adjusted(7, 7, -7, -7));
+      p.setPen(SIGN_INK);
+      p.setFont(font(in.limit.size() >= 3 ? 36 : 44, QFont::Bold));
+      p.drawText(g.tile, Qt::AlignCenter, in.limit);
+    } else {
+      p.setPen(QPen(SIGN_EDGE, 3));
+      p.setBrush(SIGN_FILL);
+      p.drawRoundedRect(g.tile, 16, 16);
+
+      // centre the LIMIT + number pair on their actual ink bounds
+      const QFont lf = font(TILE_LABEL_PX, QFont::Bold), nf = font(SIDE_PX, QFont::Bold);
+      const QRectF lb = QFontMetricsF(lf).tightBoundingRect(in.limit_label);
+      const QRectF nb = QFontMetricsF(nf).tightBoundingRect(in.limit);
+      const qreal gap = 8;
+      const qreal top = g.tile.center().y() - (lb.height() + gap + nb.height()) / 2;
+      p.setFont(lf);
+      p.setPen(SIGN_LABEL);
+      drawCentredBaseline(p, COL_LIMIT, top - lb.top(), in.limit_label);
+      p.setFont(nf);
+      p.setPen(SIGN_INK);
+      drawCentredBaseline(p, COL_LIMIT, top + lb.height() + gap - nb.top(), in.limit);
+    }
+    p.restore();
+
+    // +offset badge on the tile corner, inside the capsule
+    if (!g.badge.isEmpty()) {
+      p.setPen(QPen(QColor(14, 17, 22), 2));
+      p.setBrush(BADGE_GREEN);
+      p.drawRoundedRect(g.badge, 13, 13);
+      p.setFont(font(17, QFont::Bold));
+      p.setPen(QColor(255, 255, 255));
+      drawCentredBaseline(p, g.badge.center().x(), g.badge.center().y() + 6, in.offset);
+    }
+  }
+
+  p.restore();
+  return g;
+}
+
+// ---------------- personality pill ----------------
+
+void paintPersonalityPill(QPainter &p, const QRectF &pill, int personality, bool traffic_mode, const QString &label) {
+  static const QColor TRAFFIC_RED(232, 70, 80);
+  static const int BARS[3] = {1, 2, 3};   // aggressive, standard, relaxed: more bars = longer gap
+
+  p.save();
+  p.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing);
+
+  const qreal r = pill.height() / 2;
+  paintPanel(p, pill, r);
+
+  p.setFont(font(18, QFont::DemiBold));
+  p.setPen(traffic_mode ? TRAFFIC_RED : QColor(255, 255, 255, 190));
+  p.drawText(QRectF(pill.left(), pill.top() - PILL_LABEL_SPACE, pill.width(), PILL_LABEL_SPACE - 4), Qt::AlignCenter, label.toUpper());
+
+  const int active = traffic_mode ? 0 : std::clamp(personality, 0, 2);
+  const qreal seg = (pill.width() - 16) / 3;
+  for (int i = 0; i < 3; ++i) {
+    const qreal sx0 = pill.left() + 8 + i * seg, sx1 = sx0 + seg;
+    const bool on = i == active;
+    if (on) {
+      p.setPen(Qt::NoPen);
+      p.setBrush(traffic_mode ? QColor(TRAFFIC_RED.red(), TRAFFIC_RED.green(), TRAFFIC_RED.blue(), 235) : QColor(240, 240, 240, 235));
+      const QRectF hl(QPointF(sx0 + 2, pill.top() + 8), QPointF(sx1 - 2, pill.bottom() - 8));
+      p.drawRoundedRect(hl, hl.height() / 2, hl.height() / 2);
+    }
+    p.setPen(Qt::NoPen);
+    p.setBrush(on ? QColor(20, 20, 20) : QColor(255, 255, 255, 150));
+    const int nb = BARS[i];
+    const qreal mx = (sx0 + sx1) / 2;
+    for (int k = 0; k < nb; ++k) {
+      const qreal yb = pill.center().y() - (nb - 1) * 8 + k * 16;
+      p.drawRoundedRect(QRectF(mx - 18, yb - 4, 36, 8), 4, 4);
+    }
+  }
+  p.restore();
+}
+
+int personalityAt(const QRectF &pill, const QPointF &pos) {
+  if (!pill.adjusted(-6, -PILL_LABEL_SPACE, 6, 10).contains(pos)) return -1;
+  const qreal seg = (pill.width() - 16) / 3;
+  return std::clamp(int((pos.x() - pill.left() - 8) / seg), 0, 2);
+}
+
+// ---------------- lead lock-on box ----------------
+
+QRectF leadLockBox(const QPointF &contact, float d_rel, qreal max_x, qreal max_y) {
+  const qreal sz = std::clamp(750.0 / (d_rel / 3.0 + 30.0), 15.0, 30.0) * 2.35;
+  const qreal w = sz * 3.2, h = w * 0.86;
+  const qreal cx = std::clamp(contact.x(), w / 2 + 8, max_x - w / 2 - 8);
+  const qreal bottom = std::min(contact.y() + h * 0.1, max_y - 8);
+  return QRectF(cx - w / 2, bottom - h, w, h);
+}
+
+void paintLeadLock(QPainter &p, const QRectF &box, const QString &dist, const QColor &color) {
+  const qreal thick = 8, thin = 3.5, r = 9, leg = 0.30;
+  const QRectF centre = box.adjusted(-thick / 2, -thick / 2, thick / 2, thick / 2);
+  const qreal cr = r + thick / 2;
+
+  QPainterPath corners;
+  const qreal lw = box.width() * leg, lh = box.height() * leg, o = thick * 2;
+  corners.addRect(QRectF(QPointF(box.left() - o, box.top() - o), QPointF(box.left() + lw, box.top() + lh)));
+  corners.addRect(QRectF(QPointF(box.right() - lw, box.top() - o), QPointF(box.right() + o, box.top() + lh)));
+  corners.addRect(QRectF(QPointF(box.left() - o, box.bottom() - lh), QPointF(box.left() + lw, box.bottom() + o)));
+  corners.addRect(QRectF(QPointF(box.right() - lw, box.bottom() - lh), QPointF(box.right() + o, box.bottom() + o)));
+
+  p.save();
+  p.setRenderHint(QPainter::Antialiasing);
+  p.setBrush(Qt::NoBrush);
+
+  auto ring = [&](qreal w, const QColor &c, bool clipped) {
+    p.save();
+    if (clipped) p.setClipPath(corners, Qt::IntersectClip);
+    p.setPen(QPen(c, w, Qt::SolidLine, Qt::FlatCap, Qt::RoundJoin));
+    p.drawRoundedRect(centre, cr, cr);
+    p.restore();
+  };
+  // soft shadow (two widened passes stand in for the mockup's blur)
+  for (const qreal grow : {6.0, 3.0}) {
+    const QColor sh(0, 0, 0, grow > 4 ? 40 : 60);
+    ring(thin + grow, sh, false);
+    ring(thick + grow, sh, true);
+  }
+  ring(thin, color, false);
+  ring(thick, color, true);
+
+  if (!dist.isEmpty()) {
+    const QFont f = font(38, QFont::Bold);
+    const qreal tw = QFontMetricsF(f).horizontalAdvance(dist);
+    const qreal px = box.center().x(), py = box.top() - thick - 14 - 30;
+    const QRectF pill(px - tw / 2 - 22, py - 30, tw + 44, 60);
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(20, 22, 26, 205));
+    p.drawRoundedRect(pill, 30, 30);
+    p.setFont(f);
+    p.setPen(QColor(255, 255, 255));
+    p.drawText(pill, Qt::AlignCenter, dist);
+  }
+  p.restore();
+}
+
+// ---------------- round buttons ----------------
+
+void paintRecordButton(QPainter &p, const QRectF &r, bool recording, qreal pulse) {
+  p.save();
+  p.setRenderHint(QPainter::Antialiasing);
+  const QPointF c = r.center();
+  if (recording) {
+    QColor glow(225, 60, 60);
+    glow.setAlphaF(0.4 + 0.6 * std::clamp(pulse, 0.0, 1.0));
+    p.setBrush(PANEL);
+    p.setPen(QPen(glow, 4));
+    p.drawEllipse(r.adjusted(2, 2, -2, -2));
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(225, 60, 60, 235));
+    p.drawRoundedRect(QRectF(c.x() - 11, c.y() - 11, 22, 22), 5, 5);
+  } else {
+    p.setBrush(PANEL);
+    p.setPen(QPen(STROKE, 2));
+    p.drawEllipse(r);
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(225, 60, 60, 235));
+    p.drawEllipse(c, 12, 12);
+  }
+  p.restore();
+}
+
+void paintIconButton(QPainter &p, const QRectF &r, const QPixmap &icon, qreal opacity) {
+  p.save();
+  p.setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
+  p.setPen(Qt::NoPen);
+  p.setBrush(PANEL_DARK);
+  p.drawEllipse(r);
+  p.setOpacity(opacity);
+  p.drawPixmap(QPointF(r.center().x() - icon.width() / 2.0, r.center().y() - icon.height() / 2.0), icon);
+  p.restore();
+}
+
+// ---------------- alert banner ----------------
+
+QRect alertBannerRect(const QSize &widget, bool mid) {
+  const int h = mid ? 156 : 110;
+  const int bottom = widget.height() - 178;
+  if (widget.width() >= 1800) {
+    return QRect(QPoint(660, bottom - h), QPoint(1630, bottom));
+  }
+  return QRect(40, bottom - h, widget.width() - 80, h);
+}
+
+void paintAlertBanner(QPainter &p, const QRect &r, bool mid, const QString &text1, const QString &text2, const QColor &fill) {
+  p.save();
+  p.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing);
+  paintPanel(p, r, 30, fill, STROKE, 2);
+
+  auto fitted = [&](const QString &text, int px, QFont::Weight w) {
+    QFont f = font(px, w);
+    const qreal max_w = r.width() - 60;
+    const qreal tw = QFontMetricsF(f).horizontalAdvance(text);
+    if (tw > max_w) f.setPixelSize(std::max(24, int(px * max_w / tw)));
+    return f;
+  };
+
+  p.setPen(TEXT);
+  if (mid) {
+    p.setFont(fitted(text1, 54, QFont::Bold));
+    p.drawText(QRect(r.left(), r.top() + 18, r.width(), 80), Qt::AlignCenter, text1);
+    p.setFont(fitted(text2, 30, QFont::Medium));
+    p.setPen(QColor(255, 255, 255, 200));
+    p.drawText(QRect(r.left(), r.top() + 92, r.width(), 42), Qt::AlignCenter, text2);
+  } else {
+    p.setFont(fitted(text1, 54, QFont::Bold));
+    p.drawText(r, Qt::AlignCenter, text1);
+  }
+  p.restore();
+}
+
+}  // namespace bogpilot

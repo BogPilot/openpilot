@@ -18,6 +18,10 @@ public:
 
   int alertHeight;
 
+  // BogPilot redesign: small / mid alerts become a banner (x 690-1660, y 716-872 on screen) above the steering arc,
+  // clear of the lower-left cluster and the developer HUD
+  bool redesign = false;
+
   const QMap<cereal::FrogPilotControlsState::AlertStatus, QColor> frogpilot_alert_colors = {
     {cereal::FrogPilotControlsState::AlertStatus::NORMAL, QColor(0x15, 0x15, 0x15, 0xf1)},
     {cereal::FrogPilotControlsState::AlertStatus::USER_PROMPT, QColor(0xDA, 0x6F, 0x25, 0xf1)},
@@ -48,6 +52,7 @@ protected:
   };
 
   void paintEvent(QPaintEvent*) override;
+  void paintRedesignBanner(QPainter &p);
   OnroadAlerts::Alert getAlert(const SubMaster &sm, const SubMaster &fpsm, uint64_t started_frame, QJsonObject &frogpilot_toggles);
 
   QColor bg;

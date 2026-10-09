@@ -2,6 +2,8 @@
 
 #include "frogpilot/ui/qt/onroad/frogpilot_annotated_camera.h"
 
+#include "frogpilot/ui/qt/onroad/bogpilot_redesign.h"
+
 FrogPilotAnnotatedCameraWidget::FrogPilotAnnotatedCameraWidget(QWidget *parent) : QWidget(parent) {
   animationTimer = new QTimer(this);
 
@@ -345,15 +347,19 @@ void FrogPilotAnnotatedCameraWidget::paintBlindSpotPath(QPainter &p, const cerea
 }
 
 void FrogPilotAnnotatedCameraWidget::paintCEMStatus(QPainter &p, const cereal::FrogPilotPlan::Reader &frogpilotPlan, FrogPilotUIScene &frogpilot_scene, SubMaster &sm) {
-  if (dmIconPosition == QPoint(0, 0)) {
+  if (dmIconPosition == QPoint(0, 0) && !redesign) {
     return;
   }
 
   p.save();
 
-  cemStatusPosition.rx() = dmIconPosition.x() + mapButtonShift();
-  cemStatusPosition.ry() = dmIconPosition.y() - widget_size / 2;
-  cemStatusPosition.rx() += (rightHandDM ? -img_size - widget_size : widget_size) / (frogpilot_scene.map_open ? 1.25 : 1);
+  if (redesign) {
+    cemStatusPosition = redesignStatusSlot(0);
+  } else {
+    cemStatusPosition.rx() = dmIconPosition.x() + mapButtonShift();
+    cemStatusPosition.ry() = dmIconPosition.y() - widget_size / 2;
+    cemStatusPosition.rx() += (rightHandDM ? -img_size - widget_size : widget_size) / (frogpilot_scene.map_open ? 1.25 : 1);
+  }
 
   QRect cemWidget(cemStatusPosition, QSize(widget_size, widget_size));
 
@@ -548,7 +554,12 @@ void FrogPilotAnnotatedCameraWidget::paintDeveloperHUDPanel(QPainter &p, UIState
   in.memory_usage_percent = deviceState.getMemoryUsagePercent();
 
   // Drawn even while an alert is up: the alert banner is painted above it and may cover its lower part
-  paintDeveloperHud(p, developerHudPanelRect(), in);
+  // (redesign: the banner ends left of the HUD, so it stays fully visible)
+  if (redesign) {
+    paintDeveloperHudV2(p, developerHudPanelRect(), in);
+  } else {
+    paintDeveloperHud(p, developerHudPanelRect(), in);
+  }
 }
 
 // BogPilot: the Developer HUD sits in the bottom corner opposite the DM icon (bottom-right for LHD, where the map
@@ -556,6 +567,17 @@ void FrogPilotAnnotatedCameraWidget::paintDeveloperHUDPanel(QPainter &p, UIState
 // the right side. It is well below the Experimental button and pedal icons, so neither moves it. When the camera view
 // is narrow (map open) the panel shrinks so it stays clear of the DM icon / map button.
 QRect FrogPilotAnnotatedCameraWidget::developerHudPanelRect() {
+  if (redesign) {
+    // bottom-right, below the mirror line; shrinks only when the view is too narrow (map open) to clear the cluster
+    int clusterEdge = bogpilot::EDGE + bogpilot::PILL_W + bogpilot::CLUSTER_GAP + 2 * (bogpilot::CLUSTER_D + bogpilot::CLUSTER_GAP);
+    if (dmIconPosition != QPoint(0, 0)) {
+      const int reach = bogpilot::CLUSTER_D / 2 + (mapButtonVisible ? bogpilot::CLUSTER_GAP + bogpilot::CLUSTER_D : 0);
+      clusterEdge = rightHandDM ? width() - (dmIconPosition.x() - reach) : dmIconPosition.x() + reach;
+    }
+    const int maxWidth = width() - bogpilot::EDGE - clusterEdge - bogpilot::EDGE;
+    const QRect panel = developerHudRectV2(QPoint(width() - bogpilot::EDGE, height() - bogpilot::EDGE), maxWidth);
+    return rightHandDM ? panel.translated(bogpilot::EDGE - panel.left(), 0) : panel;
+  }
   const int bottom = height() - UI_BORDER_SIZE;
   int maxWidth = width() - UI_BORDER_SIZE * 2;
   if (dmIconPosition != QPoint(0, 0)) {
@@ -578,6 +600,14 @@ int FrogPilotAnnotatedCameraWidget::mapButtonShift() {
   return rightHandDM ? -(btn_size + UI_BORDER_SIZE) : btn_size + UI_BORDER_SIZE;
 }
 
+// BogPilot redesign: CEM status / paused icons sit in a row just above the lower-left cluster (driver's side)
+QPoint FrogPilotAnnotatedCameraWidget::redesignStatusSlot(int index) {
+  const int y = bogpilot::CLUSTER_CY + 16 - bogpilot::PILL_H / 2 - bogpilot::PILL_LABEL_SPACE - bogpilot::CLUSTER_GAP - widget_size;
+  const int step = widget_size + bogpilot::CLUSTER_GAP;
+  const int x = rightHandDM ? width() - bogpilot::EDGE - widget_size - index * step : bogpilot::EDGE + index * step;
+  return QPoint(x, y);
+}
+
 // Left edge of the first compass / weather box in the bottom corner opposite the DM icon: beside the Developer HUD when it is shown
 int FrogPilotAnnotatedCameraWidget::bottomCornerWidgetX() {
   if (rightHandDM) {
@@ -590,19 +620,23 @@ int FrogPilotAnnotatedCameraWidget::bottomCornerWidgetX() {
 }
 
 void FrogPilotAnnotatedCameraWidget::paintLateralPaused(QPainter &p, FrogPilotUIScene &frogpilot_scene) {
-  if (dmIconPosition == QPoint(0, 0)) {
+  if (dmIconPosition == QPoint(0, 0) && !redesign) {
     return;
   }
 
   p.save();
 
-  if (cemStatusPosition != QPoint(0, 0)) {
+  if (redesign) {
+    lateralPausedPosition = redesignStatusSlot(cemStatusPosition != QPoint(0, 0) ? 1 : 0);
+  } else if (cemStatusPosition != QPoint(0, 0)) {
     lateralPausedPosition = cemStatusPosition;
   } else {
     lateralPausedPosition.rx() = dmIconPosition.x() + mapButtonShift();
     lateralPausedPosition.ry() = dmIconPosition.y() - widget_size / 2;
   }
-  lateralPausedPosition.rx() += (rightHandDM ? -UI_BORDER_SIZE - widget_size - UI_BORDER_SIZE : UI_BORDER_SIZE + widget_size + UI_BORDER_SIZE) / (frogpilot_scene.map_open ? 1.25 : 1);
+  if (!redesign) {
+    lateralPausedPosition.rx() += (rightHandDM ? -UI_BORDER_SIZE - widget_size - UI_BORDER_SIZE : UI_BORDER_SIZE + widget_size + UI_BORDER_SIZE) / (frogpilot_scene.map_open ? 1.25 : 1);
+  }
 
   QRect lateralWidget(lateralPausedPosition, QSize(widget_size, widget_size));
 
@@ -665,14 +699,16 @@ void FrogPilotAnnotatedCameraWidget::paintLeadMetrics(QPainter &p, bool adjacent
 }
 
 void FrogPilotAnnotatedCameraWidget::paintLongitudinalPaused(QPainter &p, FrogPilotUIScene &frogpilot_scene) {
-  if (dmIconPosition == QPoint(0, 0)) {
+  if (dmIconPosition == QPoint(0, 0) && !redesign) {
     return;
   }
 
   p.save();
 
   QPoint longitudinalIconPosition;
-  if (lateralPausedPosition != QPoint(0, 0)) {
+  if (redesign) {
+    longitudinalIconPosition = redesignStatusSlot((cemStatusPosition != QPoint(0, 0) ? 1 : 0) + (lateralPausedPosition != QPoint(0, 0) ? 1 : 0));
+  } else if (lateralPausedPosition != QPoint(0, 0)) {
     longitudinalIconPosition = lateralPausedPosition;
   } else if (cemStatusPosition != QPoint(0, 0)) {
     longitudinalIconPosition = cemStatusPosition;
@@ -680,7 +716,9 @@ void FrogPilotAnnotatedCameraWidget::paintLongitudinalPaused(QPainter &p, FrogPi
     longitudinalIconPosition.rx() = dmIconPosition.x() + mapButtonShift();
     longitudinalIconPosition.ry() = dmIconPosition.y() - widget_size / 2;
   }
-  longitudinalIconPosition.rx() += (rightHandDM ? -UI_BORDER_SIZE - widget_size - UI_BORDER_SIZE : UI_BORDER_SIZE + widget_size + UI_BORDER_SIZE) / (frogpilot_scene.map_open ? 1.25 : 1);
+  if (!redesign) {
+    longitudinalIconPosition.rx() += (rightHandDM ? -UI_BORDER_SIZE - widget_size - UI_BORDER_SIZE : UI_BORDER_SIZE + widget_size + UI_BORDER_SIZE) / (frogpilot_scene.map_open ? 1.25 : 1);
+  }
 
   QRect longitudinalWidget(longitudinalIconPosition, QSize(widget_size, widget_size));
 
@@ -749,6 +787,11 @@ void FrogPilotAnnotatedCameraWidget::paintPedalIcons(QPainter &p, const cereal::
 
   int startX = experimentalButtonPosition.x();
   int startY = experimentalButtonPosition.y() + btn_size + UI_BORDER_SIZE;
+  if (redesign) {
+    // no wheel button to hang off: under the accel graph instead
+    startX = rightHandDM ? width() - bogpilot::EDGE - btn_size * 3 / 2 : bogpilot::EDGE;
+    startY = bogpilot::GRAPH_TOP + bogpilot::GRAPH_HEIGHT + bogpilot::CLUSTER_GAP;
+  }
 
   p.setOpacity(brakeOpacity);
   p.drawPixmap(startX, startY, brakePedalImg);
@@ -768,6 +811,9 @@ void FrogPilotAnnotatedCameraWidget::paintPendingSpeedLimit(QPainter &p, const c
 
   QString newSpeedLimitStr = (frogpilotPlan.getUnconfirmedSlcSpeedLimit() > 1) ? QString::number(std::nearbyint(frogpilotPlan.getUnconfirmedSlcSpeedLimit() * speedConversion)) : "–";
   newSpeedLimitRect = speedLimitRect.translated(speedLimitRect.width() + UI_BORDER_SIZE, 0);
+  if (redesign) {
+    newSpeedLimitRect = QRect(pendingLimitTopLeft, QSize(175, 186));
+  }
 
   if (!viennaSpeedLimit) {
     newSpeedLimitRect.setWidth(newSpeedLimitStr.size() >= 3 ? 200 : 175);
@@ -948,6 +994,9 @@ void FrogPilotAnnotatedCameraWidget::paintSpeedLimitSources(QPainter &p, const c
   };
 
   QRect dashboardRect(speedLimitRect.x() - signMargin, speedLimitRect.y() + speedLimitRect.height() + UI_BORDER_SIZE, 450, 60);
+  if (redesign) {
+    dashboardRect.moveTopLeft(speedLimitSourcesTopLeft);
+  }
   QRect mapDataRect(dashboardRect.x(), dashboardRect.y() + dashboardRect.height() + UI_BORDER_SIZE / 2, 450, 60);
   QRect navigationRect(mapDataRect.x(), mapDataRect.y() + mapDataRect.height() + UI_BORDER_SIZE / 2, 450, 60);
   QRect nextLimitRect(navigationRect.x(), navigationRect.y() + navigationRect.height() + UI_BORDER_SIZE / 2, 450, 60);

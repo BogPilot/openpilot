@@ -15,6 +15,9 @@ public:
   void startRecording();
   void stopRecording();
 
+  // BogPilot redesign: small round record button (72 px) beside the speed row
+  void setRoundStyle(bool on);
+
 protected:
   void paintEvent(QPaintEvent *event) override;
 
@@ -29,6 +32,7 @@ private:
   QColor whiteColor(int alpha = 255) { return QColor(255, 255, 255, alpha); }
 
   bool recording = false;
+  bool round_style = false;
 
   int frameCount = 0;
 

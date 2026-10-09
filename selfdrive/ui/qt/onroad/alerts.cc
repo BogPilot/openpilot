@@ -5,6 +5,8 @@
 
 #include "selfdrive/ui/qt/util.h"
 
+#include "frogpilot/ui/qt/onroad/bogpilot_redesign.h"
+
 void OnroadAlerts::updateState(const UIState &s, const FrogPilotUIState &fs) {
   Alert a = getAlert(*(s.sm), *(fs.sm), s.scene.started_frame, fs.frogpilot_toggles);
   if (!alert.equal(a)) {
@@ -100,6 +102,11 @@ void OnroadAlerts::paintEvent(QPaintEvent *event) {
     alertHeight = 0;
     return;
   }
+  if (redesign && alert.size != cereal::ControlsState::AlertSize::FULL) {
+    QPainter p(this);
+    paintRedesignBanner(p);
+    return;
+  }
   static std::map<cereal::ControlsState::AlertSize, const int> alert_heights = {
     {cereal::ControlsState::AlertSize::SMALL, 271},
     {cereal::ControlsState::AlertSize::MID, 420},
@@ -160,4 +167,21 @@ void OnroadAlerts::paintEvent(QPaintEvent *event) {
     p.setFont(InterFont(88));
     p.drawText(QRect(0, r.height() - (l ? 361 : 420), width(), 300), Qt::AlignHCenter | Qt::TextWordWrap, alert.text2);
   }
+}
+
+// BogPilot redesign banner (geometry and painting in bogpilot_redesign.cc). Status colours are kept (orange prompt,
+// red critical); NORMAL uses the dark panel style.
+void OnroadAlerts::paintRedesignBanner(QPainter &p) {
+  const bool mid = alert.size == cereal::ControlsState::AlertSize::MID;
+  const QRect r = bogpilot::alertBannerRect(size(), mid);
+  alertHeight = height() - r.top();
+
+  QColor fill = bogpilot::PANEL_DARK;
+  fill.setAlpha(215);
+  if (alert.type.startsWith("customStartupAlert")) {
+    fill = startup_alert_color;
+  } else if (alert.status != cereal::ControlsState::AlertStatus::NORMAL) {
+    fill = frogpilot_alert_colors[static_cast<cereal::FrogPilotControlsState::AlertStatus>(alert.status)];
+  }
+  bogpilot::paintAlertBanner(p, r, mid, alert.text1, alert.text2, fill);
 }

@@ -88,3 +88,10 @@ QRect developerHudRect(const QPoint &bottomRight, int maxHeight, int maxWidth);
 
 // Paints the panel into a rectangle from developerHudRect().
 void paintDeveloperHud(QPainter &p, const QRect &panel, const DeveloperHudInputs &in);
+
+// BogPilot redesign style (approved mockup): dark translucent panel, muted small labels above white values,
+// small units after the value. Same cells, colours and data as paintDeveloperHud().
+QSize developerHudSizeV2();
+// Panel with its bottom-right corner at bottomRight, scaled down (to 0.5) only if maxWidth is narrower than the panel.
+QRect developerHudRectV2(const QPoint &bottomRight, int maxWidth);
+void paintDeveloperHudV2(QPainter &p, const QRect &panel, const DeveloperHudInputs &in);

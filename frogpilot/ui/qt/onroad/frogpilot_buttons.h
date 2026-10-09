@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QElapsedTimer>
 #include <QMovie>
 
 #include "selfdrive/ui/qt/onroad/buttons.h"
@@ -12,8 +13,19 @@ public:
 
   void updateState(const UIScene &scene, const FrogPilotUIScene &frogpilot_scene);
 
+  // BogPilot redesign: segmented personality pill (Aggressive | Standard | Relaxed); a tap selects that personality
+  void setRedesign(bool on);
+  bool redesignActive() const { return redesign; }
+
 private:
+  void mouseReleaseEvent(QMouseEvent *event) override;
   void paintEvent(QPaintEvent *event) override;
+  QRectF pillRect() const;
+
+  bool redesign = false;
+  int pending_personality = -1;
+  QElapsedTimer pending_timer;
+  Params params;
   void showEvent(QShowEvent *event) override;
   void updateTheme();
 

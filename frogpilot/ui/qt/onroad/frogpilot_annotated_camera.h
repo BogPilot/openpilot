@@ -23,6 +23,7 @@ public:
   void paintRainbowPath(QPainter &p, QLinearGradient &bg, float lin_grad_point, SubMaster &sm);
   void updateState(const FrogPilotUIState &fs, const QJsonObject &frogpilot_toggles);
 
+  bool redesign = false;    // BogPilot redesign layout (set by AnnotatedCameraWidget)
   bool bigMapOpen = false;  // BogPilot: was uninitialized; only set once a map widget exists
   bool developerHudEnabled = false;
   bool hideBottomIcons;
@@ -49,6 +50,9 @@ public:
   QPoint dmIconPosition;
   QPoint experimentalButtonPosition;
 
+  QPoint pendingLimitTopLeft;        // redesign: pending speed limit sign position
+  QPoint speedLimitSourcesTopLeft;   // redesign: speed limit sources list position
+
   QRect leadTextRect;
   QRect newSpeedLimitRect;
   QRect setSpeedRect;
@@ -72,6 +76,7 @@ private:
   void paintDeveloperHUDPanel(QPainter &p, UIState &s, SubMaster &sm, SubMaster &fpsm, QJsonObject &frogpilot_toggles);
   bool developerHudShown(const FrogPilotUIScene &frogpilot_scene);
   int bottomCornerWidgetX();
+  QPoint redesignStatusSlot(int index);
   int mapButtonShift();
   QRect developerHudPanelRect();
   void paintLateralPaused(QPainter &p, FrogPilotUIScene &frogpilot_scene);

@@ -410,6 +410,25 @@
     </message>
 </context>
 <context>
+    <name>DistanceButton</name>
+    <message>
+        <source>Aggressive</source>
+        <translation type="unfinished">공격적</translation>
+    </message>
+    <message>
+        <source>Standard</source>
+        <translation type="unfinished">표준</translation>
+    </message>
+    <message>
+        <source>Relaxed</source>
+        <translation type="unfinished">편안한</translation>
+    </message>
+    <message>
+        <source>Traffic</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>DriveStats</name>
     <message>
         <source>FROGPILOT</source>

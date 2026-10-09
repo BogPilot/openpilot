@@ -75,8 +75,9 @@ void OnroadWindow::updateState(const UIState &s, const FrogPilotUIState &fs) {
     split->setDirection(QBoxLayout::RightToLeft);
   }
 
-  alerts->updateState(s, fs);
   nvg->updateState(s, fs);
+  alerts->redesign = nvg->redesign;
+  alerts->updateState(s, fs);
 
   QColor bgColor = bg_colors[s.status];
   if (bg != bgColor) {

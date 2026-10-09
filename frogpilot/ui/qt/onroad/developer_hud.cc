@@ -212,3 +212,78 @@ void paintDeveloperHud(QPainter &p, const QRect &panel, const DeveloperHudInputs
 
   p.restore();
 }
+
+// ---------------- BogPilot redesign style ----------------
+
+namespace {
+constexpr int V2_W = 400;
+constexpr int V2_H = 430;
+constexpr int V2_PAD = 20;
+}  // namespace
+
+QSize developerHudSizeV2() {
+  return QSize(V2_W, V2_H);
+}
+
+QRect developerHudRectV2(const QPoint &bottomRight, int maxWidth) {
+  const qreal scale = std::clamp(maxWidth / qreal(V2_W), 0.5, 1.0);
+  const int w = int(V2_W * scale), h = int(V2_H * scale);
+  return QRect(bottomRight.x() - w, bottomRight.y() - h, w, h);
+}
+
+void paintDeveloperHudV2(QPainter &p, const QRect &panel, const DeveloperHudInputs &in) {
+  const qreal scale = panel.width() / qreal(V2_W);
+  QVector<DeveloperHudCell> cells = developerHudCells(in);
+
+  p.save();
+  p.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing);
+  p.translate(panel.topLeft());
+  p.scale(scale, scale);
+
+  p.setPen(QPen(QColor(255, 255, 255, 30), 2));
+  p.setBrush(QColor(14, 17, 22, 168));
+  p.drawRoundedRect(QRectF(1, 1, V2_W - 2, V2_H - 2), 26, 26);
+  p.setPen(QPen(QColor(255, 255, 255, 22), 1.5));
+  p.drawLine(QPointF(V2_W / 2.0, 30), QPointF(V2_W / 2.0, V2_H - 30));
+
+  const QFont label_font = InterFont(19, QFont::DemiBold);
+  const QFont value_font = InterFont(44, QFont::DemiBold);
+  const QFont unit_font = InterFont(20, QFont::Medium);
+  const QFontMetricsF value_fm(value_font);
+  const qreal cw = (V2_W - 2 * V2_PAD) / 2.0;
+  const qreal rh = (V2_H - 2 * V2_PAD) / 5.0;
+
+  for (int i = 0; i < cells.size(); ++i) {
+    DeveloperHudCell c = cells[i];
+    // short labels; "°" and "%" move from the value into the unit slot
+    if (c.label == "DESIRED STEER") c.label = "DES STEER";
+    if (c.label == "MEM %") c.label = "MEM";
+    if (c.unit.isEmpty() && (c.value.endsWith("°") || c.value.endsWith("%"))) {
+      c.unit = c.value.right(1);
+      c.value.chop(1);
+    }
+    const int col = i % 2, row = i / 2;
+    const qreal x = V2_PAD + col * cw + 18;
+    const qreal y = V2_PAD + row * rh;
+    const qreal max_w = cw - 26;
+
+    p.setFont(label_font);
+    p.setPen(QColor(255, 255, 255, 120));
+    p.drawText(QRectF(x, y + 10, max_w, 28), Qt::AlignLeft | Qt::AlignVCenter, c.label);
+
+    QFont vf = value_font;
+    const QFontMetricsF ufm(unit_font);
+    const qreal need = value_fm.horizontalAdvance(c.value) + (c.unit.isEmpty() ? 0 : 6 + ufm.horizontalAdvance(c.unit));
+    if (need > max_w) vf.setPixelSize(std::max(26, int(44 * max_w / need)));
+    p.setFont(vf);
+    p.setPen(c.color == WHITE ? QColor(255, 255, 255, 240) : c.color);
+    const qreal base = y + 62 + QFontMetricsF(vf).capHeight() / 2;
+    p.drawText(QPointF(x, base), c.value);
+    if (!c.unit.isEmpty()) {
+      p.setFont(unit_font);
+      p.setPen(QColor(255, 255, 255, 120));
+      p.drawText(QPointF(x + QFontMetricsF(vf).horizontalAdvance(c.value) + 6, base), c.unit);
+    }
+  }
+  p.restore();
+}

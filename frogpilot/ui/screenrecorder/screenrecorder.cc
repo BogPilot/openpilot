@@ -5,6 +5,8 @@
 #include "common/timing.h"
 #include "selfdrive/ui/qt/util.h"
 
+#include "frogpilot/ui/qt/onroad/bogpilot_redesign.h"
+
 namespace {
 constexpr int RECORD_BITRATE = 10 * 1024 * 1024;
 constexpr int SCREEN_HEIGHT = 1080;
@@ -82,9 +84,24 @@ void ScreenRecorder::stopRecording() {
   update();
 }
 
+void ScreenRecorder::setRoundStyle(bool on) {
+  if (round_style == on) {
+    return;
+  }
+  round_style = on;
+  setFixedSize(round_style ? QSize(bogpilot::REC_DIAMETER, bogpilot::REC_DIAMETER) : QSize(btn_size, btn_size));
+  update();
+}
+
 void ScreenRecorder::paintEvent(QPaintEvent *event) {
   QPainter p(this);
   p.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing);
+
+  if (round_style) {
+    const qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - startedTime;
+    bogpilot::paintRecordButton(p, QRectF(rect()).adjusted(1, 1, -1, -1), recording, 0.5 + 0.5 * sin((elapsed % 2000) / 2000.0 * 2 * M_PI));
+    return;
+  }
 
   if (recording) {
     qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - startedTime;

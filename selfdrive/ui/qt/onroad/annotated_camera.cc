@@ -1,6 +1,7 @@
 
 #include "selfdrive/ui/qt/onroad/annotated_camera.h"
 
+#include <QMouseEvent>
 #include <QPainter>
 #include <algorithm>
 #include <cmath>
@@ -8,6 +9,8 @@
 #include "common/swaglog.h"
 #include "selfdrive/ui/qt/onroad/buttons.h"
 #include "selfdrive/ui/qt/util.h"
+
+#include "frogpilot/ui/qt/onroad/bogpilot_redesign.h"
 
 // Window that shows camera view and variety of info drawn on top
 AnnotatedCameraWidget::AnnotatedCameraWidget(VisionStreamType type, QWidget* parent) : fps_filter(UI_FREQ, 3, 1. / UI_FREQ), CameraWidget("camerad", type, true, parent) {
@@ -40,7 +43,45 @@ void AnnotatedCameraWidget::resizeEvent(QResizeEvent *event) {
 
   frogpilot_nvg->setGeometry(rect());
 
-  screen_recorder->move(experimental_btn->x() - UI_BORDER_SIZE - btn_size, experimental_btn->y());
+  placeScreenRecorder();
+}
+
+// BogPilot redesign: switch every widget between the redesign and the previous BogPilot layout
+void AnnotatedCameraWidget::applyRedesign(bool on) {
+  if (redesign_applied && on == redesign) {
+    return;
+  }
+  redesign_applied = true;
+  redesign = on;
+
+  map_settings_btn->setRedesign(on);
+  screen_recorder->setRoundStyle(on);
+  distance_btn->setRedesign(on);
+  frogpilot_nvg->redesign = on;
+  accel_graph.clear();
+  if (on) {
+    rec_center = bogpilot::speedRowGeometry(bogpilot::SpeedRowInputs()).rec_center;
+  }
+  placeScreenRecorder();
+}
+
+void AnnotatedCameraWidget::placeScreenRecorder() {
+  if (redesign) {
+    screen_recorder->move(QPoint(qRound(rec_center.x()), qRound(rec_center.y())) - QPoint(screen_recorder->width() / 2, screen_recorder->height() / 2));
+  } else {
+    screen_recorder->move(experimental_btn->x() - UI_BORDER_SIZE - btn_size, experimental_btn->y());
+  }
+}
+
+// BogPilot redesign: tapping the steering arc toggles Experimental Mode (it replaces the removed top-right wheel button).
+// Anything else falls through to OnroadWindow (map toggle etc.).
+void AnnotatedCameraWidget::mousePressEvent(QMouseEvent *e) {
+  if (redesign && !frogpilot_nvg->bigMapOpen && steering_arc.tapRect(rect()).contains(e->pos())) {
+    experimental_btn->changeMode();
+    e->accept();
+    return;
+  }
+  e->ignore();
 }
 
 void AnnotatedCameraWidget::updateState(const UIState &s, const FrogPilotUIState &fs) {
@@ -48,6 +89,12 @@ void AnnotatedCameraWidget::updateState(const UIState &s, const FrogPilotUIState
   const SubMaster &sm = *(s.sm);
   const SubMaster &fpsm = *(fs.sm);
   const QJsonObject &frogpilot_toggles = fs.frogpilot_toggles;
+
+  // BogPilot redesign: file-backed toggle, re-read every 2 s
+  if (redesign_check_frame-- <= 0) {
+    applyRedesign(bogpilotRedesignFileEnabled());
+    redesign_check_frame = UI_FREQ * 2;
+  }
 
   const bool cs_alive = sm.alive("controlsState");
   const bool nav_alive = sm.alive("navInstruction") && sm["navInstruction"].getValid();
@@ -93,6 +140,13 @@ void AnnotatedCameraWidget::updateState(const UIState &s, const FrogPilotUIState
   speedUnit =  s.scene.is_metric ? tr("km/h") : tr("mph");
   hideBottomIcons = (cs.getAlertSize() != cereal::ControlsState::AlertSize::NONE);
   hideBottomIcons |= (frogpilot_nvg->signalStyle == "traditional" || frogpilot_nvg->signalStyle == "traditional_gif") && (car_state.getLeftBlinker() || car_state.getRightBlinker());
+  // BogPilot redesign: the alert banner no longer reaches the lower-left cluster, so only full-screen alerts (and the
+  // traditional turn-signal animation) hide the personality pill, DM icon and map button
+  hideCluster = hideBottomIcons;
+  if (redesign) {
+    hideCluster = cs.getAlertSize() == cereal::ControlsState::AlertSize::FULL;
+    hideCluster |= (frogpilot_nvg->signalStyle == "traditional" || frogpilot_nvg->signalStyle == "traditional_gif") && (car_state.getLeftBlinker() || car_state.getRightBlinker());
+  }
   status = s.status;
 
   // update engageability/experimental mode button
@@ -106,10 +160,20 @@ void AnnotatedCameraWidget::updateState(const UIState &s, const FrogPilotUIState
   dm_fade_state = std::clamp(dm_fade_state+0.2*(0.5-dmActive), 0.0, 1.0);
 
   // FrogPilot variables
-  distance_btn->setEnabled(frogpilot_nvg->dmIconPosition != QPoint(0, 0) && !hideBottomIcons && frogpilot_toggles.value("onroad_distance_button").toBool());
+  if (redesign) {
+    distance_btn->setEnabled(!hideCluster && frogpilot_toggles.value("onroad_distance_button").toBool());
+  } else {
+    distance_btn->setEnabled(frogpilot_nvg->dmIconPosition != QPoint(0, 0) && !hideBottomIcons && frogpilot_toggles.value("onroad_distance_button").toBool());
+  }
   distance_btn->setVisible(distance_btn->isEnabled());
   if (distance_btn->isEnabled()) {
-    distance_btn->move(rightHandDM ? width() - UI_BORDER_SIZE - distance_btn->width() - (UI_BORDER_SIZE / 2) : UI_BORDER_SIZE, frogpilot_nvg->dmIconPosition.y() - distance_btn->height() / 2);
+    if (redesign) {
+      // pill body centred 16 px below the DM / map centre line, its label row above it
+      const int top = bogpilot::CLUSTER_CY + 16 - bogpilot::PILL_H / 2 - bogpilot::PILL_LABEL_SPACE;
+      distance_btn->move(rightHandDM ? width() - bogpilot::EDGE - distance_btn->width() : bogpilot::EDGE, top);
+    } else {
+      distance_btn->move(rightHandDM ? width() - UI_BORDER_SIZE - distance_btn->width() - (UI_BORDER_SIZE / 2) : UI_BORDER_SIZE, frogpilot_nvg->dmIconPosition.y() - distance_btn->height() / 2);
+    }
     distance_btn->updateState(s.scene, fs.frogpilot_scene);
   }
 
@@ -117,14 +181,42 @@ void AnnotatedCameraWidget::updateState(const UIState &s, const FrogPilotUIState
   // DM icon on the side away from the screen edge (right of it, or left of it for right hand DM), so the
   // bottom-right corner stays free for the Developer HUD
   map_settings_btn->road_name_ui = frogpilot_toggles.value("road_name_ui").toBool();
-  if (map_settings_btn->isEnabled()) {
+  if (map_settings_btn->isEnabled() && redesign) {
+    // BogPilot redesign: same row as the DM icon, CLUSTER_GAP beside it
+    map_settings_btn->setVisible(!hideCluster && !frogpilot_toggles.value("hide_map_icon").toBool());
+    const QPoint dm = dmIconCenter(frogpilot_toggles);
+    const int step = bogpilot::CLUSTER_D + bogpilot::CLUSTER_GAP;
+    const int cx = rightHandDM ? dm.x() - step : dm.x() + step;
+    map_settings_btn->move(cx - map_settings_btn->width() / 2, dm.y() - map_settings_btn->height() / 2);
+  } else if (map_settings_btn->isEnabled()) {
     map_settings_btn->setVisible(!hideBottomIcons && !frogpilot_toggles.value("hide_map_icon").toBool());
     const QPoint dm = dmIconCenter(frogpilot_toggles);
     const int x = rightHandDM ? dm.x() - btn_size / 2 - UI_BORDER_SIZE - btn_size : dm.x() + btn_size / 2 + UI_BORDER_SIZE;
     // The button is btn_size wide and btn_size + UI_BORDER_SIZE tall; its icon centre is UI_BORDER_SIZE lower without the road name
     map_settings_btn->move(x, dm.y() - btn_size / 2 - (map_settings_btn->road_name_ui ? 0 : UI_BORDER_SIZE));
   }
-  experimental_btn->setVisible(!frogpilot_nvg->bigMapOpen);
+  // BogPilot redesign: the top-right steering wheel is gone; the steering arc carries its state and its tap
+  experimental_btn->setVisible(!redesign && !frogpilot_nvg->bigMapOpen);
+  if (redesign) {
+    placeScreenRecorder();
+
+    const auto &car_control = fpsm["carControl"].getCarControl();
+    const auto lateral_state = cs.getLateralControlState();
+    float utilization;
+    if (lateral_state.which() == cereal::ControlsState::LateralControlState::ANGLE_STATE) {
+      utilization = SteeringArc::angleUtilization(cs.getCurvature(), cs.getDesiredCurvature(), car_state.getVEgo(),
+                                                  fpsm["liveParameters"].getLiveParameters().getRoll(),
+                                                  sm["carParams"].getCarParams().getMaxLateralAccel());
+    } else {
+      utilization = -car_control.getActuators().getSteer();
+    }
+    const bool active = s.status != STATUS_DISENGAGED;
+    steering_arc.update(utilization, car_control.getLatActive(), active, active && s.status != STATUS_OVERRIDE, cs.getExperimentalMode());
+
+    if (cs_alive) {
+      accel_graph.push(car_control.getActuators().getAccel(), car_state.getAEgo());
+    }
+  }
   screen_recorder->setVisible(frogpilot_nvg->standstillDuration == 0 && !fs.frogpilot_scene.map_open && !(frogpilot_nvg->signalStyle == "static" && car_state.getRightBlinker()) && frogpilot_toggles.value("screen_recorder").toBool());
 
   frogpilot_nvg->updateState(fs, frogpilot_toggles);
@@ -142,6 +234,20 @@ void AnnotatedCameraWidget::drawHud(QPainter &p, const cereal::FrogPilotPlan::Re
   QString speedLimitStr = (speedLimit > 1) ? QString::number(std::nearbyint(speedLimit)) : "–";
   QString speedStr = QString::number(std::nearbyint(speed));
   QString setSpeedStr = is_cruise_set ? QString::number(std::nearbyint(setSpeed)) : "–";
+
+  if (redesign) {
+    QColor set_speed_color = whiteColor();
+    if (is_cruise_set) {
+      if (status != STATUS_DISENGAGED && status != STATUS_OVERRIDE && speedLimit > 0) {
+        set_speed_color = interpColor(setSpeed, {speedLimit + 5, speedLimit + 15, speedLimit + 25}, {whiteColor(), QColor(0xff, 0x95, 0x00), QColor(0xff, 0x00, 0x00)});
+      }
+    } else {
+      set_speed_color = QColor(0x72, 0x72, 0x72, 0xff);
+    }
+    p.restore();
+    drawRedesignHud(p, frogpilotPlan, fs, frogpilot_toggles, speedLimitStr, speedStr, setSpeedStr, set_speed_color);
+    return;
+  }
 
   // Draw outer box + border to contain set speed and speed limit
   const int sign_margin = 12;
@@ -270,6 +376,60 @@ void AnnotatedCameraWidget::drawHud(QPainter &p, const cereal::FrogPilotPlan::Re
   frogpilot_nvg->signMargin = sign_margin;
   frogpilot_nvg->speed = speed;
   frogpilot_nvg->speedLimitRect = sign_rect;
+  frogpilot_nvg->speedUnit = speedUnit;
+  frogpilot_nvg->viennaSpeedLimit = has_eu_speed_limit;
+}
+
+// BogPilot redesign HUD: speed row (MAX | speed | LIMIT tile), accel graph, steering arc
+void AnnotatedCameraWidget::drawRedesignHud(QPainter &p, const cereal::FrogPilotPlan::Reader &frogpilotPlan, const FrogPilotUIState &fs, const QJsonObject &frogpilot_toggles,
+                                            const QString &speedLimitStr, const QString &speedStr, const QString &setSpeedStr, const QColor &set_speed_color) {
+  const bool overridden = frogpilotPlan.getSlcOverriddenSpeed() != 0;
+
+  bogpilot::SpeedRowInputs in;
+  in.set_speed = setSpeedStr;
+  in.max_label = tr("MAX");
+  in.set_speed_color = set_speed_color;
+  in.max_color = bogpilot::MUTED;
+  in.show_max = !frogpilot_toggles.value("hide_max_speed").toBool();
+  in.speed = speedStr;
+  in.show_speed = !frogpilot_toggles.value("hide_speed").toBool();
+  in.unit = speedUnit;
+  in.show_limit = has_us_speed_limit || has_eu_speed_limit;
+  in.vienna = has_eu_speed_limit && !has_us_speed_limit;
+  in.limit = speedLimitStr;
+  in.limit_label = tr("LIMIT");
+  if (!overridden && frogpilot_toggles.value("show_speed_limit_offset").toBool() && frogpilot_nvg->speedLimitOffsetStr != "–") {
+    in.offset = frogpilot_nvg->speedLimitOffsetStr;
+  }
+  in.limit_opacity = overridden ? 0.25 : 1.0;
+  in.traffic_mode = fs.frogpilot_scene.traffic_mode_enabled;
+
+  p.save();
+  const bogpilot::SpeedRowGeometry g = bogpilot::paintSpeedRow(p, in);
+  rec_center = g.rec_center;
+
+  if (!frogpilot_nvg->bigMapOpen) {
+    accel_graph.paint(p, bogpilot::accelGraphRect());
+  }
+  steering_arc.paint(p, rect());
+  p.restore();
+
+  // FrogPilot variables: curve-speed / pending-limit widgets go right of the record button, limit sources right of the graph
+  const int rec_right = qRound(rec_center.x()) + bogpilot::REC_DIAMETER / 2;
+  frogpilot_nvg->defaultSize = {172, 204};
+  frogpilot_nvg->experimentalButtonPosition = QPoint(experimental_btn->x(), experimental_btn->y());
+  frogpilot_nvg->hideBottomIcons = hideBottomIcons;
+  frogpilot_nvg->isCruiseSet = is_cruise_set;
+  frogpilot_nvg->mapButtonVisible = map_settings_btn->isVisible();
+  frogpilot_nvg->mutcdSpeedLimit = has_us_speed_limit;
+  frogpilot_nvg->rightHandDM = rightHandDM;
+  frogpilot_nvg->setSpeed = setSpeed / (is_metric ? MS_TO_KPH : MS_TO_MPH);
+  frogpilot_nvg->setSpeedRect = QRect(QPoint(qRound(g.capsule.left()), qRound(g.capsule.top())), QPoint(rec_right, qRound(g.capsule.bottom())));
+  frogpilot_nvg->signMargin = 12;
+  frogpilot_nvg->speed = speed;
+  frogpilot_nvg->speedLimitRect = g.tile.isEmpty() ? g.capsule.toRect() : g.tile.toRect();
+  frogpilot_nvg->pendingLimitTopLeft = QPoint(rec_right + UI_BORDER_SIZE, qRound(g.capsule.top()));
+  frogpilot_nvg->speedLimitSourcesTopLeft = QPoint(qRound(bogpilot::accelGraphRect().right()) + UI_BORDER_SIZE, bogpilot::GRAPH_TOP);
   frogpilot_nvg->speedUnit = speedUnit;
   frogpilot_nvg->viennaSpeedLimit = has_eu_speed_limit;
 }
@@ -406,6 +566,14 @@ void AnnotatedCameraWidget::drawLaneLines(QPainter &painter, const UIState *s, c
 
 // Centre of the driver-monitoring icon: bottom corner on the driver's side, after the personality button
 QPoint AnnotatedCameraWidget::dmIconCenter(const QJsonObject &frogpilot_toggles) {
+  if (redesign) {
+    // lower-left cluster: [personality pill] DM [map], 150 px buttons, 18 px gaps
+    int x = bogpilot::EDGE + bogpilot::CLUSTER_D / 2;
+    if (distance_btn->isEnabled()) {
+      x = bogpilot::EDGE + bogpilot::PILL_W + bogpilot::CLUSTER_GAP + bogpilot::CLUSTER_D / 2;
+    }
+    return QPoint(rightHandDM ? width() - x : x, bogpilot::CLUSTER_CY);
+  }
   int offset = UI_BORDER_SIZE + btn_size / 2;
   int x = rightHandDM ? width() - offset : offset;
   if (distance_btn->isEnabled()) {
@@ -432,6 +600,13 @@ void AnnotatedCameraWidget::drawDriverState(QPainter &painter, const UIState *s,
   int y = dm_center.y();
   frogpilot_nvg->dmIconPosition.setX(x);
   frogpilot_nvg->dmIconPosition.setY(y);
+  if (redesign) {
+    // same BogPilot DM graphic, scaled from btn_size to the cluster's 150 px buttons about its own centre
+    const qreal k = bogpilot::CLUSTER_D / qreal(btn_size);
+    painter.translate(x, y);
+    painter.scale(k, k);
+    painter.translate(-x, -y);
+  }
   float opacity = dmActive ? 0.65 : 0.2;
   drawIcon(painter, QPoint(x, y), dm_img, blackColor(70), opacity);
 
@@ -478,6 +653,20 @@ void AnnotatedCameraWidget::drawLead(QPainter &painter, const cereal::RadarState
     fillAlpha += 255 * (-1 * (v_rel / speedBuff));
   }
   fillAlpha = std::clamp(fillAlpha, 0.f, 255.f);
+
+  if (redesign) {
+    // BogPilot lead lock-on box v3 with a distance pill (replaces the chevron and the lead metrics text line)
+    const QRectF box = bogpilot::leadLockBox(vd, d_rel, width(), height());
+    QString dist;
+    if (!adjacent) {
+      dist = QString::number(qRound(d_rel * frogpilot_nvg->distanceConversion)) + (frogpilot_nvg->distanceConversion == 1.0f ? " m" : " ft");
+      frogpilot_nvg->leadTextRect = QRect();
+    }
+    QColor color = adjacent ? QColor(marker_color.red(), marker_color.green(), marker_color.blue(), 230) : whiteColor(245);
+    bogpilot::paintLeadLock(painter, box, dist, color);
+    painter.restore();
+    return;
+  }
 
   float sz = std::clamp((25 * 30) / (d_rel / 3 + 30), 15.0f, 30.0f) * 2.35;
   float x = std::clamp((float)vd.x(), 0.f, width() - sz / 2);
@@ -601,7 +790,7 @@ void AnnotatedCameraWidget::paintEvent(QPaintEvent *event) {
   }
 
   // DMoji
-  if (!hideBottomIcons && (sm.rcv_frame("driverStateV2") > s->scene.started_frame)) {
+  if (!(redesign ? hideCluster : hideBottomIcons) && (sm.rcv_frame("driverStateV2") > s->scene.started_frame)) {
     update_dmonitoring(s, sm["driverStateV2"].getDriverStateV2(), dm_fade_state, rightHandDM);
     drawDriverState(painter, s, frogpilot_toggles);
   }

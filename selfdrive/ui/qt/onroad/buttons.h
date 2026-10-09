@@ -13,10 +13,10 @@ class ExperimentalButton : public QPushButton {
 public:
   explicit ExperimentalButton(QWidget *parent = 0);
   void updateState(const UIState &s, const FrogPilotUIState &fs, const QJsonObject &frogpilot_toggles);
+  void changeMode();  // BogPilot: public so the redesign's steering arc tap can toggle Experimental Mode
 
 private:
   void paintEvent(QPaintEvent *event) override;
-  void changeMode();
 
   Params params;
   QPixmap engage_img;
@@ -52,10 +52,16 @@ public:
   // FrogPilot variables
   bool road_name_ui;
 
+  // BogPilot redesign: 150 px round button, directions icon at 58 % of the button
+  void setRedesign(bool on);
+
 private:
   void paintEvent(QPaintEvent *event) override;
 
   QPixmap settings_img;
+
+  bool redesign = false;
+  QPixmap redesign_img;
 };
 
 void drawIcon(QPainter &p, const QPoint &center, const QPixmap &img, const QBrush &bg, float opacity, const int &angle = 0);

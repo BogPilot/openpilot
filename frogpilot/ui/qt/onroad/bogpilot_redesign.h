@@ -1,0 +1,116 @@
+#pragma once
+
+// BogPilot onroad redesign (speed row, personality pill, lead lock-on box, shared panel style).
+// Plain QPainter helpers with no cereal/UIState dependencies, so they can be rendered offscreen in tests.
+// Layout follows the approved 2160x1080 mockup; every coordinate here is in AnnotatedCameraWidget space,
+// which is the screen minus the 30 px engage border (screen x/y = value + 30).
+// opview (gerrylum, Rick Lan non-commercial licence) was a visual reference only; no code from it is used.
+
+#include <QColor>
+#include <QFont>
+#include <QPainter>
+#include <QPixmap>
+#include <QPointF>
+#include <QRectF>
+#include <QString>
+
+// File-backed toggle (the prebuilt params_pyx.so cannot store new Params keys).
+// Missing file = ON. "0", "false" or "off" turns the redesign off and restores the previous BogPilot layout.
+const char BOGPILOT_REDESIGN_PATH[] = "/data/params_bogpilot/RedesignUI";
+bool bogpilotRedesignFileEnabled(const QString &path = BOGPILOT_REDESIGN_PATH);
+
+namespace bogpilot {
+
+// ---- shared style ----
+const QColor PANEL(14, 17, 22, 168);
+const QColor PANEL_DARK(14, 17, 22, 200);
+const QColor STROKE(255, 255, 255, 30);
+const QColor MUTED(255, 255, 255, 150);
+const QColor TEXT(255, 255, 255, 240);
+const QColor ACTUAL_GREEN(61, 220, 151);
+const QColor ARC_PURPLE(150, 100, 255);
+const QColor ARC_YELLOW(255, 200, 0);
+const QColor ARC_ORANGE(255, 115, 0);
+const QColor BADGE_GREEN(31, 150, 80);
+
+QFont font(int px, QFont::Weight weight = QFont::Normal);
+void paintPanel(QPainter &p, const QRectF &r, qreal radius, const QColor &fill = PANEL, const QColor &stroke = STROKE, qreal stroke_w = 2.0);
+// Draws text horizontally centred on cx with its baseline at y.
+void drawCentredBaseline(QPainter &p, qreal cx, qreal baseline, const QString &text);
+// "MAX" -> "M A X" (the mockup's letter-spaced small labels)
+QString spaced(const QString &s);
+
+// ---- layout (widget space) ----
+constexpr int EDGE = 30;                // left/right inset from the camera-view edge (screen x 60)
+constexpr int SPEED_ROW_TOP = 24;       // capsule y 24..164 (screen 54..194)
+constexpr int SPEED_ROW_HEIGHT = 140;
+constexpr int REC_DIAMETER = 72;
+constexpr int GRAPH_TOP = 192;          // accel graph 30..590 x 192..432 (screen 60..620 x 222..462)
+constexpr int GRAPH_WIDTH = 560;
+constexpr int GRAPH_HEIGHT = 240;
+constexpr int CLUSTER_CY = 900;         // lower-left cluster centre line (screen y 930)
+constexpr int CLUSTER_D = 150;          // DM / map button diameter
+constexpr int CLUSTER_GAP = 18;
+constexpr int PILL_W = 252;
+constexpr int PILL_H = 92;
+constexpr int PILL_LABEL_SPACE = 40;    // label row above the pill
+constexpr int HUD_W = 400;              // developer HUD 1670..2070 x 560..990 (screen 1700..2100 x 590..1020)
+constexpr int HUD_H = 430;
+
+inline QRectF accelGraphRect() { return QRectF(EDGE, GRAPH_TOP, GRAPH_WIDTH, GRAPH_HEIGHT); }
+
+// ---- speed row: MAX | current speed | LIMIT tile (+offset badge), then a separate round record button ----
+struct SpeedRowInputs {
+  QString set_speed = "–";
+  QString max_label = "MAX";
+  QColor max_color = MUTED;            // label colour (existing MAX colouring)
+  QColor set_speed_color = TEXT;       // set speed colour (existing over-limit colouring)
+  bool show_max = true;
+  QString speed = "0";
+  bool show_speed = true;
+  QString unit = "MPH";
+  bool show_limit = false;
+  bool vienna = false;                 // EU round sign instead of the US tile
+  QString limit = "–";
+  QString limit_label = "LIMIT";
+  QString offset;                      // "+5"; empty = no badge
+  qreal limit_opacity = 1.0;           // 0.25 while the SLC limit is overridden
+  bool traffic_mode = false;           // red capsule outline
+};
+
+struct SpeedRowGeometry {
+  QRectF capsule;
+  QRectF tile;                         // empty when no limit is shown
+  QRectF badge;                        // empty when there is no offset
+  QPointF rec_center;
+};
+
+SpeedRowGeometry speedRowGeometry(const SpeedRowInputs &in);
+SpeedRowGeometry paintSpeedRow(QPainter &p, const SpeedRowInputs &in);
+
+// ---- personality: segmented pill Aggressive | Standard | Relaxed (cereal LongitudinalPersonality 0, 1, 2) ----
+// pill = the pill body; its label is drawn PILL_LABEL_SPACE above it.
+void paintPersonalityPill(QPainter &p, const QRectF &pill, int personality, bool traffic_mode, const QString &label);
+// Personality (0..2) under pos, or -1.
+int personalityAt(const QRectF &pill, const QPointF &pos);
+
+// ---- lead lock-on box v3 ----
+// box = inner edge of the square. Thin side segments are centred on the 8 px bracket centreline, so the thick corner
+// brackets protrude both inside and outside. dist = pill text above the box (empty = no pill).
+void paintLeadLock(QPainter &p, const QRectF &box, const QString &dist, const QColor &color = QColor(255, 255, 255, 245));
+// Box for a lead whose road contact point is (x, y), sized from the distance like the old chevron.
+QRectF leadLockBox(const QPointF &contact, float d_rel, qreal max_x, qreal max_y);
+
+// ---- round buttons ----
+// Record button: dark disc with a red dot; while recording a pulsing red ring and a red stop square (pulse 0..1).
+void paintRecordButton(QPainter &p, const QRectF &r, bool recording, qreal pulse);
+// Dark disc with a centred icon (map / directions button).
+void paintIconButton(QPainter &p, const QRectF &r, const QPixmap &icon, qreal opacity);
+
+// ---- alert banner ----
+// Banner for small / mid alerts in a widget of size `widget` (widget space = screen minus the 30 px border):
+// screen x 690-1660, bottom y 872 on the 2160 px screen; full width minus 40 px margins when narrower.
+QRect alertBannerRect(const QSize &widget, bool mid);
+void paintAlertBanner(QPainter &p, const QRect &r, bool mid, const QString &text1, const QString &text2, const QColor &fill);
+
+}  // namespace bogpilot

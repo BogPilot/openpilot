@@ -2,8 +2,11 @@
 
 #include <QMovie>
 #include <QPainter>
+#include <QPainterPath>
 
 #include "selfdrive/ui/qt/util.h"
+
+#include "frogpilot/ui/qt/onroad/bogpilot_redesign.h"
 
 void drawIcon(QPainter &p, const QPoint &center, const QPixmap &img, const QBrush &bg, float opacity, const int &angle) {
   p.setRenderHint(QPainter::Antialiasing);
@@ -150,7 +153,28 @@ MapSettingsButton::MapSettingsButton(QWidget *parent) : QPushButton(parent) {
   setEnabled(false);
 }
 
+void MapSettingsButton::setRedesign(bool on) {
+  if (redesign == on) {
+    return;
+  }
+  redesign = on;
+  if (redesign) {
+    setFixedSize(bogpilot::CLUSTER_D, bogpilot::CLUSTER_D);
+    if (redesign_img.isNull()) {
+      const int icon = qRound(bogpilot::CLUSTER_D * 0.58);
+      redesign_img = loadPixmap("../assets/navigation/icon_directions_outlined.svg", {icon, icon});
+    }
+  } else {
+    setFixedSize(btn_size, btn_size + UI_BORDER_SIZE);
+  }
+  update();
+}
+
 void MapSettingsButton::paintEvent(QPaintEvent *event) {
   QPainter p(this);
+  if (redesign) {
+    bogpilot::paintIconButton(p, QRectF(rect()).adjusted(1, 1, -1, -1), redesign_img, isDown() ? 0.6 : 1.0);
+    return;
+  }
   drawIcon(p, QPoint(btn_size / 2, btn_size / 2 + (road_name_ui ? 0 : UI_BORDER_SIZE)), settings_img, QColor(0, 0, 0, 166), isDown() ? 0.6 : 1.0);
 }
