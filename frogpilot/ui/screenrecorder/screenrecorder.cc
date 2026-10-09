@@ -89,7 +89,7 @@ void ScreenRecorder::setRoundStyle(bool on) {
     return;
   }
   round_style = on;
-  setFixedSize(round_style ? QSize(bogpilot::REC_DIAMETER, bogpilot::REC_DIAMETER) : QSize(btn_size, btn_size));
+  setFixedSize(round_style ? QSize(bogpilot::REC_HIT, bogpilot::REC_HIT) : QSize(btn_size, btn_size));
   update();
 }
 
@@ -99,7 +99,7 @@ void ScreenRecorder::paintEvent(QPaintEvent *event) {
 
   if (round_style) {
     const qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - startedTime;
-    bogpilot::paintRecordButton(p, QRectF(rect()).adjusted(1, 1, -1, -1), recording, 0.5 + 0.5 * sin((elapsed % 2000) / 2000.0 * 2 * M_PI));
+    bogpilot::paintRecordButton(p, QRectF(rect()), recording, 0.5 + 0.5 * sin((elapsed % 2000) / 2000.0 * 2 * M_PI));
     return;
   }
 

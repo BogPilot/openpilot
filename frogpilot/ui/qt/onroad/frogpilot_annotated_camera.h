@@ -3,6 +3,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
+#include "frogpilot/ui/qt/onroad/bogpilot_redesign.h"
 #include "frogpilot/ui/qt/onroad/developer_hud.h"
 #include "selfdrive/ui/qt/onroad/buttons.h"
 #include "selfdrive/ui/qt/widgets/cameraview.h"
@@ -77,6 +78,7 @@ private:
   bool developerHudShown(const FrogPilotUIScene &frogpilot_scene);
   int bottomCornerWidgetX();
   QPoint redesignStatusSlot(int index);
+  int statusIconSize() const { return redesign ? bogpilot::STATUS_ICON : widget_size; }   // CEM / paused icon size
   int mapButtonShift();
   QRect developerHudPanelRect();
   void paintLateralPaused(QPainter &p, FrogPilotUIScene &frogpilot_scene);

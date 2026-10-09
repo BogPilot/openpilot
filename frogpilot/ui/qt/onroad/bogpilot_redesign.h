@@ -40,26 +40,33 @@ void drawCentredBaseline(QPainter &p, qreal cx, qreal baseline, const QString &t
 // "MAX" -> "M A X" (the mockup's letter-spaced small labels)
 QString spaced(const QString &s);
 
-// ---- layout (widget space) ----
+// ---- layout (widget space) ---- (round 3: bigger speed row, record button above the personality pill)
 constexpr int EDGE = 30;                // left/right inset from the camera-view edge (screen x 60)
-constexpr int SPEED_ROW_TOP = 24;       // capsule y 24..164 (screen 54..194)
-constexpr int SPEED_ROW_HEIGHT = 140;
-constexpr int REC_DIAMETER = 72;
-constexpr int GRAPH_TOP = 192;          // accel graph 30..590 x 192..432 (screen 60..620 x 222..462)
+constexpr int SPEED_ROW_TOP = 24;       // capsule y 24..200 (screen 54..230)
+constexpr int SPEED_ROW_HEIGHT = 176;
+constexpr int SPEED_ROW_MIN_RIGHT = 740;  // capsule reaches at least x 740 (screen 770) when a limit is shown
+constexpr int REC_DIAMETER = 124;       // record button disc
+constexpr int REC_HIT = 150;            // record button widget (touch target)
+constexpr int REC_CX = 105, REC_CY = 708;   // record centre (screen 135, 738): above the personality pill
+constexpr int GRAPH_TOP = 228;          // accel graph 30..590 x 228..468 (screen 60..620 x 258..498)
 constexpr int GRAPH_WIDTH = 560;
 constexpr int GRAPH_HEIGHT = 240;
+constexpr int PEDAL_W = 60, PEDAL_H = 120;  // pedal icons (0.625 of the 96x192 pixmaps), under the graph
+constexpr int PEDAL_GAP = 18;
+constexpr int STATUS_ICON = 132;        // CEM / paused icons, row beside the record button
+constexpr int STATUS_X = 198, STATUS_Y = 642, STATUS_STEP = 150;   // screen x 228 / 378 / 528, y 672..804
 constexpr int CLUSTER_CY = 900;         // lower-left cluster centre line (screen y 930)
 constexpr int CLUSTER_D = 150;          // DM / map button diameter
-constexpr int CLUSTER_GAP = 18;
-constexpr int PILL_W = 252;
-constexpr int PILL_H = 92;
-constexpr int PILL_LABEL_SPACE = 40;    // label row above the pill
+constexpr int CLUSTER_GAP = 14;
+constexpr int PILL_W = 300;
+constexpr int PILL_H = 150;             // = CLUSTER_D
+constexpr int PILL_LABEL_SPACE = 40;    // title row above the pill
 constexpr int HUD_W = 400;              // developer HUD 1670..2070 x 560..990 (screen 1700..2100 x 590..1020)
 constexpr int HUD_H = 430;
 
 inline QRectF accelGraphRect() { return QRectF(EDGE, GRAPH_TOP, GRAPH_WIDTH, GRAPH_HEIGHT); }
 
-// ---- speed row: MAX | current speed | LIMIT tile (+offset badge), then a separate round record button ----
+// ---- speed row: MAX | current speed | LIMIT tile (+offset badge); the record button now sits in the lower-left ----
 struct SpeedRowInputs {
   QString set_speed = "–";
   QString max_label = "MAX";
@@ -90,7 +97,7 @@ struct SpeedRowGeometry {
   QRectF capsule;
   QRectF tile;                         // empty when no limit is shown
   QRectF badge;                        // empty when there is no offset
-  QPointF rec_center;
+  QPointF rec_center;                  // unused since round 3 (record button is in the lower-left)
 };
 
 SpeedRowGeometry speedRowGeometry(const SpeedRowInputs &in);
@@ -127,8 +134,9 @@ bool paintLeadLabels(QPainter &p, const QRectF &box, const LeadLabels &l, const 
 QRectF leadLockBox(const QPointF &contact, float d_rel, qreal max_x, qreal max_y);
 
 // ---- round buttons ----
-// Record button: dark disc with a red dot; while recording a pulsing red ring and a red stop square (pulse 0..1).
-void paintRecordButton(QPainter &p, const QRectF &r, bool recording, qreal pulse);
+// Record button: dark REC_DIAMETER disc centred in the touch target `hit`, red dot; while recording a pulsing red ring
+// and a red stop square (pulse 0..1).
+void paintRecordButton(QPainter &p, const QRectF &hit, bool recording, qreal pulse);
 // Dark disc with a centred icon (map / directions button).
 void paintIconButton(QPainter &p, const QRectF &r, const QPixmap &icon, qreal opacity);
 

@@ -60,13 +60,15 @@ void AnnotatedCameraWidget::applyRedesign(bool on) {
   frogpilot_nvg->redesign = on;
   accel_graph.clear();
   if (on) {
-    rec_center = bogpilot::speedRowGeometry(bogpilot::SpeedRowInputs()).rec_center;
+    rec_center = QPointF(rightHandDM ? width() - bogpilot::REC_CX : bogpilot::REC_CX, bogpilot::REC_CY);
   }
   placeScreenRecorder();
 }
 
 void AnnotatedCameraWidget::placeScreenRecorder() {
   if (redesign) {
+    // round 3: 150 px touch target above the personality pill (driver's side)
+    rec_center = QPointF(rightHandDM ? width() - bogpilot::REC_CX : bogpilot::REC_CX, bogpilot::REC_CY);
     screen_recorder->move(QPoint(qRound(rec_center.x()), qRound(rec_center.y())) - QPoint(screen_recorder->width() / 2, screen_recorder->height() / 2));
   } else {
     screen_recorder->move(experimental_btn->x() - UI_BORDER_SIZE - btn_size, experimental_btn->y());
@@ -168,8 +170,8 @@ void AnnotatedCameraWidget::updateState(const UIState &s, const FrogPilotUIState
   distance_btn->setVisible(distance_btn->isEnabled());
   if (distance_btn->isEnabled()) {
     if (redesign) {
-      // pill body centred 16 px below the DM / map centre line, its label row above it
-      const int top = bogpilot::CLUSTER_CY + 16 - bogpilot::PILL_H / 2 - bogpilot::PILL_LABEL_SPACE;
+      // pill body (as tall as the DM circle) centred on the DM / map centre line, its title row above it
+      const int top = bogpilot::CLUSTER_CY - bogpilot::PILL_H / 2 - bogpilot::PILL_LABEL_SPACE;
       distance_btn->move(rightHandDM ? width() - bogpilot::EDGE - distance_btn->width() : bogpilot::EDGE, top);
     } else {
       distance_btn->move(rightHandDM ? width() - UI_BORDER_SIZE - distance_btn->width() - (UI_BORDER_SIZE / 2) : UI_BORDER_SIZE, frogpilot_nvg->dmIconPosition.y() - distance_btn->height() / 2);
@@ -405,15 +407,24 @@ void AnnotatedCameraWidget::drawRedesignHud(QPainter &p, const cereal::FrogPilot
   in.vienna = has_eu_speed_limit && !has_us_speed_limit;
   in.limit = speedLimitStr;
   in.limit_label = tr("LIMIT");
-  if (!overridden && frogpilot_toggles.value("show_speed_limit_offset").toBool() && frogpilot_nvg->speedLimitOffsetStr != "–") {
-    in.offset = frogpilot_nvg->speedLimitOffsetStr;
+  // Round 3: the tile always shows the POSTED limit and the SLC offset as a separate green badge (hidden when the offset
+  // is 0), independent of FrogPilot's ShowSLCOffset toggle, which otherwise blends the offset into the number.
+  const float display_conv = is_metric ? MS_TO_KPH : MS_TO_MPH;
+  const bool slc_limits = frogpilot_toggles.value("show_speed_limits").toBool() || frogpilot_toggles.value("speed_limit_controller").toBool();
+  if (slc_limits && !overridden) {
+    const float posted = frogpilotPlan.getSlcSpeedLimit() * display_conv;
+    in.limit = posted > 1 ? QString::number(std::nearbyint(posted)) : "–";
+    if (posted > 1 && frogpilot_nvg->speedLimitOffsetStr != "–") {
+      in.offset = frogpilot_nvg->speedLimitOffsetStr;
+    }
   }
   in.limit_opacity = overridden ? 0.25 : 1.0;
   in.traffic_mode = fs.frogpilot_scene.traffic_mode_enabled;
 
   // Curve Speed Controller in the MAX slot (same visibility as FrogPilotAnnotatedCameraWidget::paintCurveSpeedControl).
-  // N = the set speed MAX shows (controlsState.vCruiseCluster, which AP1's cluster_display_kph never lowers for a curve);
-  // target = min(N, frogpilotPlan.cscSpeed).
+  // N = the speed the car would hold without the curve: the tipped / overridden SLC set speed if active
+  // (frogpilotPlan.slcOverriddenSpeed), else the SLC target (posted limit + offset), else the set speed (vCruiseCluster).
+  // target = min(N, frogpilotPlan.cscSpeed); "from N" is hidden when the two are equal.
   const auto &car_state = (*uiState()->sm)["carState"].getCarState();
   const bool csc_visible = !fs.frogpilot_scene.map_open && !frogpilotPlan.getSpeedLimitChanged() &&
                            !(frogpilot_nvg->signalStyle == "static" && car_state.getLeftBlinker()) &&
@@ -425,16 +436,22 @@ void AnnotatedCameraWidget::drawRedesignHud(QPainter &p, const cereal::FrogPilot
       in.csc_label = tr("training");
       in.csc_pulse = 0.5 + 0.5 * std::sin(std::fmod(millis_since_boot(), 2000.0) / 2000.0 * 2 * M_PI);
     } else if (is_cruise_set && frogpilotPlan.getCscControllingSpeed()) {
-      const float csc_speed = frogpilotPlan.getCscSpeed() * (is_metric ? MS_TO_KPH : MS_TO_MPH);
+      float n = setSpeed;
+      if (frogpilotPlan.getSlcOverriddenSpeed() > 0) {
+        n = frogpilotPlan.getSlcOverriddenSpeed() * display_conv;
+      } else if (slc_limits && frogpilotPlan.getSlcSpeedLimit() > 0) {
+        n = (frogpilotPlan.getSlcSpeedLimit() + frogpilotPlan.getSlcSpeedLimitOffset()) * display_conv;
+      }
+      const int n_shown = int(std::nearbyint(n));
+      const int target = int(std::nearbyint(std::fmin(n, frogpilotPlan.getCscSpeed() * display_conv)));
       in.csc_active = true;
-      in.csc_speed = QString::number(std::nearbyint(std::fmin(setSpeed, csc_speed)));
-      in.csc_label = tr("from %1").arg(setSpeedStr);
+      in.csc_speed = QString::number(target);
+      in.csc_label = target == n_shown ? QString() : tr("from %1").arg(n_shown);
     }
   }
 
   p.save();
   const bogpilot::SpeedRowGeometry g = bogpilot::paintSpeedRow(p, in);
-  rec_center = g.rec_center;
 
   if (!frogpilot_nvg->bigMapOpen) {
     accel_graph.paint(p, bogpilot::accelGraphRect());
@@ -442,8 +459,8 @@ void AnnotatedCameraWidget::drawRedesignHud(QPainter &p, const cereal::FrogPilot
   steering_arc.paint(p, rect());
   p.restore();
 
-  // FrogPilot variables: curve-speed / pending-limit widgets go right of the record button, limit sources right of the graph
-  const int rec_right = qRound(rec_center.x()) + bogpilot::REC_DIAMETER / 2;
+  // FrogPilot variables: pending-limit sign goes right of the speed capsule, limit sources right of the graph
+  const int cap_right = qRound(g.capsule.right());
   frogpilot_nvg->defaultSize = {172, 204};
   frogpilot_nvg->experimentalButtonPosition = QPoint(experimental_btn->x(), experimental_btn->y());
   frogpilot_nvg->hideBottomIcons = hideBottomIcons;
@@ -452,11 +469,11 @@ void AnnotatedCameraWidget::drawRedesignHud(QPainter &p, const cereal::FrogPilot
   frogpilot_nvg->mutcdSpeedLimit = has_us_speed_limit;
   frogpilot_nvg->rightHandDM = rightHandDM;
   frogpilot_nvg->setSpeed = setSpeed / (is_metric ? MS_TO_KPH : MS_TO_MPH);
-  frogpilot_nvg->setSpeedRect = QRect(QPoint(qRound(g.capsule.left()), qRound(g.capsule.top())), QPoint(rec_right, qRound(g.capsule.bottom())));
+  frogpilot_nvg->setSpeedRect = QRect(QPoint(qRound(g.capsule.left()), qRound(g.capsule.top())), QPoint(cap_right, qRound(g.capsule.bottom())));
   frogpilot_nvg->signMargin = 12;
   frogpilot_nvg->speed = speed;
   frogpilot_nvg->speedLimitRect = g.tile.isEmpty() ? g.capsule.toRect() : g.tile.toRect();
-  frogpilot_nvg->pendingLimitTopLeft = QPoint(rec_right + UI_BORDER_SIZE, qRound(g.capsule.top()));
+  frogpilot_nvg->pendingLimitTopLeft = QPoint(cap_right + UI_BORDER_SIZE, qRound(g.capsule.top()));
   frogpilot_nvg->speedLimitSourcesTopLeft = QPoint(qRound(bogpilot::accelGraphRect().right()) + UI_BORDER_SIZE, bogpilot::GRAPH_TOP);
   frogpilot_nvg->speedUnit = speedUnit;
   frogpilot_nvg->viennaSpeedLimit = has_eu_speed_limit;

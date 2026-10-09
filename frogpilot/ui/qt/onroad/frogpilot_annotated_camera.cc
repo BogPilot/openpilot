@@ -362,7 +362,7 @@ void FrogPilotAnnotatedCameraWidget::paintCEMStatus(QPainter &p, const cereal::F
     cemStatusPosition.rx() += (rightHandDM ? -img_size - widget_size : widget_size) / (frogpilot_scene.map_open ? 1.25 : 1);
   }
 
-  QRect cemWidget(cemStatusPosition, QSize(widget_size, widget_size));
+  QRect cemWidget(cemStatusPosition, QSize(statusIconSize(), statusIconSize()));
 
   p.setBrush(blackColor(166));
   if (frogpilot_scene.conditional_status == 1) {
@@ -601,12 +601,12 @@ int FrogPilotAnnotatedCameraWidget::mapButtonShift() {
   return rightHandDM ? -(btn_size + UI_BORDER_SIZE) : btn_size + UI_BORDER_SIZE;
 }
 
-// BogPilot redesign: CEM status / paused icons sit in a row just above the lower-left cluster (driver's side)
+// BogPilot redesign: CEM status / paused icons sit in a row beside the record button, above the lower-left cluster
 QPoint FrogPilotAnnotatedCameraWidget::redesignStatusSlot(int index) {
-  const int y = bogpilot::CLUSTER_CY + 16 - bogpilot::PILL_H / 2 - bogpilot::PILL_LABEL_SPACE - bogpilot::CLUSTER_GAP - widget_size;
-  const int step = widget_size + bogpilot::CLUSTER_GAP;
-  const int x = rightHandDM ? width() - bogpilot::EDGE - widget_size - index * step : bogpilot::EDGE + index * step;
-  return QPoint(x, y);
+  // round 3: 132 px icons in a row beside the record button, above the personality pill
+  const int x = rightHandDM ? width() - bogpilot::STATUS_X - bogpilot::STATUS_ICON - index * bogpilot::STATUS_STEP
+                            : bogpilot::STATUS_X + index * bogpilot::STATUS_STEP;
+  return QPoint(x, bogpilot::STATUS_Y);
 }
 
 // Left edge of the first compass / weather box in the bottom corner opposite the DM icon: beside the Developer HUD when it is shown
@@ -639,7 +639,7 @@ void FrogPilotAnnotatedCameraWidget::paintLateralPaused(QPainter &p, FrogPilotUI
     lateralPausedPosition.rx() += (rightHandDM ? -UI_BORDER_SIZE - widget_size - UI_BORDER_SIZE : UI_BORDER_SIZE + widget_size + UI_BORDER_SIZE) / (frogpilot_scene.map_open ? 1.25 : 1);
   }
 
-  QRect lateralWidget(lateralPausedPosition, QSize(widget_size, widget_size));
+  QRect lateralWidget(lateralPausedPosition, QSize(statusIconSize(), statusIconSize()));
 
   p.setBrush(blackColor(166));
   p.setPen(QPen(QColor(bg_colors[STATUS_TRAFFIC_MODE_ENABLED]), 10));
@@ -721,7 +721,7 @@ void FrogPilotAnnotatedCameraWidget::paintLongitudinalPaused(QPainter &p, FrogPi
     longitudinalIconPosition.rx() += (rightHandDM ? -UI_BORDER_SIZE - widget_size - UI_BORDER_SIZE : UI_BORDER_SIZE + widget_size + UI_BORDER_SIZE) / (frogpilot_scene.map_open ? 1.25 : 1);
   }
 
-  QRect longitudinalWidget(longitudinalIconPosition, QSize(widget_size, widget_size));
+  QRect longitudinalWidget(longitudinalIconPosition, QSize(statusIconSize(), statusIconSize()));
 
   p.setBrush(blackColor(166));
   p.setPen(QPen(QColor(bg_colors[STATUS_TRAFFIC_MODE_ENABLED]), 10));
@@ -789,9 +789,16 @@ void FrogPilotAnnotatedCameraWidget::paintPedalIcons(QPainter &p, const cereal::
   int startX = experimentalButtonPosition.x();
   int startY = experimentalButtonPosition.y() + btn_size + UI_BORDER_SIZE;
   if (redesign) {
-    // no wheel button to hang off: under the accel graph instead
-    startX = rightHandDM ? width() - bogpilot::EDGE - btn_size * 3 / 2 : bogpilot::EDGE;
-    startY = bogpilot::GRAPH_TOP + bogpilot::GRAPH_HEIGHT + bogpilot::CLUSTER_GAP;
+    // no wheel button to hang off: under the accel graph instead, scaled to 0.625 (60x120 each)
+    startX = rightHandDM ? width() - bogpilot::EDGE - 2 * bogpilot::PEDAL_W : bogpilot::EDGE;
+    startY = bogpilot::GRAPH_TOP + bogpilot::GRAPH_HEIGHT + bogpilot::PEDAL_GAP;
+    p.setRenderHint(QPainter::SmoothPixmapTransform);
+    p.setOpacity(brakeOpacity);
+    p.drawPixmap(QRect(startX, startY, bogpilot::PEDAL_W, bogpilot::PEDAL_H), brakePedalImg);
+    p.setOpacity(gasOpacity);
+    p.drawPixmap(QRect(startX + bogpilot::PEDAL_W, startY, bogpilot::PEDAL_W, bogpilot::PEDAL_H), gasPedalImg);
+    p.restore();
+    return;
   }
 
   p.setOpacity(brakeOpacity);

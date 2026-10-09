@@ -18,13 +18,13 @@ namespace bogpilot {
 
 namespace {
 
-constexpr qreal CAP_RADIUS = 36;
-constexpr qreal COL_MAX = 120, COL_SPEED = 292, COL_LIMIT = 470;
-constexpr qreal DIV_1 = 206, DIV_2 = 378;
-constexpr qreal BASELINE = SPEED_ROW_TOP + 86;   // shared numeral baseline (screen y 140)
-constexpr qreal LABEL_BASELINE = BASELINE + 26;
-constexpr int SIDE_PX = 52, BIG_PX = 78, LABEL_PX = 18;
-constexpr int TILE_LABEL_PX = 13;
+constexpr qreal CAP_RADIUS = 44;
+constexpr qreal COL_MAX = 140, COL_SPEED = 370, COL_LIMIT = 612;   // screen 170 / 400 / 642
+constexpr qreal DIV_1 = 250, DIV_2 = 490;                          // screen 280 / 520
+constexpr qreal BASELINE = SPEED_ROW_TOP + 114;  // shared numeral baseline (screen y 168)
+constexpr qreal LABEL_BASELINE = BASELINE + 36;  // screen y 204
+constexpr int SIDE_PX = 66, BIG_PX = 100, LABEL_PX = 22;
+constexpr int TILE_LABEL_PX = 16;
 
 const QColor SIGN_FILL(244, 244, 242, 238);
 const QColor SIGN_EDGE(20, 20, 20);
@@ -72,26 +72,26 @@ SpeedRowGeometry speedRowGeometry(const SpeedRowInputs &in) {
   if (in.show_limit) {
     qreal tx0, tx1, ty0, ty1;
     if (in.vienna) {
-      const qreal d = 101;
+      const qreal d = 128;
       tx0 = COL_LIMIT - d / 2; tx1 = COL_LIMIT + d / 2;
-      ty0 = BASELINE - 66; ty1 = ty0 + d;
+      ty0 = BASELINE - 92; ty1 = ty0 + d;
     } else {
       const qreal nw = QFontMetricsF(font(SIDE_PX, QFont::Bold)).horizontalAdvance(in.limit);
       const qreal lw = QFontMetricsF(font(TILE_LABEL_PX, QFont::Bold)).horizontalAdvance(in.limit_label);
-      const qreal half = std::max(nw, lw) / 2 + 18;
+      const qreal half = std::max(nw, lw) / 2 + 22;
       tx0 = COL_LIMIT - half; tx1 = COL_LIMIT + half;
-      ty0 = BASELINE - 66; ty1 = BASELINE + 35;
+      ty0 = BASELINE - 92; ty1 = BASELINE + 40;
     }
     g.tile = QRectF(QPointF(tx0, ty0), QPointF(tx1, ty1));
-    x1 = tx1 + 44;
+    x1 = std::max<qreal>(tx1 + 44, SPEED_ROW_MIN_RIGHT);
     if (!in.offset.isEmpty()) {
-      const qreal bw = QFontMetricsF(font(17, QFont::Bold)).horizontalAdvance(in.offset) + 16;
-      const qreal bx = tx1 - 4, by = std::max(ty0 + 2, y0 + 19);
-      g.badge = QRectF(bx - bw / 2, by - 13, bw, 26);
+      const qreal bw = QFontMetricsF(font(20, QFont::Bold)).horizontalAdvance(in.offset) + 18;
+      const qreal bx = tx1 - 4, by = std::max(ty0 + 2, y0 + 22);
+      g.badge = QRectF(bx - bw / 2, by - 15, bw, 30);
     }
   }
   g.capsule = QRectF(QPointF(EDGE, y0), QPointF(x1, y1));
-  g.rec_center = QPointF(x1 + 52, (y0 + y1) / 2);
+  g.rec_center = QPointF(REC_CX, REC_CY);
   return g;
 }
 
@@ -147,29 +147,37 @@ SpeedRowGeometry paintSpeedRow(QPainter &p, const SpeedRowInputs &in) {
     const QRectF slot = maxSlotRect();
     p.setPen(QPen(QColor(255, 176, 32, 210), 3));
     p.setBrush(QColor(255, 176, 32, 46));
-    p.drawRoundedRect(slot, 30, 30);
-    paintCurveGlyph(p, QPointF(COL_MAX, y0 + 27), 34, CSC_AMBER, in.csc_left, 5.5);
-    p.setFont(font(50, QFont::DemiBold));
-    p.setPen(CSC_AMBER);
-    drawCentredBaseline(p, COL_MAX, BASELINE + 3, in.csc_speed);
-    p.setFont(font(21, QFont::DemiBold));
-    p.setPen(QColor(255, 205, 110, 245));
-    drawCentredBaseline(p, COL_MAX, LABEL_BASELINE + 4, in.csc_label);
+    p.drawRoundedRect(slot, 38, 38);
+    if (!in.csc_label.isEmpty()) {
+      paintCurveGlyph(p, QPointF(COL_MAX, y0 + 42), 42, CSC_AMBER, in.csc_left, 7);
+      p.setFont(font(64, QFont::DemiBold));
+      p.setPen(CSC_AMBER);
+      drawCentredBaseline(p, COL_MAX, BASELINE + 8, in.csc_speed);
+      p.setFont(font(26, QFont::DemiBold));
+      p.setPen(QColor(255, 205, 110, 245));
+      drawCentredBaseline(p, COL_MAX, LABEL_BASELINE + 8, in.csc_label);
+    } else {
+      // target == N: glyph + number only
+      paintCurveGlyph(p, QPointF(COL_MAX, y0 + 50), 46, CSC_AMBER, in.csc_left, 7.5);
+      p.setFont(font(70, QFont::DemiBold));
+      p.setPen(CSC_AMBER);
+      drawCentredBaseline(p, COL_MAX, BASELINE + 26, in.csc_speed);
+    }
   } else {
     if (in.csc_training) {
       const qreal k = std::clamp(in.csc_pulse, 0.0, 1.0);
       p.setPen(QPen(QColor(255, 176, 32, int(70 + 140 * k)), 2 + k));
       p.setBrush(Qt::NoBrush);
-      p.drawRoundedRect(maxSlotRect(), 30, 30);
-      paintCurveGlyph(p, QPointF(COL_MAX, y0 + 27), 30, QColor(255, 176, 32, 200), in.csc_left, 5);
+      p.drawRoundedRect(maxSlotRect(), 38, 38);
+      paintCurveGlyph(p, QPointF(COL_MAX, y0 + 42), 38, QColor(255, 176, 32, 200), in.csc_left, 6);
     }
     if (in.show_max || in.csc_training) {
       p.setFont(font(SIDE_PX, QFont::DemiBold));
       p.setPen(in.set_speed_color);
-      drawCentredBaseline(p, COL_MAX, in.csc_training ? BASELINE + 3 : BASELINE, in.set_speed);
-      p.setFont(font(in.csc_training ? 19 : LABEL_PX, QFont::DemiBold));
+      drawCentredBaseline(p, COL_MAX, in.csc_training ? BASELINE + 8 : BASELINE, in.set_speed);
+      p.setFont(font(in.csc_training ? 24 : LABEL_PX, QFont::DemiBold));
       p.setPen(in.csc_training ? QColor(255, 205, 110, 220) : in.max_color);
-      drawCentredBaseline(p, COL_MAX, in.csc_training ? LABEL_BASELINE + 4 : LABEL_BASELINE,
+      drawCentredBaseline(p, COL_MAX, in.csc_training ? LABEL_BASELINE + 8 : LABEL_BASELINE,
                           in.csc_training ? in.csc_label : spaced(in.max_label));
     }
   }
@@ -185,9 +193,9 @@ SpeedRowGeometry paintSpeedRow(QPainter &p, const SpeedRowInputs &in) {
   }
 
   p.setPen(QPen(QColor(255, 255, 255, 36), 2));
-  p.drawLine(QPointF(DIV_1, y0 + 32), QPointF(DIV_1, y1 - 32));
+  p.drawLine(QPointF(DIV_1, y0 + 40), QPointF(DIV_1, y1 - 40));
   if (in.show_limit) {
-    p.drawLine(QPointF(DIV_2, y0 + 32), QPointF(DIV_2, y1 - 32));
+    p.drawLine(QPointF(DIV_2, y0 + 40), QPointF(DIV_2, y1 - 40));
   }
 
   // LIMIT tile (US) or round sign (EU)
@@ -198,22 +206,22 @@ SpeedRowGeometry paintSpeedRow(QPainter &p, const SpeedRowInputs &in) {
       p.setPen(Qt::NoPen);
       p.setBrush(QColor(255, 255, 255));
       p.drawEllipse(g.tile);
-      p.setPen(QPen(QColor(220, 30, 30), 10));
+      p.setPen(QPen(QColor(220, 30, 30), 13));
       p.setBrush(Qt::NoBrush);
-      p.drawEllipse(g.tile.adjusted(7, 7, -7, -7));
+      p.drawEllipse(g.tile.adjusted(9, 9, -9, -9));
       p.setPen(SIGN_INK);
-      p.setFont(font(in.limit.size() >= 3 ? 36 : 44, QFont::Bold));
+      p.setFont(font(in.limit.size() >= 3 ? 46 : 56, QFont::Bold));
       p.drawText(g.tile, Qt::AlignCenter, in.limit);
     } else {
       p.setPen(QPen(SIGN_EDGE, 3));
       p.setBrush(SIGN_FILL);
-      p.drawRoundedRect(g.tile, 16, 16);
+      p.drawRoundedRect(g.tile, 20, 20);
 
       // centre the LIMIT + number pair on their actual ink bounds
       const QFont lf = font(TILE_LABEL_PX, QFont::Bold), nf = font(SIDE_PX, QFont::Bold);
       const QRectF lb = QFontMetricsF(lf).tightBoundingRect(in.limit_label);
       const QRectF nb = QFontMetricsF(nf).tightBoundingRect(in.limit);
-      const qreal gap = 8;
+      const qreal gap = 10;
       const qreal top = g.tile.center().y() - (lb.height() + gap + nb.height()) / 2;
       p.setFont(lf);
       p.setPen(SIGN_LABEL);
@@ -228,10 +236,10 @@ SpeedRowGeometry paintSpeedRow(QPainter &p, const SpeedRowInputs &in) {
     if (!g.badge.isEmpty()) {
       p.setPen(QPen(QColor(14, 17, 22), 2));
       p.setBrush(BADGE_GREEN);
-      p.drawRoundedRect(g.badge, 13, 13);
-      p.setFont(font(17, QFont::Bold));
+      p.drawRoundedRect(g.badge, 15, 15);
+      p.setFont(font(20, QFont::Bold));
       p.setPen(QColor(255, 255, 255));
-      drawCentredBaseline(p, g.badge.center().x(), g.badge.center().y() + 6, in.offset);
+      drawCentredBaseline(p, g.badge.center().x(), g.badge.center().y() + 7, in.offset);
     }
   }
 
@@ -251,19 +259,19 @@ void paintPersonalityPill(QPainter &p, const QRectF &pill, int personality, bool
   const qreal r = pill.height() / 2;
   paintPanel(p, pill, r);
 
-  p.setFont(font(18, QFont::DemiBold));
-  p.setPen(traffic_mode ? TRAFFIC_RED : QColor(255, 255, 255, 190));
+  p.setFont(font(24, QFont::DemiBold));
+  p.setPen(traffic_mode ? TRAFFIC_RED : QColor(255, 255, 255, 200));
   p.drawText(QRectF(pill.left(), pill.top() - PILL_LABEL_SPACE, pill.width(), PILL_LABEL_SPACE - 4), Qt::AlignCenter, label.toUpper());
 
   const int active = traffic_mode ? 0 : std::clamp(personality, 0, 2);
-  const qreal seg = (pill.width() - 16) / 3;
+  const qreal seg = (pill.width() - 20) / 3;
   for (int i = 0; i < 3; ++i) {
-    const qreal sx0 = pill.left() + 8 + i * seg, sx1 = sx0 + seg;
+    const qreal sx0 = pill.left() + 10 + i * seg, sx1 = sx0 + seg;
     const bool on = i == active;
     if (on) {
       p.setPen(Qt::NoPen);
       p.setBrush(traffic_mode ? QColor(TRAFFIC_RED.red(), TRAFFIC_RED.green(), TRAFFIC_RED.blue(), 235) : QColor(240, 240, 240, 235));
-      const QRectF hl(QPointF(sx0 + 2, pill.top() + 8), QPointF(sx1 - 2, pill.bottom() - 8));
+      const QRectF hl(QPointF(sx0 + 3, pill.top() + 12), QPointF(sx1 - 3, pill.bottom() - 12));
       p.drawRoundedRect(hl, hl.height() / 2, hl.height() / 2);
     }
     p.setPen(Qt::NoPen);
@@ -271,8 +279,8 @@ void paintPersonalityPill(QPainter &p, const QRectF &pill, int personality, bool
     const int nb = BARS[i];
     const qreal mx = (sx0 + sx1) / 2;
     for (int k = 0; k < nb; ++k) {
-      const qreal yb = pill.center().y() - (nb - 1) * 8 + k * 16;
-      p.drawRoundedRect(QRectF(mx - 18, yb - 4, 36, 8), 4, 4);
+      const qreal yb = pill.center().y() - (nb - 1) * 13 + k * 26;
+      p.drawRoundedRect(QRectF(mx - 28, yb - 6, 56, 12), 6, 6);
     }
   }
   p.restore();
@@ -280,8 +288,8 @@ void paintPersonalityPill(QPainter &p, const QRectF &pill, int personality, bool
 
 int personalityAt(const QRectF &pill, const QPointF &pos) {
   if (!pill.adjusted(-6, -PILL_LABEL_SPACE, 6, 10).contains(pos)) return -1;
-  const qreal seg = (pill.width() - 16) / 3;
-  return std::clamp(int((pos.x() - pill.left() - 8) / seg), 0, 2);
+  const qreal seg = (pill.width() - 20) / 3;
+  return std::clamp(int((pos.x() - pill.left() - 10) / seg), 0, 2);
 }
 
 // ---------------- lead lock-on box ----------------
@@ -397,26 +405,30 @@ void paintLeadLock(QPainter &p, const QRectF &box, const QString &dist, const QC
 
 // ---------------- round buttons ----------------
 
-void paintRecordButton(QPainter &p, const QRectF &r, bool recording, qreal pulse) {
+void paintRecordButton(QPainter &p, const QRectF &hit, bool recording, qreal pulse) {
+  // disc of REC_DIAMETER (or the hit rect if smaller) centred in the touch target; dot / stop square scale with it
+  const QPointF c = hit.center();
+  const qreal d = std::min<qreal>(REC_DIAMETER, std::min(hit.width(), hit.height()));
+  const QRectF r(c.x() - d / 2, c.y() - d / 2, d, d);
+  const qreal dot = d * 0.19, sq = d * 0.35;
   p.save();
   p.setRenderHint(QPainter::Antialiasing);
-  const QPointF c = r.center();
   if (recording) {
     QColor glow(225, 60, 60);
     glow.setAlphaF(0.4 + 0.6 * std::clamp(pulse, 0.0, 1.0));
-    p.setBrush(PANEL);
-    p.setPen(QPen(glow, 4));
+    p.setBrush(QColor(14, 17, 22, 190));
+    p.setPen(QPen(glow, 5));
+    p.drawEllipse(r.adjusted(3, 3, -3, -3));
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(225, 60, 60, 235));
+    p.drawRoundedRect(QRectF(c.x() - sq / 2, c.y() - sq / 2, sq, sq), 7, 7);
+  } else {
+    p.setBrush(QColor(14, 17, 22, 190));
+    p.setPen(QPen(QColor(255, 255, 255, 60), 3));
     p.drawEllipse(r.adjusted(2, 2, -2, -2));
     p.setPen(Qt::NoPen);
-    p.setBrush(QColor(225, 60, 60, 235));
-    p.drawRoundedRect(QRectF(c.x() - 11, c.y() - 11, 22, 22), 5, 5);
-  } else {
-    p.setBrush(PANEL);
-    p.setPen(QPen(STROKE, 2));
-    p.drawEllipse(r);
-    p.setPen(Qt::NoPen);
-    p.setBrush(QColor(225, 60, 60, 235));
-    p.drawEllipse(c, 12, 12);
+    p.setBrush(QColor(225, 60, 60, 240));
+    p.drawEllipse(c, dot, dot);
   }
   p.restore();
 }
