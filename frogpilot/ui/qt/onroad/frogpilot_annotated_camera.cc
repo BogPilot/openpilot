@@ -570,7 +570,7 @@ void FrogPilotAnnotatedCameraWidget::paintDeveloperHUDPanel(QPainter &p, UIState
 QRect FrogPilotAnnotatedCameraWidget::developerHudPanelRect() {
   if (redesign) {
     // bottom-right, below the mirror line; shrinks only when the view is too narrow (map open) to clear the cluster
-    int clusterEdge = bogpilot::EDGE + bogpilot::PILL_W + bogpilot::CLUSTER_GAP + 2 * (bogpilot::CLUSTER_D + bogpilot::CLUSTER_GAP);
+    int clusterEdge = bogpilot::CLUSTER_LEFT + bogpilot::PILL_W + bogpilot::CLUSTER_GAP + 2 * (bogpilot::CLUSTER_D + bogpilot::CLUSTER_GAP);
     if (dmIconPosition != QPoint(0, 0)) {
       const int reach = bogpilot::CLUSTER_D / 2 + (mapButtonVisible ? bogpilot::CLUSTER_GAP + bogpilot::CLUSTER_D : 0);
       clusterEdge = rightHandDM ? width() - (dmIconPosition.x() - reach) : dmIconPosition.x() + reach;

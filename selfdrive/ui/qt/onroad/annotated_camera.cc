@@ -172,7 +172,7 @@ void AnnotatedCameraWidget::updateState(const UIState &s, const FrogPilotUIState
     if (redesign) {
       // pill body (as tall as the DM circle) centred on the DM / map centre line, its title row above it
       const int top = bogpilot::CLUSTER_CY - bogpilot::PILL_H / 2 - bogpilot::PILL_LABEL_SPACE;
-      distance_btn->move(rightHandDM ? width() - bogpilot::EDGE - distance_btn->width() : bogpilot::EDGE, top);
+      distance_btn->move(rightHandDM ? width() - bogpilot::CLUSTER_LEFT - distance_btn->width() : bogpilot::CLUSTER_LEFT, top);
     } else {
       distance_btn->move(rightHandDM ? width() - UI_BORDER_SIZE - distance_btn->width() - (UI_BORDER_SIZE / 2) : UI_BORDER_SIZE, frogpilot_nvg->dmIconPosition.y() - distance_btn->height() / 2);
     }
@@ -612,10 +612,10 @@ void AnnotatedCameraWidget::drawLaneLines(QPainter &painter, const UIState *s, c
 // Centre of the driver-monitoring icon: bottom corner on the driver's side, after the personality button
 QPoint AnnotatedCameraWidget::dmIconCenter(const QJsonObject &frogpilot_toggles) {
   if (redesign) {
-    // lower-left cluster: [personality pill] DM [map], 150 px buttons, 18 px gaps
+    // lower-left cluster: [personality pill] DM [map], 150 px buttons, CLUSTER_GAP gaps
     int x = bogpilot::EDGE + bogpilot::CLUSTER_D / 2;
     if (distance_btn->isEnabled()) {
-      x = bogpilot::EDGE + bogpilot::PILL_W + bogpilot::CLUSTER_GAP + bogpilot::CLUSTER_D / 2;
+      x = bogpilot::CLUSTER_LEFT + bogpilot::PILL_W + bogpilot::CLUSTER_GAP + bogpilot::CLUSTER_D / 2;
     }
     return QPoint(rightHandDM ? width() - x : x, bogpilot::CLUSTER_CY);
   }

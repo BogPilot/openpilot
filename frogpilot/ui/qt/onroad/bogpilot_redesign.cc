@@ -264,14 +264,15 @@ void paintPersonalityPill(QPainter &p, const QRectF &pill, int personality, bool
   p.drawText(QRectF(pill.left(), pill.top() - PILL_LABEL_SPACE, pill.width(), PILL_LABEL_SPACE - 4), Qt::AlignCenter, label.toUpper());
 
   const int active = traffic_mode ? 0 : std::clamp(personality, 0, 2);
-  const qreal seg = (pill.width() - 20) / 3;
+  // inner parts keep the original 252x92 pill's proportions, scaled by PILL_H / 92 (~1.63)
+  const qreal seg = (pill.width() - 26) / 3;
   for (int i = 0; i < 3; ++i) {
-    const qreal sx0 = pill.left() + 10 + i * seg, sx1 = sx0 + seg;
+    const qreal sx0 = pill.left() + 13 + i * seg, sx1 = sx0 + seg;
     const bool on = i == active;
     if (on) {
       p.setPen(Qt::NoPen);
       p.setBrush(traffic_mode ? QColor(TRAFFIC_RED.red(), TRAFFIC_RED.green(), TRAFFIC_RED.blue(), 235) : QColor(240, 240, 240, 235));
-      const QRectF hl(QPointF(sx0 + 3, pill.top() + 12), QPointF(sx1 - 3, pill.bottom() - 12));
+      const QRectF hl(QPointF(sx0 + 3, pill.top() + 13), QPointF(sx1 - 3, pill.bottom() - 13));
       p.drawRoundedRect(hl, hl.height() / 2, hl.height() / 2);
     }
     p.setPen(Qt::NoPen);
@@ -280,7 +281,7 @@ void paintPersonalityPill(QPainter &p, const QRectF &pill, int personality, bool
     const qreal mx = (sx0 + sx1) / 2;
     for (int k = 0; k < nb; ++k) {
       const qreal yb = pill.center().y() - (nb - 1) * 13 + k * 26;
-      p.drawRoundedRect(QRectF(mx - 28, yb - 6, 56, 12), 6, 6);
+      p.drawRoundedRect(QRectF(mx - 29, yb - 6.5, 58, 13), 6.5, 6.5);
     }
   }
   p.restore();
@@ -288,8 +289,8 @@ void paintPersonalityPill(QPainter &p, const QRectF &pill, int personality, bool
 
 int personalityAt(const QRectF &pill, const QPointF &pos) {
   if (!pill.adjusted(-6, -PILL_LABEL_SPACE, 6, 10).contains(pos)) return -1;
-  const qreal seg = (pill.width() - 20) / 3;
-  return std::clamp(int((pos.x() - pill.left() - 10) / seg), 0, 2);
+  const qreal seg = (pill.width() - 26) / 3;
+  return std::clamp(int((pos.x() - pill.left() - 13) / seg), 0, 2);
 }
 
 // ---------------- lead lock-on box ----------------
@@ -450,7 +451,7 @@ QRect alertBannerRect(const QSize &widget, bool mid) {
   const int h = mid ? 156 : 110;
   const int bottom = widget.height() - 186;   // screen y 864: clears the raised steering arc (arc B)
   if (widget.width() >= 1800) {
-    return QRect(QPoint(660, bottom - h), QPoint(1630, bottom));
+    return QRect(QPoint(690, bottom - h), QPoint(1630, bottom));   // left edge clears the map button's top (round 3b)
   }
   return QRect(40, bottom - h, widget.width() - 80, h);
 }

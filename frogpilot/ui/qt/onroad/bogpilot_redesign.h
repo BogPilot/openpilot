@@ -47,18 +47,21 @@ constexpr int SPEED_ROW_HEIGHT = 176;
 constexpr int SPEED_ROW_MIN_RIGHT = 740;  // capsule reaches at least x 740 (screen 770) when a limit is shown
 constexpr int REC_DIAMETER = 124;       // record button disc
 constexpr int REC_HIT = 150;            // record button widget (touch target)
-constexpr int REC_CX = 105, REC_CY = 708;   // record centre (screen 135, 738): above the personality pill
+constexpr int REC_CX = 75, REC_CY = 708;    // record centre (screen 105, 738): above the personality pill, hit box
+                                            // left-aligned with the pill (x 0..150)
 constexpr int GRAPH_TOP = 228;          // accel graph 30..590 x 228..468 (screen 60..620 x 258..498)
 constexpr int GRAPH_WIDTH = 560;
 constexpr int GRAPH_HEIGHT = 240;
 constexpr int PEDAL_W = 60, PEDAL_H = 120;  // pedal icons (0.625 of the 96x192 pixmaps), under the graph
 constexpr int PEDAL_GAP = 18;
 constexpr int STATUS_ICON = 132;        // CEM / paused icons, row beside the record button
-constexpr int STATUS_X = 198, STATUS_Y = 642, STATUS_STEP = 150;   // screen x 228 / 378 / 528, y 672..804
+constexpr int STATUS_X = 168, STATUS_Y = 642, STATUS_STEP = 150;   // screen x 198 / 348 / 498, y 672..804
 constexpr int CLUSTER_CY = 900;         // lower-left cluster centre line (screen y 930)
 constexpr int CLUSTER_D = 150;          // DM / map button diameter
-constexpr int CLUSTER_GAP = 14;
-constexpr int PILL_W = 300;
+constexpr int CLUSTER_LEFT = 0;        // pill left edge, flush with the border (the confidence ball may overlap it)
+constexpr int CLUSTER_GAP = 6;
+constexpr int PILL_W = 411;             // original 252x92 aspect (2.74:1); map disc then ends x 723 (screen 753), which
+                                        // the arc clears at full lock with SteeringArc::SPAN_DEG = 19 (6 px)
 constexpr int PILL_H = 150;             // = CLUSTER_D
 constexpr int PILL_LABEL_SPACE = 40;    // title row above the pill
 constexpr int HUD_W = 400;              // developer HUD 1670..2070 x 560..990 (screen 1700..2100 x 590..1020)
@@ -142,7 +145,7 @@ void paintIconButton(QPainter &p, const QRectF &r, const QPixmap &icon, qreal op
 
 // ---- alert banner ----
 // Banner for small / mid alerts in a widget of size `widget` (widget space = screen minus the 30 px border):
-// screen x 690-1660, bottom y 864 on the 2160 px screen; full width minus 40 px margins when narrower.
+// screen x 720-1660, bottom y 864 on the 2160 px screen; full width minus 40 px margins when narrower.
 QRect alertBannerRect(const QSize &widget, bool mid);
 void paintAlertBanner(QPainter &p, const QRect &r, bool mid, const QString &text1, const QString &text2, const QColor &fill);
 

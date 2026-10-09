@@ -25,7 +25,7 @@ BogPilot steering arc: a QPainter port of upstream openpilot's comma four torque
 (selfdrive/ui/mici/onroad/torque_bar.py, MIT): rounded thick-arc polygon (arc_bar_pts), first-order
 filtered lateral utilisation, thickness/offset growth past 50 %, centre-to-65 % gradient that blends to
 yellow/orange past 75 %, and the grey centre dot below 50 %. BogPilot changes: arc "B" geometry for the
-2160 px screen (1800 px radius, 24 degree span, raised 112 px so it clears the road-name pill), purple in
+2160 px screen (1800 px radius, 19 degree span, raised 112 px so it clears the road-name pill), purple in
 Experimental Mode, stays visible (dimmed) while disengaged because it is also the Experimental Mode tap
 target, the fill grows toward the turn direction (left turn fills left), and the driver's own steering is
 shown in soft cyan while disengaged or overriding, with a white tick at openpilot's target during an override.
@@ -40,7 +40,7 @@ shown in soft cyan while disengaged or overriding, with a white tick at openpilo
 class SteeringArc {
 public:
   // Geometry (screen px; the 2.6x SCALE is kept for the cap radius and the centre dot)
-  static constexpr float SPAN_DEG = 24.0f;
+  static constexpr float SPAN_DEG = 19.0f;          // round 3b: trimmed from 24 so the 411 px personality pill fits
   static constexpr float SCALE = 2.6f;
   static constexpr float RADIUS = 1800.0f;          // inner radius of the bar
   static constexpr float OFFSET_LO = 112.0f;        // inner edge above the view bottom, |util| <= 0.5

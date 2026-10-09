@@ -18,7 +18,7 @@ public:
 
   int alertHeight;
 
-  // BogPilot redesign: small / mid alerts become a banner (x 690-1660, y 716-872 on screen) above the steering arc,
+  // BogPilot redesign: small / mid alerts become a banner (x 720-1660, y 708-864 on screen) above the steering arc,
   // clear of the lower-left cluster and the developer HUD
   bool redesign = false;
 
