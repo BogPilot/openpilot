@@ -61,7 +61,7 @@ constexpr int CLUSTER_D = 150;          // DM / map button diameter
 constexpr int CLUSTER_LEFT = 0;        // pill left edge, flush with the border (the confidence ball may overlap it)
 constexpr int CLUSTER_GAP = 6;
 constexpr int PILL_W = 411;             // original 252x92 aspect (2.74:1); map disc then ends x 723 (screen 753), which
-                                        // the arc clears at full lock with SteeringArc::SPAN_DEG = 19 (6 px)
+                                        // the arc (incl. its shadow) clears at full lock with SteeringArc::SPAN_DEG = 17
 constexpr int PILL_H = 150;             // = CLUSTER_D
 constexpr int PILL_LABEL_SPACE = 40;    // title row above the pill
 constexpr int HUD_W = 400;              // developer HUD 1670..2070 x 560..990 (screen 1700..2100 x 590..1020)
