@@ -86,7 +86,11 @@ QPolygonF SteeringArc::arcBarPolygon(float r_mid, float thickness, float a0_deg,
     pts.emplace_back(std::cos(a) * (r_mid - half), std::sin(a) * (r_mid - half));
   }
   appendCap(pts, true, a0_deg, r_mid, half, cap);
-  return QPolygonF(QVector<QPointF>(pts.begin(), pts.end()));
+  // Qt 5.12 on the device has no QVector(iterator, iterator) constructor
+  QPolygonF poly;
+  poly.reserve(static_cast<int>(pts.size()));
+  for (const QPointF &pt : pts) poly << pt;
+  return poly;
 }
 
 float SteeringArc::angleUtilization(float curvature, float desired_curvature, float v_ego, float roll, float max_lat_accel) {
