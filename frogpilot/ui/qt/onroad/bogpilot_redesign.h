@@ -110,6 +110,19 @@ int personalityAt(const QRectF &pill, const QPointF &pos);
 // box = inner edge of the square. Thin side segments are centred on the 8 px bracket centreline, so the thick corner
 // brackets protrude both inside and outside. dist = pill text above the box (empty = no pill).
 void paintLeadLock(QPainter &p, const QRectF &box, const QString &dist, const QColor &color = QColor(255, 255, 255, 245));
+// Lead labels (approved option A2): a speed pill above the box (40 px number, thin accent underline) and a smaller
+// distance tag below it. When the tag would reach keepout_top (top of the steering arc's area) both are stacked above
+// the box, speed on top. Pills are clamped inside `view`.
+struct LeadLabels {
+  QString speed;                       // "42" (or "~42" for a camera-only lead)
+  QString speed_unit;                  // "mph" / "km/h"
+  QString dist;                        // "144"
+  QString dist_unit;                   // "ft" / "m"
+  bool vision_only = false;            // no radar match: speed dimmed
+  QColor accent = QColor(255, 255, 255, 70);   // underline: orange / red while closing (HUD LEAD SPD colours)
+};
+// Returns true when the stacked (both above) fallback was used.
+bool paintLeadLabels(QPainter &p, const QRectF &box, const LeadLabels &l, const QRectF &view, qreal keepout_top);
 // Box for a lead whose road contact point is (x, y), sized from the distance like the old chevron.
 QRectF leadLockBox(const QPointF &contact, float d_rel, qreal max_x, qreal max_y);
 

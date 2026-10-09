@@ -683,15 +683,27 @@ void AnnotatedCameraWidget::drawLead(QPainter &painter, const cereal::RadarState
   fillAlpha = std::clamp(fillAlpha, 0.f, 255.f);
 
   if (redesign) {
-    // BogPilot lead lock-on box v3 with a distance pill (replaces the chevron and the lead metrics text line)
+    // BogPilot lead lock-on box v3 (replaces the chevron and the lead metrics text line). Main lead: lead speed pill above
+    // the box and a distance tag below (option A2); adjacent leads get the box only.
     const QRectF box = bogpilot::leadLockBox(vd, d_rel, width(), height());
-    QString dist;
-    if (!adjacent) {
-      dist = QString::number(qRound(d_rel * frogpilot_nvg->distanceConversion)) + (frogpilot_nvg->distanceConversion == 1.0f ? " m" : " ft");
-      frogpilot_nvg->leadTextRect = QRect();
-    }
     QColor color = adjacent ? QColor(marker_color.red(), marker_color.green(), marker_color.blue(), 230) : whiteColor(245);
-    bogpilot::paintLeadLock(painter, box, dist, color);
+    bogpilot::paintLeadLock(painter, box, QString(), color);
+    if (!adjacent) {
+      frogpilot_nvg->leadTextRect = QRect();
+      bogpilot::LeadLabels labels;
+      labels.vision_only = !lead_data.getRadar();
+      const int lead_speed = qRound(std::max(0.0f, lead_data.getVLead()) * frogpilot_nvg->speedConversion);
+      labels.speed = (labels.vision_only ? "~" : "") + QString::number(lead_speed);
+      labels.speed_unit = speedUnit;
+      labels.dist = QString::number(qRound(d_rel * frogpilot_nvg->distanceConversion));
+      labels.dist_unit = frogpilot_nvg->distanceConversion == 1.0f ? "m" : "ft";
+      if (v_rel < -4.4704f) {
+        labels.accent = QColor(255, 0, 0);          // closing faster than 10 mph (developer HUD LEAD SPD red)
+      } else if (v_rel < 0) {
+        labels.accent = QColor(255, 188, 0);        // closing (HUD orange)
+      }
+      bogpilot::paintLeadLabels(painter, box, labels, QRectF(rect()), steering_arc.tapRect(rect()).top());
+    }
     painter.restore();
     return;
   }

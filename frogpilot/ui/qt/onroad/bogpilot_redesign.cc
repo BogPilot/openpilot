@@ -294,6 +294,60 @@ QRectF leadLockBox(const QPointF &contact, float d_rel, qreal max_x, qreal max_y
   return QRectF(cx - w / 2, bottom - h, w, h);
 }
 
+namespace {
+
+// One label pill: number + lighter unit, vertically centred on the digits' cap height, clamped inside view
+QRectF paintLabelPill(QPainter &p, qreal cx, qreal cy, qreal h, qreal pad, const QString &number, int num_px, const QColor &num_color,
+                      const QString &unit, int unit_px, const QRectF &view, const QColor &accent = QColor()) {
+  const QFont nf = font(num_px, QFont::Bold), uf = font(unit_px, QFont::DemiBold);
+  const QString u = " " + unit;
+  const qreal nw = QFontMetricsF(nf).horizontalAdvance(number), uw = QFontMetricsF(uf).horizontalAdvance(u);
+  const qreal w = nw + uw + 2 * pad;
+  qreal x0 = cx - w / 2;
+  x0 = std::max(x0, view.left() + 8);
+  x0 = std::min(x0, view.right() - 8 - w);
+  const QRectF r(x0, cy - h / 2, w, h);
+  p.setPen(Qt::NoPen);
+  p.setBrush(QColor(20, 22, 26, 205));
+  p.drawRoundedRect(r, h / 2, h / 2);
+  if (accent.isValid()) {
+    p.setBrush(accent);
+    p.drawRoundedRect(QRectF(x0 + pad, r.bottom() - 7, nw + uw, 4), 2, 2);
+  }
+  const qreal baseline = cy + QFontMetricsF(nf).capHeight() / 2;
+  p.setFont(nf);
+  p.setPen(num_color);
+  p.drawText(QPointF(x0 + pad, baseline), number);
+  p.setFont(uf);
+  p.setPen(MUTED);
+  p.drawText(QPointF(x0 + pad + nw, baseline), u);
+  return r;
+}
+
+}  // namespace
+
+bool paintLeadLabels(QPainter &p, const QRectF &box, const LeadLabels &l, const QRectF &view, qreal keepout_top) {
+  constexpr qreal GAP = 8 + 14;          // bracket thickness + spacing, as for the old distance pill
+  constexpr qreal SPEED_H = 62, TAG_H = 46, STACK_GAP = 8;
+  const qreal cx = box.center().x();
+  const QColor speed_color = l.vision_only ? QColor(255, 255, 255, 150) : QColor(255, 255, 255);
+  const bool stacked = box.bottom() + GAP + TAG_H > keepout_top;
+
+  p.save();
+  p.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing);
+  if (stacked) {
+    const qreal tag_cy = box.top() - GAP - TAG_H / 2;
+    paintLabelPill(p, cx, tag_cy, TAG_H, 18, l.dist, 30, QColor(255, 255, 255), l.dist_unit, 22, view);
+    const qreal speed_cy = tag_cy - TAG_H / 2 - STACK_GAP - SPEED_H / 2;
+    paintLabelPill(p, cx, speed_cy, SPEED_H, 22, l.speed, 40, speed_color, l.speed_unit, 26, view, l.accent);
+  } else {
+    paintLabelPill(p, cx, box.top() - GAP - SPEED_H / 2, SPEED_H, 22, l.speed, 40, speed_color, l.speed_unit, 26, view, l.accent);
+    paintLabelPill(p, cx, box.bottom() + GAP + TAG_H / 2, TAG_H, 18, l.dist, 30, QColor(255, 255, 255), l.dist_unit, 22, view);
+  }
+  p.restore();
+  return stacked;
+}
+
 void paintLeadLock(QPainter &p, const QRectF &box, const QString &dist, const QColor &color) {
   const qreal thick = 8, thin = 3.5, r = 9, leg = 0.30;
   const QRectF centre = box.adjusted(-thick / 2, -thick / 2, thick / 2, thick / 2);
