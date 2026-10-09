@@ -321,6 +321,9 @@ class Ap1SlcLimitGuard:
     - Rises and normal drops: accepted immediately (as before).
     - Sudden drop (more than SUDDEN_DROP_MPH, or below SUDDEN_DROP_RATIO of the
       accepted limit): must persist CONFIRM_S before it is accepted.
+    - Except a drop straight back to the limit that was in force before a rise
+      less than RETURN_WINDOW_S ago: accepted immediately (drive 35: a bogus
+      35->80 rise was otherwise held 2 s longer on the way back to 35).
   The offset is the one SLC reported for the accepted limit.
   """
 
@@ -330,14 +333,20 @@ class Ap1SlcLimitGuard:
   CONFIRM_S = 2.0          # 02a blip lasted ~1.4 s
   SAME_MPH = 1.0           # candidate counts as "the same" within ±1 mph
   EPS_MPH = 0.25           # kph/mph float noise around the thresholds
+  RETURN_WINDOW_S = 30.0   # drop back to the pre-rise limit within this time is immediate
 
   def __init__(self):
     self.target_ms = 0.0
     self.offset_ms = 0.0
     self._pending_ms = 0.0
     self._pending_s = 0.0
+    self._pre_rise_ms = 0.0
+    self._since_rise_s = 0.0
 
   def _accept(self, target_ms: float, offset_ms: float):
+    if self.target_ms >= 1.0 and float(target_ms) > self.target_ms + 1e-3:
+      self._pre_rise_ms = self.target_ms
+      self._since_rise_s = 0.0
     self.target_ms = float(target_ms)
     self.offset_ms = float(offset_ms)
     self._pending_ms = 0.0
@@ -348,6 +357,9 @@ class Ap1SlcLimitGuard:
     raw = float(raw_target_ms)
     raw_mph = raw * CV.MS_TO_MPH
     cur_mph = self.target_ms * CV.MS_TO_MPH
+    self._since_rise_s += float(dt)
+    back_to_pre_rise = (self._pre_rise_ms >= 1.0 and self._since_rise_s <= self.RETURN_WINDOW_S and
+                        abs(raw - self._pre_rise_ms) * CV.MS_TO_MPH <= self.SAME_MPH)
     if raw < 1.0:
       self._accept(raw, raw_offset_ms)
     elif raw_mph < self.MIN_VALID_MPH - self.EPS_MPH:
@@ -357,7 +369,7 @@ class Ap1SlcLimitGuard:
       sudden = cur_mph > 0.0 and raw_mph < cur_mph and (
         (cur_mph - raw_mph) > self.SUDDEN_DROP_MPH + self.EPS_MPH or
         raw_mph < cur_mph * self.SUDDEN_DROP_RATIO - self.EPS_MPH)
-      if not sudden:
+      if not sudden or back_to_pre_rise:
         self._accept(raw, raw_offset_ms)
       else:
         if self._pending_s > 0.0 and abs(raw - self._pending_ms) * CV.MS_TO_MPH <= self.SAME_MPH:

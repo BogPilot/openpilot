@@ -86,11 +86,31 @@ def units_are_metric(ui_map_speed_limit_units) -> bool:
     return False
 
 
+# Mobileye misread guard (drive 35 seg 11: camera read 80 for 9.6 s while the car's map said 35).
+# When the camera limit is more than this far ABOVE a valid map limit, the map limit is used instead.
+# Real sign changes seen in drives 2a-35 lead the map by at most 20 mph for about 1 s, so they are untouched.
+IMPLAUSIBLE_RISE_MPH = 20.0
+IMPLAUSIBLE_RISE_KPH = 30.0
+MIN_MAP_CHECK_MPH = 15.0      # map limits below this (e.g. a stray 5) are not trusted for the check
+MIN_MAP_CHECK_KPH = 25.0
+
+
 def dashboard_speed_limit_ms(fused_phys, ui_map_code, mpp_phys, ui_map_speed_limit_units) -> float:
-  """Mobileye fused first, then UI map enum, then UI mpp. m/s or 0."""
+  """Mobileye fused first, then UI map enum, then UI mpp. m/s or 0.
+
+  Exception: a fused (camera) limit far above a plausible map limit is treated as a misread
+  and the map limit is returned. Lower camera limits always win (construction / school zones).
+  """
   metric = units_are_metric(ui_map_speed_limit_units)
+  fused = fused_speed_limit_ms(fused_phys, metric)
+  map_limit = ui_map_speed_limit_ms(ui_map_code, metric) or mpp_speed_limit_ms(mpp_phys, metric)
+  if fused > 0.0 and map_limit > 0.0:
+    rise = IMPLAUSIBLE_RISE_KPH if metric else IMPLAUSIBLE_RISE_MPH
+    floor = MIN_MAP_CHECK_KPH if metric else MIN_MAP_CHECK_MPH
+    if map_limit >= _uom_to_ms(floor, metric) - 1e-3 and fused - map_limit > _uom_to_ms(rise, metric) + 1e-3:
+      return map_limit
   for value in (
-    fused_speed_limit_ms(fused_phys, metric),
+    fused,
     ui_map_speed_limit_ms(ui_map_code, metric),
     mpp_speed_limit_ms(mpp_phys, metric),
   ):

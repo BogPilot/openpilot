@@ -1296,3 +1296,24 @@ def test_ap1_guard_does_not_touch_tip_or_min_clamps():
   guard_line = [ln for ln in vsrc.splitlines() if "ap1_limit_guard.update(" in ln]
   assert len(guard_line) == 1
   assert guard_line[0].strip().startswith("self.slc_target, self.slc_offset = ")
+
+
+def test_ap1_guard_drop_back_after_bogus_rise_is_immediate():
+  # Drive 35 seg 11: limit 35, camera misread 80 for ~9.6 s, then back to 35.
+  g = Ap1SlcLimitGuard()
+  out = _guard_run(g, [(35, 6, 2.0), (80, 10, 9.6), (35, 6, 0.05)])
+  assert out[-1] == (35, 6)  # no extra 2 s at 80 on the way back
+
+
+def test_ap1_guard_drop_to_other_limit_after_rise_still_confirms():
+  g = Ap1SlcLimitGuard()
+  out = _guard_run(g, [(35, 6, 2.0), (80, 10, 5.0), (25, 6, 1.0)])
+  assert out[-1] == (80, 10)  # 25 is not the pre-rise limit: 2 s confirm as before
+
+
+def test_ap1_guard_drop_back_window_expires():
+  g = Ap1SlcLimitGuard()
+  out = _guard_run(g, [(25, 6, 2.0), (45, 6, 31.0), (25, 6, 1.0)])
+  assert out[-1] == (45, 6)  # rise was >30 s ago: normal sudden-drop confirmation
+  out = _guard_run(g, [(25, 6, 1.1)])
+  assert out[-1] == (25, 6)

@@ -300,3 +300,24 @@ def test_parser_lists_ui_msgs_ap1_only_frequency_zero(carstate_mod):
     SimpleNamespace(carFingerprint=CAR.TESLA_AP1_MODELS), None)
   cam_names = {n for n, _f in cam.messages}
   assert "AutopilotStatus" in cam_names
+
+
+def test_dashboard_camera_far_above_map_uses_map():
+  # Drive 35 seg 11: DAS_fusedSpeedLimit 80 while UI_mapSpeedLimit code 8 (35) and mpp 35.
+  assert dashboard_speed_limit_ms(80.0, 8, 35.0, 0) == pytest.approx(35 * MPH)
+  assert dashboard_speed_limit_ms(80.0, 0, 35.0, 0) == pytest.approx(35 * MPH)  # mpp only
+
+
+def test_dashboard_camera_normal_cases_unchanged():
+  assert dashboard_speed_limit_ms(45.0, 6, 25.0, 0) == pytest.approx(45 * MPH)  # +20: sign leads map
+  assert dashboard_speed_limit_ms(40.0, 6, 25.0, 0) == pytest.approx(40 * MPH)
+  assert dashboard_speed_limit_ms(30.0, 10, 45.0, 0) == pytest.approx(30 * MPH)  # lower camera always wins
+  assert dashboard_speed_limit_ms(35.0, 1, 0.0, 0) == pytest.approx(35 * MPH)    # stray map 5: not trusted
+  assert dashboard_speed_limit_ms(80.0, 0, 0.0, 0) == pytest.approx(80 * MPH)    # no map: camera as before
+  assert dashboard_speed_limit_ms(0.0, 8, 35.0, 0) == pytest.approx(35 * MPH)    # no camera: map as before
+
+
+def test_dashboard_camera_far_above_map_metric():
+  kph = CV.KPH_TO_MS
+  assert dashboard_speed_limit_ms(130.0, 0, 50.0, 1) == pytest.approx(50 * kph)
+  assert dashboard_speed_limit_ms(80.0, 0, 50.0, 1) == pytest.approx(80 * kph)   # +30 km/h: unchanged
