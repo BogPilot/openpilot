@@ -88,6 +88,16 @@ The main branch includes the SLC / stalk cruise work, the milestone 4 longitudin
 
 A sister AP1 port built on sunnypilot lives on `BogPilot/sunnypilot` branch `sunny-tesla`. It has not been road-tested.
 
+## User Data and Accounts
+
+BogPilot does **not** register with comma servers and does **not** upload driving data to comma by default. Builds that strip registration and phone-home keep logs on the device only.
+
+Stock openpilot (upstream) uploads driving data to comma by default and offers [comma connect](https://connect.comma.ai/). That stock behavior does **not** apply to BogPilot no-registration builds. If you run a build that still includes comma services, those services follow [comma's Privacy Policy](https://comma.ai/privacy).
+
+openpilot is open source software. Users of stock openpilot can disable data collection if they wish. BogPilot's no-registration / no-upload trees go further: they do not call comma registration, athena, or the stock uploader.
+
+Lineage: BogPilot is a fork of openpilot (MIT, Comma.ai, Inc.) with FrogPilot lineage and Tesla support. Pre-AP signal reference values may come from an upstream legacy port (data values only). BogPilot is not a comma product and does not use the openpilot trademark as a product name for modified safety builds.
+
 ---
 
 <div align="center" style="text-align: center;">
