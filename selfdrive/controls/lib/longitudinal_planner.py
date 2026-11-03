@@ -185,7 +185,14 @@ class LongitudinalPlanner:
     # AP1-only: lower lead comfort brake (~regen-sized) via runtime x_obstacle
     # adjustment. Non-AP1 and toggle-off keep stock COMFORT_BRAKE. a_min unchanged.
     comfort_brake = ap1_comfort_brake(self.CP.carFingerprint)
-    self.mpc.update(v_cruise, sm['modelV2'], sm['radarState'], x, v, a, j, sm['frogpilotPlan'].tFollow, accel_clip[0], accel_clip[1], frogpilot_toggles, sm['frogpilotCarState'].trafficModeEnabled, personality=sm['controlsState'].personality, comfort_brake=comfort_brake)
+    # AP1: the no-throttle coast cap can be strongly negative uphill (get_coast_accel: about
+    # -0.8 m/s^2 at 5 deg). Handed to the MPC as accel_max for the whole 10 s horizon, it forces
+    # a plan that keeps braking at that rate through zero speed, so the plan stops "for free" and
+    # never asks for more braking behind a stopping lead until crash_cnt fires FCW. Give the MPC
+    # a max accel no lower than 0 so it can hold standstill; the coast cap still limits the
+    # output through accel_clip below.
+    mpc_accel_max = max(accel_clip[1], 0.0) if self.ap1_throttle_gate is not None else accel_clip[1]
+    self.mpc.update(v_cruise, sm['modelV2'], sm['radarState'], x, v, a, j, sm['frogpilotPlan'].tFollow, accel_clip[0], mpc_accel_max, frogpilot_toggles, sm['frogpilotCarState'].trafficModeEnabled, personality=sm['controlsState'].personality, comfort_brake=comfort_brake)
 
     self.a_desired_trajectory_full = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.a_solution)
     self.v_desired_trajectory = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.v_solution)
