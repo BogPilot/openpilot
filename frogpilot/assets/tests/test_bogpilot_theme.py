@@ -66,8 +66,18 @@ class TestBogPilotTheme(unittest.TestCase):
       self.assertFalse(path.is_symlink(), path)
     stock_colors = json.loads((STOCK_THEME_PATH / "colors" / "colors.json").read_text())
     self.assertEqual(json.loads((BOGPILOT_THEME_PATH / "colors" / "colors.json").read_text()), stock_colors)
-    for name in ("button_flag.png", "button_home.png", "button_settings.png"):
+    for name in ("button_flag.png", "button_settings.png"):
       self.assertEqual((BOGPILOT_THEME_PATH / "icons" / name).read_bytes(), (STOCK_THEME_PATH / "icons" / name).read_bytes())
+    # BogPilot offroad home button: outline road mark (not the stock comma logo)
+    COMMA_HOME_MD5 = "743c23c2c10c5eec202ff364a0f73d7a"
+    BOGPILOT_HOME_MD5 = "3145885d8706972f7a6985660942c210"
+    import hashlib
+    home_bytes = (BOGPILOT_THEME_PATH / "icons" / "button_home.png").read_bytes()
+    home_md5 = hashlib.md5(home_bytes).hexdigest()
+    self.assertEqual(home_md5, BOGPILOT_HOME_MD5)
+    self.assertNotEqual(home_md5, COMMA_HOME_MD5)
+    # stock_theme/icons is a symlink to selfdrive/assets/images; both carry the same BogPilot home icon
+    self.assertEqual(home_bytes, (STOCK_THEME_PATH / "icons" / "button_home.png").read_bytes())
     stock_sounds = sorted(f.name for f in (STOCK_THEME_PATH / "sounds").glob("*.wav"))
     self.assertEqual(sorted(f.name for f in (BOGPILOT_THEME_PATH / "sounds").iterdir()), stock_sounds)
     for name in stock_sounds:
