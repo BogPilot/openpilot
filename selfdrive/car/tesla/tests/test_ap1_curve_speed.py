@@ -3,7 +3,8 @@ import pytest
 
 from openpilot.selfdrive.car.tesla.curve_speed import (A_MIN, ACTUATOR_LAG_S, DEADBAND, DEADBAND_OFF, MIN_DISTANCE, MIN_ON_S,
                                                        ON_DEBOUNCE_S, ONSET_JERK, RELEASE_JERK, STRONG_REQUEST, TARGET_MARGIN,
-                                                       TESLA_CSC_MAX_LAT_ACCEL, TESLA_CURVE_LEAD_S, TeslaCurveBrake,
+                                                       TESLA_CSC_MAX_LAT_ACCEL, TESLA_CURVE_LEAD_S, TeslaCurveAhead, TeslaCurveBrake,
+                                                       CURVE_OFF_FRAMES, CURVE_ON_FRAMES,
                                                        curve_brake_request, curve_target_speed, landing_decel,
                                                        tesla_csc_lateral_accel, tesla_curve_brake_for)
 from openpilot.selfdrive.modeld.constants import ModelConstants
@@ -299,3 +300,34 @@ def test_braking_distance_floor():
 
 def test_release_jerk_back_to_original():
   assert RELEASE_JERK <= 1.2
+
+
+# --- "curve ahead" fast-on, slow-off ---
+
+def test_curve_ahead_turns_on_fast():
+  ca = TeslaCurveAhead()
+  out = [ca.update(True) for _ in range(CURVE_ON_FRAMES)]
+  assert out == [False] * (CURVE_ON_FRAMES - 1) + [True]
+  assert (CURVE_ON_FRAMES - 1) * DT <= 0.2
+
+
+def test_curve_ahead_ignores_single_frame_blips():
+  ca = TeslaCurveAhead()
+  assert not any(ca.update(x) for x in [True, False, True, True, False, True, False])
+
+
+def test_curve_ahead_holds_through_short_gaps():
+  ca = TeslaCurveAhead()
+  for _ in range(CURVE_ON_FRAMES):
+    ca.update(True)
+  flicker = [False, False, True, False, True, False, False, False, True] * 10
+  assert all(ca.update(x) for x in flicker)
+
+
+def test_curve_ahead_turns_off_after_about_one_second():
+  ca = TeslaCurveAhead()
+  for _ in range(CURVE_ON_FRAMES):
+    ca.update(True)
+  out = [ca.update(False) for _ in range(CURVE_OFF_FRAMES)]
+  assert all(out[:-1]) and not out[-1]
+  assert 0.9 <= CURVE_OFF_FRAMES * DT <= 1.1

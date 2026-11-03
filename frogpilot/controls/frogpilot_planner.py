@@ -8,6 +8,7 @@ from cereal import log
 from openpilot.common.conversions import Conversions as CV
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.common.realtime import DT_MDL
+from openpilot.selfdrive.car.tesla.curve_speed import TeslaCurveAhead
 from openpilot.selfdrive.controls.lib.drive_helpers import V_CRUISE_MAX
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import A_CHANGE_COST, DANGER_ZONE_COST, J_EGO_COST, STOP_DISTANCE
 
@@ -30,6 +31,7 @@ class FrogPilotPlanner:
     self.frogpilot_weather = WeatherChecker()
 
     self.tracking_lead_filter = FirstOrderFilter(0, 0.5, DT_MDL)
+    self.tesla_curve_ahead = TeslaCurveAhead()
 
     self.driving_in_curve = False
     self.lateral_check = False
@@ -105,7 +107,14 @@ class FrogPilotPlanner:
 
     self.road_curvature, self.time_to_curve = calculate_road_curvature(sm["modelV2"])
 
-    self.road_curvature_detected = (1 / abs(self.road_curvature))**0.5 < v_ego > CRUISING_SPEED and not (sm["carState"].leftBlinker or sm["carState"].rightBlinker)
+    blinker = sm["carState"].leftBlinker or sm["carState"].rightBlinker
+    curve_raw = (1 / abs(self.road_curvature))**0.5 < v_ego > CRUISING_SPEED
+    if frogpilot_toggles.car_make == "tesla":
+      # Tesla: fast-on, slow-off debounce so CSC does not flicker near the threshold.
+      # A blinker still turns it off at once.
+      self.road_curvature_detected = self.tesla_curve_ahead.update(curve_raw) and not blinker
+    else:
+      self.road_curvature_detected = curve_raw and not blinker
 
     if not sm["carState"].standstill:
       self.tracking_lead = self.update_lead_status()

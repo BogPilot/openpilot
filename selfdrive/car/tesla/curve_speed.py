@@ -170,6 +170,33 @@ class TeslaCurveBrake:
     return self.a_request
 
 
+CURVE_ON_FRAMES = 3            # model frames (50 ms) the raw "curve ahead" test must hold to turn on (~0.1 s)
+CURVE_OFF_FRAMES = 20          # model frames it must be false in a row to turn off (~1 s)
+
+
+class TeslaCurveAhead:
+  """Fast-on, slow-off debounce for FrogPilot's "curve ahead" flag (it switches CSC on and off).
+
+  The raw test (|curvature| * v^2 > 1 m/s^2) has no hysteresis. Near the threshold it flips every
+  few frames, and each CSC re-entry seeds the CSC target at vEgo, which ramps max accel to 0 for a
+  frame. Turning on after CURVE_ON_FRAMES keeps curve entry quick; holding through short false
+  gaps until CURVE_OFF_FRAMES stops the flicker."""
+
+  def __init__(self):
+    self.active = False
+    self.on_count = 0
+    self.off_count = 0
+
+  def update(self, curve_raw: bool) -> bool:
+    self.on_count = self.on_count + 1 if curve_raw else 0
+    self.off_count = 0 if curve_raw else self.off_count + 1
+    if self.active:
+      self.active = self.off_count < CURVE_OFF_FRAMES
+    else:
+      self.active = self.on_count >= CURVE_ON_FRAMES
+    return self.active
+
+
 def tesla_curve_brake_for(car_name, dt: float = 0.05):
   """TeslaCurveBrake for Tesla, None for every other car."""
   return TeslaCurveBrake(dt) if str(car_name) == "tesla" else None
