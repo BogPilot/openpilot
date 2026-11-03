@@ -1,15 +1,15 @@
-Version 0.9.7 (2024-06-13)
+BogPilot (openpilot 0.9.7)
 ========================
-* New driving model
-  * Inputs the past curvature for smoother and more accurate lateral control
-  * Simplified neural network architecture in the model's last layers
-  * Minor fixes to desire augmentation and weight decay
-* New driver monitoring model
-  * Improved end-to-end bit for phone detection
-* Adjust driving personality with the follow distance button
-* Support for hybrid variants of supported Ford models
-* Fingerprinting without the OBD-II port on all cars
-* Improved fuzzy fingerprinting for Ford and Volkswagen
+* Tesla AP1 instrument cluster discovery work (lanes on the IC, stalk tip rounding)
+* Detected leads now stick to your path in curves instead of sliding wildly past the lines on the dash
+* BogPilot road logo on the offroad home button
+* UI binary rebuilt with the detected lead fix baked in
+* Brand polish: UI references updated consistently to BogPilot, and the error log and fingerprint help point to BogPilot's GitHub
+* "Bog to the Future" blind spot flame tracks (display only, on by default)
+* Offroad BogPilot logo screensaver
+* Drive stats card that survives a flaky network
+* The Bog: the device web page, now in BogPilot greys with the BogPilot emblem
+* Confidence ball, blind spot path, and the rest of the swamp-tested AP1 UI toys
 
 Version 0.9.6 (2024-02-27)
 ========================
