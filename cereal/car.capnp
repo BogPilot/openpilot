@@ -613,6 +613,7 @@ struct CarParams {
     volkswagenMqbEvo @29;
     chryslerCusw @30;
     psa @31;
+    teslaPreap @32;  # BogPilot Pre-AP (NotAutopilot-sourced); leaves tesla @10 = AP1/Raven
   }
 
   enum SteerControlType {

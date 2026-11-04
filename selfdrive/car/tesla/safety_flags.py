@@ -54,12 +54,29 @@ def flags_for_candidate(candidate, fingerprint, standstill=False):
   return (flags,)
 
 
+# Pre-AP only. Used with SafetyModel.teslaPreap — never OR'd into SAFETY_TESLA.
+PREAP_FLAG_ENABLE_PEDAL = Panda.FLAG_TESLA_PREAP_ENABLE_PEDAL
+PREAP_FLAG_RADAR_EMULATION = Panda.FLAG_TESLA_PREAP_RADAR_EMULATION
+PREAP_FLAG_RADAR_BEHIND_NOSECONE = Panda.FLAG_TESLA_PREAP_RADAR_BEHIND_NOSECONE
+
+
+def flags_for_preap(*, enable_pedal: bool = True, radar: bool = False, radar_behind_nosecone: bool = False) -> int:
+  """Safety param for SAFETY_TESLA_PREAP. Default pedal on; radar reserved/off."""
+  flags = 0
+  if enable_pedal:
+    flags |= PREAP_FLAG_ENABLE_PEDAL
+  if radar:
+    flags |= PREAP_FLAG_RADAR_EMULATION
+  if radar_behind_nosecone:
+    flags |= PREAP_FLAG_RADAR_BEHIND_NOSECONE
+  return flags
+
+
 def dashcam_only_for_candidate(candidate):
-  """True unless the candidate is CAR.TESLA_AP1_MODELS.
+  """True unless the candidate is AP1 or opt-in Pre-AP.
 
   AP1 is an explicit user exception for the Mobileye chassis port, not a
-  Model 3 change. AP2, Raven, and every other candidate stay dashcam-only.
-  This does not by itself set openpilotLongitudinalControl. AP1 chassis long
-  is the interface param, and it does not require 0x2bf.
+  Model 3 change. Pre-AP is CAR.TESLA_PREAP_MODELS only (never auto from AP1
+  chassis addrs). AP2, Raven, and every other candidate stay dashcam-only.
   """
-  return candidate != CAR.TESLA_AP1_MODELS
+  return candidate not in (CAR.TESLA_AP1_MODELS, CAR.TESLA_PREAP_MODELS)

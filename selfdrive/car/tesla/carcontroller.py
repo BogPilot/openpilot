@@ -24,12 +24,19 @@ from openpilot.selfdrive.car.tesla.slc_raise import cruise_set_mph
 from openpilot.selfdrive.car.tesla.toggles import enable_ic_integration
 from panda import Panda
 from openpilot.selfdrive.car.tesla.values import DBC, CANBUS, CAR
+from openpilot.selfdrive.car.tesla.preap.carcontroller import PreApCarController
 
 VisualAlert = car.CarControl.HUDControl.VisualAlert
 AudibleAlert = car.CarControl.HUDControl.AudibleAlert
 
 
 class CarController(CarControllerBase):
+  def __new__(cls, dbc_name, CP, VM):
+    # Pre-AP uses a separate controller so AP1 paths below stay untouched.
+    if getattr(CP, "carFingerprint", None) == CAR.TESLA_PREAP_MODELS:
+      return PreApCarController(dbc_name, CP, VM)
+    return super().__new__(cls)
+
   def __init__(self, dbc_name, CP, VM):
     self.CP = CP
     self.frame = 0

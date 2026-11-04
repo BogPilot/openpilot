@@ -2,7 +2,7 @@
 from cereal import car
 from openpilot.selfdrive.car.tesla.hso import ap1_hso_event_names, ap1_steering_pressed
 from openpilot.selfdrive.car.tesla.toggles import ap1_standstill_engage
-from openpilot.selfdrive.car.tesla.safety_flags import dashcam_only_for_candidate, flags_for_candidate
+from openpilot.selfdrive.car.tesla.safety_flags import dashcam_only_for_candidate, flags_for_candidate, flags_for_preap
 from openpilot.selfdrive.car.tesla.values import CANBUS, CAR
 from openpilot.selfdrive.car import get_safety_config
 from openpilot.selfdrive.car.interfaces import CarInterfaceBase
@@ -24,6 +24,22 @@ class CarInterface(CarInterfaceBase):
 
     ret.longitudinalActuatorDelay = 0.5 # s
     ret.radarTimeStep = (1.0 / 8) # 8Hz
+
+    # Pre-AP (NotAutopilot-sourced): separate SafetyModel.teslaPreap. Never uses
+    # SAFETY_TESLA / AP1 flags. Pedal longitudinal default on; radar GTW off until
+    # a BogPilot panda rx_all path exists.
+    if candidate == CAR.TESLA_PREAP_MODELS:
+      enable_pedal = not getattr(frogpilot_toggles, "disable_openpilot_long", True)
+      ret.openpilotLongitudinalControl = enable_pedal
+      ret.pcmCruise = not enable_pedal
+      ret.safetyConfigs = [
+        get_safety_config(car.CarParams.SafetyModel.teslaPreap, flags_for_preap(enable_pedal=enable_pedal)),
+      ]
+      ret.enableBsm = False
+      ret.steerLimitTimer = 0.4
+      ret.steerActuatorDelay = 0.1
+      ret.longitudinalActuatorDelay = 0.4
+      return ret
 
     # 0x2bf on the auxiliary powertrain bus is the second-panda Model 3/Y harness.
     # AP1 does not need that frame. flags_for_candidate sets AP1|LONG (10) for

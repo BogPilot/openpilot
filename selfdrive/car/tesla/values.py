@@ -26,6 +26,13 @@ class CAR(Platforms):
     TESLA_AP1_MODELS.specs,
     dbc_dict('tesla_powertrain', 'tesla_radar_continental_generated', chassis_dbc='tesla_can')
   )
+  # Pre-AP Model S (2012-mid 2014 HW). Opt-in fingerprint only; never auto-matched
+  # from AP1 chassis addrs. Pedal longitudinal gated in interface + SAFETY_TESLA_PREAP.
+  TESLA_PREAP_MODELS = PlatformConfig(
+    [CarDocs("Tesla Pre-AP Model S", "All")],
+    TESLA_AP1_MODELS.specs,
+    TESLA_AP1_MODELS.dbc_dict
+  )
 
 class TeslaPlatform(StrEnum):
   """Early-Tesla platforms. Recognition only; actuation is a later layer.

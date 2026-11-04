@@ -89,7 +89,8 @@ def test_active_lateral_is_unchanged_when_engaged():
 
 
 def test_no_friction_brake_or_ibooster_apply():
-  assert long_control_allowed(TeslaPlatform.preap) is False
+  # Pre-AP long is pedal-interceptor gated (TESLA_PREAP_MODELS), not friction/iBooster.
+  assert long_control_allowed(TeslaPlatform.preap) is True
   packed = set()
   for name in ("carcontroller.py", "teslacan.py", "actuator_plan.py"):
     text = (TESLA / name).read_text()

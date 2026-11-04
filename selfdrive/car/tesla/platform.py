@@ -12,6 +12,7 @@ from openpilot.selfdrive.car.tesla.values import CANBUS, CAR, TeslaPlatform
 _PRODUCTION = {
   CAR.TESLA_AP1_MODELS: TeslaPlatform.ap1_s,
   CAR.TESLA_AP2_MODELS: TeslaPlatform.ap2,
+  CAR.TESLA_PREAP_MODELS: TeslaPlatform.preap,
 }
 
 _FIXTURE_ONLY = (TeslaPlatform.preap, TeslaPlatform.ap1_x)
@@ -106,15 +107,14 @@ def classify_tesla_platform(fingerprint) -> TeslaPlatform | None:
 
 
 def long_control_allowed(platform: TeslaPlatform | None) -> bool:
-  """Whether longitudinal commands are allowed.
+  """Whether longitudinal commands are allowed at the recognition layer.
 
-  False for None. False for every TeslaPlatform, including ap1_s. This layer
-  only recognizes. Longitudinal stays refused until a later layer adds a panda
-  safety mode. Do not engage long from this helper.
+  True only for TeslaPlatform.preap (Comma Pedal path under SAFETY_TESLA_PREAP).
+  False for None, ap1_s, ap1_x, ap2. AP1 longitudinal is decided in interface.py
+  via openpilotLongitudinalControl + SAFETY_TESLA flags, not here. Pre-AP still
+  requires the interface to select teslaPreap safety with ENABLE_PEDAL.
   """
-  if platform is None or isinstance(platform, TeslaPlatform):
-    return False
-  return False
+  return platform == TeslaPlatform.preap
 
 
 def _integer_addrs(container) -> frozenset[int] | None:

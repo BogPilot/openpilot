@@ -55,7 +55,8 @@ def test_ap1_model_s_does_not_select_preap_or_ap1_x():
 def test_preap_and_ap1_x_only_from_explicit_fixture():
   assert classify_tesla_platform(EarlyPlatformFixture(TeslaPlatform.preap)) == TeslaPlatform.preap
   assert classify_tesla_platform(EarlyPlatformFixture(TeslaPlatform.ap1_x)) == TeslaPlatform.ap1_x
-  assert long_control_allowed(TeslaPlatform.preap) is False
+  # Pre-AP recognition layer allows long (Comma Pedal + SAFETY_TESLA_PREAP).
+  assert long_control_allowed(TeslaPlatform.preap) is True
   assert long_control_allowed(TeslaPlatform.ap1_x) is False
   try:
     EarlyPlatformFixture(TeslaPlatform.ap1_s)
@@ -65,9 +66,12 @@ def test_preap_and_ap1_x_only_from_explicit_fixture():
   assert raised
 
 
-def test_long_refused_for_every_platform():
+def test_long_refused_except_preap():
   for platform in TeslaPlatform:
-    assert long_control_allowed(platform) is False
+    if platform == TeslaPlatform.preap:
+      assert long_control_allowed(platform) is True
+    else:
+      assert long_control_allowed(platform) is False
 
 def test_honda_civic_is_not_an_early_tesla_platform():
   # Honda CAR imports in this environment. A non-Tesla platform id must not
