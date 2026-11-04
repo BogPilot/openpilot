@@ -393,7 +393,7 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("HideSpeed", "0", 2, "0"),
   ("HideSpeedLimit", "0", 2, "0"),
   ("HigherBitrate", "0", 2, "0"),
-  ("HolidayThemes", "1", 0, "0"),
+  ("HolidayThemes", "0", 0, "0"),
   ("HondaAltTune", "0", 2, "0"),
   ("HondaLowSpeedPedal", "0", 2, "0"),
   ("HondaMaxBrake", "0", 2, "0"),
@@ -454,7 +454,7 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("NNFF", "1", 2, "0"),
   ("NNFFLite", "0", 2, "0"),
   ("NoLogging", "0", 2, "0"),
-  ("NoUploads", "0", 2, "0"),
+  ("NoUploads", "0", 4, "0"),  # BogPilot: hidden; uploader disabled
   ("NudgelessLaneChange", "1", 0, "0"),
   ("NumericalTemp", "1", 3, "0"),
   ("Offset1", "5", 0, "0"),
@@ -593,14 +593,14 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("ThemesDownloaded", "", 0, ""),
   ("ToyotaDoors", "1", 0, "0"),
   ("ToyotaDSUBypass", "0", 2, "0"),
-  ("TuningLevel", "0", 0, "0"),
-  ("TuningLevelConfirmed", "0", 0, "0"),
+  ("TuningLevel", "3", 0, "0"),  # BogPilot: Developer by default
+  ("TuningLevelConfirmed", "1", 0, "0"),  # skip first-open Minimal popup
   ("TurnDesires", "0", 2, "0"),
   ("UnlimitedLength", "1", 2, "0"),
   ("UnlockDoors", "1", 0, "0"),
   ("UpdatedToggles", "1", 0, "0"),
   ("UpdaterAvailableBranches", "", 0, ""),
-  ("UseKonikServer", "0", 2, "0"),
+  ("UseKonikServer", "0", 4, "0"),  # BogPilot: hidden; no Konik phone-home
   ("UseSI", "1", 3, "1"),
   ("UseVienna", "0", 1, "0"),
   ("VEgoStarting", "", 3, ""),

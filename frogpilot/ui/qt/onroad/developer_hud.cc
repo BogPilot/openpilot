@@ -80,9 +80,9 @@ QString num(double v, int decimals) {
 
 }  // namespace
 
-bool developerHudFileEnabled(const QString &path) {
+bool developerHudFileEnabled(const QString &path, bool absent_default) {
   QFile f(path);
-  if (!f.open(QIODevice::ReadOnly)) return false;
+  if (!f.open(QIODevice::ReadOnly)) return absent_default;
   const QString text = QString::fromUtf8(f.read(16)).trimmed().toLower();
   return text == "1" || text == "true" || text == "on";
 }

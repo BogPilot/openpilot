@@ -12,10 +12,10 @@
 // shows the screensaver). An explicit "0" written by the settings switch keeps it off.
 // July's prebuilt params_pyx.so rejects new Params keys, so this is not a Params key.
 //
-// Pending uploads bounce the same realdata speed (Mbps) and PENDING backlog the offroad
-// upload card shows (frogpilot/ui/qt/onroad/upload_rate.h, read by selfdrive/ui/qt/widgets/wifi.cc).
-// When that card would say "Up to date", the bounce switches to the BogPilot GitHub mark
-// (frogpilot/assets/bogpilot_theme/logo.png) with those words.
+// Default face: BogPilot logo only (no UPLOAD/Mbps/PENDING/"Up to date").
+// Upload bounce (Mbps + PENDING, or logo + "Up to date" when caught up) is opt-in via
+// /data/params_bogpilot/ShowUploadRate (missing = off). Same sample as the offroad upload card
+// (frogpilot/ui/qt/onroad/upload_rate.h / wifi.cc).
 
 namespace bogpilot_screensaver {
 constexpr const char TOGGLE_KEY[] = "OffroadScreensaver";

@@ -182,8 +182,8 @@ FrogPilotVisualsPanel::FrogPilotVisualsPanel(FrogPilotSettingsWindow *parent) : 
       });
       visualToggle = developerHudToggle;
     } else if (param == "SwapSpeedGraph") {
-      // File-backed (/data/params_bogpilot/SwapSpeedGraph), same reader/writer as DeveloperHUD. Absent file = off.
-      ToggleControl *swapToggle = new ToggleControl(title, desc, icon, developerHudFileEnabled(bogpilot::SWAP_SPEED_GRAPH_PATH));
+      // File-backed (/data/params_bogpilot/SwapSpeedGraph). Absent file = ON (speed below accel graph).
+      ToggleControl *swapToggle = new ToggleControl(title, desc, icon, developerHudFileEnabled(bogpilot::SWAP_SPEED_GRAPH_PATH, true));
       QObject::connect(swapToggle, &ToggleControl::toggleFlipped, [](bool state) {
         setDeveloperHudFileEnabled(state, bogpilot::SWAP_SPEED_GRAPH_PATH);
       });

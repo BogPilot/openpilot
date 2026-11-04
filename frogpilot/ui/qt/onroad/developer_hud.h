@@ -39,7 +39,7 @@ substitutes and the Qt painting code are BogPilot's own.
 // "1", "true" or "on" in this file turns the HUD on. Absent or anything else: off.
 const char DEVELOPER_HUD_PATH[] = "/data/params_bogpilot/DeveloperHUD";
 
-bool developerHudFileEnabled(const QString &path = DEVELOPER_HUD_PATH);
+bool developerHudFileEnabled(const QString &path = DEVELOPER_HUD_PATH, bool absent_default = false);
 bool setDeveloperHudFileEnabled(bool enabled, const QString &path = DEVELOPER_HUD_PATH);
 
 struct DeveloperHudInputs {

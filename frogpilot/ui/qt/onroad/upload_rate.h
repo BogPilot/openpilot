@@ -8,7 +8,8 @@
 // v3.2 appends the upload backlog: <pending bytes> <pending segments> <trend B/min | -> <scan epoch>
 // A 5-field (v3.1) line shows only the speed; the PENDING block appears once the extra fields are there.
 // The UI reads it from a 1 Hz timer (never from paint). Shown with '—' when older than 10 s, hidden after 60 s.
-// Switch: /data/params_bogpilot/ShowUploadRate. No file = on; "0"/"false"/"off" = off. Re-read every 2 s.
+// Switch: /data/params_bogpilot/ShowUploadRate. No file = off; "1"/"true"/"on" = on. Re-read every 2 s.
+// BogPilot: upload Mbps/PENDING is opt-in (screensaver + onroad + wifi card).
 // The same switch controls the PENDING block (left of the speed, right of it with a right-hand-drive DM).
 // Drawn last in paintFrogPilotWidgets with no background fill (outlined text only) so the blind-spot lane fill
 // stays visible underneath. Bottom-right corner, bottom-left with a right-hand-drive DM.
@@ -54,12 +55,12 @@ struct Sample {
   double trend = 0;                    // backlog change, B/min (< 0 = draining)
 };
 
-// Missing file = on, same rule as the other default-on /data/params_bogpilot switches
+// Missing file = off (upload readout opt-in). Explicit "1"/"true"/"on" enables it.
 inline bool toggleEnabled(const QString &path = TOGGLE_PATH) {
   QFile f(path);
-  if (!f.open(QIODevice::ReadOnly)) return true;
+  if (!f.open(QIODevice::ReadOnly)) return false;
   const QByteArray t = f.read(16).trimmed().toLower();
-  return !(t == "0" || t == "false" || t == "off");
+  return t == "1" || t == "true" || t == "on";
 }
 
 // "<epoch> <total> <w1> <w2> <iface>"; w1/w2 may be "-" when that worker is idle

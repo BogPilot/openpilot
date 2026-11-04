@@ -72,13 +72,13 @@ constexpr int PILL_LABEL_SPACE = 40;    // title row above the pill
 constexpr int HUD_W = 400;              // developer HUD 1670..2070 x 560..990 (screen 1700..2100 x 590..1020)
 constexpr int HUD_H = 430;
 
-// SwapSpeedGraph (file-backed /data/params_bogpilot/SwapSpeedGraph): accel graph on top (y 24..264), speed row below it
+// SwapSpeedGraph (file-backed /data/params_bogpilot/SwapSpeedGraph, absent=ON): accel graph on top (y 24..264), speed row below it
 // (y 292..468). The stack keeps the same 24..468 footprint, so everything hung below it stays put.
 constexpr int STACK_BOTTOM = GRAPH_TOP + GRAPH_HEIGHT;                // 468 in both orders
 constexpr int SWAP_GRAPH_TOP = SPEED_ROW_TOP;                          // 24
 constexpr int SWAP_SPEED_ROW_TOP = STACK_BOTTOM - SPEED_ROW_HEIGHT;    // 292
 const char SWAP_SPEED_GRAPH_PATH[] = "/data/params_bogpilot/SwapSpeedGraph";
-inline bool &swapSpeedGraph() { static bool on = false; return on; }   // refreshed by the onroad widget every 2 s
+inline bool &swapSpeedGraph() { static bool on = true; return on; }   // absent file = on; refreshed every 2 s
 inline int speedRowTop() { return swapSpeedGraph() ? SWAP_SPEED_ROW_TOP : SPEED_ROW_TOP; }
 inline int graphTop() { return swapSpeedGraph() ? SWAP_GRAPH_TOP : GRAPH_TOP; }
 

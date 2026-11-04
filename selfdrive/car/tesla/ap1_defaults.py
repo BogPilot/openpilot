@@ -187,7 +187,8 @@ AP1_PARAM_PROFILE: dict[str, str] = {
 
 # Recommended /data/params_bogpilot file toggles (written only when the file is absent).
 AP1_FILE_TOGGLE_PROFILE: dict[str, str] = {
-  "DeveloperHUD": "1",                   # Developer HUD on (default off)
+  # DeveloperHUD intentionally omitted: absent file = OFF (Bardo default).
+  "SwapSpeedGraph": "1",                 # speed row below accel graph (Bardo default ON)
 }
 
 

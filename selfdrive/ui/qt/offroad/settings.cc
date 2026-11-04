@@ -487,43 +487,14 @@ SettingsWindow::SettingsWindow(QWidget *parent) : QFrame(parent) {
         bool tuningLevelConfirmed = params.getBool("TuningLevelConfirmed");
 
         if (!tuningLevelConfirmed) {
-          int frogpilotHours = QJsonDocument::fromJson(QString::fromStdString(params.get("FrogPilotStats")).toUtf8()).object().value("FrogPilotSeconds").toInt() / (60 * 60);
-          int openpilotHours = params.getInt("KonikMinutes") / 60 + params.getInt("openpilotMinutes") / 60;
-
-          if (frogpilotHours < 1 && openpilotHours < 100) {
-            if (openpilotHours < 10) {
-              if (ConfirmationDialog::alert(tr("Welcome to BogPilot! Since you're new to openpilot, the \"Minimal\" toggle preset has been applied, but you can change this at any time via the \"Tuning Level\" button!"), this, true)) {
-                params.putBool("TuningLevelConfirmed", true);
-                params.putInt("TuningLevel", 0);
-              }
-            } else {
-              if (ConfirmationDialog::alert(tr("Welcome to BogPilot! Since you're new to BogPilot, the \"Minimal\" toggle preset has been applied, but you can change this at any time via the \"Tuning Level\" button!"), this, true)) {
-                params.putBool("TuningLevelConfirmed", true);
-                params.putInt("TuningLevel", 0);
-              }
-            }
-          } else if (frogpilotHours < 50 && openpilotHours < 100) {
-            if (ConfirmationDialog::alert(tr("Since you're fairly new to BogPilot, the \"Minimal\" toggle preset has been applied, but you can change this at any time via the \"Tuning Level\" button!"), this, true)) {
-              params.putBool("TuningLevelConfirmed", true);
-              params.putInt("TuningLevel", 0);
-            }
-          } else if (frogpilotHours < 100) {
-            if (openpilotHours >= 100) {
-              if (ConfirmationDialog::alert(tr("Since you're experienced with openpilot, the \"Standard\" toggle preset has been applied, but you can change this at any time via the \"Tuning Level\" button!"), this, true)) {
-                params.putBool("TuningLevelConfirmed", true);
-                params.putInt("TuningLevel", 1);
-              }
-            } else {
-              if (ConfirmationDialog::alert(tr("Since you're experienced with BogPilot, the \"Standard\" toggle preset has been applied, but you can change this at any time via the \"Tuning Level\" button!"), this, true)) {
-                params.putBool("TuningLevelConfirmed", true);
-                params.putInt("TuningLevel", 1);
-              }
-            }
-          } else if (frogpilotHours >= 100) {
-            if (ConfirmationDialog::alert(tr("Since you're very experienced with BogPilot, the \"Advanced\" toggle preset has been applied, but you can change this at any time via the \"Tuning Level\" button!"), this, true)) {
-              params.putBool("TuningLevelConfirmed", true);
-              params.putInt("TuningLevel", 2);
-            }
+          // BogPilot: first-open keeps Developer (3). Do not write Minimal on accept.
+          if (ConfirmationDialog::alert(tr("Welcome to BogPilot! The \"Developer\" toggle preset has been applied so all settings are available. You can change this at any time via the \"Tuning Level\" button!"), this, true)) {
+            params.putBool("TuningLevelConfirmed", true);
+            params.putInt("TuningLevel", 3);
+          } else {
+            // Dismiss still confirms Developer — never fall back to Minimal.
+            params.putBool("TuningLevelConfirmed", true);
+            params.putInt("TuningLevel", 3);
           }
           updateTuningLevel();
         }

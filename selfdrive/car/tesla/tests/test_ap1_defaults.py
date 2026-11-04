@@ -176,7 +176,7 @@ def test_no_denied_or_private_key_in_profile():
 def test_file_toggles_are_known_bogpilot_files():
   assert set(ap1.AP1_FILE_TOGGLE_PROFILE) <= set(ap1.FILE_TOGGLE_KEYS)
   assert ap1.MARKER_NAME not in ap1.FILE_TOGGLE_KEYS
-  assert ap1.AP1_FILE_TOGGLE_PROFILE == {"DeveloperHUD": "1"}
+  assert ap1.AP1_FILE_TOGGLE_PROFILE == {"SwapSpeedGraph": "1"}
 
 
 def test_standing_preferences():
@@ -203,7 +203,7 @@ def test_only_fires_for_ap1(env, car_model):
   assert run(params, bp_dir) == []
   assert not ap1.marker_path(bp_dir).exists()
   assert not ap1.theme_marker_path(bp_dir).exists()
-  assert not (bp_dir / "DeveloperHUD").exists()
+  assert not (bp_dir / "SwapSpeedGraph").exists()
   for key in ap1.AP1_PARAM_PROFILE:
     assert params.get(key, encoding="utf-8") == TABLE[key]
 
@@ -220,7 +220,8 @@ def test_applies_on_fresh_ap1(env):
   assert params.get_bool("FrogPilotTelemetry") is False
   for key in ap1.THEME_KEYS:
     assert params.get(key, encoding="utf-8") == BOGPILOT_THEME
-  assert (bp_dir / "DeveloperHUD").read_text() == "1"
+  assert (bp_dir / "SwapSpeedGraph").read_text() == "1"
+  assert not (bp_dir / "DeveloperHUD").exists()
   assert ap1.marker_path(bp_dir).exists()
   assert ap1.theme_marker_path(bp_dir).exists()
   assert params.get("CarModel", encoding="utf-8") == ap1.AP1_CAR_MODEL
@@ -242,13 +243,13 @@ def test_never_overwrites_owner_changes(env):
   params.put("CustomColors", "frog")
   params.put("DisengageVolume", "80")
   bp_dir.mkdir(parents=True)
-  (bp_dir / "DeveloperHUD").write_text("0")
+  (bp_dir / "SwapSpeedGraph").write_text("0")
   written = run(params, bp_dir)
-  assert "RelaxedFollow" not in written and "CustomColors" not in written and "DeveloperHUD" not in written
+  assert "RelaxedFollow" not in written and "CustomColors" not in written and "SwapSpeedGraph" not in written
   assert params.get("RelaxedFollow", encoding="utf-8") == "1.5"
   assert params.get("CustomColors", encoding="utf-8") == "frog"
   assert params.get("DisengageVolume", encoding="utf-8") == "80"
-  assert (bp_dir / "DeveloperHUD").read_text() == "0"
+  assert (bp_dir / "SwapSpeedGraph").read_text() == "0"
   # untouched keys still got the profile
   assert params.get("LeadInfo", encoding="utf-8") == "0"
 
@@ -309,10 +310,10 @@ def test_runs_once(env):
   params.put("CarModel", ap1.AP1_CAR_MODEL)
   assert run(params, bp_dir)
   params.put("LeadInfo", TABLE["LeadInfo"])  # owner turns it back on
-  (bp_dir / "DeveloperHUD").unlink()
+  (bp_dir / "SwapSpeedGraph").unlink()
   assert run(params, bp_dir) == []
   assert params.get("LeadInfo", encoding="utf-8") == TABLE["LeadInfo"]
-  assert not (bp_dir / "DeveloperHUD").exists()
+  assert not (bp_dir / "SwapSpeedGraph").exists()
 
 
 def test_reset_clears_marker_and_reapplies(env):

@@ -174,7 +174,7 @@ void FrogPilotAnnotatedCameraWidget::updateState(const FrogPilotUIState &fs, con
   // BogPilot developer HUD: file-backed toggle, re-read every 2 s
   if (developerHudCheckFrame-- <= 0) {
     developerHudEnabled = developerHudFileEnabled();
-    bogpilot::swapSpeedGraph() = developerHudFileEnabled(bogpilot::SWAP_SPEED_GRAPH_PATH);  // same "1"/"true"/"on" parser
+    bogpilot::swapSpeedGraph() = developerHudFileEnabled(bogpilot::SWAP_SPEED_GRAPH_PATH, true);  // absent = ON
 #if BOGPILOT_UPLOAD_RATE
     uploadRateEnabled = bogpilot_uprate::toggleEnabled();
 #endif
