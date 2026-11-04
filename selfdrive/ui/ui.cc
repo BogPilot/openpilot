@@ -48,65 +48,12 @@ int get_path_length_idx(const cereal::XYZTData::Reader &line, const float path_h
   return max_idx;
 }
 
-// Interpolate model path y/z at dRel (clamps to path ends). Model y is left-positive.
-static bool path_yz_at(const cereal::XYZTData::Reader &line, float d_rel, float *y_out, float *z_out) {
-  const auto line_x = line.getX();
-  const auto line_y = line.getY();
-  const auto line_z = line.getZ();
-  const int n = line_x.size();
-  if (n < 1 || line_y.size() < n || line_z.size() < n) {
-    return false;
-  }
-  if (d_rel <= line_x[0]) {
-    *y_out = line_y[0];
-    *z_out = line_z[0];
-    return true;
-  }
-  if (d_rel >= line_x[n - 1]) {
-    *y_out = line_y[n - 1];
-    *z_out = line_z[n - 1];
-    return true;
-  }
-  for (int i = 0; i < n - 1; ++i) {
-    if (line_x[i] <= d_rel && d_rel <= line_x[i + 1]) {
-      const float den = line_x[i + 1] - line_x[i];
-      const float a = (den > 1e-6f) ? ((d_rel - line_x[i]) / den) : 0.0f;
-      *y_out = line_y[i] + a * (line_y[i + 1] - line_y[i]);
-      *z_out = line_z[i] + a * (line_z[i + 1] - line_z[i]);
-      return true;
-    }
-  }
-  return false;
-}
-
-// Lateral paint (model/car frame, left-positive). Radar yRel is ego-frame right-positive,
-// so the legacy paint lateral is -yRel. On bends, radar yRel usually already tracks
-// -path_y; unconditional path_y-yRel would double-count and push markers off the car.
-// When radar and path disagree (|yRel + path_y| large while the path is bent), snap the
-// in-path lead marker onto the path so it follows the lane. Short/missing path → legacy.
-static constexpr float kLeadPathDisagreeY = 1.5f;      // meters
-static constexpr float kLeadPathDisagreePath = 1.0f;   // meters
-
-static float lead_paint_y(float y_rel, bool have_path, float path_y) {
-  if (have_path && std::fabs(y_rel + path_y) > kLeadPathDisagreeY &&
-      std::fabs(path_y) > kLeadPathDisagreePath) {
-    return path_y;
-  }
-  return -y_rel;
-}
-
 void update_leads(UIState *s, const cereal::RadarState::Reader &radar_state, const cereal::XYZTData::Reader &line) {
   for (int i = 0; i < 2; ++i) {
     const auto &lead_data = (i == 0) ? radar_state.getLeadOne() : radar_state.getLeadTwo();
     if (lead_data.getStatus()) {
-      const float d_rel = lead_data.getDRel();
-      const float y_rel = lead_data.getYRel();
-      float path_y = 0.0f;
-      float path_z = 0.0f;
-      const bool have_path = path_yz_at(line, d_rel, &path_y, &path_z);
-      const float z = have_path ? path_z : line.getZ()[get_path_length_idx(line, d_rel)];
-      const float y = lead_paint_y(y_rel, have_path, path_y);
-      calib_frame_to_full_frame(s, d_rel, y, z + 1.22, &s->scene.lead_vertices[i]);
+      float z = line.getZ()[get_path_length_idx(line, lead_data.getDRel())];
+      calib_frame_to_full_frame(s, lead_data.getDRel(), -lead_data.getYRel(), z + 1.22, &s->scene.lead_vertices[i]);
     }
   }
 }
@@ -115,16 +62,8 @@ void update_leads_frogpilot(UIState *s, FrogPilotUIState *fs, const cereal::Frog
   for (int i = 0; i < 2; ++i) {
     auto lead_data = (i == 0) ? frogpilot_radar_state.getLeadLeft() : frogpilot_radar_state.getLeadRight();
     if (lead_data.getStatus()) {
-      const float d_rel = lead_data.getDRel();
-      const float y_rel = lead_data.getYRel();
-      float path_y = 0.0f;
-      float path_z = 0.0f;
-      const bool have_path = path_yz_at(line, d_rel, &path_y, &path_z);
-      // Adjacent leads keep radar lateral (not snapped onto the ego path).
-      const float y = -y_rel;
-      const float z = have_path ? path_z : line.getZ()[get_path_length_idx(line, d_rel)];
-      (void)path_y;
-      calib_frame_to_full_frame(s, d_rel, y, z + 1.22, &fs->frogpilot_scene.lead_vertices[i]);
+      float z = line.getZ()[get_path_length_idx(line, lead_data.getDRel())];
+      calib_frame_to_full_frame(s, lead_data.getDRel(), -lead_data.getYRel(), z + 1.22, &fs->frogpilot_scene.lead_vertices[i]);
     }
   }
 }
@@ -145,16 +84,10 @@ void update_radar_tracks(capnp::List<cereal::LiveTracks>::Reader &tracks_msg, ce
 
     float dRel = track_msg.getDRel();
     float yRel = track_msg.getYRel();
-    float path_y = 0.0f;
-    float path_z = 0.0f;
-    const bool have_path = path_yz_at(line, dRel, &path_y, &path_z);
-    const float z = have_path ? path_z : line.getZ()[get_path_length_idx(line, dRel)];
-    // Live radar-track dots: legacy lateral (not in-path lead markers).
-    const float y = -yRel;
-    (void)path_y;
+    float z = line.getZ()[get_path_length_idx(line, dRel)];
 
     QPointF calibrated_point;
-    if (calib_frame_to_full_frame(&s, dRel, y, z + path_offset_z, &calibrated_point)) {
+    if (calib_frame_to_full_frame(&s, dRel, -yRel, z + path_offset_z, &calibrated_point)) {
       RadarTrackData track;
       track.calibrated_point = calibrated_point;
       frogpilot_scene.live_radar_tracks.push_back(track);
