@@ -1,9 +1,8 @@
 BogPilot (openpilot 0.9.7)
 ========================
 * Tesla AP1 instrument cluster discovery work (lanes on the IC, stalk tip rounding)
-* Detected leads now stick to your path in curves instead of sliding wildly past the lines on the dash
+* Detected leads on the Tesla dash now stick to your path in curves instead of sliding wildly past the lines
 * BogPilot road logo on the offroad home button
-* UI binary rebuilt with the detected lead fix baked in
 * Brand polish: UI references updated consistently to BogPilot, and the error log and fingerprint help point to BogPilot's GitHub
 * "Bog to the Future" blind spot flame tracks (display only, on by default)
 * Offroad BogPilot logo screensaver
