@@ -51,7 +51,8 @@ Checksum for 0x399 and 0x389 is `(addr & 0xFF) + (addr >> 8) + sum(bytes 0..6)` 
 **Deferred.**
 
 - 0x3e9 `DAS_bodyControls`. It carries turn-signal, hazard, headlight, and wiper requests, not display. BogPilot has no ALCA or hazard feature to drive it, so replacing it could only suppress stock requests. Stock frames also set bits 22, 23, 26, 28 that no DBC signal covers, so a rebuilt frame would change them. Not in the panda TX list.
-- `DAS_object` (0x309) and `DAS_telemetry` (0x3a9): not `BO_` lines in this tree's DBC. No invented signals.
+- `DAS_object` (0x309) and `DAS_telemetry` (0x3a9): not `BO_` lines in this tree's DBC. No invented signals. The 0x309 harness (ICDiscovery / ICOnRoad) is not on this branch.
+- Test branch only: `selfdrive/car/tesla/ic_lanes.py` fixes where the engaged 0x239 lane is drawn. Default on in `snap` mode: a missing `/data/params_bogpilot/ICLanes` means the lane fix plus the snap shadow log; `1`/`lanes` keeps the lane fix without the shadow log; `0`/`false`/`off` turns it off (= the shipped mapping above, unchanged). AP1 fingerprint only (`IcLanes` is constructed only for `TESLA_AP1_MODELS`; Pre-AP never sees it). On AP1 rlogs the cluster reads 0x239 C0..C3 in plain meters, + right like DAS Dy. modelV2 y is also + right. The shipped C2 x4 bent the lane about 4x too much. When on, C0..C3 come from an unscaled cubic fit of the near lane-line center (`laneLines[1..2]`, 0..60 m), clipped to the DBC ranges, with stock width/usage/forks kept; fallbacks are the unscaled path C2 and then curvature/2. `snap` adds a 1 Hz shadow log of openpilot's lead snapped to the ego/left/right lane center. Nothing is sent for objects, and nothing feeds control. Both on modes log `ic_lanes` at 1 Hz while engaged.
 - Warning matrices 0x329 / 0x369 (0x349 stays the all-zero Hold clear only), pre-AP 0x659.
 
 
