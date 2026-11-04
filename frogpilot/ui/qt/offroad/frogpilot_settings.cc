@@ -317,6 +317,7 @@ void FrogPilotSettingsWindow::updateVariables() {
     isHondaNidec = isHonda && safetyModel == cereal::CarParams::SafetyModel::HONDA_NIDEC;
     isSubaru = carMake == "subaru";
     isTeslaAP1 = carFingerprint == "TESLA_AP1_MODELS";
+    isTeslaPreAP = carFingerprint == "TESLA_PREAP_MODELS";
     isTorqueCar = CP.getLateralTuning().which() == cereal::CarParams::LateralTuning::TORQUE;
     isToyota = carMake == "toyota";
     isTSK = CP.getSecOcRequired();

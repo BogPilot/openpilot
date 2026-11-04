@@ -2,6 +2,7 @@
 from cereal import car
 from opendbc.can.parser import CANParser
 from openpilot.selfdrive.car.tesla.values import CAR, DBC, CANBUS
+from openpilot.selfdrive.car.tesla.preap.params import PreApParamKeys, get_bool, get_float
 from openpilot.selfdrive.car.interfaces import RadarInterfaceBase
 
 
@@ -28,6 +29,12 @@ class RadarInterface(RadarInterfaceBase):
     self.rcp = CANParser(DBC[CP.carFingerprint]['radar'], messages, CANBUS.radar)
     self.updated_messages = set()
     self.track_id = 0
+    self._preap_radar_offset_m = 0.0
+    if CP.carFingerprint == CAR.TESLA_PREAP_MODELS:
+      if not get_bool(PreApParamKeys.RADAR_ENABLED, False):
+        self.rcp = None  # radarUnavailable path
+      else:
+        self._preap_radar_offset_m = get_float(PreApParamKeys.RADAR_OFFSET, 0.0)
 
   def update(self, can_strings):
     if self.rcp is None:
@@ -81,6 +88,8 @@ class RadarInterface(RadarInterfaceBase):
       # Parse track data
       self.pts[i].dRel = msg_a['LongDist']
       self.pts[i].yRel = msg_a['LatDist']
+      if self._preap_radar_offset_m:
+        self.pts[i].yRel += self._preap_radar_offset_m
       self.pts[i].vRel = msg_a['LongSpeed']
       self.pts[i].aRel = msg_a['LongAccel']
       self.pts[i].yvRel = msg_b['LatSpeed']

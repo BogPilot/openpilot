@@ -154,6 +154,7 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
   FrogPilotListWidget *hondaList = new FrogPilotListWidget(this);
   FrogPilotListWidget *subaruList = new FrogPilotListWidget(this);
   FrogPilotListWidget *teslaList = new FrogPilotListWidget(this);
+  FrogPilotListWidget *teslaPreapList = new FrogPilotListWidget(this);
   FrogPilotListWidget *toyotaList = new FrogPilotListWidget(this);
   FrogPilotListWidget *vehicleInfoList = new FrogPilotListWidget(this);
 
@@ -162,6 +163,7 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
   ScrollView *hondaPanel = new ScrollView(hondaList, this);
   ScrollView *subaruPanel = new ScrollView(subaruList, this);
   ScrollView *teslaPanel = new ScrollView(teslaList, this);
+  ScrollView *teslaPreapPanel = new ScrollView(teslaPreapList, this);
   ScrollView *toyotaPanel = new ScrollView(toyotaList, this);
   ScrollView *vehicleInfoPanel = new ScrollView(vehicleInfoList, this);
 
@@ -170,6 +172,7 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
   vehiclesLayout->addWidget(hondaPanel);
   vehiclesLayout->addWidget(subaruPanel);
   vehiclesLayout->addWidget(teslaPanel);
+  vehiclesLayout->addWidget(teslaPreapPanel);
   vehiclesLayout->addWidget(toyotaPanel);
   vehiclesLayout->addWidget(vehicleInfoPanel);
 
@@ -194,6 +197,15 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
     {"TeslaAP1Toggles", tr("Tesla AP1 Settings"), tr("<b>BogPilot features for Tesla Model S and X with Autopilot 1.</b>"), ""},
     {"EnableICIntegration", tr("Dash Cluster Integration"), QString("<b>%1</b><br><br>%2").arg(tr("Show openpilot on the Tesla dash cluster while engaged: the cluster set speed (including curve and speed limit targets), the Autosteer icon, hands-on reminders, and the path line.")).arg(tr("Turn off to leave the dash cluster completely stock. openpilot then sends no cluster messages. Driving is the same either way. Takes effect right away.")), ""},
     {"RegenComfortBrake", tr("Earlier, Gentler Regen Stops"), QString("<b>%1</b><br><br>%2").arg(tr("Start slowing for a car ahead sooner and more gently, sized to what regen alone can do (about 1.0 m/s²).")).arg(tr("Hard braking for cut-ins, collision warnings, and emergencies is unchanged, and so is the stopped distance. Turn off for stock openpilot following. Takes effect right away.")), ""},
+
+    // Pre-AP only — copy mirrored from selfdrive/car/tesla/preap/menu_copy.py
+    {"TeslaPreAPToggles", tr("Tesla Pre-AP Settings"), tr("<b>BogPilot features for Tesla Model S Pre-AP</b> (no Autopilot ECU): comma pedal longitudinal and optional Bosch radar."), ""},
+    {"PedalStatus", tr("Comma Pedal"), tr("<b>Comma Pedal status.</b> Not detected = no pedal reply on the selected CAN bus. Needs calibration = pedal seen; run Calibrate before longitudinal. Ready = detected and calibrated; longitudinal can use it."), ""},
+    {"PedalCalibrate", tr("Calibrate Pedal"), tr("<b>Calibrate the comma pedal.</b> Park the car, foot off the pedal, then press Calibrate and follow the prompts: keep foot off for coast, then press the pedal fully once. Required before longitudinal."), ""},
+    {"PedalCanBus", tr("Pedal CAN Bus"), tr("<b>Which CAN bus the comma pedal is on.</b> Bus 2 (party/chassis) is the usual install. Bus 0 if your pedal is on chassis. Wrong bus shows Not detected."), ""},
+    {"TeslaRadarEnabled", tr("Bosch Radar"), tr("<b>Pre-AP Bosch radar.</b> Off by default. On allows radar helper TX (dummy VIN unlock) and uses radar tracks when present. Needs a wired Bosch radar. Leave off if you have no radar."), ""},
+    {"TeslaRadarBehindNosecone", tr("Radar Behind Nosecone"), tr("<b>Radar mounted behind the nosecone.</b> On if the Bosch unit sits behind the nosecone (common Pre-AP retrofit). Off if it is in the open bumper position."), ""},
+    {"TeslaRadarOffset", tr("Radar Lateral Offset"), tr("<b>Sideways radar mount offset.</b> Positive = radar right of centerline, negative = left. Shown in inches; stored in meters. Use 0 in if the radar is centered."), ""},
 
     {"ToyotaToggles", tr("Toyota/Lexus Settings"), tr("<b>BogPilot features for Lexus and Toyota vehicles.</b>"), ""},
     {"ToyotaDoors", tr("Automatically Lock/Unlock Doors"), tr("<b>Automatically lock/unlock doors</b> when shifting in and out of drive."), ""},
@@ -255,6 +267,67 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
         vehiclesLayout->setCurrentWidget(teslaPanel);
       });
       vehicleToggle = teslaButton;
+    } else if (param == "TeslaPreAPToggles") {
+      ButtonControl *teslaPreapButton = new ButtonControl(title, tr("MANAGE"), desc);
+      QObject::connect(teslaPreapButton, &ButtonControl::clicked, [vehiclesLayout, teslaPreapPanel, this]() {
+        openDescriptions(forceOpenDescriptions, toggles);
+        vehiclesLayout->setCurrentWidget(teslaPreapPanel);
+      });
+      vehicleToggle = teslaPreapButton;
+    } else if (param == "PedalStatus") {
+      vehicleToggle = new LabelControl(title, tr("Not detected"), desc);
+    } else if (param == "PedalCalibrate") {
+      ButtonControl *calibBtn = new ButtonControl(title, tr("CALIBRATE"), desc);
+      QObject::connect(calibBtn, &ButtonControl::clicked, [this]() {
+        if (FrogPilotConfirmationDialog::yesorno(
+              tr("Park, foot off the pedal. OK arms calibration: keep foot off for a moment, then press the pedal fully. Cancel leaves calibration unchanged."),
+              this)) {
+          bogpilot::writeFileToggle("PedalCalibArmed", true);
+        }
+      });
+      vehicleToggle = calibBtn;
+    } else if (param == "PedalCanBus") {
+      ButtonControl *busBtn = new ButtonControl(title, tr("SELECT"), desc);
+      auto refreshBus = [busBtn]() {
+        const int bus = bogpilot::readFileInt("PedalCanBus", 2);
+        busBtn->setValue(QString::number(bus == 0 ? 0 : 2));
+      };
+      refreshBus();
+      QObject::connect(busBtn, &ButtonControl::clicked, [busBtn, refreshBus, this]() {
+        QString sel = MultiOptionDialog::getSelection(tr("Pedal CAN Bus"), {"2", "0"},
+                      QString::number(bogpilot::readFileInt("PedalCanBus", 2) == 0 ? 0 : 2), this);
+        if (!sel.isEmpty()) {
+          bogpilot::writeFileInt("PedalCanBus", sel.toInt());
+          refreshBus();
+        }
+      });
+      vehicleToggle = busBtn;
+    } else if (param == "TeslaRadarEnabled") {
+      vehicleToggle = new bogpilot::FileToggleControl(param, false, title, desc, icon);
+    } else if (param == "TeslaRadarBehindNosecone") {
+      vehicleToggle = new bogpilot::FileToggleControl(param, false, title, desc, icon);
+    } else if (param == "TeslaRadarOffset") {
+      ButtonControl *offBtn = new ButtonControl(title, tr("SELECT"), desc);
+      auto refreshOff = [offBtn]() {
+        const double m = bogpilot::readFileFloat("TeslaRadarOffset", 0.0);
+        const int inches = qRound(m / 0.0254);
+        offBtn->setValue(QString("%1 in").arg(inches));
+      };
+      refreshOff();
+      QObject::connect(offBtn, &ButtonControl::clicked, [offBtn, refreshOff, this]() {
+        QStringList opts;
+        for (int inch = -12; inch <= 12; ++inch) {
+          opts << QString::number(inch);
+        }
+        const double m = bogpilot::readFileFloat("TeslaRadarOffset", 0.0);
+        const int cur = qRound(m / 0.0254);
+        QString sel = MultiOptionDialog::getSelection(tr("Radar offset (inches)"), opts, QString::number(cur), this);
+        if (!sel.isEmpty()) {
+          bogpilot::writeFileFloat("TeslaRadarOffset", sel.toInt() * 0.0254);
+          refreshOff();
+        }
+      });
+      vehicleToggle = offBtn;
     } else if (teslaKeys.contains(param)) {
       // File-backed (see bogpilot_file_toggle.h). Absent file = on, the car code's default.
       vehicleToggle = new bogpilot::FileToggleControl(param, true, title, desc, icon);
@@ -311,6 +384,8 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
       subaruList->addItem(vehicleToggle);
     } else if (teslaKeys.contains(param)) {
       teslaList->addItem(vehicleToggle);
+    } else if (teslaPreapKeys.contains(param)) {
+      teslaPreapList->addItem(vehicleToggle);
     } else if (toyotaKeys.contains(param)) {
       toyotaList->addItem(vehicleToggle);
     } else if (vehicleInfoKeys.contains(param)) {
@@ -321,8 +396,12 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
       parentKeys.insert(param);
     }
 
-    if (ButtonControl *buttonControl = qobject_cast<ButtonControl*>(vehicleToggle)) {
-      QObject::connect(buttonControl, &ButtonControl::clicked, this, &FrogPilotVehiclesPanel::openSubPanel);
+    // Manage-panel buttons only — not PedalCalibrate / PedalCanBus / offset SELECT.
+    static const QSet<QString> noSubPanelKeys = {"PedalCalibrate", "PedalCanBus", "TeslaRadarOffset"};
+    if (!noSubPanelKeys.contains(param)) {
+      if (ButtonControl *buttonControl = qobject_cast<ButtonControl*>(vehicleToggle)) {
+        QObject::connect(buttonControl, &ButtonControl::clicked, this, &FrogPilotVehiclesPanel::openSubPanel);
+      }
     }
 
     QObject::connect(vehicleToggle, &AbstractControl::hideDescriptionEvent, [this]() {
@@ -429,6 +508,8 @@ void FrogPilotVehiclesPanel::updateToggles() {
       setVisible &= parent->isSubaru;
     } else if (teslaKeys.contains(key)) {
       setVisible &= parent->isTeslaAP1;
+    } else if (teslaPreapKeys.contains(key)) {
+      setVisible &= parent->isTeslaPreAP;
     } else if (toyotaKeys.contains(key)) {
       setVisible &= parent->isToyota;
     } else if (vehicleInfoKeys.contains(key)) {
@@ -484,12 +565,41 @@ void FrogPilotVehiclesPanel::updateToggles() {
         toggles["SubaruToggles"]->setVisible(true);
       } else if (teslaKeys.contains(key)) {
         toggles["TeslaAP1Toggles"]->setVisible(true);
+      } else if (teslaPreapKeys.contains(key)) {
+        toggles["TeslaPreAPToggles"]->setVisible(true);
       } else if (toyotaKeys.contains(key)) {
         toggles["ToyotaToggles"]->setVisible(true);
       } else if (vehicleInfoKeys.contains(key)) {
         toggles["VehicleInfo"]->setVisible(true);
       }
     }
+  }
+
+  // Pre-AP-only copy for DisableOpenpilotLongitudinal; AP1 keeps stock text.
+  if (parent->isTeslaPreAP) {
+    disableOpenpilotLong->setTitle(tr("Comma Pedal Longitudinal"));
+    disableOpenpilotLong->setDescription(tr("<b>Comma Pedal longitudinal (Pre-AP).</b> Leave this off so BogPilot can drive gas through a detected, calibrated comma pedal. Turn it on to disable pedal longitudinal (steering only). Needs a comma pedal on the selected CAN bus."));
+  } else {
+    disableOpenpilotLong->setTitle(tr("Disable openpilot Longitudinal Control"));
+    disableOpenpilotLong->setDescription(tr("<b>Disable openpilot longitudinal</b> and use the car's stock ACC instead."));
+  }
+
+  // Refresh Pre-AP pedal status label from file-backed mirrors.
+  if (toggles.count("PedalStatus")) {
+    QString status = tr("Not detected");
+    if (bogpilot::readFileToggle("PedalDetected", false)) {
+      const bool done = bogpilot::readFileToggle("PedalCalibDone", false);
+      const QString zero = bogpilot::readFileText("PedalCalibZero");
+      const QString factor = bogpilot::readFileText("PedalCalibFactor");
+      const bool is_default = (zero.isEmpty() || zero == "0.0" || zero == "0") &&
+                              (factor.isEmpty() || factor == "1.0" || factor == "1");
+      if (done && !is_default) {
+        status = tr("Ready");
+      } else {
+        status = tr("Needs calibration");
+      }
+    }
+    static_cast<LabelControl*>(toggles["PedalStatus"])->setText(status);
   }
 
   disableOpenpilotLong->setVisible((parent->hasOpenpilotLongitudinal || parent->openpilotLongitudinalControlDisabled) && !parent->hasExperimentalOpenpilotLongitudinal && parent->tuningLevel >= frogpilotToggleLevels["DisableOpenpilotLongitudinal"].toBool());

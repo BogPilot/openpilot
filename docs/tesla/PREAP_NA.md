@@ -34,3 +34,24 @@ User-facing name: **BogPilot**. Code/param keys remain FrogPilot-shaped where th
 
 - Pre-AP Model S + comma 3/3X/4-class + **Comma Pedal** for longitudinal.
 - Without pedal: safety mode still loads but OP long stays off (`pcmCruise` true).
+
+
+## Pedal calibration + Bosch radar (this cut)
+
+### Pedal (Comma Pedal)
+- **Sole long switch:** `DisableOpenpilotLongitudinal` (Pre-AP menu copy explains comma pedal on/off).
+- **No separate Pedal Enabled.** Long ENABLE only when user wants long **and** pedal detected **and** calibrated.
+- File-backed keys under `/data/params_bogpilot/`: `PedalCalibDone`, `PedalCalibMin/Max/Factor/Zero`, `PedalCanBus` (default **2**), `PedalCalibArmed`, `PedalDetected`.
+- Status line: Not detected / Needs calibration / Ready.
+- Calibrate: park, foot off, arm from menu, then full press (runtime samples).
+
+### Bosch radar
+- File-backed: `TeslaRadarEnabled` (**default off**), `TeslaRadarBehindNosecone`, `TeslaRadarOffset` (meters internal; UI inches).
+- Safety: `PREAP_FLAG_RADAR_EMULATION` gates a tight TX whitelist (`0x560` dummy VIN, `0x2A9`, `0x199` on bus 1). **Default off.**
+- Python `preap/radar_tx.py` sends **dummy VIN only** (`BP0DUMMYVIN00000`). Never a real VIN.
+- Full NAP chassis→radar GTW `rx_all` readdr is **not** ported (BogPilot 0.9.7 has no `rx_all`).
+- AP1 `safety_tesla.h` remains untouched.
+
+### Menu copy
+- Pre-AP-only strings live in `selfdrive/car/tesla/preap/menu_copy.py` and are mirrored in `vehicle_settings.cc`.
+- AP1 Tesla panel text is unchanged.

@@ -24,3 +24,12 @@ def test_preap_tx_has_pedal_not_ibooster():
   assert "0x551" in PREAP
   assert "0x553" not in PREAP  # iBooster not in NA cut
   assert "0x488" in PREAP
+
+
+def test_radar_tx_whitelist_behind_flag_default_off():
+  assert "PREAP_FLAG_RADAR_EMULATION = 2" in PREAP
+  assert "TESLA_PREAP_TX_MSGS_WITH_RADAR" in PREAP
+  assert "0x560" in PREAP
+  assert "preap_radar_emulation" in PREAP
+  # default TX table (no radar) must not be the only table — with-radar is separate
+  assert "if (preap_radar_emulation)" in PREAP

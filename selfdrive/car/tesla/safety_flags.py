@@ -61,7 +61,7 @@ PREAP_FLAG_RADAR_BEHIND_NOSECONE = Panda.FLAG_TESLA_PREAP_RADAR_BEHIND_NOSECONE
 
 
 def flags_for_preap(*, enable_pedal: bool = True, radar: bool = False, radar_behind_nosecone: bool = False) -> int:
-  """Safety param for SAFETY_TESLA_PREAP. Default pedal on; radar reserved/off."""
+  """Safety param for SAFETY_TESLA_PREAP. Default pedal on; radar TX whitelist off."""
   flags = 0
   if enable_pedal:
     flags |= PREAP_FLAG_ENABLE_PEDAL

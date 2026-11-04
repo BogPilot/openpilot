@@ -45,6 +45,51 @@ inline void writeFileToggle(const QString &key, bool on) {
   }
 }
 
+
+inline QString readFileText(const QString &key) {
+  QFile file(fileTogglePath(key));
+  if (!file.open(QIODevice::ReadOnly)) {
+    return QString();
+  }
+  return QString::fromUtf8(file.read(128).trimmed());
+}
+
+inline void writeFileText(const QString &key, const QString &text) {
+  QDir().mkpath(QStringLiteral("/data/params_bogpilot"));
+  QFile file(fileTogglePath(key));
+  if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    file.write(text.toUtf8());
+  }
+}
+
+inline double readFileFloat(const QString &key, double fallback) {
+  const QString text = readFileText(key);
+  if (text.isEmpty()) {
+    return fallback;
+  }
+  bool ok = false;
+  const double v = text.toDouble(&ok);
+  return ok ? v : fallback;
+}
+
+inline void writeFileFloat(const QString &key, double value) {
+  writeFileText(key, QString::number(value, 'g', 12));
+}
+
+inline int readFileInt(const QString &key, int fallback) {
+  const QString text = readFileText(key);
+  if (text.isEmpty()) {
+    return fallback;
+  }
+  bool ok = false;
+  const int v = text.toInt(&ok);
+  return ok ? v : fallback;
+}
+
+inline void writeFileInt(const QString &key, int value) {
+  writeFileText(key, QString::number(value));
+}
+
 // A settings switch backed by one file. It re-reads the file each time it is shown, so a change
 // made over SSH (echo 0 > /data/params_bogpilot/<key>) shows up the next time the panel opens.
 class FileToggleControl : public ToggleControl {

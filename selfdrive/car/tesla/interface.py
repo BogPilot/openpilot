@@ -3,6 +3,7 @@ from cereal import car
 from openpilot.selfdrive.car.tesla.hso import ap1_hso_event_names, ap1_steering_pressed
 from openpilot.selfdrive.car.tesla.toggles import ap1_standstill_engage
 from openpilot.selfdrive.car.tesla.safety_flags import dashcam_only_for_candidate, flags_for_candidate, flags_for_preap
+from openpilot.selfdrive.car.tesla.preap.params import PreApParamKeys, get_bool
 from openpilot.selfdrive.car.tesla.values import CANBUS, CAR
 from openpilot.selfdrive.car import get_safety_config
 from openpilot.selfdrive.car.interfaces import CarInterfaceBase
@@ -29,11 +30,20 @@ class CarInterface(CarInterfaceBase):
     # SAFETY_TESLA / AP1 flags. Pedal longitudinal default on; radar GTW off until
     # a BogPilot panda rx_all path exists.
     if candidate == CAR.TESLA_PREAP_MODELS:
+      # DisableOpenpilotLongitudinal is the sole pedal-long on/off. No separate Pedal Enabled.
       enable_pedal = not getattr(frogpilot_toggles, "disable_openpilot_long", True)
       ret.openpilotLongitudinalControl = enable_pedal
       ret.pcmCruise = not enable_pedal
+      # Radar flags from file-backed params (default off). Gating of long ENABLE
+      # still requires detected+calibrated pedal at CarController time.
+      radar_on = get_bool(PreApParamKeys.RADAR_ENABLED, False)
+      nosecone = get_bool(PreApParamKeys.RADAR_BEHIND_NOSECONE, False)
+      ret.radarUnavailable = not radar_on
       ret.safetyConfigs = [
-        get_safety_config(car.CarParams.SafetyModel.teslaPreap, flags_for_preap(enable_pedal=enable_pedal)),
+        get_safety_config(
+          car.CarParams.SafetyModel.teslaPreap,
+          flags_for_preap(enable_pedal=enable_pedal, radar=radar_on, radar_behind_nosecone=nosecone),
+        ),
       ]
       ret.enableBsm = False
       ret.steerLimitTimer = 0.4

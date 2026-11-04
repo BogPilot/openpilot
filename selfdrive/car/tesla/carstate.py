@@ -51,6 +51,10 @@ class CarState(CarStateBase):
     self.epb_eac_revoked = False
     # AP1 only. Stock 0x399 blind-spot fields with a per-side hold (blindspot.py).
     self.ap1_bsm = Ap1Blindspot()
+    # Pre-AP comma pedal (file-backed status). Detected from GAS_SENSOR IDX updates.
+    self.preap_pedal_detected = False
+    self.preap_pedal_raw = None
+    self._preap_pedal_last_idx = None
 
   def update(self, cp, cp_cam, frogpilot_toggles):
     ret = car.CarState.new_message()
@@ -60,6 +64,18 @@ class CarState(CarStateBase):
     ret.vEgoRaw = cp.vl["ESP_B"]["ESP_vehicleSpeed"] * CV.KPH_TO_MS
     ret.vEgo, ret.aEgo = self.update_speed_kf(ret.vEgoRaw)
     ret.standstill = (ret.vEgo < 0.1)
+
+    # Pre-AP: comma pedal detection from GAS_SENSOR IDX changes on cam/chassis bus.
+    if self.CP.carFingerprint == CAR.TESLA_PREAP_MODELS:
+      idx_all = cp_cam.vl_all.get("GAS_SENSOR", {}).get("IDX", [])
+      gas_all = cp_cam.vl_all.get("GAS_SENSOR", {}).get("INTERCEPTOR_GAS", [])
+      if idx_all:
+        last = int(idx_all[-1])
+        if self._preap_pedal_last_idx is None or last != self._preap_pedal_last_idx:
+          self.preap_pedal_detected = True
+        self._preap_pedal_last_idx = last
+      if gas_all:
+        self.preap_pedal_raw = float(gas_all[-1])
 
     # Gas pedal
     ret.gas = cp.vl["DI_torque1"]["DI_pedalPos"] / 100.0
