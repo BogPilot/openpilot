@@ -158,7 +158,7 @@ def test_theme_step_leaves_other_choices_alone(env):
 
 def test_theme_step_not_for_other_cars(env):
   params, bp_dir = env
-  params.put("CarModel", "TESLA_AP2_MODELS")
+  params.put("CarModel", "TESLA_MODELS_RAVEN")  # not a legacy S/X
   params.put("CustomColors", "stock")
   assert run(params, bp_dir) == []
   assert params.get("CustomColors", encoding="utf-8") == "stock"
@@ -198,7 +198,7 @@ def test_ap1_car_model_name_matches_platform():
   assert ap1.AP1_CAR_MODEL == str(CAR.TESLA_AP1_MODELS)
 
 
-@pytest.mark.parametrize("car_model", [None, "TESLA_AP2_MODELS", "TESLA_MODELS_RAVEN", "TOYOTA_RAV4"])
+@pytest.mark.parametrize("car_model", [None, "TESLA_MODELS_RAVEN", "TOYOTA_RAV4"])
 def test_only_fires_for_ap1(env, car_model):
   params, bp_dir = env
   if car_model is not None:
@@ -302,7 +302,8 @@ def test_imperial_owner_offset_change_kept(env):
 def test_confirmed_tuning_level_is_respected(env):
   params, bp_dir = env
   params.put("CarModel", ap1.AP1_CAR_MODEL)
-  params.put("TuningLevelConfirmed", "1")  # owner already picked Minimal (TuningLevel 0 == table default)
+  params.put("TuningLevel", "0")  # owner already picked Minimal
+  params.put("TuningLevelConfirmed", "1")
   written = run(params, bp_dir)
   assert "TuningLevel" not in written and "TuningLevelConfirmed" not in written
   assert params.get_int("TuningLevel") == 0

@@ -95,7 +95,9 @@ NEVER_PROFILE_KEYS = frozenset({
 # Theme params: all set to the BogPilot theme (equal to the table default, listed on purpose).
 THEME_KEYS = ("CustomColors", "CustomDistanceIcons", "CustomIcons", "CustomSignals", "CustomSounds", "WheelIcon")
 
-EXPLICIT_DEFAULT_KEYS = frozenset({"AccelerationProfile", "PersonalizeOpenpilot", "RandomThemes", *THEME_KEYS})
+# TuningLevel/TuningLevelConfirmed: table default is now Developer+confirmed; listed so the profile states it.
+EXPLICIT_DEFAULT_KEYS = frozenset({"AccelerationProfile", "PersonalizeOpenpilot", "RandomThemes", "TuningLevel",
+                                   "TuningLevelConfirmed", *THEME_KEYS})
 
 # Theme values that only select the stock look, per key, which the BogPilot theme
 # reproduces exactly today. The one-time theme step moves these to BogPilot.
