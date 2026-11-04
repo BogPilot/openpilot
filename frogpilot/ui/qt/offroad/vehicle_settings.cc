@@ -202,8 +202,8 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
     {"TeslaPreAPToggles", tr("Tesla Pre-AP Settings"), tr("<b>BogPilot features for Tesla Model S Pre-AP</b> (no Autopilot ECU): comma pedal longitudinal and optional Bosch radar."), ""},
     {"PedalStatus", tr("Comma Pedal"), tr("<b>Comma Pedal status.</b> Not detected = no pedal reply on the selected CAN bus. Needs calibration = pedal seen; run Calibrate before longitudinal. Ready = detected and calibrated; longitudinal can use it."), ""},
     {"PedalCalibrate", tr("Calibrate Pedal"), tr("<b>Calibrate the comma pedal.</b> Park the car, foot off the pedal, then press Calibrate and follow the prompts: keep foot off for coast, then press the pedal fully once. Required before longitudinal."), ""},
-    {"PedalCanBus", tr("Pedal CAN Bus"), tr("<b>Which CAN bus the comma pedal is on.</b> Bus 2 (party/chassis) is the usual install. Bus 0 if your pedal is on chassis. Wrong bus shows Not detected."), ""},
-    {"TeslaRadarEnabled", tr("Bosch Radar"), tr("<b>Pre-AP Bosch radar.</b> Off by default. On allows radar helper TX (dummy VIN unlock) and uses radar tracks when present. Needs a wired Bosch radar. Leave off if you have no radar."), ""},
+    {"PedalCanBus", tr("Pedal CAN Bus"), tr("<b>Which CAN bus the comma pedal is on.</b> Bus 2 is the usual install. Use bus 0 only if your pedal is wired there. Wrong bus shows Not detected."), ""},
+    {"TeslaRadarEnabled", tr("Bosch Radar"), tr("<b>Pre-AP Bosch radar.</b> Off by default. On lets BogPilot wake the radar and use its tracks. Needs a wired Bosch radar. Leave off if you have no radar."), ""},
     {"TeslaRadarBehindNosecone", tr("Radar Behind Nosecone"), tr("<b>Radar mounted behind the nosecone.</b> On if the Bosch unit sits behind the nosecone (common Pre-AP retrofit). Off if it is in the open bumper position."), ""},
     {"TeslaRadarOffset", tr("Radar Lateral Offset"), tr("<b>Sideways radar mount offset.</b> Positive = radar right of centerline, negative = left. Shown in inches; stored in meters. Use 0 in if the radar is centered."), ""},
 
@@ -577,7 +577,7 @@ void FrogPilotVehiclesPanel::updateToggles() {
 
   // Pre-AP-only copy for DisableOpenpilotLongitudinal; AP1 keeps stock text.
   if (parent->isTeslaPreAP) {
-    disableOpenpilotLong->setTitle(tr("Comma Pedal Longitudinal"));
+    disableOpenpilotLong->setTitle(tr("Disable Pedal Longitudinal"));
     disableOpenpilotLong->setDescription(tr("<b>Comma Pedal longitudinal (Pre-AP).</b> Leave this off so BogPilot can drive gas through a detected, calibrated comma pedal. Turn it on to disable pedal longitudinal (steering only). Needs a comma pedal on the selected CAN bus."));
   } else {
     disableOpenpilotLong->setTitle(tr("Disable openpilot Longitudinal Control"));

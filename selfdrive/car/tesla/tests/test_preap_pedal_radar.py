@@ -83,11 +83,15 @@ def test_radar_tx_dummy_vin_only_when_enabled():
 
 
 def test_menu_copy_has_preap_strings():
+  assert menu_copy.DISABLE_LONG_TITLE_PREAP == "Disable Pedal Longitudinal"
   assert "Comma Pedal longitudinal" in menu_copy.DISABLE_LONG_DESC_PREAP
+  assert "steering only" in menu_copy.DISABLE_LONG_DESC_PREAP
   assert "Not detected" in menu_copy.PEDAL_STATUS_DESC
   assert "Park" in menu_copy.PEDAL_CALIBRATE_DESC
-  assert "Bus 2" in menu_copy.PEDAL_CAN_BUS_DESC
+  assert "Bus 2 is the usual install" in menu_copy.PEDAL_CAN_BUS_DESC
+  assert "wired there" in menu_copy.PEDAL_CAN_BUS_DESC
   assert "Off by default" in menu_copy.RADAR_ENABLED_DESC
+  assert "wake the radar" in menu_copy.RADAR_ENABLED_DESC
   assert "nosecone" in menu_copy.RADAR_NOSECONE_DESC.lower()
   assert "inches" in menu_copy.RADAR_OFFSET_DESC
   assert "meters" in menu_copy.RADAR_OFFSET_DESC
@@ -108,7 +112,10 @@ def test_safety_preap_h_radar_whitelist_and_ap1_untouched():
 def test_vehicle_settings_preap_copy_and_ap1_unchanged():
   root = Path(__file__).resolve().parents[4]
   vs = (root / "frogpilot/ui/qt/offroad/vehicle_settings.cc").read_text()
+  assert "Disable Pedal Longitudinal" in vs
   assert "Comma Pedal longitudinal (Pre-AP)" in vs
+  assert "Bus 2 is the usual install" in vs
+  assert "wake the radar" in vs
   assert "TeslaPreAPToggles" in vs
   assert "isTeslaPreAP" in vs
   # AP1 panel copy still present unchanged
