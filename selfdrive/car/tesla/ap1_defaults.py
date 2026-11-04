@@ -141,6 +141,8 @@ AP1_PARAM_PROFILE: dict[str, str] = {
 
   # --- Lateral ---
   "AlwaysOnLateral": "0",                # Always On Lateral off
+  "AlwaysOnLateralLKAS": "0",            # AOL child off (inert while parent off)
+  "AlwaysOnLateralMain": "0",            # AOL child off (inert while parent off)
   "NNFFLite": "1",                       # NNFF-Lite on (inert on AP1: angle steering skips it)
 
   # --- Visuals / screen ---

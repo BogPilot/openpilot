@@ -187,6 +187,9 @@ def test_standing_preferences():
   assert ap1.AP1_PARAM_PROFILE["LeadInfo"] == "0"
   assert "HideLeadMarker" not in ap1.AP1_PARAM_PROFILE
   # Developer tuning level, confirmed so the first-open popup does not drop it to Minimal.
+  assert ap1.AP1_PARAM_PROFILE["AlwaysOnLateral"] == "0"
+  assert ap1.AP1_PARAM_PROFILE["AlwaysOnLateralLKAS"] == "0"
+  assert ap1.AP1_PARAM_PROFILE["AlwaysOnLateralMain"] == "0"
   assert ap1.AP1_PARAM_PROFILE["TuningLevel"] == "3"
   assert ap1.AP1_PARAM_PROFILE["TuningLevelConfirmed"] == "1"
 

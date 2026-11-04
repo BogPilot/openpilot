@@ -93,3 +93,5 @@ def test_ap1_profile_keeps_aol_off():
   m = importlib.util.module_from_spec(spec)
   spec.loader.exec_module(m)
   assert m.AP1_PARAM_PROFILE["AlwaysOnLateral"] == "0"
+  assert m.AP1_PARAM_PROFILE["AlwaysOnLateralLKAS"] == "0"
+  assert m.AP1_PARAM_PROFILE["AlwaysOnLateralMain"] == "0"
