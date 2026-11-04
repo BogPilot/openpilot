@@ -863,7 +863,7 @@ void AnnotatedCameraWidget::paintEvent(QPaintEvent *event) {
     if (s->scene.longitudinal_control && sm.rcv_frame("radarState") > s->scene.started_frame && !frogpilot_toggles.value("hide_lead_marker").toBool()) {
       auto radar_state = sm["radarState"].getRadarState();
       auto frogpilot_radar_state = fpsm["frogpilotRadarState"].getFrogpilotRadarState();
-      update_leads(s, radar_state, model);
+      update_leads(s, radar_state, model.getPosition());
       update_leads_frogpilot(s, fs, frogpilot_radar_state, model.getPosition());
       auto lead_one = radar_state.getLeadOne();
       auto lead_two = radar_state.getLeadTwo();
