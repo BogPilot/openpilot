@@ -358,3 +358,36 @@ def test_frogpilot_process_wiring():
   block = src[src.index('if params_memory.get_bool("FrogPilotTogglesUpdated")'):]
   block = block[:block.index("frogpilot_variables.update(")]
   assert re.search(r"if not started:\s*\n\s*apply_ap1_defaults_once\(params, refresh=False\)", block)
+
+
+@pytest.mark.parametrize("model", ["TESLA_PREAP_MODELS", "TESLA_AP1_MODELS", "TESLA_AP2_MODELS"])
+def test_legacy_models_get_profile(env, model):
+  params, bp_dir = env
+  params.put("CarModel", model)
+  written = run(params, bp_dir)
+  assert "ConditionalExperimental" in written and "CustomPersonalities" in written
+  assert params.get("ConditionalExperimental", encoding="utf-8") == "0"
+  assert params.get("CustomPersonalities", encoding="utf-8") == "1"
+  assert params.get("AlwaysOnLateral", encoding="utf-8") == "0"
+  assert ap1.marker_path(bp_dir).exists()
+
+
+@pytest.mark.parametrize("model", [None, "TESLA_MODELS_RAVEN", "MOCK"])
+def test_unknown_or_non_legacy_writes_nothing(env, model):
+  params, bp_dir = env
+  if model:
+    params.put("CarModel", model)
+  else:
+    params.remove("CarModel")
+  assert run(params, bp_dir) == []
+  assert not ap1.marker_path(bp_dir).exists()
+
+
+def test_legacy_profile_keeps_manual_toggle(env):
+  params, bp_dir = env
+  params.put("CarModel", "TESLA_AP2_MODELS")
+  params.put("ConditionalExperimental", "1" if TABLE["ConditionalExperimental"] != "1" else "0")
+  manual = params.get("ConditionalExperimental", encoding="utf-8")
+  run(params, bp_dir)
+  if manual != TABLE["ConditionalExperimental"]:
+    assert params.get("ConditionalExperimental", encoding="utf-8") == manual

@@ -1,4 +1,4 @@
-"""One-time BogPilot toggle profile for the Tesla AP1 Model S.
+"""One-time BogPilot toggle profile for legacy Tesla Model S/X (Pre-AP, AP1, AP2).
 
 AP1 is never auto-fingerprinted: owners pick "Tesla AP1 Model S" under
 Vehicle Settings, which stores CarModel=TESLA_AP1_MODELS. The first time
@@ -41,6 +41,9 @@ downloaded or user-made theme.
 from pathlib import Path
 
 AP1_CAR_MODEL = "TESLA_AP1_MODELS"
+# Legacy Tesla Model S/X (Pre-AP, AP1, AP2) all get the BogPilot profile; Raven and newer do not.
+# TESLA_PREAP_MODELS is matched by name only (the Pre-AP platform lives on bogpilot-na-preap).
+LEGACY_TESLA_CAR_MODELS = frozenset({"TESLA_PREAP_MODELS", AP1_CAR_MODEL, "TESLA_AP2_MODELS"})
 
 BOGPILOT_DIR = Path("/data/params_bogpilot")
 MARKER_NAME = "AP1DefaultsApplied"
@@ -270,6 +273,16 @@ def _is_converted_default(key, current, table, metric) -> bool:
   return cur in (int(default_mph * MPH_TO_KPH), round(default_mph * MPH_TO_KPH))
 
 
+def is_legacy_tesla(params) -> bool:
+  """Legacy Model S/X (Pre-AP, AP1, AP2). Unknown car -> False, so nothing (not even the marker) is written."""
+  try:
+    if _text(params.get("CarModel")) in LEGACY_TESLA_CAR_MODELS:
+      return True
+  except Exception:
+    pass
+  return _persistent_fingerprint(params) in LEGACY_TESLA_CAR_MODELS
+
+
 def is_ap1(params) -> bool:
   try:
     if _text(params.get("CarModel")) == AP1_CAR_MODEL:
@@ -326,7 +339,7 @@ def apply_ap1_defaults_once(params=None, bogpilot_dir: Path | None = None, defau
     directory = Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR)
     marker = marker_path(directory)
 
-    if not is_ap1(params) or (marker.exists() and theme_marker_path(directory).exists()):
+    if not is_legacy_tesla(params) or (marker.exists() and theme_marker_path(directory).exists()):
       return []
 
     written = []
