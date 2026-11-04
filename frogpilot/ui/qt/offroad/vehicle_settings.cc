@@ -293,7 +293,7 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
         busBtn->setValue(QString::number(bus == 0 ? 0 : 2));
       };
       refreshBus();
-      QObject::connect(busBtn, &ButtonControl::clicked, [busBtn, refreshBus, this]() {
+      QObject::connect(busBtn, &ButtonControl::clicked, [refreshBus, this]() {
         QString sel = MultiOptionDialog::getSelection(tr("Pedal CAN Bus"), {"2", "0"},
                       QString::number(bogpilot::readFileInt("PedalCanBus", 2) == 0 ? 0 : 2), this);
         if (!sel.isEmpty()) {
@@ -314,7 +314,7 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
         offBtn->setValue(QString("%1 in").arg(inches));
       };
       refreshOff();
-      QObject::connect(offBtn, &ButtonControl::clicked, [offBtn, refreshOff, this]() {
+      QObject::connect(offBtn, &ButtonControl::clicked, [refreshOff, this]() {
         QStringList opts;
         for (int inch = -12; inch <= 12; ++inch) {
           opts << QString::number(inch);
