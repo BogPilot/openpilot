@@ -148,12 +148,13 @@ def test_engage_grace_caps_accel_and_ramps():
   """ACQUIRE starts grace: accel_cap = progress * engage_a_max, slow pedal ramp."""
   from types import SimpleNamespace
   from openpilot.selfdrive.car.tesla.preap.long_controller import PreAPLongController
+  from openpilot.selfdrive.car.tesla.preap.pedal_can import PedalCommandCounter
   from openpilot.selfdrive.car.tesla.preap.pedal_authority import (
     ENGAGE_GRACE_FRAMES, ENGAGE_GRACE_PEDAL_RAMP_RATE_UP,
   )
   from openpilot.selfdrive.car.tesla.preap.pedal_feedback import PedalFeedback
 
-  ctrl = PreAPLongController(pedal_counter=0, pedal_bus_fn=lambda: 0)
+  ctrl = PreAPLongController(pedal_counter=PedalCommandCounter(), pedal_bus_fn=lambda: 0)
 
   fb = PedalFeedback()
   fb.available = True

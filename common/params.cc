@@ -563,6 +563,7 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"TacoTuneHacks", PERSISTENT},
     {"TestAlert", CLEAR_ON_MANAGER_START},
     {"TeslaLongControl", PERSISTENT},
+    {"TeslaPreApDoublePull", PERSISTENT},
     {"TeslaStalkFollow", PERSISTENT},
     {"TetheringEnabled", PERSISTENT},
     {"ThemeDownloadProgress", CLEAR_ON_MANAGER_START},
