@@ -132,7 +132,14 @@ class CarState(CarStateBase):
     # latActive false. The hands pause is hands_on_level >= 2, not this flag.
     # Other non-idle names still warn. Model 3/Y still faults on code 6 and
     # still does not fault on HANDS_ON.
-    ret.steerFaultTemporary = steer_fault_temporary(self.steer_warning, ap1)
+    # Pre-AP: EAC_INHIBITED + EAC_ERROR_TMP_FAULT is the normal idle (no AP
+    # ECU). NAP forces steerFaultTemporary False; mapping INHIBITED/TMP_FAULT
+    # to a temporary fault deadlocks latActive and matches the tester's
+    # steerTempUnavailableSilent while stopped and not engaged.
+    if self.CP.carFingerprint == CAR.TESLA_PREAP_MODELS:
+      ret.steerFaultTemporary = False
+    else:
+      ret.steerFaultTemporary = steer_fault_temporary(self.steer_warning, ap1)
 
     # Cruise state
     cruise_state = self.can_define.dv["DI_state"]["DI_cruiseState"].get(int(cp.vl["DI_state"]["DI_cruiseState"]), None)

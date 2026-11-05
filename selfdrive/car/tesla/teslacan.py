@@ -18,7 +18,23 @@ class TeslaCAN:
     ret += sum(dat)
     return ret & 0xFF
 
+  def create_epas_control(self, counter, mode=1):
+    """EPB_epasControl 0x214. NAP preap/teslacan: EACAllow mode, counter, checksum.
+
+    DBC lists EPB_epasEACAllow [4|7] but NAP/panda use 0 (off) or 1 (allow).
+    Checksum is the same byte-sum as 0x488 (addr bytes + data), not hardcoded 0.
+    """
+    values = {
+      "EPB_epasEACAllow": mode,
+      "EPB_epasControlCounter": counter,
+      "EPB_epasControlChecksum": 0,
+    }
+    data = self.packer.make_can_msg("EPB_epasControl", CANBUS.chassis, values)[2]
+    values["EPB_epasControlChecksum"] = self.checksum(0x214, data[:2])
+    return self.packer.make_can_msg("EPB_epasControl", CANBUS.chassis, values)
+
   def create_steering_control(self, angle, enabled, counter):
+
     values = {
       "DAS_steeringAngleRequest": -angle,
       "DAS_steeringHapticRequest": 0,

@@ -86,10 +86,14 @@ class PreApCarController(CarControllerBase):
 
     lat_active = bool(CC.latActive) and bool(CC.enabled)
     angle = float(actuators.steeringAngleDeg)
-    # DAS_steeringControlCounter is 4-bit; packer rejects frame>=16 unmasked.
-    steer_msg = self.tesla_can.create_steering_control(angle, lat_active, (self.frame // 2) % 16)
-    can_sends.append(steer_msg)
-    self.apply_angle_last = angle
+    # NAP _update_preap: 0x488 + 0x214 every 2 frames (50 Hz), same counter.
+    # EPB allow is NOT gated on lat_active — gating deadlocks when EPAS is still
+    # INHIBITED (needs EACAllow before AVAILABLE/ACTIVE). Checksum via teslacan.
+    if self.frame % 2 == 0:
+      cntr = (self.frame // 2) % 16
+      can_sends.append(self.tesla_can.create_steering_control(angle, lat_active, cntr))
+      can_sends.append(self.tesla_can.create_epas_control(cntr, 1))
+      self.apply_angle_last = angle
 
     user_wants_long = bool(self.CP.openpilotLongitudinalControl)
     long_ok = pedal_long_allowed(user_wants_long=user_wants_long,
@@ -125,18 +129,6 @@ class PreApCarController(CarControllerBase):
     # Radar helper TX (dummy VIN) — low rate, only when enabled.
     if get_bool(PreApParamKeys.RADAR_ENABLED) and (self.frame % 100 == 0):
       can_sends.extend(radar_tx_frames(enabled=True, bus=CANBUS.radar))
-
-    if lat_active and (self.frame % 10 == 0):
-      try:
-        values = {
-          "EPB_epasEACAllow": 1,
-          "EPB_epasControlCounter": (self.frame // 10) % 16,
-          "EPB_epasControlChecksum": 0,
-        }
-        msg = self.packer.make_can_msg("EPB_epasControl", CANBUS.chassis, values)
-        can_sends.append(msg)
-      except Exception:
-        pass
 
     new_actuators = actuators.as_builder()
     new_actuators.steeringAngleDeg = self.apply_angle_last
