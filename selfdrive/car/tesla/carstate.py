@@ -12,6 +12,8 @@ from openpilot.selfdrive.car.tesla.stalk_fwd_hold import FWD_HOLD_ENABLED, Stalk
 from openpilot.selfdrive.car.tesla.speed_limit import dashboard_speed_limit_ms
 from openpilot.selfdrive.car.tesla.steer_fault import steer_fault_temporary
 from openpilot.selfdrive.car.tesla.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTTONS
+from openpilot.selfdrive.car.tesla.preap.calib import is_pedal_calibrated
+from openpilot.selfdrive.car.tesla.preap.cruise import pedal_cruise_available, remap_preap_pedal_button_type
 from openpilot.selfdrive.car.interfaces import CarStateBase
 from opendbc.can.parser import CANParser
 from opendbc.can.can_define import CANDefine
@@ -129,7 +131,27 @@ class CarState(CarStateBase):
 
     acc_enabled = (cruise_state in ("ENABLED", "STANDSTILL", "OVERRIDE", "PRE_FAULT", "PRE_CANCEL"))
 
-    ret.cruiseState.enabled = acc_enabled
+    ret.accFaulted = cruise_state == "FAULT"
+
+    # Pre-AP + comma pedal (pcmCruise=False): available must not require stock
+    # DI STANDBY/ENABLED — that surfaces wrongCarMode ("Enable Adaptive Cruise
+    # to Engage"). Match NAP/Tinkla: available when pedal is ready; OP owns
+    # enabled via stalk buttonEnable (panda arms on SpdCtrl RWD=2).
+    preap_pedal_long = (
+      self.CP.carFingerprint == CAR.TESLA_PREAP_MODELS
+      and bool(self.CP.openpilotLongitudinalControl)
+    )
+    if preap_pedal_long:
+      ret.cruiseState.enabled = False
+      ret.cruiseState.available = pedal_cruise_available(
+        detected=bool(self.preap_pedal_detected),
+        calibrated=is_pedal_calibrated(),
+        faulted=bool(ret.accFaulted),
+      )
+    else:
+      ret.cruiseState.enabled = acc_enabled
+      ret.cruiseState.available = ((cruise_state == "STANDBY") or ret.cruiseState.enabled)
+
     # Tinkla-aligned: cruise set is DI_cruiseSet (ACC set), not DI_digitalSpeed
     # (≈ ego). With pcmCruise, VCruiseHelper copies this into controlsState.vCruise
     # so openpilot's set tracks the stalk set. Display/ego stay on ESP vEgo.
@@ -137,7 +159,6 @@ class CarState(CarStateBase):
       ret.cruiseState.speed = cp.vl["DI_state"]["DI_cruiseSet"] * CV.KPH_TO_MS
     elif speed_units == "MPH":
       ret.cruiseState.speed = cp.vl["DI_state"]["DI_cruiseSet"] * CV.MPH_TO_MS
-    ret.cruiseState.available = ((cruise_state == "STANDBY") or ret.cruiseState.enabled)
     ret.cruiseState.standstill = False # This needs to be false, since we can resume from stop without sending anything special
 
     # Gear
@@ -153,6 +174,9 @@ class CarState(CarStateBase):
         event.pressed = state
         buttonEvents.append(event)
       self.button_states[button.event_type] = state
+    if preap_pedal_long:
+      for event in buttonEvents:
+        event.type = remap_preap_pedal_button_type(event.type)
     ret.buttonEvents = buttonEvents
 
     # Doors

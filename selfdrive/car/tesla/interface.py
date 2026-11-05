@@ -86,7 +86,17 @@ class CarInterface(CarInterfaceBase):
   def _update(self, c, frogpilot_toggles):
     ret, fp_ret = self.CS.update(self.cp, self.cp_cam, frogpilot_toggles)
 
-    events = self.create_common_events(ret)
+    # Pre-AP pedal: pcmCruise=False — do not pcmEnable/Disable from DI_cruiseState.
+    # Engage on stalk MAIN/RWD (setCruise after carstate remap) matching NAP.
+    ButtonType = car.CarState.ButtonEvent.Type
+    if self.CP.carFingerprint == CAR.TESLA_PREAP_MODELS and self.CP.openpilotLongitudinalControl:
+      events = self.create_common_events(
+        ret,
+        pcm_enable=False,
+        enable_buttons=(ButtonType.setCruise, ButtonType.accelCruise, ButtonType.decelCruise),
+      )
+    else:
+      events = self.create_common_events(ret)
     if self.CP.carFingerprint == CAR.TESLA_AP1_MODELS:
       if self._ap1_driver_yield_active():
         # Resume hold: hands are back at 0 but 0x488 is still NONE. Keep
