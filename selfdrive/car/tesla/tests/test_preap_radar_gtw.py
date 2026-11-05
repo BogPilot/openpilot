@@ -35,8 +35,9 @@ class TestPreapRadarGtw(unittest.TestCase):
     dat = radar_tx.pack_gtw_car_config(behind_nosecone=False)
     lo = int.from_bytes(dat[0:4], "little")
     hi = int.from_bytes(dat[4:8], "little")
-    # NAP forces Bosch fwd radar + park/das markers on lo
-    self.assertEqual(lo & 0xFFFFF33F, lo)  # cleared bits stay clear from zeros base
+    # NAP: lo = (0 & 0xFFFFF33F) | 0x100 | 0x440. 0x440 occupies mask-cleared bits.
+    self.assertEqual(lo, 0x100 | 0x440)
+    self.assertEqual(lo & 0xFFFFF33F, 0x100)  # after mask, only 0x100 of the forced pair remains
     self.assertEqual(lo & 0x100, 0x100)
     self.assertEqual(lo & 0x440, 0x440)
     self.assertEqual((lo >> 6) & 0x03, 1)  # fwd_radar_hw
