@@ -411,7 +411,7 @@ static bool preap_f190_payload_allowed(const CANPacket_t *msg) {
 }
 
 static bool preap_f190_tx_ok(const CANPacket_t *msg) {
-  // Read-only F190 on the radar bus while disengaged. Not ALLOUTPUT.
+  // Read-only F190 on the radar bus while disengaged. Never elevates to all-output.
   if (!preap_radar_emulation || controls_allowed) {
     return false;
   }

@@ -85,7 +85,7 @@ class TestTeslaPreapF190(unittest.TestCase):
   def test_f190_wrong_addr_blocked(self):
     self.init(RADAR)
     # Nearby UDS / radar addrs must not inherit the allow.
-    for addr in (0x640, 0x642, 0x651, 0x560):
+    for addr in (0x640, 0x642, 0x651, 0x7FF):  # not 0x560 (VIN helper whitelist)
       self.assertFalse(self.tx(addr, F190_OK[3]), hex(addr))
 
   def test_dummy_vin_still_allowed_with_radar(self):

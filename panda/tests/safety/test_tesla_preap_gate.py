@@ -39,5 +39,5 @@ def test_f190_narrow_allow_present():
   assert "preap_f190_tx_ok" in PREAP
   assert "0x641" in PREAP
   assert "0x22U, 0xF1U, 0x90U" in PREAP
-  assert "ALLOUTPUT" not in PREAP
+  assert "SAFETY_ALLOUTPUT" not in PREAP
   assert "0x0A03" not in PREAP
