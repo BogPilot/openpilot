@@ -31,6 +31,9 @@ class PreApParamKeys:
   RADAR_READ_VIN = "TeslaRadarReadVin"
   RADAR_DONOR_VIN = "TeslaRadarDonorVin"  # 17-char; file-backed; never log
   RADAR_UPSIDE_DOWN = "TeslaRadarUpsideDown"
+  # Pre-AP NAP-style double-pull under Always On Lateral. Default ON.
+  # File-backed: July params_pyx.so cannot store new Params keys.
+  DOUBLE_PULL = "TeslaPreApDoublePull"
 
 
 # Safe defaults (match NotAutopilot DEFAULT_CONFIG; radar off).
@@ -50,6 +53,7 @@ DEFAULTS = {
   PreApParamKeys.RADAR_READ_VIN: False,
   PreApParamKeys.RADAR_DONOR_VIN: "",
   PreApParamKeys.RADAR_UPSIDE_DOWN: False,
+  PreApParamKeys.DOUBLE_PULL: True,
 }
 
 # Overridable in tests.

@@ -1,4 +1,5 @@
 #include "frogpilot/ui/qt/offroad/lateral_settings.h"
+#include "frogpilot/ui/qt/widgets/bogpilot_file_toggle.h"
 
 FrogPilotLateralPanel::FrogPilotLateralPanel(FrogPilotSettingsWindow *parent) : FrogPilotListWidget(parent), parent(parent) {
   QJsonObject shownDescriptions = QJsonDocument::fromJson(QString::fromStdString(params.get("ShownToggleDescriptions")).toUtf8()).object();
@@ -138,6 +139,10 @@ FrogPilotLateralPanel::FrogPilotLateralPanel(FrogPilotSettingsWindow *parent) : 
       std::vector<QString> pauseLateralToggles{"PauseLateralOnSignal"};
       std::vector<QString> pauseLateralToggleNames{tr("Turn Signal Only")};
       lateralToggle = new FrogPilotParamValueButtonControl(param, title, desc, icon, 0, 99, QString(), std::map<float, QString>(), 1, true, pauseLateralToggles, pauseLateralToggleNames, true);
+
+    } else if (param == "TeslaPreApDoublePull") {
+      // File-backed (July params_pyx.so cannot store new keys). Default ON = NAP.
+      lateralToggle = new bogpilot::FileToggleControl(param, true, title, desc, icon);
 
     } else {
       lateralToggle = new ParamControl(param, title, desc, icon);
@@ -361,6 +366,8 @@ void FrogPilotLateralPanel::updateToggles() {
     }
 
     else if (key == "TeslaPreApDoublePull") {
+      // File-backed; not in frogpilotToggleLevels. Tuning level 2 (Advanced).
+      setVisible = parent->tuningLevel >= 2;
       setVisible &= parent->isTeslaPreAP;
       setVisible &= parent->hasOpenpilotLongitudinal;
     }

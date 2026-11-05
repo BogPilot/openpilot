@@ -289,8 +289,6 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("AlwaysOnLateral", "1", 0, "0"),
   ("AlwaysOnLateralLKAS", "1", 2, "0"),
   ("AlwaysOnLateralMain", "1", 2, "0"),
-  # Pre-AP NAP-style double-pull under AOL (default ON — NAP print "always enabled").
-  ("TeslaPreApDoublePull", "1", 2, "0"),
   ("AMapKey1", "", 0, ""),
   ("AMapKey2", "", 0, ""),
   ("AutomaticallyDownloadModels", "1", 1, "0"),
@@ -585,6 +583,9 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   # TeslaLongControl and TeslaStalkFollow stay out of this list until
   # common/params_pyx.so is rebuilt. The prebuilt comma binary raises
   # UnknownKeyName for any key it was not compiled with.
+  # TeslaPreApDoublePull is likewise file-backed at
+  # /data/params_bogpilot/TeslaPreApDoublePull (see selfdrive/car/tesla/preap/params.py);
+  # default ON when absent. Do NOT add it to frogpilot_default_params.
   # EnableICIntegration is also not a Params key: file-backed at
   # /data/params_bogpilot/EnableICIntegration (see selfdrive/car/tesla/toggles.py).
   # RegenComfortBrake is likewise file-backed at
@@ -817,11 +818,13 @@ class FrogPilotVariables:
     toggle.automatic_updates = (params.get_bool("AutomaticUpdates") if toggle.tuning_level >= level["AutomaticUpdates"] and (self.release_branch or self.vetting_branch) else default.get_bool("AutomaticUpdates")) and not BACKUP_PATH.is_file()
 
     toggle.car_model = params.get("CarModel", encoding="utf-8") or toggle.car_model
-    # Pre-AP optional double-pull (under AOL). Default ON to match NAP.
-    toggle.tesla_preap_double_pull = (
-      toggle.car_make == "tesla" and toggle.car_model == "TESLA_PREAP_MODELS"
-      and (params.get_bool("TeslaPreApDoublePull") if toggle.tuning_level >= level["TeslaPreApDoublePull"] else default.get_bool("TeslaPreApDoublePull"))
-    )
+    # Pre-AP optional double-pull (under AOL). File-backed; default ON (absent = on).
+    # Not a Params key — July params_pyx.so raises UnknownKeyName (manager_init crash).
+    if toggle.car_make == "tesla" and toggle.car_model == "TESLA_PREAP_MODELS":
+      from openpilot.selfdrive.car.tesla.preap.params import PreApParamKeys, get_bool as preap_get_bool
+      toggle.tesla_preap_double_pull = preap_get_bool(PreApParamKeys.DOUBLE_PULL, True)
+    else:
+      toggle.tesla_preap_double_pull = False
 
     toggle.cluster_offset = params.get_float("ClusterOffset") if toggle.car_make == "toyota" and toggle.tuning_level >= level["ClusterOffset"] else default.get_float("ClusterOffset")
 

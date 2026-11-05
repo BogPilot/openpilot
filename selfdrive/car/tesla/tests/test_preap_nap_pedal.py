@@ -290,6 +290,36 @@ def test_double_pull_first_lat_second_long():
   assert len(out) == 1 and not out[0].pressed
 
 
+
+
+def test_double_pull_is_file_backed_not_params_key():
+  """TeslaPreApDoublePull must NOT be in frogpilot_default_params.
+
+  July prebuilt params_pyx.so raises UnknownKeyName at manager_init for any
+  new key in that list (bench crash on 2ed8ca8a2). Match Radar VIN / Upside
+  Down: file-backed under /data/params_bogpilot via preap.params.
+  """
+  import re
+  from pathlib import Path
+  # Parse the defaults list from source — importing frogpilot_variables pulls
+  # car_helpers/sentry and is fragile under bare PYTHONPATH.
+  src = Path(__file__).parents[4] / "frogpilot/common/frogpilot_variables.py"
+  # parents: tests -> tesla -> car -> selfdrive -> repo root? 
+  # __file__ = .../selfdrive/car/tesla/tests/test_preap_nap_pedal.py
+  # parents[0]=tests [1]=tesla [2]=car [3]=selfdrive [4]=repo root
+  text = src.read_text(encoding="utf-8")
+  m = re.search(r"frogpilot_default_params:.*?=\s*\[(.*?)\n\]", text, re.S)
+  assert m, "frogpilot_default_params not found"
+  keys = set(re.findall(r'\(\s*"([^"]+)"', m.group(1)))
+  assert "TeslaPreApDoublePull" not in keys
+
+  from openpilot.selfdrive.car.tesla.preap.params import PreApParamKeys, get_bool, DEFAULTS
+  assert PreApParamKeys.DOUBLE_PULL == "TeslaPreApDoublePull"
+  assert DEFAULTS[PreApParamKeys.DOUBLE_PULL] is True
+  # Absent file => default ON
+  assert get_bool(PreApParamKeys.DOUBLE_PULL, True) is True
+
+
 def test_double_pull_off_does_not_fight_aol():
   """When TeslaPreApDoublePull is off, engagement must be a pure pass-through."""
   from cereal import car
