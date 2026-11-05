@@ -181,6 +181,8 @@ class PreAPLongController:
             else PEDAL_RAMP_RATE_UP
           )
           if in_engage_grace:
+            # Cap at grace_progress * engage_a_max so the ceiling is the
+            # personality accel envelope scaled by grace progress (NAP).
             grace_progress = engage_elapsed_frames / ENGAGE_GRACE_FRAMES
             accel_cap = grace_progress * self.engage_a_max
             accel_request = max(0.0, min(accel_request, accel_cap))

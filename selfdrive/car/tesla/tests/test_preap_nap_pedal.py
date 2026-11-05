@@ -133,3 +133,74 @@ def test_long_controller_source_has_vdas_and_authority():
   assert "PedalAuthority" in src
   assert "get_zero_torque" in src
   assert "ENGAGE_GRACE" in src
+
+
+
+def test_engage_grace_constants_match_nap():
+  from openpilot.selfdrive.car.tesla.preap.pedal_authority import (
+    ENGAGE_GRACE_FRAMES, ENGAGE_GRACE_PEDAL_RAMP_RATE_UP,
+  )
+  assert ENGAGE_GRACE_FRAMES == 50  # 0.5 s @ 100 Hz
+  assert ENGAGE_GRACE_PEDAL_RAMP_RATE_UP == 0.9
+
+
+def test_engage_grace_caps_accel_and_ramps():
+  """ACQUIRE starts grace: accel_cap = progress * engage_a_max, slow pedal ramp."""
+  from types import SimpleNamespace
+  from openpilot.selfdrive.car.tesla.preap.long_controller import PreAPLongController
+  from openpilot.selfdrive.car.tesla.preap.pedal_authority import (
+    ENGAGE_GRACE_FRAMES, ENGAGE_GRACE_PEDAL_RAMP_RATE_UP,
+  )
+  from openpilot.selfdrive.car.tesla.preap.pedal_feedback import PedalFeedback
+
+  ctrl = PreAPLongController(pedal_counter=0, pedal_bus_fn=lambda: 0)
+
+  fb = PedalFeedback()
+  fb.available = True
+  fb.interceptor_state = 0
+  fb.idx = 1
+  fb.torque_level = 0.0
+
+  CS = SimpleNamespace(
+    out=SimpleNamespace(vEgo=20.0, aEgo=0.0, gasPressed=False),
+    real_brake_pressed=False,
+    pedal=fb,
+    pedal_unavailable=False,
+    pedal_interceptor_value=0.0,
+    pedal_first_enabled_mono_time=0,
+    cruise_buttons=0,
+    prev_cruise_buttons=0,
+    preap_cc_cancel_needed=False,
+  )
+  CC = SimpleNamespace(
+    enabled=True, longActive=True,
+    orientationNED=[0.0, 0.0, 0.0],
+    actuators=SimpleNamespace(accel=2.0),
+  )
+
+  # Frame 0 (even): ACQUIRE
+  can0 = ctrl.update(CC, CS, frame=0, long_ok=True, now_nanos=1)
+  assert can0
+  assert ctrl.preap_long_engage_frame == 0
+  assert ctrl.preap_long_handoff_slew_active is True
+  di0 = ctrl.prev_pedal_di
+
+  # Next even frame still in grace — DI change capped by ENGAGE_GRACE_PEDAL_RAMP_RATE_UP
+  ctrl.update(CC, CS, frame=2, long_ok=True, now_nanos=2)
+  assert ctrl.prev_pedal_di - di0 <= ENGAGE_GRACE_PEDAL_RAMP_RATE_UP + 1e-6
+  assert ctrl.engage_a_max > 0.0
+
+  # Drive through grace window
+  for f in range(4, ENGAGE_GRACE_FRAMES + 40, 2):
+    ctrl.update(CC, CS, frame=f, long_ok=True, now_nanos=f)
+  assert (ENGAGE_GRACE_FRAMES + 38) - ctrl.preap_long_engage_frame >= ENGAGE_GRACE_FRAMES
+
+
+def test_long_controller_source_has_engage_grace_ramp():
+  from pathlib import Path
+  src = (Path(__file__).resolve().parents[1] / "preap" / "long_controller.py").read_text()
+  assert "ENGAGE_GRACE_FRAMES" in src
+  assert "ENGAGE_GRACE_PEDAL_RAMP_RATE_UP" in src
+  assert "freeze_integrator" in src
+  assert "accel_effort_limits" in src
+  assert "preap_long_handoff_slew_active" in src
