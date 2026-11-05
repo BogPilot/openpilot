@@ -1,4 +1,5 @@
 import copy
+import time
 from collections import deque
 from cereal import car, custom
 from openpilot.common.conversions import Conversions as CV
@@ -13,7 +14,9 @@ from openpilot.selfdrive.car.tesla.speed_limit import dashboard_speed_limit_ms
 from openpilot.selfdrive.car.tesla.steer_fault import steer_fault_temporary
 from openpilot.selfdrive.car.tesla.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTTONS
 from openpilot.selfdrive.car.tesla.preap.calib import is_pedal_calibrated
-from openpilot.selfdrive.car.tesla.preap.cruise import pedal_cruise_available, remap_preap_pedal_button_type
+from openpilot.selfdrive.car.tesla.preap.cruise import (
+  pedal_cruise_available, remap_preap_pedal_button_type, is_preap_cancel_echo,
+)
 from openpilot.selfdrive.car.interfaces import CarStateBase
 from opendbc.can.parser import CANParser
 from opendbc.can.can_define import CANDefine
@@ -22,6 +25,12 @@ class CarState(CarStateBase):
   def __init__(self, CP, FPCP):
     super().__init__(CP, FPCP)
     self.button_states = {button.event_type: False for button in BUTTONS}
+    # Pre-AP pedal: stalk SpdCtrl + stock-CC cancel echo filter (NAP)
+    self.cruise_buttons = 0
+    self.prev_cruise_buttons = 0
+    self.preap_cc_cancel_needed = False
+    self.preap_last_cc_spoof_ms = 0
+    self.last_stalk_non_cancel_ms = 0
     self.can_define = CANDefine(DBC[CP.carFingerprint]['chassis'])
 
     # Needed by carcontroller
@@ -165,6 +174,11 @@ class CarState(CarStateBase):
     ret.gearShifter = GEAR_MAP[self.can_define.dv["DI_torque2"]["DI_gear"].get(int(cp.vl["DI_torque2"]["DI_gear"]), "DI_GEAR_INVALID")]
 
     # Buttons
+    self.prev_cruise_buttons = self.cruise_buttons
+    try:
+      self.cruise_buttons = int(cp.vl["STW_ACTN_RQ"].get("SpdCtrlLvr_Stat") or 0)
+    except Exception:
+      self.cruise_buttons = 0
     buttonEvents = []
     for button in BUTTONS:
       state = (cp.vl[button.can_addr][button.can_msg] in button.values)
@@ -175,8 +189,28 @@ class CarState(CarStateBase):
         buttonEvents.append(event)
       self.button_states[button.event_type] = state
     if preap_pedal_long:
+      now_ms = int(time.monotonic() * 1000)
       for event in buttonEvents:
         event.type = remap_preap_pedal_button_type(event.type)
+        # Track non-cancel stalk edges for CANCEL_ECHO_WINDOW (NAP).
+        if event.pressed and event.type in (
+            car.CarState.ButtonEvent.Type.setCruise,
+            car.CarState.ButtonEvent.Type.accelCruise,
+            car.CarState.ButtonEvent.Type.decelCruise,
+            car.CarState.ButtonEvent.Type.resumeCruise,
+        ):
+          self.last_stalk_non_cancel_ms = now_ms
+      # Suppress our STW CANCEL spoof so it is not a driver FWD disengage.
+      was_enabled = bool(getattr(self, "out", None) and self.out.cruiseState.enabled)
+      for event in buttonEvents:
+        if event.type == car.CarState.ButtonEvent.Type.cancel:
+          if is_preap_cancel_echo(
+              now_ms=now_ms,
+              last_stalk_non_cancel_ms=self.last_stalk_non_cancel_ms,
+              last_cc_spoof_ms=int(getattr(self, "preap_last_cc_spoof_ms", 0) or 0),
+              cruise_enabled=was_enabled,
+          ):
+            event.type = car.CarState.ButtonEvent.Type.unknown
     ret.buttonEvents = buttonEvents
 
     # Doors

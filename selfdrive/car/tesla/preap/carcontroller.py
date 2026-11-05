@@ -9,6 +9,7 @@ Credit: NotAutopilot. User-facing product name: BogPilot.
 """
 from __future__ import annotations
 
+import time
 from opendbc.can.packer import CANPacker
 from openpilot.selfdrive.car.interfaces import CarControllerBase
 from openpilot.selfdrive.car.tesla.preap.accel_to_pedal import accel_to_pedal_command
@@ -23,6 +24,7 @@ from openpilot.selfdrive.car.tesla.preap.calib import (
 from openpilot.selfdrive.car.tesla.preap.params import PreApParamKeys, get_bool, set_bool
 from openpilot.selfdrive.car.tesla.preap.pedal_can import PedalCommandCounter, create_pedal_command
 from openpilot.selfdrive.car.tesla.preap.radar_tx import radar_tx_frames
+from openpilot.selfdrive.car.tesla.preap.stock_cc_spoofer import StockCCSpoofer
 from openpilot.selfdrive.car.tesla.teslacan import TeslaCAN
 from openpilot.selfdrive.car.tesla.values import CANBUS, DBC
 
@@ -40,6 +42,8 @@ class PreApCarController(CarControllerBase):
     self._calib_coast = None
     self._calib_frames_coast = 0
     self._calib_press = None
+    self.stock_cc = StockCCSpoofer()
+    self.prev_requested_long = False
 
   def _update_detection_and_calib(self, CS) -> bool:
     """Mirror PedalDetected; run armed two-step calib from CS samples."""
@@ -101,6 +105,22 @@ class PreApCarController(CarControllerBase):
         pedal_cmd = 0.0
       # sendcan frames are (addr, busTime, dat, bus); a 3-tuple crashes can_list_to_can_capnp.
       can_sends.append(create_pedal_command(pedal_cmd, enable, self.pedal_counter, self.pedal_bus))
+
+    # Stock DI cruise cancel (NAP StockCCSpoofer). Pedal long must not leave
+    # stock CC engaged alongside the interceptor. Bus 0 only (panda TX list).
+    requested_long = bool(CC.enabled) and bool(CC.longActive) and long_ok
+    if long_ok:
+      cruise_btn = int(getattr(CS, "cruise_buttons", 0) or 0)
+      prev_btn = int(getattr(CS, "prev_cruise_buttons", 0) or 0)
+      rising = (not self.prev_requested_long) and requested_long
+      falling = self.prev_requested_long and (not requested_long)
+      pedal_button_press = (cruise_btn != prev_btn) and (cruise_btn != 0)
+      if rising or falling or pedal_button_press:
+        CS.preap_cc_cancel_needed = True
+        # Mark spoof intent so carstate can suppress the CANCEL echo next tick.
+        CS.preap_last_cc_spoof_ms = int(time.monotonic() * 1000)
+    self.prev_requested_long = requested_long
+    can_sends.extend(self.stock_cc.update(CS, self.frame, self.tesla_can, CANBUS.chassis))
 
     # Radar helper TX (dummy VIN) — low rate, only when enabled.
     if get_bool(PreApParamKeys.RADAR_ENABLED) and (self.frame % 100 == 0):

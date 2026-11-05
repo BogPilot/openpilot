@@ -30,3 +30,19 @@ def remap_preap_pedal_button_type(event_type):
   if event_type == ButtonType.resumeCruise:
     return ButtonType.setCruise
   return event_type
+
+# Echo windows (NAP engagement.py): suppress SpdCtrl CANCEL that is our own
+# spoofed STW_ACTN_RQ so openpilot does not treat it as a driver FWD cancel.
+CANCEL_ECHO_WINDOW_MS = 600
+SPOOF_ECHO_WINDOW_MS = 300
+
+
+def is_preap_cancel_echo(*, now_ms: int, last_stalk_non_cancel_ms: int,
+                         last_cc_spoof_ms: int, cruise_enabled: bool = False) -> bool:
+  """True when a SpdCtrl=CANCEL edge is likely our stalk spoof echo."""
+  if cruise_enabled and last_stalk_non_cancel_ms and (
+      now_ms - last_stalk_non_cancel_ms) < CANCEL_ECHO_WINDOW_MS:
+    return True
+  if last_cc_spoof_ms and (now_ms - last_cc_spoof_ms) < SPOOF_ECHO_WINDOW_MS:
+    return True
+  return False
