@@ -1,3 +1,24 @@
+BogPilot (openpilot 0.9.7) — bogpilot-tesla-nap-pedal
+========================
+* Pre-AP Tesla Model S: panda safety mode 32 firmware
+* Bosch radar gateway emulation for Pre-AP radar unlock
+* Radar: ignore SGUFail/SensorDirty; optional Ignore Radar Hardware Errors toggle (default off)
+* Opt-in Read Radar VIN (offroad F190 donor read; narrow panda allow; default off)
+* Optional Radar Mounted Upside Down toggle (default off)
+* Pedal engage without stock cruise — stalk pull engages, push cancels
+* NAP-style pedal longitudinal (VirtualDAS + PedalAuthority software handshake)
+* Engage-grace accel ramp on pedal long takeovers
+* Default hill feedforward table shipped (no /data/vdas_ff_table.json required)
+* Pre-AP pedal HUD alerts: Regen Limit Reached, Pedal Control Unavailable, cruise enabled/disabled
+* Optional Pre-AP Double-Pull Engage under Always On Lateral (default on) — first pull lat, second adds long; brake drops long and keeps lat
+* Map speed limits on Pre-AP
+* Stock cruise cancel spoofer alongside the pedal
+* Steering: idle EPAS fault cleared; EPB allow checksum/rate fix
+* Engage from a stop (0 mph)
+* Idle steering message stays near measured wheel angle
+* Relaxed chassis message timing under radar gateway load
+* Always On Lateral on by default for Pre-AP — brake to a stop keeps steering
+
 Version 0.9.7 (2024-06-13)
 ========================
 * New driving model
