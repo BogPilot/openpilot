@@ -381,7 +381,7 @@ static void tesla_preap_rx_hook(const CANPacket_t *msg) {
 
 
 // Narrow F190 UDS allow (bus 1, addr 0x641). Exact NAP read-conversation bytes
-// only — never WriteDataByIdentifier, never routine 0x0A03, never security.
+// only — never WriteDataByIdentifier, never VIN-learn routines, never security.
 #define PREAP_RADAR_UDS_ADDR 0x641U
 
 static bool preap_f190_payload_allowed(const CANPacket_t *msg) {
