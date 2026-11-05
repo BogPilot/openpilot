@@ -4,6 +4,9 @@ from openpilot.selfdrive.car.tesla.hso import ap1_hso_event_names, ap1_steering_
 from openpilot.selfdrive.car.tesla.toggles import ap1_standstill_engage
 from openpilot.selfdrive.car.tesla.safety_flags import dashcam_only_for_candidate, flags_for_candidate, flags_for_preap
 from openpilot.selfdrive.car.tesla.preap.params import PreApParamKeys, get_bool
+from openpilot.selfdrive.car.tesla.preap.vdas_constants import (
+  PEDAL_LONG_K_BP, PEDAL_LONG_KP_V, PEDAL_LONG_KI_V,
+)
 from openpilot.selfdrive.car.tesla.values import CANBUS, CAR
 from openpilot.selfdrive.car import get_safety_config
 from openpilot.selfdrive.car.interfaces import CarInterfaceBase
@@ -49,6 +52,19 @@ class CarInterface(CarInterfaceBase):
       ret.steerLimitTimer = 0.4
       ret.steerActuatorDelay = 0.1
       ret.longitudinalActuatorDelay = 0.4
+      # NAP-style pedal long tuning: planner a_target passes 1:1 to VirtualDAS
+      if enable_pedal:
+        ret.longitudinalTuning.kpBP = list(PEDAL_LONG_K_BP)
+        ret.longitudinalTuning.kpV = list(PEDAL_LONG_KP_V)
+        ret.longitudinalTuning.kiBP = list(PEDAL_LONG_K_BP)
+        ret.longitudinalTuning.kiV = list(PEDAL_LONG_KI_V)
+        try:
+          ret.longitudinalTuning.kf = 1.0
+        except Exception:
+          pass
+        ret.vEgoStopping = 0.1
+        ret.vEgoStarting = 0.1
+        ret.stoppingDecelRate = 1.0
       return ret
 
     # 0x2bf on the auxiliary powertrain bus is the second-panda Model 3/Y harness.

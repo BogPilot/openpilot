@@ -14,6 +14,7 @@ from openpilot.selfdrive.car.tesla.speed_limit import dashboard_speed_limit_ms
 from openpilot.selfdrive.car.tesla.steer_fault import steer_fault_temporary
 from openpilot.selfdrive.car.tesla.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTTONS
 from openpilot.selfdrive.car.tesla.preap.calib import is_pedal_calibrated
+from openpilot.selfdrive.car.tesla.preap.pedal_feedback import PedalFeedback
 from openpilot.selfdrive.car.tesla.preap.cruise import (
   pedal_cruise_available, remap_preap_pedal_button_type, is_preap_cancel_echo,
 )
@@ -66,6 +67,21 @@ class CarState(CarStateBase):
     self.preap_pedal_detected = False
     self.preap_pedal_raw = None
     self._preap_pedal_last_idx = None
+    # NAP-style PedalFeedback (GAS_SENSOR STATE/IDX + DI_torqueMotor)
+    self.pedal = PedalFeedback()
+    self.pedal_interceptor_value = 0.0
+    self.pedal_timeout = True
+    self.real_brake_pressed = False
+    self.pedal_unavailable = False
+    self.pedal_authority_requested = False
+    self.pedal_authority_active = False
+    self.pedal_authority_state = 0
+    self.pedal_authority_action = 0
+    self.pedal_command_counter = 0
+    self.pedal_command_di = 0.0
+    self.pedal_brake_required = False
+    self.vdas_limited_accel = 0.0
+    self.pedal_first_enabled_mono_time = 0
 
   def update(self, cp, cp_cam, frogpilot_toggles):
     ret = car.CarState.new_message()
@@ -89,13 +105,30 @@ class CarState(CarStateBase):
       if gas_all:
         self.preap_pedal_raw = float(gas_all[-1])
 
-    # Gas pedal
+    # Gas pedal (DI). Pre-AP pedal-long overrides gasPressed from interceptor below.
     ret.gas = cp.vl["DI_torque1"]["DI_pedalPos"] / 100.0
     ret.gasPressed = (ret.gas > 0)
 
-    # Brake pedal
+    # Brake pedal — NAP: BrakeMessage OR DI_brakePedal
     ret.brake = 0
-    ret.brakePressed = bool(cp.vl["BrakeMessage"]["driverBrakeStatus"] != 1)
+    brake_message_pressed = bool(cp.vl["BrakeMessage"]["driverBrakeStatus"] != 1)
+    try:
+      di_brake_pressed = int(cp.vl["DI_torque2"].get("DI_brakePedal", 0) or 0) == 1
+    except Exception:
+      di_brake_pressed = False
+    self.real_brake_pressed = bool(di_brake_pressed or brake_message_pressed)
+    ret.brakePressed = self.real_brake_pressed
+
+    # Pre-AP: update PedalFeedback from GAS_SENSOR + DI_torqueMotor (NAP-style)
+    if self.CP.carFingerprint == CAR.TESLA_PREAP_MODELS:
+      now_ms = int(time.monotonic() * 1000)
+      gas_sensor = cp_cam.vl.get("GAS_SENSOR", {}) or {}
+      self.pedal.update(gas_sensor, now_ms)
+      self.pedal.update_torque(cp.vl.get("DI_torque1", {}) or {})
+      self.pedal_interceptor_value = float(self.pedal.interceptor_value)
+      self.pedal_timeout = bool(self.pedal.timeout)
+      if gas_sensor and "INTERCEPTOR_GAS" in gas_sensor:
+        self.preap_pedal_raw = float(gas_sensor["INTERCEPTOR_GAS"])
 
     # Steering wheel
     epas_status = cp_cam.vl["EPAS3P_sysStatus"] if self.CP.carFingerprint == CAR.TESLA_MODELS_RAVEN else cp.vl["EPAS_sysStatus"]
@@ -168,6 +201,10 @@ class CarState(CarStateBase):
     else:
       ret.cruiseState.enabled = acc_enabled
       ret.cruiseState.available = ((cruise_state == "STANDBY") or ret.cruiseState.enabled)
+
+    # NAP: when pedal long is on, gasPressed comes from interceptor DI, not DI_pedalPos
+    if preap_pedal_long and self.preap_pedal_detected:
+      ret.gasPressed = bool(self.pedal.gas_pressed)
 
     # Tinkla-aligned: cruise set is DI_cruiseSet (ACC set), not DI_digitalSpeed
     # (≈ ego). With pcmCruise, VCruiseHelper copies this into controlsState.vCruise
