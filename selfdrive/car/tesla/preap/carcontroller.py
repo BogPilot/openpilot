@@ -26,7 +26,8 @@ from openpilot.selfdrive.car.tesla.preap.pedal_can import PedalCommandCounter, c
 from openpilot.selfdrive.car.tesla.preap.radar_tx import radar_tx_frames
 from openpilot.selfdrive.car.tesla.preap.stock_cc_spoofer import StockCCSpoofer
 from openpilot.selfdrive.car.tesla.teslacan import TeslaCAN
-from openpilot.selfdrive.car.tesla.values import CANBUS, DBC
+from openpilot.selfdrive.car import apply_std_steer_angle_limits
+from openpilot.selfdrive.car.tesla.values import CANBUS, CarControllerParams, DBC
 
 
 class PreApCarController(CarControllerBase):
@@ -84,8 +85,18 @@ class PreApCarController(CarControllerBase):
     detected = self._update_detection_and_calib(CS)
     calibrated = is_pedal_calibrated()
 
-    lat_active = bool(CC.latActive) and bool(CC.enabled)
-    angle = float(actuators.steeringAngleDeg)
+    # NAP: lat_active = CC.latActive and hands < 3 (no CC.enabled). Requiring
+    # enabled blocked FrogPilot Always On Lateral (brake drops long, lat stays).
+    hands = int(getattr(CS, 'hands_on_level', 0) or 0)
+    lat_active = bool(CC.latActive) and hands < 3
+    # Panda TESLA_PREAP inactive_angle_is_zero=false: idle 0x488 must stay near
+    # angle_meas or steer_angle_cmd_checks TX-blocks (safetyTxBlocked). NAP
+    # apply_steer_angle_limits_vm snaps inactive to measured; mirror that here.
+    if lat_active:
+      angle = apply_std_steer_angle_limits(
+        float(actuators.steeringAngleDeg), self.apply_angle_last, CS.out.vEgo, CarControllerParams)
+    else:
+      angle = float(CS.out.steeringAngleDeg)
     # NAP _update_preap: 0x488 + 0x214 every 2 frames (50 Hz), same counter.
     # EPB allow is NOT gated on lat_active — gating deadlocks when EPAS is still
     # INHIBITED (needs EACAllow before AVAILABLE/ACTIVE). Checksum via teslacan.
