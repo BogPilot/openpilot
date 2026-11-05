@@ -129,8 +129,11 @@ class TestSourceWiring:
     assert "preap_cc_cancel_needed" in src
     assert "CANBUS.chassis" in src
     assert "CANCEL_DELAY_FRAMES" not in src  # delay lives in spoofer
-    assert "pedal_button_press" in src
     assert "preap_last_cc_spoof_ms" in src
+    # NAP-style pedal long owns rising/falling/button cancel triggers.
+    long_src = (ROOT / "selfdrive/car/tesla/preap/long_controller.py").read_text()
+    assert "pedal_button_press" in long_src
+    assert "preap_cc_cancel_needed" in long_src
 
   def test_carstate_echo_filter_wired(self):
     src = (ROOT / "selfdrive/car/tesla/carstate.py").read_text()

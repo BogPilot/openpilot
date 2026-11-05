@@ -33,7 +33,8 @@ def test_zero_torque_learns_above_10mph_in_deadband():
   zt = PedalZeroTorque()
   assert zt.get(0.0) == PEDAL_DI_ZERO
   v = 12.0 * CV.MPH_TO_MS
-  for _ in range(30):
+  # Settle 25 @50Hz then adapt 0.1 DI/update toward observed coast DI.
+  for _ in range(25 + 35):
     zt.update(-5.0, current_pedal_di=3.0, v_ego=v, control_active=True, accel_command=0.0)
   assert abs(zt.value - 3.0) < 0.5
   assert zt.get(4.0 * CV.MPH_TO_MS) == PEDAL_DI_ZERO
@@ -64,8 +65,11 @@ def test_compute_pedal_hysteresis_holds():
   import openpilot.selfdrive.car.tesla.preap.pedal_controller as pc
   pc.current_pedal_transform = lambda: (0.0, 1.0)  # type: ignore
   pc._zero_torque = PedalZeroTorque()
-  _, di = compute_pedal_command(0.5, v_ego=20.0, prev_pedal_di=0.0)
-  _, di2 = compute_pedal_command(0.5, v_ego=20.0, prev_pedal_di=di)
+  # IRIT: hold when |target_after_ramp - prev| < PEDAL_HYST_GAP.
+  # Accel ≈0.355 → target DI ≈10.5 with zero_torque=0 / max≈74 @20 m/s.
+  _, di = compute_pedal_command(0.355, v_ego=20.0, prev_pedal_di=10.0)
+  assert di == 10.0
+  _, di2 = compute_pedal_command(0.355, v_ego=20.0, prev_pedal_di=di)
   assert di2 == di
   assert PEDAL_HYST_GAP > 0
 
