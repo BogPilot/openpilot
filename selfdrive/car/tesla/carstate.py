@@ -74,6 +74,7 @@ class CarState(CarStateBase):
     # Vehicle speed
     ret.vEgoRaw = cp.vl["ESP_B"]["ESP_vehicleSpeed"] * CV.KPH_TO_MS
     ret.vEgo, ret.aEgo = self.update_speed_kf(ret.vEgoRaw)
+    # Default: vEgo-based. Pre-AP overrides below to DI STANDSTILL only (NAP).
     ret.standstill = (ret.vEgo < 0.1)
 
     # Pre-AP: comma pedal detection from GAS_SENSOR IDX changes on cam/chassis bus.
@@ -176,6 +177,11 @@ class CarState(CarStateBase):
     elif speed_units == "MPH":
       ret.cruiseState.speed = cp.vl["DI_state"]["DI_cruiseSet"] * CV.MPH_TO_MS
     ret.cruiseState.standstill = False # This needs to be false, since we can resume from stop without sending anything special
+    # Pre-AP (NAP): standstill is DI cruise STANDSTILL only — not vEgo<0.1.
+    # Pedal holds speed at 0 mph; vEgo-based standstill + brake fired
+    # preEnableStandstill ("Release Brake to Engage") and blocked engage.
+    if self.CP.carFingerprint == CAR.TESLA_PREAP_MODELS:
+      ret.standstill = (cruise_state == "STANDSTILL")
 
     # Gear
     ret.gearShifter = GEAR_MAP[self.can_define.dv["DI_torque2"]["DI_gear"].get(int(cp.vl["DI_torque2"]["DI_gear"]), "DI_GEAR_INVALID")]
