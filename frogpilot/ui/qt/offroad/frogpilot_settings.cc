@@ -423,6 +423,17 @@ void FrogPilotSettingsWindow::updateVariables() {
     }
   }
 
+  // Honor manually selected CarModel so Pre-AP/AP1 menus show before first onroad
+  // (CarParamsPersistent empty) and when ForceFingerprint pins the platform.
+  std::string selectedModel = params.get("CarModel");
+  if (selectedModel == "TESLA_PREAP_MODELS") {
+    isTeslaPreAP = true;
+    isTeslaAP1 = false;
+  } else if (selectedModel == "TESLA_AP1_MODELS") {
+    isTeslaAP1 = true;
+    isTeslaPreAP = false;
+  }
+
   std::string frogpilotCarParams = params.get("FrogPilotCarParamsPersistent");
   if (!frogpilotCarParams.empty()) {
     AlignedBuffer aligned_buf;

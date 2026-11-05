@@ -122,6 +122,8 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
       params.put("CarModel", carModels.value(modelSelection).toStdString());
       params.put("CarModelName", modelSelection.toStdString());
       selectModelButton->setValue(modelSelection);
+      this->parent->updateVariables();
+      updateToggles();
     }
   });
   settingsList->addItem(selectModelButton);
