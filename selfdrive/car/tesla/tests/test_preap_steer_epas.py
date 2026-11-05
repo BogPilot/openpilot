@@ -4,6 +4,8 @@ from pathlib import Path
 from openpilot.selfdrive.car.tesla.steer_fault import steer_fault_temporary
 from openpilot.selfdrive.car.tesla.values import CAR
 
+ROOT = Path(__file__).resolve().parents[4]
+
 
 def test_preap_tmp_fault_would_warn_on_m3y_path():
   # Model 3/Y path still treats TMP_FAULT as temporary; Pre-AP must not use it.
@@ -12,8 +14,7 @@ def test_preap_tmp_fault_would_warn_on_m3y_path():
 
 
 def test_preap_carstate_forces_no_temp_steer_fault():
-  import openpilot.selfdrive.car.tesla.carstate as carstate_mod
-  src = Path(carstate_mod.__file__).read_text()
+  src = (ROOT / "selfdrive/car/tesla/carstate.py").read_text()
   assert "CAR.TESLA_PREAP_MODELS" in src
   assert "ret.steerFaultTemporary = False" in src
   assert "steer_fault_temporary(self.steer_warning, ap1)" in src
@@ -38,8 +39,7 @@ def test_create_epas_control_checksum_not_zero():
 
 
 def test_preap_controller_epb_schedule_matches_nap():
-  import openpilot.selfdrive.car.tesla.preap.carcontroller as ccm
-  src = Path(ccm.__file__).read_text()
+  src = (ROOT / "selfdrive/car/tesla/preap/carcontroller.py").read_text()
   assert "create_epas_control" in src
   assert "EPB_epasControlChecksum" not in src  # packer path moved to teslacan
   assert "if self.frame % 2 == 0:" in src
@@ -47,12 +47,9 @@ def test_preap_controller_epb_schedule_matches_nap():
 
 
 def test_preap_idle_angle_snaps_to_measured():
-  import openpilot.selfdrive.car.tesla.preap.carcontroller as ccm
-  src = Path(ccm.__file__).read_text()
-  assert 'apply_std_steer_angle_limits' in src
-  assert 'CS.out.steeringAngleDeg' in src
-  assert 'bool(CC.enabled)' not in src.split('lat_active')[1].split('
-')[0] if False else True
+  src = (Path(__file__).resolve().parents[4] / "selfdrive/car/tesla/preap/carcontroller.py").read_text()
+  assert "apply_std_steer_angle_limits" in src
+  assert "CS.out.steeringAngleDeg" in src
   # AOL: lat_active must not require CC.enabled
-  assert 'lat_active = bool(CC.latActive) and hands < 3' in src
-  assert 'lat_active = bool(CC.latActive) and bool(CC.enabled)' not in src
+  assert "lat_active = bool(CC.latActive) and hands < 3" in src
+  assert "lat_active = bool(CC.latActive) and bool(CC.enabled)" not in src
