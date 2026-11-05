@@ -666,8 +666,13 @@ class Controls:
         from openpilot.selfdrive.car.tesla.aol_gate import AP1AolGate
         self.ap1_aol_gate = AP1AolGate()
       aol_lateral = self.ap1_aol_gate.update(aol_lateral, self.active, CS.vEgo, CS.steeringAngleDeg)
-    CC.latActive = (self.active or aol_lateral) and not CS.steerFaultTemporary and not CS.steerFaultPermanent and \
-                   (not standstill or self.joystick_mode) and self.sm['frogpilotPlan'].lateralCheck and not self.sm['frogpilotCarState'].pauseLateral
+    # Pre-AP + iBooster (NAP-style): keep lateral at stop when engaged or Always
+    # On Lateral. Stock standstill gate would clear latActive below 0.3 m/s.
+    from openpilot.selfdrive.car.tesla.values import CAR as _TESLA_CAR
+    preap_hold_lat = (self.CP.carFingerprint == _TESLA_CAR.TESLA_PREAP_MODELS and
+                      (self.active or aol_lateral))
+    standstill_blocks_lat = standstill and not preap_hold_lat
+    CC.latActive = (self.active or aol_lateral) and not CS.steerFaultTemporary and not CS.steerFaultPermanent and                    (not standstill_blocks_lat or self.joystick_mode) and self.sm['frogpilotPlan'].lateralCheck and not self.sm['frogpilotCarState'].pauseLateral
     CC.longActive = self.enabled and not self.contains_event_type(ET.OVERRIDE_LONGITUDINAL) and not self.sm['frogpilotCarState'].pauseLongitudinal and self.CP.openpilotLongitudinalControl
 
     actuators = CC.actuators
