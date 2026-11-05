@@ -347,17 +347,23 @@ class CarState(CarStateBase):
 
   @staticmethod
   def get_can_parser(CP, FPCP):
+    # Pre-AP + radar GTW emulation forwards chassis frames onto CAN2 at high
+    # rate (interruptRateCan2). Under that load the chassis parser saw TIMED OUT
+    # on 0x108/0x118/0x20A/0x368 at stock freqs. Halve the high-rate expectations
+    # for Pre-AP only so canValid stays true when the car is still sending; AP1
+    # freqs unchanged. GTW addrs/rates themselves already match NAP.
+    preap = CP.carFingerprint == CAR.TESLA_PREAP_MODELS
     messages = [
       # sig_address, frequency
       ("ESP_B", 50),
-      ("DI_torque1", 100),
-      ("DI_torque2", 100),
-      ("STW_ANGLHP_STAT", 100),
+      ("DI_torque1", 50 if preap else 100),
+      ("DI_torque2", 50 if preap else 100),
+      ("STW_ANGLHP_STAT", 50 if preap else 100),
       ("EPAS_sysStatus", 25),
-      ("DI_state", 10),
+      ("DI_state", 5 if preap else 10),
       ("STW_ACTN_RQ", 10),
       ("GTW_carState", 10),
-      ("BrakeMessage", 50),
+      ("BrakeMessage", 25 if preap else 50),
     ]
 
     if CP.carFingerprint == CAR.TESLA_MODELS_RAVEN:
