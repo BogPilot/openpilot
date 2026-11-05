@@ -187,9 +187,14 @@ def test_standing_preferences():
   assert ap1.AP1_PARAM_PROFILE["LeadInfo"] == "0"
   assert "HideLeadMarker" not in ap1.AP1_PARAM_PROFILE
   # Developer tuning level, confirmed so the first-open popup does not drop it to Minimal.
+  # Base profile (AP1/AP2) keeps AOL off; Pre-AP uses PREAP_AOL_OVERRIDES instead.
   assert ap1.AP1_PARAM_PROFILE["AlwaysOnLateral"] == "0"
   assert ap1.AP1_PARAM_PROFILE["AlwaysOnLateralLKAS"] == "0"
   assert ap1.AP1_PARAM_PROFILE["AlwaysOnLateralMain"] == "0"
+  assert ap1.PREAP_AOL_OVERRIDES["AlwaysOnLateral"] == "1"
+  assert ap1.PREAP_AOL_OVERRIDES["AlwaysOnLateralMain"] == "0"
+  assert ap1.PREAP_AOL_OVERRIDES["AlwaysOnLateralLKAS"] == "0"
+  assert ap1.PREAP_AOL_OVERRIDES["PauseAOLOnBrake"] == "0"
   assert ap1.AP1_PARAM_PROFILE["TuningLevel"] == "3"
   assert ap1.AP1_PARAM_PROFILE["TuningLevelConfirmed"] == "1"
 
@@ -329,10 +334,12 @@ def test_reset_clears_marker_and_reapplies(env):
       params.put(key, value)
   assert run(params, bp_dir) == []
   (bp_dir / "AP1ThemeBogPilot").write_text("1\n")
+  ap1.preap_aol_marker_path(bp_dir).write_text("1\n")
   ap1.clear_ap1_defaults_marker(bp_dir)
   assert not (bp_dir / "AP1ThemeBogPilot").exists()
   assert not ap1.marker_path(bp_dir).exists()
   assert not ap1.theme_marker_path(bp_dir).exists()
+  assert not ap1.preap_aol_marker_path(bp_dir).exists()
   assert run(params, bp_dir)
   assert params.get("LeadInfo", encoding="utf-8") == "0"
 
@@ -369,8 +376,71 @@ def test_legacy_models_get_profile(env, model):
   assert "ConditionalExperimental" in written and "CustomPersonalities" in written
   assert params.get("ConditionalExperimental", encoding="utf-8") == "0"
   assert params.get("CustomPersonalities", encoding="utf-8") == "1"
-  assert params.get("AlwaysOnLateral", encoding="utf-8") == "0"
+  expect_aol = "1" if model == ap1.PREAP_CAR_MODEL else "0"
+  assert params.get("AlwaysOnLateral", encoding="utf-8") == expect_aol
+  if model == ap1.PREAP_CAR_MODEL:
+    assert params.get("AlwaysOnLateralMain", encoding="utf-8") == "0"
+    assert params.get("AlwaysOnLateralLKAS", encoding="utf-8") == "0"
+    assert params.get("PauseAOLOnBrake", encoding="utf-8") == "0"
+    assert ap1.preap_aol_marker_path(bp_dir).exists()
   assert ap1.marker_path(bp_dir).exists()
+
+
+def test_preap_fresh_profile_aol_on(env):
+  params, bp_dir = env
+  params.put("CarModel", ap1.PREAP_CAR_MODEL)
+  run(params, bp_dir)
+  for key, value in ap1.PREAP_AOL_OVERRIDES.items():
+    assert params.get(key, encoding="utf-8") == value, key
+  assert ap1.preap_aol_marker_path(bp_dir).exists()
+
+
+def test_preap_aol_migration_once_from_old_profile(env):
+  """Tester already has AP1DefaultsApplied + AlwaysOnLateral=0 from the old profile."""
+  params, bp_dir = env
+  params.put("CarModel", ap1.PREAP_CAR_MODEL)
+  # Simulate prior profile apply: main+theme markers, AOL left at old off.
+  bp_dir.mkdir(parents=True, exist_ok=True)
+  ap1.marker_path(bp_dir).write_text("1\n")
+  ap1.theme_marker_path(bp_dir).write_text("1\n")
+  params.put("AlwaysOnLateral", "0")
+  params.put("AlwaysOnLateralMain", "0")
+  params.put("AlwaysOnLateralLKAS", "0")
+  written = run(params, bp_dir)
+  assert "AlwaysOnLateral" in written
+  assert params.get("AlwaysOnLateral", encoding="utf-8") == "1"
+  assert params.get("AlwaysOnLateralMain", encoding="utf-8") == "0"
+  assert params.get("AlwaysOnLateralLKAS", encoding="utf-8") == "0"
+  assert params.get("PauseAOLOnBrake", encoding="utf-8") == "0"
+  assert ap1.preap_aol_marker_path(bp_dir).exists()
+  # Second boot: user turned AOL off — must stay off.
+  params.put("AlwaysOnLateral", "0")
+  assert run(params, bp_dir) == []
+  assert params.get("AlwaysOnLateral", encoding="utf-8") == "0"
+
+
+def test_preap_aol_migration_skips_if_already_on(env):
+  params, bp_dir = env
+  params.put("CarModel", ap1.PREAP_CAR_MODEL)
+  bp_dir.mkdir(parents=True, exist_ok=True)
+  ap1.marker_path(bp_dir).write_text("1\n")
+  ap1.theme_marker_path(bp_dir).write_text("1\n")
+  params.put("AlwaysOnLateral", "1")
+  written = run(params, bp_dir)
+  assert "AlwaysOnLateral" not in written
+  assert params.get("AlwaysOnLateral", encoding="utf-8") == "1"
+  assert ap1.preap_aol_marker_path(bp_dir).exists()
+
+
+@pytest.mark.parametrize("model", [ap1.AP1_CAR_MODEL, "TESLA_AP2_MODELS"])
+def test_ap1_and_ap2_stay_aol_off(env, model):
+  params, bp_dir = env
+  params.put("CarModel", model)
+  run(params, bp_dir)
+  assert params.get("AlwaysOnLateral", encoding="utf-8") == "0"
+  assert params.get("AlwaysOnLateralMain", encoding="utf-8") == "0"
+  assert params.get("AlwaysOnLateralLKAS", encoding="utf-8") == "0"
+  assert not ap1.preap_aol_marker_path(bp_dir).exists()
 
 
 @pytest.mark.parametrize("model", [None, "TESLA_MODELS_RAVEN", "MOCK"])

@@ -17,6 +17,12 @@ No new Params keys (the prebuilt params_pyx.so raises on unknown keys): the
 marker and the file toggles live in /data/params_bogpilot. Nothing here touches
 CarParams, panda safety, or driving code; it only stores toggle values.
 
+Always On Lateral: AP1 and AP2 keep it off (profile below). Pre-AP turns the
+parent on (AlwaysOnLateral=1) with Main/LKAS children off and PauseAOLOnBrake=0,
+via PREAP_AOL_OVERRIDES. Cars that already got the old all-off profile get a
+one-time Pre-AP migration (marker PreApAolOn1) that flips AlwaysOnLateral to 1
+only while it is still "0"; a user who turns it off later stays off.
+
 The profile only lists values that differ from the table defaults, except the
 few in EXPLICIT_DEFAULT_KEYS that are spelled out on purpose. Keys that are
 secret, personal, or tied to one device or car are never part of it (see
@@ -41,9 +47,11 @@ downloaded or user-made theme.
 from pathlib import Path
 
 AP1_CAR_MODEL = "TESLA_AP1_MODELS"
+# Same string as UI isTeslaPreAP (carFingerprint == "TESLA_PREAP_MODELS") and CAR.TESLA_PREAP_MODELS.
+PREAP_CAR_MODEL = "TESLA_PREAP_MODELS"
 # Legacy Tesla Model S/X (Pre-AP, AP1, AP2) all get the BogPilot profile; Raven and newer do not.
 # TESLA_PREAP_MODELS is matched by name only (the Pre-AP platform lives on bogpilot-na-preap).
-LEGACY_TESLA_CAR_MODELS = frozenset({"TESLA_PREAP_MODELS", AP1_CAR_MODEL, "TESLA_AP2_MODELS"})
+LEGACY_TESLA_CAR_MODELS = frozenset({PREAP_CAR_MODEL, AP1_CAR_MODEL, "TESLA_AP2_MODELS"})
 
 BOGPILOT_DIR = Path("/data/params_bogpilot")
 MARKER_NAME = "AP1DefaultsApplied"
@@ -51,7 +59,18 @@ MARKER_NAME = "AP1DefaultsApplied"
 # widened step must run once more on devices that already ran that one.
 THEME_MARKER_NAME = "AP1ThemeBogPilot2"
 OLD_THEME_MARKER_NAMES = ("AP1ThemeBogPilot",)
+# One-time Pre-AP AOL-on migration for devices that already ran the old all-off profile.
+PREAP_AOL_MARKER_NAME = "PreApAolOn1"
 BOGPILOT_THEME = "BogPilot"
+
+# Pre-AP Always On Lateral: parent on, Main/LKAS children off, pause-on-brake at 0.
+# Applied on fresh Pre-AP profile writes and by the PreApAolOn1 migration.
+PREAP_AOL_OVERRIDES: dict[str, str] = {
+  "AlwaysOnLateral": "1",
+  "AlwaysOnLateralMain": "0",
+  "AlwaysOnLateralLKAS": "0",
+  "PauseAOLOnBrake": "0",
+}
 
 # BogPilot file-backed toggles (not Params keys). Absent file = that toggle's built-in default.
 FILE_TOGGLE_KEYS = ("ConfidenceBall", "ConfidenceBallSide", "DeveloperHUD", "RemoteUIStream",
@@ -145,7 +164,7 @@ AP1_PARAM_PROFILE: dict[str, str] = {
   # Offset1..Offset7 come from AP1_SPEED_OFFSETS_MPH (unit-aware), not from this table.
 
   # --- Lateral ---
-  "AlwaysOnLateral": "0",                # Always On Lateral off
+  "AlwaysOnLateral": "0",                # Always On Lateral off (AP1/AP2; Pre-AP overrides via PREAP_AOL_OVERRIDES)
   "AlwaysOnLateralLKAS": "0",            # AOL child off (inert while parent off)
   "AlwaysOnLateralMain": "0",            # AOL child off (inert while parent off)
   "NNFFLite": "1",                       # NNFF-Lite on (inert on AP1: angle steering skips it)
@@ -257,6 +276,8 @@ def speed_offsets_for_units(metric: bool) -> dict[str, str]:
 def _profile_for_units(params) -> dict[str, str]:
   profile = dict(AP1_PARAM_PROFILE)
   profile.update(speed_offsets_for_units(_is_metric(params)))
+  if is_preap(params):
+    profile.update(PREAP_AOL_OVERRIDES)
   return profile
 
 
@@ -294,6 +315,16 @@ def is_ap1(params) -> bool:
   return _persistent_fingerprint(params) == AP1_CAR_MODEL
 
 
+def is_preap(params) -> bool:
+  """Pre-AP Model S. Same selection as UI isTeslaPreAP / CAR.TESLA_PREAP_MODELS."""
+  try:
+    if _text(params.get("CarModel")) == PREAP_CAR_MODEL:
+      return True
+  except Exception:
+    pass
+  return _persistent_fingerprint(params) == PREAP_CAR_MODEL
+
+
 def marker_path(bogpilot_dir: Path | None = None) -> Path:
   return Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR) / MARKER_NAME
 
@@ -302,10 +333,15 @@ def theme_marker_path(bogpilot_dir: Path | None = None) -> Path:
   return Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR) / THEME_MARKER_NAME
 
 
+def preap_aol_marker_path(bogpilot_dir: Path | None = None) -> Path:
+  return Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR) / PREAP_AOL_MARKER_NAME
+
+
 def clear_ap1_defaults_marker(bogpilot_dir: Path | None = None) -> None:
   """Called on DoToggleReset so the next run re-applies the AP1 profile."""
   directory = Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR)
-  for path in (marker_path(bogpilot_dir), theme_marker_path(bogpilot_dir), *(directory / n for n in OLD_THEME_MARKER_NAMES)):
+  for path in (marker_path(bogpilot_dir), theme_marker_path(bogpilot_dir), preap_aol_marker_path(bogpilot_dir),
+               *(directory / n for n in OLD_THEME_MARKER_NAMES)):
     try:
       path.unlink(missing_ok=True)
     except Exception:
@@ -328,6 +364,28 @@ def _apply_theme_once(params, directory: Path) -> list[str]:
   return written
 
 
+def _apply_preap_aol_once(params, directory: Path) -> list[str]:
+  """One-time Pre-AP AlwaysOnLateral=on for cars that already got the old all-off profile.
+
+  Writes PREAP_AOL_OVERRIDES only while AlwaysOnLateral is still "0" (the old
+  profile value). Already-on stays on; a later owner off stays off because the
+  PreApAolOn1 marker is written either way. Non-Pre-AP cars are skipped with no
+  marker so a later switch to Pre-AP can still migrate.
+  """
+  marker = preap_aol_marker_path(directory)
+  if marker.exists() or not is_preap(params):
+    return []
+  written = []
+  current = _text(params.get("AlwaysOnLateral"))
+  if current == "0":
+    for key, value in PREAP_AOL_OVERRIDES.items():
+      params.put(key, value)
+      written.append(key)
+  directory.mkdir(parents=True, exist_ok=True)
+  marker.write_text("1\n")
+  return written
+
+
 def apply_ap1_defaults_once(params=None, bogpilot_dir: Path | None = None, default_table: dict | None = None,
                             refresh: bool = True) -> list[str]:
   """Apply the AP1 profile once. Returns the keys written ([] when it did nothing).
@@ -341,7 +399,11 @@ def apply_ap1_defaults_once(params=None, bogpilot_dir: Path | None = None, defau
     directory = Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR)
     marker = marker_path(directory)
 
-    if not is_legacy_tesla(params) or (marker.exists() and theme_marker_path(directory).exists()):
+    if not is_legacy_tesla(params):
+      return []
+    # Fresh profile, theme catch-up, and/or Pre-AP AOL migration may still need to run.
+    if (marker.exists() and theme_marker_path(directory).exists() and
+        (not is_preap(params) or preap_aol_marker_path(directory).exists())):
       return []
 
     written = []
@@ -349,6 +411,7 @@ def apply_ap1_defaults_once(params=None, bogpilot_dir: Path | None = None, defau
       written += _apply_profile(params, directory, default_table)
       marker.write_text("1\n")
     written += [key for key in _apply_theme_once(params, directory) if key not in written]
+    written += [key for key in _apply_preap_aol_once(params, directory) if key not in written]
 
     if written and refresh:
       try:

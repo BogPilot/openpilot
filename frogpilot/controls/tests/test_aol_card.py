@@ -2,7 +2,7 @@
 
 Toggle off: AOL must never be enabled, even while cruise is engaged (the old |= enabled it).
 Toggle on: needs main/LKAS state or cruise engaged, plus the usual gates.
-Also checks the BogPilot AP1 toggle profile keeps AOL off.
+Also checks the BogPilot AP1 toggle profile keeps AOL off, while Pre-AP overrides turn it on.
 """
 import importlib.util
 import sys
@@ -92,6 +92,12 @@ def test_ap1_profile_keeps_aol_off():
   spec = importlib.util.spec_from_file_location("_ap1_defaults", ROOT / "selfdrive/car/tesla/ap1_defaults.py")
   m = importlib.util.module_from_spec(spec)
   spec.loader.exec_module(m)
+  # AP1/AP2 base profile stays off.
   assert m.AP1_PARAM_PROFILE["AlwaysOnLateral"] == "0"
   assert m.AP1_PARAM_PROFILE["AlwaysOnLateralLKAS"] == "0"
   assert m.AP1_PARAM_PROFILE["AlwaysOnLateralMain"] == "0"
+  # Pre-AP gets Always On Lateral parent on (Main/LKAS children off).
+  assert m.PREAP_AOL_OVERRIDES["AlwaysOnLateral"] == "1"
+  assert m.PREAP_AOL_OVERRIDES["AlwaysOnLateralMain"] == "0"
+  assert m.PREAP_AOL_OVERRIDES["AlwaysOnLateralLKAS"] == "0"
+  assert m.PREAP_AOL_OVERRIDES["PauseAOLOnBrake"] == "0"
