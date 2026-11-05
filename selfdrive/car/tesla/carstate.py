@@ -174,8 +174,11 @@ class CarState(CarStateBase):
     if ap1:
       ret.leftBlindspot, ret.rightBlindspot = self.ap1_bsm.update(frames_from_vl_all(cp_cam), DT_CTRL)
 
-    # AEB
-    ret.stockAeb = (cp_cam.vl["DAS_control"]["DAS_aebEvent"] == 1)
+    # AEB (AP ECU). Pre-AP has no DAS_control.
+    if self.CP.carFingerprint == CAR.TESLA_PREAP_MODELS:
+      ret.stockAeb = False
+    else:
+      ret.stockAeb = (cp_cam.vl["DAS_control"]["DAS_aebEvent"] == 1)
 
     # AP1 tip detent: raw SpdCtrlLvr_Stat (UP_2ND=4 / DN_2ND=8 vs 1ST).
     try:
@@ -217,8 +220,11 @@ class CarState(CarStateBase):
 
     # Messages needed by carcontroller
     self.msg_stw_actn_req = copy.copy(cp.vl["STW_ACTN_RQ"])
-    self.acc_state = cp_cam.vl["DAS_control"]["DAS_accState"]
-    self.das_control_counters.extend(cp_cam.vl_all["DAS_control"]["DAS_controlCounter"])
+    if self.CP.carFingerprint == CAR.TESLA_PREAP_MODELS:
+      self.acc_state = 0
+    else:
+      self.acc_state = cp_cam.vl["DAS_control"]["DAS_accState"]
+      self.das_control_counters.extend(cp_cam.vl_all["DAS_control"]["DAS_controlCounter"])
     self.cluster_stock = self.new_cluster_frames(cp_cam) if ap1 else {}
     if ap1:
       steer_ctrs = cp_cam.vl_all.get("DAS_steeringControl", {}).get("DAS_steeringControlCounter", [])
@@ -297,13 +303,18 @@ class CarState(CarStateBase):
 
   @staticmethod
   def get_cam_can_parser(CP, FPCP):
-    messages = [
-      # sig_address, frequency
-      ("DAS_control", 40),
-    ]
+    messages = []
+
+    # Pre-AP has no Autopilot ECU — do not require DAS_control (would keep canValid false).
+    if CP.carFingerprint != CAR.TESLA_PREAP_MODELS:
+      messages.append(("DAS_control", 40))
 
     if CP.carFingerprint == CAR.TESLA_MODELS_RAVEN:
       messages.append(("EPAS3P_sysStatus", 100))
+
+    if CP.carFingerprint == CAR.TESLA_PREAP_MODELS:
+      # Comma pedal on cam/chassis bus. Frequency 0: missing pedal does not trip canValid.
+      messages.append(("GAS_SENSOR", 0))
 
     if CP.carFingerprint == CAR.TESLA_AP1_MODELS:
       # Stock cluster frames for the AP1 cluster substitution. Frequency 0:

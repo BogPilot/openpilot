@@ -79,7 +79,15 @@ def get_bool(key: str, default: bool | None = None) -> bool:
 
 
 def set_bool(key: str, value: bool) -> None:
-  _write_text(key, "1" if value else "0")
+  # Avoid rewriting identical values every controlsd frame (PedalDetected mirror).
+  want = "1" if value else "0"
+  if _read_text(key) == want:
+    return
+  try:
+    _write_text(key, want)
+  except OSError:
+    # Fresh device / read-only /data must not kill controlsd.
+    pass
 
 
 def get_float(key: str, default: float | None = None) -> float:

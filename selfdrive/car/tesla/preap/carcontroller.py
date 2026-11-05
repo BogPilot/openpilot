@@ -82,7 +82,8 @@ class PreApCarController(CarControllerBase):
 
     lat_active = bool(CC.latActive) and bool(CC.enabled)
     angle = float(actuators.steeringAngleDeg)
-    steer_msg = self.tesla_can.create_steering_control(angle, lat_active, self.frame)
+    # DAS_steeringControlCounter is 4-bit; packer rejects frame>=16 unmasked.
+    steer_msg = self.tesla_can.create_steering_control(angle, lat_active, (self.frame // 2) % 16)
     can_sends.append(steer_msg)
     self.apply_angle_last = angle
 

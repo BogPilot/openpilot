@@ -10,6 +10,16 @@ class RadarInterface(RadarInterfaceBase):
   def __init__(self, CP):
     super().__init__(CP)
     self.CP = CP
+    self.updated_messages = set()
+    self.track_id = 0
+    self._preap_radar_offset_m = 0.0
+    self.rcp = None
+    self.num_points = 0
+    self.trigger_msg = 0
+
+    # Pre-AP default: radar off — skip Bosch parser (radarUnavailable).
+    if CP.carFingerprint == CAR.TESLA_PREAP_MODELS and not get_bool(PreApParamKeys.RADAR_ENABLED, False):
+      return
 
     if CP.carFingerprint == CAR.TESLA_MODELS_RAVEN:
       messages = [('RadarStatus', 16)]
@@ -27,14 +37,8 @@ class RadarInterface(RadarInterfaceBase):
       ])
 
     self.rcp = CANParser(DBC[CP.carFingerprint]['radar'], messages, CANBUS.radar)
-    self.updated_messages = set()
-    self.track_id = 0
-    self._preap_radar_offset_m = 0.0
     if CP.carFingerprint == CAR.TESLA_PREAP_MODELS:
-      if not get_bool(PreApParamKeys.RADAR_ENABLED, False):
-        self.rcp = None  # radarUnavailable path
-      else:
-        self._preap_radar_offset_m = get_float(PreApParamKeys.RADAR_OFFSET, 0.0)
+      self._preap_radar_offset_m = get_float(PreApParamKeys.RADAR_OFFSET, 0.0)
 
   def update(self, can_strings):
     if self.rcp is None:
