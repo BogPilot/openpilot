@@ -62,6 +62,12 @@ safety_config current_safety_config;
 bool safety_rx_hook(const CANPacket_t *to_push) {
   bool controls_allowed_prev = controls_allowed;
 
+  // rx_all: every frame, before whitelist. Pre-AP Bosch GTW readdr needs this
+  // (NAP tesla_preap). Other modes leave rx_all NULL.
+  if (current_hooks->rx_all != NULL) {
+    current_hooks->rx_all(to_push);
+  }
+
   bool valid = rx_msg_safety_check(to_push, &current_safety_config, current_hooks);
   if (valid) {
     current_hooks->rx(to_push);
