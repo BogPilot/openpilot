@@ -52,6 +52,7 @@ FrogPilotLateralPanel::FrogPilotLateralPanel(FrogPilotSettingsWindow *parent) : 
     {"AlwaysOnLateralMain", tr("Enable With Cruise Control"), tr("<b>Enable \"Always On Lateral\" whenever \"Cruise Control\" is on, even when openpilot is not engaged.</b>"), ""},
     {"AlwaysOnLateralLKAS", tr("Enable With LKAS"), tr("<b>Enable \"Always On Lateral\" whenever \"LKAS\" is on, even when openpilot is not engaged.</b>"), ""},
     {"PauseAOLOnBrake", tr("Pause on Brake Press Below"), tr("<b>Pause \"Always On Lateral\" below the set speed while the brake pedal is pressed.</b>"), ""},
+    {"TeslaPreApDoublePull", tr("Pre-AP Double-Pull Engage"), tr("<b>Tesla Pre-AP:</b> first stalk pull enables lateral (Always On Lateral); a second pull within 400 ms adds longitudinal. Brake drops long and keeps lat. Match NAP when on; off leaves single-pull engage unchanged."), ""},
 
     {"LaneChanges", tr("Lane Changes"), tr("<b>Allow openpilot to change lanes.</b>"), "../../frogpilot/assets/toggle_icons/icon_lane.png"},
     {"NudgelessLaneChange", tr("Automatic Lane Changes"), tr("<b>When the turn signal is on, openpilot will automatically change lanes.</b> No steering-wheel nudge required!"), ""},
@@ -357,6 +358,11 @@ void FrogPilotLateralPanel::updateToggles() {
     else if (key == "AlwaysOnLateralMain") {
       setVisible &= !parent->isHKGCanFd;
       setVisible |= parent->hasOpenpilotLongitudinal;
+    }
+
+    else if (key == "TeslaPreApDoublePull") {
+      setVisible &= parent->isTeslaPreAP;
+      setVisible &= parent->hasOpenpilotLongitudinal;
     }
 
     else if (key == "ForceAutoTune") {

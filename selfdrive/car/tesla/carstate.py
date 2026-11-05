@@ -18,6 +18,7 @@ from openpilot.selfdrive.car.tesla.preap.pedal_feedback import PedalFeedback
 from openpilot.selfdrive.car.tesla.preap.cruise import (
   pedal_cruise_available, remap_preap_pedal_button_type, is_preap_cancel_echo,
 )
+from openpilot.selfdrive.car.tesla.preap.engagement import DoublePullEngagement
 from openpilot.selfdrive.car.interfaces import CarStateBase
 from opendbc.can.parser import CANParser
 from opendbc.can.can_define import CANDefine
@@ -82,6 +83,8 @@ class CarState(CarStateBase):
     self.pedal_brake_required = False
     self.vdas_limited_accel = 0.0
     self.pedal_first_enabled_mono_time = 0
+    self.double_pull = DoublePullEngagement()
+    self.pedal_cruise_lat_only = False
 
   def update(self, cp, cp_cam, frogpilot_toggles):
     ret = car.CarState.new_message()
@@ -261,6 +264,19 @@ class CarState(CarStateBase):
               cruise_enabled=was_enabled,
           ):
             event.type = car.CarState.ButtonEvent.Type.unknown
+      # Optional NAP-style double-pull under Always On Lateral.
+      dp_on = bool(getattr(frogpilot_toggles, "tesla_preap_double_pull", False))
+      cancel_pressed = any(
+        e.type == car.CarState.ButtonEvent.Type.cancel and e.pressed for e in buttonEvents
+      )
+      buttonEvents = self.double_pull.filter_button_events(
+        buttonEvents,
+        enabled=dp_on,
+        now_ms=now_ms,
+        brake_pressed=bool(ret.brakePressed),
+        cancel=cancel_pressed,
+      )
+      self.pedal_cruise_lat_only = bool(dp_on and self.double_pull.lat_only)
     ret.buttonEvents = buttonEvents
 
     # Doors

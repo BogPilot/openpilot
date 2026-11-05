@@ -253,3 +253,53 @@ def test_frogpilot_pedal_hud_events_registered():
   unavail = FROGPILOT_EVENTS[FrogPilotEventName.pedalUnavailable]
   assert "Pedal Control Unavailable" in unavail[ET.WARNING].alert_text_1
   assert "Speed Control Disabled" in unavail[ET.WARNING].alert_text_2
+
+
+def test_double_pull_first_lat_second_long():
+  from cereal import car
+  from openpilot.selfdrive.car.tesla.preap.engagement import (
+    DoublePullEngagement, DOUBLE_PULL_WINDOW_MS,
+  )
+  ButtonType = car.CarState.ButtonEvent.Type
+
+  def ev(pressed, t=ButtonType.setCruise):
+    e = car.CarState.ButtonEvent.new_message()
+    e.type = t
+    e.pressed = pressed
+    return e
+
+  dp = DoublePullEngagement()
+  # Toggle off: identity
+  events = [ev(True), ev(False)]
+  out = dp.filter_button_events(events, enabled=False, now_ms=1000, brake_pressed=False, cancel=False)
+  assert len(out) == 2 and not dp.lat_only
+
+  # First pull: swallow press+release, arm lat_only
+  out = dp.filter_button_events([ev(True)], enabled=True, now_ms=2000, brake_pressed=False, cancel=False)
+  assert out == [] and dp.lat_only and dp.pending
+  out = dp.filter_button_events([ev(False)], enabled=True, now_ms=2050, brake_pressed=False, cancel=False)
+  assert out == [] and dp.lat_only
+
+  # Second pull within window: keep events (release → buttonEnable)
+  out = dp.filter_button_events([ev(True)], enabled=True, now_ms=2000 + DOUBLE_PULL_WINDOW_MS - 50,
+                                brake_pressed=False, cancel=False)
+  assert len(out) == 1 and out[0].pressed and not dp.lat_only
+  out = dp.filter_button_events([ev(False)], enabled=True, now_ms=2000 + DOUBLE_PULL_WINDOW_MS - 40,
+                                brake_pressed=False, cancel=False)
+  assert len(out) == 1 and not out[0].pressed
+
+
+def test_double_pull_off_does_not_fight_aol():
+  """When TeslaPreApDoublePull is off, engagement must be a pure pass-through."""
+  from cereal import car
+  from openpilot.selfdrive.car.tesla.preap.engagement import DoublePullEngagement
+  ButtonType = car.CarState.ButtonEvent.Type
+  dp = DoublePullEngagement()
+  dp.pending = True
+  dp.lat_only = True
+  e = car.CarState.ButtonEvent.new_message()
+  e.type = ButtonType.setCruise
+  e.pressed = True
+  out = dp.filter_button_events([e], enabled=False, now_ms=5000, brake_pressed=False, cancel=False)
+  assert out == [e]
+  assert not dp.pending and not dp.lat_only
