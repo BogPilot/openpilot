@@ -23,7 +23,7 @@ User-facing name: **BogPilot**. Code/param keys remain FrogPilot-shaped where th
 
 ## Left out (documented)
 
-- Radar GTW emulation (`rx_all` / VIN fake) — BogPilot 0.9.7 `safety_hooks` has no `rx_all`.
+- Full VirtualDAS / buddy IC still out (radar GTW `rx_all` is now ported — see Bosch radar).
 - Full VirtualDAS, zero-torque learning, engage-grace pedal ramps, stock-CC spoofer.
 - Buddy IC / DAS HUD TX.
 - iBooster (NotAutopilot has no working path).
@@ -47,9 +47,11 @@ User-facing name: **BogPilot**. Code/param keys remain FrogPilot-shaped where th
 
 ### Bosch radar
 - File-backed: `TeslaRadarEnabled` (**default off**), `TeslaRadarBehindNosecone`, `TeslaRadarOffset` (meters internal; UI inches).
-- Safety: `PREAP_FLAG_RADAR_EMULATION` gates a tight TX whitelist (`0x560` dummy VIN, `0x2A9`, `0x199` on bus 1). **Default off.**
-- Python `preap/radar_tx.py` sends **dummy VIN only** (`BP0DUMMYVIN00000`). Never a real VIN.
-- Full NAP chassis→radar GTW `rx_all` readdr is **not** ported (BogPilot 0.9.7 has no `rx_all`).
+- Safety: `PREAP_FLAG_RADAR_EMULATION` (bit 1) + optional `PREAP_FLAG_RADAR_BEHIND_NOSECONE` (bit 4). **Default off.**
+- **Panda GTW (NAP port):** `safety_hooks.rx_all` → `tesla_preap_gtw_emulation` readdrs chassis bus0→radar bus1 (0x45→0x219, 0x108→0x109, 0x145→0x149, 0x20A→0x159, 0x308→0x209, 0x30A→0x2D9, 0x405→0x2B9; patched 0x398→0x2A9; SNA/CRC 0x0E→0x199; synth 0x115→0x129+0x1A9, 0x118→0x119+0x169). Firmware `can_send(..., skip_tx_hook=true)`.
+- **Requires panda firmware rebuild** with `SAFETY_TESLA_PREAP` (32) + this source. Integrator builds once on `bogpilot-na-preap-combined` — this branch commits **source only**, no `panda/board/obj` binaries.
+- Python `preap/radar_tx.py`: dummy VIN `TESTDUMMYVIN00000` (never a real VIN) + NAP-matching `GTW_carConfig` keepalive (Bosch fwd radar / autopilot bits / nosecone). Radar off → sends nothing.
+- Live symptom without GTW fw: `radarState` invalid, `RadarPoint*` 0x322/0x323 timeouts, `radarFault`; missing mode 32 → panda `noOutput`.
 - AP1 `safety_tesla.h` remains untouched.
 
 ### Menu copy
