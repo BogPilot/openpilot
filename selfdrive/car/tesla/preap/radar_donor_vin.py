@@ -299,7 +299,7 @@ class RadarDonorVinReader:
     self._request_sent = payload is not None
     self._step_deadline = None if timeout is None else self._now() + timeout
     can_sends = (_uds_frame(payload),) if payload is not None else ()
-    return RadarDonorVinOutput(self.state, can_sends=can_sends)
+    return RadarDonorVinOutput(self.state, can_sends=can_sends, vin=self.vin)
 
   def _resend(self):
     payload = {
@@ -348,11 +348,11 @@ class RadarDonorVinCommissioner:
     self.store_vin(vin)
     self._persisted = True
 
-  def _start(self) -> None:
+  def _start(self) -> tuple[tuple[int, int, bytes, int], ...]:
     self._attempted = True
     self._persisted = False
     self._vin_fault_frames = 0
-    self.reader.start()
+    return self.reader.start().can_sends
 
   def update(self, packets: list[tuple[int, bytes, int]], *, radar_enabled: bool,
              stored_vin: str, engaged: bool, force_read: bool = False
@@ -372,8 +372,9 @@ class RadarDonorVinCommissioner:
       self._force_used = False
     elif force_read and not self._force_used and not running:
       self._force_used = True
-      self._start()
-      running = True
+      # start() already emits tester-present; return it (do not call update yet —
+      # that would see _request_sent and drop the frame when packets are empty).
+      return self._start()
 
     if self.reader.state in (RadarDonorVinState.COMPLETE, RadarDonorVinState.FAILED):
       self._persist(self.reader.vin)
@@ -392,7 +393,7 @@ class RadarDonorVinCommissioner:
         self._vin_fault_frames = 0
     if self._vin_fault_frames < self.STABLE_FRAMES:
       return ()
-    self._start()
+    start_sends = self._start()
     output = self.reader.update(packets)
     self._persist(output.vin)
-    return output.can_sends
+    return start_sends + output.can_sends

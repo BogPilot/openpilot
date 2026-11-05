@@ -38,7 +38,8 @@ def tmp_params(monkeypatch):
 def test_normalize_accepts_seventeen_alnum():
   assert normalize_radar_donor_vin(FAKE_VIN) == FAKE_VIN
   assert normalize_radar_donor_vin("SHORT") == ""
-  assert normalize_radar_donor_vin("NOTAREALVIN00-001") == "NOTAREALVIN00001"  # hyphen stripped
+  assert normalize_radar_donor_vin("NOTAREALVIN00-001") == ""  # 16 alnum after hyphen strip
+  assert normalize_radar_donor_vin("NOT-AREALVIN000001") == "NOTAREALVIN000001"
 
 
 def test_normalize_rejects_short():

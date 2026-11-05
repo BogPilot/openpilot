@@ -25,8 +25,9 @@ class TestPreapRadarGtw(unittest.TestCase):
       self.assertIn(addr, radar_tx.RADAR_TX_ADDRS)
 
   def test_dummy_vin_refuse_real_looking(self):
+    # NOTAREAL/TEST/DUMMY markers are allowed; refuse a real-looking 17-char.
     with self.assertRaises(ValueError):
-      radar_tx.pack_dummy_vin("NOT-A-REAL-VIN-01")
+      radar_tx.pack_dummy_vin("ABCDEFGHIJKLMNOPQ")
     dat = radar_tx.pack_dummy_vin()
     self.assertEqual(len(dat), 8)
     self.assertTrue(dat.startswith(b"TESTDUMM"))
