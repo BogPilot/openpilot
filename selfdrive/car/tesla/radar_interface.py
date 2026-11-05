@@ -3,6 +3,7 @@ from cereal import car
 from opendbc.can.parser import CANParser
 from openpilot.selfdrive.car.tesla.values import CAR, DBC, CANBUS
 from openpilot.selfdrive.car.tesla.preap.params import PreApParamKeys, get_bool, get_float
+from openpilot.selfdrive.car.tesla.preap.radar_donor_vin import feed_can_strings as _feed_radar_vin_can
 from openpilot.selfdrive.car.interfaces import RadarInterfaceBase
 
 
@@ -41,6 +42,8 @@ class RadarInterface(RadarInterfaceBase):
       self._preap_radar_offset_m = get_float(PreApParamKeys.RADAR_OFFSET, 0.0)
 
   def update(self, can_strings):
+    if self.CP.carFingerprint == CAR.TESLA_PREAP_MODELS:
+      _feed_radar_vin_can(can_strings)
     if self.rcp is None:
       return super().update(None)
 

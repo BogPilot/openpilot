@@ -90,9 +90,10 @@ const CanMsg TESLA_PREAP_TX_MSGS_WITH_RADAR[] = {
   {0x551, 0, 6},
   {0x551, 2, 6},
   {0x45,  0, 8},
-  {0x560, 1, 8},  // VIN_VIP dummy (Python)
+  {0x560, 1, 8},  // VIN_VIP dummy/donor (Python)
   {0x2A9, 1, 8},  // GTW_carConfig helper (Python keepalive)
   {0x199, 1, 8},  // STW_ANGLHP helper
+  {0x641, 1, 8},  // Radar UDS F190 read-only (exact payloads in tx_hook)
 };
 
 RxCheck tesla_preap_rx_checks[] = {
@@ -378,9 +379,56 @@ static void tesla_preap_rx_hook(const CANPacket_t *msg) {
   generic_rx_checks(false);
 }
 
+
+// Narrow F190 UDS allow (bus 1, addr 0x641). Exact NAP read-conversation bytes
+// only — never WriteDataByIdentifier, never routine 0x0A03, never security.
+#define PREAP_RADAR_UDS_ADDR 0x641U
+
+static bool preap_f190_payload_allowed(const CANPacket_t *msg) {
+  static const uint8_t tester[8] = {0x02U, 0x3EU, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U};
+  static const uint8_t default_session[8] = {0x02U, 0x10U, 0x01U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U};
+  static const uint8_t extended_session[8] = {0x02U, 0x10U, 0x03U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U};
+  static const uint8_t read_f190[8] = {0x03U, 0x22U, 0xF1U, 0x90U, 0x00U, 0x00U, 0x00U, 0x00U};
+  static const uint8_t flow_control[8] = {0x30U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U};
+  static const uint8_t cleanup_marker[8] = {0x02U, 0x3EU, 0x80U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U};
+  const uint8_t *allowed[] = {tester, default_session, extended_session, read_f190, flow_control, cleanup_marker};
+  if (GET_LEN(msg) != 8U) {
+    return false;
+  }
+  for (unsigned int i = 0U; i < (sizeof(allowed) / sizeof(allowed[0])); i++) {
+    bool match = true;
+    for (int b = 0; b < 8; b++) {
+      if (msg->data[b] != allowed[i][b]) {
+        match = false;
+        break;
+      }
+    }
+    if (match) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool preap_f190_tx_ok(const CANPacket_t *msg) {
+  // Read-only F190 on the radar bus while disengaged. Not ALLOUTPUT.
+  if (!preap_radar_emulation || controls_allowed) {
+    return false;
+  }
+  if (msg->bus != 1U) {
+    return false;
+  }
+  return preap_f190_payload_allowed(msg);
+}
+
 static bool tesla_preap_tx_hook(const CANPacket_t *msg) {
   bool tx = true;
   bool violation = false;
+
+  // Radar UDS: allow only the exact F190 read conversation payloads.
+  if (msg->addr == PREAP_RADAR_UDS_ADDR) {
+    return preap_f190_tx_ok(msg);
+  }
 
   if (msg->addr == 0x488U) {
     int raw_angle_can = ((GET_BYTE(msg, 0) & 0x7FU) << 8) | GET_BYTE(msg, 1);

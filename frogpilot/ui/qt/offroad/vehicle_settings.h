@@ -32,7 +32,7 @@ private:
   // Pre-AP only (visible when isTeslaPreAP). AP1 panel/text unchanged.
   QSet<QString> teslaPreapKeys = {"PedalStatus", "PedalCalibrate", "PedalCanBus",
                                  "TeslaRadarEnabled", "TeslaRadarBehindNosecone", "TeslaRadarOffset",
-                                 "TeslaRadarIgnoreHwFail"};
+                                 "TeslaRadarIgnoreHwFail", "TeslaRadarReadVin"};
   QSet<QString> toyotaKeys = {"ClusterOffset", "FrogsGoMoosTweak", "LockDoorsTimer", "SNGHack", "ToyotaDoors", "ToyotaDSUBypass"};
   QSet<QString> vehicleInfoKeys = {"BlindSpotSupport", "HardwareDetected", "OpenpilotLongitudinal", "PedalSupport", "RadarSupport", "SDSUSupport", "SNGSupport"};
 

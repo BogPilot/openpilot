@@ -21,8 +21,13 @@ from openpilot.selfdrive.car.tesla.preap.calib import (
   pedal_can_bus,
   pedal_long_allowed,
 )
-from openpilot.selfdrive.car.tesla.preap.params import PreApParamKeys, get_bool, set_bool
+from openpilot.selfdrive.car.tesla.preap.params import PreApParamKeys, get_bool, get_str, set_bool, set_str
 from openpilot.selfdrive.car.tesla.preap.pedal_can import PedalCommandCounter, create_pedal_command
+from openpilot.selfdrive.car.tesla.preap.radar_donor_vin import (
+  RadarDonorVinCommissioner,
+  drain_rx_packets,
+  normalize_radar_donor_vin,
+)
 from openpilot.selfdrive.car.tesla.preap.radar_tx import radar_tx_frames
 from openpilot.selfdrive.car.tesla.preap.stock_cc_spoofer import StockCCSpoofer
 from openpilot.selfdrive.car.tesla.teslacan import TeslaCAN
@@ -45,6 +50,11 @@ class PreApCarController(CarControllerBase):
     self._calib_press = None
     self.stock_cc = StockCCSpoofer()
     self.prev_requested_long = False
+    def _store_donor_vin(vin: str) -> None:
+      # Never log the VIN value.
+      set_str(PreApParamKeys.RADAR_DONOR_VIN, vin)
+    self._vin_commissioner = RadarDonorVinCommissioner(_store_donor_vin, now=time.monotonic)
+    self._read_vin_was_on = False
 
   def _update_detection_and_calib(self, CS) -> bool:
     """Mirror PedalDetected; run armed two-step calib from CS samples."""
@@ -137,8 +147,27 @@ class PreApCarController(CarControllerBase):
     self.prev_requested_long = requested_long
     can_sends.extend(self.stock_cc.update(CS, self.frame, self.tesla_can, CANBUS.chassis))
 
-    # Radar helper TX (dummy VIN) — low rate, only when enabled.
-    if get_bool(PreApParamKeys.RADAR_ENABLED) and (self.frame % 100 == 0):
+    # Phase A donor VIN F190 read — offroad / pre-engage only (NAP card timing).
+    radar_on = get_bool(PreApParamKeys.RADAR_ENABLED)
+    read_vin_on = get_bool(PreApParamKeys.RADAR_READ_VIN, False)
+    if radar_on and read_vin_on:
+      # Rising edge of the toggle forces one read (NAP NAPRadarReadVin pulse).
+      force_read = read_vin_on and not self._read_vin_was_on
+      self._read_vin_was_on = True
+      stored = normalize_radar_donor_vin(get_str(PreApParamKeys.RADAR_DONOR_VIN, ""))
+      engaged = bool(CC.enabled) or bool(getattr(CS.out, "cruiseState", None) and CS.out.cruiseState.enabled)
+      can_sends.extend(self._vin_commissioner.update(
+        drain_rx_packets(),
+        radar_enabled=True,
+        stored_vin=stored,
+        engaged=engaged,
+        force_read=force_read,
+      ))
+    else:
+      self._read_vin_was_on = False
+
+    # Radar helper TX (donor VIN when stored, else dummy) — low rate, only when enabled.
+    if radar_on and (self.frame % 100 == 0):
       can_sends.extend(radar_tx_frames(enabled=True, bus=CANBUS.radar))
 
     new_actuators = actuators.as_builder()

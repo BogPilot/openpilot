@@ -72,6 +72,14 @@ RADAR_IGNORE_HW_FAIL_DESC = (
 )
 
 
+RADAR_READ_VIN_TITLE = "Read Radar VIN"
+RADAR_READ_VIN_DESC = (
+  "<b>Read the Bosch radar donor VIN (F190).</b> Off by default. On lets BogPilot "
+  "request the VIN from the radar over UDS while offroad / before engage, store it "
+  "locally, and put it on the GTW VIN helper frames instead of the dummy. Never "
+  "writes a VIN to the radar. Takes effect right away; no reboot."
+)
+
 TESLA_PREAP_TOGGLES_TITLE = "Tesla Pre-AP Settings"
 TESLA_PREAP_TOGGLES_DESC = (
   "<b>BogPilot features for Tesla Model S Pre-AP</b> (no Autopilot ECU): comma pedal "

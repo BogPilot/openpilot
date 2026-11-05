@@ -31,5 +31,13 @@ def test_radar_tx_whitelist_behind_flag_default_off():
   assert "TESLA_PREAP_TX_MSGS_WITH_RADAR" in PREAP
   assert "0x560" in PREAP
   assert "preap_radar_emulation" in PREAP
-  # default TX table (no radar) must not be the only table — with-radar is separate
   assert "if (preap_radar_emulation)" in PREAP
+
+
+def test_f190_narrow_allow_present():
+  assert "preap_f190_payload_allowed" in PREAP
+  assert "preap_f190_tx_ok" in PREAP
+  assert "0x641" in PREAP
+  assert "0x22U, 0xF1U, 0x90U" in PREAP
+  assert "ALLOUTPUT" not in PREAP
+  assert "0x0A03" not in PREAP

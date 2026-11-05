@@ -27,6 +27,9 @@ class PreApParamKeys:
   RADAR_OFFSET = "TeslaRadarOffset"  # meters internally
   # NAP NAPRadarIgnoreHwFail (default off). Hides RADC_HWFail; SGUFail already ignored on Pre-AP.
   RADAR_IGNORE_HW_FAIL = "TeslaRadarIgnoreHwFail"
+  # Opt-in F190 donor VIN read (Phase A). Default off. Never log the stored VIN.
+  RADAR_READ_VIN = "TeslaRadarReadVin"
+  RADAR_DONOR_VIN = "TeslaRadarDonorVin"  # 17-char; file-backed; never log
 
 
 # Safe defaults (match NotAutopilot DEFAULT_CONFIG; radar off).
@@ -43,6 +46,8 @@ DEFAULTS = {
   PreApParamKeys.RADAR_BEHIND_NOSECONE: False,
   PreApParamKeys.RADAR_OFFSET: 0.0,
   PreApParamKeys.RADAR_IGNORE_HW_FAIL: False,
+  PreApParamKeys.RADAR_READ_VIN: False,
+  PreApParamKeys.RADAR_DONOR_VIN: "",
 }
 
 # Overridable in tests.
@@ -123,3 +128,18 @@ def get_int(key: str, default: int | None = None) -> int:
 
 def set_int(key: str, value: int) -> None:
   _write_text(key, str(int(value)))
+
+
+def get_str(key: str, default: str | None = None) -> str:
+  if default is None:
+    default = str(DEFAULTS.get(key, ""))
+  text = _read_text(key)
+  return default if text == "" else text
+
+
+def set_str(key: str, value: str) -> None:
+  # Do not log value — may hold a donor VIN.
+  try:
+    _write_text(key, str(value))
+  except OSError:
+    pass
