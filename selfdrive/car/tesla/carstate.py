@@ -262,8 +262,13 @@ class CarState(CarStateBase):
     if ap1:
       st = cp_cam.vl.get("AutopilotStatus", {}).get("autopilotStatus", 0)
       self.stock_ap_active = 3 <= int(st or 0) <= 5
-    if ap1:
-      fused = cp_cam.vl.get("AutopilotStatus", {}).get("DAS_fusedSpeedLimit")
+    # AP1: Mobileye fused (stock 0x399) then GTW UI map/mpp.
+    # Pre-AP: no Mobileye — fused=None; map/mpp only (absent msgs → 0).
+    if ap1 or self.CP.carFingerprint == CAR.TESLA_PREAP_MODELS:
+      if ap1:
+        fused = cp_cam.vl.get("AutopilotStatus", {}).get("DAS_fusedSpeedLimit")
+      else:
+        fused = None
       ui_map = cp.vl.get("UI_driverAssistMapData", {}).get("UI_mapSpeedLimit")
       gps = cp.vl.get("UI_gpsVehicleSpeed", {})
       fp_ret.dashboardSpeedLimit = dashboard_speed_limit_ms(
@@ -313,11 +318,14 @@ class CarState(CarStateBase):
     else:
       messages.append(("SDM1", 10))
 
-    if CP.carFingerprint == CAR.TESLA_AP1_MODELS:
-      # GTW map / mpp speed limits for dashboardSpeedLimit. Frequency 0 so a
-      # car without them does not trip canValid (same pattern as cluster RX).
+    # GTW map / mpp speed limits for dashboardSpeedLimit. Frequency 0 so a
+    # car without them does not trip canValid (same pattern as cluster RX).
+    # Pre-AP has no Mobileye; same chassis UI msgs still carry map/mpp limits.
+    if CP.carFingerprint in (CAR.TESLA_AP1_MODELS, CAR.TESLA_PREAP_MODELS):
       messages.append(("UI_driverAssistMapData", 0))
       messages.append(("UI_gpsVehicleSpeed", 0))
+
+    if CP.carFingerprint == CAR.TESLA_AP1_MODELS:
       # EPB EAC allow (0x214) for the EPB revoke fault. Frequency 0, same reason.
       messages.append(("EPB_epasControl", 0))
       # 0x208 outside air temperature for regen_aware.py. Frequency 0 (no canValid effect).
