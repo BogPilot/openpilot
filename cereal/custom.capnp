@@ -98,6 +98,12 @@ struct FrogPilotCarEvent @0x81c2f05a394cf4af {
 
     # BogPilot AP1: stalk follow-distance dial applied a new setting.
     ap1FollowDistanceChanged @29;
+
+    # Pre-AP NAP-style pedal HUD (FrogPilot events; not stock cereal EventName).
+    pedalMaxRegen @30;
+    pedalCruiseEnabled @31;
+    pedalCruiseDisabled @32;
+    pedalUnavailable @33;
   }
 }
 
@@ -142,6 +148,12 @@ struct FrogPilotCarState @0xda96579883444c35 {
   ap1AmbientTempC @18 :Float32;
   ap1MotorTorqueNm @19 :Float32;
   ap1MotorRpm @20 :Float32;
+
+  # Pre-AP NAP-style pedal HUD / authority telemetry (FrogPilotCarState).
+  pedalMaxRegen @21 :Bool;          # regen near limit; ask driver for friction brake
+  pedalUnavailable @22 :Bool;       # authority acquisition failed / pedal fault
+  pedalLongActive @23 :Bool;        # pedal firmware accepted longitudinal authority
+  pedalCruiseLatOnly @24 :Bool;     # double-pull first pull: lat intent without long
 
   struct ButtonEvent {
     enum Type {

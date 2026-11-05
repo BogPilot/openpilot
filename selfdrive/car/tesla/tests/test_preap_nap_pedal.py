@@ -220,3 +220,36 @@ def test_long_controller_source_has_engage_grace_ramp():
   assert "freeze_integrator" in src
   assert "accel_effort_limits" in src
   assert "preap_long_handoff_slew_active" in src
+
+
+def test_preap_hud_chimes_and_regen_demand():
+  from openpilot.selfdrive.car.tesla.preap.hud import (
+    PreAPChimeState, RegenDemandCheck, update_preap_chimes,
+  )
+  chimes, prev = update_preap_chimes(lat_engaged=True, long_engaged=True, prev=PreAPChimeState())
+  assert chimes.long_engage and chimes.lat_engage
+  chimes, prev = update_preap_chimes(lat_engaged=True, long_engaged=False, prev=prev)
+  assert chimes.long_disengage and not chimes.lat_disengage
+
+  regen = RegenDemandCheck()
+  # Below envelope floor at speed should accumulate then trip.
+  tripped = False
+  for _ in range(50):
+    tripped = regen.update(pedal_long_active=True, brake_pressed=False, a_target=-3.0, v_ego=20.0)
+  assert tripped
+  # Brake clears.
+  assert not regen.update(pedal_long_active=True, brake_pressed=True, a_target=-3.0, v_ego=20.0)
+
+
+def test_frogpilot_pedal_hud_events_registered():
+  from openpilot.selfdrive.controls.lib.events import FROGPILOT_EVENTS, FrogPilotEventName
+  for name in ("pedalMaxRegen", "pedalCruiseEnabled", "pedalCruiseDisabled", "pedalUnavailable"):
+    assert hasattr(FrogPilotEventName, name), name
+    assert getattr(FrogPilotEventName, name) in FROGPILOT_EVENTS
+  alert = FROGPILOT_EVENTS[FrogPilotEventName.pedalMaxRegen]
+  from openpilot.selfdrive.controls.lib.events import ET
+  assert "Regen Limit Reached" in alert[ET.WARNING].alert_text_1
+  assert "Press Brake to Slow Down" in alert[ET.WARNING].alert_text_2
+  unavail = FROGPILOT_EVENTS[FrogPilotEventName.pedalUnavailable]
+  assert "Pedal Control Unavailable" in unavail[ET.WARNING].alert_text_1
+  assert "Speed Control Disabled" in unavail[ET.WARNING].alert_text_2

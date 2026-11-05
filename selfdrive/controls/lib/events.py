@@ -1281,6 +1281,38 @@ FROGPILOT_EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
       FrogPilotAlertStatus.frogpilot, AlertSize.small,
       Priority.LOW, VisualAlert.none, FrogPilotAudibleAlert.mail, 3.),
   },
+  FrogPilotEventName.pedalMaxRegen: {
+    ET.WARNING: Alert(
+      "Regen Limit Reached",
+      "Press Brake to Slow Down",
+      AlertStatus.userPrompt, AlertSize.mid,
+      Priority.HIGH, VisualAlert.brakePressed, AudibleAlert.promptRepeat, .2),
+  },
+
+  FrogPilotEventName.pedalCruiseEnabled: {
+    ET.PERMANENT: Alert(
+      "Pedal Cruise Engaged",
+      "",
+      AlertStatus.normal, AlertSize.small,
+      Priority.HIGH, VisualAlert.none, AudibleAlert.engage, 0.8),
+  },
+
+  FrogPilotEventName.pedalCruiseDisabled: {
+    ET.PERMANENT: Alert(
+      "Pedal Cruise Disengaged",
+      "",
+      AlertStatus.normal, AlertSize.small,
+      Priority.HIGH, VisualAlert.none, AudibleAlert.disengage, 0.8),
+  },
+
+  FrogPilotEventName.pedalUnavailable: {
+    ET.WARNING: Alert(
+      "Pedal Control Unavailable",
+      "Speed Control Disabled",
+      AlertStatus.userPrompt, AlertSize.mid,
+      Priority.HIGH, VisualAlert.none, AudibleAlert.disengage, 3.0),
+  },
+
 }
 
 if __name__ == '__main__':

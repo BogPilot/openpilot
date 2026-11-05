@@ -366,6 +366,14 @@ class CarState(CarStateBase):
       amb = cp.vl.get("GTW_ESP1", {})
       fp_ret.ap1AmbientTempC = float(amb["GTW_ambientTemperature"]) if getattr(cp, "ts_nanos", {}).get("GTW_ESP1", {}).get("GTW_ambientTemperature", 0) else float("nan")
 
+    # Pre-AP NAP-style pedal HUD telemetry on FrogPilotCarState (not stock CarState).
+    if self.CP.carFingerprint == CAR.TESLA_PREAP_MODELS:
+      fp_ret.pedalMaxRegen = bool(self.pedal_brake_required)
+      fp_ret.pedalUnavailable = bool(self.pedal_unavailable)
+      fp_ret.pedalLongActive = bool(self.pedal_authority_active)
+      # First-pull lat-only is filled by double-pull engagement when enabled.
+      fp_ret.pedalCruiseLatOnly = bool(getattr(self, "pedal_cruise_lat_only", False))
+
     return ret, fp_ret
 
   @staticmethod

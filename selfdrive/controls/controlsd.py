@@ -35,6 +35,10 @@ from openpilot.frogpilot.tinygrad_modeld.tinygrad_modeld import LAT_SMOOTH_SECON
 from openpilot.system.hardware import HARDWARE
 
 from openpilot.frogpilot.common.frogpilot_variables import get_frogpilot_toggles, params_memory
+from openpilot.selfdrive.car.tesla.preap.hud import (
+  PreAPChimeState, RegenDemandCheck, update_preap_chimes,
+)
+from openpilot.selfdrive.car.tesla.values import CAR as TESLA_CAR
 from openpilot.frogpilot.controls.lib.neural_network_feedforward import LatControlNNFF
 
 SOFT_DISABLE_TIME = 3  # seconds
@@ -210,6 +214,9 @@ class Controls:
 
     self.frogpilot_AM = AlertManager()
     self.frogpilot_events = Events(frogpilot=True)
+    # Pre-AP NAP-style pedal HUD (chimes + regen demand overflow)
+    self.preap_regen_demand = RegenDemandCheck()
+    self.prev_preap_chimes = PreAPChimeState()
 
     self.frogpilot_toggles = get_frogpilot_toggles()
 
@@ -451,6 +458,43 @@ class Controls:
 
     # Add FrogPilot events
     self.frogpilot_events.add_from_msg(self.sm['frogpilotPlan'].frogpilotEvents)
+
+    # Pre-AP NAP-style pedal HUD (FrogPilot events; useful without iBooster).
+    if (self.CP.carName == "tesla"
+        and self.CP.carFingerprint == TESLA_CAR.TESLA_PREAP_MODELS
+        and self.CP.openpilotLongitudinalControl
+        and not self.CP.pcmCruise):
+      fcs = self.sm['frogpilotCarState']
+      # Long intent: OP enabled (buttonEnable / second-pull). Lat follows enabled
+      # or Always On Lateral; chimes track long edges only (NAP pedalCruise*).
+      long_engaged = bool(self.enabled)
+      lat_engaged = bool(self.enabled) or bool(getattr(fcs, 'alwaysOnLateralEnabled', False))
+      chimes, self.prev_preap_chimes = update_preap_chimes(
+        lat_engaged=lat_engaged,
+        long_engaged=long_engaged,
+        prev=self.prev_preap_chimes,
+      )
+      if chimes.long_engage:
+        self.frogpilot_events.add(FrogPilotEventName.pedalCruiseEnabled)
+      elif chimes.long_disengage:
+        self.frogpilot_events.add(FrogPilotEventName.pedalCruiseDisabled)
+
+      pedal_long_active = bool(getattr(fcs, 'pedalLongActive', False))
+      a_target = float(self.sm['longitudinalPlan'].aTarget) if self.sm.recv_frame.get('longitudinalPlan', -1) >= 0 else float('nan')
+      regen_demand_overflow = self.preap_regen_demand.update(
+        pedal_long_active=pedal_long_active,
+        brake_pressed=bool(CS.brakePressed),
+        a_target=a_target,
+        v_ego=float(CS.vEgo),
+      )
+      if bool(getattr(fcs, 'pedalMaxRegen', False)) or regen_demand_overflow:
+        self.frogpilot_events.add(FrogPilotEventName.pedalMaxRegen)
+
+      if bool(getattr(fcs, 'pedalUnavailable', False)):
+        self.frogpilot_events.add(FrogPilotEventName.pedalUnavailable)
+    else:
+      self.prev_preap_chimes = PreAPChimeState()
+      self.preap_regen_demand.reset()
 
     if self.frogpilot_toggles.block_user:
       self.frogpilot_events.add(FrogPilotEventName.blockUser)
