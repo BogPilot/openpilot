@@ -196,6 +196,22 @@ def test_engage_grace_caps_accel_and_ramps():
   assert (ENGAGE_GRACE_FRAMES + 38) - ctrl.preap_long_engage_frame >= ENGAGE_GRACE_FRAMES
 
 
+def test_ff_default_table_works_without_json():
+  """VirtualDAS FeedforwardModel uses in-tree DEFAULT_TABLE when JSON absent."""
+  from openpilot.selfdrive.car.tesla.preap.ff_table_default import (
+    DEFAULT_TABLE, SPEED_BP, ACCEL_BP,
+  )
+  from openpilot.selfdrive.car.tesla.preap.virtual_das import FeedforwardModel, FF_TABLE_PATH
+
+  ff = FeedforwardModel(table_path="/nonexistent/vdas_ff_table.json")
+  assert ff.speed_bp == list(SPEED_BP)
+  assert ff.accel_bp == list(ACCEL_BP)
+  assert ff.table == [list(r) for r in DEFAULT_TABLE]
+  di = ff.get(1.0, 20.0, zero_torque_di=0.0)
+  assert di > 0.0
+  assert "vdas_ff_table" in FF_TABLE_PATH
+
+
 def test_long_controller_source_has_engage_grace_ramp():
   from pathlib import Path
   src = (Path(__file__).resolve().parents[1] / "preap" / "long_controller.py").read_text()
