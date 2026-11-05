@@ -48,29 +48,21 @@ def pack_dummy_vin(vin: str = DUMMY_VIN) -> bytes:
   return payload.ljust(8, b"\x00")
 
 
-def _byte_sum_checksum(addr: int, data: bytes) -> int:
-  """NAP preap_byte_sum_checksum: addr lo+hi + data[0..len-2], 8-bit."""
-  chk = (addr & 0xFF) + ((addr >> 8) & 0xFF)
-  for b in data[:-1]:
-    chk = (chk + b) & 0xFF
-  return chk
-
-
 def pack_gtw_car_config(*, behind_nosecone: bool = False, epas_type: int = 0) -> bytes:
-  """Build GTW_carConfig (0x2A9) matching NAP firmware bitfield patch from zeros.
+  """Build GTW_carConfig (0x2A9) matching NAP bitfield patch from zeros.
 
-  NAP (tesla_preap_gtw_emulation Group B):
+  NAP (tesla_preap_gtw_emulation Group B) sets:
     lo = (lo & 0xFFFFF33F) | 0x100 | 0x440   # park_assist/das + Bosch fwd radar
     hi = (hi & 0xCFFF0F0F) | 0x10000000 | (radar_position << 4) | (epas_type << 12)
-  Then byte7 = byte-sum checksum over addr+data[0..6].
+  Do NOT write a checksum into byte7: opendbc tesla_radar_bosch BO_681 comment is
+  "All fixed bytes, no checksum", and tesla_can.dbc maps byte7 to GTW_autopilot
+  (bits 61-60) / unknown3 — a checksum would clobber autopilot=1 (0x10000000).
   """
   radar_position = 1 if behind_nosecone else 0
   epas_type = int(epas_type) & 0x0F
   lo = 0x100 | 0x440
   hi = 0x10000000 | (radar_position << 4) | (epas_type << 12)
-  data = bytearray(lo.to_bytes(4, "little") + hi.to_bytes(4, "little"))
-  data[7] = _byte_sum_checksum(ADDR_GTW_CAR_CONFIG, data)
-  return bytes(data)
+  return lo.to_bytes(4, "little") + hi.to_bytes(4, "little")
 
 
 def make_vin_can(bus: int = 1) -> tuple[int, int, bytes, int]:

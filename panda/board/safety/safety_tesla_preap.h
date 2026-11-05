@@ -172,15 +172,6 @@ static void preap_radar_readdr(const CANPacket_t *src, uint16_t new_addr) {
 #endif
 }
 
-static uint8_t preap_byte_sum_checksum(const CANPacket_t *pkt) {
-  uint8_t chksum = (uint8_t)(pkt->addr & 0xFFU) + (uint8_t)((pkt->addr >> 8) & 0xFFU);
-  int len = GET_LEN(pkt);
-  for (int i = 0; i < (len - 1); i++) {
-    chksum += pkt->data[i];
-  }
-  return chksum;
-}
-
 // ============================================
 // GTW Emulation: CAN0 → CAN1 for Bosch radar
 // ============================================
@@ -212,7 +203,8 @@ static void tesla_preap_gtw_emulation(const CANPacket_t *to_fwd) {
       hi = (hi & 0xCFFF0F0F) | 0x10000000 | (preap_radar_position << 4) | (preap_radar_epas_type << 12);
       PREAP_WORD_TO_BYTES(&pkt.data[0], lo);
       PREAP_WORD_TO_BYTES(&pkt.data[4], hi);
-      pkt.data[7] = preap_byte_sum_checksum(&pkt);
+      // No data[7] checksum: BO_681 / GTW_carConfig has no checksum; byte7 holds
+      // GTW_autopilot (0x10000000). Writing a sum would clobber autopilot=1.
 #if defined(STM32H7) || defined(STM32F4)
       can_set_checksum(&pkt);
       can_send(&pkt, 1, true);

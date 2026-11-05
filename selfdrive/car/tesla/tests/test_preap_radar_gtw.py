@@ -40,17 +40,17 @@ class TestPreapRadarGtw(unittest.TestCase):
     self.assertEqual(lo & 0x100, 0x100)
     self.assertEqual(lo & 0x440, 0x440)
     self.assertEqual((lo >> 6) & 0x03, 1)  # fwd_radar_hw
+    # DBC: GTW_autopilot in byte7; BO_681 has no checksum (do not clobber)
     self.assertEqual((hi >> 28) & 0x03, 1)  # autopilot
+    self.assertEqual(dat[7], 0x10)
     self.assertEqual((hi >> 4) & 0x0F, 0)   # radar_position flush
-    # checksum in byte 7
-    expect = radar_tx._byte_sum_checksum(radar_tx.ADDR_GTW_CAR_CONFIG, dat)
-    self.assertEqual(dat[7], expect)
 
   def test_gtw_car_config_nosecone(self):
     dat = radar_tx.pack_gtw_car_config(behind_nosecone=True)
     hi = int.from_bytes(dat[4:8], "little")
     self.assertEqual((hi >> 4) & 0x0F, 1)
-    self.assertEqual(dat[7], radar_tx._byte_sum_checksum(radar_tx.ADDR_GTW_CAR_CONFIG, dat))
+    self.assertEqual((hi >> 28) & 0x03, 1)  # autopilot still set
+    self.assertEqual(dat[7], 0x10)
 
   def test_safety_header_has_rx_all_gtw(self):
     from pathlib import Path
