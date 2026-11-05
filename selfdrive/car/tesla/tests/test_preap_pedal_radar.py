@@ -74,7 +74,8 @@ def test_radar_tx_dummy_vin_only_when_enabled():
   assert radar_tx.radar_tx_frames(enabled=False) == []
   frames = radar_tx.radar_tx_frames(enabled=True, bus=1)
   assert len(frames) >= 1
-  addr, dat, bus = frames[0]
+  assert all(len(f) == 4 and isinstance(f[1], int) for f in frames)  # sendcan 4-tuple
+  addr, _, dat, bus = frames[0]
   assert addr == radar_tx.ADDR_VIN_VIP
   assert bus == 1
   assert b"DUMMY" in radar_tx.DUMMY_VIN.encode()

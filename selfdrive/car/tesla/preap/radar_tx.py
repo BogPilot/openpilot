@@ -47,17 +47,17 @@ def pack_dummy_vin(vin: str = DUMMY_VIN) -> bytes:
   return payload.ljust(8, b"\x00")
 
 
-def make_vin_can(bus: int = 1) -> tuple[int, bytes, int]:
-  """Return (addr, dat, bus) for can_send."""
-  return (ADDR_VIN_VIP, pack_dummy_vin(), bus)
+def make_vin_can(bus: int = 1) -> tuple[int, int, bytes, int]:
+  """Return (addr, 0, dat, bus) for sendcan (same 4-tuple as CANPacker.make_can_msg)."""
+  return (ADDR_VIN_VIP, 0, pack_dummy_vin(), bus)
 
 
-def make_gtw_car_config(bus: int = 1) -> tuple[int, bytes, int]:
+def make_gtw_car_config(bus: int = 1) -> tuple[int, int, bytes, int]:
   """Minimal GTW_carConfig placeholder (zeros). Radar presence bit set in a later cut."""
-  return (ADDR_GTW_CAR_CONFIG, b"\x00" * 8, bus)
+  return (ADDR_GTW_CAR_CONFIG, 0, b"\x00" * 8, bus)
 
 
-def radar_tx_frames(*, enabled: bool, bus: int = 1) -> list[tuple[int, bytes, int]]:
+def radar_tx_frames(*, enabled: bool, bus: int = 1) -> list[tuple[int, int, bytes, int]]:
   if not enabled:
     return []
   return [make_vin_can(bus), make_gtw_car_config(bus)]

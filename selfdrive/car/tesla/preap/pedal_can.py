@@ -33,8 +33,8 @@ class PedalCommandCounter:
 
 
 def create_pedal_command(accel_command: float, enable: int, counter: PedalCommandCounter,
-                         pedal_can_bus: int = 2) -> tuple[int, bytes, int]:
-  """Build (addr, data, bus) for GAS_COMMAND. accel_command is percent-ish pedal units."""
+                         pedal_can_bus: int = 2) -> tuple[int, int, bytes, int]:
+  """Build (addr, 0, data, bus) for GAS_COMMAND (sendcan 4-tuple, same as CANPacker.make_can_msg). accel_command is percent-ish pedal units."""
   idx = counter.next_idx()
   if enable == 1:
     int_cmd1 = max(0, min(65534, int((accel_command - PEDAL_D) / PEDAL_M1)))
@@ -49,4 +49,4 @@ def create_pedal_command(accel_command: float, enable: int, counter: PedalComman
                    (int_cmd2 >> 8) & 0xFF, int_cmd2 & 0xFF,
                    ((enable << 7) + idx) & 0xFF)
   struct.pack_into("B", msg, 5, pedal_checksum(GAS_COMMAND_ID, msg.raw))
-  return (GAS_COMMAND_ID, bytes(msg.raw), pedal_can_bus)
+  return (GAS_COMMAND_ID, 0, bytes(msg.raw), pedal_can_bus)

@@ -71,11 +71,13 @@ def test_ap1_safety_tesla_h_untouched_by_preap_symbols():
 
 def test_pedal_command_enable_bit_and_checksum():
   c = PedalCommandCounter()
-  addr, dat, bus = create_pedal_command(20.0, 1, c, pedal_can_bus=2)
+  msg = create_pedal_command(20.0, 1, c, pedal_can_bus=2)
+  assert len(msg) == 4 and isinstance(msg[1], int)  # sendcan 4-tuple
+  addr, _, dat, bus = msg
   assert addr == GAS_COMMAND_ID
   assert bus == 2
   assert len(dat) == 6
   assert dat[4] & 0x80  # ENABLE
-  addr2, dat2, _ = create_pedal_command(0.0, 0, c)
+  addr2, _, dat2, _ = create_pedal_command(0.0, 0, c)
   assert (dat2[4] & 0x80) == 0
   assert dat2[0] == 0 and dat2[1] == 0

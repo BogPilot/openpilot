@@ -99,8 +99,8 @@ class PreApCarController(CarControllerBase):
       if not long_ok:
         enable = 0
         pedal_cmd = 0.0
-      addr, dat, bus = create_pedal_command(pedal_cmd, enable, self.pedal_counter, self.pedal_bus)
-      can_sends.append((addr, dat, bus))
+      # sendcan frames are (addr, busTime, dat, bus); a 3-tuple crashes can_list_to_can_capnp.
+      can_sends.append(create_pedal_command(pedal_cmd, enable, self.pedal_counter, self.pedal_bus))
 
     # Radar helper TX (dummy VIN) — low rate, only when enabled.
     if get_bool(PreApParamKeys.RADAR_ENABLED) and (self.frame % 100 == 0):
