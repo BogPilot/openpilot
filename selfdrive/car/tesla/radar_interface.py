@@ -63,7 +63,17 @@ class RadarInterface(RadarInterfaceBase):
         errors.append('fault')
     else:
       radar_status = self.rcp.vl['TeslaRadarSguInfo']
-      if radar_status['RADC_HWFail'] or radar_status['RADC_SGUFail'] or radar_status['RADC_SensorDirty']:
+      # Pre-AP Bosch retrofit (NAP radar_interface + Tinkla Pre-AP):
+      # SGUFail is a summary lamp (calibration / VIN reject / nosecone / etc.) and
+      # must NOT block engage — tracks often stay live. HWFail is the dead-sensor
+      # bit and still faults unless TeslaRadarIgnoreHwFail (NAP: NAPRadarIgnoreHwFail,
+      # default off). SensorDirty is temporary in NAP; this cereal has no
+      # radarUnavailableTemporary, so do not hard-fault on it for Pre-AP either.
+      if self.CP.carFingerprint == CAR.TESLA_PREAP_MODELS:
+        ignore_hw = get_bool(PreApParamKeys.RADAR_IGNORE_HW_FAIL, False)
+        if radar_status['RADC_HWFail'] and not ignore_hw:
+          errors.append('fault')
+      elif radar_status['RADC_HWFail'] or radar_status['RADC_SGUFail'] or radar_status['RADC_SensorDirty']:
         errors.append('fault')
 
     ret.errors = errors

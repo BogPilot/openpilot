@@ -61,6 +61,17 @@ RADAR_OFFSET_DESC = (
   "negative = left. Shown in inches; stored in meters. Use 0 in if the radar is centered."
 )
 
+
+RADAR_IGNORE_HW_FAIL_TITLE = "Ignore Radar Hardware Errors"
+RADAR_IGNORE_HW_FAIL_DESC = (
+  "<b>Ignore Bosch radar hardware-fail bit.</b> Off by default (same as NAP "
+  "NAPRadarIgnoreHwFail). On lets BogPilot keep using radar tracks when RADC_HWFail "
+  "is set — useful for a false hardware fail with live tracks. Pre-AP already "
+  "ignores SGUFail (calibration / VIN / summary lamp) so engage is not blocked by "
+  "that alone. Takes effect right away; no reboot."
+)
+
+
 TESLA_PREAP_TOGGLES_TITLE = "Tesla Pre-AP Settings"
 TESLA_PREAP_TOGGLES_DESC = (
   "<b>BogPilot features for Tesla Model S Pre-AP</b> (no Autopilot ECU): comma pedal "

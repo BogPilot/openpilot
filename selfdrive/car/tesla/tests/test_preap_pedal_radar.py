@@ -122,3 +122,29 @@ def test_vehicle_settings_preap_copy_and_ap1_unchanged():
   # AP1 panel copy still present unchanged
   assert "Tesla Model S and X with Autopilot 1" in vs
   assert "Dash Cluster Integration" in vs
+
+
+def test_radar_ignore_hw_fail_default_off(tmp_params):
+  # NAP NAPRadarIgnoreHwFail defaults False
+  assert params.DEFAULTS[params.PreApParamKeys.RADAR_IGNORE_HW_FAIL] is False
+  assert params.get_bool(params.PreApParamKeys.RADAR_IGNORE_HW_FAIL, False) is False
+  params.set_bool(params.PreApParamKeys.RADAR_IGNORE_HW_FAIL, True)
+  assert params.get_bool(params.PreApParamKeys.RADAR_IGNORE_HW_FAIL, False) is True
+
+
+def test_menu_copy_ignore_hw_fail_strings():
+  assert menu_copy.RADAR_IGNORE_HW_FAIL_TITLE == "Ignore Radar Hardware Errors"
+  assert "Off by default" in menu_copy.RADAR_IGNORE_HW_FAIL_DESC
+  assert "NAPRadarIgnoreHwFail" in menu_copy.RADAR_IGNORE_HW_FAIL_DESC
+  assert "SGUFail" in menu_copy.RADAR_IGNORE_HW_FAIL_DESC
+  assert "no reboot" in menu_copy.RADAR_IGNORE_HW_FAIL_DESC.lower()
+
+
+def test_vehicle_settings_ignore_hw_fail_toggle():
+  root = Path(__file__).resolve().parents[4]
+  vs = (root / "frogpilot/ui/qt/offroad/vehicle_settings.cc").read_text()
+  assert "TeslaRadarIgnoreHwFail" in vs
+  assert "Ignore Radar Hardware Errors" in vs
+  assert "NAPRadarIgnoreHwFail" in vs
+  vh = (root / "frogpilot/ui/qt/offroad/vehicle_settings.h").read_text()
+  assert "TeslaRadarIgnoreHwFail" in vh

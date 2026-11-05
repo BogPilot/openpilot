@@ -25,6 +25,8 @@ class PreApParamKeys:
   RADAR_ENABLED = "TeslaRadarEnabled"
   RADAR_BEHIND_NOSECONE = "TeslaRadarBehindNosecone"
   RADAR_OFFSET = "TeslaRadarOffset"  # meters internally
+  # NAP NAPRadarIgnoreHwFail (default off). Hides RADC_HWFail; SGUFail already ignored on Pre-AP.
+  RADAR_IGNORE_HW_FAIL = "TeslaRadarIgnoreHwFail"
 
 
 # Safe defaults (match NotAutopilot DEFAULT_CONFIG; radar off).
@@ -40,6 +42,7 @@ DEFAULTS = {
   PreApParamKeys.RADAR_ENABLED: False,
   PreApParamKeys.RADAR_BEHIND_NOSECONE: False,
   PreApParamKeys.RADAR_OFFSET: 0.0,
+  PreApParamKeys.RADAR_IGNORE_HW_FAIL: False,
 }
 
 # Overridable in tests.

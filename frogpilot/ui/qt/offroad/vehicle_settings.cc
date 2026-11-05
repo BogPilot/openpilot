@@ -208,6 +208,7 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
     {"TeslaRadarEnabled", tr("Bosch Radar"), tr("<b>Pre-AP Bosch radar.</b> Off by default. On lets BogPilot wake the radar and use its tracks. Needs a wired Bosch radar. Leave off if you have no radar."), ""},
     {"TeslaRadarBehindNosecone", tr("Radar Behind Nosecone"), tr("<b>Radar mounted behind the nosecone.</b> On if the Bosch unit sits behind the nosecone (common Pre-AP retrofit). Off if it is in the open bumper position."), ""},
     {"TeslaRadarOffset", tr("Radar Lateral Offset"), tr("<b>Sideways radar mount offset.</b> Positive = radar right of centerline, negative = left. Shown in inches; stored in meters. Use 0 in if the radar is centered."), ""},
+    {"TeslaRadarIgnoreHwFail", tr("Ignore Radar Hardware Errors"), tr("<b>Ignore Bosch radar hardware-fail bit.</b> Off by default (same as NAP NAPRadarIgnoreHwFail). On lets BogPilot keep using radar tracks when RADC_HWFail is set — useful for a false hardware fail with live tracks. Pre-AP already ignores SGUFail (calibration / VIN / summary lamp) so engage is not blocked by that alone. Takes effect right away; no reboot."), ""},
 
     {"ToyotaToggles", tr("Toyota/Lexus Settings"), tr("<b>BogPilot features for Lexus and Toyota vehicles.</b>"), ""},
     {"ToyotaDoors", tr("Automatically Lock/Unlock Doors"), tr("<b>Automatically lock/unlock doors</b> when shifting in and out of drive."), ""},
@@ -307,6 +308,9 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
     } else if (param == "TeslaRadarEnabled") {
       vehicleToggle = new bogpilot::FileToggleControl(param, false, title, desc, icon);
     } else if (param == "TeslaRadarBehindNosecone") {
+      vehicleToggle = new bogpilot::FileToggleControl(param, false, title, desc, icon);
+    } else if (param == "TeslaRadarIgnoreHwFail") {
+      // NAP NAPRadarIgnoreHwFail default OFF. Live in radar_interface; no reboot.
       vehicleToggle = new bogpilot::FileToggleControl(param, false, title, desc, icon);
     } else if (param == "TeslaRadarOffset") {
       ButtonControl *offBtn = new ButtonControl(title, tr("SELECT"), desc);
