@@ -70,7 +70,7 @@ class TestBogPilotTheme(unittest.TestCase):
       self.assertEqual((BOGPILOT_THEME_PATH / "icons" / name).read_bytes(), (STOCK_THEME_PATH / "icons" / name).read_bytes())
     # BogPilot offroad home button: outline road mark (not the stock comma logo)
     COMMA_HOME_MD5 = "743c23c2c10c5eec202ff364a0f73d7a"
-    BOGPILOT_HOME_MD5 = "ce397e6cbebcddabfaa55875477d92e2"
+    BOGPILOT_HOME_MD5 = "2ff5b771aee605d5cb250c3a5e2d638e"
     import hashlib
     home_bytes = (BOGPILOT_THEME_PATH / "icons" / "button_home.png").read_bytes()
     home_md5 = hashlib.md5(home_bytes).hexdigest()
