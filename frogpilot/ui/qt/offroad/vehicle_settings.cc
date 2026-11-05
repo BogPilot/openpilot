@@ -210,6 +210,7 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
     {"TeslaRadarOffset", tr("Radar Lateral Offset"), tr("<b>Sideways radar mount offset.</b> Positive = radar right of centerline, negative = left. Shown in inches; stored in meters. Use 0 in if the radar is centered."), ""},
     {"TeslaRadarIgnoreHwFail", tr("Ignore Radar Hardware Errors"), tr("<b>Ignore Bosch radar hardware-fail bit.</b> Off by default (same as NAP NAPRadarIgnoreHwFail). On lets BogPilot keep using radar tracks when RADC_HWFail is set — useful for a false hardware fail with live tracks. Pre-AP already ignores SGUFail (calibration / VIN / summary lamp) so engage is not blocked by that alone. Takes effect right away; no reboot."), ""},
     {"TeslaRadarReadVin", tr("Read Radar VIN"), tr("<b>Read the Bosch radar donor VIN (F190).</b> Off by default. On lets BogPilot request the VIN from the radar over UDS while offroad / before engage, store it locally, and put it on the GTW VIN helper frames instead of the dummy. Never writes a VIN to the radar. Takes effect right away; no reboot."), ""},
+    {"TeslaRadarUpsideDown", tr("Radar Mounted Upside Down"), tr("<b>Radar mounted upside down.</b> Off by default. On inverts lateral distance and lateral velocity from the Bosch tracks so an inverted mount still tracks correctly. Pre-AP only. Takes effect right away; no reboot."), ""},
 
     {"ToyotaToggles", tr("Toyota/Lexus Settings"), tr("<b>BogPilot features for Lexus and Toyota vehicles.</b>"), ""},
     {"ToyotaDoors", tr("Automatically Lock/Unlock Doors"), tr("<b>Automatically lock/unlock doors</b> when shifting in and out of drive."), ""},
@@ -315,6 +316,9 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
       vehicleToggle = new bogpilot::FileToggleControl(param, false, title, desc, icon);
     } else if (param == "TeslaRadarReadVin") {
       // Opt-in F190 donor VIN read. Default OFF. Live; no reboot.
+      vehicleToggle = new bogpilot::FileToggleControl(param, false, title, desc, icon);
+    } else if (param == "TeslaRadarUpsideDown") {
+      // Invert LatDist / LatSpeed. Default OFF. Live; no reboot.
       vehicleToggle = new bogpilot::FileToggleControl(param, false, title, desc, icon);
     } else if (param == "TeslaRadarOffset") {
       ButtonControl *offBtn = new ButtonControl(title, tr("SELECT"), desc);

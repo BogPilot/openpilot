@@ -14,6 +14,7 @@ class RadarInterface(RadarInterfaceBase):
     self.updated_messages = set()
     self.track_id = 0
     self._preap_radar_offset_m = 0.0
+    self._preap_radar_upside_down = False
     self.rcp = None
     self.num_points = 0
     self.trigger_msg = 0
@@ -40,10 +41,14 @@ class RadarInterface(RadarInterfaceBase):
     self.rcp = CANParser(DBC[CP.carFingerprint]['radar'], messages, CANBUS.radar)
     if CP.carFingerprint == CAR.TESLA_PREAP_MODELS:
       self._preap_radar_offset_m = get_float(PreApParamKeys.RADAR_OFFSET, 0.0)
+      self._preap_radar_upside_down = get_bool(PreApParamKeys.RADAR_UPSIDE_DOWN, False)
 
   def update(self, can_strings):
     if self.CP.carFingerprint == CAR.TESLA_PREAP_MODELS:
       _feed_radar_vin_can(can_strings)
+      # Live toggle: re-read each update so the UI takes effect without reboot.
+      self._preap_radar_upside_down = get_bool(PreApParamKeys.RADAR_UPSIDE_DOWN, False)
+      self._preap_radar_offset_m = get_float(PreApParamKeys.RADAR_OFFSET, 0.0)
     if self.rcp is None:
       return super().update(None)
 
@@ -102,14 +107,17 @@ class RadarInterface(RadarInterfaceBase):
         self.pts[i].trackId = self.track_id
         self.track_id += 1
 
-      # Parse track data
+      # Parse track data. Upside-down mount inverts lateral dist/vel (NAP).
       self.pts[i].dRel = msg_a['LongDist']
-      self.pts[i].yRel = msg_a['LatDist']
-      if self._preap_radar_offset_m:
-        self.pts[i].yRel += self._preap_radar_offset_m
+      y_rel = msg_a['LatDist'] + self._preap_radar_offset_m
+      yv_rel = msg_b['LatSpeed']
+      if self._preap_radar_upside_down:
+        y_rel = -y_rel
+        yv_rel = -yv_rel
+      self.pts[i].yRel = y_rel
       self.pts[i].vRel = msg_a['LongSpeed']
       self.pts[i].aRel = msg_a['LongAccel']
-      self.pts[i].yvRel = msg_b['LatSpeed']
+      self.pts[i].yvRel = yv_rel
       self.pts[i].measured = bool(msg_a['Meas'])
 
     ret.points = list(self.pts.values())

@@ -30,6 +30,7 @@ class PreApParamKeys:
   # Opt-in F190 donor VIN read (Phase A). Default off. Never log the stored VIN.
   RADAR_READ_VIN = "TeslaRadarReadVin"
   RADAR_DONOR_VIN = "TeslaRadarDonorVin"  # 17-char; file-backed; never log
+  RADAR_UPSIDE_DOWN = "TeslaRadarUpsideDown"
 
 
 # Safe defaults (match NotAutopilot DEFAULT_CONFIG; radar off).
@@ -48,6 +49,7 @@ DEFAULTS = {
   PreApParamKeys.RADAR_IGNORE_HW_FAIL: False,
   PreApParamKeys.RADAR_READ_VIN: False,
   PreApParamKeys.RADAR_DONOR_VIN: "",
+  PreApParamKeys.RADAR_UPSIDE_DOWN: False,
 }
 
 # Overridable in tests.

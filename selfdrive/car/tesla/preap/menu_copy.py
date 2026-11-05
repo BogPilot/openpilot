@@ -80,6 +80,13 @@ RADAR_READ_VIN_DESC = (
   "writes a VIN to the radar. Takes effect right away; no reboot."
 )
 
+RADAR_UPSIDE_DOWN_TITLE = "Radar Mounted Upside Down"
+RADAR_UPSIDE_DOWN_DESC = (
+  "<b>Radar mounted upside down.</b> Off by default. On inverts lateral distance "
+  "and lateral velocity from the Bosch tracks so an inverted mount still tracks "
+  "correctly. Pre-AP only. Takes effect right away; no reboot."
+)
+
 TESLA_PREAP_TOGGLES_TITLE = "Tesla Pre-AP Settings"
 TESLA_PREAP_TOGGLES_DESC = (
   "<b>BogPilot features for Tesla Model S Pre-AP</b> (no Autopilot ECU): comma pedal "
