@@ -35,7 +35,7 @@ def test_defaults_and_roundtrip(store):
 
 
 def test_float_text_and_level_gate(store):
-  store.put("EngageVolume", "0.000000")  # the AP1 profile writes this
+  store.put("EngageVolume", "0.000000")  # owner-chosen value (AP1 profile no longer writes volumes)
   assert store.get_int("EngageVolume") == 0
   store.put("CustomPersonalities", True)
   assert store.tuning_level() == 3       # unconfirmed level counts as 3 (367e1fe)
@@ -63,8 +63,12 @@ def test_common_ap1_profile_wraps_a_bare_params(store, tmp_path):
   bogpilot_store.write_text("CarModel", prof.AP1_CAR_MODEL)
   written = prof.apply_ap1_defaults_once(BareParams(), bogpilot_dir=tmp_path / "markers")
   assert written, "profile should apply to an AP1 device through the file store"
-  assert store.get_int("EngageVolume") == 0 and store.get_int("DisengageVolume") == 0
-  assert store.get_bool("AlertVolumeControl") is True
+  # stream 7: the AP1 profile must never re-mute engage/disengage (FrogPilot defaults 0 / 101 stay)
+  assert store.get_int("EngageVolume") == 101 and store.get_int("DisengageVolume") == 101
+  assert store.get_bool("AlertVolumeControl") is False
+  # stream 5: TuningLevel stays unset, AOL stays off
+  assert "TuningLevel" not in written and "TuningLevelConfirmed" not in written
+  assert store.get_bool("AlwaysOnLateral") is False
   assert prof.apply_ap1_defaults_once(BareParams(), bogpilot_dir=tmp_path / "markers") == []
 
 
@@ -91,6 +95,9 @@ def test_onroad_toggles_formulas(store):
   assert t.speed_limit_priority1 == "Navigation" and not t.speed_limit_priority_highest
 
   store.put_bool("DeveloperUI", True)
+  # stream 5/6 shipping default DeveloperWidgets=0 gates AdjacentLeadsUI (367e1fe formula)
+  assert onroad_toggles(store, _cp()).adjacent_lead_tracking is False
+  store.put_bool("DeveloperWidgets", True)
   assert onroad_toggles(store, _cp()).adjacent_lead_tracking is True
   assert onroad_toggles(store, _cp(radar=False)).adjacent_lead_tracking is False
 

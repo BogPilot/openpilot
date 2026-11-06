@@ -205,6 +205,9 @@ struct CarState {
   blockPcmEnable @60 :Bool;  # whether to allow PCM to enable this frame
   carNotReady @61 :Bool;  # car is transiently refusing engagement, used to prevent a fault if engaged
 
+  # BogPilot / FrogPilot car-side state (was custom.FrogPilotCarState in 0.9.7)
+  bogpilot @62 :BogPilotCarState;
+
   # cruise state
   cruiseState @10 :CruiseState;
 
@@ -757,4 +760,37 @@ struct CarParams {
     vEgoStopping @29 :Float32; # Speed at which the car goes into stopping state
     stoppingDecelRate @52 :Float32; # m/s^2/s while trying to stop
   }
+}
+
+# BogPilot (stream-1 contract, from 23f47f903): fields @0..20 mirror custom.FrogPilotCarState, @21..27 AP1 extras.
+struct BogPilotCarState {
+  accelPressed @0 :Bool;
+  alwaysOnLateralAllowed @1 :Bool;
+  alwaysOnLateralEnabled @2 :Bool;
+  brakeLights @3 :Bool;
+  dashboardSpeedLimit @4 :Float32;  # m/s, 0 = none
+  decelPressed @5 :Bool;
+  distancePressed @6 :Bool;
+  distanceLongPressed @7 :Bool;
+  distanceVeryLongPressed @8 :Bool;
+  ecoGear @9 :Bool;
+  forceCoast @10 :Bool;
+  isParked @11 :Bool;
+  pauseLateral @12 :Bool;
+  pauseLongitudinal @13 :Bool;
+  sportGear @14 :Bool;
+  trafficModeEnabled @15 :Bool;
+  resumePressed @16 :Bool;
+  spdCtrlLvr @17 :UInt8;            # AP1 raw SpdCtrlLvr_Stat
+  ap1AmbientTempC @18 :Float32;     # NaN when absent
+  ap1MotorTorqueNm @19 :Float32;
+  ap1MotorRpm @20 :Float32;
+  # AP1 state that 0.9.7 events read straight from CarState/CarController
+  ap1HandsOnLevel @21 :UInt8;
+  ap1EacInhibited @22 :Bool;
+  ap1DriverYield @23 :Bool;         # hands pause / resume hold (steerOverride)
+  ap1StalkPullToggle @24 :Bool;     # long RWD pull while engaged -> toggle Experimental
+  ap1StalkFwdToggle @25 :Bool;      # long FWD hold while disengaged -> toggle Experimental
+  ap1StockApActive @26 :Bool;
+  ap1StalkFollowS @27 :Float32;     # stalk follow seconds, 0 = no detent
 }
