@@ -92,6 +92,16 @@ _services: dict[str, tuple] = {
   "livestreamWideRoadEncodeData": (False, 20., None, QueueSize.MEDIUM),
   "livestreamNarrowRoadEncodeData": (False, 20., None, QueueSize.MEDIUM),
   "livestreamCabinEncodeData": (False, 20., None, QueueSize.MEDIUM),
+  "frogpilotCarControl": (True, 100., 10),
+  "frogpilotCarParams": (True, 0.02, 1),
+  "frogpilotCarState": (True, 100., 10),
+  "frogpilotControlsState": (True, 100., 10),
+  "frogpilotDeviceState": (True, 2., 1),
+  "frogpilotModelV2": (True, 20., 40),
+  "frogpilotNavigation": (True, 1., 10),
+  "frogpilotOnroadEvents": (True, 1., 1),
+  "frogpilotPlan": (True, 20., 5),
+  "frogpilotRadarState": (True, 20., 5),
   "customReservedRawData0": (True, 0.),
 }
 SERVICE_LIST = {name: Service(*vals) for
