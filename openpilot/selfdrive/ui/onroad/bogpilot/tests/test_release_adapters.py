@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import tempfile
 import numpy as np
+import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def load(name):
   spec = importlib.util.spec_from_file_location(name, ROOT / f"{name}.py")
   module = importlib.util.module_from_spec(spec)
+  sys.modules[name] = module   # dataclasses on Python < 3.10 resolve the module
   spec.loader.exec_module(module)
   return module
 
@@ -23,14 +25,15 @@ class TestDefaults(unittest.TestCase):
     with tempfile.TemporaryDirectory() as folder:
       now = [0.0]
       values = module.FileToggles(folder, lambda: now[0], lambda _: None)
-      for key in module.DEFAULTS:
-        self.assertTrue(values.get(key))
-        (Path(folder) / key).write_text("0")
-      # Keep filesystem work rate limited, then pick up user's OFF choices.
+      for key, default in module.DEFAULTS.items():
+        self.assertEqual(values.get(key), default)
+        (Path(folder) / key).write_text("1" if not default else "0")
+      # Keep filesystem work rate limited, then pick up the user's explicit choices.
       self.assertTrue(values.get("RedesignUI"))
       now[0] = 3
-      for key in module.DEFAULTS:
-        self.assertFalse(values.get(key))
+      for key, default in module.DEFAULTS.items():
+        self.assertEqual(values.get(key), not default)
+      self.assertFalse(module.DEFAULTS["HideAccelGraph"])
 
   def test_registered_setting_wins_over_fallback(self):
     module = load("file_toggles")
@@ -137,7 +140,11 @@ class TestHudAdapter(unittest.TestCase):
       "COLORS": SimpleNamespace(ENGAGED="green", DISENGAGED="grey"),
       "UIStatus": SimpleNamespace(ENGAGED="engaged"), "ui_state": self.state,
       "R": SimpleNamespace(SpeedRowInputs=lambda **kw: kw),
-      "toggles": SimpleNamespace(get=lambda key: self.swap if key == "SwapSpeedGraph" else self.enabled),
+      "toggles": SimpleNamespace(get=lambda key: self.swap if key == "SwapSpeedGraph" else
+                                 (False if key == "HideAccelGraph" else self.enabled)),
+      "L": load("cluster_layout"), "time": __import__("time"),
+      "AccelGraph": lambda hz=20: SimpleNamespace(paint=lambda r: calls.append("graph"), clear=lambda: None),
+      "messaging": None, "SERVICE_LIST": {},
     })
     self.env["draw_cluster"] = lambda hud, rect, mici=False: calls.append(("cluster", mici))
 
