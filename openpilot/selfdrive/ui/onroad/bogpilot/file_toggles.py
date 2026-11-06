@@ -8,7 +8,7 @@ from pathlib import Path
 import time
 
 DEFAULTS = {"RedesignUI": True, "BSMFlameTracks": True, "SwapSpeedGraph": True,
-            "BlindSpotPath": True}
+            "HideAccelGraph": False, "BlindSpotPath": True}
 
 
 def registered_value(key):
