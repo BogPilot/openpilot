@@ -111,6 +111,54 @@ def test_pedal_authority_reset_then_fail():
   assert auth.state == PedalAuthorityState.FAILED
 
 
+
+def test_pedal_authority_keepalive_clears_timeout():
+  """FAULT_TIMEOUT (STATE=5) keeps getting ENABLE=0 keepalives until NO_FAULT.
+
+  Tester rlogs showed 4 RESET frames then FAILED; the pedal briefly reached
+  STATE=0 after those frames, but the FSM had already latched FAILED.
+  """
+  auth = PedalAuthority()
+  fb = _FakeFeedback(available=True, state=5, idx=0)
+  assert auth.update(True, fb) == PedalCommandAction.RESET
+  assert auth.state == PedalAuthorityState.ACQUIRING
+  for i in range(1, 40):
+    fb.idx = i % 16
+    fb.interceptor_state = 5
+    assert auth.update(True, fb) == PedalCommandAction.RESET
+    assert auth.state == PedalAuthorityState.ACQUIRING
+  fb.idx = 8
+  fb.interceptor_state = 0
+  assert auth.update(True, fb) == PedalCommandAction.ACQUIRE
+  assert auth.state == PedalAuthorityState.ACTIVE
+
+
+def test_pedal_authority_keepalive_startup_fault():
+  auth = PedalAuthority()
+  fb = _FakeFeedback(available=True, state=4, idx=3)
+  for i in range(20):
+    fb.idx = (3 + i) % 16
+    assert auth.update(True, fb) == PedalCommandAction.RESET
+    assert auth.state == PedalAuthorityState.ACQUIRING
+  fb.interceptor_state = 0
+  fb.idx = 10
+  assert auth.update(True, fb) == PedalCommandAction.ACQUIRE
+  assert auth.state == PedalAuthorityState.ACTIVE
+
+
+def test_pedal_feedback_available_during_timeout_state():
+  fb = PedalFeedback()
+  now = 10_000
+  msg = {"INTERCEPTOR_GAS": 0.0, "INTERCEPTOR_GAS2": 0.0, "STATE": 5, "IDX": 1}
+  assert fb.update(msg, now) is True
+  msg = dict(msg)
+  msg["IDX"] = 2
+  assert fb.update(msg, now + 20) is True
+  assert fb.available is True
+  assert fb.timeout is False
+  assert fb.interceptor_state == 5
+
+
 def test_pedal_feedback_gas_pressed_threshold():
   fb = PedalFeedback()
   fb.interceptor_value = 3.0

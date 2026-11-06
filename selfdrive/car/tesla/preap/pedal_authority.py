@@ -23,6 +23,13 @@ REGEN_COMMAND_CLEAR_DI = -1.0
 REGEN_DECEL_REQUEST_TRIGGER = -0.5
 REGEN_DECEL_REQUEST_CLEAR = -0.2
 
+# GAS_SENSOR STATE nibble (NAP test_tesla_preap.py). ENABLE=0 zero-gas
+# GAS_COMMAND (0x551) clears FAULT_TIMEOUT / FAULT_STARTUP firmware-side.
+PEDAL_STATE_NO_FAULT = 0
+PEDAL_STATE_FAULT_STARTUP = 4
+PEDAL_STATE_FAULT_TIMEOUT = 5
+RECOVERABLE_PEDAL_STATES = (PEDAL_STATE_FAULT_STARTUP, PEDAL_STATE_FAULT_TIMEOUT)
+
 
 class PedalAuthorityState(IntEnum):
   INACTIVE = 0
@@ -109,6 +116,11 @@ class PedalAuthority:
     self.reset_attempts = 1
     return PedalCommandAction.RESET
 
+  @staticmethod
+  def _recoverable_timeout(feedback):
+    """Live pedal reporting a firmware state that 0x551 keepalives can clear."""
+    return bool(feedback.available) and feedback.interceptor_state in RECOVERABLE_PEDAL_STATES
+
   def update(self, authority_requested, feedback):
     if not authority_requested:
       action = PedalCommandAction.RELEASE if self.state == PedalAuthorityState.ACTIVE else PedalCommandAction.NONE
@@ -119,7 +131,7 @@ class PedalAuthority:
     if self.state == PedalAuthorityState.FAILED:
       return PedalCommandAction.NONE
 
-    feedback_healthy = feedback.available and feedback.interceptor_state == 0
+    feedback_healthy = feedback.available and feedback.interceptor_state == PEDAL_STATE_NO_FAULT
     if self.state == PedalAuthorityState.ACTIVE:
       if feedback_healthy:
         return PedalCommandAction.ENABLE
@@ -131,6 +143,12 @@ class PedalAuthority:
         self.state = PedalAuthorityState.ACTIVE
         self._clear_acquisition()
         return PedalCommandAction.ACQUIRE
+
+      # Keep sending ENABLE=0 zero-gas keepalives while STATE is TIMEOUT or
+      # STARTUP. Tester rlogs showed 4 RESET frames were enough for the pedal
+      # to briefly reach NO_FAULT, but the FSM had already latched FAILED.
+      if self._recoverable_timeout(feedback):
+        return PedalCommandAction.RESET
 
       if self.reset_attempts < self.MAX_RESET_ATTEMPTS:
         self.reset_attempts += 1

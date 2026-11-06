@@ -42,7 +42,10 @@ class PedalFeedback:
         self.last_seen_ms = curr_time_ms
 
       self.timeout = (curr_time_ms - self.last_seen_ms) > PEDAL_TIMEOUT_MS
-      self.available = (not self.timeout) and (self.interceptor_state == 0)
+      # Hearing GAS_SENSOR (IDX advancing within PEDAL_TIMEOUT_MS) means the
+      # pedal is present. STATE==0 (NO_FAULT) is a separate PedalAuthority
+      # check: FAULT_TIMEOUT / FAULT_STARTUP still need 0x551 keepalives.
+      self.available = not self.timeout
       return True
     except Exception:
       self.available = False
