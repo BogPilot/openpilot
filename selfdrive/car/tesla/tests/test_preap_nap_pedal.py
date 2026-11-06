@@ -342,10 +342,14 @@ def test_double_pull_first_lat_second_long():
   # Second pull within window: keep events (release → buttonEnable)
   out = dp.filter_button_events([ev(True)], enabled=True, now_ms=2000 + DOUBLE_PULL_WINDOW_MS - 50,
                                 brake_pressed=False, cancel=False)
-  assert len(out) == 1 and out[0].pressed and not dp.lat_only
+  assert len(out) == 1 and out[0].pressed and not dp.lat_only and dp.long_latched
   out = dp.filter_button_events([ev(False)], enabled=True, now_ms=2000 + DOUBLE_PULL_WINDOW_MS - 40,
                                 brake_pressed=False, cancel=False)
-  assert len(out) == 1 and not out[0].pressed
+  assert len(out) == 1 and not out[0].pressed and dp.long_latched
+
+  # Brake drops long, keeps lat
+  dp.filter_button_events([], enabled=True, now_ms=3000, brake_pressed=True, cancel=False)
+  assert dp.lat_only and not dp.long_latched
 
 
 

@@ -41,3 +41,9 @@ def test_f190_narrow_allow_present():
   assert "0x22U, 0xF1U, 0x90U" in PREAP
   assert "SAFETY_ALLOUTPUT" not in PREAP
   assert "0x0A03" not in PREAP
+
+
+def test_preap_rising_edge_rearm_present():
+  assert "preap_lever_engage_prev" in PREAP
+  assert "cruise_engaged_prev = false" in PREAP
+  assert "SAFETY_ALLOUTPUT" not in PREAP

@@ -109,7 +109,7 @@ class CarInterface(CarInterfaceBase):
       events = self.create_common_events(
         ret,
         pcm_enable=False,
-        enable_buttons=(ButtonType.setCruise, ButtonType.accelCruise, ButtonType.decelCruise),
+        enable_buttons=(ButtonType.setCruise,),  # panda arms on pull only; up/down would desync it
       )
     else:
       events = self.create_common_events(ret)
@@ -120,6 +120,8 @@ class CarInterface(CarInterfaceBase):
         events.add(car.CarEvent.EventName.steerOverride)
       events = self._ap1_hso_events(events)
       events = self._ap1_epas_inhibit_alert(events, c, ret)
+    if self.CP.carFingerprint == CAR.TESLA_PREAP_MODELS and getattr(self.CS, "preap_panda_drop", False):
+      events.add(car.CarEvent.EventName.buttonCancel)
     ret.events = events.to_msg()
 
     return ret, fp_ret
