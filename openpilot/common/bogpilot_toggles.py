@@ -34,6 +34,7 @@ FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
   # UI (default off)
   "DeveloperHUD": (False, "Developer HUD"),
   "SwapSpeedGraph": (True, "Accel graph on top, speed row below it"),
+  "HideAccelGraph": (False, "Hide the accel graph; the speed row stays in the lower slot"),
   # Reserved, default OFF. Not features yet; the names are pinned so nothing ships them on.
   "OccViz": (False, "Occupancy visualisation (reserved, default OFF)"),
   "LiveYOLO": (False, "Live YOLO object overlay (reserved, default OFF)"),
