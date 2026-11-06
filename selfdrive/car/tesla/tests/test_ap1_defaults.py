@@ -383,6 +383,13 @@ def test_legacy_models_get_profile(env, model):
     assert params.get("AlwaysOnLateralLKAS", encoding="utf-8") == "0"
     assert params.get("PauseAOLOnBrake", encoding="utf-8") == "0"
     assert ap1.preap_aol_marker_path(bp_dir).exists()
+    assert ap1.preap_chime_marker_path(bp_dir).exists()
+    assert ap1.values_equal(params.get("EngageVolume"), 101)
+    assert ap1.values_equal(params.get("DisengageVolume"), 101)
+  else:
+    assert ap1.values_equal(params.get("EngageVolume"), 0)
+    assert ap1.values_equal(params.get("DisengageVolume"), 0)
+    assert not ap1.preap_chime_marker_path(bp_dir).exists()
   assert ap1.marker_path(bp_dir).exists()
 
 
@@ -392,7 +399,10 @@ def test_preap_fresh_profile_aol_on(env):
   run(params, bp_dir)
   for key, value in ap1.PREAP_AOL_OVERRIDES.items():
     assert params.get(key, encoding="utf-8") == value, key
+  for key, value in ap1.PREAP_CHIME_OVERRIDES.items():
+    assert ap1.values_equal(params.get(key), value), key
   assert ap1.preap_aol_marker_path(bp_dir).exists()
+  assert ap1.preap_chime_marker_path(bp_dir).exists()
 
 
 def test_preap_aol_migration_once_from_old_profile(env):
@@ -433,6 +443,47 @@ def test_preap_aol_migration_skips_if_already_on(env):
 
 
 @pytest.mark.parametrize("model", [ap1.AP1_CAR_MODEL, "TESLA_AP2_MODELS"])
+
+
+def test_preap_chime_migration_restores_muted_volumes(env):
+  """Tester already has AP1DefaultsApplied + muted engage/disengage from the shared profile."""
+  params, bp_dir = env
+  params.put("CarModel", ap1.PREAP_CAR_MODEL)
+  bp_dir.mkdir(parents=True, exist_ok=True)
+  ap1.marker_path(bp_dir).write_text("1\n")
+  ap1.theme_marker_path(bp_dir).write_text("1\n")
+  ap1.preap_aol_marker_path(bp_dir).write_text("1\n")
+  params.put("EngageVolume", "0.000000")
+  params.put("DisengageVolume", "0.000000")
+  written = run(params, bp_dir)
+  assert "EngageVolume" in written and "DisengageVolume" in written
+  assert ap1.values_equal(params.get("EngageVolume"), 101)
+  assert ap1.values_equal(params.get("DisengageVolume"), 101)
+  assert ap1.preap_chime_marker_path(bp_dir).exists()
+  # Second boot: user muted again — must stay muted.
+  params.put("EngageVolume", "0")
+  params.put("DisengageVolume", "0")
+  assert run(params, bp_dir) == []
+  assert ap1.values_equal(params.get("EngageVolume"), 0)
+  assert ap1.values_equal(params.get("DisengageVolume"), 0)
+
+
+def test_preap_chime_migration_keeps_custom_volume(env):
+  params, bp_dir = env
+  params.put("CarModel", ap1.PREAP_CAR_MODEL)
+  bp_dir.mkdir(parents=True, exist_ok=True)
+  ap1.marker_path(bp_dir).write_text("1\n")
+  ap1.theme_marker_path(bp_dir).write_text("1\n")
+  ap1.preap_aol_marker_path(bp_dir).write_text("1\n")
+  params.put("EngageVolume", "80")
+  params.put("DisengageVolume", "0.000000")
+  written = run(params, bp_dir)
+  assert "EngageVolume" not in written
+  assert "DisengageVolume" in written
+  assert ap1.values_equal(params.get("EngageVolume"), 80)
+  assert ap1.values_equal(params.get("DisengageVolume"), 101)
+
+
 def test_ap1_and_ap2_stay_aol_off(env, model):
   params, bp_dir = env
   params.put("CarModel", model)
@@ -441,6 +492,9 @@ def test_ap1_and_ap2_stay_aol_off(env, model):
   assert params.get("AlwaysOnLateralMain", encoding="utf-8") == "0"
   assert params.get("AlwaysOnLateralLKAS", encoding="utf-8") == "0"
   assert not ap1.preap_aol_marker_path(bp_dir).exists()
+  assert not ap1.preap_chime_marker_path(bp_dir).exists()
+  assert ap1.values_equal(params.get("EngageVolume"), 0)
+  assert ap1.values_equal(params.get("DisengageVolume"), 0)
 
 
 @pytest.mark.parametrize("model", [None, "TESLA_MODELS_RAVEN", "MOCK"])

@@ -61,6 +61,7 @@ THEME_MARKER_NAME = "AP1ThemeBogPilot2"
 OLD_THEME_MARKER_NAMES = ("AP1ThemeBogPilot",)
 # One-time Pre-AP AOL-on migration for devices that already ran the old all-off profile.
 PREAP_AOL_MARKER_NAME = "PreApAolOn1"
+PREAP_CHIME_MARKER_NAME = "PreApChimeOn1"
 BOGPILOT_THEME = "BogPilot"
 
 # Pre-AP Always On Lateral: parent on, Main/LKAS children off, pause-on-brake at 0.
@@ -70,6 +71,14 @@ PREAP_AOL_OVERRIDES: dict[str, str] = {
   "AlwaysOnLateralMain": "0",
   "AlwaysOnLateralLKAS": "0",
   "PauseAOLOnBrake": "0",
+}
+
+# Pre-AP should hear BogPilot engage/disengage chimes (FrogPilot auto = 101).
+# The shared legacy profile mutes them for AP1/AP2, whose cars already chime.
+# Applied on fresh Pre-AP profile writes and by the PreApChimeOn1 migration.
+PREAP_CHIME_OVERRIDES: dict[str, str] = {
+  "EngageVolume": "101",
+  "DisengageVolume": "101",
 }
 
 # BogPilot file-backed toggles (not Params keys). Absent file = that toggle's built-in default.
@@ -278,6 +287,7 @@ def _profile_for_units(params) -> dict[str, str]:
   profile.update(speed_offsets_for_units(_is_metric(params)))
   if is_preap(params):
     profile.update(PREAP_AOL_OVERRIDES)
+    profile.update(PREAP_CHIME_OVERRIDES)
   return profile
 
 
@@ -337,10 +347,15 @@ def preap_aol_marker_path(bogpilot_dir: Path | None = None) -> Path:
   return Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR) / PREAP_AOL_MARKER_NAME
 
 
+def preap_chime_marker_path(bogpilot_dir: Path | None = None) -> Path:
+  return Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR) / PREAP_CHIME_MARKER_NAME
+
+
 def clear_ap1_defaults_marker(bogpilot_dir: Path | None = None) -> None:
   """Called on DoToggleReset so the next run re-applies the AP1 profile."""
   directory = Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR)
   for path in (marker_path(bogpilot_dir), theme_marker_path(bogpilot_dir), preap_aol_marker_path(bogpilot_dir),
+               preap_chime_marker_path(bogpilot_dir),
                *(directory / n for n in OLD_THEME_MARKER_NAMES)):
     try:
       path.unlink(missing_ok=True)
@@ -386,6 +401,28 @@ def _apply_preap_aol_once(params, directory: Path) -> list[str]:
   return written
 
 
+def _apply_preap_chime_once(params, directory: Path) -> list[str]:
+  """One-time Pre-AP restore of engage/disengage chimes muted by the shared AP1 profile.
+
+  Writes PREAP_CHIME_OVERRIDES only while a volume is still at the muted profile
+  value (0). A custom volume is left alone. The PreApChimeOn1 marker is written
+  either way. Non-Pre-AP cars are skipped with no marker.
+  """
+  marker = preap_chime_marker_path(directory)
+  if marker.exists() or not is_preap(params):
+    return []
+  written = []
+  muted = AP1_PARAM_PROFILE["EngageVolume"]
+  for key, value in PREAP_CHIME_OVERRIDES.items():
+    current = params.get(key)
+    if current is None or values_equal(current, muted) or values_equal(current, 0):
+      params.put(key, value)
+      written.append(key)
+  directory.mkdir(parents=True, exist_ok=True)
+  marker.write_text("1\n")
+  return written
+
+
 def apply_ap1_defaults_once(params=None, bogpilot_dir: Path | None = None, default_table: dict | None = None,
                             refresh: bool = True) -> list[str]:
   """Apply the AP1 profile once. Returns the keys written ([] when it did nothing).
@@ -403,7 +440,8 @@ def apply_ap1_defaults_once(params=None, bogpilot_dir: Path | None = None, defau
       return []
     # Fresh profile, theme catch-up, and/or Pre-AP AOL migration may still need to run.
     if (marker.exists() and theme_marker_path(directory).exists() and
-        (not is_preap(params) or preap_aol_marker_path(directory).exists())):
+        (not is_preap(params) or (preap_aol_marker_path(directory).exists() and
+                                 preap_chime_marker_path(directory).exists()))):
       return []
 
     written = []
@@ -412,6 +450,7 @@ def apply_ap1_defaults_once(params=None, bogpilot_dir: Path | None = None, defau
       marker.write_text("1\n")
     written += [key for key in _apply_theme_once(params, directory) if key not in written]
     written += [key for key in _apply_preap_aol_once(params, directory) if key not in written]
+    written += [key for key in _apply_preap_chime_once(params, directory) if key not in written]
 
     if written and refresh:
       try:

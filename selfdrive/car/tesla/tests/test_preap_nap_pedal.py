@@ -159,6 +159,16 @@ def test_pedal_feedback_available_during_timeout_state():
   assert fb.interceptor_state == 5
 
 
+
+def test_gas_sensor_dbc_state_is_high_nibble():
+  """Byte 4 is (STATE << 4) | IDX. DBC must label the high nibble STATE."""
+  from pathlib import Path
+  src = (Path(__file__).resolve().parents[4] / "opendbc" / "tesla_can.dbc").read_text()
+  block = src.split("BO_ 1362 GAS_SENSOR", 1)[1].split("BO_", 1)[0]
+  assert "SG_ STATE : 39|4@0+" in block
+  assert "SG_ IDX : 35|4@0+" in block
+
+
 def test_pedal_feedback_gas_pressed_threshold():
   fb = PedalFeedback()
   fb.interceptor_value = 3.0
