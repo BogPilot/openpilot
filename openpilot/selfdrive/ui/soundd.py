@@ -14,6 +14,88 @@ from openpilot.common.swaglog import cloudlog
 from openpilot.system import micd
 from openpilot.common.hardware import HARDWARE
 
+# --- BogPilot alert volumes (stream 7) ---
+# FrogPilot defaults: AlertVolumeControl off -> ambient for all alerts (engage/disengage audible).
+# When a future AP1/defaults stream writes volume params, honor them; never default to mute.
+try:
+  from openpilot.selfdrive.ui.bogpilot.alert_volumes import (
+    FROGPILOT_VOLUME_DEFAULTS,
+    VOLUME_PARAM_KEYS,
+    resolve_alert_gain,
+  )
+except Exception:  # pragma: no cover - keep stock soundd usable without the package
+  FROGPILOT_VOLUME_DEFAULTS = {
+    "AlertVolumeControl": "0",
+    "EngageVolume": "101",
+    "DisengageVolume": "101",
+    "PromptVolume": "101",
+    "PromptDistractedVolume": "101",
+    "RefuseVolume": "101",
+    "WarningSoftVolume": "101",
+    "WarningImmediateVolume": "101",
+  }
+  VOLUME_PARAM_KEYS = tuple(k for k in FROGPILOT_VOLUME_DEFAULTS if k != "AlertVolumeControl")
+
+  def resolve_alert_gain(*, alert_volume_control, percent, ambient, key=None):
+    if not alert_volume_control:
+      return ambient
+    pct = int(percent)
+    if key == "WarningImmediateVolume":
+      pct = max(pct, 25)
+    frac = pct / 100.0
+    return ambient if abs(frac - 1.01) < 1e-9 else frac
+
+import os
+from pathlib import Path
+
+_VOLUME_ALERT_KEYS = {
+  # filled after AudibleAlert is defined — see _bogpilot_bind_volume_keys()
+}
+
+def _bogpilot_params_dir() -> Path:
+  return Path(os.getenv("BOGPILOT_PARAMS_DIR", "/data/params_bogpilot"))
+
+def _bogpilot_read_param(key: str) -> str | None:
+  # Prefer file store so this works before Params keys are registered (stream 6).
+  try:
+    return (_bogpilot_params_dir() / key).read_text(encoding="utf-8").strip()
+  except OSError:
+    pass
+  try:
+    from openpilot.common.params import Params  # C3X
+    v = Params().get(key)
+    if v is None:
+      return None
+    return v.decode("utf-8", "replace") if isinstance(v, (bytes, bytearray)) else str(v)
+  except Exception:
+    pass
+  try:
+    from common.params import Params  # C3 flat
+    v = Params().get(key)
+    if v is None:
+      return None
+    return v.decode("utf-8", "replace") if isinstance(v, (bytes, bytearray)) else str(v)
+  except Exception:
+    return None
+
+def _bogpilot_bool(text: str | None, default: bool) -> bool:
+  if text is None:
+    return default
+  t = text.strip().lower()
+  if t in ("1", "true", "on"):
+    return True
+  if t in ("0", "false", "off"):
+    return False
+  return default
+
+def _bogpilot_int(text: str | None, default: int) -> int:
+  if text is None:
+    return default
+  try:
+    return int(float(text))
+  except ValueError:
+    return default
+
 SAMPLE_RATE = 48000
 SAMPLE_BUFFER = 4096 # (approx 100ms)
 MAX_VOLUME = 1.0
@@ -33,6 +115,23 @@ if HARDWARE.get_device_type() == "tizi":
 
 AudibleAlert = log.SelfdriveState.AudibleAlert
 CRITICAL_MAX = -1 # internal sound key, not an AudibleAlert
+
+
+def _bogpilot_bind_volume_keys():
+  global _VOLUME_ALERT_KEYS
+  _VOLUME_ALERT_KEYS = {
+    AudibleAlert.engage: "EngageVolume",
+    AudibleAlert.disengage: "DisengageVolume",
+    AudibleAlert.refuse: "RefuseVolume",
+    AudibleAlert.prompt: "PromptVolume",
+    AudibleAlert.promptRepeat: "PromptVolume",
+    AudibleAlert.promptDistracted: "PromptDistractedVolume",
+    AudibleAlert.warningSoft: "WarningSoftVolume",
+    AudibleAlert.warningImmediate: "WarningImmediateVolume",
+  }
+
+_bogpilot_bind_volume_keys()
+
 
 
 sound_list: dict[int, tuple[str, int | None, float]] = {
@@ -78,6 +177,15 @@ class Soundd:
     self.pending_stop = False
 
     self.spl_filter_weighted = FirstOrderFilter(0, 2.5, FILTER_DT, initialized=False)
+    self._bp_alert_volume_control = _bogpilot_bool(
+      _bogpilot_read_param("AlertVolumeControl"),
+      _bogpilot_bool(FROGPILOT_VOLUME_DEFAULTS.get("AlertVolumeControl"), False),
+    )
+    self._bp_volume_percents = {
+      key: _bogpilot_int(_bogpilot_read_param(key), int(float(FROGPILOT_VOLUME_DEFAULTS.get(key, "101"))))
+      for key in VOLUME_PARAM_KEYS
+    }
+    self._bp_ambient_volume = MIN_VOLUME
 
   def load_sounds(self):
     self.loaded_sounds: dict[int, np.ndarray] = {}
@@ -181,13 +289,27 @@ class Soundd:
       while True:
         sm.update(0)
 
-        # freeze volume during alerts to avoid mic feedback increasing volume
+        # freeze ambient estimate during alerts to avoid mic feedback increasing volume
         if sm.updated['soundPressure']:
           self.spl_filter_weighted.update(sm["soundPressure"].soundPressureWeightedDb)
           if self.current_alert == AudibleAlert.none:
-            self.current_volume = self.calculate_volume(float(self.spl_filter_weighted.x))
+            self._bp_ambient_volume = self.calculate_volume(float(self.spl_filter_weighted.x))
+            self.current_volume = self._bp_ambient_volume
 
         self.get_audible_alert(sm)
+
+        # BogPilot: per-alert volumes (FrogPilot defaults — engage/disengage audible)
+        if self.current_alert != AudibleAlert.none:
+          key = _VOLUME_ALERT_KEYS.get(self.current_alert)
+          if key is None:
+            self.current_volume = self._bp_ambient_volume
+          else:
+            self.current_volume = resolve_alert_gain(
+              alert_volume_control=self._bp_alert_volume_control,
+              percent=self._bp_volume_percents.get(key, 101),
+              ambient=self._bp_ambient_volume,
+              key=key,
+            )
 
         if self.current_alert in (AudibleAlert.warningSoft, AudibleAlert.warningImmediate):
           elapsed = time.monotonic() - self.ramp_start_time
