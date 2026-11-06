@@ -19,6 +19,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_angle import LatControlAngle, S
 from openpilot.selfdrive.controls.lib.latcontrol_curvature import LatControlCurvature
 from openpilot.selfdrive.controls.lib.latcontrol_torque import LatControlTorque
 from openpilot.selfdrive.controls.lib.longcontrol import LongControl
+from openpilot.selfdrive.car.ap1_runtime import Ap1Lateral
 from openpilot.selfdrive.modeld.modeld import LAT_SMOOTH_SECONDS
 from openpilot.selfdrive.locationd.helpers import PoseCalibrator, Pose
 
@@ -50,6 +51,7 @@ class Controls:
     self.pose_calibrator = PoseCalibrator()
     self.calibrated_pose: Pose | None = None
 
+    self.ap1_lateral = Ap1Lateral(self.CP, self.params)
     self.LoC = LongControl(self.CP)
     self.VM = VehicleModel(self.CP)
     self.LaC: LatControl
@@ -97,7 +99,10 @@ class Controls:
 
     # Check which actuators can be enabled
     standstill = abs(CS.vEgo) <= max(self.CP.minSteerSpeed, 0.3) or CS.standstill
-    CC.latActive = self.sm['selfdriveState'].active and not CS.steerFaultTemporary and not CS.steerFaultPermanent and \
+    aol_active = self.ap1_lateral.update(CS, CC.enabled, self.calibrated_pose is not None,
+                                         any(e.immediateDisable or e.softDisable or e.noEntry for e in self.sm["onroadEvents"])
+                                         or not self.sm.all_checks())
+    CC.latActive = (self.sm['selfdriveState'].active or aol_active) and not CS.steerFaultTemporary and not CS.steerFaultPermanent and \
                    (not standstill or self.CP.steerAtStandstill)
     CC.longActive = CC.enabled and not any(e.overrideLongitudinal for e in self.sm['onroadEvents']) and self.CP.openpilotLongitudinalControl
 

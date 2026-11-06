@@ -21,6 +21,10 @@ class CarEvents:
     self.low_speed_alert = False
     self.no_steer_warning = False
     self.silent_steer_warning = True
+    self.ap1_events = None
+    if CP.brand == "tesla_ap1":
+      from opendbc.car.tesla_ap1.ap1_events import Ap1Events
+      self.ap1_events = Ap1Events()
 
   def update(self, CS: car.CarState, CS_prev: car.CarState, CC: car.CarControl):
     if self.CP.brand in ('body', 'mock'):
@@ -90,6 +94,14 @@ class CarEvents:
       # TODO: this needs to be implemented generically in carState struct
       # if CC.eps_timer_soft_disable_alert:
       #   events.add(EventName.steerTimeLimit)
+
+    if self.ap1_events is not None:
+      names = {v: k for k, v in EventName.schema.enumerants.items()}
+      rewritten = self.ap1_events.update([names[e] for e in events.names], CC.enabled, CC.latActive,
+                                         CS.bogpilot, CS.steerFaultPermanent)
+      events = Events()
+      for event in rewritten:
+        events.add(EventName.schema.enumerants[event])
 
     return events
 

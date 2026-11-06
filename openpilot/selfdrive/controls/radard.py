@@ -12,6 +12,7 @@ from openpilot.common.params import Params
 from openpilot.common.realtime import DT_MDL, Priority, config_realtime_process
 from openpilot.common.swaglog import cloudlog
 from openpilot.common.simple_kalman import KF1D
+from opendbc.car.tesla_ap1.lead_filter import Ap1LeadGlitchFilter
 
 
 # Default lead acceleration decay set to 50% at 1s
@@ -177,7 +178,8 @@ def get_lead(v_ego: float, ready: bool, tracks: dict[int, Track], lead_msg: capn
 
 
 class RadarD:
-  def __init__(self, delay: float = 0.0):
+  def __init__(self, delay: float = 0.0, ap1_lead_filter: bool = False):
+    self.ap1_lead_filters = [Ap1LeadGlitchFilter(DT_MDL) for _ in range(2)] if ap1_lead_filter else None
     self.tracks: dict[int, Track] = {}
     self.kalman_params = KalmanParams(DT_MDL)
     self.lead_prob_filters = [FirstOrderFilter(0.0, 0.2, DT_MDL) for _ in range(2)]
@@ -240,6 +242,17 @@ class RadarD:
 
       self.radar_state.leadOne = get_lead(self.v_ego, self.ready, self.tracks, leads_v3[0], model_v_ego, self.lead_prob_filters[0].x, low_speed_override=True)
       self.radar_state.leadTwo = get_lead(self.v_ego, self.ready, self.tracks, leads_v3[1], model_v_ego, self.lead_prob_filters[1].x, low_speed_override=False)
+      if self.ap1_lead_filters is not None:
+        for i, field in enumerate(("leadOne", "leadTwo")):
+          lead = getattr(self.radar_state, field).to_dict()
+          lead["status"] = lead.pop("present")
+          model_lead = leads_v3[i]
+          filtered = dict(self.ap1_lead_filters[i].update(lead, model_lead.prob,
+                          float(model_lead.x[0]) - RADAR_TO_CAMERA if len(model_lead.x) else 0.0,
+                          float(model_lead.v[0]) if len(model_lead.v) else 0.0, 0.5))
+          filtered["present"] = filtered.pop("status", False)
+          setattr(self.radar_state, field, filtered)
+
 
   def publish(self, pm: messaging.PubMaster):
     assert self.radar_state is not None
@@ -264,7 +277,7 @@ def main() -> None:
   sm = messaging.SubMaster(['modelV2', 'carState', 'radarTracks'], poll='modelV2')
   pm = messaging.PubMaster(['radarState', *BOGPILOT_RADAR_SERVICES])
 
-  RD = RadarD(CP.radarDelay)
+  RD = RadarD(CP.radarDelay, ap1_lead_filter=CP.carFingerprint == "TESLA_AP1_MODELS")
   BP = BogPilotRadar(CP)
 
   while 1:

@@ -153,6 +153,12 @@ def get_car(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_multip
   candidate, fingerprints, vin, car_fw, source, exact_match = fingerprint(can_recv, can_send, set_obd_multiplexing, cached_params)
 
   if candidate is None:
+    from opendbc.car.tesla_ap1.values import CAR as AP1, match_ap1_chassis
+    if match_ap1_chassis(fingerprints):
+      candidate = AP1.TESLA_AP1_MODELS
+      source = CarParams.FingerprintSource.can
+
+  if candidate is None:
     carlog.error({"event": "car doesn't match any fingerprints", "fingerprints": repr(fingerprints)})
     candidate = "MOCK"
 

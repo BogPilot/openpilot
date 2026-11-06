@@ -14,6 +14,7 @@ from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import T_IDX
 from openpilot.selfdrive.controls.lib.drive_helpers import CONTROL_N, get_accel_from_plan, should_stop
 from openpilot.selfdrive.car.cruise import V_CRUISE_MAX, V_CRUISE_UNSET
 from openpilot.common.swaglog import cloudlog
+from openpilot.selfdrive.controls.lib.ap1_planning import Ap1Planning
 
 A_CRUISE_MAX_VALS = [1.6, 1.2, 0.8, 0.6]
 A_CRUISE_MAX_BP = [0., 10.0, 25., 40.]
@@ -59,6 +60,7 @@ class LongitudinalPlanner:
     self.mpc = LongitudinalMpc(dt=dt)
     self.fcw = False
     self.dt = dt
+    self.ap1_plan = Ap1Planning(CP, dt)
     self.allow_throttle = True
 
     self.v_desired_filter = FirstOrderFilter(init_v, 2.0, self.dt)
@@ -109,7 +111,8 @@ class LongitudinalPlanner:
 
     self.mpc.set_weights(prev_accel_constraint, personality=sm['selfdriveState'].personality)
     self.mpc.set_cur_state(self.v_desired_filter.x, self.output_a_target)
-    self.mpc.update(sm['radarState'], personality=sm['selfdriveState'].personality)
+    self.mpc.update(sm['radarState'], personality=sm['selfdriveState'].personality, comfort_brake=self.ap1_plan.comfort_brake,
+                    t_follow_override=self.ap1_plan.t_follow(sm["carState"], not reset_state))
 
     self.v_desired_trajectory = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.v_solution)
     self.a_desired_trajectory = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.a_solution)
@@ -142,6 +145,7 @@ class LongitudinalPlanner:
 
     output_a_target, self.mpc.source, _ = min(candidates, key=lambda c: c[0])
     self.output_should_stop = any(should_stop for _, _, should_stop in candidates)
+    output_a_target = self.ap1_plan.shape_stop(sm, output_a_target, not reset_state)
     self.output_a_target = np.clip(output_a_target, ACCEL_MIN, ACCEL_MAX)
 
     self.v_desired_filter.x = self.v_desired_filter.x + self.dt * (self.output_a_target + a_prev) / 2.0
