@@ -5,6 +5,8 @@
 static bool tesla_longitudinal = false;
 static bool tesla_stock_aeb = false;
 
+#include "opendbc/safety/modes/tesla_ap1.h"
+
 // Only rising edges while controls are not allowed are considered for these systems:
 // TODO: Only LKAS (non-emergency) is currently supported since we've only seen it
 static bool tesla_stock_lkas = false;
@@ -94,6 +96,10 @@ static bool tesla_get_quality_flag_valid(const CANPacket_t *msg) {
 }
 
 static void tesla_rx_hook(const CANPacket_t *msg) {
+  if (tesla_ap1) {
+    tesla_ap1_rx_hook(msg);
+    return;
+  }
   // Steering angle: (0.1 * val) - 819.2 in deg.
   if (msg_matches(msg, 0x370U, 0U)) {
     // Store it 1/10 deg to match steering request
@@ -188,6 +194,9 @@ static void tesla_rx_hook(const CANPacket_t *msg) {
 }
 
 static bool tesla_tx_hook(const CANPacket_t *msg) {
+  if (tesla_ap1) {
+    return tesla_ap1_tx_hook(msg);
+  }
   const AngleSteeringLimits TESLA_STEERING_LIMITS = {
     .max_angle = 3600,  // 360 deg, EPAS faults above this
     .angle_deg_to_can = 10,
@@ -286,6 +295,9 @@ static bool tesla_tx_hook(const CANPacket_t *msg) {
 }
 
 static bool tesla_fwd_hook(int bus_num, int addr) {
+  if (tesla_ap1) {
+    return tesla_ap1_fwd_hook(bus_num, addr);
+  }
   bool block_msg = false;
 
   if (bus_num == 2) {
@@ -311,6 +323,12 @@ static bool tesla_fwd_hook(int bus_num, int addr) {
 }
 
 static safety_config tesla_init(uint16_t param) {
+  tesla_ap1 = GET_FLAG(param, TESLA_FLAG_AP1);
+  if (tesla_ap1) {
+    return tesla_ap1_init_config(param);
+  }
+  // Clear AP1 longitudinal state when returning to stock (including release builds).
+  tesla_longitudinal = false;
   static const CanMsg TESLA_M3_Y_TX_MSGS[] = {
     {0x488, 0, 4, .check_relay = true, .disable_static_blocking = true},   // DAS_steeringControl
     {0x2b9, 0, 8, .check_relay = false},                                   // DAS_control (for cancel)
