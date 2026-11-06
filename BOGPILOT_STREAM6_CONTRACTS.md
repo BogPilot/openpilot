@@ -51,3 +51,23 @@ Owner: stream 6 (`port/c3-s6-params`, `port/c3x-s6-params`). Other streams must 
 
 ## Out of scope for stream 6
 - AP1 car/opendbc behavior (stream 1), panda/safety (stream 2), Qt/raylib painting (3/4), shipping default values / Tuning Level UX (5), alert volumes (7), cluster layout (8), AGNOS image builds (9/10).
+
+
+## Stream 5 alignment (shipping defaults)
+
+Registry defaults/levels follow `bogpilot_shipping_defaults.PARAM_OVERRIDES` (copied into this tree):
+BorderMetrics/BlindSpotMetrics/SidebarMetrics/ShowCPU/ShowGPU/ShowMemoryUsage at **Minimal (0)** default ON;
+DeveloperUI/Widgets/Sidebar default OFF under Developer (level 3); NudgelessLaneChange OFF; AlwaysOnLateral OFF;
+TuningLevel=0 + TuningLevelConfirmed=0 (fresh-install unset); ModelUI path widths remain Advanced (level 2).
+`DeveloperHUD` is **not** a Params key — file-only with RedesignUI/BSMFlameTracks/SwapSpeedGraph.
+UI parenting of Minimal metrics under CustomUI is stream 5 `REPARENT_TO_CUSTOM_UI` / toggle_metadata; stream 6 only registers levels/values.
+Do not change these shipping values without stream 5.
+
+
+## Stream 7 alignment (alert volumes)
+
+Typed Params registration for volume keys is in `bogpilot_params.py` / `params_keys_bogpilot.h`:
+`AlertVolumeControl` default **0**, `EngageVolume`/`DisengageVolume`/`PromptVolume`/`PromptDistractedVolume`/`RefuseVolume`/`WarningSoftVolume`/`WarningImmediateVolume` default **101**.
+`openpilot/common/bogpilot_alert_volumes.py` (from stream 7) defines `FROGPILOT_VOLUME_DEFAULTS` and `AP1_VOLUME_PROFILE` as the same non-mute profile.
+Do **not** register or migrate an AP1 mute profile (`AlertVolumeControl=1` with engage/disengage 0).
+File-backed overrides under `/data/params_bogpilot` remain valid via ParamStore when libparams lacks a key.

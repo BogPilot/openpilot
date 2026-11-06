@@ -21,7 +21,7 @@ CAR_DEPENDENT = None
 
 # key: (default, description)
 # Legacy UI keys that stream 4 keeps file-backed only (never Params get/put).
-FILE_ONLY_UI_KEYS = frozenset({"RedesignUI", "BSMFlameTracks", "SwapSpeedGraph"})
+FILE_ONLY_UI_KEYS = frozenset({"RedesignUI", "BSMFlameTracks", "SwapSpeedGraph", "DeveloperHUD"})
 
 FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
   # UI (default on)

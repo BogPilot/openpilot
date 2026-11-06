@@ -5,8 +5,9 @@ openpilot. Ported from BogPilot/openpilot@367e1fe (common/params.cc key list and
 frogpilot/common/frogpilot_variables.py frogpilot_default_params / misc_tuning_levels).
 
 BogPilot policy overrides on top of the 367e1fe FrogPilot table:
-  HolidayThemes default "0" (off); TuningLevel default "3" (Developer).
-Unconfirmed TuningLevel still reads as 3 at runtime; AP1 profile also writes TuningLevel=3 + Confirmed.
+  HolidayThemes default "0" (off); TuningLevel default "0" + Confirmed "0" (fresh-install unset; stream 5).
+Border/Sidebar metrics + SwapSpeedGraph at Minimal (stream 5); Model UI widths stay Advanced.
+Unconfirmed TuningLevel still reads as 3 at runtime via ParamStore.tuning_level(); AP1 profile no longer locks TuningLevel (stream 5).
 
 Each entry is  key: (flags, type, default, tuning_level, stock_default)
   flags          ParamKeyFlag names joined with "|" (same as the 0.9.7 reference)
@@ -31,6 +32,8 @@ Policy pins (do not change without the owner's OK):
 import os
 import sys
 
+# DeveloperHUD stays file-only under /data/params_bogpilot (stream 4/5); not registered here.
+# Volume keys (stream 7): AlertVolumeControl=0, *Volume=101 FrogPilot defaults — never AP1 mute (0).
 BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] = {
   "AccelerationPath": ("PERSISTENT", "BOOL", "1", 2, "0"),
   "AccelerationProfile": ("PERSISTENT", "INT", "2", 0, "0"),
@@ -48,7 +51,7 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "AggressiveJerkSpeedDecrease": ("PERSISTENT", "FLOAT", "50", 3, "50"),
   "AggressivePersonalityProfile": ("PERSISTENT", "BOOL", "1", 2, "0"),
   "AlertVolumeControl": ("PERSISTENT", "BOOL", "0", 2, "0"),
-  "AlwaysOnLateral": ("PERSISTENT", "BOOL", "1", 0, "0"),
+  "AlwaysOnLateral": ("PERSISTENT", "BOOL", "0", 0, "0"),
   "AlwaysOnLateralLKAS": ("PERSISTENT", "BOOL", "1", 2, "0"),
   "AlwaysOnLateralMain": ("PERSISTENT", "BOOL", "1", 2, "0"),
   "AMapKey1": ("PERSISTENT|DONT_LOG", "STRING", "", 0, ""),
@@ -61,9 +64,9 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "AvailableModels": ("PERSISTENT", "STRING", "", 1, ""),
   "BigMap": ("PERSISTENT", "BOOL", "0", 2, "0"),
   "BlacklistedModels": ("PERSISTENT", "STRING", "", 2, ""),
-  "BlindSpotMetrics": ("PERSISTENT", "BOOL", "1", 3, "0"),
+  "BlindSpotMetrics": ("PERSISTENT", "BOOL", "1", 0, "0"),
   "BlindSpotPath": ("PERSISTENT", "BOOL", "1", 1, "0"),
-  "BorderMetrics": ("PERSISTENT", "BOOL", "0", 3, "0"),
+  "BorderMetrics": ("PERSISTENT", "BOOL", "1", 0, "0"),
   "CalibratedLateralAcceleration": ("PERSISTENT", "FLOAT", "2.0", 2, "2.0"),
   "CalibrationProgress": ("PERSISTENT", "FLOAT", "0", 3, "0"),
   "CameraView": ("PERSISTENT", "INT", "3", 2, "0"),
@@ -108,7 +111,7 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "DebugMode": ("CLEAR_ON_OFFROAD_TRANSITION", "BOOL", None, None, None),
   "DecelerationProfile": ("PERSISTENT", "INT", "1", 2, "0"),
   "DeveloperMetrics": ("PERSISTENT", "BOOL", "1", 3, "0"),
-  "DeveloperSidebar": ("PERSISTENT", "BOOL", "1", 3, "0"),
+  "DeveloperSidebar": ("PERSISTENT", "BOOL", "0", 3, "0"),
   "DeveloperSidebarMetric1": ("PERSISTENT", "INT", "1", 3, "0"),
   "DeveloperSidebarMetric2": ("PERSISTENT", "INT", "2", 3, "0"),
   "DeveloperSidebarMetric3": ("PERSISTENT", "INT", "3", 3, "0"),
@@ -117,7 +120,7 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "DeveloperSidebarMetric6": ("PERSISTENT", "INT", "6", 3, "0"),
   "DeveloperSidebarMetric7": ("PERSISTENT", "INT", "7", 3, "0"),
   "DeveloperUI": ("PERSISTENT", "BOOL", "0", 3, "0"),
-  "DeveloperWidgets": ("PERSISTENT", "BOOL", "1", 3, "0"),
+  "DeveloperWidgets": ("PERSISTENT", "BOOL", "0", 3, "0"),
   "DeviceManagement": ("PERSISTENT", "BOOL", "1", 1, "0"),
   "DeviceShutdown": ("PERSISTENT", "INT", "9", 1, "33"),
   "DisableOnroadUploads": ("PERSISTENT", "BOOL", "0", 2, "0"),
@@ -262,7 +265,7 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "NNFFModelName": ("CLEAR_ON_OFFROAD_TRANSITION", "STRING", None, None, None),
   "NoLogging": ("PERSISTENT", "BOOL", "0", 2, "0"),
   "NoUploads": ("PERSISTENT", "BOOL", "0", 2, "0"),
-  "NudgelessLaneChange": ("PERSISTENT", "BOOL", "1", 0, "0"),
+  "NudgelessLaneChange": ("PERSISTENT", "BOOL", "0", 0, "0"),
   "NumericalTemp": ("PERSISTENT", "BOOL", "1", 3, "0"),
   "Offroad_BadNvme": ("CLEAR_ON_MANAGER_START", "STRING", None, None, None),
   "Offroad_IsTakingSnapshot": ("CLEAR_ON_MANAGER_START", "STRING", None, None, None),
@@ -336,22 +339,22 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "SetSpeedLimit": ("PERSISTENT", "BOOL", "0", 1, "0"),
   "SetSpeedOffset": ("PERSISTENT", "INT", "0", 2, "0"),
   "ShowCEMStatus": ("PERSISTENT", "BOOL", "1", 2, "0"),
-  "ShowCPU": ("PERSISTENT", "BOOL", "1", 3, "0"),
+  "ShowCPU": ("PERSISTENT", "BOOL", "1", 0, "0"),
   "ShowCSCStatus": ("PERSISTENT", "BOOL", "1", 2, "0"),
-  "ShowGPU": ("PERSISTENT", "BOOL", "0", 3, "0"),
+  "ShowGPU": ("PERSISTENT", "BOOL", "1", 0, "0"),
   "ShowIP": ("PERSISTENT", "BOOL", "0", 3, "0"),
-  "ShowMemoryUsage": ("PERSISTENT", "BOOL", "1", 3, "0"),
+  "ShowMemoryUsage": ("PERSISTENT", "BOOL", "1", 0, "0"),
   "ShownToggleDescriptions": ("PERSISTENT", "STRING", "", 0, ""),
   "ShowSLCOffset": ("PERSISTENT", "BOOL", "1", 0, "0"),
   "ShowSpeedLimits": ("PERSISTENT", "BOOL", "1", 1, "0"),
-  "ShowSteering": ("PERSISTENT", "BOOL", "0", 3, "0"),
+  "ShowSteering": ("PERSISTENT", "BOOL", "0", 0, "0"),
   "ShowStoppingPoint": ("PERSISTENT", "BOOL", "1", 3, "0"),
   "ShowStoppingPointMetrics": ("PERSISTENT", "BOOL", "1", 3, "0"),
   "ShowStorageLeft": ("PERSISTENT", "BOOL", "0", 3, "0"),
   "ShowStorageUsed": ("PERSISTENT", "BOOL", "0", 3, "0"),
   "Sidebar": ("PERSISTENT", "BOOL", "0", 0, "0"),
-  "SidebarMetrics": ("PERSISTENT", "STRING", "1", 3, "0"),
-  "SignalMetrics": ("PERSISTENT", "BOOL", "0", 3, "0"),
+  "SidebarMetrics": ("PERSISTENT", "STRING", "1", 0, "0"),
+  "SignalMetrics": ("PERSISTENT", "BOOL", "0", 0, "0"),
   "SignalToDownload": ("CLEAR_ON_MANAGER_START", "STRING", None, None, None),
   "SLCConfirmation": ("PERSISTENT", "BOOL", "0", 0, "0"),
   "SLCConfirmationHigher": ("PERSISTENT", "BOOL", "0", 0, "0"),
@@ -417,7 +420,7 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "ToyotaDoors": ("PERSISTENT", "BOOL", "1", 0, "0"),
   "ToyotaDSUBypass": ("PERSISTENT", "BOOL", "0", 2, "0"),
   "TrainingVersion": ("PERSISTENT", "STRING", None, None, None),
-  "TuningLevel": ("PERSISTENT", "INT", "3", 0, "0"),  # BogPilot: Developer by default
+  "TuningLevel": ("PERSISTENT", "INT", "0", 0, "0"),  # BogPilot/stream5: fresh-install unset (Confirmed=0)
   "TuningLevelConfirmed": ("PERSISTENT", "STRING", "0", 0, "0"),
   "TurnDesires": ("PERSISTENT", "BOOL", "0", 2, "0"),
   "UnlimitedLength": ("PERSISTENT", "BOOL", "1", 2, "0"),
