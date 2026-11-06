@@ -7,8 +7,6 @@ from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
 from openpilot.selfdrive.ui.mici.onroad import SIDE_PANEL_WIDTH
 from openpilot.selfdrive.ui.mici.onroad.alert_renderer import AlertRenderer
 from openpilot.selfdrive.ui.mici.onroad.driver_state import DriverStateRenderer
-from openpilot.selfdrive.ui.mici.onroad.hud_renderer import HudRenderer
-from openpilot.selfdrive.ui.mici.onroad.model_renderer import ModelRenderer
 from openpilot.selfdrive.ui.mici.onroad.confidence_ball import ConfidenceBall
 from openpilot.selfdrive.ui.mici.onroad.cameraview import CameraView
 from openpilot.system.ui.lib.application import FontWeight, gui_app, MousePos, MouseEvent, TextAlignment, TextAlignmentVertical
@@ -17,6 +15,8 @@ from openpilot.system.ui.widgets import Widget
 from openpilot.common.filter_simple import BounceFilter, FirstOrderFilter
 from openpilot.common.transformations.camera import DEVICE_CAMERAS, DeviceCameraConfig, view_frame_from_device_frame
 from openpilot.common.transformations.orientation import rot_from_euler
+from openpilot.selfdrive.ui.onroad.bogpilot.bogpilot_hud import BogPilotMiciHudRenderer
+from openpilot.selfdrive.ui.onroad.bogpilot.bogpilot_model import BogPilotMiciModelRenderer
 from enum import IntEnum
 
 OpState = log.SelfdriveState.OpenpilotState
@@ -168,8 +168,8 @@ class AugmentedRoadView(CameraView):
     # Bookmark icon with swipe gesture
     self._bookmark_icon = BookmarkIcon(bookmark_callback)
 
-    self._model_renderer = ModelRenderer()
-    self._hud_renderer = HudRenderer()
+    self._model_renderer = BogPilotMiciModelRenderer()
+    self._hud_renderer = BogPilotMiciHudRenderer()
     self._alert_renderer = AlertRenderer()
     self._driver_state_renderer = DriverStateRenderer()
     self._confidence_ball = ConfidenceBall()
