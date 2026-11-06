@@ -26,6 +26,14 @@ and the code it carries from older BogPilot lines.
 - Brand assets are BogPilot's own. The road logo first appears in BogPilot commit a72c24b6d
   (2026-10-14, boot logo), before the screensaver commit. icon_bogpilot.png comes from dc017e3fb (BogPilot).
 
+## Separate AP1 history
+- The separate AP1 0.11.2 base (and its nested opendbc_repo) was checked as well.
+  The one trailer hit, `06c735280` (upstream opendbc "Model 3 fingerprint for 2026.32.7",
+  `Co-authored-by` trailer), is standard upstream data and is not in C3X. The stock
+  `opendbc/car/tesla/` tree is unchanged from the base, and no 2026.32.7 fingerprint is present.
+
 ## Not in scope / open
+- This is a bounded audit of identity and trailer records plus a check for verbatim line reuse. It does not prove
+  there are no unrecorded or squashed aliases. Donor code was consulted, so this is not a clean-room claim.
 - The C3 product line and the `agnos199-port-screensaver` worktree may carry the screensaver port.
   That is tracked separately.
