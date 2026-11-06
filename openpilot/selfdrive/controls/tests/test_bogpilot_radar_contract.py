@@ -113,7 +113,7 @@ class TestRadarContract(unittest.TestCase):
     self.assertGreater(frs.leadLeft.vLead, 0.0)
 
   def test_file_only_ui_keys_never_touch_params(self):
-    self.assertEqual(FILE_ONLY_UI_KEYS, frozenset({"RedesignUI", "BSMFlameTracks", "SwapSpeedGraph"}))
+    self.assertEqual(FILE_ONLY_UI_KEYS, frozenset({"RedesignUI", "BSMFlameTracks", "SwapSpeedGraph", "HideAccelGraph", "DeveloperHUD"}))
     td = tempfile.mkdtemp()
     os.environ["BOGPILOT_PARAMS_DIR"] = td
     params = RegisteredParams({"BlindSpotPath", "RedesignUI"})

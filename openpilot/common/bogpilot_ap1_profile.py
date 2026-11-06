@@ -186,11 +186,9 @@ AP1_PARAM_PROFILE: dict[str, str] = {
   "CustomSignals": BOGPILOT_THEME,       # Turn Signal (BogPilot has no frames, same as "None")
 
   # --- Alerts / sounds ---
-  "AlertVolumeControl": "1",             # per-alert volume control on
-  # Engage/disengage chimes muted: current Tesla firmware forces the car's own AP engage/disengage
-  # sounds on, so AP1 owners already hear the car and a BogPilot chime on top is redundant.
-  "EngageVolume": "0.000000",            # engage chime muted (default 101 = auto)
-  "DisengageVolume": "0.000000",         # disengage chime muted (default 101 = auto); warnings unaffected
+  # Alert volumes are NOT part of this profile (stream 7): AP1 keeps the FrogPilot defaults
+  # (AlertVolumeControl 0, every volume 101) from openpilot/common/bogpilot_alert_volumes.py. The legacy
+  # 367e1fe engage/disengage mute is intentionally dropped and must never be re-applied.
   "CustomAlerts": "1",                   # FrogPilot custom alerts on
   "GreenLightAlert": "1",                # green light alert
   "LeadDepartingAlert": "1",             # lead departing alert
@@ -262,9 +260,18 @@ def speed_offsets_for_units(metric: bool) -> dict[str, str]:
   return out
 
 
+# Keys the one-time profile must never write (alert volumes: stream 7, no re-mute).
+_NEVER_PROFILE_VOLUME_KEYS = ("AlertVolumeControl", "EngageVolume", "DisengageVolume", "RefuseVolume", "PromptVolume",
+                              "PromptDistractedVolume", "WarningSoftVolume", "WarningImmediateVolume")
+
+
 def _profile_for_units(params) -> dict[str, str]:
-  profile = dict(AP1_PARAM_PROFILE)
+  from openpilot.common.bogpilot_shipping_defaults import patch_ap1_param_profile
+  # stream 5 shipping overlay: drops TuningLevel/TuningLevelConfirmed (left unset), AOL off, metrics on
+  profile = patch_ap1_param_profile(dict(AP1_PARAM_PROFILE))
   profile.update(speed_offsets_for_units(_is_metric(params)))
+  for key in _NEVER_PROFILE_VOLUME_KEYS:
+    profile.pop(key, None)
   return profile
 
 
