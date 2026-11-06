@@ -1,0 +1,22 @@
+BogPilot ships the following fonts under the SIL Open Font License 1.1 (OFL-1.1),
+except where a dual-license upstream also offers OFL. Full OFL text for each
+family is in this directory. Reserved font names remain with their upstreams;
+you may not sell the Font Software by itself.
+
+- Inter — Copyright (c) 2016 The Inter Project Authors
+  https://github.com/rsms/inter
+  See OFL-Inter.txt
+
+- JetBrains Mono — Copyright (c) 2020 JetBrains
+  https://github.com/JetBrains/JetBrainsMono
+  See OFL-JetBrainsMono.txt
+
+- Noto Sans CJK / Noto Sans Thai — Copyright Google Inc. / Adobe
+  https://github.com/notofonts / https://fonts.google.com/noto
+  See OFL-Noto.txt
+
+- GNU Unifont — dual-licensed (GPL-2+ with font embedding exception, and/or OFL-1.1)
+  https://unifoundry.com/unifont/
+  See OFL-Unifont.txt (OFL text used for redistribution notice)
+
+None of these font licenses require network telemetry or registration.
