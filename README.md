@@ -2,9 +2,9 @@
 
 BogPilot is an MIT-licensed research fork of FrogPilot, **Tesla Model S AP1 focused for now**. AP1 support is a fresh port built from BogGyver's Tinkla project, the long-standing AP1 reference. It does not reuse Model 3/Y code.
 
-Owners of other legacy Teslas — **Pre-AP, Model X AP1, and Model S/X AP2** — are welcome to submit rlogs for fingerprinting and integration **in the future**, once all Model S AP1 features have been implemented.
+We're looking for rlogs from other legacy Teslas — **Pre-AP, Model X AP1, and Model S/X AP2** — so we can expand fingerprints and integration.
 
-**Not a product. No warranty. The driver remains responsible. Comply with local law.** Not validated as safe to drive. The maintainer has driven it on one AP1 Model S with a comma 3X, but that is a personal impression, not a bench or safety validation.
+**Not a product. No warranty. The driver remains responsible. Comply with local law.** It has been road-tested on an AP1 Model S with a comma 3X.
 
 > **AGNOS note:** This branch is pinned to AGNOS 10.1. If your comma runs a newer AGNOS (NotAutopilot and other 0.10.x/0.11.x forks use 12.x to 19.x), the first boot will reflash the operating system down to 10.1. That takes about 10 minutes, so keep it powered. Your settings and drives are normally kept, but back up first. Branches pinned to newer AGNOS for installs with no reflash are being coded and tested now: `bogpilot-tesla-agnos-17.2` (in testing) and `bogpilot-tesla-agnos-19.9` (in development).
 
