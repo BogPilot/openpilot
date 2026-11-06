@@ -2360,8 +2360,13 @@ APPEARANCE_TOGGLES = (
     tuning_level=0,
   ),
 
-  # Stream 8 owns HideAccel implementation. Visibility contract from stream 5:
-  # HideAccel must be tuning_level=0 (Minimal), parent_param="CustomUI", and must leave the lower speed capsule visible.
+  ToggleDefinition(
+    title=("Hide Accel Graph"),
+    param="HideAccelGraph",
+    description=("<b>Hide the acceleration graph</b> and keep the speed row (MAX, speed, limit) in the lower slot, for a high-mounted comma or when the mirror covers the top of the screen.<br><br>Display only. File-backed. Takes effect on the driving screen within 2 seconds."),
+    parent_param="CustomUI",
+    tuning_level=0,
+  ),
 
   ToggleDefinition(
     title=("Use International System of Units"),

@@ -47,6 +47,7 @@ PARAM_OVERRIDES: dict[str, tuple[str, int]] = {
 FILE_TOGGLE_DEFAULTS: dict[str, bool] = {
   'DeveloperHUD': False,
   'SwapSpeedGraph': True,
+  'HideAccelGraph': False,
   'BSMFlameTracks': True,
   'OffroadScreensaver': True,
   'ConfidenceBall': True,
@@ -59,6 +60,7 @@ REPARENT_TO_CUSTOM_UI: frozenset[str] = frozenset({
   'ShowGPU',
   'ShowMemoryUsage',
   'SwapSpeedGraph',
+  'HideAccelGraph',
 })
 
 AP1_PARAM_REMOVE: frozenset[str] = frozenset(['TuningLevel', 'TuningLevelConfirmed'])

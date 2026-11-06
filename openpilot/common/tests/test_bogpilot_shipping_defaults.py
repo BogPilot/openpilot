@@ -106,9 +106,10 @@ def test_file_toggle_defaults():
   s = _load_shipping()
   assert s.FILE_TOGGLE_DEFAULTS["DeveloperHUD"] is False
   assert s.FILE_TOGGLE_DEFAULTS["SwapSpeedGraph"] is True
+  assert s.FILE_TOGGLE_DEFAULTS["HideAccelGraph"] is False
 
 
 def test_reparent_targets_include_approved_minimal_toggles():
   s = _load_shipping()
-  for key in ("BorderMetrics", "SidebarMetrics", "ShowCPU", "ShowGPU", "ShowMemoryUsage", "SwapSpeedGraph"):
+  for key in ("BorderMetrics", "SidebarMetrics", "ShowCPU", "ShowGPU", "ShowMemoryUsage", "SwapSpeedGraph", "HideAccelGraph"):
     assert key in s.REPARENT_TO_CUSTOM_UI
