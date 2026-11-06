@@ -20,6 +20,9 @@ BOGPILOT_DIR = Path(os.environ.get("BOGPILOT_PARAMS_DIR", "/data/params_bogpilot
 CAR_DEPENDENT = None
 
 # key: (default, description)
+# Legacy UI keys that stream 4 keeps file-backed only (never Params get/put).
+FILE_ONLY_UI_KEYS = frozenset({"RedesignUI", "BSMFlameTracks", "SwapSpeedGraph"})
+
 FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
   # UI (default on)
   "OffroadScreensaver": (True, "Offroad screensaver: bounce the upload readout / BogPilot logo instead of screen off"),
@@ -30,7 +33,7 @@ FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
   "RemoteUIStream": (True, "Remote UI screen stream server (only serves while a viewer is connected)"),
   # UI (default off)
   "DeveloperHUD": (False, "Developer HUD"),
-  "SwapSpeedGraph": (False, "Accel graph on top, speed row below it"),
+  "SwapSpeedGraph": (True, "Accel graph on top, speed row below it"),
   # Reserved, default OFF. Not features yet; the names are pinned so nothing ships them on.
   "OccViz": (False, "Occupancy visualisation (reserved, default OFF)"),
   "LiveYOLO": (False, "Live YOLO object overlay (reserved, default OFF)"),
