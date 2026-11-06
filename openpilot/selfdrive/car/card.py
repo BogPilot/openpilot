@@ -20,6 +20,8 @@ from opendbc.car.car_helpers import get_car, interfaces
 from opendbc.car.interfaces import CarInterfaceBase, RadarInterfaceBase
 from openpilot.selfdrive.pandad import can_capnp_to_list, can_list_to_can_capnp
 from openpilot.selfdrive.car.cruise import VCruiseHelper
+from openpilot.selfdrive.car.ap1_runtime import apply_ap1_alternative_experience, apply_ap1_volume_defaults
+from openpilot.selfdrive.car.bogpilot_card import frogpilot_car_state_msg
 
 REPLAY = "REPLAY" in os.environ
 
@@ -66,7 +68,7 @@ class Car:
   def __init__(self, CI=None, RI=None) -> None:
     self.can_sock = messaging.sub_sock('can', timeout=20)
     self.sm = messaging.SubMaster(['pandaStates', 'carControl', 'onroadEvents'])
-    self.pm = messaging.PubMaster(['sendcan', 'carState', 'carParams', 'carOutput', 'radarTracks'])
+    self.pm = messaging.PubMaster(['sendcan', 'carState', 'carParams', 'carOutput', 'radarTracks', 'frogpilotCarState'])
 
     self.can_rcv_cum_timeout_counter = 0
 
@@ -108,7 +110,14 @@ class Car:
       self.CI, self.CP = CI, CI.CP
       self.RI = RI
 
+    apply_ap1_volume_defaults(self.CP, self.params)
+    self.ap1_model = None
+    if self.CP.brand == "tesla_ap1" and self.CI.CC is not None:
+      self.ap1_model = messaging.SubMaster(["modelV2"])
+      self.CI.CC.model_v2_provider = lambda: self.ap1_model["modelV2"] if self.ap1_model.all_checks() else None
+
     self.CP.alternativeExperience = 0
+    apply_ap1_alternative_experience(self.CP, self.params)
     openpilot_enabled_toggle = self.params.get_bool("OpenpilotEnabledToggle")
     controller_available = self.CI.CC is not None and openpilot_enabled_toggle and not self.CP.dashcamOnly
     self.CP.passive = not controller_available or self.CP.dashcamOnly
@@ -163,8 +172,16 @@ class Car:
     can_strs = messaging.drain_sock_raw(self.can_sock, wait_for_one=True)
     can_list = can_capnp_to_list(can_strs)
 
+    if self.ap1_model is not None:
+      self.ap1_model.update(0)
+
     # Update carState from CAN
     CS = self.CI.update(can_list)
+
+    if self.CP.brand == "tesla_ap1" and self.CP.openpilotLongitudinalControl:
+      if CS.bogpilot.ap1StalkPullToggle or CS.bogpilot.ap1StalkFwdToggle:
+        self.experimental_mode = not self.experimental_mode
+        self.params.put_bool("ExperimentalMode", self.experimental_mode)
 
     # Update radar tracks from CAN
     RD: structs.RadarDataT | None = self.RI.update(can_list)
@@ -214,6 +231,8 @@ class Car:
     cs_send.carState.canErrorCounter = self.can_rcv_cum_timeout_counter
     cs_send.carState.cumLagMs = -self.rk.remaining * 1000.
     self.pm.send('carState', cs_send)
+
+    self.pm.send("frogpilotCarState", frogpilot_car_state_msg(CS))
 
     if RD is not None:
       tracks_msg = messaging.new_message('radarTracks')

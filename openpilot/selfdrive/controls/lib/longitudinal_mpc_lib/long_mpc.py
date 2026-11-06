@@ -4,6 +4,7 @@ import time
 import numpy as np
 from openpilot.cereal import log
 from opendbc.car.interfaces import ACCEL_MIN, ACCEL_MAX
+from openpilot.selfdrive.controls.lib.ap1_planning import comfort_distance_delta, lead_present
 from openpilot.common.realtime import DT_MDL
 from openpilot.common.swaglog import cloudlog
 # WARNING: imports outside of constants will not trigger a rebuild
@@ -307,8 +308,8 @@ class LongitudinalMpc:
     lead_xv = self.extrapolate_lead(x_lead, v_lead, a_lead, a_lead_tau)
     return lead_xv
 
-  def update(self, radarstate, personality=log.LongitudinalPersonality.standard):
-    t_follow = get_T_FOLLOW(personality)
+  def update(self, radarstate, personality=log.LongitudinalPersonality.standard, comfort_brake=COMFORT_BRAKE, t_follow_override=None):
+    t_follow = get_T_FOLLOW(personality) if t_follow_override is None else t_follow_override
 
     lead_xv_0 = self.process_lead(radarstate.leadOne)
     lead_xv_1 = self.process_lead(radarstate.leadTwo)
@@ -318,6 +319,18 @@ class LongitudinalMpc:
     # and then treat that as a stopped car/obstacle at this new distance.
     lead_0_obstacle = lead_xv_0[:,0] + get_stopped_equivalence_factor(lead_xv_0[:,1])
     lead_1_obstacle = lead_xv_1[:,0] + get_stopped_equivalence_factor(lead_xv_1[:,1])
+
+    # Runtime emulation of AP1's regen-sized comfort cost. Only real leads
+    # move; cruise/e2e constraints and hard ACCEL_MIN/MAX stay upstream.
+    if comfort_brake < COMFORT_BRAKE:
+      v_horizon = np.maximum(self.v_solution, 0.0)
+      if not np.any(v_horizon > 1e-3) or abs(float(v_horizon[0]) - float(self.x0[1])) > 5.0:
+        v_horizon = np.full(N + 1, max(float(self.x0[1]), 0.0))
+      delta = comfort_distance_delta(v_horizon, comfort_brake)
+      if lead_present(radarstate.leadOne):
+        lead_0_obstacle += comfort_distance_delta(lead_xv_0[:,1], comfort_brake) - delta
+      if lead_present(radarstate.leadTwo):
+        lead_1_obstacle += comfort_distance_delta(lead_xv_1[:,1], comfort_brake) - delta
 
     x_obstacles = np.column_stack([lead_0_obstacle, lead_1_obstacle])
     self.source = MPC_SOURCES[np.argmin(x_obstacles[0])]
