@@ -1,0 +1,3257 @@
+{
+ "defaults": {
+  "AMapKey1": [
+   "",
+   0,
+   ""
+  ],
+  "AMapKey2": [
+   "",
+   0,
+   ""
+  ],
+  "AccelerationPath": [
+   "1",
+   2,
+   "0"
+  ],
+  "AccelerationProfile": [
+   "2",
+   0,
+   "0"
+  ],
+  "AdjacentLeadsUI": [
+   "1",
+   3,
+   "0"
+  ],
+  "AdjacentPath": [
+   "0",
+   3,
+   "0"
+  ],
+  "AdjacentPathMetrics": [
+   "0",
+   3,
+   "0"
+  ],
+  "AdvancedCustomUI": [
+   "0",
+   2,
+   "0"
+  ],
+  "AdvancedLateralTune": [
+   "0",
+   3,
+   "0"
+  ],
+  "AdvancedLongitudinalTune": [
+   "0",
+   3,
+   "0"
+  ],
+  "AggressiveFollow": [
+   "1.25",
+   2,
+   "1.25"
+  ],
+  "AggressiveJerkAcceleration": [
+   "50",
+   3,
+   "50"
+  ],
+  "AggressiveJerkDanger": [
+   "100",
+   3,
+   "100"
+  ],
+  "AggressiveJerkDeceleration": [
+   "50",
+   3,
+   "50"
+  ],
+  "AggressiveJerkSpeed": [
+   "50",
+   3,
+   "50"
+  ],
+  "AggressiveJerkSpeedDecrease": [
+   "50",
+   3,
+   "50"
+  ],
+  "AggressivePersonalityProfile": [
+   "1",
+   2,
+   "0"
+  ],
+  "AlertVolumeControl": [
+   "0",
+   2,
+   "0"
+  ],
+  "AlwaysOnDM": [
+   "0",
+   0,
+   "0"
+  ],
+  "AlwaysOnLateral": [
+   "1",
+   0,
+   "0"
+  ],
+  "AlwaysOnLateralLKAS": [
+   "1",
+   2,
+   "0"
+  ],
+  "AlwaysOnLateralMain": [
+   "1",
+   2,
+   "0"
+  ],
+  "AutomaticUpdates": [
+   "1",
+   0,
+   "1"
+  ],
+  "AutomaticallyDownloadModels": [
+   "1",
+   1,
+   "0"
+  ],
+  "AvailableModelNames": [
+   "",
+   1,
+   ""
+  ],
+  "AvailableModels": [
+   "",
+   1,
+   ""
+  ],
+  "BigMap": [
+   "0",
+   2,
+   "0"
+  ],
+  "BlacklistedModels": [
+   "",
+   2,
+   ""
+  ],
+  "BlindSpotMetrics": [
+   "1",
+   3,
+   "0"
+  ],
+  "BlindSpotPath": [
+   "1",
+   1,
+   "0"
+  ],
+  "BorderMetrics": [
+   "0",
+   3,
+   "0"
+  ],
+  "CECurves": [
+   "0",
+   1,
+   "0"
+  ],
+  "CECurvesLead": [
+   "0",
+   1,
+   "0"
+  ],
+  "CELead": [
+   "0",
+   1,
+   "0"
+  ],
+  "CEModelStopTime": [
+   "8.0",
+   3,
+   "0"
+  ],
+  "CENavigation": [
+   "1",
+   2,
+   "0"
+  ],
+  "CENavigationIntersections": [
+   "0",
+   2,
+   "0"
+  ],
+  "CENavigationLead": [
+   "1",
+   2,
+   "0"
+  ],
+  "CENavigationTurns": [
+   "1",
+   2,
+   "0"
+  ],
+  "CESignalLaneDetection": [
+   "1",
+   2,
+   "0"
+  ],
+  "CESignalSpeed": [
+   "55",
+   2,
+   "0"
+  ],
+  "CESlowerLead": [
+   "0",
+   1,
+   "0"
+  ],
+  "CESpeed": [
+   "0",
+   1,
+   "0"
+  ],
+  "CESpeedLead": [
+   "0",
+   1,
+   "0"
+  ],
+  "CEStopLights": [
+   "1",
+   1,
+   "0"
+  ],
+  "CEStoppedLead": [
+   "0",
+   1,
+   "0"
+  ],
+  "CalibratedLateralAcceleration": [
+   "2.0",
+   2,
+   "2.0"
+  ],
+  "CalibrationProgress": [
+   "0",
+   3,
+   "0"
+  ],
+  "CameraView": [
+   "3",
+   2,
+   "0"
+  ],
+  "CarMake": [
+   "",
+   0,
+   ""
+  ],
+  "CarModel": [
+   "",
+   0,
+   ""
+  ],
+  "CarModelName": [
+   "",
+   0,
+   ""
+  ],
+  "CarParamsPersistent": [
+   "",
+   0,
+   ""
+  ],
+  "ClusterOffset": [
+   "1.015",
+   2,
+   "1.015"
+  ],
+  "Compass": [
+   "0",
+   1,
+   "0"
+  ],
+  "ConditionalExperimental": [
+   "1",
+   1,
+   "0"
+  ],
+  "CurvatureData": [
+   "",
+   2,
+   ""
+  ],
+  "CurveSpeedController": [
+   "1",
+   1,
+   "0"
+  ],
+  "CustomAlerts": [
+   "0",
+   0,
+   "0"
+  ],
+  "CustomColors": [
+   "BogPilot",
+   0,
+   "stock"
+  ],
+  "CustomCruise": [
+   "1",
+   2,
+   "1"
+  ],
+  "CustomCruiseLong": [
+   "5",
+   2,
+   "5"
+  ],
+  "CustomDistanceIcons": [
+   "BogPilot",
+   0,
+   "stock"
+  ],
+  "CustomIcons": [
+   "BogPilot",
+   0,
+   "stock"
+  ],
+  "CustomPersonalities": [
+   "0",
+   2,
+   "0"
+  ],
+  "CustomSignals": [
+   "BogPilot",
+   0,
+   "stock"
+  ],
+  "CustomSounds": [
+   "BogPilot",
+   0,
+   "stock"
+  ],
+  "CustomUI": [
+   "1",
+   1,
+   "0"
+  ],
+  "DecelerationProfile": [
+   "1",
+   2,
+   "0"
+  ],
+  "DeveloperMetrics": [
+   "1",
+   3,
+   "0"
+  ],
+  "DeveloperSidebar": [
+   "1",
+   3,
+   "0"
+  ],
+  "DeveloperSidebarMetric1": [
+   "1",
+   3,
+   "0"
+  ],
+  "DeveloperSidebarMetric2": [
+   "2",
+   3,
+   "0"
+  ],
+  "DeveloperSidebarMetric3": [
+   "3",
+   3,
+   "0"
+  ],
+  "DeveloperSidebarMetric4": [
+   "4",
+   3,
+   "0"
+  ],
+  "DeveloperSidebarMetric5": [
+   "5",
+   3,
+   "0"
+  ],
+  "DeveloperSidebarMetric6": [
+   "6",
+   3,
+   "0"
+  ],
+  "DeveloperSidebarMetric7": [
+   "7",
+   3,
+   "0"
+  ],
+  "DeveloperUI": [
+   "0",
+   3,
+   "0"
+  ],
+  "DeveloperWidgets": [
+   "1",
+   3,
+   "0"
+  ],
+  "DeviceManagement": [
+   "1",
+   1,
+   "0"
+  ],
+  "DeviceShutdown": [
+   "9",
+   1,
+   "33"
+  ],
+  "DisableOnroadUploads": [
+   "0",
+   2,
+   "0"
+  ],
+  "DisableOpenpilotLongitudinal": [
+   "0",
+   0,
+   "0"
+  ],
+  "DiscordUsername": [
+   "",
+   0,
+   ""
+  ],
+  "DisengageVolume": [
+   "101",
+   2,
+   "101"
+  ],
+  "DistanceButtonControl": [
+   "1",
+   2,
+   "0"
+  ],
+  "DriverCamera": [
+   "0",
+   1,
+   "0"
+  ],
+  "DynamicPathWidth": [
+   "0",
+   2,
+   "0"
+  ],
+  "DynamicPedalsOnUI": [
+   "1",
+   1,
+   "0"
+  ],
+  "EngageVolume": [
+   "101",
+   2,
+   "101"
+  ],
+  "ExperimentalGMTune": [
+   "0",
+   2,
+   "0"
+  ],
+  "ExperimentalLongitudinalEnabled": [
+   "0",
+   0,
+   "0"
+  ],
+  "ExperimentalModeConfirmed": [
+   "0",
+   0,
+   "0"
+  ],
+  "FPSCounter": [
+   "1",
+   3,
+   "0"
+  ],
+  "Fahrenheit": [
+   "0",
+   3,
+   "0"
+  ],
+  "FavoriteDestinations": [
+   "",
+   0,
+   ""
+  ],
+  "ForceAutoTune": [
+   "0",
+   3,
+   "0"
+  ],
+  "ForceAutoTuneOff": [
+   "0",
+   3,
+   "0"
+  ],
+  "ForceFingerprint": [
+   "0",
+   2,
+   "0"
+  ],
+  "ForceMPHDashboard": [
+   "0",
+   3,
+   "0"
+  ],
+  "ForceStops": [
+   "0",
+   2,
+   "0"
+  ],
+  "ForceTorqueController": [
+   "0",
+   3,
+   "0"
+  ],
+  "FrogPilotStats": [
+   "",
+   0,
+   ""
+  ],
+  "FrogPilotTelemetry": [
+   "0",
+   4,
+   "0"
+  ],
+  "FrogsGoMoosTweak": [
+   "1",
+   2,
+   "0"
+  ],
+  "FullMap": [
+   "0",
+   2,
+   "0"
+  ],
+  "GasRegenCmd": [
+   "1",
+   2,
+   "0"
+  ],
+  "GithubSshKeys": [
+   "",
+   0,
+   ""
+  ],
+  "GithubUsername": [
+   "",
+   0,
+   ""
+  ],
+  "GoatScream": [
+   "0",
+   1,
+   "0"
+  ],
+  "GreenLightAlert": [
+   "0",
+   0,
+   "0"
+  ],
+  "GsmApn": [
+   "",
+   0,
+   ""
+  ],
+  "GsmRoaming": [
+   "1",
+   0,
+   "0"
+  ],
+  "HideAlerts": [
+   "0",
+   2,
+   "0"
+  ],
+  "HideLeadMarker": [
+   "0",
+   2,
+   "0"
+  ],
+  "HideMap": [
+   "0",
+   2,
+   "0"
+  ],
+  "HideMapIcon": [
+   "0",
+   2,
+   "0"
+  ],
+  "HideMaxSpeed": [
+   "0",
+   2,
+   "0"
+  ],
+  "HideSpeed": [
+   "0",
+   2,
+   "0"
+  ],
+  "HideSpeedLimit": [
+   "0",
+   2,
+   "0"
+  ],
+  "HigherBitrate": [
+   "0",
+   2,
+   "0"
+  ],
+  "HolidayThemes": [
+   "0",
+   0,
+   "0"
+  ],
+  "HondaAltTune": [
+   "0",
+   2,
+   "0"
+  ],
+  "HondaLowSpeedPedal": [
+   "0",
+   2,
+   "0"
+  ],
+  "HondaMaxBrake": [
+   "0",
+   2,
+   "0"
+  ],
+  "HumanAcceleration": [
+   "1",
+   2,
+   "0"
+  ],
+  "HumanFollowing": [
+   "1",
+   2,
+   "0"
+  ],
+  "HumanLaneChanges": [
+   "1",
+   2,
+   "0"
+  ],
+  "IncreaseFollowingLowVisibility": [
+   "0",
+   2,
+   "0"
+  ],
+  "IncreaseFollowingRain": [
+   "0",
+   2,
+   "0"
+  ],
+  "IncreaseFollowingRainStorm": [
+   "0",
+   2,
+   "0"
+  ],
+  "IncreaseFollowingSnow": [
+   "0",
+   2,
+   "0"
+  ],
+  "IncreaseThermalLimits": [
+   "0",
+   2,
+   "0"
+  ],
+  "IncreasedStoppedDistance": [
+   "0",
+   1,
+   "0"
+  ],
+  "IncreasedStoppedDistanceLowVisibility": [
+   "0",
+   2,
+   "0"
+  ],
+  "IncreasedStoppedDistanceRain": [
+   "0",
+   2,
+   "0"
+  ],
+  "IncreasedStoppedDistanceRainStorm": [
+   "0",
+   2,
+   "0"
+  ],
+  "IncreasedStoppedDistanceSnow": [
+   "0",
+   2,
+   "0"
+  ],
+  "IsLdwEnabled": [
+   "0",
+   0,
+   "0"
+  ],
+  "IsMetric": [
+   "0",
+   0,
+   "0"
+  ],
+  "KonikDongleId": [
+   "",
+   0,
+   ""
+  ],
+  "KonikMinutes": [
+   "0",
+   0,
+   "0"
+  ],
+  "LKASButtonControl": [
+   "5",
+   2,
+   "0"
+  ],
+  "LaneChangeTime": [
+   "1.0",
+   1,
+   "0"
+  ],
+  "LaneChanges": [
+   "1",
+   0,
+   "1"
+  ],
+  "LaneDetectionWidth": [
+   "0",
+   1,
+   "0"
+  ],
+  "LaneLinesWidth": [
+   "4",
+   2,
+   "2"
+  ],
+  "LateralTune": [
+   "1",
+   1,
+   "0"
+  ],
+  "LeadDepartingAlert": [
+   "0",
+   0,
+   "0"
+  ],
+  "LeadDetectionThreshold": [
+   "35",
+   3,
+   "50"
+  ],
+  "LeadInfo": [
+   "1",
+   3,
+   "0"
+  ],
+  "LiveDelay": [
+   "",
+   0,
+   ""
+  ],
+  "LockDoors": [
+   "1",
+   0,
+   "0"
+  ],
+  "LockDoorsTimer": [
+   "0",
+   0,
+   "0"
+  ],
+  "LongDistanceButtonControl": [
+   "5",
+   2,
+   "0"
+  ],
+  "LongPitch": [
+   "1",
+   2,
+   "0"
+  ],
+  "LongitudinalActuatorDelay": [
+   "",
+   3,
+   ""
+  ],
+  "LongitudinalActuatorDelayStock": [
+   "",
+   3,
+   ""
+  ],
+  "LongitudinalTune": [
+   "1",
+   0,
+   "0"
+  ],
+  "LoudBlindspotAlert": [
+   "0",
+   0,
+   "0"
+  ],
+  "LowVoltageShutdown": [
+   "11.8",
+   3,
+   "11.8"
+  ],
+  "MapAcceleration": [
+   "0",
+   1,
+   "0"
+  ],
+  "MapDeceleration": [
+   "0",
+   1,
+   "0"
+  ],
+  "MapGears": [
+   "0",
+   2,
+   "0"
+  ],
+  "MapStyle": [
+   "1",
+   2,
+   "0"
+  ],
+  "MapboxPublicKey": [
+   "",
+   0,
+   ""
+  ],
+  "MapboxSecretKey": [
+   "",
+   0,
+   ""
+  ],
+  "MapsSelected": [
+   "",
+   0,
+   ""
+  ],
+  "MaxDesiredAcceleration": [
+   "4.0",
+   2,
+   "2.0"
+  ],
+  "MinimumLaneChangeSpeed": [
+   "20.0",
+   2,
+   "20.0"
+  ],
+  "Model": [
+   "dark-souls_default",
+   1,
+   "dark-souls_default"
+  ],
+  "ModelDrivesAndScores": [
+   "",
+   2,
+   ""
+  ],
+  "ModelRandomizer": [
+   "0",
+   2,
+   "0"
+  ],
+  "ModelUI": [
+   "1",
+   2,
+   "0"
+  ],
+  "ModelVersions": [
+   "",
+   2,
+   ""
+  ],
+  "NNFF": [
+   "1",
+   2,
+   "0"
+  ],
+  "NNFFLite": [
+   "0",
+   2,
+   "0"
+  ],
+  "NavSettingLeftSide": [
+   "0",
+   0,
+   "0"
+  ],
+  "NavSettingTime24h": [
+   "0",
+   0,
+   "0"
+  ],
+  "NavigationUI": [
+   "1",
+   1,
+   "0"
+  ],
+  "NewLongAPI": [
+   "1",
+   3,
+   "1"
+  ],
+  "NoLogging": [
+   "0",
+   2,
+   "0"
+  ],
+  "NoUploads": [
+   "0",
+   2,
+   "0"
+  ],
+  "NudgelessLaneChange": [
+   "1",
+   0,
+   "0"
+  ],
+  "NumericalTemp": [
+   "1",
+   3,
+   "0"
+  ],
+  "Offset1": [
+   "5",
+   0,
+   "0"
+  ],
+  "Offset2": [
+   "5",
+   0,
+   "0"
+  ],
+  "Offset3": [
+   "5",
+   0,
+   "0"
+  ],
+  "Offset4": [
+   "5",
+   0,
+   "0"
+  ],
+  "Offset5": [
+   "10",
+   0,
+   "0"
+  ],
+  "Offset6": [
+   "10",
+   0,
+   "0"
+  ],
+  "Offset7": [
+   "10",
+   0,
+   "0"
+  ],
+  "OneLaneChange": [
+   "1",
+   2,
+   "0"
+  ],
+  "OnroadDistanceButton": [
+   "0",
+   0,
+   "0"
+  ],
+  "PathEdgeWidth": [
+   "20",
+   2,
+   "0"
+  ],
+  "PathWidth": [
+   "6.1",
+   2,
+   "5.9"
+  ],
+  "PauseAOLOnBrake": [
+   "0",
+   1,
+   "0"
+  ],
+  "PauseLateralOnSignal": [
+   "0",
+   1,
+   "0"
+  ],
+  "PauseLateralSpeed": [
+   "0",
+   1,
+   "0"
+  ],
+  "PedalsOnUI": [
+   "0",
+   1,
+   "0"
+  ],
+  "PersonalizeOpenpilot": [
+   "1",
+   0,
+   "0"
+  ],
+  "PreferredSchedule": [
+   "2",
+   0,
+   "0"
+  ],
+  "PromptDistractedVolume": [
+   "101",
+   2,
+   "101"
+  ],
+  "PromptVolume": [
+   "101",
+   2,
+   "101"
+  ],
+  "QOLLateral": [
+   "1",
+   1,
+   "0"
+  ],
+  "QOLLongitudinal": [
+   "1",
+   1,
+   "0"
+  ],
+  "QOLVisuals": [
+   "1",
+   0,
+   "0"
+  ],
+  "RadarTracksUI": [
+   "0",
+   3,
+   "0"
+  ],
+  "RainbowPath": [
+   "0",
+   1,
+   "0"
+  ],
+  "RandomEvents": [
+   "0",
+   1,
+   "0"
+  ],
+  "RandomThemes": [
+   "0",
+   1,
+   "0"
+  ],
+  "RecordFront": [
+   "0",
+   0,
+   "0"
+  ],
+  "ReduceAccelerationLowVisibility": [
+   "0",
+   2,
+   "0"
+  ],
+  "ReduceAccelerationRain": [
+   "0",
+   2,
+   "0"
+  ],
+  "ReduceAccelerationRainStorm": [
+   "0",
+   2,
+   "0"
+  ],
+  "ReduceAccelerationSnow": [
+   "0",
+   2,
+   "0"
+  ],
+  "ReduceLateralAccelerationLowVisibility": [
+   "0",
+   2,
+   "0"
+  ],
+  "ReduceLateralAccelerationRain": [
+   "0",
+   2,
+   "0"
+  ],
+  "ReduceLateralAccelerationRainStorm": [
+   "0",
+   2,
+   "0"
+  ],
+  "ReduceLateralAccelerationSnow": [
+   "0",
+   2,
+   "0"
+  ],
+  "RefuseVolume": [
+   "101",
+   2,
+   "101"
+  ],
+  "RelaxedFollow": [
+   "1.75",
+   2,
+   "1.75"
+  ],
+  "RelaxedJerkAcceleration": [
+   "100",
+   3,
+   "100"
+  ],
+  "RelaxedJerkDanger": [
+   "100",
+   3,
+   "100"
+  ],
+  "RelaxedJerkDeceleration": [
+   "100",
+   3,
+   "100"
+  ],
+  "RelaxedJerkSpeed": [
+   "100",
+   3,
+   "100"
+  ],
+  "RelaxedJerkSpeedDecrease": [
+   "100",
+   3,
+   "100"
+  ],
+  "RelaxedPersonalityProfile": [
+   "1",
+   2,
+   "0"
+  ],
+  "ReverseCruise": [
+   "0",
+   1,
+   "0"
+  ],
+  "RoadEdgesWidth": [
+   "2",
+   2,
+   "2"
+  ],
+  "RoadNameUI": [
+   "1",
+   1,
+   "0"
+  ],
+  "RotatingWheel": [
+   "1",
+   1,
+   "0"
+  ],
+  "SLCConfirmation": [
+   "0",
+   0,
+   "0"
+  ],
+  "SLCConfirmationHigher": [
+   "0",
+   0,
+   "0"
+  ],
+  "SLCConfirmationLower": [
+   "0",
+   0,
+   "0"
+  ],
+  "SLCFallback": [
+   "2",
+   1,
+   "0"
+  ],
+  "SLCLookaheadHigher": [
+   "0",
+   2,
+   "0"
+  ],
+  "SLCLookaheadLower": [
+   "0",
+   2,
+   "0"
+  ],
+  "SLCMapboxFiller": [
+   "1",
+   1,
+   "0"
+  ],
+  "SLCOverride": [
+   "1",
+   1,
+   "0"
+  ],
+  "SLCPriority": [
+   "",
+   2,
+   ""
+  ],
+  "SLCPriority1": [
+   "Navigation",
+   2,
+   "Navigation"
+  ],
+  "SLCPriority2": [
+   "Map Data",
+   2,
+   "Map Data"
+  ],
+  "SLCPriority3": [
+   "Dashboard",
+   2,
+   "Dashboard"
+  ],
+  "SNGHack": [
+   "1",
+   2,
+   "0"
+  ],
+  "ScreenBrightness": [
+   "101",
+   2,
+   "101"
+  ],
+  "ScreenBrightnessOnroad": [
+   "101",
+   2,
+   "101"
+  ],
+  "ScreenManagement": [
+   "1",
+   1,
+   "0"
+  ],
+  "ScreenRecorder": [
+   "1",
+   2,
+   "0"
+  ],
+  "ScreenTimeout": [
+   "30",
+   2,
+   "30"
+  ],
+  "ScreenTimeoutOnroad": [
+   "30",
+   2,
+   "10"
+  ],
+  "SearchInput": [
+   "0",
+   0,
+   "0"
+  ],
+  "SecOCKey": [
+   "",
+   0,
+   ""
+  ],
+  "SecOCKeys": [
+   "",
+   0,
+   ""
+  ],
+  "SetSpeedLimit": [
+   "0",
+   1,
+   "0"
+  ],
+  "SetSpeedOffset": [
+   "0",
+   2,
+   "0"
+  ],
+  "ShowCEMStatus": [
+   "1",
+   2,
+   "0"
+  ],
+  "ShowCPU": [
+   "1",
+   3,
+   "0"
+  ],
+  "ShowCSCStatus": [
+   "1",
+   2,
+   "0"
+  ],
+  "ShowGPU": [
+   "0",
+   3,
+   "0"
+  ],
+  "ShowIP": [
+   "0",
+   3,
+   "0"
+  ],
+  "ShowMemoryUsage": [
+   "1",
+   3,
+   "0"
+  ],
+  "ShowSLCOffset": [
+   "1",
+   0,
+   "0"
+  ],
+  "ShowSpeedLimits": [
+   "1",
+   1,
+   "0"
+  ],
+  "ShowSteering": [
+   "0",
+   3,
+   "0"
+  ],
+  "ShowStoppingPoint": [
+   "1",
+   3,
+   "0"
+  ],
+  "ShowStoppingPointMetrics": [
+   "1",
+   3,
+   "0"
+  ],
+  "ShowStorageLeft": [
+   "0",
+   3,
+   "0"
+  ],
+  "ShowStorageUsed": [
+   "0",
+   3,
+   "0"
+  ],
+  "ShownToggleDescriptions": [
+   "",
+   0,
+   ""
+  ],
+  "Sidebar": [
+   "0",
+   0,
+   "0"
+  ],
+  "SidebarMetrics": [
+   "1",
+   3,
+   "0"
+  ],
+  "SignalMetrics": [
+   "0",
+   3,
+   "0"
+  ],
+  "SpeedLimitChangedAlert": [
+   "0",
+   0,
+   "0"
+  ],
+  "SpeedLimitController": [
+   "1",
+   0,
+   "0"
+  ],
+  "SpeedLimitFiller": [
+   "0",
+   0,
+   "0"
+  ],
+  "SpeedLimitSources": [
+   "0",
+   3,
+   "0"
+  ],
+  "SshEnabled": [
+   "0",
+   0,
+   "0"
+  ],
+  "StandardFollow": [
+   "1.45",
+   2,
+   "1.45"
+  ],
+  "StandardJerkAcceleration": [
+   "100",
+   3,
+   "100"
+  ],
+  "StandardJerkDanger": [
+   "100",
+   3,
+   "100"
+  ],
+  "StandardJerkDeceleration": [
+   "100",
+   3,
+   "100"
+  ],
+  "StandardJerkSpeed": [
+   "100",
+   3,
+   "100"
+  ],
+  "StandardJerkSpeedDecrease": [
+   "100",
+   3,
+   "100"
+  ],
+  "StandardPersonalityProfile": [
+   "1",
+   2,
+   "0"
+  ],
+  "StandbyMode": [
+   "0",
+   1,
+   "0"
+  ],
+  "StartAccel": [
+   "",
+   3,
+   ""
+  ],
+  "StartAccelStock": [
+   "",
+   3,
+   ""
+  ],
+  "StartupMessageBottom": [
+   "Hands present, mind at ease",
+   0,
+   "Always keep hands on wheel and eyes on road"
+  ],
+  "StartupMessageTop": [
+   "Your m∞v",
+   0,
+   "Be ready to take over at any time"
+  ],
+  "StaticPedalsOnUI": [
+   "0",
+   1,
+   "0"
+  ],
+  "SteerDelay": [
+   "",
+   3,
+   ""
+  ],
+  "SteerDelayStock": [
+   "",
+   3,
+   ""
+  ],
+  "SteerFriction": [
+   "",
+   3,
+   ""
+  ],
+  "SteerFrictionStock": [
+   "",
+   3,
+   ""
+  ],
+  "SteerKP": [
+   "",
+   3,
+   ""
+  ],
+  "SteerKPStock": [
+   "",
+   3,
+   ""
+  ],
+  "SteerLatAccel": [
+   "",
+   3,
+   ""
+  ],
+  "SteerLatAccelStock": [
+   "",
+   3,
+   ""
+  ],
+  "SteerRatio": [
+   "",
+   3,
+   ""
+  ],
+  "SteerRatioStock": [
+   "",
+   3,
+   ""
+  ],
+  "StopAccel": [
+   "",
+   3,
+   ""
+  ],
+  "StopAccelStock": [
+   "",
+   3,
+   ""
+  ],
+  "StoppedTimer": [
+   "0",
+   1,
+   "0"
+  ],
+  "StoppingDecelRate": [
+   "",
+   3,
+   ""
+  ],
+  "StoppingDecelRateStock": [
+   "",
+   3,
+   ""
+  ],
+  "SubaruSNG": [
+   "1",
+   2,
+   "0"
+  ],
+  "TacoTune": [
+   "0",
+   2,
+   "0"
+  ],
+  "TacoTuneHacks": [
+   "0",
+   2,
+   "0"
+  ],
+  "TetheringEnabled": [
+   "0",
+   0,
+   "0"
+  ],
+  "ThemesDownloaded": [
+   "",
+   0,
+   ""
+  ],
+  "ToyotaDSUBypass": [
+   "0",
+   2,
+   "0"
+  ],
+  "ToyotaDoors": [
+   "1",
+   0,
+   "0"
+  ],
+  "TuningLevel": [
+   "3",
+   0,
+   "0"
+  ],
+  "TuningLevelConfirmed": [
+   "0",
+   0,
+   "0"
+  ],
+  "TurnDesires": [
+   "0",
+   2,
+   "0"
+  ],
+  "UnlimitedLength": [
+   "1",
+   2,
+   "0"
+  ],
+  "UnlockDoors": [
+   "1",
+   0,
+   "0"
+  ],
+  "UpdatedToggles": [
+   "1",
+   0,
+   "0"
+  ],
+  "UpdaterAvailableBranches": [
+   "",
+   0,
+   ""
+  ],
+  "UseKonikServer": [
+   "0",
+   2,
+   "0"
+  ],
+  "UseSI": [
+   "1",
+   3,
+   "1"
+  ],
+  "UseVienna": [
+   "0",
+   1,
+   "0"
+  ],
+  "VEgoStarting": [
+   "",
+   3,
+   ""
+  ],
+  "VEgoStartingStock": [
+   "",
+   3,
+   ""
+  ],
+  "VEgoStopping": [
+   "",
+   3,
+   ""
+  ],
+  "VEgoStoppingStock": [
+   "",
+   3,
+   ""
+  ],
+  "VeryLongDistanceButtonControl": [
+   "6",
+   2,
+   "0"
+  ],
+  "VoltSNG": [
+   "0",
+   2,
+   "0"
+  ],
+  "WarningImmediateVolume": [
+   "101",
+   2,
+   "101"
+  ],
+  "WarningSoftVolume": [
+   "101",
+   2,
+   "101"
+  ],
+  "WeatherPresets": [
+   "0",
+   2,
+   "0"
+  ],
+  "WeatherToken": [
+   "",
+   2,
+   ""
+  ],
+  "WheelControls": [
+   "",
+   2,
+   ""
+  ],
+  "WheelIcon": [
+   "BogPilot",
+   0,
+   "stock"
+  ],
+  "WheelSpeed": [
+   "0",
+   2,
+   "0"
+  ],
+  "openpilotMinutes": [
+   "0",
+   0,
+   "0"
+  ]
+ },
+ "excluded_keys": [
+  "AvailableModelNames",
+  "AvailableModels",
+  "CalibratedLateralAcceleration",
+  "CalibrationProgress",
+  "CarParamsPersistent",
+  "CurvatureData",
+  "ExperimentalLongitudinalEnabled",
+  "KonikMinutes",
+  "MapBoxRequests",
+  "ModelDrivesAndScores",
+  "ModelVersions",
+  "SpeedLimits",
+  "SpeedLimitsFiltered",
+  "UpdaterAvailableBranches",
+  "openpilotMinutes"
+ ],
+ "flags": {
+  "AMapKey1": [
+   "DONT_LOG",
+   "PERSISTENT"
+  ],
+  "AMapKey2": [
+   "DONT_LOG",
+   "PERSISTENT"
+  ],
+  "AccelerationPath": [
+   "PERSISTENT"
+  ],
+  "AccelerationProfile": [
+   "PERSISTENT"
+  ],
+  "AccessToken": [
+   "CLEAR_ON_MANAGER_START",
+   "DONT_LOG"
+  ],
+  "AdjacentLeadsUI": [
+   "PERSISTENT"
+  ],
+  "AdjacentPath": [
+   "PERSISTENT"
+  ],
+  "AdjacentPathMetrics": [
+   "PERSISTENT"
+  ],
+  "AdvancedCustomUI": [
+   "PERSISTENT"
+  ],
+  "AdvancedLateralTune": [
+   "PERSISTENT"
+  ],
+  "AdvancedLongitudinalTune": [
+   "PERSISTENT"
+  ],
+  "AggressiveFollow": [
+   "PERSISTENT"
+  ],
+  "AggressiveJerkAcceleration": [
+   "PERSISTENT"
+  ],
+  "AggressiveJerkDanger": [
+   "PERSISTENT"
+  ],
+  "AggressiveJerkDeceleration": [
+   "PERSISTENT"
+  ],
+  "AggressiveJerkSpeed": [
+   "PERSISTENT"
+  ],
+  "AggressiveJerkSpeedDecrease": [
+   "PERSISTENT"
+  ],
+  "AggressivePersonalityProfile": [
+   "PERSISTENT"
+  ],
+  "AlertVolumeControl": [
+   "PERSISTENT"
+  ],
+  "AlwaysOnDM": [
+   "PERSISTENT"
+  ],
+  "AlwaysOnLateral": [
+   "PERSISTENT"
+  ],
+  "AlwaysOnLateralLKAS": [
+   "PERSISTENT"
+  ],
+  "AlwaysOnLateralMain": [
+   "PERSISTENT"
+  ],
+  "ApiCache_Device": [
+   "PERSISTENT"
+  ],
+  "ApiCache_DriveStats": [
+   "PERSISTENT"
+  ],
+  "ApiCache_NavDestinations": [
+   "PERSISTENT"
+  ],
+  "AssistNowToken": [
+   "PERSISTENT"
+  ],
+  "AthenadPid": [
+   "PERSISTENT"
+  ],
+  "AthenadRecentlyViewedRoutes": [
+   "PERSISTENT"
+  ],
+  "AthenadUploadQueue": [
+   "PERSISTENT"
+  ],
+  "AutomaticUpdates": [
+   "PERSISTENT"
+  ],
+  "AutomaticallyDownloadModels": [
+   "PERSISTENT"
+  ],
+  "AvailableModelNames": [
+   "PERSISTENT"
+  ],
+  "AvailableModels": [
+   "PERSISTENT"
+  ],
+  "BigMap": [
+   "PERSISTENT"
+  ],
+  "BlacklistedModels": [
+   "PERSISTENT"
+  ],
+  "BlindSpotMetrics": [
+   "PERSISTENT"
+  ],
+  "BlindSpotPath": [
+   "PERSISTENT"
+  ],
+  "BootCount": [
+   "PERSISTENT"
+  ],
+  "BorderMetrics": [
+   "PERSISTENT"
+  ],
+  "CECurves": [
+   "PERSISTENT"
+  ],
+  "CECurvesLead": [
+   "PERSISTENT"
+  ],
+  "CELead": [
+   "PERSISTENT"
+  ],
+  "CEModelStopTime": [
+   "PERSISTENT"
+  ],
+  "CENavigation": [
+   "PERSISTENT"
+  ],
+  "CENavigationIntersections": [
+   "PERSISTENT"
+  ],
+  "CENavigationLead": [
+   "PERSISTENT"
+  ],
+  "CENavigationTurns": [
+   "PERSISTENT"
+  ],
+  "CESignalLaneDetection": [
+   "PERSISTENT"
+  ],
+  "CESignalSpeed": [
+   "PERSISTENT"
+  ],
+  "CESlowerLead": [
+   "PERSISTENT"
+  ],
+  "CESpeed": [
+   "PERSISTENT"
+  ],
+  "CESpeedLead": [
+   "PERSISTENT"
+  ],
+  "CEStatus": [
+   "CLEAR_ON_OFFROAD_TRANSITION"
+  ],
+  "CEStopLights": [
+   "PERSISTENT"
+  ],
+  "CEStoppedLead": [
+   "PERSISTENT"
+  ],
+  "CalibratedLateralAcceleration": [
+   "PERSISTENT"
+  ],
+  "CalibrationParams": [
+   "PERSISTENT"
+  ],
+  "CalibrationProgress": [
+   "PERSISTENT"
+  ],
+  "CameraDebugExpGain": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "CameraDebugExpTime": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "CameraView": [
+   "PERSISTENT"
+  ],
+  "CancelModelDownload": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "CancelThemeDownload": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "CarBatteryCapacity": [
+   "PERSISTENT"
+  ],
+  "CarMake": [
+   "PERSISTENT"
+  ],
+  "CarModel": [
+   "PERSISTENT"
+  ],
+  "CarModelName": [
+   "PERSISTENT"
+  ],
+  "CarParams": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_ONROAD_TRANSITION"
+  ],
+  "CarParamsCache": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "CarParamsPersistent": [
+   "PERSISTENT"
+  ],
+  "CarParamsPrevRoute": [
+   "PERSISTENT"
+  ],
+  "CarVin": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_ONROAD_TRANSITION"
+  ],
+  "ClusterOffset": [
+   "PERSISTENT"
+  ],
+  "ColorToDownload": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "Compass": [
+   "PERSISTENT"
+  ],
+  "CompletedTrainingVersion": [
+   "PERSISTENT"
+  ],
+  "ConditionalExperimental": [
+   "PERSISTENT"
+  ],
+  "ControlsReady": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_ONROAD_TRANSITION"
+  ],
+  "CurrentBootlog": [
+   "PERSISTENT"
+  ],
+  "CurrentRoute": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_ONROAD_TRANSITION"
+  ],
+  "CurvatureData": [
+   "DONT_LOG",
+   "PERSISTENT"
+  ],
+  "CurveSpeedController": [
+   "PERSISTENT"
+  ],
+  "CustomAlerts": [
+   "PERSISTENT"
+  ],
+  "CustomColors": [
+   "PERSISTENT"
+  ],
+  "CustomCruise": [
+   "PERSISTENT"
+  ],
+  "CustomCruiseLong": [
+   "PERSISTENT"
+  ],
+  "CustomDistanceIcons": [
+   "PERSISTENT"
+  ],
+  "CustomIcons": [
+   "PERSISTENT"
+  ],
+  "CustomPersonalities": [
+   "PERSISTENT"
+  ],
+  "CustomSignals": [
+   "PERSISTENT"
+  ],
+  "CustomSounds": [
+   "PERSISTENT"
+  ],
+  "CustomUI": [
+   "PERSISTENT"
+  ],
+  "DebugMode": [
+   "CLEAR_ON_OFFROAD_TRANSITION"
+  ],
+  "DecelerationProfile": [
+   "PERSISTENT"
+  ],
+  "DeveloperMetrics": [
+   "PERSISTENT"
+  ],
+  "DeveloperSidebar": [
+   "PERSISTENT"
+  ],
+  "DeveloperSidebarMetric1": [
+   "PERSISTENT"
+  ],
+  "DeveloperSidebarMetric2": [
+   "PERSISTENT"
+  ],
+  "DeveloperSidebarMetric3": [
+   "PERSISTENT"
+  ],
+  "DeveloperSidebarMetric4": [
+   "PERSISTENT"
+  ],
+  "DeveloperSidebarMetric5": [
+   "PERSISTENT"
+  ],
+  "DeveloperSidebarMetric6": [
+   "PERSISTENT"
+  ],
+  "DeveloperSidebarMetric7": [
+   "PERSISTENT"
+  ],
+  "DeveloperUI": [
+   "PERSISTENT"
+  ],
+  "DeveloperWidgets": [
+   "PERSISTENT"
+  ],
+  "DeviceManagement": [
+   "PERSISTENT"
+  ],
+  "DeviceShutdown": [
+   "PERSISTENT"
+  ],
+  "DisableLogging": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_ONROAD_TRANSITION"
+  ],
+  "DisableOnroadUploads": [
+   "PERSISTENT"
+  ],
+  "DisableOpenpilotLongitudinal": [
+   "PERSISTENT"
+  ],
+  "DisablePowerDown": [
+   "PERSISTENT"
+  ],
+  "DisableUpdates": [
+   "PERSISTENT"
+  ],
+  "DiscordUsername": [
+   "PERSISTENT"
+  ],
+  "DisengageOnAccelerator": [
+   "PERSISTENT"
+  ],
+  "DisengageVolume": [
+   "PERSISTENT"
+  ],
+  "DistanceButtonControl": [
+   "PERSISTENT"
+  ],
+  "DistanceIconToDownload": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "DmModelInitialized": [
+   "CLEAR_ON_ONROAD_TRANSITION"
+  ],
+  "DoReboot": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "DoShutdown": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "DoToggleReset": [
+   "PERSISTENT"
+  ],
+  "DoToggleResetStock": [
+   "PERSISTENT"
+  ],
+  "DoUninstall": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "DongleId": [
+   "PERSISTENT"
+  ],
+  "DownloadAllModels": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "DownloadableColors": [
+   "PERSISTENT"
+  ],
+  "DownloadableDistanceIcons": [
+   "PERSISTENT"
+  ],
+  "DownloadableIcons": [
+   "PERSISTENT"
+  ],
+  "DownloadableSignals": [
+   "PERSISTENT"
+  ],
+  "DownloadableSounds": [
+   "PERSISTENT"
+  ],
+  "DownloadableWheels": [
+   "PERSISTENT"
+  ],
+  "DriverCamera": [
+   "PERSISTENT"
+  ],
+  "DynamicPathWidth": [
+   "PERSISTENT"
+  ],
+  "DynamicPedalsOnUI": [
+   "PERSISTENT"
+  ],
+  "EngageVolume": [
+   "PERSISTENT"
+  ],
+  "ExperimentalGMTune": [
+   "PERSISTENT"
+  ],
+  "ExperimentalLongitudinalEnabled": [
+   "DEVELOPMENT_ONLY",
+   "PERSISTENT"
+  ],
+  "ExperimentalMode": [
+   "PERSISTENT"
+  ],
+  "ExperimentalModeConfirmed": [
+   "PERSISTENT"
+  ],
+  "FPSCounter": [
+   "PERSISTENT"
+  ],
+  "Fahrenheit": [
+   "PERSISTENT"
+  ],
+  "FavoriteDestinations": [
+   "DONT_LOG",
+   "PERSISTENT"
+  ],
+  "FirmwareQueryDone": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_ONROAD_TRANSITION"
+  ],
+  "FlashPanda": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "ForceAutoTune": [
+   "PERSISTENT"
+  ],
+  "ForceAutoTuneOff": [
+   "PERSISTENT"
+  ],
+  "ForceFingerprint": [
+   "PERSISTENT"
+  ],
+  "ForceMPHDashboard": [
+   "PERSISTENT"
+  ],
+  "ForceOffroad": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "ForceOnroad": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "ForcePowerDown": [
+   "PERSISTENT"
+  ],
+  "ForceStops": [
+   "PERSISTENT"
+  ],
+  "ForceTorqueController": [
+   "PERSISTENT"
+  ],
+  "FrogPilotApiToken": [
+   "DONT_LOG",
+   "PERSISTENT"
+  ],
+  "FrogPilotCarParams": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_ONROAD_TRANSITION"
+  ],
+  "FrogPilotCarParamsPersistent": [
+   "PERSISTENT"
+  ],
+  "FrogPilotDongleId": [
+   "DONT_LOG",
+   "PERSISTENT"
+  ],
+  "FrogPilotDrives": [
+   "PERSISTENT"
+  ],
+  "FrogPilotKilometers": [
+   "PERSISTENT"
+  ],
+  "FrogPilotMinutes": [
+   "PERSISTENT"
+  ],
+  "FrogPilotStats": [
+   "DONT_LOG",
+   "PERSISTENT"
+  ],
+  "FrogPilotTelemetry": [
+   "PERSISTENT"
+  ],
+  "FrogPilotToggles": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "FrogPilotTogglesUpdated": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "FrogPilotTuningLevels": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "FrogsGoMoosTweak": [
+   "PERSISTENT"
+  ],
+  "FullMap": [
+   "PERSISTENT"
+  ],
+  "GasRegenCmd": [
+   "PERSISTENT"
+  ],
+  "GitBranch": [
+   "PERSISTENT"
+  ],
+  "GitCommit": [
+   "PERSISTENT"
+  ],
+  "GitCommitDate": [
+   "PERSISTENT"
+  ],
+  "GitDiff": [
+   "PERSISTENT"
+  ],
+  "GitRemote": [
+   "PERSISTENT"
+  ],
+  "GithubSshKeys": [
+   "PERSISTENT"
+  ],
+  "GithubUsername": [
+   "PERSISTENT"
+  ],
+  "GoatScream": [
+   "PERSISTENT"
+  ],
+  "GreenLightAlert": [
+   "PERSISTENT"
+  ],
+  "GsmApn": [
+   "PERSISTENT"
+  ],
+  "GsmMetered": [
+   "PERSISTENT"
+  ],
+  "GsmRoaming": [
+   "PERSISTENT"
+  ],
+  "HardwareSerial": [
+   "PERSISTENT"
+  ],
+  "HasAcceptedTerms": [
+   "PERSISTENT"
+  ],
+  "HideAlerts": [
+   "PERSISTENT"
+  ],
+  "HideLeadMarker": [
+   "PERSISTENT"
+  ],
+  "HideMap": [
+   "PERSISTENT"
+  ],
+  "HideMapIcon": [
+   "PERSISTENT"
+  ],
+  "HideMaxSpeed": [
+   "PERSISTENT"
+  ],
+  "HideSpeed": [
+   "PERSISTENT"
+  ],
+  "HideSpeedLimit": [
+   "PERSISTENT"
+  ],
+  "HigherBitrate": [
+   "PERSISTENT"
+  ],
+  "HolidayThemes": [
+   "PERSISTENT"
+  ],
+  "HondaAltTune": [
+   "PERSISTENT"
+  ],
+  "HondaLowSpeedPedal": [
+   "PERSISTENT"
+  ],
+  "HondaMaxBrake": [
+   "PERSISTENT"
+  ],
+  "HumanAcceleration": [
+   "PERSISTENT"
+  ],
+  "HumanFollowing": [
+   "PERSISTENT"
+  ],
+  "HumanLaneChanges": [
+   "PERSISTENT"
+  ],
+  "IMEI": [
+   "PERSISTENT"
+  ],
+  "IconToDownload": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "IncreaseFollowingLowVisibility": [
+   "PERSISTENT"
+  ],
+  "IncreaseFollowingRain": [
+   "PERSISTENT"
+  ],
+  "IncreaseFollowingRainStorm": [
+   "PERSISTENT"
+  ],
+  "IncreaseFollowingSnow": [
+   "PERSISTENT"
+  ],
+  "IncreaseThermalLimits": [
+   "PERSISTENT"
+  ],
+  "IncreasedStoppedDistance": [
+   "PERSISTENT"
+  ],
+  "IncreasedStoppedDistanceLowVisibility": [
+   "PERSISTENT"
+  ],
+  "IncreasedStoppedDistanceRain": [
+   "PERSISTENT"
+  ],
+  "IncreasedStoppedDistanceRainStorm": [
+   "PERSISTENT"
+  ],
+  "IncreasedStoppedDistanceSnow": [
+   "PERSISTENT"
+  ],
+  "InstallDate": [
+   "PERSISTENT"
+  ],
+  "IsDriverViewEnabled": [
+   "CLEAR_ON_ONROAD_TRANSITION"
+  ],
+  "IsEngaged": [
+   "PERSISTENT"
+  ],
+  "IsLdwEnabled": [
+   "PERSISTENT"
+  ],
+  "IsMetric": [
+   "PERSISTENT"
+  ],
+  "IsOffroad": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "IsOnroad": [
+   "PERSISTENT"
+  ],
+  "IsReleaseBranch": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "IsRhdDetected": [
+   "PERSISTENT"
+  ],
+  "IsTakingSnapshot": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "IsTestedBranch": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "IssueReported": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "JoystickDebugMode": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_OFFROAD_TRANSITION"
+  ],
+  "KonikDongleId": [
+   "PERSISTENT"
+  ],
+  "KonikMinutes": [
+   "PERSISTENT"
+  ],
+  "LKASButtonControl": [
+   "PERSISTENT"
+  ],
+  "LaneChangeTime": [
+   "PERSISTENT"
+  ],
+  "LaneChanges": [
+   "PERSISTENT"
+  ],
+  "LaneDetectionWidth": [
+   "PERSISTENT"
+  ],
+  "LaneLinesWidth": [
+   "PERSISTENT"
+  ],
+  "LanguageSetting": [
+   "PERSISTENT"
+  ],
+  "LastAthenaPingTime": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "LastGPSPosition": [
+   "PERSISTENT"
+  ],
+  "LastManagerExitReason": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "LastMapsUpdate": [
+   "PERSISTENT"
+  ],
+  "LastOffroadStatusPacket": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_OFFROAD_TRANSITION"
+  ],
+  "LastPowerDropDetected": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "LastUpdateException": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "LastUpdateTime": [
+   "PERSISTENT"
+  ],
+  "LateralTune": [
+   "PERSISTENT"
+  ],
+  "LeadDepartingAlert": [
+   "PERSISTENT"
+  ],
+  "LeadDetectionThreshold": [
+   "PERSISTENT"
+  ],
+  "LeadInfo": [
+   "PERSISTENT"
+  ],
+  "LiveDelay": [
+   "PERSISTENT"
+  ],
+  "LiveParameters": [
+   "PERSISTENT"
+  ],
+  "LiveTorqueParameters": [
+   "DONT_LOG",
+   "PERSISTENT"
+  ],
+  "LockDoors": [
+   "PERSISTENT"
+  ],
+  "LockDoorsTimer": [
+   "PERSISTENT"
+  ],
+  "LongDistanceButtonControl": [
+   "PERSISTENT"
+  ],
+  "LongPitch": [
+   "PERSISTENT"
+  ],
+  "LongitudinalActuatorDelay": [
+   "PERSISTENT"
+  ],
+  "LongitudinalActuatorDelayStock": [
+   "PERSISTENT"
+  ],
+  "LongitudinalPersonality": [
+   "PERSISTENT"
+  ],
+  "LongitudinalTune": [
+   "PERSISTENT"
+  ],
+  "LoudBlindspotAlert": [
+   "PERSISTENT"
+  ],
+  "LowVoltageShutdown": [
+   "PERSISTENT"
+  ],
+  "ManualUpdateInitiated": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "MapAcceleration": [
+   "PERSISTENT"
+  ],
+  "MapBoxRequests": [
+   "PERSISTENT"
+  ],
+  "MapDeceleration": [
+   "PERSISTENT"
+  ],
+  "MapGears": [
+   "PERSISTENT"
+  ],
+  "MapSpeedLimit": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "MapStyle": [
+   "PERSISTENT"
+  ],
+  "MapboxPublicKey": [
+   "DONT_LOG",
+   "PERSISTENT"
+  ],
+  "MapboxSecretKey": [
+   "DONT_LOG",
+   "PERSISTENT"
+  ],
+  "MapdLogLevel": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "MapsSelected": [
+   "PERSISTENT"
+  ],
+  "MaxDesiredAcceleration": [
+   "PERSISTENT"
+  ],
+  "MinimumBackupSize": [
+   "PERSISTENT"
+  ],
+  "MinimumLaneChangeSpeed": [
+   "PERSISTENT"
+  ],
+  "Model": [
+   "PERSISTENT"
+  ],
+  "ModelDownloadProgress": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "ModelDrivesAndScores": [
+   "PERSISTENT"
+  ],
+  "ModelRandomizer": [
+   "PERSISTENT"
+  ],
+  "ModelToDownload": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "ModelUI": [
+   "PERSISTENT"
+  ],
+  "ModelVersions": [
+   "PERSISTENT"
+  ],
+  "NNFF": [
+   "PERSISTENT"
+  ],
+  "NNFFLite": [
+   "PERSISTENT"
+  ],
+  "NNFFModelName": [
+   "CLEAR_ON_OFFROAD_TRANSITION"
+  ],
+  "NavDestination": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_OFFROAD_TRANSITION"
+  ],
+  "NavDestinationWaypoints": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_OFFROAD_TRANSITION"
+  ],
+  "NavPastDestinations": [
+   "PERSISTENT"
+  ],
+  "NavSettingLeftSide": [
+   "PERSISTENT"
+  ],
+  "NavSettingTime24h": [
+   "PERSISTENT"
+  ],
+  "NavigationUI": [
+   "PERSISTENT"
+  ],
+  "NetworkMetered": [
+   "PERSISTENT"
+  ],
+  "NewLongAPI": [
+   "PERSISTENT"
+  ],
+  "NextMapSpeedLimit": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "NoLogging": [
+   "PERSISTENT"
+  ],
+  "NoUploads": [
+   "PERSISTENT"
+  ],
+  "NudgelessLaneChange": [
+   "PERSISTENT"
+  ],
+  "NumericalTemp": [
+   "PERSISTENT"
+  ],
+  "OSMDownloadBounds": [
+   "PERSISTENT"
+  ],
+  "OSMDownloadLocations": [
+   "PERSISTENT"
+  ],
+  "OSMDownloadProgress": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "ObdMultiplexingChanged": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_ONROAD_TRANSITION"
+  ],
+  "ObdMultiplexingEnabled": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_ONROAD_TRANSITION"
+  ],
+  "Offroad_BadNvme": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "Offroad_CarUnrecognized": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_ONROAD_TRANSITION"
+  ],
+  "Offroad_ConnectivityNeeded": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "Offroad_ConnectivityNeededPrompt": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "Offroad_IsTakingSnapshot": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "Offroad_NeosUpdate": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "Offroad_NoFirmware": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_ONROAD_TRANSITION"
+  ],
+  "Offroad_Recalibration": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_ONROAD_TRANSITION"
+  ],
+  "Offroad_StorageMissing": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "Offroad_TemperatureTooHigh": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "Offroad_UnofficialHardware": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "Offroad_UpdateFailed": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "Offset1": [
+   "PERSISTENT"
+  ],
+  "Offset2": [
+   "PERSISTENT"
+  ],
+  "Offset3": [
+   "PERSISTENT"
+  ],
+  "Offset4": [
+   "PERSISTENT"
+  ],
+  "Offset5": [
+   "PERSISTENT"
+  ],
+  "Offset6": [
+   "PERSISTENT"
+  ],
+  "Offset7": [
+   "PERSISTENT"
+  ],
+  "OneLaneChange": [
+   "PERSISTENT"
+  ],
+  "OnroadDistanceButton": [
+   "PERSISTENT"
+  ],
+  "OnroadDistanceButtonPressed": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "OpenpilotEnabledToggle": [
+   "PERSISTENT"
+  ],
+  "PandaHeartbeatLost": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_OFFROAD_TRANSITION"
+  ],
+  "PandaSignatures": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "PandaSomResetTriggered": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_OFFROAD_TRANSITION"
+  ],
+  "PathEdgeWidth": [
+   "PERSISTENT"
+  ],
+  "PathWidth": [
+   "PERSISTENT"
+  ],
+  "PauseAOLOnBrake": [
+   "PERSISTENT"
+  ],
+  "PauseLateralOnSignal": [
+   "PERSISTENT"
+  ],
+  "PauseLateralSpeed": [
+   "PERSISTENT"
+  ],
+  "PedalsOnUI": [
+   "PERSISTENT"
+  ],
+  "PersonalizeOpenpilot": [
+   "PERSISTENT"
+  ],
+  "PreferredSchedule": [
+   "PERSISTENT"
+  ],
+  "PreviousSpeedLimit": [
+   "PERSISTENT"
+  ],
+  "PrimeType": [
+   "PERSISTENT"
+  ],
+  "PromptDistractedVolume": [
+   "PERSISTENT"
+  ],
+  "PromptVolume": [
+   "PERSISTENT"
+  ],
+  "QOLLateral": [
+   "PERSISTENT"
+  ],
+  "QOLLongitudinal": [
+   "PERSISTENT"
+  ],
+  "QOLVisuals": [
+   "PERSISTENT"
+  ],
+  "RadarTracksUI": [
+   "PERSISTENT"
+  ],
+  "RainbowPath": [
+   "PERSISTENT"
+  ],
+  "RandomEvents": [
+   "PERSISTENT"
+  ],
+  "RandomThemes": [
+   "PERSISTENT"
+  ],
+  "RecordFront": [
+   "PERSISTENT"
+  ],
+  "RecordFrontLock": [
+   "PERSISTENT"
+  ],
+  "ReduceAccelerationLowVisibility": [
+   "PERSISTENT"
+  ],
+  "ReduceAccelerationRain": [
+   "PERSISTENT"
+  ],
+  "ReduceAccelerationRainStorm": [
+   "PERSISTENT"
+  ],
+  "ReduceAccelerationSnow": [
+   "PERSISTENT"
+  ],
+  "ReduceLateralAccelerationLowVisibility": [
+   "PERSISTENT"
+  ],
+  "ReduceLateralAccelerationRain": [
+   "PERSISTENT"
+  ],
+  "ReduceLateralAccelerationRainStorm": [
+   "PERSISTENT"
+  ],
+  "ReduceLateralAccelerationSnow": [
+   "PERSISTENT"
+  ],
+  "RefuseVolume": [
+   "PERSISTENT"
+  ],
+  "RelaxedFollow": [
+   "PERSISTENT"
+  ],
+  "RelaxedJerkAcceleration": [
+   "PERSISTENT"
+  ],
+  "RelaxedJerkDanger": [
+   "PERSISTENT"
+  ],
+  "RelaxedJerkDeceleration": [
+   "PERSISTENT"
+  ],
+  "RelaxedJerkSpeed": [
+   "PERSISTENT"
+  ],
+  "RelaxedJerkSpeedDecrease": [
+   "PERSISTENT"
+  ],
+  "RelaxedPersonalityProfile": [
+   "PERSISTENT"
+  ],
+  "ReplayControlsState": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_ONROAD_TRANSITION"
+  ],
+  "ReverseCruise": [
+   "PERSISTENT"
+  ],
+  "RoadEdgesWidth": [
+   "PERSISTENT"
+  ],
+  "RoadName": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "RoadNameUI": [
+   "PERSISTENT"
+  ],
+  "RotatingWheel": [
+   "PERSISTENT"
+  ],
+  "RouteCount": [
+   "PERSISTENT"
+  ],
+  "SLCConfirmation": [
+   "PERSISTENT"
+  ],
+  "SLCConfirmationHigher": [
+   "PERSISTENT"
+  ],
+  "SLCConfirmationLower": [
+   "PERSISTENT"
+  ],
+  "SLCFallback": [
+   "PERSISTENT"
+  ],
+  "SLCLookaheadHigher": [
+   "PERSISTENT"
+  ],
+  "SLCLookaheadLower": [
+   "PERSISTENT"
+  ],
+  "SLCMapboxFiller": [
+   "PERSISTENT"
+  ],
+  "SLCOverride": [
+   "PERSISTENT"
+  ],
+  "SLCPriority1": [
+   "PERSISTENT"
+  ],
+  "SLCPriority2": [
+   "PERSISTENT"
+  ],
+  "SLCPriority3": [
+   "PERSISTENT"
+  ],
+  "SNGHack": [
+   "PERSISTENT"
+  ],
+  "ScreenBrightness": [
+   "PERSISTENT"
+  ],
+  "ScreenBrightnessOnroad": [
+   "PERSISTENT"
+  ],
+  "ScreenManagement": [
+   "PERSISTENT"
+  ],
+  "ScreenRecorder": [
+   "PERSISTENT"
+  ],
+  "ScreenTimeout": [
+   "PERSISTENT"
+  ],
+  "ScreenTimeoutOnroad": [
+   "PERSISTENT"
+  ],
+  "SearchInput": [
+   "PERSISTENT"
+  ],
+  "SecOCKey": [
+   "DONT_LOG",
+   "PERSISTENT"
+  ],
+  "SecOCKeys": [
+   "DONT_LOG",
+   "PERSISTENT"
+  ],
+  "SetSpeedLimit": [
+   "PERSISTENT"
+  ],
+  "SetSpeedOffset": [
+   "PERSISTENT"
+  ],
+  "ShowCEMStatus": [
+   "PERSISTENT"
+  ],
+  "ShowCPU": [
+   "PERSISTENT"
+  ],
+  "ShowCSCStatus": [
+   "PERSISTENT"
+  ],
+  "ShowGPU": [
+   "PERSISTENT"
+  ],
+  "ShowIP": [
+   "PERSISTENT"
+  ],
+  "ShowMemoryUsage": [
+   "PERSISTENT"
+  ],
+  "ShowSLCOffset": [
+   "PERSISTENT"
+  ],
+  "ShowSpeedLimits": [
+   "PERSISTENT"
+  ],
+  "ShowSteering": [
+   "PERSISTENT"
+  ],
+  "ShowStoppingPoint": [
+   "PERSISTENT"
+  ],
+  "ShowStoppingPointMetrics": [
+   "PERSISTENT"
+  ],
+  "ShowStorageLeft": [
+   "PERSISTENT"
+  ],
+  "ShowStorageUsed": [
+   "PERSISTENT"
+  ],
+  "ShownToggleDescriptions": [
+   "PERSISTENT"
+  ],
+  "Sidebar": [
+   "PERSISTENT"
+  ],
+  "SignalMetrics": [
+   "PERSISTENT"
+  ],
+  "SignalToDownload": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "SnoozeUpdate": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_OFFROAD_TRANSITION"
+  ],
+  "SoundToDownload": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "SpeedLimitAccepted": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "SpeedLimitChangedAlert": [
+   "PERSISTENT"
+  ],
+  "SpeedLimitController": [
+   "PERSISTENT"
+  ],
+  "SpeedLimitFiller": [
+   "PERSISTENT"
+  ],
+  "SpeedLimitSources": [
+   "PERSISTENT"
+  ],
+  "SpeedLimits": [
+   "DONT_LOG",
+   "PERSISTENT"
+  ],
+  "SpeedLimitsFiltered": [
+   "DONT_LOG",
+   "PERSISTENT"
+  ],
+  "SshEnabled": [
+   "PERSISTENT"
+  ],
+  "StandardFollow": [
+   "PERSISTENT"
+  ],
+  "StandardJerkAcceleration": [
+   "PERSISTENT"
+  ],
+  "StandardJerkDanger": [
+   "PERSISTENT"
+  ],
+  "StandardJerkDeceleration": [
+   "PERSISTENT"
+  ],
+  "StandardJerkSpeed": [
+   "PERSISTENT"
+  ],
+  "StandardJerkSpeedDecrease": [
+   "PERSISTENT"
+  ],
+  "StandardPersonalityProfile": [
+   "PERSISTENT"
+  ],
+  "StandbyMode": [
+   "PERSISTENT"
+  ],
+  "StartAccel": [
+   "PERSISTENT"
+  ],
+  "StartAccelStock": [
+   "PERSISTENT"
+  ],
+  "StartupMessageBottom": [
+   "PERSISTENT"
+  ],
+  "StartupMessageTop": [
+   "PERSISTENT"
+  ],
+  "StaticPedalsOnUI": [
+   "PERSISTENT"
+  ],
+  "SteerDelay": [
+   "PERSISTENT"
+  ],
+  "SteerDelayStock": [
+   "PERSISTENT"
+  ],
+  "SteerFriction": [
+   "PERSISTENT"
+  ],
+  "SteerFrictionStock": [
+   "PERSISTENT"
+  ],
+  "SteerKP": [
+   "PERSISTENT"
+  ],
+  "SteerKPStock": [
+   "PERSISTENT"
+  ],
+  "SteerLatAccel": [
+   "PERSISTENT"
+  ],
+  "SteerLatAccelStock": [
+   "PERSISTENT"
+  ],
+  "SteerRatio": [
+   "PERSISTENT"
+  ],
+  "SteerRatioStock": [
+   "PERSISTENT"
+  ],
+  "StockDongleId": [
+   "PERSISTENT"
+  ],
+  "StopAccel": [
+   "PERSISTENT"
+  ],
+  "StopAccelStock": [
+   "PERSISTENT"
+  ],
+  "StoppedTimer": [
+   "PERSISTENT"
+  ],
+  "StoppingDecelRate": [
+   "PERSISTENT"
+  ],
+  "StoppingDecelRateStock": [
+   "PERSISTENT"
+  ],
+  "SubaruSNG": [
+   "PERSISTENT"
+  ],
+  "TacoTune": [
+   "PERSISTENT"
+  ],
+  "TacoTuneHacks": [
+   "PERSISTENT"
+  ],
+  "TermsVersion": [
+   "PERSISTENT"
+  ],
+  "TeslaLongControl": [
+   "PERSISTENT"
+  ],
+  "TeslaStalkFollow": [
+   "PERSISTENT"
+  ],
+  "TestAlert": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "TetheringEnabled": [
+   "PERSISTENT"
+  ],
+  "ThemeDownloadProgress": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "ThemesDownloaded": [
+   "PERSISTENT"
+  ],
+  "Timezone": [
+   "PERSISTENT"
+  ],
+  "ToyotaDSUBypass": [
+   "PERSISTENT"
+  ],
+  "ToyotaDoors": [
+   "PERSISTENT"
+  ],
+  "TrainingVersion": [
+   "PERSISTENT"
+  ],
+  "TuningLevel": [
+   "PERSISTENT"
+  ],
+  "TuningLevelConfirmed": [
+   "PERSISTENT"
+  ],
+  "TurnDesires": [
+   "PERSISTENT"
+  ],
+  "UbloxAvailable": [
+   "PERSISTENT"
+  ],
+  "UnlimitedLength": [
+   "PERSISTENT"
+  ],
+  "UnlockDoors": [
+   "PERSISTENT"
+  ],
+  "UpdateAvailable": [
+   "CLEAR_ON_MANAGER_START",
+   "CLEAR_ON_ONROAD_TRANSITION"
+  ],
+  "UpdateFailedCount": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "UpdateWheelImage": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "Updated": [
+   "PERSISTENT"
+  ],
+  "UpdatedToggles": [
+   "PERSISTENT"
+  ],
+  "UpdaterAvailableBranches": [
+   "PERSISTENT"
+  ],
+  "UpdaterCurrentDescription": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "UpdaterCurrentReleaseNotes": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "UpdaterFetchAvailable": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "UpdaterLastFetchTime": [
+   "PERSISTENT"
+  ],
+  "UpdaterNewDescription": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "UpdaterNewReleaseNotes": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "UpdaterState": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "UpdaterTargetBranch": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "UseActiveTheme": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "UseKonikServer": [
+   "PERSISTENT"
+  ],
+  "UseSI": [
+   "PERSISTENT"
+  ],
+  "UseVienna": [
+   "PERSISTENT"
+  ],
+  "VEgoStarting": [
+   "PERSISTENT"
+  ],
+  "VEgoStartingStock": [
+   "PERSISTENT"
+  ],
+  "VEgoStopping": [
+   "PERSISTENT"
+  ],
+  "VEgoStoppingStock": [
+   "PERSISTENT"
+  ],
+  "Version": [
+   "PERSISTENT"
+  ],
+  "VeryLongDistanceButtonControl": [
+   "PERSISTENT"
+  ],
+  "VoltSNG": [
+   "PERSISTENT"
+  ],
+  "WarningImmediateVolume": [
+   "PERSISTENT"
+  ],
+  "WarningSoftVolume": [
+   "PERSISTENT"
+  ],
+  "WeatherPresets": [
+   "PERSISTENT"
+  ],
+  "WeatherToken": [
+   "DONT_LOG",
+   "PERSISTENT"
+  ],
+  "WheelIcon": [
+   "PERSISTENT"
+  ],
+  "WheelSpeed": [
+   "PERSISTENT"
+  ],
+  "WheelToDownload": [
+   "CLEAR_ON_MANAGER_START"
+  ],
+  "openpilotMinutes": [
+   "PERSISTENT"
+  ]
+ },
+ "ref": "367e1fe",
+  "bogpilot_policy_overrides": {
+    "HolidayThemes": "0 (was 367e1fe 1) — holiday themes OFF",
+    "TuningLevel": "3 (was 367e1fe 0) — Developer",
+    "note": "Fixture remains named 367e1fe for history; two BogPilot standing-rule overrides applied."
+  }
+}
