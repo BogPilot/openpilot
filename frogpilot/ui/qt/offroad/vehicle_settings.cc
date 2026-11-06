@@ -285,8 +285,9 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
       ButtonControl *calibBtn = new ButtonControl(title, tr("CALIBRATE"), desc);
       QObject::connect(calibBtn, &ButtonControl::clicked, [this]() {
         if (FrogPilotConfirmationDialog::yesorno(
-              tr("Park, foot off the pedal. OK arms calibration: keep foot off for a moment, then press the pedal fully. Cancel leaves calibration unchanged."),
+              tr("Park, foot off the pedal. OK arms calibration: keep foot off until the interceptor is quiet and the car shows no gas, then press the pedal fully once with your foot. A tiny twitch is rejected. Cancel leaves calibration unchanged."),
               this)) {
+          bogpilot::writeFileText("PedalCalibMessage", "");
           bogpilot::writeFileToggle("PedalCalibArmed", true);
         }
       });
@@ -601,16 +602,23 @@ void FrogPilotVehiclesPanel::updateToggles() {
   // Refresh Pre-AP pedal status label from file-backed mirrors.
   if (toggles.count("PedalStatus")) {
     QString status = tr("Not detected");
-    if (bogpilot::readFileToggle("PedalDetected", false)) {
-      const bool done = bogpilot::readFileToggle("PedalCalibDone", false);
-      const QString zero = bogpilot::readFileText("PedalCalibZero");
-      const QString factor = bogpilot::readFileText("PedalCalibFactor");
-      const bool is_default = (zero.isEmpty() || zero == "0.0" || zero == "0") &&
-                              (factor.isEmpty() || factor == "1.0" || factor == "1");
-      if (done && !is_default) {
-        status = tr("Ready");
-      } else {
-        status = tr("Needs calibration");
+    if (bogpilot::readFileToggle("PedalCalibArmed", false)) {
+      status = tr("Calibrating…");
+    } else {
+      const QString fail = bogpilot::readFileText("PedalCalibMessage");
+      if (!fail.isEmpty()) {
+        status = tr("Failed: %1").arg(fail);
+      } else if (bogpilot::readFileToggle("PedalDetected", false)) {
+        const bool done = bogpilot::readFileToggle("PedalCalibDone", false);
+        const QString zero = bogpilot::readFileText("PedalCalibZero");
+        const QString factor = bogpilot::readFileText("PedalCalibFactor");
+        const bool is_default = (zero.isEmpty() || zero == "0.0" || zero == "0") &&
+                                (factor.isEmpty() || factor == "1.0" || factor == "1");
+        if (done && !is_default) {
+          status = tr("Ready");
+        } else {
+          status = tr("Needs calibration");
+        }
       }
     }
     static_cast<LabelControl*>(toggles["PedalStatus"])->setText(status);

@@ -31,8 +31,9 @@ PEDAL_CALIBRATE_DESC = (
   "fully once. Required before longitudinal."
 )
 PEDAL_CALIBRATE_CONFIRM = (
-  "Park, foot off the pedal. OK arms calibration: keep foot off for a moment, "
-  "then press the pedal fully. Cancel leaves calibration unchanged."
+  "Park, foot off the pedal. OK arms calibration: keep foot off until the "
+  "interceptor is quiet and the car shows no gas, then press the pedal fully "
+  "once with your foot. A tiny twitch is rejected. Cancel leaves calibration unchanged."
 )
 
 # Pedal CAN bus

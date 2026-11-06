@@ -21,6 +21,7 @@ class PreApParamKeys:
   PEDAL_CALIB_ZERO = "PedalCalibZero"
   PEDAL_CAN_BUS = "PedalCanBus"
   PEDAL_CALIB_ARMED = "PedalCalibArmed"  # runtime: UI arms, car completes
+  PEDAL_CALIB_MESSAGE = "PedalCalibMessage"  # runtime UI status / fail reason
   PEDAL_DETECTED = "PedalDetected"      # runtime mirror for UI status line
   RADAR_ENABLED = "TeslaRadarEnabled"
   RADAR_BEHIND_NOSECONE = "TeslaRadarBehindNosecone"
@@ -45,6 +46,7 @@ DEFAULTS = {
   PreApParamKeys.PEDAL_CALIB_ZERO: 0.0,
   PreApParamKeys.PEDAL_CAN_BUS: 2,
   PreApParamKeys.PEDAL_CALIB_ARMED: False,
+  PreApParamKeys.PEDAL_CALIB_MESSAGE: "",
   PreApParamKeys.PEDAL_DETECTED: False,
   PreApParamKeys.RADAR_ENABLED: False,
   PreApParamKeys.RADAR_BEHIND_NOSECONE: False,

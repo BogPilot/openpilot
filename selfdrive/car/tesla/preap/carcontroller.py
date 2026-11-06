@@ -13,8 +13,14 @@ import time
 from opendbc.can.packer import CANPacker
 from openpilot.selfdrive.car.interfaces import CarControllerBase
 from openpilot.selfdrive.car.tesla.preap.calib import (
+  COAST_DI_MAX,
+  COAST_FRAMES,
+  COAST_RAW_QUIET,
+  PRESS_DI_MIN,
+  PRESS_RAW_DELTA,
   apply_calibration_result,
   compute_calibration,
+  fail_calibration,
   is_pedal_calibrated,
   pedal_can_bus,
   pedal_long_allowed,
@@ -47,6 +53,7 @@ class PreApCarController(CarControllerBase):
     self._calib_coast = None
     self._calib_frames_coast = 0
     self._calib_press = None
+    self._calib_coast_samples: list[float] = []
     self.stock_cc = StockCCSpoofer()
     self.long_ctrl = PreAPLongController(self.pedal_counter, pedal_can_bus)
 
@@ -56,33 +63,53 @@ class PreApCarController(CarControllerBase):
     self._vin_commissioner = RadarDonorVinCommissioner(_store_donor_vin, now=time.monotonic)
     self._read_vin_was_on = False
 
+  def _reset_calib_capture(self) -> None:
+    self._calib_coast = None
+    self._calib_press = None
+    self._calib_frames_coast = 0
+    self._calib_coast_samples = []
+
   def _update_detection_and_calib(self, CS) -> bool:
-    """Mirror PedalDetected; run armed two-step calib from CS samples."""
+    """Mirror PedalDetected; run armed driver-press calib from CS samples.
+
+    Coast only after interceptor is quiet and DI gas is near zero. Press only
+    when DI gas rises with the interceptor. Reject small-span / insane factor
+    captures instead of writing Ready (driver foot only; never unlock panda for calib).
+    """
     detected = bool(getattr(CS, "preap_pedal_detected", False))
     set_bool(PreApParamKeys.PEDAL_DETECTED, detected)
 
     if get_bool(PreApParamKeys.PEDAL_CALIB_ARMED) and detected:
       raw = getattr(CS, "preap_pedal_raw", None)
+      # CS.out.gas is always DI_pedalPos/100 (interceptor only overrides gasPressed).
+      di_gas = float(getattr(getattr(CS, "out", None), "gas", 0.0) or 0.0)
       if raw is not None:
+        raw_f = float(raw)
         if self._calib_coast is None:
-          if getattr(CS.out, "gasPressed", False):
-            self._calib_frames_coast = 0
+          quiet = di_gas <= COAST_DI_MAX
+          if quiet:
+            self._calib_coast_samples.append(raw_f)
+            if len(self._calib_coast_samples) > COAST_FRAMES:
+              self._calib_coast_samples = self._calib_coast_samples[-COAST_FRAMES:]
+            if len(self._calib_coast_samples) >= COAST_FRAMES:
+              span = max(self._calib_coast_samples) - min(self._calib_coast_samples)
+              if span <= COAST_RAW_QUIET:
+                self._calib_coast = sum(self._calib_coast_samples) / len(self._calib_coast_samples)
+                self._calib_frames_coast = COAST_FRAMES
           else:
-            self._calib_frames_coast += 1
-            if self._calib_frames_coast >= 20:
-              self._calib_coast = float(raw)
-        elif self._calib_press is None:
-          if float(raw) > float(self._calib_coast) + 5.0:
-            self._calib_press = float(raw)
-            result = compute_calibration(self._calib_coast, self._calib_press)
-            apply_calibration_result(result)
-            self._calib_coast = None
-            self._calib_press = None
+            self._calib_coast_samples = []
             self._calib_frames_coast = 0
+        elif self._calib_press is None:
+          if (raw_f > float(self._calib_coast) + PRESS_RAW_DELTA) and (di_gas >= PRESS_DI_MIN):
+            self._calib_press = raw_f
+            result = compute_calibration(self._calib_coast, self._calib_press)
+            if result.get("ok"):
+              apply_calibration_result(result)
+            else:
+              fail_calibration(str(result.get("reason") or "validation failed"))
+            self._reset_calib_capture()
     else:
-      self._calib_coast = None
-      self._calib_press = None
-      self._calib_frames_coast = 0
+      self._reset_calib_capture()
 
     return detected
 
