@@ -25,7 +25,8 @@ FILE_ONLY_UI_KEYS = frozenset({"RedesignUI", "BSMFlameTracks", "SwapSpeedGraph",
 
 FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
   # UI (default on)
-  "OffroadScreensaver": (True, "Offroad screensaver: bounce the upload readout / BogPilot logo instead of screen off"),
+  # Reserved by owner policy pin (default ON). bogpilot-tesla-c3x ships no screensaver; nothing reads this key.
+  "OffroadScreensaver": (True, "Reserved offroad screensaver setting (no C3X implementation)"),
   "BSMFlameTracks": (True, "'Bog to the Future' flame tracks behind >88 mph blind-spot passers"),
   "ConfidenceBall": (True, "Model confidence ball on the onroad edge"),
   "RedesignUI": (True, "BogPilot onroad redesign"),
