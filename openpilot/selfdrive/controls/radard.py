@@ -252,6 +252,7 @@ class RadarD:
 
 # fuses camera and radar data for best lead detection
 def main() -> None:
+  from openpilot.selfdrive.controls.lib.bogpilot_radar import SERVICES as BOGPILOT_RADAR_SERVICES, BogPilotRadar
   config_realtime_process(5, Priority.CTRL_LOW)
 
   # wait for stats about the car to come in from controls
@@ -261,15 +262,19 @@ def main() -> None:
 
   # *** setup messaging
   sm = messaging.SubMaster(['modelV2', 'carState', 'radarTracks'], poll='modelV2')
-  pm = messaging.PubMaster(['radarState'])
+  pm = messaging.PubMaster(['radarState', *BOGPILOT_RADAR_SERVICES])
 
   RD = RadarD(CP.radarDelay)
+  BP = BogPilotRadar(CP)
 
   while 1:
     sm.update()
 
     RD.update(sm, sm['radarTracks'])
     RD.publish(pm)
+    # BogPilot: adjacent leads for BSM flames / UI (frogpilotRadarState)
+    BP.update(RD, sm)
+    BP.publish(pm, RD.radar_state_valid)
 
 
 if __name__ == "__main__":

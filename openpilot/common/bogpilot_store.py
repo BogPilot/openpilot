@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 
 from openpilot.common.bogpilot_params import BOGPILOT_PARAMS
-from openpilot.common.bogpilot_toggles import FILE_CHOICES, FILE_TOGGLES
+from openpilot.common.bogpilot_toggles import FILE_CHOICES, FILE_ONLY_UI_KEYS, FILE_TOGGLES
 
 _ON = ("1", "true", "on")
 _OFF = ("0", "false", "off")
@@ -107,13 +107,30 @@ class ParamStore:
 
   # ---- raw access ----
   def is_param_key(self, key: str) -> bool:
+    """True only for keys present in the compiled Params table.
+
+    Legacy UI file keys (RedesignUI / BSMFlameTracks / SwapSpeedGraph) always
+    return False so they never touch Params. Uses all_keys() when available so
+    unknown keys are never read or written.
+    """
+    if key in FILE_ONLY_UI_KEYS:
+      self._known[key] = False
+      return False
     known = self._known.get(key)
     if known is None:
       try:
-        self._params.check_key(key)
-        known = True
+        keys = self._params.all_keys()
+        # all_keys may return bytes or str
+        norm = set()
+        for k in keys:
+          norm.add(k.decode() if isinstance(k, (bytes, bytearray)) else str(k))
+        known = key in norm
       except Exception:
-        known = False
+        try:
+          self._params.check_key(key)
+          known = True
+        except Exception:
+          known = False
       self._known[key] = known
     return known
 
@@ -198,19 +215,26 @@ class ParamStore:
     self.invalidate(key)
     if self.is_param_key(key):
       try:
-        from openpilot.common.params import ParamKeyType
-        t = self._params.get_type(key)
-        if t == ParamKeyType.BOOL:
-          self._params.put_bool(key, parse_bool(text, False))
-        elif t == ParamKeyType.INT:
+        row = BOGPILOT_PARAMS.get(key)
+        typ = row[1] if row else "STRING"
+        if typ == "BOOL":
+          if hasattr(self._params, "put_bool"):
+            self._params.put_bool(key, parse_bool(text, False))
+          else:
+            self._params.put(key, "1" if parse_bool(text, False) else "0")
+        elif typ == "INT":
           self._params.put(key, int(float(text)))
-        elif t == ParamKeyType.FLOAT:
+        elif typ == "FLOAT":
           self._params.put(key, float(text))
         else:
           self._params.put(key, text)
         return
       except Exception:
-        pass
+        try:
+          self._params.put(key, text)
+          return
+        except Exception:
+          pass
     write_text(key, text)
 
   def remove(self, key: str) -> None:
