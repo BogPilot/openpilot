@@ -107,14 +107,13 @@ NO WARRANTY EXPRESSED OR IMPLIED.**
 </details>
 
 <details>
-<summary>User Data and comma Account</summary>
+<summary>User Data and Accounts</summary>
 
-By default, openpilot uploads driving data to our servers. You can also access your data through [comma connect](https://connect.comma.ai/). We use your data to train better models and improve openpilot for everyone.
+BogPilot does **not** register with comma servers and does **not** upload driving data to comma by default. Builds that strip registration and phone-home keep logs on the device only.
 
-openpilot is open source software, and users can disable data collection if they wish.
+Stock openpilot (upstream) uploads driving data to comma by default and offers [comma connect](https://connect.comma.ai/). That stock behavior does **not** apply to BogPilot no-registration builds. If you run a build that still includes comma services, those services follow [comma's Privacy Policy](https://comma.ai/privacy).
 
-openpilot logs the road-facing cameras, CAN, GPS, IMU, magnetometer, thermal sensors, crashes, and operating system logs.
-The driver-facing camera and microphone are only logged if you explicitly opt-in in settings.
+openpilot is open source software. Users of stock openpilot can disable data collection if they wish. BogPilot's no-registration / no-upload trees go further: they do not call comma registration, athena, or the stock uploader.
 
-By using openpilot, you agree to [our Privacy Policy](https://comma.ai/privacy). You understand that use of this software or its related services will generate certain types of user data, which may be logged and stored at the sole discretion of comma. By accepting this agreement, you grant an irrevocable, perpetual, worldwide right to comma for the use of this data.
+Lineage: BogPilot is a fork of openpilot (MIT, Comma.ai, Inc.) with FrogPilot lineage and Tesla support. Pre-AP signal reference values may come from an upstream legacy port (data values only). BogPilot is not a comma product and does not use the openpilot trademark as a product name for modified safety builds.
 </details>
