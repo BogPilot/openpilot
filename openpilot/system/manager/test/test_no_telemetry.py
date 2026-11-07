@@ -39,11 +39,7 @@ def test_no_cloud_processes():
 
 @pytest.mark.parametrize("mod", REMOVED_MODULES)
 def test_executable_modules_removed(mod):
-  try:
-    spec = importlib.util.find_spec(mod)
-  except ModuleNotFoundError:
-    spec = None
-  assert spec is None
+  assert importlib.util.find_spec(mod) is None
 
 
 def test_no_runtime_imports_of_cloud_modules():
@@ -94,3 +90,52 @@ def test_local_dongle_id_reuses_and_never_deletes(tmp_path, monkeypatch):
 def test_deleter_uses_local_route_dirs():
   from openpilot.system.loggerd import deleter, route_dirs
   assert deleter.listdir_by_creation is route_dirs.listdir_by_creation
+
+
+REPO = OP.parent
+NETWORK_TOKENS = ("requests", "urllib", "http.client", "socket", "websocket", "jwt", "api_get", "common.api", "Api(")
+
+
+@pytest.mark.parametrize("rel", ["system/manager/manager.py", "system/manager/local_identity.py",
+                                 "system/manager/process_config.py", "system/tombstoned.py", "system/loggerd/deleter.py",
+                                 "system/loggerd/route_dirs.py"])
+def test_startup_paths_have_no_network_identity_upload_or_crash_reporting(rel):
+  mods = set(_imports(OP / rel))
+  assert not any(m.split(".")[0] in ("requests", "urllib", "socket", "websocket", "jwt", "http") for m in mods), mods
+  assert "openpilot.common.api" not in mods
+
+
+def test_pigeond_no_comma_agps_proxy_but_keeps_public_ublox_assist():
+  src = (OP / "system/ubloxd/pigeond.py").read_text()
+  assert "openpilot.common.api" not in set(_imports(OP / "system/ubloxd/pigeond.py"))
+  assert "/assist" not in src and "get_token" not in src and "DongleId" not in src
+  assert "online-live2.services.u-blox.com" in src and "AssistNowToken" in src  # user-owned public u-blox service
+  assert "save_almanac" in src  # local almanac backup preserved
+
+
+def test_no_teleoprtc_or_websocket_dependency():
+  assert not (REPO / "teleoprtc_repo").exists()
+  for rel in ["pyproject.toml", "uv.lock", "SConstruct", "launch_chffrplus.sh", "tools/bogpilot/rc_package.py",
+              "tools/bogpilot/rc_build_gate.py"]:
+    s = (REPO / rel).read_text()
+    assert "teleoprtc" not in s and "websocket" not in s, rel
+
+
+def test_comma_account_dev_tools_removed():
+  for rel in ["openpilot/tools/lib/auth.py", "openpilot/tools/lib/bootlog.py", "tools/scripts/ssh.py"]:
+    assert not (REPO / rel).exists(), rel
+  op = (REPO / "tools/op.sh").read_text()
+  assert "lib/auth.py" not in op and "scripts/ssh.py" not in op
+
+
+def test_camerad_keeps_onroad_and_driverview():
+  from openpilot.system.manager import process_config as pc
+  assert pc.driverview(True, None, None) is True  # onroad: started => camera runs
+  src = (OP / "system/manager/process_config.py").read_text()
+  assert '["./camerad"], driverview,' in src
+
+
+def test_hardwared_only_registration_gate_removed():
+  src = (OP / "system/hardware/hardwared.py").read_text()
+  for keep in ('onroad_conditions["ignition"]', "device_temp_good", "device_temp_engageable", "not_flashing_chestnut"):
+    assert keep in src, keep

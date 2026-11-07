@@ -33,7 +33,6 @@ submodule_python_paths = [
   Dir("#msgq_repo").abspath,
   Dir("#opendbc_repo").abspath,
   Dir("#rednose_repo").abspath,
-  Dir("#teleoprtc_repo").abspath,
   Dir("#tinygrad_repo").abspath,
 ]
 for p in reversed(submodule_python_paths):

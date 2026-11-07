@@ -19,7 +19,6 @@ bin/
 /msgq
 /opendbc
 /rednose
-/teleoprtc
 /tinygrad
 
 *.mp4
