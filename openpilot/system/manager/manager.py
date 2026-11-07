@@ -19,6 +19,7 @@ from openpilot.system.athena.registration import register, UNREGISTERED_DONGLE_I
 from openpilot.common.swaglog import cloudlog, add_file_handler
 from openpilot.common.version import get_build_metadata
 from openpilot.common.hardware.hw import Paths
+from openpilot.system.manager.bogpilot_startup import before_defaults, after_defaults
 
 
 def manager_init() -> None:
@@ -34,6 +35,10 @@ def manager_init() -> None:
   if build_metadata.release_channel:
     params.clear_all(ParamKeyFlag.DEVELOPMENT_ONLY)
 
+  startup = before_defaults(params)
+  for error in startup.errors:
+    cloudlog.warning(f"BogPilot startup: {error}")
+
   if params.get_bool("RecordFrontLock"):
     params.put_bool("RecordFront", True, block=True)
 
@@ -42,6 +47,10 @@ def manager_init() -> None:
     default_value = params.get_default_value(k)
     if default_value is not None and params.get(k) is None:
       params.put(k, default_value, block=True)
+
+  startup = after_defaults(params, startup=startup)
+  for error in startup.errors:
+    cloudlog.warning(f"BogPilot startup: {error}")
 
   # Create folders needed for msgq
   try:
