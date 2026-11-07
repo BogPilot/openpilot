@@ -152,7 +152,7 @@ def verify(source, archive, artifacts, repeat, candidate):
   first = artifact_evidence(artifacts, manifest, version, key)
   second = artifact_evidence(repeat, manifest, version, key)
   require(first == second, 'native firmware repeat builds differ')
-  return dict(status='PASS', source_commit=candidate, source_sha256=manifest['source_sha256'],
+  return dict(status='pass', source_sha=candidate, source_commit=candidate, source_sha256=manifest['source_sha256'],
               version=version, sha256=first, scope='local evidence only; no hardware or safety certification')
 
 
@@ -165,7 +165,7 @@ def main(argv=None):
   try:
     result = verify(args.source, args.archive, args.artifacts, args.repeat, args.candidate)
   except (ValueError, OSError, subprocess.SubprocessError, TypeError, KeyError) as exc:
-    print(json.dumps(dict(status='FAIL', reason=str(exc))), file=sys.stderr)
+    print(json.dumps(dict(status='fail', reason=str(exc))), file=sys.stderr)
     return 1
   print(json.dumps(result, sort_keys=True, indent=2))
   return 0
