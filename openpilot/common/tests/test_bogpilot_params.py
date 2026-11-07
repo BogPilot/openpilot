@@ -21,12 +21,19 @@ RAW_REF = FIXTURE["defaults"]
 # (AOL off, metrics on, TuningLevel intentionally unset 0/0, ...). The fixture itself stays untouched.
 from openpilot.common.bogpilot_shipping_defaults import PARAM_OVERRIDES as SHIPPING
 REF = {k: ([SHIPPING[k][0], SHIPPING[k][1], v[2]] if k in SHIPPING else v) for k, v in RAW_REF.items()}
+# t968u explicit fresh-ON exceptions after the historical shipping snapshot.
+# Preserve the immutable 367e1fe fixture and every other default/level/stock value.
+REQUESTED_ALERT_DEFAULTS = {"GreenLightAlert": ["1", 0, "0"], "LeadDepartingAlert": ["1", 0, "0"]}
+REF.update(REQUESTED_ALERT_DEFAULTS)
 STOCK_011_KEYS = set(bp.FROGPILOT_STOCK_KEY_DEFAULTS)
 
 
 def test_fixture_is_367e1fe():
   assert FIXTURE["ref"] == "367e1fe"
   assert len(RAW_REF) == 338
+  for key, expected in REQUESTED_ALERT_DEFAULTS.items():
+    assert RAW_REF[key] == ["0", expected[1], expected[2]]
+    assert REF[key] == expected
 
 
 @pytest.mark.parametrize("key", sorted(REF))
