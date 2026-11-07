@@ -1,6 +1,6 @@
 """BogPilot local device identity. No registration, no network.
 
-Replaces comma athena registration. Reuses an already stored DongleId param or the
+Replaces comma cloud device registration. Reuses an already stored DongleId param or the
 factory /persist/comma/dongle_id file; never contacts a server, never deletes credentials.
 """
 from pathlib import Path
