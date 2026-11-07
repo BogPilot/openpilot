@@ -38,7 +38,7 @@ class LabelData:
 def lead_labels(lead, metric=True, adjacent=False):
   """Validated radarState.LeadData. Zero speed is valid; zero distance is not."""
   try:
-    if not lead.status:
+    if not lead.present:
       return None
     d, v, vr = float(lead.dRel), float(lead.vLead), float(lead.vRel)
     if not all(math.isfinite(x) for x in (d, v, vr)) or d <= 0:
@@ -74,7 +74,13 @@ class PersonalityData:
 def personality_data(value, traffic_mode):
   # cereal LongitudinalPersonality: aggressive=0, standard=1, relaxed=2.
   # Never use the daily UI's one-based icon index as the runtime value.
-  if isinstance(value, bool) or value not in (0, 1, 2) or not isinstance(traffic_mode, bool):
+  # pycapnp DynamicEnum compares equal to integers but does NOT support int().
+  # Its raw property is the schema ordinal; unknown ordinals still fail closed.
+  try:
+    value = getattr(value, "raw", value)
+  except (AttributeError, TypeError, ValueError, RuntimeError):
+    return None
+  if not isinstance(value, int) or isinstance(value, bool) or value not in (0, 1, 2) or not isinstance(traffic_mode, bool):
     return None
   return PersonalityData(int(value), traffic_mode,
                          "Traffic" if traffic_mode else ("Aggressive", "Standard", "Relaxed")[int(value)])
