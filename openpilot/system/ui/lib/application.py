@@ -234,6 +234,7 @@ class GuiApplication:
     self._scaled_height += self._scaled_height % 2
 
     self._render_texture: rl.RenderTexture | None = None
+    self._frame_hooks: list[Callable[[], None]] = []   # BogPilot: run on the finished frame, before end_drawing
     self._burn_in_shader: rl.Shader | None = None
     self._ffmpeg_proc: subprocess.Popen | None = None
     self._ffmpeg_queue: queue.Queue | None = None
@@ -468,6 +469,16 @@ class GuiApplication:
     if tick_function in self._nav_stack_ticks:
       self._nav_stack_ticks.remove(tick_function)
 
+  def add_frame_hook(self, hook: Callable[[], None]) -> None:
+    """BogPilot: `hook()` runs once per rendered frame on the render thread, after everything (alerts included) is
+    drawn and just before end_drawing, e.g. to read the framebuffer back. A failing hook is logged and removed."""
+    if hook not in self._frame_hooks:
+      self._frame_hooks.append(hook)
+
+  def remove_frame_hook(self, hook: Callable[[], None]) -> None:
+    if hook in self._frame_hooks:
+      self._frame_hooks.remove(hook)
+
   def set_should_render(self, should_render: bool):
     self._should_render = should_render
 
@@ -677,6 +688,13 @@ class GuiApplication:
 
         if self._grid_size > 0:
           self._draw_grid()
+
+        for hook in list(self._frame_hooks):
+          try:
+            hook()
+          except Exception:
+            cloudlog.exception("frame hook failed; removed")
+            self.remove_frame_hook(hook)
 
         rl.end_drawing()
 

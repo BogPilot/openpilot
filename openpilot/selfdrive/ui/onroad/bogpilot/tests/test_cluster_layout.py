@@ -161,6 +161,10 @@ def hud_env(calls, toggles):
     "toggles": SimpleNamespace(get=lambda k: toggles[k]), "AccelGraph": Graph,
     "messaging": None, "SERVICE_LIST": {},
   }
+  from openpilot.selfdrive.ui.onroad.bogpilot.tests.test_release_adapters import hud_stubs
+  stubs = hud_stubs()
+  env["rl"].Color = stubs.pop("rl").Color
+  env.update(stubs)
   exec(compile(tree, "bogpilot_hud.py", "exec"), env)
   return env
 

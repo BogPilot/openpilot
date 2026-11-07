@@ -10,7 +10,8 @@ field comes from the current drive's messages or from an existing setting resolv
 
 Order with RedesignUI ON (inside the content scissor):
   model (path, lanes, stock leadTwo) -> lead lock-on (or the deferred stock leadOne chevron) -> HUD cluster
-  (speed capsule, accel graph, CSC slot, all unchanged) -> labels and personality -> driver monitor -> alert LAST.
+  (speed capsule with LIMIT tile, accel graph, CSC slot, steering arc, pedals, record button) -> labels and
+  personality -> driver monitor -> alert LAST.
 With RedesignUI OFF the stock order and renderers run unchanged: model -> hud -> alert -> driver_state.
 A stock element is skipped only while its replacing layer is enabled and actually paints in that frame. If a layer
 raises, the stock element is painted in the same frame and the layer stays off until the next drive.
@@ -350,6 +351,12 @@ class HudComposer:
 
     self.hud.render(rect)
     self.order.append("hud")
+    # t913u: the steering arc's tap area (daily paintLeadLabels keepout), the pedals and the record button, as painted
+    # this frame. Lead labels avoid them; the lock-on box and the DM relocation keep their validated keepouts.
+    extra = list(getattr(self.hud, "bp_extra_keepouts", None) or [])
+    if extra:
+      f.base_keepouts = f.base_keepouts + extra
+      f.label_keepouts = f.label_keepouts + extra
 
     # Driver monitor before the pill: the relocated DM sits beside the pill (daily dmIconCenter), while the stock
     # corner DM is a keepout that suppresses the pill (the DM always wins over a display-only control).

@@ -3,7 +3,7 @@ import time
 import unittest
 from types import SimpleNamespace
 
-from openpilot.selfdrive.ui.onroad.bogpilot.tests.test_release_adapters import adapter_namespace, load
+from openpilot.selfdrive.ui.onroad.bogpilot.tests.test_release_adapters import adapter_namespace, hud_stubs, load
 
 L = load("cluster_layout")
 
@@ -25,7 +25,7 @@ def hud_env():
     "HudRenderer": object, "MiciHudRenderer": object, "COLORS": SimpleNamespace(ENGAGED=1, DISENGAGED=0),
     "UIStatus": SimpleNamespace(ENGAGED=1), "ui_state": SimpleNamespace(is_metric=False, status=1),
     "R": SimpleNamespace(SpeedRowInputs=lambda **kw: kw), "toggles": SimpleNamespace(get=lambda k: True),
-    "L": L, "time": time, "AccelGraph": None, "messaging": None, "SERVICE_LIST": {},
+    "L": L, "time": time, "AccelGraph": None, "messaging": None, "SERVICE_LIST": {}, **hud_stubs(),
   })
 
 
