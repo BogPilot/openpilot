@@ -37,5 +37,35 @@ class TestFailClosed(unittest.TestCase):
       self.assertNotEqual(r["status"], G.FAIL, f"{name}: {r.get('detail')}")
 
 
+class TestNativeDmFailureAdapter(unittest.TestCase):
+  """SYNTHETIC gate-adapter tests; never a renderer/native execution claim."""
+  def run_fixture(self, log=None, disabled=None):
+    from types import SimpleNamespace
+    from unittest.mock import patch
+    e = SimpleNamespace(log=["stock_dm", "alert"] if log is None else log,
+                        comp=SimpleNamespace(disabled={"lead_lockon", "lead_labels"} if disabled is None else disabled))
+    with patch.object(G, "composer_env", return_value=e), patch.object(G, "run_frame"):
+      G.alert_last_with_failing_layers()
+
+  def test_current_native_dm_contract(self):
+    self.run_fixture()
+
+  def test_missing_peer_disable_rejected(self):
+    with self.assertRaisesRegex(AssertionError, "failed layers"):
+      self.run_fixture(disabled={"lead_lockon"})
+
+  def test_missing_native_dm_rejected(self):
+    with self.assertRaisesRegex(AssertionError, "native DM"):
+      self.run_fixture(log=["alert"])
+
+  def test_alert_not_last_rejected(self):
+    with self.assertRaisesRegex(AssertionError, "alert not last"):
+      self.run_fixture(log=["alert", "stock_dm"])
+
+  def test_obsolete_relocation_rejected(self):
+    with self.assertRaisesRegex(AssertionError, "obsolete relocation"):
+      self.run_fixture(log=["driver_monitor", "stock_dm", "alert"])
+
+
 if __name__ == "__main__":
   unittest.main()

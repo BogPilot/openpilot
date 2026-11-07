@@ -281,11 +281,12 @@ def alert_last():
 
 @case("alert_last_with_failing_layers", "composer")
 def alert_last_with_failing_layers():
-  e = composer_env(alert=(SIZE_MID, 2, "A", "B", "x/w"), fail=("lead_lockon", "lead_labels", "driver_monitor"))
+  e = composer_env(alert=(SIZE_MID, 2, "A", "B", "x/w"), fail=("lead_lockon", "lead_labels"))
   run_frame(e)
   check(e.log[-1] == "alert", f"alert not last after failures: {e.log}")
   check("stock_dm" in e.log, f"native DM not retained after DM layer failure: {e.log}")
-  check({"lead_lockon", "lead_labels", "driver_monitor"} <= e.comp.disabled, "failed layers not disabled")
+  check({"lead_lockon", "lead_labels"} <= e.comp.disabled, "failed layers not disabled")
+  check("driver_monitor" not in e.log, "obsolete relocation layer executed instead of the native DM")
 
 
 @case("native_dm_retained", "composer")
