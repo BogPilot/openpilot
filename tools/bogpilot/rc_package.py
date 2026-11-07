@@ -250,7 +250,7 @@ def verify(root, candidate, manifest, shipping_manifest=None):
       head = f.read(256)
     if head.startswith(b"version https://git-lfs.github.com/spec/v1"):
       raise ValueError("unresolved LFS pointer: " + name)
-    if name.endswith(".pem") and (b"PRIVATE KEY" in path.read_bytes() or b"BEGIN CERTIFICATE" not in head):
+    if name.endswith(".pem") and (b"PRIVATE KEY" in path.read_bytes() or b"BEGIN CERTIFICATE" not in path.read_bytes()):
       raise ValueError("not a public CA certificate")
     elf = head.startswith(b"\x7fELF")
     if elf or name.endswith(".so") or (name.startswith("panda/board/obj/") and not name.endswith("/.placeholder")):

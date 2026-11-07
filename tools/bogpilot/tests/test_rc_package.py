@@ -401,6 +401,17 @@ class PackageTests(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "provenance"):
       self.verify()
 
+  def test_public_certificate_after_long_comment(self):
+    self.write("openpilot/common/esim/gsma_ci_bundle.pem", b"# synthetic public bundle comment\n" * 12 + b"-----BEGIN CERTIFICATE-----\nsynthetic\n-----END CERTIFICATE-----\n")
+    self.commit()
+    self.verify()
+
+  def test_private_marker_after_public_certificate_refused(self):
+    self.write("openpilot/common/esim/gsma_ci_bundle.pem", b"# synthetic comment\n" * 20 + b"-----BEGIN CERTIFICATE-----\nsynthetic\n-----END CERTIFICATE-----\n-----BEGIN PRIVATE KEY-----\nsynthetic only\n")
+    self.commit()
+    with self.assertRaisesRegex(ValueError, "public CA"):
+      self.verify()
+
   def test_missing_native_coverage(self):
     self.data["artifacts"] = self.artifacts[1:]
     self.save_manifest()
