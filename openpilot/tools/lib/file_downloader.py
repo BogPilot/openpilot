@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-CLI tool for downloading files and querying the comma API.
-Called by C++ replay/cabana via subprocess.
+CLI tool for downloading explicitly supplied files and resolving local/internal-storage routes.
+Called by C++ replay/cabana via subprocess. BogPilot: comma Connect API access removed.
 
 Subcommands:
-  route-files <route>    - Get route file URLs as JSON
-  resolve-route-files <route> - Resolve logs and cameras from API and internal storage
-  download <url>         - Download/decompress URL to local cache, print local path
+  route-files <route>    - (removed: Connect) prints {"error": ...}
+  resolve-route-files <route> - Resolve logs and cameras from DATA_ENDPOINT storage (local dir or URL)
+  download <url>         - Download/decompress an explicitly supplied URL to local cache, print local path
   decompress <path>      - Decompress a local log file, print temporary path
-  devices                - List user's devices as JSON
-  device-routes <did>    - List routes for a device as JSON
+  devices                - (removed: Connect) prints {"error": ...}
+  device-routes <did>    - (removed: Connect) prints {"error": ...}
 """
 import argparse
 import bz2
@@ -25,21 +25,12 @@ from urllib.parse import urlparse
 from openpilot.common.hardware.hw import Paths
 
 
-def api_call(func):
-  """Run an API call, outputting JSON result or error to stdout."""
-  from openpilot.tools.lib.api import CommaApi, UnauthorizedError, APIError
-  from openpilot.tools.lib.auth_config import get_token
+CONNECT_REMOVED = "comma Connect API access is removed in BogPilot"
 
-  try:
-    result = func(CommaApi(get_token()))
-    json.dump(result, sys.stdout)
-  except UnauthorizedError:
-    json.dump({"error": "unauthorized"}, sys.stdout)
-  except APIError as e:
-    error = "not_found" if getattr(e, 'status_code', 0) == 404 else str(e)
-    json.dump({"error": error}, sys.stdout)
-  except Exception as e:
-    json.dump({"error": str(e)}, sys.stdout)
+
+def connect_removed(_args=None):
+  """Compatibility stub for C++ callers: JSON error, no network."""
+  json.dump({"error": CONNECT_REMOVED}, sys.stdout)
   sys.stdout.write("\n")
   sys.stdout.flush()
 
@@ -99,24 +90,14 @@ def materialize_cached_file(source, url, compression):
   return local_path
 
 
-def cmd_route_files(args):
-  api_call(lambda api: api.get(f"v1/route/{args.route}/files"))
-
-
 def resolve_route_files(route_name: str, begin: int = 0, end: int = -1, selector: str = "a") -> dict[int, dict[str, str]]:
   from openpilot.tools.lib.filereader import DATA_ENDPOINT
   from openpilot.tools.lib.file_sources import InternalUnavailableException, internal_source
   from openpilot.tools.lib.route import FileName, SegmentRange
-  from openpilot.tools.lib.api import CommaApi
-  from openpilot.tools.lib.auth_config import get_token
 
   sr = SegmentRange(route_name)
   api_error = None
-  try:
-    route_files = CommaApi(get_token()).get(f"v1/route/{sr.route_name}/files")
-  except Exception as e:
-    api_error = e
-    route_files = {}
+  route_files: dict[str, list[str]] = {}  # BogPilot: no Connect route file listing
   fields = {"rlog": FileName.RLOG, "qlog": FileName.QLOG,
             "narrow_road": FileName.FCAMERA, "cabin": FileName.DCAMERA, "wide_road": FileName.ECAMERA, "qcamera": FileName.QCAMERA}
   names = {name: key for key, fns in fields.items() for name in fns}
@@ -178,7 +159,7 @@ def resolve_route_files(route_name: str, begin: int = 0, end: int = -1, selector
   if not available:
     if api_error is not None:
       raise api_error
-    raise FileNotFoundError(f"No {selector} logs found for {sr.route_name} in segments {indices} through the API or internal storage")
+    raise FileNotFoundError(f"No {selector} logs found for {sr.route_name} in segments {indices} in DATA_ENDPOINT storage")
   for key in ("narrow_road", "cabin", "wide_road", "qcamera"):
     resolve(key, available)
   return {seg: segments[seg] for seg in available}
@@ -304,30 +285,13 @@ def cmd_decompress(args):
   sys.stdout.flush()
 
 
-def cmd_devices(args):
-  api_call(lambda api: api.get("v1/me/devices/"))
-
-
-def cmd_device_routes(args):
-  def fetch(api):
-    if args.preserved:
-      return api.get(f"v1/devices/{args.dongle_id}/routes/preserved")
-    params = {}
-    if args.start is not None:
-      params['start'] = args.start
-    if args.end is not None:
-      params['end'] = args.end
-    return api.get(f"v1/devices/{args.dongle_id}/routes_segments", params=params)
-  api_call(fetch)
-
-
 def main():
   parser = argparse.ArgumentParser(description="File downloader CLI for openpilot tools")
   subparsers = parser.add_subparsers(dest="command", required=True)
 
   p_rf = subparsers.add_parser("route-files")
   p_rf.add_argument("route")
-  p_rf.set_defaults(func=cmd_route_files)
+  p_rf.set_defaults(func=connect_removed)
 
   p_resolve = subparsers.add_parser("resolve-route-files")
   p_resolve.add_argument("route")
@@ -346,14 +310,14 @@ def main():
   p_dc.set_defaults(func=cmd_decompress)
 
   p_dev = subparsers.add_parser("devices")
-  p_dev.set_defaults(func=cmd_devices)
+  p_dev.set_defaults(func=connect_removed)
 
   p_dr = subparsers.add_parser("device-routes")
   p_dr.add_argument("dongle_id")
   p_dr.add_argument("--start", type=int, default=None)
   p_dr.add_argument("--end", type=int, default=None)
   p_dr.add_argument("--preserved", action="store_true")
-  p_dr.set_defaults(func=cmd_device_routes)
+  p_dr.set_defaults(func=connect_removed)
 
   args = parser.parse_args()
   args.func(args)

@@ -1,13 +1,8 @@
 import os
 import re
-import requests
 from functools import cache
-from urllib.parse import urlparse
 from collections import defaultdict
-from itertools import chain
 
-from openpilot.tools.lib.auth_config import get_token
-from openpilot.tools.lib.api import APIError, CommaApi
 from openpilot.tools.lib.helpers import RE
 
 
@@ -25,10 +20,10 @@ class Route:
   def __init__(self, name, data_dir=None):
     self._name = RouteName(name)
     self.files = None
-    if data_dir is not None:
-      self._segments = self._get_segments_local(data_dir)
-    else:
-      self._segments = self._get_segments_remote()
+    if data_dir is None:
+      # BogPilot: comma Connect route lookup removed; routes are read from a local directory.
+      raise ValueError(f"Route {name}: data_dir is required (Connect route lookup is not available in BogPilot)")
+    self._segments = self._get_segments_local(data_dir)
     self.max_seg_number = self._segments[-1].name.segment_num
 
   @property
@@ -62,39 +57,6 @@ class Route:
   def qcamera_paths(self):
     qcamera_path_by_seg_num = {s.name.segment_num: s.qcamera_path for s in self._segments}
     return [qcamera_path_by_seg_num.get(i, None) for i in range(self.max_seg_number + 1)]
-
-  # TODO: refactor this, it's super repetitive
-  def _get_segments_remote(self):
-    api = CommaApi(get_token())
-    route_files = api.get('v1/route/' + self.name.canonical_name + '/files')
-    self.files = list(chain.from_iterable(route_files.values()))
-
-    segments = {}
-    for url in self.files:
-      _, dongle_id, time_str, segment_num, fn = urlparse(url).path.rsplit('/', maxsplit=4)
-      segment_name = f'{dongle_id}|{time_str}--{segment_num}'
-      if segments.get(segment_name):
-        segments[segment_name] = Segment(
-          segment_name,
-          url if fn in FileName.RLOG else segments[segment_name].log_path,
-          url if fn in FileName.QLOG else segments[segment_name].qlog_path,
-          url if fn in FileName.FCAMERA else segments[segment_name].camera_path,
-          url if fn in FileName.DCAMERA else segments[segment_name].dcamera_path,
-          url if fn in FileName.ECAMERA else segments[segment_name].ecamera_path,
-          url if fn in FileName.QCAMERA else segments[segment_name].qcamera_path,
-        )
-      else:
-        segments[segment_name] = Segment(
-          segment_name,
-          url if fn in FileName.RLOG else None,
-          url if fn in FileName.QLOG else None,
-          url if fn in FileName.FCAMERA else None,
-          url if fn in FileName.DCAMERA else None,
-          url if fn in FileName.ECAMERA else None,
-          url if fn in FileName.QCAMERA else None,
-        )
-
-    return sorted(segments.values(), key=lambda seg: seg.name.segment_num)
 
   def _get_segments_local(self, data_dir):
     files = os.listdir(data_dir)
@@ -178,29 +140,6 @@ class Segment:
   @property
   def name(self):
     return self._name
-
-  @staticmethod
-  @cache
-  def _get_route_metadata(route_name: str):
-    api = CommaApi(get_token())
-    return api.get(f'v1/route/{route_name}')
-
-  @property
-  def url(self):
-    route_name = self._name.route_name.canonical_name
-    metadata = self._get_route_metadata(route_name)
-    return f'{metadata["url"]}/{self._name.segment_num}'
-
-  @property
-  def events(self):
-    if not self._events:
-      try:
-        resp = requests.get(f'{self.url}/events.json')
-        resp.raise_for_status()
-        self._events = resp.json()
-      except Exception as e:
-        raise APIError(f'error getting events for segment {self._name}') from e
-    return self._events
 
 
 class RouteName:
@@ -308,13 +247,9 @@ class SegmentName:
 
 @cache
 def get_max_seg_number_cached(sr: 'SegmentRange') -> int:
-  try:
-    api = CommaApi(get_token())
-    max_seg_number = api.get("/v1/route/" + sr.route_name.replace("/", "|"))["maxqlog"]
-    assert isinstance(max_seg_number, int)
-    return max_seg_number
-  except Exception as e:
-    raise Exception("unable to get max_segment_number. ensure you have access to this route or the route is public.") from e
+  # BogPilot: the route length came from comma Connect metadata, which is removed.
+  raise ValueError(f"{sr.route_name}: open-ended segment ranges are not supported without Connect; "
+                   "give explicit segments (e.g. <route>/0:5) or read a local file/directory")
 
 
 class SegmentRange:

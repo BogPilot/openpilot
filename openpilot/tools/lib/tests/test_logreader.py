@@ -34,16 +34,12 @@ def setup_source_scenario(mocker, is_internal=False):
   openpilotci_source_mock = mocker.patch("openpilot.tools.lib.logreader.openpilotci_source")
   openpilotci_source_mock.__name__ = openpilotci_source_mock._mock_name
 
-  comma_api_source_mock = mocker.patch("openpilot.tools.lib.logreader.comma_api_source")
-  comma_api_source_mock.__name__ = comma_api_source_mock._mock_name
-
   if is_internal:
     internal_source_mock.return_value = {3: QLOG_FILE}
   else:
     internal_source_mock.side_effect = InternalUnavailableException
 
-  openpilotci_source_mock.return_value = {}
-  comma_api_source_mock.return_value = {3: QLOG_FILE}
+  openpilotci_source_mock.return_value = {3: QLOG_FILE}
 
   yield
 
