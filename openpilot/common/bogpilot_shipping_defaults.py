@@ -49,7 +49,7 @@ FILE_TOGGLE_DEFAULTS: dict[str, bool] = {
   'SwapSpeedGraph': True,
   'HideAccelGraph': False,
   'BSMFlameTracks': True,
-  'OffroadScreensaver': True,
+  'OffroadScreensaver': False,
   'ConfidenceBall': True,
 }
 

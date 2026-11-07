@@ -102,9 +102,9 @@ def test_reset_and_backup(tmp_path):
 def test_file_toggle_defaults(monkeypatch, tmp_path):
   monkeypatch.setattr(bt, "BOGPILOT_DIR", tmp_path)
   # stream 5: SwapSpeedGraph ships ON; stream 8: HideAccelGraph ships OFF
-  on = {"OffroadScreensaver", "BSMFlameTracks", "ConfidenceBall", "RedesignUI", "ShowUploadRate", "RemoteUIStream", "HevcStream",
+  on = {"BSMFlameTracks", "ConfidenceBall", "RedesignUI", "ShowUploadRate", "RemoteUIStream", "HevcStream",
         "SwapSpeedGraph"}
-  off = {"DeveloperHUD", "HideAccelGraph", "OccViz", "LiveYOLO"}
+  off = {"DeveloperHUD", "HideAccelGraph", "OccViz", "LiveYOLO", "OffroadScreensaver"}
   for k in on:
     assert bt.read_toggle(k) is True, k
   for k in off:
