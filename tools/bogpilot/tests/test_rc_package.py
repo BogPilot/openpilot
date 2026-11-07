@@ -556,6 +556,7 @@ class BuildMetadataTests(PackageTests):
       with self.assertRaisesRegex(ValueError, "prerequisite"):
         self.verify()
       self.git("checkout", "-q", "HEAD~1", "--", name)
+      (self.root / name).chmod(0o644)  # independent of host umask
       self.commit()
 
   def test_runtime_api_drift_blocks_verify(self):
@@ -589,6 +590,9 @@ class RealVersionModuleTests(unittest.TestCase):
       vs = importlib.util.spec_from_file_location("op_version_real", repo / "openpilot/common/version.py")
       v = importlib.util.module_from_spec(vs)
       vs.loader.exec_module(v)
+      if subprocess.call(["git", "-C", str(repo), "rev-parse", "--show-toplevel"], stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL) != 0:
+        self.skipTest("not run from a Git checkout")
       head = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"]).decode().strip()
       dirty = subprocess.check_output(["git", "-C", str(repo), "status", "--porcelain", "--untracked-files=no"]).strip()
       branch = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "--abbrev-ref", "HEAD"]).decode().strip()
