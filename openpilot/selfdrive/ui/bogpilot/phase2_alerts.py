@@ -202,6 +202,48 @@ def add_to_alert_manager(am, frame, keys, enabled_keys=ACTIVE_ALERT_KEYS, eligib
   am.add_many(frame, [make_alert(key, event_api) for key in keys if key in allowed])
 
 
+def _optional_failure():
+  # Best-effort LOCAL diagnostic only; never turn optional logging into a fault.
+  try:
+    from openpilot.common.swaglog import cloudlog
+    cloudlog.exception("BogPilot optional alerts disabled until selfdrived restart")
+  except Exception:
+    pass
+
+
+def create_optional_alert_runtime():
+  try:
+    return Phase2AlertRuntime()
+  except Exception:
+    _optional_failure()
+    return None
+
+
+def dispatch_optional_alerts(runtime, am, frame, cs, sm, now):
+  """Only optional work is guarded. Stock creation/add/process stay outside.
+
+  False permanently disables this instance until daemon restart. Discard only
+  our owned notifications, including partially-added ones, without touching
+  stock entries. KeyboardInterrupt/SystemExit are intentionally not swallowed.
+  """
+  try:
+    keys = runtime.update(cs, sm, now)
+    eligible = (cs.canValid and cs.standstill and str(cs.gearShifter) in ("drive", "low", "sport", "eco", "manumatic")
+                and sm.all_checks(["modelV2", "radarState"])
+                and all(0 <= now - sm.recv_time[service] <= .25 for service in ("modelV2", "radarState")))
+    enabled = tuple(k for k in ACTIVE_ALERT_KEYS if read_enabled(runtime.store, k))
+    add_to_alert_manager(am, frame, keys, enabled, eligible)
+    return True
+  except Exception:
+    for key in ACTIVE_ALERT_KEYS:
+      try:
+        am.alerts.pop(f"bogpilot{key}/permanent", None)
+      except Exception:
+        pass
+    _optional_failure()
+    return False
+
+
 def create_alerts_layout(store=None):
   """Lazy raylib layout; sound lane owns the sibling Alert Volume Controller."""
   from openpilot.system.ui.widgets import Widget

@@ -20,7 +20,7 @@ from opendbc.car.car_helpers import get_car, interfaces
 from opendbc.car.interfaces import CarInterfaceBase, RadarInterfaceBase
 from openpilot.selfdrive.pandad import can_capnp_to_list, can_list_to_can_capnp
 from openpilot.selfdrive.car.cruise import VCruiseHelper
-from openpilot.selfdrive.car.ap1_runtime import apply_ap1_alternative_experience, apply_ap1_volume_defaults
+from openpilot.selfdrive.car.ap1_runtime import apply_ap1_volume_defaults
 from openpilot.selfdrive.car.bogpilot_card import frogpilot_car_state_msg
 
 REPLAY = "REPLAY" in os.environ
@@ -117,7 +117,6 @@ class Car:
       self.CI.CC.model_v2_provider = lambda: self.ap1_model["modelV2"] if self.ap1_model.all_checks() else None
 
     self.CP.alternativeExperience = 0
-    apply_ap1_alternative_experience(self.CP, self.params)
     openpilot_enabled_toggle = self.params.get_bool("OpenpilotEnabledToggle")
     controller_available = self.CI.CC is not None and openpilot_enabled_toggle and not self.CP.dashcamOnly
     self.CP.passive = not controller_available or self.CP.dashcamOnly

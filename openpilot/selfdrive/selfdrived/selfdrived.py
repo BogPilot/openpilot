@@ -20,7 +20,7 @@ from openpilot.selfdrive.car.car_events import CarEvents
 from openpilot.selfdrive.locationd.helpers import PoseCalibrator, Pose
 from openpilot.selfdrive.selfdrived.events import Events, ET
 from openpilot.selfdrive.selfdrived.helpers import ExcessiveActuationCheck
-from openpilot.selfdrive.ui.bogpilot.phase2_alerts import Phase2AlertRuntime, add_to_alert_manager, ACTIVE_ALERT_KEYS, read_enabled
+from openpilot.selfdrive.ui.bogpilot.phase2_alerts import create_optional_alert_runtime, dispatch_optional_alerts
 from openpilot.selfdrive.selfdrived.state import StateMachine
 from openpilot.selfdrive.selfdrived.alertmanager import AlertManager, set_offroad_alert
 
@@ -113,7 +113,7 @@ class SelfdriveD:
 
     self.CS_prev = car.CarState.new_message()
     self.AM = AlertManager()
-    self.bogpilot_alerts = Phase2AlertRuntime()
+    self.bogpilot_alerts = create_optional_alert_runtime()
     self.events = Events()
 
     self.initialized = False
@@ -522,13 +522,9 @@ class SelfdriveD:
     alerts = self.events.create_alerts(self.state_machine.current_alert_types, [self.CP, CS, self.sm, self.is_metric,
                                                                                 self.state_machine.soft_disable_timer, pers])
     self.AM.add_many(self.sm.frame, alerts)
-    now = time.monotonic()
-    keys = self.bogpilot_alerts.update(CS, self.sm, now)
-    eligible = (CS.canValid and CS.standstill and str(CS.gearShifter) in ("drive", "low", "sport", "eco", "manumatic")
-                and self.sm.all_checks(["modelV2", "radarState"])
-                and all(0 <= now - self.sm.recv_time[service] <= .25 for service in ("modelV2", "radarState")))
-    enabled_keys = tuple(k for k in ACTIVE_ALERT_KEYS if read_enabled(self.bogpilot_alerts.store, k))
-    add_to_alert_manager(self.AM, self.sm.frame, keys, enabled_keys, eligible)
+    if self.bogpilot_alerts is not None:
+      if not dispatch_optional_alerts(self.bogpilot_alerts, self.AM, self.sm.frame, CS, self.sm, time.monotonic()):
+        self.bogpilot_alerts = None
     self.AM.process_alerts(self.sm.frame, clear_event_types)
 
   def publish_selfdriveState(self, CS):

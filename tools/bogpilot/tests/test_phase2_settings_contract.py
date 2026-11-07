@@ -47,8 +47,21 @@ def test_consumer_removed_fails_closed(tmp_path):
   assert any("EngageVolume: consumer evidence missing" == e for e in errors)
 
 
-def test_t968_alert_policy_is_pending_not_false_support():
+def test_t968_alert_policy_has_verified_consumers_not_other_dormant_alerts():
   assert c.PENDING_ALERT_DEFAULTS == {"GreenLightAlert": "1", "LeadDepartingAlert": "1"}
   assert c.PENDING_ALERT_LABELS["LeadDepartingAlert"] == "Lead Departed Alert"
-  assert c.eligible(c.PENDING_ALERT_DEFAULTS) == ()
+  assert c.eligible(c.PENDING_ALERT_DEFAULTS) == ("GreenLightAlert", "LeadDepartingAlert")
   assert "GoatScream" not in c.PENDING_ALERT_DEFAULTS
+
+
+def test_aol_core_reappearance_is_release_failure(tmp_path):
+  import shutil
+  for name in ("bogpilot_params.py", "params_keys_bogpilot.h"):
+    path = tmp_path / c.COMMON / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(ROOT / c.COMMON / name, path)
+  path = tmp_path / c.AP1 / "aol_gate.py"
+  path.parent.mkdir(parents=True)
+  path.write_text("# experimental core is forbidden even without UI")
+  assert "AOL core must not ship in default-model release" in c.audit(tmp_path)
+  assert c.eligible(["AlwaysOnLateral", "AlwaysOnLateralMain"]) == ()
