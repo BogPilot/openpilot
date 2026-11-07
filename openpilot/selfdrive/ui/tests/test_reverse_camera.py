@@ -10,8 +10,11 @@ R, D = car.CarState.GearShifter.reverse, car.CarState.GearShifter.drive
 
 
 class Clock:
-  def __init__(self): self.t = 100.0
-  def __call__(self): return self.t
+  def __init__(self):
+    self.t = 100.0
+
+  def __call__(self):
+    return self.t
 
 
 @pytest.fixture
@@ -38,7 +41,8 @@ def test_hold_debounce_then_show(ctl):
 
 
 def test_exit_reverse_returns_immediately_and_rearms(ctl):
-  step(ctl, 0.0); assert step(ctl, 0.6)
+  step(ctl, 0.0)
+  assert step(ctl, 0.6)
   assert step(ctl, 0.05, in_reverse=False) is False
   assert step(ctl, 0.05) is False           # repeated reverse needs a fresh 0.5 s hold
   assert step(ctl, 0.3) is False
@@ -53,13 +57,15 @@ def test_brief_reverse_blips_never_show(ctl):
 
 @pytest.mark.parametrize("kw", [dict(started=False), dict(carstate_fresh=False), dict(enabled=False)])
 def test_offroad_stale_or_toggle_off_drop_view_and_reset(ctl, kw):
-  step(ctl, 0.0); assert step(ctl, 0.6)
+  step(ctl, 0.0)
+  assert step(ctl, 0.6)
   assert step(ctl, 0.01, **kw) is False
   assert step(ctl, 0.01) is False
 
 
 def test_enabled_requires_qol_parent_and_driver_camera():
-  store = lambda v: SimpleNamespace(get_bool=lambda k: v.get(k, False))
+  def store(v):
+    return SimpleNamespace(get_bool=lambda k: v.get(k, False))
   assert rc.enabled_from(store({"QOLVisuals": True, "DriverCamera": True}))
   assert not rc.enabled_from(store({"QOLVisuals": False, "DriverCamera": True}))
   assert not rc.enabled_from(store({"QOLVisuals": True}))
@@ -74,7 +80,9 @@ class _SM:
   def __init__(self, gear, alive, valid, recv):
     self.alive, self.valid, self.recv_time = {"carState": alive}, {"carState": valid}, {"carState": recv}
     self._cs = SimpleNamespace(gearShifter=gear)
-  def __getitem__(self, k): return self._cs
+
+  def __getitem__(self, k):
+    return self._cs
 
 
 def test_read_gear_freshness():
