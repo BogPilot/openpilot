@@ -116,7 +116,7 @@ class GateTests(unittest.TestCase):
     return gate.verify(self.source, self.archive, self.first, self.second, self.candidate)
 
   def test_complete_synthetic_evidence(self):
-    self.assertEqual(self.verify()['status'], 'PASS')
+    self.assertEqual(self.verify()['status'], 'pass')
 
   def test_wrong_candidate(self):
     with self.assertRaisesRegex(ValueError, 'HEAD'):
@@ -157,7 +157,7 @@ class GateTests(unittest.TestCase):
     (obj / 'version').write_text('old generated output')
     (self.archive / 'panda/.sconsign.dblite').write_text('database')
     (self.archive / 'panda/compile_commands.json').write_text('generated')
-    self.assertEqual(self.verify()['status'], 'PASS')
+    self.assertEqual(self.verify()['status'], 'pass')
 
   def test_fingerprint_tamper(self):
     with self.assertRaisesRegex(ValueError, 'fingerprint'):
@@ -191,7 +191,7 @@ class GateTests(unittest.TestCase):
     (obj / 'version').write_text('generated output')
     (self.source / 'panda/.sconsign.dblite').write_text('generated database')
     (self.source / 'panda/compile_commands.json').write_text('generated commands')
-    self.assertEqual(self.verify()['status'], 'PASS')
+    self.assertEqual(self.verify()['status'], 'pass')
 
   def test_missing_body(self):
     (self.first / gate.OUTPUTS[1]).unlink()
@@ -247,7 +247,7 @@ class GateTests(unittest.TestCase):
     with contextlib.redirect_stderr(stderr):
       code = gate.main(['--source', str(self.source), '--archive', str(self.archive), '--artifacts', str(self.first),
                         '--repeat', str(self.second / 'missing'), '--candidate', self.candidate])
-    self.assertEqual(json.loads(stderr.getvalue())['status'], 'FAIL')
+    self.assertEqual(json.loads(stderr.getvalue())['status'], 'fail')
     self.assertEqual(code, 1)
 
 
