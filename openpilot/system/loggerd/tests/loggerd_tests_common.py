@@ -5,7 +5,7 @@ from pathlib import Path
 
 from openpilot.common.test import OpenpilotTestCase
 import openpilot.system.loggerd.deleter as deleter
-import openpilot.system.loggerd.uploader as uploader
+from openpilot.system.loggerd.route_dirs import UPLOAD_ATTR_NAME
 from openpilot.common.params import Params
 from openpilot.common.hardware.hw import Paths
 from openpilot.system.loggerd.xattr_cache import setxattr
@@ -27,7 +27,7 @@ def create_random_file(file_path: Path, size_mb: float, lock: bool = False, uplo
       f.write(data)
 
   if upload_xattr is not None:
-    setxattr(str(file_path), uploader.UPLOAD_ATTR_NAME, upload_xattr)
+    setxattr(str(file_path), UPLOAD_ATTR_NAME, upload_xattr)
 
 class MockResponse:
   def __init__(self, text, status_code):
@@ -64,13 +64,8 @@ class UploaderTestCase(OpenpilotTestCase):
   seg_dir: str
 
   def set_ignore(self):
-    uploader.Api = MockApiIgnore  # ty: ignore[invalid-assignment]  # test double
 
   def setup_method(self):
-    uploader.Api = MockApi  # ty: ignore[invalid-assignment]  # test double
-    uploader.fake_upload = True
-    uploader.force_wifi = True
-    uploader.allow_sleep = False
     self.seg_num = random.randint(1, 300)
     self.seg_format = "00000004--0ac3964c96--{}"
     self.seg_format2 = "00000005--4c4e99b08b--{}"

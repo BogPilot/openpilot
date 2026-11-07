@@ -185,7 +185,7 @@ def imported_manager(tmp_path, params):
     "openpilot.common.version": module("openpilot.common.version", get_build_metadata=lambda: metadata),
     "openpilot.common.utils": module("openpilot.common.utils", atomic_write=MagicMock()),
     "openpilot.system.manager.helpers": module("openpilot.system.manager.helpers", unblock_stdout=MagicMock(), save_bootlog=MagicMock()),
-    "openpilot.system.athena.registration": module("openpilot.system.athena.registration", register=MagicMock(return_value="sandbox"), UNREGISTERED_DONGLE_ID="sandbox-unregistered"),
+    "openpilot.system.manager.local_identity": module("openpilot.system.manager.local_identity", local_dongle_id=MagicMock(return_value="sandbox"), UNREGISTERED_DONGLE_ID="sandbox-unregistered"),
   }
   actual = ["openpilot.system.manager.manager", "openpilot.system.manager.process", "openpilot.system.manager.process_config"]
   saved = {k: sys.modules.pop(k) for k in actual if k in sys.modules}
