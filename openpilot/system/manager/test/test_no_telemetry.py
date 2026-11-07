@@ -144,3 +144,9 @@ def test_hardwared_only_registration_gate_removed():
   src = (OP / "system/hardware/hardwared.py").read_text()
   for keep in ('onroad_conditions["ignition"]', "device_temp_good", "device_temp_engageable", "not_flashing_chestnut"):
     assert keep in src, keep
+
+
+def test_retired_athena_namespace_has_no_stub():
+  from pathlib import Path
+  root = Path(__file__).resolve().parents[4]
+  assert not (root / "openpilot/system/athena/__init__.py").exists()
