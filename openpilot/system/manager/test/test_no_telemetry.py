@@ -39,7 +39,11 @@ def test_no_cloud_processes():
 
 @pytest.mark.parametrize("mod", REMOVED_MODULES)
 def test_executable_modules_removed(mod):
-  assert importlib.util.find_spec(mod) is None
+  try:
+    spec = importlib.util.find_spec(mod)
+  except ModuleNotFoundError:
+    spec = None
+  assert spec is None
 
 
 def test_no_runtime_imports_of_cloud_modules():
