@@ -121,3 +121,14 @@ Synthetic fixtures use deliberately fake ELF headers/model bytes and synthetic
 receipts solely to exercise verifier rejection paths; they are NEVER runtime or
 candidate artifacts. Unit-test PASS is not native acceptance. No devices, network,
 imports of product services or source mutations are used by preflight.
+
+## Exact default-C3X optional backend classification
+The full declaration/source inventory still includes every module. Only the exact
+stock `WEBCAM = os.getenv("USE_WEBCAM") is not None` single assignment plus
+`PythonProcess("webcamerad", "openpilot.system.camerad.webcam.camerad", ...,
+enabled=WEBCAM)` permits optional classification. Unknown/reassigned guards remain
+required. An imports receipt must explicitly attest
+`profile:{"target":"comma3x","use_webcam":false}` to apply this scope; otherwise
+all declared modules are required as before. Missing required imports still block.
+Report any attempted optional import failure separately, never as a required failure
+or disguised skip. This does not waive GPU/model/native camerad requirements.
