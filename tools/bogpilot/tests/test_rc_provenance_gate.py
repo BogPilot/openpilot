@@ -37,7 +37,7 @@ class GateTests(unittest.TestCase):
   def manifest(self):
     names=self.git("ls-files").splitlines()
     return dict(schema_version=1,source_commit=self.git("rev-parse","HEAD"),submodules={},
-                files={p:g.digest((self.root/p).read_bytes()) for p in names},
+                files={p:g.digest(os.fsencode(os.readlink(self.root/p)) if (self.root/p).is_symlink() else (self.root/p).read_bytes()) for p in names},
                 required_build_assets=list(g.BASE_ASSETS),
                 license_notices=[p for p in names if Path(p).name.lower().startswith(("license","notice","copying"))])
   def codes(self,result):return {x["code"] for x in result["checks"]}
@@ -101,7 +101,7 @@ class GateTests(unittest.TestCase):
     self.commit();self.m=self.manifest()
     self.assertIn('unreviewed_identity_content',self.codes(self.run_gate()))
     self.m['reviewed_public_fixtures']={'public.py':self.m['files']['public.py']}
-    self.assertEqual(self.run_gate()['status'],'pass')
+    self.assertIn('invalid_public_fixture_review',self.codes(self.run_gate()))
     self.m['reviewed_public_fixtures']['public.py']='0'*64
     self.assertIn('invalid_public_fixture_review',self.codes(self.run_gate()))
   def test_public_review_cannot_allow_keys(self):
@@ -187,5 +187,98 @@ class GateTests(unittest.TestCase):
     result=self.run_gate();self.assertEqual(result['status'],'pass',result)
     (module/'file').write_bytes(b'changed')
     self.assertIn('submodule_dirty',self.codes(self.run_gate()))
+
+  def record(self, records):
+    return dict(schema_version=1,source_commit=self.m['source_commit'],
+                manifest_sha256=g.digest(g.canonical(self.m)),
+                source_catalog_sha256=g.digest(g.canonical(g.source_catalog(g.tree_entries(self.root)))),records=records)
+  def make_link_review(self, target='public.py', representation='symlink'):
+    (self.root/'alias').symlink_to(target);self.commit();self.m=self.manifest()
+    payload=os.fsencode(target)
+    self.m['files']['alias']=g.digest(payload) if representation=='symlink' else self.m['files']['public.py']
+    entry=g.tree_entries(self.root)['alias']
+    item=dict(kind='internal_link',source_mode=entry[0],source_blob=entry[2],
+              shipping_sha256=self.m['files']['alias'],link_sha256=g.digest(payload),
+              target=target,target_sha256=self.m['files'].get(target,'0'*64),representation=representation)
+    return self.record({'alias':item})
+  def test_reviewed_internal_link_exact(self):
+    record=self.make_link_review()
+    r=g.audit(self.root,self.m,review=record)
+    self.assertEqual(r['status'],'pass',r)
+    link=r['shipping']['reviewed_links'][0]
+    self.assertEqual(link['source_mode'],'120000')
+    self.assertEqual(r['shipping']['scanned_files'],len(self.m['files']))
+  def test_review_wrong_sha_denied(self):
+    record=self.make_link_review();record['source_commit']='0'*40
+    self.assertIn('review_record_invalid',self.codes(g.audit(self.root,self.m,review=record)))
+  def test_review_inventory_tamper_denied(self):
+    record=self.make_link_review();self.m['files']['public.py']='0'*64
+    self.assertIn('review_record_invalid',self.codes(g.audit(self.root,self.m,review=record)))
+  def test_review_link_record_tamper_denied(self):
+    record=self.make_link_review();record['records']['alias']['source_blob']='0'*40
+    self.assertIn('review_record_invalid',self.codes(g.audit(self.root,self.m,review=record)))
+  def test_review_unshipped_target_denied(self):
+    record=self.make_link_review();del self.m['files']['public.py'];record['manifest_sha256']=g.digest(g.canonical(self.m))
+    self.assertIn('review_record_invalid',self.codes(g.audit(self.root,self.m,review=record)))
+  def test_review_escaping_link_denied(self):
+    record=self.make_link_review('../outside')
+    self.assertIn('review_record_invalid',self.codes(g.audit(self.root,self.m,review=record)))
+  def test_review_absolute_link_denied(self):
+    outside=Path(self.temp.name)/'outside';outside.write_bytes(b'synthetic')
+    record=self.make_link_review(str(outside))
+    self.assertIn('review_record_invalid',self.codes(g.audit(self.root,self.m,review=record)))
+  def test_review_private_link_target_denied(self):
+    self.write('.env',b'synthetic nonsecret');self.git('add','-f','.env');self.git('commit','-qm','synthetic forbidden file')
+    record=self.make_link_review('.env')
+    self.assertIn('review_record_invalid',self.codes(g.audit(self.root,self.m,review=record)))
+  def test_materialized_link_preserves_source_mode(self):
+    import shutil
+    record=self.make_link_review(representation='regular')
+    stage=Path(self.temp.name)/'stage';shutil.copytree(self.root,stage,ignore=shutil.ignore_patterns('.git'))
+    r=g.audit(self.root,self.m,stage,record)
+    self.assertEqual(r['status'],'pass',r)
+    self.assertEqual(r['shipping']['reviewed_links'][0]['source_mode'],'120000')
+    self.assertEqual(r['shipping']['reviewed_links'][0]['representation'],'regular')
+  def test_public_reference_requires_immutable_anchor(self):
+    self.write('public.py',b'VIN'+b'='+b'A'*17);self.commit();self.m=self.manifest()
+    entry=g.tree_entries(self.root)['public.py']
+    item=dict(kind='public_reference',source_mode=entry[0],source_blob=entry[2],
+              shipping_sha256=self.m['files']['public.py'],public_commit=self.m['source_commit'])
+    record=self.record({'public.py':item})
+    self.assertIn('review_record_invalid',self.codes(g.audit(self.root,self.m,review=record)))
+    with mock.patch.object(g,'TRUSTED_PUBLIC_COMMIT',self.m['source_commit']):
+      self.assertEqual(g.audit(self.root,self.m,review=record)['status'],'pass')
+  def test_public_anchor_does_not_waive_private_key(self):
+    self.write('public.py',b'-----BEGIN '+b'RSA PRIVATE KEY-----');self.commit();self.m=self.manifest()
+    entry=g.tree_entries(self.root)['public.py']
+    record=self.record({'public.py':dict(kind='public_reference',source_mode=entry[0],source_blob=entry[2],
+                         shipping_sha256=self.m['files']['public.py'],public_commit=self.m['source_commit'])})
+    with mock.patch.object(g,'TRUSTED_PUBLIC_COMMIT',self.m['source_commit']):
+      self.assertIn('review_record_invalid',self.codes(g.audit(self.root,self.m,review=record)))
+  def test_carlog_source_not_raw_log(self):
+    self.assertFalse(g.private_name('opendbc_repo/opendbc/car/carlog.py'))
+    self.assertTrue(g.private_name('data/rlog.zst'))
+
+  def test_missing_source_not_silent_overlay(self):
+    del self.m['files']['public.py']
+    self.assertIn('source_catalog_not_fully_accounted',self.codes(self.run_gate()))
+  def test_explicit_private_exclusion_preserves_catalog(self):
+    self.write('config.json',b'synthetic build host metadata');self.commit();self.m=self.manifest()
+    e=g.tree_entries(self.root)['config.json'];del self.m['files']['config.json']
+    self.m['source_exclusions']={'config.json':dict(source_mode=e[0],source_blob=e[2],reason='private_or_build_host_only')}
+    result=self.run_gate();self.assertEqual(result['status'],'pass',result)
+    self.assertEqual(result['source_scope'],'cataloged_source_with_explicit_exclusions')
+    self.m['source_exclusions']['config.json']['source_blob']='0'*40
+    self.assertIn('source_exclusions_invalid',self.codes(self.run_gate()))
+  def test_no_excluding_required_notice(self):
+    e=g.tree_entries(self.root)['LICENSE'];del self.m['files']['LICENSE']
+    self.m['source_exclusions']={'LICENSE':dict(source_mode=e[0],source_blob=e[2],reason='private_or_build_host_only')}
+    self.assertIn('source_exclusions_invalid',self.codes(self.run_gate()))
+  def test_review_link_target_hash_tamper(self):
+    record=self.make_link_review();record['records']['alias']['target_sha256']='0'*64
+    self.assertIn('review_record_invalid',self.codes(g.audit(self.root,self.m,review=record)))
+  def test_review_link_payload_tamper(self):
+    record=self.make_link_review();record['records']['alias']['link_sha256']='0'*64
+    self.assertIn('review_record_invalid',self.codes(g.audit(self.root,self.m,review=record)))
 
 if __name__=='__main__':unittest.main()

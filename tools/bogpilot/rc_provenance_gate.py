@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import os
+import posixpath
 from pathlib import Path, PurePosixPath
 import re
 import stat
@@ -20,6 +21,9 @@ BASE_ASSETS = ("LICENSE", "launch_chffrplus.sh", "launch_openpilot.sh", "SConstr
                "openpilot/selfdrive/modeld/models/driving_warp_1928x1208_tinygrad.pkl",
                "openpilot/selfdrive/modeld/models/dm_warp_1344x760_tinygrad.pkl",
                "openpilot/selfdrive/modeld/models/dm_warp_1928x1208_tinygrad.pkl")
+TRUSTED_PUBLIC_COMMIT = "f7db927c728bab57bb1263e05465766a8f28fc9d"
+NONSHIPPING_PUBLIC_FIXTURE = {"panda/board/crypto/certs/debug":"39864b6b1a36e43a86ae23ece433302f220b11af"}
+PUBLIC_SOURCE_NAMES = {"opendbc_repo/opendbc/car/rlog.capnp", "openpilot/common/esim/gsma_ci_bundle.pem"}
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 PRIVATE_PARTS = {".git", ".ssh", ".aws", ".gnupg", "realdata", "params", "params_backup", "params_backups", "private", "secrets", "node_modules", ".venv", "venv"}
@@ -50,7 +54,7 @@ def private_name(name):
   return (any(p in PRIVATE_PARTS for p in low) or base.startswith((".env", "id_rsa", "id_ed25519"))
           or base.endswith((".rlog", ".qlog", ".pem", ".key", ".p12", ".pfx"))
           or base in ("rlog", "qlog", "rlog.bz2", "rlog.zst", "qlog.bz2", "qlog.zst", "config.json", "authorized_keys", "known_hosts", "compile_commands.json")
-          or bool(re.search(r"(?:rlog|qlog)[.\-]", base)))
+          or bool(re.match(r"(?:rlog|qlog)[.\-]", base)))
 
 
 def git(repo, *args):
@@ -87,7 +91,96 @@ def regular_inside(repo, name):
     return None
 
 
-def audit(repo, manifest, shipping_root=None):
+def canonical(value):
+  return json.dumps(value,sort_keys=True,separators=(",",":")).encode()
+
+
+def source_catalog(entries):
+  return {p:{"mode":e[0],"blob":e[2]} for p,e in sorted(entries.items())}
+
+
+def verify_review(repo, stage, manifest, review, entries, head):
+  """Unsigned local proof record: exact public-source/link checks, not a waiver."""
+  if review is None:return {}, [], None
+  catalog = digest(canonical(source_catalog(tree_entries(repo))))
+  if (not isinstance(review,dict) or review.get("schema_version") != 1
+      or review.get("source_commit") != head
+      or review.get("manifest_sha256") != digest(canonical(manifest))
+      or review.get("source_catalog_sha256") != catalog
+      or not isinstance(review.get("records"),dict)):
+    raise ValueError("review_binding")
+  accepted = {}
+  links = []
+  files = manifest.get("files",{})
+  for name,record in review["records"].items():
+    if not safe_path(name) or name not in files or name not in entries or not isinstance(record,dict):
+      raise ValueError("review_path")
+    mode,kind,blob=entries[name]
+    if (record.get("source_mode") != mode or record.get("source_blob") != blob
+        or record.get("shipping_sha256") != files[name]):raise ValueError("review_source")
+    role=record.get("kind")
+    if role in ("public_reference","public_source_name"):
+      if mode not in ("100644","100755") or record.get("public_commit") != TRUSTED_PUBLIC_COMMIT:
+        raise ValueError("review_public_anchor")
+      original=git(repo,"show","HEAD:"+name)
+      if digest(original) != files[name]:raise ValueError("review_public_bytes")
+      anchor=git(repo,"ls-tree","-z",TRUSTED_PUBLIC_COMMIT,"--",name).split(b"\0")[0]
+      if not anchor:raise ValueError("review_anchor_absent")
+      metadata,anchor_name=anchor.split(b"\t",1)
+      amode,akind,ablob=metadata.decode().split()
+      if (os.fsdecode(anchor_name)!=name or amode!=mode or ablob!=blob or akind!="blob"):
+        raise ValueError("review_anchor_changed")
+      if role=="public_source_name" and name not in PUBLIC_SOURCE_NAMES:
+        raise ValueError("review_private_name_not_waivable")
+      # Public-source proof can never authorize credential contents.
+      if KEY.search(original) or TOKEN.search(original):raise ValueError("review_credential_not_waivable")
+      if role=="public_reference" and private_name(name):raise ValueError("review_private_name_not_waivable")
+      if name.endswith(".pem") and b"-----BEGIN CERTIFICATE-----" not in original:
+        raise ValueError("review_not_public_certificate")
+      accepted[name]=role
+    elif role=="internal_link":
+      if mode!="120000" or private_name(name):raise ValueError("review_link_mode")
+      payload=git(repo,"show","HEAD:"+name)
+      if record.get("link_sha256")!=digest(payload):raise ValueError("review_link_payload")
+      # Resolve only committed symlink objects; never chase filesystem escapes.
+      current=name;seen=set()
+      while entries.get(current,(None,))[0]=="120000":
+        if current in seen:raise ValueError("review_link_cycle")
+        seen.add(current)
+        raw=git(repo,"show","HEAD:"+current).decode("utf-8")
+        if not raw or raw.startswith("/") or "\\" in raw or "\x00" in raw:raise ValueError("review_link_escape")
+        current=posixpath.normpath(posixpath.join(posixpath.dirname(current),raw))
+        if not safe_path(current) or private_name(current) or current not in files:
+          raise ValueError("review_link_private_or_unshipped")
+      if entries.get(current,(None,))[0] not in ("100644","100755") or record.get("target")!=current:
+        raise ValueError("review_link_target")
+      target=regular_inside(repo,current)
+      if target is None or target.stat().st_size>MAX_FILE:raise ValueError("review_target_not_regular")
+      target_hash=digest(target.read_bytes())
+      if record.get("target_sha256")!=target_hash or files.get(current)!=target_hash:
+        raise ValueError("review_target_hash")
+      representation=record.get("representation")
+      link=stage/name
+      if representation=="symlink":
+        if not link.is_symlink() or os.fsencode(os.readlink(link))!=payload or files[name]!=digest(payload):
+          raise ValueError("review_staged_link_changed")
+        # Every ancestor is a directory, not an unreviewed filesystem indirection.
+        if any((stage/Path(*PurePosixPath(name).parts[:i+1])).is_symlink() for i in range(len(PurePosixPath(name).parts)-1)):
+          raise ValueError("review_link_parent")
+      elif representation=="regular":
+        if regular_inside(stage,name) is None or files[name]!=target_hash:
+          raise ValueError("review_materialization_changed")
+      else:raise ValueError("review_representation")
+      accepted[name]=representation
+      links.append({"path_id":path_id(name),"source_mode":mode,"source_blob":blob,
+                    "link_sha256":digest(payload),"target_path_id":path_id(current),
+                    "target_sha256":target_hash,"representation":representation})
+    else:raise ValueError("review_unknown_kind")
+  return accepted,links,{"sha256":digest(canonical(review)),"source_catalog_sha256":catalog,
+                        "record_count":len(accepted)}
+
+
+def audit(repo, manifest, shipping_root=None, review=None):
   result = {"schema_version": SCHEMA, "status": "blocked", "scope": "source_and_explicit_shipping_files",
             "checks": [], "limitations": ["heuristic_content_scan_not_privacy_certification", "no_firmware_or_archive_validation"]}
   checks = result["checks"]
@@ -166,15 +259,47 @@ def audit(repo, manifest, shipping_root=None):
     for name in set(BASE_ASSETS) | set(required) | set(notices):
       if name not in files:
         fail("required_file_not_shipped",name)
+    original_catalog=source_catalog(tree_entries(repo))
+    result["source_catalog_sha256"] = digest(canonical(original_catalog))
+    result["source_catalog_entries"] = len(original_catalog)
+    exclusions=manifest.get("source_exclusions",{})
+    valid_exclusions={}
+    if not isinstance(exclusions,dict):
+      fail("source_exclusions_invalid")
+    else:
+      for name,record in exclusions.items():
+        expected=original_catalog.get(name)
+        if (not safe_path(name) or name in files or name in required_notices or name in BASE_ASSETS
+            or not isinstance(record,dict) or expected is None
+            or record.get("source_mode")!=expected["mode"] or record.get("source_blob")!=expected["blob"]
+            or record.get("reason")!="private_or_build_host_only"
+            or not (private_name(name) or NONSHIPPING_PUBLIC_FIXTURE.get(name)==expected["blob"])):
+          fail("source_exclusions_invalid",name)
+        else:valid_exclusions[name]=record
+    source_blobs={p for p,e in original_catalog.items() if e["mode"]!="160000"}
+    if not source_blobs.issubset(set(files)|set(valid_exclusions)):
+      fail("source_catalog_not_fully_accounted")
+    result["source_scope"]="cataloged_source_with_explicit_exclusions" if valid_exclusions else "complete_tracked_source_and_explicit_artifacts"
+    result["source_exclusions"]=[{"path_id":path_id(p),"source_mode":v["source_mode"],"source_blob":v["source_blob"],"reason":v["reason"]} for p,v in sorted(valid_exclusions.items())]
+    try:
+      reviewed,reviewed_links,review_info=verify_review(repo,shipping_root,manifest,review,entries,head)
+      if review_info is not None:result["review"]=review_info
+    except (OSError,ValueError,TypeError,subprocess.TimeoutExpired):
+      fail("review_record_invalid");reviewed={};reviewed_links=[]
     public_fixtures = manifest.get("reviewed_public_fixtures", {})
-    if not isinstance(public_fixtures,dict) or any(p not in files or h != files[p] for p,h in public_fixtures.items()):
+    if public_fixtures:
       fail("invalid_public_fixture_review");public_fixtures = {}
     total = 0
     count = 0
     for name,expected_hash in sorted(files.items()):
-      if private_name(name):
+      if private_name(name) and reviewed.get(name)!="public_source_name":
         fail("private_shipping_path",name)
         # Do not open known credential/log/config files, even for hashing.
+        continue
+      if reviewed.get(name)=="symlink":
+        # Payload audited above; target must ALSO occur in the scanned inventory.
+        count+=1
+        total+=len(git(repo,"show","HEAD:"+name))
         continue
       p = regular_inside(shipping_root,name)
       if p is None:
@@ -207,7 +332,7 @@ def audit(repo, manifest, shipping_root=None):
         if lfs and name in (set(required) | set(BASE_ASSETS)):fail("unresolved_build_asset",name)
         if actual != expected_hash:fail("shipping_digest_mismatch",name)
         if sensitive:fail("credential_content",name)
-        if identity and public_fixtures.get(name) != actual:fail("unreviewed_identity_content",name)
+        if identity and reviewed.get(name) not in ("public_reference","public_source_name"):fail("unreviewed_identity_content",name)
         if name in notices and (size == 0 or name not in entries):fail("invalid_license_notice",name)
         if name in notices and name in entries:
           # Do not permit stripping/replacing source notices in the shipping copy.
@@ -217,7 +342,7 @@ def audit(repo, manifest, shipping_root=None):
       except (OSError,ValueError,subprocess.TimeoutExpired):
         fail("shipping_file_unreadable",name)
     result["shipping"] = {"declared_files":len(files),"scanned_files":count,"scanned_bytes":total,
-                          "manifest_sha256":digest(json.dumps(manifest,sort_keys=True,separators=(",",":")).encode())}
+                          "manifest_sha256":digest(canonical(manifest)),"reviewed_links":reviewed_links}
     # Snapshot fencing: detect source modifications during a potentially long scan.
     if git(repo,"rev-parse","HEAD").decode().strip()!=head or git(repo,"status","--porcelain=v1","-z","--untracked-files=all","--ignore-submodules=none"):
       fail("source_changed_during_audit")
@@ -239,6 +364,7 @@ def main(argv=None):
   parser=argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--repo",required=True)
   parser.add_argument("--manifest",required=True)
+  parser.add_argument("--review-record",help="Explicit exact-source/inventory-bound public-source/internal-link proof JSON")
   parser.add_argument("--shipping-root",help="Explicit staging root for shipping files; defaults to source repo")
   parser.add_argument("--output",help="Write JSON outside source checkout; default stdout")
   args=parser.parse_args(argv)
@@ -246,7 +372,12 @@ def main(argv=None):
     manifest_path=Path(args.manifest)
     if manifest_path.stat().st_size > 16*1024*1024:raise ValueError("manifest_too_large")
     manifest=json.loads(manifest_path.read_text(), object_pairs_hook=unique_object)
-    result=audit(args.repo,manifest,args.shipping_root)
+    review=None
+    if args.review_record:
+      rp=Path(args.review_record)
+      if rp.stat().st_size>16*1024*1024:raise ValueError("review_too_large")
+      review=json.loads(rp.read_text(),object_pairs_hook=unique_object)
+    result=audit(args.repo,manifest,args.shipping_root,review)
   except (OSError,ValueError,TypeError):
     result={"schema_version":SCHEMA,"status":"blocked","checks":[{"code":"manifest_unreadable"}]}
   text=json.dumps(result,sort_keys=True,indent=2)+"\n"
