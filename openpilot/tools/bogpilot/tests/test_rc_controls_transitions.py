@@ -42,16 +42,24 @@ def test_active_curve_cancellation_only_releases(cause):
   assert prev == 0.0
 
 
-@pytest.mark.parametrize("state", ["laneChangeStarting", "laneChangeFinishing"])
+@pytest.mark.parametrize("state", ["preLaneChange", "laneChangeStarting", "laneChangeFinishing"])
 def test_lane_change_continuation_without_blinker_cancels_curve(state):
   # Cancellation must not depend solely on a driver leaving the stalk signal on.
   # This is a hard acceptance assertion, NOT xfail/skip or a production quick fix.
   p = primed()
-  sm = SM(msgs(20.0, 30.0, 300.0, road(300.0, K, 150.0)))
-  sm["modelV2"].meta.laneChangeState = state
   previous = p.curve_speed.a_brake
-  p.update(sm)
-  assert not p.curve_speed.controlling, "CSC remains active during model lane-change continuation"
-  assert not p.curve_speed.csc.target_set
-  assert p.curve_speed.v_cruise_out == pytest.approx(30.0)
-  assert p.curve_speed.a_brake >= previous - 1e-9
+  for _ in range(40):
+    sm = SM(msgs(20.0, 30.0, 300.0, road(300.0, K, 150.0)))
+    sm["modelV2"].meta.laneChangeState = state
+    assert not sm["carState"].leftBlinker and not sm["carState"].rightBlinker
+    p.update(sm)
+    cs = p.curve_speed
+    assert not cs.controlling, "CSC remains active during model lane-change continuation"
+    assert not cs.csc.target_set and not cs.training
+    assert cs.v_cruise_out == pytest.approx(30.0)
+    assert previous - 1e-9 <= cs.a_brake <= previous + RELEASE_JERK * DT_MDL + 1e-9
+    previous = cs.a_brake
+  assert previous == 0.0
+  # Ordinary curve control is available again once the actual model reports off.
+  p.update(SM(msgs(20.0, 30.0, 300.0, road(300.0, K, 150.0))))
+  assert p.curve_speed.controlling
