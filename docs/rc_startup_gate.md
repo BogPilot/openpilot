@@ -57,7 +57,7 @@ BOGPILOT_PARAMS_DIR / BOGPILOT_BACKUP_DIR; prior environment is restored.
    synthetic non-key credential fixture; no reset intent invented.
 2. Successful reset requires a real fsynced archive, preserves inactive fallback,
    identity/calibration/car selection; screensaver OFF; native settings defaults
-   initialized; AP1StockReset1 survives reopening and prevents AP1 replay. Original
+   initialized; AP1StockReset1 survives a fresh-interpreter settings startup and prevents AP1 replay. Original
    content-addressed snapshots remain byte-identical across next boot.
 3. Filesystem-unavailable backup fails closed, request and raw Params retained.
 4. Corrupt same-content archive is rejected without overwriting it or resetting;

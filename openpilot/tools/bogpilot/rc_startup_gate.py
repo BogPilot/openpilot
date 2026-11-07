@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 import platform
 import subprocess
+import sys
 import tempfile
 import traceback
 
@@ -237,7 +238,22 @@ def run_native_cases(root):
     assert originals
     assert any(base64.b64decode(backup.read_snapshot(path)["entries"]["AlwaysOnLateral"]["value"]) == b"1" for path in originals)
     owned = {k: v for k, v in raw_values(p).items() if k in reset.reset_defaults()}
-    boot_settings(Params(p.d), f, c)
+    # Fresh interpreter proves marker-based anti-replay without inherited Python
+    # singleton/profile caches. This is NOT a hardware power-cycle certification.
+    child_code = """
+import sys
+from pathlib import Path
+from openpilot.common.params import Params
+from openpilot.tools.bogpilot.rc_startup_gate import boot_settings, sandbox_environment
+with sandbox_environment(Path(sys.argv[2]), Path(sys.argv[3])):
+  p = Params(sys.argv[1])
+  before, after = boot_settings(p, Path(sys.argv[2]), Path(sys.argv[3]))
+  assert 'reset:not_requested' in before.events
+  assert 'ap1:suppressed-stock-reset' in after.events
+"""
+    child = subprocess.run([sys.executable, "-c", child_code, p.d, str(f), str(c)],
+                           env=dict(os.environ, PYTHONPATH=str(REPO)), capture_output=True)
+    assert child.returncode == 0, "fresh-interpreter startup failed"
     assert {k: v for k, v in raw_values(p).items() if k in reset.reset_defaults()} == owned
     assert not (f / "AP1DefaultsApplied").exists()
     assert all(path.read_bytes() == content for path, content in originals.items())
