@@ -167,7 +167,7 @@ AP1_PARAM_PROFILE: dict[str, str] = {
   "DeveloperSidebar": "0",               # 300 px developer sidebar off (keeps the full driving view)
   "LeadInfo": "0",                       # lead metrics off: the Developer HUD already shows lead data
   "FPSCounter": "0",                     # FPS counter off
-  "AdjacentLeadsUI": "0",                # adjacent radar leads off
+  # t956u: AdjacentLeadsUI inherits the registry ON default; an owner's saved OFF is never overridden.
   "ShowStoppingPoint": "0",              # model stopping-point marker off
   "ShowStoppingPointMetrics": "0",       # stopping-point distance off
   "ShowSLCOffset": "0",                  # hide the SLC offset under the speed limit
