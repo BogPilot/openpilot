@@ -74,6 +74,16 @@ static std::map<std::string, service> services = {
   { "livestreamWideRoadEncodeData", {"livestreamWideRoadEncodeData", false, 20.000000, -1, 2097152}},
   { "livestreamNarrowRoadEncodeData", {"livestreamNarrowRoadEncodeData", false, 20.000000, -1, 2097152}},
   { "livestreamCabinEncodeData", {"livestreamCabinEncodeData", false, 20.000000, -1, 2097152}},
+  { "frogpilotCarControl", {"frogpilotCarControl", true, 100.000000, 10, 256000}},
+  { "frogpilotCarParams", {"frogpilotCarParams", true, 0.020000, 1, 256000}},
+  { "frogpilotCarState", {"frogpilotCarState", true, 100.000000, 10, 256000}},
+  { "frogpilotControlsState", {"frogpilotControlsState", true, 100.000000, 10, 256000}},
+  { "frogpilotDeviceState", {"frogpilotDeviceState", true, 2.000000, 1, 256000}},
+  { "frogpilotModelV2", {"frogpilotModelV2", true, 20.000000, 40, 256000}},
+  { "frogpilotNavigation", {"frogpilotNavigation", true, 1.000000, 10, 256000}},
+  { "frogpilotOnroadEvents", {"frogpilotOnroadEvents", true, 1.000000, 1, 256000}},
+  { "frogpilotPlan", {"frogpilotPlan", true, 20.000000, 5, 256000}},
+  { "frogpilotRadarState", {"frogpilotRadarState", true, 20.000000, 5, 256000}},
   { "customReservedRawData0", {"customReservedRawData0", true, 0.000000, -1, 256000}},
 };
 #endif

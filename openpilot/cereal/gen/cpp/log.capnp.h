@@ -3291,16 +3291,16 @@ struct Event {
     NAV_MODEL_D_E_P_R_E_C_A_T_E_D,
     MAP_RENDER_STATE_D_E_P_R_E_C_A_T_E_D,
     UI_PLAN_D_E_P_R_E_C_A_T_E_D,
-    CUSTOM_RESERVED0,
-    CUSTOM_RESERVED1,
-    CUSTOM_RESERVED2,
-    CUSTOM_RESERVED3,
-    CUSTOM_RESERVED4,
-    CUSTOM_RESERVED5,
-    CUSTOM_RESERVED6,
-    CUSTOM_RESERVED7,
-    CUSTOM_RESERVED8,
-    CUSTOM_RESERVED9,
+    FROGPILOT_CAR_CONTROL,
+    FROGPILOT_CAR_PARAMS,
+    FROGPILOT_CAR_STATE,
+    FROGPILOT_CONTROLS_STATE,
+    FROGPILOT_DEVICE_STATE,
+    FROGPILOT_MODEL_V2,
+    FROGPILOT_NAVIGATION,
+    FROGPILOT_ONROAD_EVENTS,
+    FROGPILOT_PLAN,
+    FROGPILOT_RADAR_STATE,
     LIVESTREAM_NARROW_ROAD_ENCODE_IDX,
     LIVESTREAM_WIDE_ROAD_ENCODE_IDX,
     LIVESTREAM_CABIN_ENCODE_IDX,
@@ -23196,45 +23196,45 @@ public:
   inline bool hasUiPlanDEPRECATED() const;
   inline  ::cereal::UiPlan::Reader getUiPlanDEPRECATED() const;
 
-  inline bool isCustomReserved0() const;
-  inline bool hasCustomReserved0() const;
-  inline  ::cereal::CustomReserved0::Reader getCustomReserved0() const;
+  inline bool isFrogpilotCarControl() const;
+  inline bool hasFrogpilotCarControl() const;
+  inline  ::cereal::FrogPilotCarControl::Reader getFrogpilotCarControl() const;
 
-  inline bool isCustomReserved1() const;
-  inline bool hasCustomReserved1() const;
-  inline  ::cereal::CustomReserved1::Reader getCustomReserved1() const;
+  inline bool isFrogpilotCarParams() const;
+  inline bool hasFrogpilotCarParams() const;
+  inline  ::cereal::FrogPilotCarParams::Reader getFrogpilotCarParams() const;
 
-  inline bool isCustomReserved2() const;
-  inline bool hasCustomReserved2() const;
-  inline  ::cereal::CustomReserved2::Reader getCustomReserved2() const;
+  inline bool isFrogpilotCarState() const;
+  inline bool hasFrogpilotCarState() const;
+  inline  ::cereal::FrogPilotCarState::Reader getFrogpilotCarState() const;
 
-  inline bool isCustomReserved3() const;
-  inline bool hasCustomReserved3() const;
-  inline  ::cereal::CustomReserved3::Reader getCustomReserved3() const;
+  inline bool isFrogpilotControlsState() const;
+  inline bool hasFrogpilotControlsState() const;
+  inline  ::cereal::FrogPilotControlsState::Reader getFrogpilotControlsState() const;
 
-  inline bool isCustomReserved4() const;
-  inline bool hasCustomReserved4() const;
-  inline  ::cereal::CustomReserved4::Reader getCustomReserved4() const;
+  inline bool isFrogpilotDeviceState() const;
+  inline bool hasFrogpilotDeviceState() const;
+  inline  ::cereal::FrogPilotDeviceState::Reader getFrogpilotDeviceState() const;
 
-  inline bool isCustomReserved5() const;
-  inline bool hasCustomReserved5() const;
-  inline  ::cereal::CustomReserved5::Reader getCustomReserved5() const;
+  inline bool isFrogpilotModelV2() const;
+  inline bool hasFrogpilotModelV2() const;
+  inline  ::cereal::FrogPilotModelDataV2::Reader getFrogpilotModelV2() const;
 
-  inline bool isCustomReserved6() const;
-  inline bool hasCustomReserved6() const;
-  inline  ::cereal::CustomReserved6::Reader getCustomReserved6() const;
+  inline bool isFrogpilotNavigation() const;
+  inline bool hasFrogpilotNavigation() const;
+  inline  ::cereal::FrogPilotNavigation::Reader getFrogpilotNavigation() const;
 
-  inline bool isCustomReserved7() const;
-  inline bool hasCustomReserved7() const;
-  inline  ::cereal::CustomReserved7::Reader getCustomReserved7() const;
+  inline bool isFrogpilotOnroadEvents() const;
+  inline bool hasFrogpilotOnroadEvents() const;
+  inline  ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>::Reader getFrogpilotOnroadEvents() const;
 
-  inline bool isCustomReserved8() const;
-  inline bool hasCustomReserved8() const;
-  inline  ::cereal::CustomReserved8::Reader getCustomReserved8() const;
+  inline bool isFrogpilotPlan() const;
+  inline bool hasFrogpilotPlan() const;
+  inline  ::cereal::FrogPilotPlan::Reader getFrogpilotPlan() const;
 
-  inline bool isCustomReserved9() const;
-  inline bool hasCustomReserved9() const;
-  inline  ::cereal::CustomReserved9::Reader getCustomReserved9() const;
+  inline bool isFrogpilotRadarState() const;
+  inline bool hasFrogpilotRadarState() const;
+  inline  ::cereal::FrogPilotRadarState::Reader getFrogpilotRadarState() const;
 
   inline bool isLivestreamNarrowRoadEncodeIdx() const;
   inline bool hasLivestreamNarrowRoadEncodeIdx() const;
@@ -24259,85 +24259,85 @@ public:
   inline void adoptUiPlanDEPRECATED(::capnp::Orphan< ::cereal::UiPlan>&& value);
   inline ::capnp::Orphan< ::cereal::UiPlan> disownUiPlanDEPRECATED();
 
-  inline bool isCustomReserved0();
-  inline bool hasCustomReserved0();
-  inline  ::cereal::CustomReserved0::Builder getCustomReserved0();
-  inline void setCustomReserved0( ::cereal::CustomReserved0::Reader value);
-  inline  ::cereal::CustomReserved0::Builder initCustomReserved0();
-  inline void adoptCustomReserved0(::capnp::Orphan< ::cereal::CustomReserved0>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved0> disownCustomReserved0();
+  inline bool isFrogpilotCarControl();
+  inline bool hasFrogpilotCarControl();
+  inline  ::cereal::FrogPilotCarControl::Builder getFrogpilotCarControl();
+  inline void setFrogpilotCarControl( ::cereal::FrogPilotCarControl::Reader value);
+  inline  ::cereal::FrogPilotCarControl::Builder initFrogpilotCarControl();
+  inline void adoptFrogpilotCarControl(::capnp::Orphan< ::cereal::FrogPilotCarControl>&& value);
+  inline ::capnp::Orphan< ::cereal::FrogPilotCarControl> disownFrogpilotCarControl();
 
-  inline bool isCustomReserved1();
-  inline bool hasCustomReserved1();
-  inline  ::cereal::CustomReserved1::Builder getCustomReserved1();
-  inline void setCustomReserved1( ::cereal::CustomReserved1::Reader value);
-  inline  ::cereal::CustomReserved1::Builder initCustomReserved1();
-  inline void adoptCustomReserved1(::capnp::Orphan< ::cereal::CustomReserved1>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved1> disownCustomReserved1();
+  inline bool isFrogpilotCarParams();
+  inline bool hasFrogpilotCarParams();
+  inline  ::cereal::FrogPilotCarParams::Builder getFrogpilotCarParams();
+  inline void setFrogpilotCarParams( ::cereal::FrogPilotCarParams::Reader value);
+  inline  ::cereal::FrogPilotCarParams::Builder initFrogpilotCarParams();
+  inline void adoptFrogpilotCarParams(::capnp::Orphan< ::cereal::FrogPilotCarParams>&& value);
+  inline ::capnp::Orphan< ::cereal::FrogPilotCarParams> disownFrogpilotCarParams();
 
-  inline bool isCustomReserved2();
-  inline bool hasCustomReserved2();
-  inline  ::cereal::CustomReserved2::Builder getCustomReserved2();
-  inline void setCustomReserved2( ::cereal::CustomReserved2::Reader value);
-  inline  ::cereal::CustomReserved2::Builder initCustomReserved2();
-  inline void adoptCustomReserved2(::capnp::Orphan< ::cereal::CustomReserved2>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved2> disownCustomReserved2();
+  inline bool isFrogpilotCarState();
+  inline bool hasFrogpilotCarState();
+  inline  ::cereal::FrogPilotCarState::Builder getFrogpilotCarState();
+  inline void setFrogpilotCarState( ::cereal::FrogPilotCarState::Reader value);
+  inline  ::cereal::FrogPilotCarState::Builder initFrogpilotCarState();
+  inline void adoptFrogpilotCarState(::capnp::Orphan< ::cereal::FrogPilotCarState>&& value);
+  inline ::capnp::Orphan< ::cereal::FrogPilotCarState> disownFrogpilotCarState();
 
-  inline bool isCustomReserved3();
-  inline bool hasCustomReserved3();
-  inline  ::cereal::CustomReserved3::Builder getCustomReserved3();
-  inline void setCustomReserved3( ::cereal::CustomReserved3::Reader value);
-  inline  ::cereal::CustomReserved3::Builder initCustomReserved3();
-  inline void adoptCustomReserved3(::capnp::Orphan< ::cereal::CustomReserved3>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved3> disownCustomReserved3();
+  inline bool isFrogpilotControlsState();
+  inline bool hasFrogpilotControlsState();
+  inline  ::cereal::FrogPilotControlsState::Builder getFrogpilotControlsState();
+  inline void setFrogpilotControlsState( ::cereal::FrogPilotControlsState::Reader value);
+  inline  ::cereal::FrogPilotControlsState::Builder initFrogpilotControlsState();
+  inline void adoptFrogpilotControlsState(::capnp::Orphan< ::cereal::FrogPilotControlsState>&& value);
+  inline ::capnp::Orphan< ::cereal::FrogPilotControlsState> disownFrogpilotControlsState();
 
-  inline bool isCustomReserved4();
-  inline bool hasCustomReserved4();
-  inline  ::cereal::CustomReserved4::Builder getCustomReserved4();
-  inline void setCustomReserved4( ::cereal::CustomReserved4::Reader value);
-  inline  ::cereal::CustomReserved4::Builder initCustomReserved4();
-  inline void adoptCustomReserved4(::capnp::Orphan< ::cereal::CustomReserved4>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved4> disownCustomReserved4();
+  inline bool isFrogpilotDeviceState();
+  inline bool hasFrogpilotDeviceState();
+  inline  ::cereal::FrogPilotDeviceState::Builder getFrogpilotDeviceState();
+  inline void setFrogpilotDeviceState( ::cereal::FrogPilotDeviceState::Reader value);
+  inline  ::cereal::FrogPilotDeviceState::Builder initFrogpilotDeviceState();
+  inline void adoptFrogpilotDeviceState(::capnp::Orphan< ::cereal::FrogPilotDeviceState>&& value);
+  inline ::capnp::Orphan< ::cereal::FrogPilotDeviceState> disownFrogpilotDeviceState();
 
-  inline bool isCustomReserved5();
-  inline bool hasCustomReserved5();
-  inline  ::cereal::CustomReserved5::Builder getCustomReserved5();
-  inline void setCustomReserved5( ::cereal::CustomReserved5::Reader value);
-  inline  ::cereal::CustomReserved5::Builder initCustomReserved5();
-  inline void adoptCustomReserved5(::capnp::Orphan< ::cereal::CustomReserved5>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved5> disownCustomReserved5();
+  inline bool isFrogpilotModelV2();
+  inline bool hasFrogpilotModelV2();
+  inline  ::cereal::FrogPilotModelDataV2::Builder getFrogpilotModelV2();
+  inline void setFrogpilotModelV2( ::cereal::FrogPilotModelDataV2::Reader value);
+  inline  ::cereal::FrogPilotModelDataV2::Builder initFrogpilotModelV2();
+  inline void adoptFrogpilotModelV2(::capnp::Orphan< ::cereal::FrogPilotModelDataV2>&& value);
+  inline ::capnp::Orphan< ::cereal::FrogPilotModelDataV2> disownFrogpilotModelV2();
 
-  inline bool isCustomReserved6();
-  inline bool hasCustomReserved6();
-  inline  ::cereal::CustomReserved6::Builder getCustomReserved6();
-  inline void setCustomReserved6( ::cereal::CustomReserved6::Reader value);
-  inline  ::cereal::CustomReserved6::Builder initCustomReserved6();
-  inline void adoptCustomReserved6(::capnp::Orphan< ::cereal::CustomReserved6>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved6> disownCustomReserved6();
+  inline bool isFrogpilotNavigation();
+  inline bool hasFrogpilotNavigation();
+  inline  ::cereal::FrogPilotNavigation::Builder getFrogpilotNavigation();
+  inline void setFrogpilotNavigation( ::cereal::FrogPilotNavigation::Reader value);
+  inline  ::cereal::FrogPilotNavigation::Builder initFrogpilotNavigation();
+  inline void adoptFrogpilotNavigation(::capnp::Orphan< ::cereal::FrogPilotNavigation>&& value);
+  inline ::capnp::Orphan< ::cereal::FrogPilotNavigation> disownFrogpilotNavigation();
 
-  inline bool isCustomReserved7();
-  inline bool hasCustomReserved7();
-  inline  ::cereal::CustomReserved7::Builder getCustomReserved7();
-  inline void setCustomReserved7( ::cereal::CustomReserved7::Reader value);
-  inline  ::cereal::CustomReserved7::Builder initCustomReserved7();
-  inline void adoptCustomReserved7(::capnp::Orphan< ::cereal::CustomReserved7>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved7> disownCustomReserved7();
+  inline bool isFrogpilotOnroadEvents();
+  inline bool hasFrogpilotOnroadEvents();
+  inline  ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>::Builder getFrogpilotOnroadEvents();
+  inline void setFrogpilotOnroadEvents( ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>::Reader value);
+  inline  ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>::Builder initFrogpilotOnroadEvents(unsigned int size);
+  inline void adoptFrogpilotOnroadEvents(::capnp::Orphan< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>>&& value);
+  inline ::capnp::Orphan< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>> disownFrogpilotOnroadEvents();
 
-  inline bool isCustomReserved8();
-  inline bool hasCustomReserved8();
-  inline  ::cereal::CustomReserved8::Builder getCustomReserved8();
-  inline void setCustomReserved8( ::cereal::CustomReserved8::Reader value);
-  inline  ::cereal::CustomReserved8::Builder initCustomReserved8();
-  inline void adoptCustomReserved8(::capnp::Orphan< ::cereal::CustomReserved8>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved8> disownCustomReserved8();
+  inline bool isFrogpilotPlan();
+  inline bool hasFrogpilotPlan();
+  inline  ::cereal::FrogPilotPlan::Builder getFrogpilotPlan();
+  inline void setFrogpilotPlan( ::cereal::FrogPilotPlan::Reader value);
+  inline  ::cereal::FrogPilotPlan::Builder initFrogpilotPlan();
+  inline void adoptFrogpilotPlan(::capnp::Orphan< ::cereal::FrogPilotPlan>&& value);
+  inline ::capnp::Orphan< ::cereal::FrogPilotPlan> disownFrogpilotPlan();
 
-  inline bool isCustomReserved9();
-  inline bool hasCustomReserved9();
-  inline  ::cereal::CustomReserved9::Builder getCustomReserved9();
-  inline void setCustomReserved9( ::cereal::CustomReserved9::Reader value);
-  inline  ::cereal::CustomReserved9::Builder initCustomReserved9();
-  inline void adoptCustomReserved9(::capnp::Orphan< ::cereal::CustomReserved9>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved9> disownCustomReserved9();
+  inline bool isFrogpilotRadarState();
+  inline bool hasFrogpilotRadarState();
+  inline  ::cereal::FrogPilotRadarState::Builder getFrogpilotRadarState();
+  inline void setFrogpilotRadarState( ::cereal::FrogPilotRadarState::Reader value);
+  inline  ::cereal::FrogPilotRadarState::Builder initFrogpilotRadarState();
+  inline void adoptFrogpilotRadarState(::capnp::Orphan< ::cereal::FrogPilotRadarState>&& value);
+  inline ::capnp::Orphan< ::cereal::FrogPilotRadarState> disownFrogpilotRadarState();
 
   inline bool isLivestreamNarrowRoadEncodeIdx();
   inline bool hasLivestreamNarrowRoadEncodeIdx();
@@ -57438,543 +57438,543 @@ inline ::capnp::Orphan< ::cereal::UiPlan> Event::Builder::disownUiPlanDEPRECATED
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved0() const {
-  return which() == Event::CUSTOM_RESERVED0;
+inline bool Event::Reader::isFrogpilotCarControl() const {
+  return which() == Event::FROGPILOT_CAR_CONTROL;
 }
-inline bool Event::Builder::isCustomReserved0() {
-  return which() == Event::CUSTOM_RESERVED0;
+inline bool Event::Builder::isFrogpilotCarControl() {
+  return which() == Event::FROGPILOT_CAR_CONTROL;
 }
-inline bool Event::Reader::hasCustomReserved0() const {
-  if (which() != Event::CUSTOM_RESERVED0) return false;
+inline bool Event::Reader::hasFrogpilotCarControl() const {
+  if (which() != Event::FROGPILOT_CAR_CONTROL) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved0() {
-  if (which() != Event::CUSTOM_RESERVED0) return false;
+inline bool Event::Builder::hasFrogpilotCarControl() {
+  if (which() != Event::FROGPILOT_CAR_CONTROL) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved0::Reader Event::Reader::getCustomReserved0() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED0),
+inline  ::cereal::FrogPilotCarControl::Reader Event::Reader::getFrogpilotCarControl() const {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_CAR_CONTROL),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved0>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarControl>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved0::Builder Event::Builder::getCustomReserved0() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED0),
+inline  ::cereal::FrogPilotCarControl::Builder Event::Builder::getFrogpilotCarControl() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_CAR_CONTROL),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved0>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarControl>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved0( ::cereal::CustomReserved0::Reader value) {
+inline void Event::Builder::setFrogpilotCarControl( ::cereal::FrogPilotCarControl::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED0);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved0>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_CAR_CONTROL);
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarControl>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved0::Builder Event::Builder::initCustomReserved0() {
+inline  ::cereal::FrogPilotCarControl::Builder Event::Builder::initFrogpilotCarControl() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED0);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved0>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_CAR_CONTROL);
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarControl>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved0(
-    ::capnp::Orphan< ::cereal::CustomReserved0>&& value) {
+inline void Event::Builder::adoptFrogpilotCarControl(
+    ::capnp::Orphan< ::cereal::FrogPilotCarControl>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED0);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved0>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_CAR_CONTROL);
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarControl>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved0> Event::Builder::disownCustomReserved0() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED0),
+inline ::capnp::Orphan< ::cereal::FrogPilotCarControl> Event::Builder::disownFrogpilotCarControl() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_CAR_CONTROL),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved0>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarControl>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved1() const {
-  return which() == Event::CUSTOM_RESERVED1;
+inline bool Event::Reader::isFrogpilotCarParams() const {
+  return which() == Event::FROGPILOT_CAR_PARAMS;
 }
-inline bool Event::Builder::isCustomReserved1() {
-  return which() == Event::CUSTOM_RESERVED1;
+inline bool Event::Builder::isFrogpilotCarParams() {
+  return which() == Event::FROGPILOT_CAR_PARAMS;
 }
-inline bool Event::Reader::hasCustomReserved1() const {
-  if (which() != Event::CUSTOM_RESERVED1) return false;
+inline bool Event::Reader::hasFrogpilotCarParams() const {
+  if (which() != Event::FROGPILOT_CAR_PARAMS) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved1() {
-  if (which() != Event::CUSTOM_RESERVED1) return false;
+inline bool Event::Builder::hasFrogpilotCarParams() {
+  if (which() != Event::FROGPILOT_CAR_PARAMS) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved1::Reader Event::Reader::getCustomReserved1() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED1),
+inline  ::cereal::FrogPilotCarParams::Reader Event::Reader::getFrogpilotCarParams() const {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_CAR_PARAMS),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved1>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarParams>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved1::Builder Event::Builder::getCustomReserved1() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED1),
+inline  ::cereal::FrogPilotCarParams::Builder Event::Builder::getFrogpilotCarParams() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_CAR_PARAMS),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved1>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarParams>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved1( ::cereal::CustomReserved1::Reader value) {
+inline void Event::Builder::setFrogpilotCarParams( ::cereal::FrogPilotCarParams::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED1);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved1>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_CAR_PARAMS);
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarParams>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved1::Builder Event::Builder::initCustomReserved1() {
+inline  ::cereal::FrogPilotCarParams::Builder Event::Builder::initFrogpilotCarParams() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED1);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved1>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_CAR_PARAMS);
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarParams>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved1(
-    ::capnp::Orphan< ::cereal::CustomReserved1>&& value) {
+inline void Event::Builder::adoptFrogpilotCarParams(
+    ::capnp::Orphan< ::cereal::FrogPilotCarParams>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED1);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved1>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_CAR_PARAMS);
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarParams>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved1> Event::Builder::disownCustomReserved1() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED1),
+inline ::capnp::Orphan< ::cereal::FrogPilotCarParams> Event::Builder::disownFrogpilotCarParams() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_CAR_PARAMS),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved1>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarParams>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved2() const {
-  return which() == Event::CUSTOM_RESERVED2;
+inline bool Event::Reader::isFrogpilotCarState() const {
+  return which() == Event::FROGPILOT_CAR_STATE;
 }
-inline bool Event::Builder::isCustomReserved2() {
-  return which() == Event::CUSTOM_RESERVED2;
+inline bool Event::Builder::isFrogpilotCarState() {
+  return which() == Event::FROGPILOT_CAR_STATE;
 }
-inline bool Event::Reader::hasCustomReserved2() const {
-  if (which() != Event::CUSTOM_RESERVED2) return false;
+inline bool Event::Reader::hasFrogpilotCarState() const {
+  if (which() != Event::FROGPILOT_CAR_STATE) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved2() {
-  if (which() != Event::CUSTOM_RESERVED2) return false;
+inline bool Event::Builder::hasFrogpilotCarState() {
+  if (which() != Event::FROGPILOT_CAR_STATE) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved2::Reader Event::Reader::getCustomReserved2() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED2),
+inline  ::cereal::FrogPilotCarState::Reader Event::Reader::getFrogpilotCarState() const {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_CAR_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved2>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarState>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved2::Builder Event::Builder::getCustomReserved2() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED2),
+inline  ::cereal::FrogPilotCarState::Builder Event::Builder::getFrogpilotCarState() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_CAR_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved2>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarState>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved2( ::cereal::CustomReserved2::Reader value) {
+inline void Event::Builder::setFrogpilotCarState( ::cereal::FrogPilotCarState::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED2);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved2>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_CAR_STATE);
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarState>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved2::Builder Event::Builder::initCustomReserved2() {
+inline  ::cereal::FrogPilotCarState::Builder Event::Builder::initFrogpilotCarState() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED2);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved2>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_CAR_STATE);
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarState>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved2(
-    ::capnp::Orphan< ::cereal::CustomReserved2>&& value) {
+inline void Event::Builder::adoptFrogpilotCarState(
+    ::capnp::Orphan< ::cereal::FrogPilotCarState>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED2);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved2>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_CAR_STATE);
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarState>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved2> Event::Builder::disownCustomReserved2() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED2),
+inline ::capnp::Orphan< ::cereal::FrogPilotCarState> Event::Builder::disownFrogpilotCarState() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_CAR_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved2>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarState>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved3() const {
-  return which() == Event::CUSTOM_RESERVED3;
+inline bool Event::Reader::isFrogpilotControlsState() const {
+  return which() == Event::FROGPILOT_CONTROLS_STATE;
 }
-inline bool Event::Builder::isCustomReserved3() {
-  return which() == Event::CUSTOM_RESERVED3;
+inline bool Event::Builder::isFrogpilotControlsState() {
+  return which() == Event::FROGPILOT_CONTROLS_STATE;
 }
-inline bool Event::Reader::hasCustomReserved3() const {
-  if (which() != Event::CUSTOM_RESERVED3) return false;
+inline bool Event::Reader::hasFrogpilotControlsState() const {
+  if (which() != Event::FROGPILOT_CONTROLS_STATE) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved3() {
-  if (which() != Event::CUSTOM_RESERVED3) return false;
+inline bool Event::Builder::hasFrogpilotControlsState() {
+  if (which() != Event::FROGPILOT_CONTROLS_STATE) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved3::Reader Event::Reader::getCustomReserved3() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED3),
+inline  ::cereal::FrogPilotControlsState::Reader Event::Reader::getFrogpilotControlsState() const {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_CONTROLS_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved3>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotControlsState>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved3::Builder Event::Builder::getCustomReserved3() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED3),
+inline  ::cereal::FrogPilotControlsState::Builder Event::Builder::getFrogpilotControlsState() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_CONTROLS_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved3>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotControlsState>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved3( ::cereal::CustomReserved3::Reader value) {
+inline void Event::Builder::setFrogpilotControlsState( ::cereal::FrogPilotControlsState::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED3);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved3>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_CONTROLS_STATE);
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotControlsState>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved3::Builder Event::Builder::initCustomReserved3() {
+inline  ::cereal::FrogPilotControlsState::Builder Event::Builder::initFrogpilotControlsState() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED3);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved3>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_CONTROLS_STATE);
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotControlsState>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved3(
-    ::capnp::Orphan< ::cereal::CustomReserved3>&& value) {
+inline void Event::Builder::adoptFrogpilotControlsState(
+    ::capnp::Orphan< ::cereal::FrogPilotControlsState>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED3);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved3>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_CONTROLS_STATE);
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotControlsState>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved3> Event::Builder::disownCustomReserved3() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED3),
+inline ::capnp::Orphan< ::cereal::FrogPilotControlsState> Event::Builder::disownFrogpilotControlsState() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_CONTROLS_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved3>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotControlsState>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved4() const {
-  return which() == Event::CUSTOM_RESERVED4;
+inline bool Event::Reader::isFrogpilotDeviceState() const {
+  return which() == Event::FROGPILOT_DEVICE_STATE;
 }
-inline bool Event::Builder::isCustomReserved4() {
-  return which() == Event::CUSTOM_RESERVED4;
+inline bool Event::Builder::isFrogpilotDeviceState() {
+  return which() == Event::FROGPILOT_DEVICE_STATE;
 }
-inline bool Event::Reader::hasCustomReserved4() const {
-  if (which() != Event::CUSTOM_RESERVED4) return false;
+inline bool Event::Reader::hasFrogpilotDeviceState() const {
+  if (which() != Event::FROGPILOT_DEVICE_STATE) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved4() {
-  if (which() != Event::CUSTOM_RESERVED4) return false;
+inline bool Event::Builder::hasFrogpilotDeviceState() {
+  if (which() != Event::FROGPILOT_DEVICE_STATE) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved4::Reader Event::Reader::getCustomReserved4() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED4),
+inline  ::cereal::FrogPilotDeviceState::Reader Event::Reader::getFrogpilotDeviceState() const {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_DEVICE_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved4>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotDeviceState>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved4::Builder Event::Builder::getCustomReserved4() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED4),
+inline  ::cereal::FrogPilotDeviceState::Builder Event::Builder::getFrogpilotDeviceState() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_DEVICE_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved4>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotDeviceState>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved4( ::cereal::CustomReserved4::Reader value) {
+inline void Event::Builder::setFrogpilotDeviceState( ::cereal::FrogPilotDeviceState::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED4);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved4>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_DEVICE_STATE);
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotDeviceState>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved4::Builder Event::Builder::initCustomReserved4() {
+inline  ::cereal::FrogPilotDeviceState::Builder Event::Builder::initFrogpilotDeviceState() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED4);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved4>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_DEVICE_STATE);
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotDeviceState>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved4(
-    ::capnp::Orphan< ::cereal::CustomReserved4>&& value) {
+inline void Event::Builder::adoptFrogpilotDeviceState(
+    ::capnp::Orphan< ::cereal::FrogPilotDeviceState>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED4);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved4>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_DEVICE_STATE);
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotDeviceState>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved4> Event::Builder::disownCustomReserved4() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED4),
+inline ::capnp::Orphan< ::cereal::FrogPilotDeviceState> Event::Builder::disownFrogpilotDeviceState() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_DEVICE_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved4>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotDeviceState>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved5() const {
-  return which() == Event::CUSTOM_RESERVED5;
+inline bool Event::Reader::isFrogpilotModelV2() const {
+  return which() == Event::FROGPILOT_MODEL_V2;
 }
-inline bool Event::Builder::isCustomReserved5() {
-  return which() == Event::CUSTOM_RESERVED5;
+inline bool Event::Builder::isFrogpilotModelV2() {
+  return which() == Event::FROGPILOT_MODEL_V2;
 }
-inline bool Event::Reader::hasCustomReserved5() const {
-  if (which() != Event::CUSTOM_RESERVED5) return false;
+inline bool Event::Reader::hasFrogpilotModelV2() const {
+  if (which() != Event::FROGPILOT_MODEL_V2) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved5() {
-  if (which() != Event::CUSTOM_RESERVED5) return false;
+inline bool Event::Builder::hasFrogpilotModelV2() {
+  if (which() != Event::FROGPILOT_MODEL_V2) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved5::Reader Event::Reader::getCustomReserved5() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED5),
+inline  ::cereal::FrogPilotModelDataV2::Reader Event::Reader::getFrogpilotModelV2() const {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_MODEL_V2),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved5>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotModelDataV2>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved5::Builder Event::Builder::getCustomReserved5() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED5),
+inline  ::cereal::FrogPilotModelDataV2::Builder Event::Builder::getFrogpilotModelV2() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_MODEL_V2),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved5>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotModelDataV2>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved5( ::cereal::CustomReserved5::Reader value) {
+inline void Event::Builder::setFrogpilotModelV2( ::cereal::FrogPilotModelDataV2::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED5);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved5>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_MODEL_V2);
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotModelDataV2>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved5::Builder Event::Builder::initCustomReserved5() {
+inline  ::cereal::FrogPilotModelDataV2::Builder Event::Builder::initFrogpilotModelV2() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED5);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved5>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_MODEL_V2);
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotModelDataV2>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved5(
-    ::capnp::Orphan< ::cereal::CustomReserved5>&& value) {
+inline void Event::Builder::adoptFrogpilotModelV2(
+    ::capnp::Orphan< ::cereal::FrogPilotModelDataV2>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED5);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved5>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_MODEL_V2);
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotModelDataV2>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved5> Event::Builder::disownCustomReserved5() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED5),
+inline ::capnp::Orphan< ::cereal::FrogPilotModelDataV2> Event::Builder::disownFrogpilotModelV2() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_MODEL_V2),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved5>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotModelDataV2>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved6() const {
-  return which() == Event::CUSTOM_RESERVED6;
+inline bool Event::Reader::isFrogpilotNavigation() const {
+  return which() == Event::FROGPILOT_NAVIGATION;
 }
-inline bool Event::Builder::isCustomReserved6() {
-  return which() == Event::CUSTOM_RESERVED6;
+inline bool Event::Builder::isFrogpilotNavigation() {
+  return which() == Event::FROGPILOT_NAVIGATION;
 }
-inline bool Event::Reader::hasCustomReserved6() const {
-  if (which() != Event::CUSTOM_RESERVED6) return false;
+inline bool Event::Reader::hasFrogpilotNavigation() const {
+  if (which() != Event::FROGPILOT_NAVIGATION) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved6() {
-  if (which() != Event::CUSTOM_RESERVED6) return false;
+inline bool Event::Builder::hasFrogpilotNavigation() {
+  if (which() != Event::FROGPILOT_NAVIGATION) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved6::Reader Event::Reader::getCustomReserved6() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED6),
+inline  ::cereal::FrogPilotNavigation::Reader Event::Reader::getFrogpilotNavigation() const {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_NAVIGATION),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved6>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotNavigation>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved6::Builder Event::Builder::getCustomReserved6() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED6),
+inline  ::cereal::FrogPilotNavigation::Builder Event::Builder::getFrogpilotNavigation() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_NAVIGATION),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved6>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotNavigation>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved6( ::cereal::CustomReserved6::Reader value) {
+inline void Event::Builder::setFrogpilotNavigation( ::cereal::FrogPilotNavigation::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED6);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved6>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_NAVIGATION);
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotNavigation>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved6::Builder Event::Builder::initCustomReserved6() {
+inline  ::cereal::FrogPilotNavigation::Builder Event::Builder::initFrogpilotNavigation() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED6);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved6>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_NAVIGATION);
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotNavigation>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved6(
-    ::capnp::Orphan< ::cereal::CustomReserved6>&& value) {
+inline void Event::Builder::adoptFrogpilotNavigation(
+    ::capnp::Orphan< ::cereal::FrogPilotNavigation>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED6);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved6>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_NAVIGATION);
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotNavigation>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved6> Event::Builder::disownCustomReserved6() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED6),
+inline ::capnp::Orphan< ::cereal::FrogPilotNavigation> Event::Builder::disownFrogpilotNavigation() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_NAVIGATION),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved6>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotNavigation>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved7() const {
-  return which() == Event::CUSTOM_RESERVED7;
+inline bool Event::Reader::isFrogpilotOnroadEvents() const {
+  return which() == Event::FROGPILOT_ONROAD_EVENTS;
 }
-inline bool Event::Builder::isCustomReserved7() {
-  return which() == Event::CUSTOM_RESERVED7;
+inline bool Event::Builder::isFrogpilotOnroadEvents() {
+  return which() == Event::FROGPILOT_ONROAD_EVENTS;
 }
-inline bool Event::Reader::hasCustomReserved7() const {
-  if (which() != Event::CUSTOM_RESERVED7) return false;
+inline bool Event::Reader::hasFrogpilotOnroadEvents() const {
+  if (which() != Event::FROGPILOT_ONROAD_EVENTS) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved7() {
-  if (which() != Event::CUSTOM_RESERVED7) return false;
+inline bool Event::Builder::hasFrogpilotOnroadEvents() {
+  if (which() != Event::FROGPILOT_ONROAD_EVENTS) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved7::Reader Event::Reader::getCustomReserved7() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED7),
+inline  ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>::Reader Event::Reader::getFrogpilotOnroadEvents() const {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_ONROAD_EVENTS),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved7>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved7::Builder Event::Builder::getCustomReserved7() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED7),
+inline  ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>::Builder Event::Builder::getFrogpilotOnroadEvents() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_ONROAD_EVENTS),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved7>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved7( ::cereal::CustomReserved7::Reader value) {
+inline void Event::Builder::setFrogpilotOnroadEvents( ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED7);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved7>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_ONROAD_EVENTS);
+  ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved7::Builder Event::Builder::initCustomReserved7() {
+inline  ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>::Builder Event::Builder::initFrogpilotOnroadEvents(unsigned int size) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED7);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved7>::init(_builder.getPointerField(
-      ::capnp::bounded<0>() * ::capnp::POINTERS));
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_ONROAD_EVENTS);
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>>::init(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), size);
 }
-inline void Event::Builder::adoptCustomReserved7(
-    ::capnp::Orphan< ::cereal::CustomReserved7>&& value) {
+inline void Event::Builder::adoptFrogpilotOnroadEvents(
+    ::capnp::Orphan< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED7);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved7>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_ONROAD_EVENTS);
+  ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved7> Event::Builder::disownCustomReserved7() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED7),
+inline ::capnp::Orphan< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>> Event::Builder::disownFrogpilotOnroadEvents() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_ONROAD_EVENTS),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved7>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved8() const {
-  return which() == Event::CUSTOM_RESERVED8;
+inline bool Event::Reader::isFrogpilotPlan() const {
+  return which() == Event::FROGPILOT_PLAN;
 }
-inline bool Event::Builder::isCustomReserved8() {
-  return which() == Event::CUSTOM_RESERVED8;
+inline bool Event::Builder::isFrogpilotPlan() {
+  return which() == Event::FROGPILOT_PLAN;
 }
-inline bool Event::Reader::hasCustomReserved8() const {
-  if (which() != Event::CUSTOM_RESERVED8) return false;
+inline bool Event::Reader::hasFrogpilotPlan() const {
+  if (which() != Event::FROGPILOT_PLAN) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved8() {
-  if (which() != Event::CUSTOM_RESERVED8) return false;
+inline bool Event::Builder::hasFrogpilotPlan() {
+  if (which() != Event::FROGPILOT_PLAN) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved8::Reader Event::Reader::getCustomReserved8() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED8),
+inline  ::cereal::FrogPilotPlan::Reader Event::Reader::getFrogpilotPlan() const {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_PLAN),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved8>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotPlan>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved8::Builder Event::Builder::getCustomReserved8() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED8),
+inline  ::cereal::FrogPilotPlan::Builder Event::Builder::getFrogpilotPlan() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_PLAN),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved8>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotPlan>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved8( ::cereal::CustomReserved8::Reader value) {
+inline void Event::Builder::setFrogpilotPlan( ::cereal::FrogPilotPlan::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED8);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved8>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_PLAN);
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotPlan>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved8::Builder Event::Builder::initCustomReserved8() {
+inline  ::cereal::FrogPilotPlan::Builder Event::Builder::initFrogpilotPlan() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED8);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved8>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_PLAN);
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotPlan>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved8(
-    ::capnp::Orphan< ::cereal::CustomReserved8>&& value) {
+inline void Event::Builder::adoptFrogpilotPlan(
+    ::capnp::Orphan< ::cereal::FrogPilotPlan>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED8);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved8>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_PLAN);
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotPlan>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved8> Event::Builder::disownCustomReserved8() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED8),
+inline ::capnp::Orphan< ::cereal::FrogPilotPlan> Event::Builder::disownFrogpilotPlan() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_PLAN),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved8>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotPlan>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved9() const {
-  return which() == Event::CUSTOM_RESERVED9;
+inline bool Event::Reader::isFrogpilotRadarState() const {
+  return which() == Event::FROGPILOT_RADAR_STATE;
 }
-inline bool Event::Builder::isCustomReserved9() {
-  return which() == Event::CUSTOM_RESERVED9;
+inline bool Event::Builder::isFrogpilotRadarState() {
+  return which() == Event::FROGPILOT_RADAR_STATE;
 }
-inline bool Event::Reader::hasCustomReserved9() const {
-  if (which() != Event::CUSTOM_RESERVED9) return false;
+inline bool Event::Reader::hasFrogpilotRadarState() const {
+  if (which() != Event::FROGPILOT_RADAR_STATE) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved9() {
-  if (which() != Event::CUSTOM_RESERVED9) return false;
+inline bool Event::Builder::hasFrogpilotRadarState() {
+  if (which() != Event::FROGPILOT_RADAR_STATE) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved9::Reader Event::Reader::getCustomReserved9() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED9),
+inline  ::cereal::FrogPilotRadarState::Reader Event::Reader::getFrogpilotRadarState() const {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_RADAR_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved9>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotRadarState>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved9::Builder Event::Builder::getCustomReserved9() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED9),
+inline  ::cereal::FrogPilotRadarState::Builder Event::Builder::getFrogpilotRadarState() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_RADAR_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved9>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotRadarState>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved9( ::cereal::CustomReserved9::Reader value) {
+inline void Event::Builder::setFrogpilotRadarState( ::cereal::FrogPilotRadarState::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED9);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved9>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_RADAR_STATE);
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotRadarState>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved9::Builder Event::Builder::initCustomReserved9() {
+inline  ::cereal::FrogPilotRadarState::Builder Event::Builder::initFrogpilotRadarState() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED9);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved9>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_RADAR_STATE);
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotRadarState>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved9(
-    ::capnp::Orphan< ::cereal::CustomReserved9>&& value) {
+inline void Event::Builder::adoptFrogpilotRadarState(
+    ::capnp::Orphan< ::cereal::FrogPilotRadarState>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED9);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved9>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::FROGPILOT_RADAR_STATE);
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotRadarState>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved9> Event::Builder::disownCustomReserved9() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED9),
+inline ::capnp::Orphan< ::cereal::FrogPilotRadarState> Event::Builder::disownFrogpilotRadarState() {
+  KJ_IREQUIRE((which() == Event::FROGPILOT_RADAR_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved9>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotRadarState>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 

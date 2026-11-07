@@ -353,6 +353,7 @@ enum class NetworkLocation_ff99e3682a833c51: uint16_t {
 CAPNP_DECLARE_ENUM(NetworkLocation, ff99e3682a833c51);
 CAPNP_DECLARE_SCHEMA(90f70f9a151b94c1);
 CAPNP_DECLARE_SCHEMA(b31cca3bb740952a);
+CAPNP_DECLARE_SCHEMA(f9808f7c5e2fbd25);
 
 }  // namespace schemas
 }  // namespace capnp
@@ -390,7 +391,7 @@ struct CarState {
   struct Deprecated;
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(9da4fa09e052903c, 10, 6)
+    CAPNP_DECLARE_STRUCT_HEADER(9da4fa09e052903c, 10, 7)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
@@ -468,7 +469,7 @@ struct CarState::Deprecated {
   class Pipeline;
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(f96665c1dbf3e552, 10, 6)
+    CAPNP_DECLARE_STRUCT_HEADER(f96665c1dbf3e552, 10, 7)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
@@ -929,6 +930,21 @@ struct CarParams::LateralTuning {
   };
 };
 
+struct BogPilotCarState {
+  BogPilotCarState() = delete;
+
+  class Reader;
+  class Builder;
+  class Pipeline;
+
+  struct _capnpPrivate {
+    CAPNP_DECLARE_STRUCT_HEADER(f9808f7c5e2fbd25, 4, 0)
+    #if !CAPNP_LITE
+    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
+    #endif  // !CAPNP_LITE
+  };
+};
+
 // =======================================================================================
 
 class OnroadEventDEPRECATED::Reader {
@@ -1183,6 +1199,9 @@ public:
 
   inline bool getCarNotReady() const;
 
+  inline bool hasBogpilot() const;
+  inline  ::cereal::BogPilotCarState::Reader getBogpilot() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -1382,6 +1401,13 @@ public:
   inline bool getCarNotReady();
   inline void setCarNotReady(bool value);
 
+  inline bool hasBogpilot();
+  inline  ::cereal::BogPilotCarState::Builder getBogpilot();
+  inline void setBogpilot( ::cereal::BogPilotCarState::Reader value);
+  inline  ::cereal::BogPilotCarState::Builder initBogpilot();
+  inline void adoptBogpilot(::capnp::Orphan< ::cereal::BogPilotCarState>&& value);
+  inline ::capnp::Orphan< ::cereal::BogPilotCarState> disownBogpilot();
+
 private:
   ::capnp::_::StructBuilder _builder;
   template <typename, ::capnp::Kind>
@@ -1403,6 +1429,7 @@ public:
   inline typename Deprecated::Pipeline getDeprecated();
   inline  ::cereal::CarState::WheelSpeeds::Pipeline getWheelSpeeds();
   inline  ::cereal::CarState::CruiseState::Pipeline getCruiseState();
+  inline  ::cereal::BogPilotCarState::Pipeline getBogpilot();
 private:
   ::capnp::AnyPointer::Pipeline _typeless;
   friend class ::capnp::PipelineHook;
@@ -5190,6 +5217,217 @@ private:
 };
 #endif  // !CAPNP_LITE
 
+class BogPilotCarState::Reader {
+public:
+  typedef BogPilotCarState Reads;
+
+  Reader() = default;
+  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
+
+  inline ::capnp::MessageSize totalSize() const {
+    return _reader.totalSize().asPublic();
+  }
+
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const {
+    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
+  }
+#endif  // !CAPNP_LITE
+
+  inline bool getAccelPressed() const;
+
+  inline bool getAlwaysOnLateralAllowed() const;
+
+  inline bool getAlwaysOnLateralEnabled() const;
+
+  inline bool getBrakeLights() const;
+
+  inline float getDashboardSpeedLimit() const;
+
+  inline bool getDecelPressed() const;
+
+  inline bool getDistancePressed() const;
+
+  inline bool getDistanceLongPressed() const;
+
+  inline bool getDistanceVeryLongPressed() const;
+
+  inline bool getEcoGear() const;
+
+  inline bool getForceCoast() const;
+
+  inline bool getIsParked() const;
+
+  inline bool getPauseLateral() const;
+
+  inline bool getPauseLongitudinal() const;
+
+  inline bool getSportGear() const;
+
+  inline bool getTrafficModeEnabled() const;
+
+  inline bool getResumePressed() const;
+
+  inline  ::uint8_t getSpdCtrlLvr() const;
+
+  inline float getAp1AmbientTempC() const;
+
+  inline float getAp1MotorTorqueNm() const;
+
+  inline float getAp1MotorRpm() const;
+
+  inline  ::uint8_t getAp1HandsOnLevel() const;
+
+  inline bool getAp1EacInhibited() const;
+
+  inline bool getAp1DriverYield() const;
+
+  inline bool getAp1StalkPullToggle() const;
+
+  inline bool getAp1StalkFwdToggle() const;
+
+  inline bool getAp1StockApActive() const;
+
+  inline float getAp1StalkFollowS() const;
+
+private:
+  ::capnp::_::StructReader _reader;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::List;
+  friend class ::capnp::MessageBuilder;
+  friend class ::capnp::Orphanage;
+};
+
+class BogPilotCarState::Builder {
+public:
+  typedef BogPilotCarState Builds;
+
+  Builder() = delete;  // Deleted to discourage incorrect usage.
+                       // You can explicitly initialize to nullptr instead.
+  inline Builder(decltype(nullptr)) {}
+  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
+  inline operator Reader() const { return Reader(_builder.asReader()); }
+  inline Reader asReader() const { return *this; }
+
+  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const { return asReader().toString(); }
+#endif  // !CAPNP_LITE
+
+  inline bool getAccelPressed();
+  inline void setAccelPressed(bool value);
+
+  inline bool getAlwaysOnLateralAllowed();
+  inline void setAlwaysOnLateralAllowed(bool value);
+
+  inline bool getAlwaysOnLateralEnabled();
+  inline void setAlwaysOnLateralEnabled(bool value);
+
+  inline bool getBrakeLights();
+  inline void setBrakeLights(bool value);
+
+  inline float getDashboardSpeedLimit();
+  inline void setDashboardSpeedLimit(float value);
+
+  inline bool getDecelPressed();
+  inline void setDecelPressed(bool value);
+
+  inline bool getDistancePressed();
+  inline void setDistancePressed(bool value);
+
+  inline bool getDistanceLongPressed();
+  inline void setDistanceLongPressed(bool value);
+
+  inline bool getDistanceVeryLongPressed();
+  inline void setDistanceVeryLongPressed(bool value);
+
+  inline bool getEcoGear();
+  inline void setEcoGear(bool value);
+
+  inline bool getForceCoast();
+  inline void setForceCoast(bool value);
+
+  inline bool getIsParked();
+  inline void setIsParked(bool value);
+
+  inline bool getPauseLateral();
+  inline void setPauseLateral(bool value);
+
+  inline bool getPauseLongitudinal();
+  inline void setPauseLongitudinal(bool value);
+
+  inline bool getSportGear();
+  inline void setSportGear(bool value);
+
+  inline bool getTrafficModeEnabled();
+  inline void setTrafficModeEnabled(bool value);
+
+  inline bool getResumePressed();
+  inline void setResumePressed(bool value);
+
+  inline  ::uint8_t getSpdCtrlLvr();
+  inline void setSpdCtrlLvr( ::uint8_t value);
+
+  inline float getAp1AmbientTempC();
+  inline void setAp1AmbientTempC(float value);
+
+  inline float getAp1MotorTorqueNm();
+  inline void setAp1MotorTorqueNm(float value);
+
+  inline float getAp1MotorRpm();
+  inline void setAp1MotorRpm(float value);
+
+  inline  ::uint8_t getAp1HandsOnLevel();
+  inline void setAp1HandsOnLevel( ::uint8_t value);
+
+  inline bool getAp1EacInhibited();
+  inline void setAp1EacInhibited(bool value);
+
+  inline bool getAp1DriverYield();
+  inline void setAp1DriverYield(bool value);
+
+  inline bool getAp1StalkPullToggle();
+  inline void setAp1StalkPullToggle(bool value);
+
+  inline bool getAp1StalkFwdToggle();
+  inline void setAp1StalkFwdToggle(bool value);
+
+  inline bool getAp1StockApActive();
+  inline void setAp1StockApActive(bool value);
+
+  inline float getAp1StalkFollowS();
+  inline void setAp1StalkFollowS(float value);
+
+private:
+  ::capnp::_::StructBuilder _builder;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  friend class ::capnp::Orphanage;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+};
+
+#if !CAPNP_LITE
+class BogPilotCarState::Pipeline {
+public:
+  typedef BogPilotCarState Pipelines;
+
+  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
+  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
+      : _typeless(kj::mv(typeless)) {}
+
+private:
+  ::capnp::AnyPointer::Pipeline _typeless;
+  friend class ::capnp::PipelineHook;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+};
+#endif  // !CAPNP_LITE
+
 // =======================================================================================
 
 inline  ::cereal::OnroadEventDEPRECATED::EventName OnroadEventDEPRECATED::Reader::getName() const {
@@ -6166,6 +6404,45 @@ inline bool CarState::Builder::getCarNotReady() {
 inline void CarState::Builder::setCarNotReady(bool value) {
   _builder.setDataField<bool>(
       ::capnp::bounded<372>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool CarState::Reader::hasBogpilot() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<6>() * ::capnp::POINTERS).isNull();
+}
+inline bool CarState::Builder::hasBogpilot() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<6>() * ::capnp::POINTERS).isNull();
+}
+inline  ::cereal::BogPilotCarState::Reader CarState::Reader::getBogpilot() const {
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarState>::get(_reader.getPointerField(
+      ::capnp::bounded<6>() * ::capnp::POINTERS));
+}
+inline  ::cereal::BogPilotCarState::Builder CarState::Builder::getBogpilot() {
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarState>::get(_builder.getPointerField(
+      ::capnp::bounded<6>() * ::capnp::POINTERS));
+}
+#if !CAPNP_LITE
+inline  ::cereal::BogPilotCarState::Pipeline CarState::Pipeline::getBogpilot() {
+  return  ::cereal::BogPilotCarState::Pipeline(_typeless.getPointerField(6));
+}
+#endif  // !CAPNP_LITE
+inline void CarState::Builder::setBogpilot( ::cereal::BogPilotCarState::Reader value) {
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotCarState>::set(_builder.getPointerField(
+      ::capnp::bounded<6>() * ::capnp::POINTERS), value);
+}
+inline  ::cereal::BogPilotCarState::Builder CarState::Builder::initBogpilot() {
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarState>::init(_builder.getPointerField(
+      ::capnp::bounded<6>() * ::capnp::POINTERS));
+}
+inline void CarState::Builder::adoptBogpilot(
+    ::capnp::Orphan< ::cereal::BogPilotCarState>&& value) {
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotCarState>::adopt(_builder.getPointerField(
+      ::capnp::bounded<6>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::cereal::BogPilotCarState> CarState::Builder::disownBogpilot() {
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarState>::disown(_builder.getPointerField(
+      ::capnp::bounded<6>() * ::capnp::POINTERS));
 }
 
 inline float CarState::WheelSpeeds::Reader::getFl() const {
@@ -10900,6 +11177,398 @@ inline ::capnp::Orphan< ::cereal::CarParams::LateralTorqueTuning> CarParams::Lat
               "Must check which() before get()ing a union member.");
   return ::capnp::_::PointerHelpers< ::cereal::CarParams::LateralTorqueTuning>::disown(_builder.getPointerField(
       ::capnp::bounded<9>() * ::capnp::POINTERS));
+}
+
+inline bool BogPilotCarState::Reader::getAccelPressed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getAccelPressed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAccelPressed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getAlwaysOnLateralAllowed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getAlwaysOnLateralAllowed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAlwaysOnLateralAllowed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getAlwaysOnLateralEnabled() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getAlwaysOnLateralEnabled() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAlwaysOnLateralEnabled(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getBrakeLights() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getBrakeLights() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setBrakeLights(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotCarState::Reader::getDashboardSpeedLimit() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotCarState::Builder::getDashboardSpeedLimit() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setDashboardSpeedLimit(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getDecelPressed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getDecelPressed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setDecelPressed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getDistancePressed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getDistancePressed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setDistancePressed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getDistanceLongPressed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getDistanceLongPressed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setDistanceLongPressed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getDistanceVeryLongPressed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<7>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getDistanceVeryLongPressed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<7>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setDistanceVeryLongPressed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<7>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getEcoGear() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getEcoGear() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setEcoGear(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getForceCoast() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getForceCoast() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setForceCoast(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getIsParked() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getIsParked() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setIsParked(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getPauseLateral() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getPauseLateral() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setPauseLateral(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getPauseLongitudinal() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getPauseLongitudinal() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setPauseLongitudinal(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getSportGear() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getSportGear() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setSportGear(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getTrafficModeEnabled() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<14>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getTrafficModeEnabled() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<14>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setTrafficModeEnabled(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<14>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getResumePressed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<15>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getResumePressed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<15>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setResumePressed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<15>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint8_t BogPilotCarState::Reader::getSpdCtrlLvr() const {
+  return _reader.getDataField< ::uint8_t>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint8_t BogPilotCarState::Builder::getSpdCtrlLvr() {
+  return _builder.getDataField< ::uint8_t>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setSpdCtrlLvr( ::uint8_t value) {
+  _builder.setDataField< ::uint8_t>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotCarState::Reader::getAp1AmbientTempC() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotCarState::Builder::getAp1AmbientTempC() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAp1AmbientTempC(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotCarState::Reader::getAp1MotorTorqueNm() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotCarState::Builder::getAp1MotorTorqueNm() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAp1MotorTorqueNm(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotCarState::Reader::getAp1MotorRpm() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotCarState::Builder::getAp1MotorRpm() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAp1MotorRpm(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint8_t BogPilotCarState::Reader::getAp1HandsOnLevel() const {
+  return _reader.getDataField< ::uint8_t>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint8_t BogPilotCarState::Builder::getAp1HandsOnLevel() {
+  return _builder.getDataField< ::uint8_t>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAp1HandsOnLevel( ::uint8_t value) {
+  _builder.setDataField< ::uint8_t>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getAp1EacInhibited() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<160>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getAp1EacInhibited() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<160>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAp1EacInhibited(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<160>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getAp1DriverYield() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<161>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getAp1DriverYield() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<161>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAp1DriverYield(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<161>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getAp1StalkPullToggle() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<162>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getAp1StalkPullToggle() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<162>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAp1StalkPullToggle(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<162>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getAp1StalkFwdToggle() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<163>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getAp1StalkFwdToggle() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<163>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAp1StalkFwdToggle(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<163>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getAp1StockApActive() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<164>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getAp1StockApActive() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<164>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAp1StockApActive(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<164>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotCarState::Reader::getAp1StalkFollowS() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotCarState::Builder::getAp1StalkFollowS() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAp1StalkFollowS(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS, value);
 }
 
 }  // namespace
