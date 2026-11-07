@@ -9,6 +9,7 @@ the same owner every onroad consumer already reads:
   OnroadDistanceButton -> hud_compose PolicyToggles (personality button; DM moves beside it)
   PedalsOnUI       -> hud_renderer pedals
   ScreenRecorder   -> onroad record button
+  DriverCamera     -> layouts/main.py reverse driver camera (with QOLVisuals parent, default on)
 Consumers re-read within their 2 s caches. No controls, safety, tuning or reset options live here.
 """
 from openpilot.system.ui.widgets import Widget
@@ -32,6 +33,8 @@ VISUAL_TOGGLES = (
    tr_noop("Show translucent gas and brake pedals that fill with the car's acceleration.")),
   ("ScreenRecorder", tr_noop("Screen Recorder Button"),
    tr_noop("Show a button on the driving screen to record the screen.")),
+  ("DriverCamera", tr_noop("Show Driver Camera When In Reverse"),
+   tr_noop("Show the driver camera feed when the vehicle is in reverse.")),
 )
 VISUAL_KEYS = tuple(k for k, _, _ in VISUAL_TOGGLES)
 
