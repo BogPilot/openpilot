@@ -4,7 +4,7 @@ The integrator supplies Page descriptors from working feature lanes. No discover
 optional-module imports or guessed controls: an absent/empty page has no entry.
 """
 from dataclasses import dataclass
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 
 GROUPS = (("alerts_sounds", "Alerts and Sounds"),
           ("driving", "Driving Controls"), ("vehicle", "Vehicle Settings"))

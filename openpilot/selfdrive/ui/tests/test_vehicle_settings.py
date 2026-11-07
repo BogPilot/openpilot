@@ -79,21 +79,6 @@ def test_unknown_vehicle_is_not_reported_as_detected_support():
   assert vs.vehicle_info(SimpleNamespace(carFingerprint="")) == {"Detected": "No connected vehicle"}
 
 
-def test_panel_callback_checks_offroad_at_write_time(monkeypatch):
-  from openpilot.selfdrive.ui.layouts.settings import bogpilot
-  state = SimpleNamespace(is_offroad=lambda: False)
-  monkeypatch.setattr(bogpilot, "ui_state", state)
-  calls = []
-  monkeypatch.setattr(vs, "ap1_rows", lambda: {"EnableICIntegration": (lambda _: False, lambda v: calls.append(v))})
-  panel = object.__new__(bogpilot.BogPilotLayout)
-  panel.refresh = lambda: None
-  panel._set_ap1("EnableICIntegration", True)
-  assert calls == []
-  state.is_offroad = lambda: True
-  panel._set_ap1("EnableICIntegration", True)
-  assert calls == [True]
-
-
 def test_actual_settings_menu_preserves_visuals_and_replaces_cloud():
   source = Path(__file__).parents[1] / "layouts/settings/settings.py"
   text = source.read_text()

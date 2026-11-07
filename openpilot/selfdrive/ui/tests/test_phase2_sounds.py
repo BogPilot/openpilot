@@ -1,6 +1,6 @@
 """Lane 2: UI model -> file store -> actual soundd consumer. No audio device."""
-import importlib.util, os, sys
-from pathlib import Path
+import importlib.util
+import os
 import pytest
 
 if os.environ.get("PHASE2_SOUNDS"):  # overlay run against a read-only staging tree

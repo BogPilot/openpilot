@@ -105,3 +105,58 @@ def effective_gain(key: str, ambient: float) -> float:
   sd = _sd()
   return sd.resolve_alert_gain(alert_volume_control=read_controller(), percent=raw_volume(key),
                                ambient=ambient, key=key)
+
+
+def create_volume_layout():
+  """Native controls use the real soundd-preferred file store; changes apply next soundd start."""
+  from openpilot.selfdrive.ui.ui_state import ui_state
+  from openpilot.system.ui.lib.multilang import tr
+  from openpilot.system.ui.widgets import Widget
+  from openpilot.system.ui.widgets.list_view import toggle_item, multiple_button_item, text_item
+  from openpilot.system.ui.widgets.scroller_tici import Scroller
+
+  class VolumeLayout(Widget):
+    def __init__(self):
+      super().__init__()
+      self.controller = toggle_item(lambda: tr("Alert Volume Controller"),
+                                    lambda: tr("Applies at the next sound service start, normally the next drive. Auto follows ambient volume. "
+                                               + "Mandatory warning priority and warning ramps remain unchanged."),
+                                    read_controller(), callback=self.set_controller, enabled=ui_state.is_offroad)
+      self.note = text_item(lambda: tr("Warning minimum"), lambda: tr("25% — mandatory warning ramps retained"))
+      self.volumes = {}
+      for key, title, _, _ in VOLUME_ROWS:
+        row = multiple_button_item(lambda title=title: tr(title),
+                                   lambda key=key: tr("Stored value is outside the range; shown clamped, not rewritten." if raw_out_of_range(key)
+                                                      else "101 is Auto; changes take effect on the next sound service start."),
+                                   ["−", lambda key=key: label(read_volume(key)), "+"], 1,
+                                   callback=lambda index, key=key: self.adjust(key, index))
+        row.set_enabled(ui_state.is_offroad)
+        self.volumes[key] = row
+      self.scroller = Scroller([self.controller, self.note, *self.volumes.values()], line_separator=True, spacing=0)
+
+    def set_controller(self, value):
+      if ui_state.is_offroad():
+        set_controller(bool(value))
+      self.refresh()
+
+    def adjust(self, key, index):
+      if ui_state.is_offroad() and index in (0, 2):
+        set_volume(key, read_volume(key) + (-1 if index == 0 else 1))
+      self.refresh()
+
+    def refresh(self):
+      enabled = read_controller()
+      self.controller.action_item.set_state(enabled)
+      for row in self.volumes.values():
+        row.set_visible(enabled)
+
+    def show_event(self):
+      super().show_event()
+      self.scroller.show_event()
+      self.refresh()
+
+    def _render(self, rect):
+      self.refresh()
+      self.scroller.render(rect)
+
+  return VolumeLayout()

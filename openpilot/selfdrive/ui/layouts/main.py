@@ -150,6 +150,8 @@ class MainLayout(Widget):
     if self._reverse_active:
       # 0.9.7: driver view full screen, sidebar hidden, touches ignored; onroad view resumes on exit
       self._reverse_view.render(self._rect)
+      # Deliberate safety deviation from 0.9.7: retain stock warnings over reverse video.
+      self._layouts[MainState.ONROAD].alert_renderer.render(self._rect)
       return
 
     # Render sidebar
