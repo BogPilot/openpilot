@@ -71,7 +71,23 @@ def git(root, *args):
   return subprocess.check_output(["git", "-C", str(root), *args], stderr=subprocess.DEVNULL)
 
 
-def inventory(root, ref, artifacts, prefix=""):
+def source_catalog(root, ref):
+  """Original Git mode/blob catalogue, including nonshipping entries (never contents)."""
+  result = {}
+  for raw in git(root, "ls-tree", "-rz", "--full-tree", ref).split(b"\0"):
+    if not raw:
+      continue
+    meta, name = raw.split(b"\t", 1)
+    mode, kind, blob = meta.decode().split()
+    result[name.decode()] = {"mode": mode, "blob": blob}
+  return result
+
+
+def path_id(name):
+  return hashlib.sha256(name.encode()).hexdigest()
+
+
+def inventory(root, ref, artifacts, prefix="", exclusions=None):
   """Read committed full source, recursively verifying exact initialized gitlinks."""
   if Path(git(root, "rev-parse", "--show-toplevel").decode().strip()).resolve() != root.resolve():
     raise ValueError("not a standalone initialized checkout")
@@ -91,9 +107,12 @@ def inventory(root, ref, artifacts, prefix=""):
     metadata, name = record.split(b"\t", 1)
     mode, kind, oid = metadata.decode().split()
     name = name.decode()
-    rel = safe_name(prefix + name)
+    rel = prefix + name
+    if rel in (exclusions or {}):
+      continue  # Catalogue-bound exclusion; never open its contents.
+    rel = safe_name(rel)
     if kind == "commit":
-      result.update(inventory(root / name, oid, artifacts, rel + "/"))
+      result.update(inventory(root / name, oid, artifacts, rel + "/", exclusions))
     elif kind == "blob":
       result[rel] = mode
     else:
@@ -101,7 +120,7 @@ def inventory(root, ref, artifacts, prefix=""):
   return result
 
 
-def validate_panda(root, candidate):
+def validate_panda(root, candidate, exclusions=None):
   path = root / ".panda-source.json"
   data = json.loads(path.read_text())
   if data.get("schema") != 1 or data.get("source_commit") != candidate or data.get("dirty") is not False:
@@ -116,7 +135,17 @@ def validate_panda(root, candidate):
         continue
       if p.is_file() and not p.name.endswith((".pyc", ".o", ".so")):
         expected.add(rel.as_posix())
-  files = {name: digest(root / safe_name(name)) for name in sorted(expected)}
+  files = {}
+  for name in sorted(expected):
+    if name in (exclusions or {}):
+      # This unsigned manifest hash remains bound to the native/firmware gate.
+      # Do not open excluded key/build-host material merely to rehash it.
+      value = data.get("files", {}).get(name)
+      if not isinstance(value, str) or not HASH.fullmatch(value):
+        raise ValueError("excluded panda input lacks provenance hash")
+      files[name] = value
+    else:
+      files[name] = digest(root / safe_name(name))
   if data.get("files") != files or data.get("source_sha256") != hashlib.sha256(canonical(files)).hexdigest():
     raise ValueError("panda source inventory mismatch")
   if data.get("version") != (root / "common/version.h").read_text().strip():
@@ -124,7 +153,7 @@ def validate_panda(root, candidate):
   return digest(path)
 
 
-def verify(root, candidate, manifest):
+def verify(root, candidate, manifest, shipping_manifest=None):
   """Return report or raise. This is static verification, not native runtime validation."""
   root = Path(root).resolve()
   if not SHA.fullmatch(candidate):
@@ -144,7 +173,23 @@ def verify(root, candidate, manifest):
     if entry.get("format") not in ("elf-aarch64", "elf-arm", "data"):
       raise ValueError("unsupported artifact format")
     artifacts[name] = entry
-  source = inventory(root, candidate, artifacts)
+  catalog = source_catalog(root, candidate)
+  exclusions = {}
+  if shipping_manifest is not None:
+    shipping_input = json.loads(Path(shipping_manifest).read_bytes())
+    if shipping_input.get("source_commit") != candidate or shipping_input.get("schema_version") != 1:
+      raise ValueError("shipping manifest source mismatch")
+    exclusions = shipping_input.get("source_exclusions", {})
+    if not isinstance(exclusions, dict):
+      raise ValueError("invalid exclusions")
+    for name, record in exclusions.items():
+      original = catalog.get(name)
+      if (original is None or not isinstance(record, dict) or
+          record != {"source_mode": original["mode"], "source_blob": original["blob"], "reason": "private_or_build_host_only"} or
+          name in SOURCE_REQUIRED + NATIVE_REQUIRED or
+          PurePosixPath(name).name.lower().startswith(("license", "notice", "copying", "authors", "copyright"))):
+        raise ValueError("invalid/required source exclusion")
+  source = inventory(root, candidate, artifacts, exclusions=exclusions)
   names = set(source) | set(artifacts) | {".panda-source.json"}
   for name in SOURCE_REQUIRED + NATIVE_REQUIRED:
     if name not in names:
@@ -192,7 +237,7 @@ def verify(root, candidate, manifest):
         raise ValueError("symlink target not shipped: " + name)
       if name in artifacts:
         raise ValueError("artifact must be regular file")
-      entries[name] = {"mode": "120000", "target": target,
+      entries[name] = {"mode": "120000", "target": target, "resolved_target": resolved_name,
                        "sha256": hashlib.sha256(os.fsencode(target)).hexdigest()}
       continue
     if mode & 0o6022:
@@ -231,8 +276,11 @@ def verify(root, candidate, manifest):
     if name in artifacts and checksum != artifacts[name]["sha256"]:
       raise ValueError("artifact checksum mismatch: " + name)
     entries[name] = {"sha256": checksum, "size": info.st_size, "mode": "0755" if mode & 0o111 else "0644"}
-  provenance = validate_panda(root, candidate)
-  return {"schema": 1, "kind": "full-tree-test-build", "installable": False,
+  provenance = validate_panda(root, candidate, exclusions)
+  return {"schema": 1, "kind": "cataloged-excluded-source-test-build" if exclusions else "full-tree-test-build",
+          "source_scope": "cataloged_source_with_explicit_exclusions" if exclusions else "complete_tracked_source_and_explicit_artifacts",
+          "source_catalog": catalog, "source_catalog_sha256": hashlib.sha256(canonical(catalog)).hexdigest(),
+          "source_exclusions": exclusions, "excluded_source_contents_read": False, "installable": False,
           "provenance_gate_pass": False, "road_validated": False, "hardware_validated": False, "native_imports_executed": False,
           "dynamic_linkage_validated": False, "candidate_sha": candidate,
           "agnos_version": "19.9", "architecture": "aarch64", "entries": entries,
@@ -250,7 +298,7 @@ def outside(root, path):
   return path
 
 
-def bind_provenance(report, evidence_path, shipping_manifest_path):
+def bind_provenance(report, evidence_path, shipping_manifest_path, review_record_path=None):
   """Bind track9 gate output to every shipping byte, not a worker/source-only audit.
 
   These are unsigned local evidence inputs, not signatures or independent trust.
@@ -271,12 +319,63 @@ def bind_provenance(report, evidence_path, shipping_manifest_path):
       evidence.get("shipping", {}).get("declared_files") != len(expected) or
       evidence.get("shipping", {}).get("scanned_files") != len(expected)):
     raise ValueError("provenance does not cover exact shipping inventory")
-  # Track9 currently rejects symlinks rather than scanning link targets. Do not
-  # fabricate acceptance for them; a separately audited regular-file stage is needed.
-  if any("target" in entry for entry in report["entries"].values()):
-    raise ValueError("provenance gate requires reviewed regular-file staging for symlinks")
+  catalog_hash = report["source_catalog_sha256"]
+  exclusions = report.get("source_exclusions", {})
+  if shipping.get("source_exclusions", {}) != exclusions:
+    raise ValueError("shipping exclusions differ from package")
+  expected_exclusions = [{"path_id": path_id(name), **row} for name, row in sorted(exclusions.items())]
+  if (evidence.get("source_catalog_sha256") != catalog_hash or
+      evidence.get("source_catalog_entries") != len(report["source_catalog"]) or
+      evidence.get("source_scope") != report["source_scope"] or
+      evidence.get("source_exclusions", []) != expected_exclusions):
+    raise ValueError("provenance catalogue/exclusion scope mismatch")
+  links = {name: row for name, row in report["entries"].items() if "target" in row}
+  review = None
+  if review_record_path is not None:
+    review = json.loads(Path(review_record_path).read_bytes())
+    if (review.get("schema_version") != 1 or review.get("source_commit") != report["candidate_sha"] or
+        review.get("source_catalog_sha256") != catalog_hash or
+        review.get("manifest_sha256") != hashlib.sha256(canonical(shipping)).hexdigest() or
+        not isinstance(review.get("records"), dict)):
+      raise ValueError("review source/catalogue/inventory binding mismatch")
+    expected_review = {"sha256": hashlib.sha256(canonical(review)).hexdigest(),
+                       "source_catalog_sha256": catalog_hash, "record_count": len(review["records"])}
+    if evidence.get("review") != expected_review:
+      raise ValueError("review attestation mismatch")
+    for name, record in review["records"].items():
+      original = report["source_catalog"].get(name)
+      if (name not in report["entries"] or original is None or
+          record.get("source_mode") != original["mode"] or record.get("source_blob") != original["blob"] or
+          record.get("shipping_sha256") != report["entries"][name]["sha256"]):
+        raise ValueError("review original source/blob/shipping mismatch")
+      if original["mode"] == "120000":
+        if record.get("kind") != "internal_link":
+          raise ValueError("source link requires internal-link review")
+      elif (record.get("kind") not in ("public_reference", "public_source_name") or
+            record.get("public_commit") != "f7db927c728bab57bb1263e05465766a8f28fc9d"):
+        raise ValueError("nonlink review requires exact public-source anchor")
+  elif links or evidence.get("review") is not None:
+    raise ValueError("exact review record required")
+  expected_links = []
+  for name, row in sorted(links.items()):
+    record = review["records"].get(name, {}) if review else {}
+    original = report["source_catalog"].get(name, {})
+    target = row["resolved_target"]
+    target_entry = report["entries"].get(target, {})
+    if (original.get("mode") != "120000" or record.get("kind") != "internal_link" or
+        record.get("representation") != "symlink" or record.get("link_sha256") != row["sha256"] or
+        record.get("target") != target or "target" in target_entry or
+        record.get("target_sha256") != target_entry.get("sha256")):
+      raise ValueError("reviewed link payload/target/representation mismatch")
+    expected_links.append({"path_id": path_id(name), "source_mode": "120000", "source_blob": original["blob"],
+                           "link_sha256": row["sha256"], "target_path_id": path_id(target),
+                           "target_sha256": target_entry["sha256"], "representation": "symlink"})
+  actual_links = evidence.get("shipping", {}).get("reviewed_links", [])
+  if sorted(actual_links, key=lambda row: row["path_id"]) != sorted(expected_links, key=lambda row: row["path_id"]):
+    raise ValueError("reviewed link evidence incomplete/extra/mismatched")
   result = dict(report)
   result.update(provenance_gate_pass=True,
+                provenance_review=review,
                 provenance_report_sha256=hashlib.sha256(evidence_raw).hexdigest(),
                 shipping_manifest_sha256=hashlib.sha256(shipping_raw).hexdigest())
   return result
@@ -339,6 +438,7 @@ def main(argv=None):
   ap.add_argument("--output", type=Path)
   ap.add_argument("--provenance-report", type=Path)
   ap.add_argument("--shipping-manifest", type=Path)
+  ap.add_argument("--review-record", type=Path)
   args = ap.parse_args(argv)
   try:
     report_path = outside(args.root, args.report)
@@ -346,11 +446,13 @@ def main(argv=None):
       raise ValueError("refuse overwriting report")
     if args.output is not None and outside(args.root, args.output) == report_path:
       raise ValueError("report and archive paths must differ")
-    report = verify(args.root, args.candidate, args.artifact_manifest)
-    if args.provenance_report is not None or args.shipping_manifest is not None:
-      if args.provenance_report is None or args.shipping_manifest is None:
+    report = verify(args.root, args.candidate, args.artifact_manifest, args.shipping_manifest)
+    if args.review_record is not None and args.provenance_report is None:
+      raise ValueError("review record requires passing provenance report")
+    if args.provenance_report is not None:
+      if args.shipping_manifest is None:
         raise ValueError("both provenance inputs required")
-      report = bind_provenance(report, args.provenance_report, args.shipping_manifest)
+      report = bind_provenance(report, args.provenance_report, args.shipping_manifest, args.review_record)
     if args.command == "bundle":
       if args.output is None:
         raise ValueError("bundle requires --output")

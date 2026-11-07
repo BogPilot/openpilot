@@ -82,18 +82,146 @@ class PackageTests(unittest.TestCase):
   def verify(self):
     return m.verify(self.root, self.sha, self.manifest)
 
-  def privacy_fixture(self, report):
-    # SYNTHETIC acceptance envelope only; no claim of running track9 on final bytes.
+  def privacy_fixture(self, report, review_links=False):
+    # SYNTHETIC acceptance envelope only; actual track9 smoke is separate.
     shipping = dict(schema_version=1, source_commit=self.sha,
-                    files={name: row["sha256"] for name, row in report["entries"].items()})
+                    files={name: row["sha256"] for name, row in report["entries"].items()},
+                    source_exclusions=report.get("source_exclusions", {}))
     self.shipping = self.base / "shipping.json"
     self.shipping.write_bytes(m.canonical(shipping))
     self.evidence = self.base / "privacy.json"
     evidence = dict(schema_version=1, status="pass", checks=[], source=dict(commit=self.sha, clean=True),
+                    source_catalog_sha256=report["source_catalog_sha256"],
+                    source_catalog_entries=len(report["source_catalog"]), source_scope=report["source_scope"],
+                    source_exclusions=[dict(path_id=m.path_id(name), **row) for name,row in sorted(report["source_exclusions"].items())],
                     shipping=dict(manifest_sha256=__import__("hashlib").sha256(m.canonical(shipping)).hexdigest(),
-                                  declared_files=len(shipping["files"]), scanned_files=len(shipping["files"])))
+                                  declared_files=len(shipping["files"]), scanned_files=len(shipping["files"]), reviewed_links=[]))
+    self.review = None
+    if review_links:
+      records = {}
+      for name,row in report["entries"].items():
+        if "target" not in row:
+          continue
+        original = report["source_catalog"][name]
+        target = row["resolved_target"]
+        target_hash = report["entries"][target]["sha256"]
+        records[name] = dict(kind="internal_link", source_mode=original["mode"], source_blob=original["blob"],
+                             shipping_sha256=row["sha256"], link_sha256=row["sha256"], target=target,
+                             target_sha256=target_hash, representation="symlink")
+        evidence["shipping"]["reviewed_links"].append(dict(path_id=m.path_id(name), source_mode=original["mode"],
+          source_blob=original["blob"], link_sha256=row["sha256"], target_path_id=m.path_id(target),
+          target_sha256=target_hash, representation="symlink"))
+      review = dict(schema_version=1, source_commit=self.sha, source_catalog_sha256=report["source_catalog_sha256"],
+                    manifest_sha256=evidence["shipping"]["manifest_sha256"], records=records)
+      self.review = self.base / "review.json"
+      self.review.write_bytes(m.canonical(review))
+      evidence["review"] = dict(sha256=__import__("hashlib").sha256(m.canonical(review)).hexdigest(),
+                                source_catalog_sha256=report["source_catalog_sha256"], record_count=len(records))
     self.evidence.write_text(json.dumps(evidence))
-    return m.bind_provenance(report, self.evidence, self.shipping)
+    return m.bind_provenance(report, self.evidence, self.shipping, self.review)
+
+  def reviewed_link_fixture(self):
+    (self.root / "link").symlink_to("SConstruct")
+    self.commit()
+    report = self.verify()
+    return report, self.privacy_fixture(report, review_links=True)
+
+  def test_exact_reviewed_link_bundle_preserves_source_catalogue(self):
+    report, accepted = self.reviewed_link_fixture()
+    output = self.base / "reviewed.tar"
+    m.bundle(self.root, accepted, output)
+    with tarfile.open(output) as tar:
+      self.assertTrue(tar.getmember("link").issym())
+      metadata = json.load(tar.extractfile("RC_PACKAGE.json"))
+      self.assertEqual(metadata["source_catalog"]["link"]["mode"], "120000")
+      self.assertEqual(metadata["source_catalog"]["link"]["blob"], report["source_catalog"]["link"]["blob"])
+
+  def test_review_required_for_links(self):
+    report, _ = self.reviewed_link_fixture()
+    with self.assertRaises(ValueError):
+      m.bind_provenance(report, self.evidence, self.shipping)
+
+  def test_review_wrong_source_inventory_catalogue(self):
+    report, _ = self.reviewed_link_fixture()
+    original = json.loads(self.review.read_text())
+    for key,value in (("source_commit", "0"*40), ("manifest_sha256", "0"*64), ("source_catalog_sha256", "0"*64)):
+      data = dict(original)
+      data[key] = value
+      self.review.write_text(json.dumps(data))
+      with self.assertRaises(ValueError):
+        m.bind_provenance(report, self.evidence, self.shipping, self.review)
+
+  def test_review_link_payload_blob_target_representation_tamper(self):
+    report, _ = self.reviewed_link_fixture()
+    original = json.loads(self.review.read_text())
+    for key,value in (("source_blob", "0"*40), ("link_sha256", "0"*64), ("target_sha256", "0"*64),
+                      ("target", "missing"), ("representation", "regular")):
+      data = json.loads(json.dumps(original))
+      data["records"]["link"][key] = value
+      self.review.write_bytes(m.canonical(data))
+      # Even a rehashed report must not bypass direct package link checks.
+      evidence = json.loads(self.evidence.read_text())
+      evidence["review"]["sha256"] = __import__("hashlib").sha256(m.canonical(data)).hexdigest()
+      self.evidence.write_text(json.dumps(evidence))
+      with self.assertRaises(ValueError):
+        m.bind_provenance(report, self.evidence, self.shipping, self.review)
+
+  def test_gate_link_attestation_missing_extra_tampered(self):
+    report, _ = self.reviewed_link_fixture()
+    original = json.loads(self.evidence.read_text())
+    for rows in ([], original["shipping"]["reviewed_links"] * 2):
+      data = json.loads(json.dumps(original));data["shipping"]["reviewed_links"] = rows
+      self.evidence.write_text(json.dumps(data))
+      with self.assertRaises(ValueError):
+        m.bind_provenance(report, self.evidence, self.shipping, self.review)
+
+  def excluded_fixture(self, name=".env"):
+    self.write(name, b"synthetic nonshipping fixture")
+    self.commit()
+    original = m.source_catalog(self.root, self.sha)[name]
+    exclusion = dict(source_mode=original["mode"], source_blob=original["blob"], reason="private_or_build_host_only")
+    self.shipping = self.base / "exclusions.json"
+    self.shipping.write_text(json.dumps(dict(schema_version=1, source_commit=self.sha, source_exclusions={name:exclusion})))
+    report = m.verify(self.root, self.sha, self.manifest, self.shipping)
+    return report
+
+  def test_exclusions_are_catalogued_not_full_source_and_not_opened(self):
+    report = self.excluded_fixture()
+    self.assertNotIn(".env", report["entries"])
+    self.assertIn(".env", report["source_catalog"])
+    self.assertEqual(report["source_scope"], "cataloged_source_with_explicit_exclusions")
+    self.assertNotEqual(report["kind"], "full-tree-test-build")
+    accepted = self.privacy_fixture(report)
+    self.assertTrue(accepted["provenance_gate_pass"])
+
+  def test_cli_static_excluded_source_does_not_claim_privacy_pass(self):
+    self.excluded_fixture()
+    output = self.base / "static-report.json"
+    self.assertEqual(m.main(["verify", "--root", str(self.root), "--candidate", self.sha,
+      "--artifact-manifest", str(self.manifest), "--shipping-manifest", str(self.shipping),
+      "--report", str(output)]), 0)
+    result = json.loads(output.read_text())
+    self.assertEqual(result["source_scope"], "cataloged_source_with_explicit_exclusions")
+    self.assertFalse(result["provenance_gate_pass"])
+
+  def test_exclusions_bad_blob_or_required_notice_blocked(self):
+    report = self.excluded_fixture()
+    source = json.loads(self.shipping.read_text())
+    source["source_exclusions"][".env"]["source_blob"] = "0" * 40
+    self.shipping.write_text(json.dumps(source))
+    with self.assertRaises(ValueError):
+      m.verify(self.root, self.sha, self.manifest, self.shipping)
+    with self.assertRaisesRegex(ValueError, "exclusion"):
+      self.excluded_fixture("LICENSE")
+
+  def test_attested_exclusion_scope_tamper_blocked(self):
+    report = self.excluded_fixture()
+    self.privacy_fixture(report)
+    data = json.loads(self.evidence.read_text())
+    data["source_scope"] = "complete_tracked_source_and_explicit_artifacts"
+    self.evidence.write_text(json.dumps(data))
+    with self.assertRaises(ValueError):
+      m.bind_provenance(report, self.evidence, self.shipping)
 
   def test_bundle_requires_privacy_gate(self):
     with self.assertRaisesRegex(ValueError, "provenance"):
