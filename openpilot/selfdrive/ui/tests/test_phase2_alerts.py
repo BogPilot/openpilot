@@ -10,7 +10,7 @@ from dataclasses import dataclass, replace
 from enum import IntEnum
 import importlib.util
 from pathlib import Path
-from types import SimpleNamespace
+from types import SimpleNamespace, MethodType
 import unittest
 
 MODULE_PATH = Path(__file__).parents[1] / "bogpilot" / "phase2_alerts.py"
@@ -219,7 +219,15 @@ class TestPhase2Alerts(unittest.TestCase):
     exec(compile(ast.Module(body=nodes, type_ignores=[]), "current_alertmanager_classes", "exec"), ns)
     api = SimpleNamespace(**ns)
     for key, text in (("GreenLightAlert", "Light turned green"), ("LeadDepartingAlert", "Lead departed")):
-      alert = m.make_alert(key, api)
+      producer = m.Phase2Alerts()
+      if key == "GreenLightAlert":
+        keys = self.release(producer, self.arm_green(producer))
+      else:
+        self.arm_lead(producer)
+        producer.update(sample(1.55, lead_status=True, d_rel=10.8, v_lead=2., lead_id=3))
+        keys = producer.update(sample(1.6, lead_status=True, d_rel=11.2, v_lead=2., lead_id=3))
+      self.assertEqual(keys, (key,))
+      alert = m.make_alert(keys[0], api)
       self.assertEqual(alert.alert_text_1, text)
       self.assertEqual(alert.audible_alert, log.SelfdriveState.AudibleAlert.prompt)
       self.assertEqual(alert.duration, 300)
@@ -227,6 +235,24 @@ class TestPhase2Alerts(unittest.TestCase):
       am.add_many(0, [alert])
       am.process_alerts(0, set())
       self.assertIs(am.current_alert, alert)
+      # Execute unchanged soundd dispatch methods and sound table, not PortAudio.
+      soundtree = ast.parse((root / "selfdrive/ui/soundd.py").read_text())
+      sndns = dict(AudibleAlert=log.SelfdriveState.AudibleAlert, MAX_VOLUME=1., CRITICAL_MAX=-1)
+      table = [n for n in soundtree.body if isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name) and n.target.id == "sound_list"]
+      methods = [n for n in soundtree.body if isinstance(n, ast.ClassDef) and n.name == "Soundd"][0].body
+      funcs = [n for n in methods if isinstance(n, ast.FunctionDef) and n.name in {"get_audible_alert", "update_alert"}]
+      exec(compile(ast.Module(body=table+funcs, type_ignores=[]), "current_soundd_dispatch", "exec"), sndns)
+      sound = SimpleNamespace(current_alert=log.SelfdriveState.AudibleAlert.none,
+                              current_sound=log.SelfdriveState.AudibleAlert.none, current_sound_frame=0,
+                              loaded_sounds={}, pending_stop=False)
+      sound.update_alert = MethodType(sndns["update_alert"], sound)
+      ss = log.SelfdriveState.new_message()
+      ss.alertSound = am.current_alert.audible_alert
+      class SM(dict):
+        updated = {"selfdriveState": True}
+      sndns["get_audible_alert"](sound, SM(selfdriveState=ss))
+      self.assertEqual(sound.current_alert, log.SelfdriveState.AudibleAlert.prompt)
+      self.assertEqual(sndns["sound_list"][sound.current_sound][:2], ("warning.wav", 1))
       safety = ns["Alert"]("Pay attention", "", ns["AlertStatus"].normal, ns["AlertSize"].small,
                             ns["Priority"].LOW, ns["VisualAlert"].none, ns["AudibleAlert"].preAlert, 3.)
       safety.alert_type = "driverDistracted1/permanent"
