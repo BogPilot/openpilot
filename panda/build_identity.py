@@ -26,6 +26,8 @@ def inventory(root):
       rel = p.relative_to(root)
       if any(x in rel.parts for x in ('.git', '__pycache__', '.pytest_cache', 'obj')):
         continue
+      if p.name in (".sconsign.dblite", "compile_commands.json"):
+        continue
       if p.is_file() and not p.name.endswith(('.pyc', '.o', '.so')):
         paths.add(rel.as_posix())
   result = {}
