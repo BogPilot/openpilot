@@ -95,11 +95,68 @@ scanned-file counts and exact byte-for-byte shipping hash inventory. It records
 both evidence hashes. A worker exploratory audit or source-only report cannot
 clear the package. Evidence inputs are unsigned local assertions, not signatures.
 
-Track9 currently refuses all symlinks, including legitimate internal source links.
-Therefore this packager deliberately blocks bundling those until an explicitly
-reviewed regular-file staging flow or audited gate adapter is provided. No blanket
-symlink waiver is applied. Similarly, conservative identity/credential findings
-remain blocking pending specific private review/exclusion; credentials cannot be
-waived. Do not mislabel a runtime-only sanitized stage as full buildable source.
+Track9 exact review API is now supported: only source-catalogue-bound, individually
+reviewed internal links with matching payload/blob/target/representation attestations
+may ship as symlinks. No blanket link waiver or private credential waiver exists.
+Explicit exclusions change scope; never label excluded-source or a runtime overlay
+as complete buildable source.
 The generated RC_PACKAGE.json records the accepted inventory/evidence hashes; it
 is reserved tool-generated metadata, not an extra unaudited source payload.
+
+## Exact reviewed-link/excluded-source adapter (track9 142b2451)
+
+API `verify(root, candidate, artifact_manifest, shipping_manifest=None)` reads
+explicit source_exclusions from the shipping manifest. Each exclusion must match
+the original source catalogue mode/blob and reason=private_or_build_host_only;
+required runtime/source paths and every tracked notice basename are protected.
+Only a passing track9 report can authorize exclusion policy (private/build-host
+names or its exact known nonshipping fixture blob). Static verify alone cannot
+approve that policy. Excluded source contents are not opened for packaging or
+rehashing; native/firmware gates remain responsible for their source manifest.
+The original Git catalogue, hash and exclusions remain in RC_PACKAGE.json.
+With exclusions, kind=cataloged-excluded-source-test-build and
+source_scope=cataloged_source_with_explicit_exclusions; this is NOT full source,
+NOT an installable overlay, and does not contain build signing material.
+
+`bind_provenance(report, gate_report, shipping_manifest, review_record=None)`
+checks the exact final source SHA, canonical inventory/review/catalogue hashes,
+source scope, every exclusion attestation and original source mode/blob.
+For each symlink it additionally matches record kind=internal_link, original
+link-payload hash, canonical tracked shipped regular target/hash, representation
+and the corresponding hashed-path gate attestation. Missing, duplicate, extra,
+changed or stale link attestations fail. This adapter supports only the gate's
+`representation=symlink`: it preserves the original symlink bytes/mode and target
+files, rather than modifying source or inventing regular materialization. Gate
+records prove every committed intermediate link/target is shipped and nonprivate;
+static verify independently rejects escaping/private/unshipped live targets.
+Public-reference/name records are bound unchanged to the passing exact gate
+review; no path-wide or credential-content override is added here.
+
+### Integrator recipe (offline, final inputs required)
+
+1. Freeze the final clean source SHA and complete matching native/artifact manifest.
+   Generate exact original catalogue and shipping manifest with approved explicit
+   exclusions; do not reuse the worker proof for final SHA.
+2. Static inventory dry run may use `verify --shipping-manifest SHIPPING.json`
+   without gate inputs; it reports provenance_gate_pass=false. API verify likewise
+   produces deterministic shipping entries for the inventory-generation workflow.
+3. Run the assembled track9 gate on the frozen source/stage with that exact manifest
+   and exact review record; retain all notices (the reviewed worker had nine).
+4. Final static verification with privacy binding:
+
+```
+python3 tools/bogpilot/rc_package.py verify --root FINAL_TREE --candidate FULL_SHA \
+  --artifact-manifest ARTIFACTS.json --shipping-manifest SHIPPING.json \
+  --provenance-report PASSING_GATE.json --review-record REVIEW.json \
+  --report NEW_EXTERNAL_REPORT.json
+```
+
+5. Only after the integrator's native/build gates pass, use `bundle` with the same
+   arguments and a NEW external tar path. This tool does not acquire VM locks,
+   build native artifacts, install, or certify hardware behavior.
+
+Adapter validation includes actual recorded worker consumable-schema binding
+(6 links, 3 exclusions, 9 notices) and an independent tiny SYNTHETIC git tree passed
+through the actual track9 audit, adapter and tar round-trip. Neither constitutes
+final candidate attestation or a real native build. Final SHA/inventory/native run
+remain exclusively the integrator's responsibility.
