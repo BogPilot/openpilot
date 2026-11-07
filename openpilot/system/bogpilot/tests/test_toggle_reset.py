@@ -1,5 +1,7 @@
 """Sandbox-only reset tests; no Params construction, Mac/VM/product data IO."""
 import tempfile
+import json
+import importlib.util
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -100,7 +102,10 @@ class TestReset(unittest.TestCase):
     saved = {"DongleId": "test-only", "CalibrationParams": b"test-only", "GithubSshKeys": "test-only",
              "CarMake": "test-only", "KonikDongleId": "test-only", "WeatherToken": "test-only",
              "CalibratedLateralAcceleration": 1.9, "CalibrationProgress": 37,
-             "CurvatureData": "test-only", "CarParamsPersistent": "test-only"}
+             "CurvatureData": "test-only", "CarParamsPersistent": "test-only",
+             "SearchInput": "test-only", "StartupMessageTop": "test-only",
+             "StartupMessageBottom": "test-only", "PreferredSchedule": 3, "UpdatedToggles": "test-only",
+             "BlacklistedModels": "test-only"}
     self.params.values.update(saved)
     self.files.mkdir()
     for k in ("UnknownSetting", "ShowUploadRate", "EnableICIntegration", "AP1DefaultsApplied", "DriveHistory"):
@@ -170,6 +175,77 @@ class TestReset(unittest.TestCase):
     with patch.object(toggle_reset, "_atomic_file", side_effect=fail_once):
       self.assertEqual(self.reset().status, "failed")
     self.assertEqual(self.params.values, before)
+
+  def test_reset_targets_subset_of_durable_backup_scope(self):
+    fixture = Path(__file__).parent / "fixtures/reset_backup_scope.json"
+    scope = json.loads(fixture.read_text())
+    setting_keys, file_keys = set(scope["setting_keys"]), set(scope["file_keys"])
+    self.assertTrue(RESET_KEYS <= setting_keys, RESET_KEYS - setting_keys)
+    self.assertTrue(FILE_RESET_KEYS <= file_keys, FILE_RESET_KEYS - file_keys)
+    self.assertTrue(set(reset_defaults()) <= setting_keys | file_keys)
+    # Assembly additionally checks the actual installed peer module's scope.
+    if importlib.util.find_spec("openpilot.system.bogpilot.settings_backup"):
+      from openpilot.system.bogpilot.settings_backup import SETTING_KEYS, FILE_KEYS
+      active = {k for k in SETTING_KEYS if BOGPILOT_PARAMS.get(k, ("",))[0] == "PERSISTENT"}
+      self.assertTrue(RESET_KEYS <= active)
+      self.assertTrue(FILE_RESET_KEYS <= FILE_KEYS)
+
+  def test_inactive_native_fallback_preserved_on_success_and_failure(self):
+    self.files.mkdir()
+    (self.files / "AlwaysOnLateral").write_bytes(b"unbacked-inactive-original")
+    self.assertEqual(self.reset().status, "completed")
+    self.assertEqual((self.files / "AlwaysOnLateral").read_bytes(), b"unbacked-inactive-original")
+    self.params.values[REQUEST_KEY] = True
+    self.params.fail = "ScreenTimeout"
+    self.assertEqual(self.reset().status, "failed")
+    self.assertEqual((self.files / "AlwaysOnLateral").read_bytes(), b"unbacked-inactive-original")
+
+  def test_file_toggle_with_registered_native_owner_matches_backup_routing(self):
+    # Non-file-only keys may gain a compiled owner; backup uses that active store.
+    self.params.known.add("OffroadScreensaver")
+    original = self.params.cpp2python
+    self.params.cpp2python = lambda k, raw: raw.decode() if k == "OffroadScreensaver" else original(k, raw)
+    self.files.mkdir()
+    (self.files / "OffroadScreensaver").write_bytes(b"inactive")
+    self.assertEqual(self.reset().status, "completed")
+    self.assertEqual(self.params.values["OffroadScreensaver"], "0")
+    self.assertEqual((self.files / "OffroadScreensaver").read_bytes(), b"inactive")
+
+  def test_actual_backup_receipt_integration_when_peer_installed(self):
+    if not importlib.util.find_spec("openpilot.system.bogpilot.settings_backup"):
+      self.skipTest("w5 module absent on isolated branch; combined harness can install read-only peer")
+    from openpilot.system.bogpilot.settings_backup import backup_settings, read_snapshot
+    import base64
+    native = Path(self.tmp.name) / "native"
+    native.mkdir()
+    self.params.check_key = self.params._check
+    self.params.get_param_path = lambda k: str(native / k)
+    (native / "AlwaysOnLateral").write_bytes(b"1")
+    self.params.values["AlwaysOnLateral"] = True
+    self.params.values["StartupMessageTop"] = "preserved-private-text"
+    backup_root = Path(self.tmp.name) / "backups"
+    receipts = []
+    def backup():
+      receipt = backup_settings(self.params, file_root=self.files,
+                                backup_root=backup_root, reason="before-reset")
+      receipts.append(receipt)
+      return receipt
+    self.assertEqual(self.reset(backup=backup).status, "completed")
+    self.assertTrue(receipts[0])
+    doc = read_snapshot(receipts[0].path)
+    self.assertEqual(base64.b64decode(doc["entries"]["AlwaysOnLateral"]["value"]), b"1")
+    self.assertNotIn("StartupMessageTop", doc["entries"])
+    self.assertEqual(self.params.values["StartupMessageTop"], "preserved-private-text")
+    self.assertFalse(self.params.values["AlwaysOnLateral"])
+    self.assertNotIn(REQUEST_KEY, self.params.values)
+    self.params.values[REQUEST_KEY] = True
+    blocker = Path(self.tmp.name) / "not-a-directory"
+    blocker.write_bytes(b"original")
+    before = dict(self.params.values)
+    failure = lambda: backup_settings(self.params, file_root=self.files, backup_root=blocker)
+    self.assertEqual(self.reset(backup=failure).status, "failed")
+    self.assertEqual(self.params.values, before)
+    self.assertEqual(blocker.read_bytes(), b"original")
 
   def test_flag_clear_failure_rolls_back(self):
     original = self.params.remove
