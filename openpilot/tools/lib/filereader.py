@@ -8,12 +8,15 @@ from urllib.parse import urlparse
 
 from openpilot.tools.lib.url_file import URLFile
 
-DATA_ENDPOINT = os.getenv("DATA_ENDPOINT", "http://data-raw.comma.internal/")
+# BogPilot: no implicit comma-internal storage. Set DATA_ENDPOINT to a local dir or your own URL to enable.
+DATA_ENDPOINT = os.getenv("DATA_ENDPOINT", "")
 
 
 @cache
 @retry(delay=0.0)
 def internal_source_available(url: str) -> bool:
+  if not url:
+    return False
   if os.path.isdir(url):
     return True
 
@@ -31,6 +34,8 @@ def internal_source_available(url: str) -> bool:
 
 def resolve_name(fn):
   if fn.startswith("cd:/"):
+    if not DATA_ENDPOINT:
+      raise ValueError(f"{fn}: cd:/ paths need DATA_ENDPOINT set to a local directory or your own server")
     return posixpath.join(DATA_ENDPOINT, fn[4:])
   return fn
 

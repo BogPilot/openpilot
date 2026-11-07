@@ -23,7 +23,7 @@ Options:
   -x, --playback     Playback <speed>
       --demo         Use a demo route instead of providing your own
       --auto         Auto load the route from the best available source (no video):
-                     internal, openpilotci, comma_api, car_segments, testing_closet
+                     internal (DATA_ENDPOINT), openpilotci, car_segments, testing_closet
   -d, --data_dir     Local directory with routes
   -p, --prefix       Set OPENPILOT_PREFIX
       --cabin        Load cabin camera (alias: --dcam)

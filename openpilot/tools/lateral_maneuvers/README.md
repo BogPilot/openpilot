@@ -21,7 +21,7 @@ Test your vehicle's lateral control tuning with this tool. The tool will test th
 
 6. When the testing is complete, you'll see an alert that says "Maneuvers Finished." Complete the route by pulling over and turning off the vehicle.
 
-7. Visit https://connect.comma.ai and locate the route(s). They will stand out with lots of orange intervals in their timeline. Ensure "All logs" show as "uploaded."
+7. Copy the route(s) from the device's local storage (/data/media/0/realdata) to your computer; BogPilot does not upload to comma Connect.
 
    ![image](https://github.com/user-attachments/assets/cfe4c6d9-752f-4b24-b421-4b90a01933dc)
 

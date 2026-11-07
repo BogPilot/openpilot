@@ -109,7 +109,7 @@ def resolve_route_files(route_name: str, begin: int = 0, end: int = -1, selector
       api_files.setdefault(int(number), {})[names[name]] = url
   # Preserve replay's inclusive segment bounds.
   open_ended = end < 0
-  local_internal = os.path.isdir(DATA_ENDPOINT)
+  local_internal = bool(DATA_ENDPOINT) and os.path.isdir(DATA_ENDPOINT)
   if open_ended:
     end = max(begin, max(api_files, default=0))
     if local_internal:
@@ -137,7 +137,7 @@ def resolve_route_files(route_name: str, begin: int = 0, end: int = -1, selector
     log_types.append("qlog")
   for key in log_types:
     resolve(key, [seg for seg in indices if not segments[seg]])
-  if open_ended and not local_internal:
+  if open_ended and DATA_ENDPOINT and not local_internal:
     # Remote internal storage exposes individual files, not a segment listing.
     # Probe the contiguous tail beyond the API's last segment until no selected log exists.
     number = end + 1

@@ -28,7 +28,7 @@ Test your vehicle's longitudinal control tuning with this tool. The tool will te
 
    ![fin2](https://github.com/user-attachments/assets/c06960ae-7cfb-44af-beaa-4dc28848e49d)
 
-7. Visit https://connect.comma.ai and locate the route(s). They will stand out with lots of orange intervals in their timeline. Ensure "All logs" show as "uploaded."
+7. Copy the route(s) from the device's local storage (/data/media/0/realdata) to your computer; BogPilot does not upload to comma Connect.
 
    ![image](https://github.com/user-attachments/assets/cfe4c6d9-752f-4b24-b421-4b90a01933dc)
 
