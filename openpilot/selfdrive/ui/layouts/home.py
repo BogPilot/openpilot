@@ -3,9 +3,10 @@ import pyray as rl
 from collections.abc import Callable
 from enum import IntEnum
 from openpilot.common.params import Params
+from openpilot.common.version import get_build_metadata
 from openpilot.selfdrive.ui.widgets.offroad_alerts import UpdateAlert, OffroadAlert
 from openpilot.selfdrive.ui.widgets.exp_mode_button import ExperimentalModeButton
-from openpilot.selfdrive.ui.widgets.prime import PrimeWidget
+from openpilot.selfdrive.ui.widgets.bogpilot_stats import BogPilotStatsWidget
 from openpilot.selfdrive.ui.widgets.setup import SetupWidget
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.lib.application import gui_app, FontWeight, MousePos, TextAlignment
@@ -55,7 +56,7 @@ class HomeLayout(Widget):
     self.update_notif_rect = rl.Rectangle(0, 0, 200, HEADER_HEIGHT - 10)
     self.alert_notif_rect = rl.Rectangle(0, 0, 220, HEADER_HEIGHT - 10)
 
-    self._prime_widget = PrimeWidget()
+    self._stats_widget = BogPilotStatsWidget(self.params)
     self._setup_widget = SetupWidget()
 
     self._exp_mode_button = ExperimentalModeButton()
@@ -191,7 +192,7 @@ class HomeLayout(Widget):
     self.offroad_alert.render(self.content_rect)
 
   def _render_left_column(self):
-    self._prime_widget.render(self.left_column_rect)
+    self._stats_widget.render(self.left_column_rect)
 
   def _render_right_column(self):
     exp_height = 125
@@ -228,6 +229,9 @@ class HomeLayout(Widget):
     self._prev_alerts_present = alerts_present
 
   def _get_version_text(self) -> str:
-    brand = "openpilot"
-    description = self.params.get("UpdaterCurrentDescription")
-    return f"{brand} {description}" if description else brand
+    # Active build metadata is authoritative even when the updater is disabled.
+    try:
+      version = get_build_metadata().openpilot.version
+    except Exception:
+      version = self.params.get("Version")
+    return f"BogPilot {version}" if version and version != "unknown" else "BogPilot"
