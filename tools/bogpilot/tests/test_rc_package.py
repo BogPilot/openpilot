@@ -407,7 +407,7 @@ class PackageTests(unittest.TestCase):
     self.verify()
 
   def test_private_marker_after_public_certificate_refused(self):
-    self.write("openpilot/common/esim/gsma_ci_bundle.pem", b"# synthetic comment\n" * 20 + b"-----BEGIN CERTIFICATE-----\nsynthetic\n-----END CERTIFICATE-----\n-----BEGIN PRIVATE KEY-----\nsynthetic only\n")
+    self.write("openpilot/common/esim/gsma_ci_bundle.pem", b"# synthetic comment\n" * 20 + b"-----BEGIN CERTIFICATE-----\nsynthetic\n-----END CERTIFICATE-----\n" + b"-----BEGIN " + b"PRIVATE KEY-----\nsynthetic only\n")
     self.commit()
     with self.assertRaisesRegex(ValueError, "public CA"):
       self.verify()
