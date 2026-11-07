@@ -96,6 +96,12 @@ class IdentityTest(unittest.TestCase):
     with self.assertRaises(ValueError):
       m.identity(archive)
 
+  def test_scons_state_excluded(self):
+    before = m.capture(self.root)
+    (self.root / 'panda/.sconsign.dblite').write_text('database')
+    (self.root / 'panda/compile_commands.json').write_text('commands')
+    self.assertEqual(before, m.capture(self.root))
+
   def test_generated_outputs_excluded(self):
     before = m.capture(self.root)
     p = self.root / 'panda/board/obj/version'
