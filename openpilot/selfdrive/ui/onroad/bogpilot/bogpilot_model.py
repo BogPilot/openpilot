@@ -18,6 +18,35 @@ class BlindspotOverlay:
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
     self._flames = FlameTracks()
+    # w9 composition: while a lock-on layer may replace the primary marker, the stock leadOne chevron is held back
+    # (computed by the stock code, not drawn) and painted by bp_flush_primary_lead() if the lock-on does not paint.
+    # leadTwo always keeps its stock marker.
+    self.bp_defer_primary_lead = False
+    self.bp_pending_primary = None
+
+  def _draw_lead_indicator(self):
+    self.bp_pending_primary = None
+    if not self.bp_defer_primary_lead:
+      return super()._draw_lead_indicator()
+    leads = self._lead_vehicles
+    try:
+      self._lead_vehicles = leads[1:]
+      super()._draw_lead_indicator()
+    finally:
+      self._lead_vehicles = leads
+    if leads and leads[0].glow and leads[0].chevron:
+      self.bp_pending_primary = leads[0]
+
+  def bp_flush_primary_lead(self):
+    primary, self.bp_pending_primary = self.bp_pending_primary, None
+    if primary is None:
+      return
+    leads = self._lead_vehicles
+    try:
+      self._lead_vehicles = [primary]
+      super()._draw_lead_indicator()
+    finally:
+      self._lead_vehicles = leads
 
   def _overlay_offset(self):
     return np.zeros(2, dtype=np.float32)

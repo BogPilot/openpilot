@@ -4,7 +4,6 @@ from openpilot.cereal import log
 from openpilot.cereal.visionipc import VisionStreamType
 from openpilot.selfdrive.ui import UI_BORDER_SIZE
 from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
-from openpilot.selfdrive.ui.onroad.alert_renderer import AlertRenderer
 from openpilot.selfdrive.ui.onroad.driver_state import DriverStateRenderer
 from openpilot.selfdrive.ui.onroad.cameraview import CameraView
 from openpilot.system.ui.lib.application import gui_app
@@ -12,6 +11,7 @@ from openpilot.common.transformations.camera import DEVICE_CAMERAS, DeviceCamera
 from openpilot.common.transformations.orientation import rot_from_euler
 from openpilot.selfdrive.ui.onroad.bogpilot.bogpilot_hud import BogPilotHudRenderer
 from openpilot.selfdrive.ui.onroad.bogpilot.bogpilot_model import BogPilotModelRenderer
+from openpilot.selfdrive.ui.onroad.bogpilot.hud_compose import HudComposer, make_alert_renderer
 
 OpState = log.SelfdriveState.OpenpilotState
 CALIBRATED = log.ExtrinsicsCalibration.Status.calibrated
@@ -45,8 +45,9 @@ class AugmentedRoadView(CameraView):
 
     self.model_renderer = BogPilotModelRenderer()
     self._hud_renderer = BogPilotHudRenderer()
-    self.alert_renderer = AlertRenderer()
+    self.alert_renderer = make_alert_renderer()   # stock AlertRenderer unless the redesign banner module is present
     self.driver_state_renderer = DriverStateRenderer()
+    self._hud_compose = HudComposer(self.model_renderer, self._hud_renderer, self.alert_renderer, self.driver_state_renderer)
 
   def _render(self, rect):
     # Only render when system is started to avoid invalid data access
@@ -78,11 +79,9 @@ class AugmentedRoadView(CameraView):
     # Render the base camera view
     super()._render(self._content_rect)
 
-    # Draw all UI overlays
-    self.model_renderer.render(self._content_rect)
-    self._hud_renderer.render(self._content_rect)
-    self.alert_renderer.render(self._content_rect)
-    self.driver_state_renderer.render(self._content_rect)
+    # Draw all UI overlays. RedesignUI off: stock model -> hud -> alert -> driver_state.
+    # RedesignUI on: model -> lead lock-on -> hud -> labels/personality -> driver monitor -> alert last (hud_compose).
+    self._hud_compose.render(self._content_rect)
 
     # Custom UI extension point - add custom overlays here
     # Use self._content_rect for positioning within camera bounds
@@ -104,7 +103,7 @@ class AugmentedRoadView(CameraView):
   def _draw_border(self, rect: rl.Rectangle):
     rl.draw_rectangle_lines_ex(rect, UI_BORDER_SIZE, rl.BLACK)
     border_roundness = 0.12
-    border_color = BORDER_COLORS.get(ui_state.status, BORDER_COLORS[UIStatus.DISENGAGED])
+    border_color = self._hud_compose.border_override() or BORDER_COLORS.get(ui_state.status, BORDER_COLORS[UIStatus.DISENGAGED])
     border_rect = rl.Rectangle(rect.x + UI_BORDER_SIZE, rect.y + UI_BORDER_SIZE,
                                rect.width - 2 * UI_BORDER_SIZE, rect.height - 2 * UI_BORDER_SIZE)
     rl.draw_rectangle_rounded_lines_ex(border_rect, border_roundness, 10, UI_BORDER_SIZE, border_color)
