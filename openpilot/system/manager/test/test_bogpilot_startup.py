@@ -123,8 +123,13 @@ def test_profile_real_repeated_boot_preserves_choices(monkeypatch, tmp_path):
 
 def test_profile_non_ap1_no_writes(tmp_path):
   p = MemoryParams()
-  assert lifecycle.after_defaults(p, file_root=tmp_path).events[-1:] == ["ap1:0"]
-  assert not p.values and not list(tmp_path.iterdir())
+  result = lifecycle.after_defaults(p, file_root=tmp_path)
+  assert result.events[-1:] == ["ap1:0"]
+  assert not p.values
+  # Only the assembled w8 one-shot screensaver default-off migration marker may exist; no AP1 profile writes.
+  written = {path.name for path in tmp_path.iterdir()}
+  assert written <= {"ScreensaverDefaultOff1"}
+  assert ("screensaver:migrated" in result.events) == bool(written)
 
 
 def test_profile_optional_storage_unavailable(tmp_path):
