@@ -1,3 +1,4 @@
+import time
 import pyray as rl
 from enum import IntEnum
 import openpilot.cereal.messaging as messaging
@@ -10,6 +11,7 @@ from openpilot.selfdrive.ui.onroad.augmented_road_view import AugmentedRoadView
 from openpilot.selfdrive.ui.ui_state import device, ui_state
 from openpilot.selfdrive.ui.layouts.onboarding import OnboardingWindow
 from openpilot.selfdrive.ui.body.layouts.onroad import BodyLayout
+from openpilot.selfdrive.ui.bogpilot.reverse_camera import ReverseCameraController, enabled_from, read_gear
 
 
 class MainState(IntEnum):
@@ -37,6 +39,12 @@ class MainLayout(Widget):
       MainState.ONROAD: AugmentedRoadView(),
     }
 
+    # BogPilot: driver camera while reversing (0.9.7 DriverCamera)
+    self._reverse = ReverseCameraController()
+    self._reverse_view = None
+    self._reverse_active = False
+    self._visual_store = None
+
     self._sidebar_rect = rl.Rectangle(0, 0, 0, 0)
     self._content_rect = rl.Rectangle(0, 0, 0, 0)
 
@@ -52,7 +60,24 @@ class MainLayout(Widget):
 
   def _render(self, _):
     self._handle_onroad_transition()
+    self._update_reverse_camera()
     self._render_main_content()
+
+  def _update_reverse_camera(self):
+    if self._visual_store is None:
+      from openpilot.common.bogpilot_store import ParamStore
+      self._visual_store = ParamStore(cache_ttl=2.0)
+    in_reverse, fresh = read_gear(ui_state.sm, time.monotonic())
+    onroad_view = self._current_mode == MainState.ONROAD and not ui_state.is_body
+    active = self._reverse.update(ui_state.started and onroad_view, enabled_from(self._visual_store), in_reverse, fresh)
+    if active and not self._reverse_active:
+      if self._reverse_view is None:
+        from openpilot.selfdrive.ui.onroad.reverse_camera_view import ReverseDriverCameraView
+        self._reverse_view = ReverseDriverCameraView()
+      self._reverse_view.show_event()
+    elif self._reverse_active and not active:
+      self._reverse_view.hide_event()
+    self._reverse_active = active
 
   def _setup_callbacks(self):
     self._sidebar.set_callbacks(on_settings=self._on_settings_clicked,
@@ -122,6 +147,11 @@ class MainLayout(Widget):
     self._set_mode_for_state()
 
   def _render_main_content(self):
+    if self._reverse_active:
+      # 0.9.7: driver view full screen, sidebar hidden, touches ignored; onroad view resumes on exit
+      self._reverse_view.render(self._rect)
+      return
+
     # Render sidebar
     if self._sidebar.is_visible:
       self._sidebar.render(self._sidebar_rect)
