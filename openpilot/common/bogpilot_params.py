@@ -27,7 +27,7 @@ Policy pins (do not change without the owner's OK):
   * top speed (V_CRUISE_MAX) and the Tesla stalk-pull hold are car/controls constants, not params
   * OccViz and live YOLO are not params; they are BogPilot file toggles reserved default OFF
     (see openpilot/common/bogpilot_toggles.py)
-  * the offroad screensaver is a file toggle, default ON (bogpilot_toggles.py)
+  * the offroad screensaver is a file toggle, default OFF (bogpilot_toggles.py)
 """
 import os
 import sys

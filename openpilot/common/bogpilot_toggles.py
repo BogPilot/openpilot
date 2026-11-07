@@ -25,8 +25,9 @@ FILE_ONLY_UI_KEYS = frozenset({"RedesignUI", "BSMFlameTracks", "SwapSpeedGraph",
 
 FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
   # UI (default on)
-  # Reserved by owner policy pin (default ON). bogpilot-tesla-c3x ships no screensaver; nothing reads this key.
-  "OffroadScreensaver": (True, "Reserved offroad screensaver setting (no C3X implementation)"),
+  # Reserved, default OFF (owner policy 2026-11-07: normal screen-sleep timer wins). bogpilot-tesla-c3x ships no
+  # screensaver and no settings row; nothing reads this key.
+  "OffroadScreensaver": (False, "Reserved offroad screensaver setting (default OFF, no C3X implementation)"),
   "BSMFlameTracks": (True, "'Bog to the Future' flame tracks behind >88 mph blind-spot passers"),
   "ConfidenceBall": (True, "Model confidence ball on the onroad edge"),
   "RedesignUI": (True, "BogPilot onroad redesign"),
@@ -54,7 +55,7 @@ FILE_CHOICES: dict[str, tuple[str, tuple[str, ...]]] = {
 }
 
 # Data files and one-shot markers kept in the same directory (not toggles)
-DATA_FILES = ("LastKnownTime", "DriveHistory", "AP1DefaultsApplied")
+DATA_FILES = ("LastKnownTime", "DriveHistory", "AP1DefaultsApplied", "ScreensaverDefaultOff1")
 
 _ON = ("1", "true", "on")
 _OFF = ("0", "false", "off")
@@ -111,3 +112,35 @@ def write_choice(key: str, value: str) -> None:
   tmp = path.with_name(f".{key}.tmp")
   tmp.write_text(value)
   os.replace(tmp, path)
+
+
+SCREENSAVER_MIGRATION_MARKER = "ScreensaverDefaultOff1"
+
+
+def migrate_screensaver_default_off(directory: Path | None = None) -> bool:
+  """One-shot: turn an inherited OffroadScreensaver=ON file off, so the normal screen-sleep timer applies.
+
+  Runs once per device (marker file). It never touches the stock screen timeout, and a later deliberate
+  opt-in (writing "1" after the marker exists) is left alone. Returns True if the file was switched off.
+  """
+  directory = Path(directory) if directory is not None else BOGPILOT_DIR
+  marker = directory / SCREENSAVER_MIGRATION_MARKER
+  if marker.exists():
+    return False
+  changed = False
+  try:
+    path = directory / "OffroadScreensaver"
+    try:
+      text = path.read_text(encoding="utf-8", errors="replace")[:64].strip().lower()
+    except OSError:
+      text = None
+    directory.mkdir(parents=True, exist_ok=True)
+    if text in _ON:
+      tmp = path.with_name(".OffroadScreensaver.tmp")
+      tmp.write_text("0")
+      os.replace(tmp, path)
+      changed = True
+    marker.write_text("1\n")
+  except OSError:
+    pass  # a migration must never block startup
+  return changed

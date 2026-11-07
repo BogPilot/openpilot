@@ -19,7 +19,7 @@ and the code it carries from older BogPilot lines.
   `selfdrive/ui/bogpilot/screensaver.py` derived from that feature.
 - C3X carries none of that implementation. There is no screensaver module or consumer, and none of
   the 158 substantive added lines of b956ce126 appear verbatim in any of the 147 files C3X changes.
-- The one trace left is the `OffroadScreensaver` file-toggle key. Its default ON is an owner policy pin
+- The one trace left is the `OffroadScreensaver` file-toggle key. Its default is now OFF (owner policy 2026-11-07; formerly an ON pin)
   (bogpilot_params.py / bogpilot_shipping_defaults.py), so the key is kept as a reserved name and its
   description was reworded. Nothing on C3X reads it. Bardo decides whether to drop it or ask for a
   fresh BogPilot raylib screensaver.
