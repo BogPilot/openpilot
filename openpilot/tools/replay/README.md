@@ -2,28 +2,9 @@
 
 `replay` allows you to simulate a driving session by replaying all messages logged during the use of openpilot. This provides a way to analyze and visualize system behavior as if it were live.
 
-## Setup
-
-Before starting a replay, you need to authenticate with your comma account using `auth.py`. This will allow you to access your routes from the server.
-
-```bash
-# Authenticate to access routes from your comma account:
-python3 openpilot/tools/lib/auth.py
-```
-
-## Replay a Remote Route
-You can replay a route from your comma account by specifying the route name.
-
-```bash
-# Start a replay with a specific route:
-openpilot/tools/replay/replay <route-name>
-
-# Example:
-openpilot/tools/replay/replay '5beb9b58bd12b691/0000010a--a51155e496'
-
-# Replay the default demo route:
-openpilot/tools/replay/replay --demo
-```
+## Routes
+BogPilot has no comma account/Connect access. Replay local routes with `--data_dir`, public dataset
+routes, or `--demo`.
 
 ## Replay a Local Route
 To replay a route stored locally on your machine, specify the route name and provide the path to the directory where the route files are stored.
@@ -65,7 +46,7 @@ Options:
   -x <speed>             playback <speed>. between 0.2 - 3
   --demo                 use a demo route instead of providing your own
   --auto                 Auto load the route from the best available source (no video):
-                         internal, openpilotci, comma_api, car_segments, testing_closet
+                         internal (DATA_ENDPOINT), openpilotci, car_segments, testing_closet
   --data_dir <data_dir>  local directory with routes
   --prefix <prefix>      set OPENPILOT_PREFIX
   --cabin                  load cabin camera
@@ -79,8 +60,8 @@ Options:
                          this may causes issues when used along with UI
 
 Arguments:
-  route                  the drive to replay. find your drives at
-                         connect.comma.ai
+  route                  the drive to replay (local route with
+                         --data_dir, or a public dataset route)
 ```
 
 ## Visualize the Replay in the openpilot UI

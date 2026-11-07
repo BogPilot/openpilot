@@ -63,6 +63,4 @@ bool app_begin_popup_modal(const char *name,
                            bool *p_open = nullptr,
                            ImGuiWindowFlags flags = ImGuiWindowFlags_AlwaysAutoResize);
 void open_external_url(std::string_view url);
-std::string route_useradmin_url(const RouteIdentifier &route_id);
-std::string route_connect_url(const RouteIdentifier &route_id);
 std::string route_google_maps_url(const GpsTrace &trace);

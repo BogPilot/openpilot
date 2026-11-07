@@ -89,3 +89,35 @@ def test_resolve_route_files_from_local_storage(tmp_path):
   res = json.loads(out.stdout.strip().splitlines()[-1])
   assert "error" not in res, (res, out.stderr[-500:])
   assert sorted(res) == ["0", "1"] and res["0"]["rlog"].endswith("0/rlog.zst")
+
+
+def test_no_implicit_comma_internal_endpoint(monkeypatch):
+  import importlib
+  monkeypatch.delenv("DATA_ENDPOINT", raising=False)
+  import openpilot.tools.lib.filereader as fr
+  fr = importlib.reload(fr)
+  assert fr.DATA_ENDPOINT == ""
+  assert fr.internal_source_available("") is False
+  with pytest.raises(ValueError, match="DATA_ENDPOINT"):
+    fr.resolve_name("cd:/a/b/0/rlog.zst")
+  assert fr.resolve_name("/local/rlog.zst") == "/local/rlog.zst"
+  monkeypatch.setenv("DATA_ENDPOINT", "/srv/routes/")
+  fr = importlib.reload(fr)
+  assert fr.resolve_name("cd:/a/0/rlog.zst") == "/srv/routes/a/0/rlog.zst"  # explicit override honored
+  monkeypatch.delenv("DATA_ENDPOINT")
+  importlib.reload(fr)
+
+
+def test_parse_indirect_has_no_connect_conveniences():
+  from openpilot.tools.lib.logreader import parse_indirect
+  s = "https://useradmin.comma.ai/?onebox=a2a0ccea32023010|2023-07-27--13-01-19"
+  assert parse_indirect(s) == s
+
+
+@pytest.mark.parametrize("rel", ["cabana/streams/replaystream.cc", "cabana/ui/main.cc", "replay/route.cc", "replay/main.cc",
+                                 "jotpluggler/common.cc", "jotpluggler/common.h", "jotpluggler/session.cc", "lib/logreader.py",
+                                 "lib/filereader.py"])
+def test_dev_tools_have_no_connect_account_paths(rel):
+  s = (LIB.parent / rel).read_text()
+  for tok in ("auth.json", "lib/auth.py", "useradmin.comma.ai", "connect.comma.ai", "comma.internal", "comma_api"):
+    assert tok not in s, (rel, tok)
