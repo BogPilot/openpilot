@@ -29,31 +29,6 @@ def create_random_file(file_path: Path, size_mb: float, lock: bool = False, uplo
   if upload_xattr is not None:
     setxattr(str(file_path), UPLOAD_ATTR_NAME, upload_xattr)
 
-class MockResponse:
-  def __init__(self, text, status_code):
-    self.text = text
-    self.status_code = status_code
-
-class MockApi:
-  def __init__(self, dongle_id):
-    pass
-
-  def get(self, *args, **kwargs):
-    return MockResponse('{"url": "http://localhost/does/not/exist", "headers": {}}', 200)
-
-  def get_token(self):
-    return "fake-token"
-
-class MockApiIgnore:
-  def __init__(self, dongle_id):
-    pass
-
-  def get(self, *args, **kwargs):
-    return MockResponse('', 412)
-
-  def get_token(self):
-    return "fake-token"
-
 class UploaderTestCase(OpenpilotTestCase):
   f_type = "UNKNOWN"
 
@@ -62,8 +37,6 @@ class UploaderTestCase(OpenpilotTestCase):
   seg_format: str
   seg_format2: str
   seg_dir: str
-
-  def set_ignore(self):
 
   def setup_method(self):
     self.seg_num = random.randint(1, 300)
