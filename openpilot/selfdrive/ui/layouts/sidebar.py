@@ -3,6 +3,8 @@ import time
 from dataclasses import dataclass
 from collections.abc import Callable
 from openpilot.cereal import log
+from openpilot.common.params import Params
+from openpilot.selfdrive.ui.bogpilot.sidebar_metrics import device_readings
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app, FontWeight, MousePos, FONT_SCALE
 from openpilot.system.ui.lib.multilang import tr, tr_noop
@@ -65,6 +67,10 @@ class MetricData:
 class Sidebar(Widget):
   def __init__(self):
     super().__init__()
+    self._params = Params()
+    self._offroad_temp_status = MetricData(tr_noop("TEMP"), "--", Colors.GRAY)
+    self._cpu_status = MetricData(tr_noop("CPU"), "--", Colors.GRAY)
+    self._ram_status = MetricData(tr_noop("RAM"), "--", Colors.GRAY)
     self._net_type = NETWORK_TYPES[NetworkType.none]
     self._net_strength = 0
 
@@ -73,7 +79,7 @@ class Sidebar(Widget):
     self._connect_status = MetricData(tr_noop("CONNECT"), tr_noop("OFFLINE"), Colors.WARNING)
     self._recording_audio = False
 
-    self._home_img = gui_app.texture("images/button_home.png", HOME_BTN.width, HOME_BTN.height)
+    self._home_img = gui_app.texture("bogpilot/button_home.png", HOME_BTN.width, HOME_BTN.height)
     self._flag_img = gui_app.texture("images/button_flag.png", HOME_BTN.width, HOME_BTN.height)
     self._settings_img = gui_app.texture("images/button_settings.png", SETTINGS_BTN.width, SETTINGS_BTN.height)
     self._mic_img = gui_app.texture("icons/microphone.png", 30, 30)
@@ -102,16 +108,29 @@ class Sidebar(Widget):
 
   def _update_state(self):
     sm = ui_state.sm
+    self._recording_audio = ui_state.recording_audio
+    if not (sm.valid["deviceState"] and sm.alive["deviceState"]):
+      self._update_hardware_metrics(None, fresh=False)
+      self._net_type = NETWORK_TYPES[NetworkType.none]
+      self._net_strength = 0
+      return
     if not sm.updated['deviceState']:
       return
 
     device_state = sm['deviceState']
 
     self._recording_audio = ui_state.recording_audio
+    self._update_hardware_metrics(device_state, fresh=True)
     self._update_network_status(device_state)
     self._update_temperature_status(device_state)
     self._update_connection_status(device_state)
     self._update_panda_status()
+
+  def _update_hardware_metrics(self, device_state, *, fresh: bool):
+    readings = device_readings(device_state, fresh=fresh, fahrenheit=self._params.get_bool("Fahrenheit"))
+    colors = {"good": Colors.GOOD, "warning": Colors.WARNING, "danger": Colors.DANGER, "unknown": Colors.GRAY}
+    for metric, reading in zip((self._offroad_temp_status, self._cpu_status, self._ram_status), readings):
+      metric.update(metric.label, reading.value, colors[reading.level])
 
   def _update_network_status(self, device_state):
     self._net_type = NETWORK_TYPES.get(device_state.networkType.raw, tr_noop("Unknown"))
@@ -198,7 +217,9 @@ class Sidebar(Widget):
     rl.draw_text_ex(self._font_regular, tr(self._net_type), text_pos, FONT_SIZE, 0, Colors.WHITE)
 
   def _draw_metrics(self, rect: rl.Rectangle):
-    metrics = [(self._temp_status, 338), (self._panda_status, 496), (self._connect_status, 654)]
+    # Preserve onroad vehicle/connect behavior; restore the requested BogPilot offroad telemetry layout.
+    metrics = ([(self._temp_status, 338), (self._panda_status, 496), (self._connect_status, 654)] if ui_state.started else
+               [(self._offroad_temp_status, 338), (self._cpu_status, 496), (self._ram_status, 654)])
 
     for metric, y_offset in metrics:
       self._draw_metric(rect, metric, rect.y + y_offset)
