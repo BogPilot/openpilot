@@ -54,7 +54,8 @@ def capture(root):
   if not checkout(root):
     raise ValueError('export requires actual source checkout; never fabricate .git')
   files = inventory(root)
-  status = git(root, 'status', '--porcelain', '--untracked-files=all', '--', '.', ':!'+MANIFEST, ':!panda/board/obj')
+  status = git(root, 'status', '--porcelain', '--untracked-files=all', '--', '.', ':!'+MANIFEST, ':!panda/board/obj',
+               ':!panda/.sconsign.dblite', ':!panda/compile_commands.json')
   return dict(schema=1, source_commit=git(root, 'rev-parse', 'HEAD'), dirty=bool(status),
               version=(root / 'common/version.h').read_text().strip(), files=files, source_sha256=digest(files))
 
