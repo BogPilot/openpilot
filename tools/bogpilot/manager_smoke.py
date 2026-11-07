@@ -57,7 +57,7 @@ def evaluate(samples, required=DEFAULT_REQUIRED, min_seconds=60.0, forbidden=())
 
 def collect(seconds, interval):  # pragma: no cover - device only, read-only
   import time
-  import cereal.messaging as messaging
+  import openpilot.cereal.messaging as messaging
   from openpilot.common.params import Params
   sm, params, out = messaging.SubMaster(["managerState"]), Params(), []
   end = time.monotonic() + seconds

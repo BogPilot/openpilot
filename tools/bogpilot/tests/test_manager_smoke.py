@@ -55,5 +55,16 @@ class SmokeTests(unittest.TestCase):
       self.assertEqual(m.main([str(p)]), 2)
 
 
+class PackagedCollectorNamespaceTests(unittest.TestCase):
+  def test_collector_uses_actual_packaged_cereal_namespace(self):
+    import ast
+    import inspect
+    import textwrap
+    imports = [a.name for n in ast.walk(ast.parse(textwrap.dedent(inspect.getsource(m.collect))))
+               if isinstance(n, ast.Import) for a in n.names]
+    self.assertIn("openpilot.cereal.messaging", imports)
+    self.assertNotIn("cereal.messaging", imports)
+
+
 if __name__ == "__main__":
   unittest.main()
