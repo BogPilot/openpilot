@@ -13,6 +13,7 @@ Only what the UI itself draws is captured, and only after the user presses the b
 """
 from __future__ import annotations
 
+import atexit
 from collections import deque
 import datetime
 import os
@@ -202,10 +203,31 @@ class RecorderEngine:
     self.dropped = 0
     self._t0 = 0.0
     self._submitted = 0
+    self._atexit_registered = False
 
   @property
   def recording(self) -> bool:
+    """Recording REQUESTED (armed or running). Use `active` / `status` for what the indicator shows."""
     return self._recording
+
+  @property
+  def active(self) -> bool:
+    """Truth for the indicator: requested, an encoder is open and alive, and it has accepted at least one frame."""
+    enc = self.encoder
+    if not self._recording or enc is None:
+      return False
+    alive = getattr(enc, "alive", None)
+    return bool((alive() if callable(alive) else True) and getattr(enc, "frames", 0) > 0 and not getattr(enc, "error", None))
+
+  @property
+  def status(self) -> str:
+    """"recording" (active), "starting" (armed, no frame encoded yet), "error" (stopped by a failure; last_error set,
+    cleared by the next start) or "idle"."""
+    if self.active:
+      return "recording"
+    if self._recording:
+      return "starting"
+    return "error" if self.last_error else "idle"
 
   def _space_ok(self) -> bool:
     try:
@@ -257,6 +279,10 @@ class RecorderEngine:
       log_error("screenrecorder: " + str(self.last_error))
       return False
     self.last_error = None
+    if not self._atexit_registered:
+      # normal interpreter shutdown (UI exit) finalizes the open segment, bounded by CLOSE_TIMEOUT_S
+      atexit.register(self.stop)
+      self._atexit_registered = True
     with self._lock:
       self._queue.clear()
       self._recording = True
@@ -304,6 +330,20 @@ class RecorderEngine:
         with self._cv:
           while self._recording and not self._queue:
             self._cv.wait(0.1)
+            enc = self.encoder
+            if self._recording and not self._queue and enc is not None and callable(getattr(enc, "alive", None)) and not enc.alive():
+              break   # encoder died while idle: handled below
+          enc = self.encoder
+          if self._recording and not self._queue and enc is not None and callable(getattr(enc, "alive", None)) and not enc.alive():
+            self._recording = False
+            dead = True
+          else:
+            dead = False
+        if dead:
+          self.last_error = getattr(enc, "error", None) or "encoder process exited"
+          log_error("screenrecorder: " + self.last_error)
+          break
+        with self._cv:
           if not self._recording and not self._queue:
             break
           item = self._queue.popleft() if self._queue else None
@@ -349,9 +389,19 @@ class ScreenRecorder:
 
   @property
   def recording(self) -> bool:
-    return self.engine.recording
+    """Indicator truth (engine.active): False while only armed, and False once the encoder is dead."""
+    return self.engine.active
+
+  @property
+  def status(self) -> str:
+    return self.engine.status
+
+  @property
+  def last_error(self) -> str | None:
+    return self.engine.last_error
 
   def toggle(self) -> bool:
+    """Start when idle/error, stop when armed or running. Returns whether recording is requested afterwards."""
     if self.engine.recording:
       self.engine.stop()
       return False

@@ -93,7 +93,8 @@ def read_dashboard_limit(sm, now: float, drive_start: float) -> float | None:
     if sm is None or name not in sm.data:
       return None
     t = sm.recv_time[name]
-    if not (sm.alive[name] and sm.valid[name] and t >= drive_start and 0.0 <= now - t <= LIMIT_STALE_S):
+    # no lower bound on now - t: SubMaster.update() stamps recv_time after the caller sampled `now` (same as CSC)
+    if not (sm.alive[name] and sm.valid[name] and t >= drive_start and now - t <= LIMIT_STALE_S):
       return None
     v = float(sm[name].dashboardSpeedLimit)
   except (AttributeError, KeyError, TypeError, ValueError):
