@@ -97,14 +97,10 @@ class AdvancedNetworkSettings(Widget):
   def __init__(self, wifi_manager: WifiManager):
     # AdvancedNetworkSettings needs the full openpilot environment, standalone apps just use WifiManagerUI
     from openpilot.common.params import Params
-    from openpilot.selfdrive.ui.ui_state import ui_state
-    from openpilot.selfdrive.ui.lib.prime_state import PrimeType
     super().__init__()
     self._wifi_manager = wifi_manager
     self._wifi_manager.add_callbacks(networks_updated=self._on_network_updated)
     self._params = Params()
-    self._prime_state = ui_state.prime_state
-    self._cell_prime_types = (PrimeType.NONE, PrimeType.LITE)
 
     self._keyboard = Keyboard(max_text_size=MAX_PASSWORD_LENGTH, min_text_size=MIN_PASSWORD_LENGTH, show_password_toggle=True)
 
@@ -248,9 +244,8 @@ class AdvancedNetworkSettings(Widget):
   def _update_state(self):
     self._wifi_manager.process_callbacks()
 
-    # If not using prime SIM, show GSM settings and enable IPv4 forwarding
-    show_cell_settings = self._prime_state.get_type() in self._cell_prime_types
-    self._wifi_manager.set_ipv4_forward(show_cell_settings)
+    # Local SIM settings have no subscription gate. Reading this page must not change routes.
+    show_cell_settings = True
     self._roaming_btn.set_visible(show_cell_settings)
     self._apn_btn.set_visible(show_cell_settings)
     self._cellular_metered_btn.set_visible(show_cell_settings)

@@ -69,11 +69,10 @@ def test_tombstoned_local_only():
   assert "is_registered_device" not in src and "athena" not in src and "commaai" not in src
 
 
-def test_registration_shim_is_inert():
-  src = (OP / "system/athena/registration.py").read_text()
-  tree = ast.parse(src)
-  assert not any(isinstance(n, (ast.FunctionDef, ast.ClassDef)) for n in tree.body)
-  assert set(_imports(OP / "system/athena/registration.py")) == {"openpilot.system.manager.local_identity"}
+def test_registration_and_ui_cloud_components_are_removed():
+  for relative in ("system/athena/registration.py", "common/api.py", "selfdrive/ui/lib/prime_state.py",
+                   "selfdrive/ui/widgets/pairing_dialog.py", "selfdrive/ui/layouts/settings/firehose.py"):
+    assert not (OP / relative).exists(), relative
 
 
 def test_local_dongle_id_reuses_and_never_deletes(tmp_path, monkeypatch):
@@ -86,8 +85,10 @@ def test_local_dongle_id_reuses_and_never_deletes(tmp_path, monkeypatch):
   monkeypatch.setattr(li.Paths, "persist_root", staticmethod(lambda: str(tmp_path)))
   assert li.local_dongle_id(P("abc123")) == "abc123"
   assert li.local_dongle_id(P(None)) == li.UNREGISTERED_DONGLE_ID
-  (tmp_path / "comma").mkdir(); (tmp_path / "comma/dongle_id").write_text("persist1\n")
-  p = P(None); assert li.local_dongle_id(p) == "persist1" and p.v["DongleId"] == "persist1"
+  (tmp_path / "comma").mkdir()
+  (tmp_path / "comma/dongle_id").write_text("persist1\n")
+  p = P(None)
+  assert li.local_dongle_id(p) == "persist1" and p.v["DongleId"] == "persist1"
   assert (tmp_path / "comma/dongle_id").exists()
 
 

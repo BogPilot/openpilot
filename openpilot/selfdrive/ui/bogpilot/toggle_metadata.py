@@ -1807,14 +1807,6 @@ DEVICE_CONTROLS_TOGGLES = (
     tuning_level=2,
   ),
   ToggleDefinition(
-    title=("Use Konik Server"),
-    param="UseKonikServer",
-    description=("<b>Upload driving data to \"stable.konik.ai\" instead of \"connect.comma.ai\".</b>"),
-    parent_param="DeviceManagement",
-    reboot_required=True,
-    tuning_level=2,
-  ),
-  ToggleDefinition(
     title=("Screen Settings"),
     param="ScreenManagement",
     description=("<b>Settings that control screen brightness, screen recording, and timeout duration.</b>"),

@@ -35,9 +35,6 @@ dependencies = [
   "comma-deps-git-lfs",
   "comma-deps-gcc-arm-none-eabi",
 
-  # JWT for common/api.py (only remaining consumer: UI Connect/Prime, pending removal by UI integration)
-  "PyJWT[crypto]",
-
   # joystickd
   "inputs",
 
