@@ -163,6 +163,8 @@ def build_layout(supplied=None):
 
     def _render(self, rect):
       header, body = content_bounds(rect.x, rect.y, rect.width, rect.height)
+      # Standalone ListItem headers need the same viewport lifecycle as Scroller children.
+      self._header.set_parent_rect(rect)
       self._header.render(rl.Rectangle(*header))
       if body[2] > 0 and body[3] > 0:
         self.navigation.current.render(rl.Rectangle(*body))
