@@ -1,5 +1,7 @@
 """Synthetic fixtures only: no native build, actual panda key, or device access."""
 import base64
+import contextlib
+import io
 import hashlib
 import importlib.util
 import json
@@ -169,6 +171,28 @@ class GateTests(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, 'artifact source'):
       self.verify()
 
+  def test_artifact_bytes_do_not_match_hash_manifest(self):
+    p = self.first / gate.OUTPUTS[0]
+    p.write_bytes(p.read_bytes() + b'changed')
+    with self.assertRaisesRegex(ValueError, 'SHA256'):
+      self.verify()
+
+  def test_archive_manifest_mismatch(self):
+    p = self.archive / gate.SOURCE_MANIFEST
+    data = json.loads(p.read_text())
+    data['source_commit'] = 'f' * 40
+    p.write_text(json.dumps(data))
+    with self.assertRaisesRegex(ValueError, 'archive/source manifest'):
+      self.verify()
+
+  def test_source_generated_inventory_excluded(self):
+    obj = self.source / 'panda/board/obj'
+    obj.mkdir()
+    (obj / 'version').write_text('generated output')
+    (self.source / 'panda/.sconsign.dblite').write_text('generated database')
+    (self.source / 'panda/compile_commands.json').write_text('generated commands')
+    self.assertEqual(self.verify()['status'], 'PASS')
+
   def test_missing_body(self):
     (self.first / gate.OUTPUTS[1]).unlink()
     with self.assertRaises(FileNotFoundError):
@@ -219,8 +243,11 @@ class GateTests(unittest.TestCase):
       gate.checkout_policy(self.source, self.git('rev-parse', 'HEAD').strip())
 
   def test_missing_evidence_cli_fails(self):
-    code = gate.main(['--source', str(self.source), '--archive', str(self.archive), '--artifacts', str(self.first),
-                      '--repeat', str(self.second / 'missing'), '--candidate', self.candidate])
+    stderr = io.StringIO()
+    with contextlib.redirect_stderr(stderr):
+      code = gate.main(['--source', str(self.source), '--archive', str(self.archive), '--artifacts', str(self.first),
+                        '--repeat', str(self.second / 'missing'), '--candidate', self.candidate])
+    self.assertEqual(json.loads(stderr.getvalue())['status'], 'FAIL')
     self.assertEqual(code, 1)
 
 
