@@ -186,9 +186,23 @@ class RecordButton(Widget):
       cloudlog.exception("screen recorder toggle failed")
 
   def _render(self, rect) -> None:
+    """Truthful indicator: `status` from the engine (recording only once the encoder is alive and has a frame).
+    starting = dim pulse ring around the idle dot; error = amber ring + "!" until the next start (last_error logged)."""
     rec = self._recorder_fn()
+    status = rec.status
+    error = rec.last_error if status == "error" else None
     pulse = 0.5 + 0.5 * math.sin(time.monotonic() * 3.14159)
-    R.paint_record_button(rect, rec.recording, pulse)
+    R.paint_record_button(rect, status == "recording", pulse)
+    cx, cy = rect.x + rect.width / 2, rect.y + rect.height / 2
+    r = min(rect.width, rect.height) / 2
+    if status == "starting":
+      rl.draw_ring(rl.Vector2(cx, cy), r * 0.62, r * 0.70, 0, 360, 32, rl.Color(225, 60, 60, int(90 + 120 * pulse)))
+    elif error:
+      rl.draw_ring(rl.Vector2(cx, cy), r * 0.62, r * 0.72, 0, 360, 32, rl.Color(255, 176, 32, 235))
+      bx, by = cx + r * 0.52, cy - r * 0.52
+      rl.draw_circle_v(rl.Vector2(bx, by), r * 0.24, rl.Color(255, 176, 32, 245))
+      rl.draw_rectangle_rec(rl.Rectangle(bx - r * 0.035, by - r * 0.15, r * 0.07, r * 0.17), rl.Color(14, 17, 22, 255))
+      rl.draw_circle_v(rl.Vector2(bx, by + r * 0.10), r * 0.04, rl.Color(14, 17, 22, 255))
 
 
 class ExtrasPolicy:
@@ -280,7 +294,7 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
       psm = self._bp_plan_sm
       try:
         if psm is not None and "frogpilotCarState" in psm.data and psm.valid["frogpilotCarState"] and \
-           psm.alive["frogpilotCarState"] and 0.0 <= now - psm.recv_time["frogpilotCarState"] <= SL.LIMIT_STALE_S and \
+           psm.alive["frogpilotCarState"] and now - psm.recv_time["frogpilotCarState"] <= SL.LIMIT_STALE_S and \
            psm.recv_time["frogpilotCarState"] >= self._bp_drive_start:
           lights = bool(psm["frogpilotCarState"].brakeLights)
       except (KeyError, AttributeError, TypeError):

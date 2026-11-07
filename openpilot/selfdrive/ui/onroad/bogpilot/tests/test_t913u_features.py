@@ -68,6 +68,8 @@ class TestDashboardLimitSource(unittest.TestCase):
     self.assertIsNone(SL.read_dashboard_limit(sm, 100.1, 50.0))
     self.assertIsNone(SL.read_dashboard_limit(FakeSM(100.0), 100.1, 50.0))
     self.assertIsNone(SL.read_dashboard_limit(None, 100.1, 50.0))
+    # SubMaster.update() stamps recv_time after `now` was sampled: a message newer than `now` is fresh, not rejected
+    self.assertAlmostEqual(SL.read_dashboard_limit(FakeSM(100.0, frogpilotCarState=fpcs(29.0)), 99.99, 50.0), 29.0)
 
   def test_bogus_values(self):
     for v in (float("nan"), float("inf"), -1.0, SL.MAX_LIMIT_MS + 1):
@@ -285,7 +287,10 @@ class TestPedals(unittest.TestCase):
 class FakeEncoder:
   def __init__(self, path, w, h, fail_at=None):
     self.path, self.lock_path, self.w, self.h = path, path + ".lock", w, h
-    self.frames, self.error, self.closed, self.fail_at = 0, None, False, fail_at
+    self.frames, self.error, self.closed, self.fail_at, self.running = 0, None, False, fail_at, True
+
+  def alive(self):
+    return self.running
 
   def open(self):
     Path(self.lock_path).write_text(str(os.getpid()))
@@ -437,14 +442,70 @@ class TestRecorderEngine(unittest.TestCase):
     self.assertFalse(e.start())
     self.assertIn("cannot create", e.last_error)
 
-  def test_toggle_glue(self):
+  def test_toggle_glue_and_truthful_indicator(self):
     e = self.engine(encoder_factory=lambda p, w, h: FakeEncoder(p, w, h))
     r = SR.ScreenRecorder(e)
+    self.assertEqual(r.status, "idle")
     self.assertTrue(r.toggle())
-    self.assertTrue(r.recording)
+    self.assertFalse(r.recording)                       # armed only: no encoder, no frame yet
+    self.assertEqual(r.status, "starting")
+    e.submit_frame(frame(4, 2, (0, 0, 0, 255)), 4, 2)
+    self.assertTrue(wait_until(lambda: r.recording))
+    self.assertEqual(r.status, "recording")
     self.assertFalse(r.toggle())
     self.assertFalse(r.recording)
+    self.assertEqual(r.status, "idle")
     r.stop()   # idempotent (offroad transition)
+
+  def test_toggle_while_armed_stops(self):
+    e = self.engine(encoder_factory=lambda p, w, h: FakeEncoder(p, w, h))
+    r = SR.ScreenRecorder(e)
+    r.toggle()
+    self.assertFalse(r.toggle())
+    self.assertFalse(e.recording)
+    self.assertEqual(os.listdir(self.dir), [])
+
+  def test_encoder_death_while_idle_clears_indicator_and_reports(self):
+    encs = []
+    def fac(p, w, h):
+      encs.append(FakeEncoder(p, w, h))
+      return encs[-1]
+    e = self.engine(encoder_factory=fac)
+    r = SR.ScreenRecorder(e)
+    r.toggle()
+    e.submit_frame(frame(4, 2, (0, 0, 0, 255)), 4, 2)
+    self.assertTrue(wait_until(lambda: r.recording))
+    encs[0].running = False                             # process died, no further frames arrive
+    self.assertFalse(r.recording)                       # indicator truth is immediate
+    self.assertTrue(wait_until(lambda: not e.recording))  # engine notices within its 0.1 s poll
+    self.assertEqual(r.status, "error")
+    self.assertIn("exited", r.last_error)
+    self.assertTrue(wait_until(lambda: encs[0].closed))   # worker finalizes the dead segment
+    self.assertTrue(r.toggle())                         # next start clears the error
+    self.assertIsNone(r.last_error)
+    r.stop()
+
+  def test_interpreter_shutdown_finalizes(self):
+    child = r"""
+import importlib.util, sys, time
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("sr", sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+root = Path(sys.argv[2])
+class Enc:
+  def __init__(self, path, w, h): self.path, self.error, self.frames = path, None, 0
+  def open(self): return True
+  def alive(self): return True
+  def write(self, d): self.frames += 1; return True
+  def close(self): (root / "finalized").write_text("1"); return True
+e = m.RecorderEngine(directory=str(root), encoder_factory=Enc, free_fn=lambda p: 1 << 40)
+e.start(); e.submit_frame(bytes(16 * 16 * 4), 16, 16)
+t = time.monotonic() + 2
+while not e.active and time.monotonic() < t: time.sleep(0.005)
+assert e.active
+"""
+    import sys
+    subprocess.run([sys.executable, "-c", child, str(Path(SR.__file__)), self.dir], check=True, timeout=20)
+    self.assertTrue((Path(self.dir) / "finalized").exists())
 
 
 @unittest.skipUnless(FFMPEG and FFPROBE, "ffmpeg/ffprobe not available")
