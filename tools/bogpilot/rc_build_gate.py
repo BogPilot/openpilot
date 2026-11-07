@@ -18,7 +18,7 @@ import struct
 import subprocess
 
 RELEASE_BASE = "f7db927c728bab57bb1263e05465766a8f28fc9d"
-VENDORS = ("msgq_repo", "opendbc_repo", "rednose_repo", "teleoprtc_repo", "tinygrad_repo")
+VENDORS = ("msgq_repo", "opendbc_repo", "rednose_repo", "tinygrad_repo")
 GATES = ("startup", "firmware", "package", "controls", "settings", "ui", "recorder", "provenance", "build", "imports")
 MODELS = ("driving_tinygrad.pkl", "dmonitoring_model_tinygrad.pkl", "driving_warp_1344x760_tinygrad.pkl",
           "driving_warp_1928x1208_tinygrad.pkl", "dm_warp_1344x760_tinygrad.pkl", "dm_warp_1928x1208_tinygrad.pkl")
@@ -214,7 +214,7 @@ def inspect(root: Path, candidate: str, artifact_root: Path | None = None, manif
     modules, native = service_inventory(root)
     for module in modules:
       prefix, _, rest = module.partition(".")
-      base = root / (prefix + "_repo") if prefix in ("opendbc", "msgq", "rednose", "tinygrad", "teleoprtc") else root
+      base = root / (prefix + "_repo") if prefix in ("opendbc", "msgq", "rednose", "tinygrad") else root
       p = base / module.replace(".", "/")
       require(p.with_suffix(".py").is_file() or (p / "__init__.py").is_file(), "missing service module")
     return {"python_modules": modules, "native_executables": native, "method": "AST only; imports NOT run"}

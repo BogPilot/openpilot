@@ -29,7 +29,7 @@ SOURCE_REQUIRED = (
   "openpilot/selfdrive/modeld/modeld.py", "openpilot/selfdrive/modeld/dmonitoringmodeld.py",
   "openpilot/system/hardware/comma/agnos.json", "panda/build_identity.py",
   "msgq_repo/msgq/__init__.py", "opendbc_repo/opendbc/__init__.py",
-  "rednose_repo/rednose/__init__.py", "teleoprtc_repo/teleoprtc/__init__.py",
+  "rednose_repo/rednose/__init__.py",
   "tinygrad_repo/tinygrad/__init__.py",
 )
 MODELS = ("driving_tinygrad.pkl", "dmonitoring_model_tinygrad.pkl",
