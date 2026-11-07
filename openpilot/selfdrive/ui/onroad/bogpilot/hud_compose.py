@@ -37,6 +37,7 @@ DESIGN_W, DESIGN_H = 2160.0, 1080.0
 WIDE_MIN_W = 1800.0          # redesign.alert_banner_rect's wide-layout breakpoint (content-rect pixels)
 UI_BORDER = 30               # stock UI_BORDER_SIZE / UI_CONFIG.border_size
 DM_BTN = 192                 # stock driver_state.BTN_SIZE
+LABEL_CLEAR_MARGIN = 8       # lead_labels.clear() default margin
 EXP_BTN = 192                # stock UI_CONFIG.button_size
 MAX_AGE = 0.5
 FULL = log.SelfdriveState.AlertSize.full
@@ -72,9 +73,10 @@ class PolicyToggles:
 
   hide_lead_marker (:768) = longitudinal and AdvancedCustomUI and HideLeadMarker and not DebugMode
   onroad_distance_button (:1110) = longitudinal and ((QOLVisuals and OnroadDistanceButton) or DebugMode)
-  adjacent_leads = adjacent_lead_tracking or human_lane_changes (bogpilot_onroad_toggles, 367e1fe :908 / :1003): the
-    daily radard computed frogpilotRadarState.leadLeft/Right exactly then, and daily drawLead drew every status=true
-    adjacent lead. Here radard also computes them for BSMFlameTracks, so the UI applies the daily gate itself.
+  adjacent_leads = has_radar and (AdjacentLeadsUI or DebugMode). Daily (367e1fe :908) also required the DeveloperUI /
+    DeveloperWidgets parents and drew when human_lane_changes made radard compute the leads; C3X has no human lane
+    change controller and no reachable developer-widget panel, so the UI gate is the user's AdjacentLeadsUI setting
+    alone (BogPilot Visuals panel). radard still computes the leads (BSMFlameTracks); the UI decides visibility.
   The longitudinal term is applied by the caller from the real CarParams. A read failure fails closed: the lead
   marker is reported hidden (so no lock-on box is drawn) and there is no personality pill."""
 
@@ -102,7 +104,7 @@ class PolicyToggles:
         try:
           from openpilot.common.bogpilot_onroad_toggles import onroad_toggles
           t = onroad_toggles(s, getattr(ui_state, "CP", None))
-          adj = bool(t.adjacent_lead_tracking or t.human_lane_changes)
+          adj = bool(t.has_radar and (s.toggle_bool("AdjacentLeadsUI", level) or debug))
         except Exception:
           adj = False   # fail closed: no adjacent boxes
         self._value = {"hide_lead_marker": hide, "onroad_distance_button": odb, "adjacent_leads": adj}
@@ -165,6 +167,7 @@ class HudFrame:
   dm_personality_visible: bool = False
   base_keepouts: list = field(default_factory=list)
   stock_dm_rect: object = None
+  dm_shift: float = 0.0          # t922u: px the stock DM moved toward the centre to free its corner for the button
 
 
 def load_peer_layers(loader=importlib.import_module, mici=False):
@@ -303,11 +306,17 @@ class HudComposer:
     py = rect.y + rect.height - off
     dm = rl.Rectangle(px - DM_BTN / 2, py - DM_BTN / 2, DM_BTN, DM_BTN)
     pill = band = None
+    f.dm_shift = 0.0
     if f.wide and f.onroad_distance_button and f.traffic_mode is not None and ss_ok and not f.full_alert:
+      # t922u (user): the driving-personality button takes the stock DM corner (daily: button in the corner, DM beside
+      # it); the unmodified stock DM keeps its size and moves toward the centre by button + gap.
       p = R.personality_rect(f.rhd, rect.width / s)        # design-space disc; w3 adds its own 40 px label band
       pill = to_screen(p, rect, s)
-      gap = CLUSTER_GAP * s
-      pill.x = dm.x - gap - pill.width if f.rhd else dm.x + dm.width + gap
+      gap = CLUSTER_GAP * s + LABEL_CLEAR_MARGIN   # lead_labels.clear() refuses the pill within 8 px of a keepout
+      pill.x, pill.y = px - pill.width / 2, py - pill.height / 2
+      shift = pill.width / 2 + gap + DM_BTN / 2
+      f.dm_shift = shift
+      dm = rl.Rectangle(dm.x + (-shift if f.rhd else shift), dm.y, DM_BTN, DM_BTN)
       band = rl.Rectangle(pill.x, pill.y - PILL_LABEL_SPACE, pill.width, pill.height + PILL_LABEL_SPACE)
     extra = [band] if band is not None else []
     f.base_keepouts, f.stock_dm_rect, f.personality_rect = base, dm, pill
@@ -391,7 +400,7 @@ class HudComposer:
           if ok:
             self.order.append("lead_labels")
 
-    self.dm.render(rect)            # stock DriverStateRenderer.render(): stock visibility, pose, fade, arcs, corner
+    self.dm.render(self.dm_rect(rect, f))   # stock DriverStateRenderer.render(): stock pose, fade, arcs; t922u position
     self.order.append("stock_dm")
 
     self._alert(rect)
@@ -416,6 +425,87 @@ class HudComposer:
     self.alert.render(rect)
     self.dm.render(rect)
     self.order = ["model", "hud", "alert", "stock_dm"]
+
+  @staticmethod
+  def dm_rect(rect, f):
+    """Rect handed to the stock DM renderer. Stock places it at rect.x + offset (LHD) or rect.x + width - offset
+    (RHD), so trimming dm_shift from the driver side moves it by exactly dm_shift; size and code are untouched."""
+    d = getattr(f, "dm_shift", 0.0) if f is not None else 0.0
+    if not d:
+      return rect
+    return rl.Rectangle(rect.x + (0 if f.rhd else d), rect.y, rect.width - d, rect.height)
+
+  def handle_press(self, pos, write=None) -> bool:
+    """Personality button tap (daily DistanceButton: personality_at steps down like the stalk; ignored in Traffic
+    Mode). Writes LongitudinalPersonality, which selfdrived re-reads every 0.1 s (stock params_thread), the same key
+    the stock Toggles panel writes. Returns True when the tap was the button's (so it does not toggle the sidebar)."""
+    f = self.frame
+    pill = getattr(f, "personality_rect", None) if f is not None else None
+    if pill is None:
+      return False
+    x, y = float(pos.x), float(pos.y)
+    if not (pill.x <= x <= pill.x + pill.width and pill.y <= y <= pill.y + pill.height):
+      return False
+    if f.traffic_mode:
+      return True
+    try:
+      pers = ui_state.sm["selfdriveState"].personality
+      current = int(getattr(pers, "raw", pers))
+    except Exception:
+      return True
+    new = R.personality_at(pill, x, y, current)
+    if new < 0:
+      return True
+    try:
+      if write is None:
+        from openpilot.common.params import Params
+        Params().put("LongitudinalPersonality", int(new))
+      else:
+        write("LongitudinalPersonality", int(new))
+      self.last_personality_write = int(new)
+    except Exception:
+      cloudlog.exception("hud_compose: personality write failed")
+    return True
+
+  BSM_BORDER_RGBA = (0xC9, 0x22, 0x31, 0xF1)   # daily bg_colors[STATUS_TRAFFIC_MODE_ENABLED]
+
+  def bsm_border(self, now=None):
+    """(left, right) border halves to paint red, or None. Daily frogpilot_onroad paintTurnSignalBorder: a side with
+    carState blindspot paints its half bg_colors[STATUS_TRAFFIC_MODE_ENABLED], steady, when blind_spot_metrics =
+    has_bsm and BorderMetrics and BlindSpotMetrics (or DebugMode). Physical sides (RHD does not swap). Priority: the
+    LKAS-fault flash, a full-screen alert and a critical alert keep the whole border (BSM never hides them)."""
+    f = self.frame
+    if f is None or f.full_alert:
+      return None
+    a = getattr(f, "alert", None)
+    if a is not None and int(getattr(a, "status", 0)) == int(log.SelfdriveState.AlertStatus.critical):
+      return None
+    if self.border_override() is not None:
+      return None
+    try:
+      from openpilot.selfdrive.ui.onroad.bogpilot.bsm_state import blindspots, has_bsm
+      if not has_bsm(getattr(ui_state, "CP", None)) or not self._bsm_border_enabled():
+        return None
+      left, right = blindspots(ui_state.sm, ui_state.started_frame, time.monotonic() if now is None else now)
+    except Exception:
+      return None
+    return (left, right) if (left or right) else None
+
+  def _bsm_border_enabled(self) -> bool:
+    now = self.clock()
+    if now >= getattr(self, "_bsm_border_next", -1.0):
+      self._bsm_border_next = now + 2.0
+      try:
+        s = getattr(self, "_bsm_store", None)
+        if s is None:
+          from openpilot.common.bogpilot_store import ParamStore
+          s = self._bsm_store = ParamStore()
+        level = s.tuning_level()
+        self._bsm_border_on = bool((s.toggle_bool("BorderMetrics", level) and s.toggle_bool("BlindSpotMetrics", level))
+                                   or s.get_bool("DebugMode", False))
+      except Exception:
+        self._bsm_border_on = False
+    return bool(getattr(self, "_bsm_border_on", False))
 
   def border_override(self, millis=None):
     """LKAS-fault flashing border (daily onroad_home) from w4's plan of the real alertType; None = stock colour."""

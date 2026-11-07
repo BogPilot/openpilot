@@ -92,7 +92,10 @@ class AugmentedRoadView(CameraView):
     # Draw colored border based on driving state
     self._draw_border(rect)
 
-  def _handle_mouse_press(self, _):
+  def _handle_mouse_press(self, mouse_pos):
+    # BogPilot t922u: the driving-personality button consumes its own tap (no sidebar toggle)
+    if self._hud_compose.handle_press(mouse_pos):
+      return
     if not self._hud_renderer.user_interacting() and self._click_callback is not None:
       self._click_callback()
 
@@ -107,6 +110,16 @@ class AugmentedRoadView(CameraView):
     border_rect = rl.Rectangle(rect.x + UI_BORDER_SIZE, rect.y + UI_BORDER_SIZE,
                                rect.width - 2 * UI_BORDER_SIZE, rect.height - 2 * UI_BORDER_SIZE)
     rl.draw_rectangle_rounded_lines_ex(border_rect, border_roundness, 10, UI_BORDER_SIZE, border_color)
+    # BogPilot t922u: blind-spot side -> that physical half of the border red (daily paintTurnSignalBorder colour,
+    # steady). bsm_border() returns None while an LKAS-fault flash / full / critical alert owns the border.
+    sides = self._hud_compose.bsm_border()
+    if sides:
+      half = rect.width / 2
+      for i, on in enumerate(sides):
+        if on:
+          rl.begin_scissor_mode(int(rect.x + i * half), int(rect.y), int(half + (rect.width - 2 * half)), int(rect.height))
+          rl.draw_rectangle_rounded_lines_ex(border_rect, border_roundness, 10, UI_BORDER_SIZE, rl.Color(*self._hud_compose.BSM_BORDER_RGBA))
+          rl.end_scissor_mode()
 
   def _switch_stream_if_needed(self, sm):
     if sm['selfdriveState'].experimentalMode and WIDE_CAM in self.available_streams:

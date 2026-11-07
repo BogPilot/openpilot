@@ -48,10 +48,20 @@ def adjacent_leads(sm, started_frame, now=None):
     return empty
 
 
+AP1_FINGERPRINT = "TESLA_AP1_MODELS"
+
+
+def has_bsm(cp) -> bool:
+  """Car reports carState.left/rightBlindspot: only tesla_ap1 carstate fills them (stock 0x399 bus 2)."""
+  return str(getattr(cp, "carFingerprint", "") or "") == AP1_FINGERPRINT
+
+
 class BsmPolicy:
   """Daily toggle.blind_spot_path = has_bsm and ((CustomUI and BlindSpotPath) or DebugMode) (367e1fe :875).
-  has_bsm: C3X carParams do not set enableBsm for AP1 (see handoff), while carstate fills the flags only for AP1;
-  so the side flags themselves are the capability. BlindSpotPath keeps its typed/file reader (file_toggles).
+  has_bsm: 0.11.2 moved CarParams.enableBsm into the `deprecated` group (opendbc car.capnp), so neither stock nor
+  C3X can set it. The capability is the exact carstate condition that fills the flags (tesla_ap1 carstate.py:
+  ap1 = carFingerprint == TESLA_AP1_MODELS). No CarParams -> hidden.
+  BlindSpotPath keeps its typed/file reader (file_toggles).
   Cached 2 s; a store read failure keeps the previous typed/file BlindSpotPath behaviour."""
 
   def __init__(self, store=None, clock=time.monotonic, ttl=2.0):
@@ -59,7 +69,9 @@ class BsmPolicy:
     self._next = -1.0
     self._custom, self._debug = True, False
 
-  def enabled(self, blind_spot_path: bool) -> bool:
+  def enabled(self, blind_spot_path: bool, cp=None) -> bool:
+    if not has_bsm(cp):
+      return False
     now = self.clock()
     if now >= self._next:
       self._next = now + self.ttl
