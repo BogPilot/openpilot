@@ -95,7 +95,7 @@ def msgs(v_ego, v_cruise, s=0.0, road_k=None, steer_ratio=15.0, wheelbase=2.959,
   cs.leftBlinker = blinker
   cs.canValid = True
   k_now = road_k(s)
-  cs.steeringAngleDeg = float(math.degrees(k_now * steer_ratio * wheelbase))
+  cs.steeringAngleDeg = float(-math.degrees(k_now * steer_ratio * wheelbase))   # angle: left positive; curvature: right positive
 
   ctrl = messaging.new_message('controlsState').controlsState
   ctrl.longControlState = LongCtrlState.pid if enabled else LongCtrlState.off
@@ -226,6 +226,24 @@ def test_experimental_e2e_candidate_preserved():
 
 # --- gating and fail-closed ---
 
+def test_curvature_sign_convention_and_glyph():
+  # openpilot frames: modelV2 is device frame (y right, z down), so positive orientationRate.z / road curvature is a
+  # RIGHT curve, and controlsState.curvature = -VM.calc_curvature(steeringAngleDeg) is also right-positive. Public
+  # 0.11.2 log replay agreed (road curvature vs steering angle opposite on every strong-signal frame). The daily rule
+  # left = roadCurvature < 0 therefore draws a left glyph for left curves.
+  for k, want_left in ((K, False), (-K, True)):
+    p = planner()
+    for i in range(80):
+      p.update(SM(msgs(20.0, 30.0, 220.0 + 20.0 * i * DT_MDL, road(300.0, k, 150.0))))
+    cs = p.curve_speed
+    assert cs.controlling and math.copysign(1.0, cs.road_curvature) == math.copysign(1.0, k)
+    msg = messaging.new_message('frogpilotPlan')
+    cs.fill(msg.frogpilotPlan)
+    slot = L.csc_slot(L.csc_status_from_plan(msg.frogpilotPlan),
+                      L.CscContext(cruise_set=True, set_speed_display=67.0, display_conv=2.23694))
+    assert slot.active and slot.left == want_left
+
+
 def run_inactive(p, sm_kwargs=None, **kw):
   for i in range(80):
     p.update(SM(msgs(20.0, 30.0, 200.0 + 20.0 * i * DT_MDL, road(250.0, K, 150.0), **kw), **(sm_kwargs or {})))
@@ -323,7 +341,7 @@ def test_frogpilot_plan_units_and_ui_slot():
   msg.valid = cs.valid
   cs.fill(msg.frogpilotPlan)
   plan = msg.frogpilotPlan
-  assert plan.roadCurvature == pytest.approx(K, rel=1e-5)                 # 1/m, left curve positive (daily sign)
+  assert plan.roadCurvature == pytest.approx(K, rel=1e-5)                 # 1/m; positive = RIGHT curve (model frame)
   assert V_CURVE - 0.01 <= plan.cscSpeed <= 20.0 + 1e-6                   # m/s, ramping from v_ego to the curve speed
   assert plan.vCruise == pytest.approx(min(plan.cscSpeed, 30.0), rel=1e-6)
   status = L.csc_status_from_plan(plan)
