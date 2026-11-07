@@ -188,7 +188,6 @@ PauseLateralOnSignal
 PauseLateralSpeed
 PedalsOnUI
 PersonalizeOpenpilot
-PreferredSchedule
 PromptDistractedVolume
 PromptVolume
 QOLLateral
@@ -224,7 +223,6 @@ ScreenManagement
 ScreenRecorder
 ScreenTimeout
 ScreenTimeoutOnroad
-SearchInput
 SetSpeedLimit
 SetSpeedOffset
 ShowCEMStatus
@@ -267,8 +265,6 @@ StandardJerkSpeed
 StandardJerkSpeedDecrease
 StandardPersonalityProfile
 StandbyMode
-StartupMessageBottom
-StartupMessageTop
 StaticPedalsOnUI
 StoppedTimer
 SubaruSNG
@@ -282,7 +278,6 @@ TuningLevelConfirmed
 TurnDesires
 UnlimitedLength
 UnlockDoors
-UpdatedToggles
 UseKonikServer
 UseSI
 UseVienna
@@ -339,6 +334,9 @@ def _atomic_file(path: Path, content: bytes | None) -> None:
 def reset_requested(params, file_root: Path | str, *, backup: Callable[[], object] | None = None) -> ResetResult:
   """w10 supplies w5 backup closure; only a truthy durable receipt permits IO.
 
+  Only the active store is mutated; stale typed-key fallback files are outside
+  the durable backup scope and are preserved.
+
   Params is typed 0.11.2 Params (all_keys/get/get_bool/cpp2python/put/remove).
   Missing compiled keys fall back to files. File-only keys NEVER touch Params.
   No request => no directory creation, backup, defaults, or mutation.
@@ -356,10 +354,10 @@ def reset_requested(params, file_root: Path | str, *, backup: Callable[[], objec
     stage = "snapshot"
     directory = Path(file_root)
     values = reset_defaults()
-    typed = set(values) & known - FILE_RESET_KEYS
+    typed = (set(values) & known) - FILE_ONLY_UI_KEYS
     original_params = {k: params.get(k) for k in typed}
     original_files = {}
-    for k in values:
+    for k in values.keys() - typed:
       path = directory / k
       if path.is_symlink():
         raise ValueError("symlink target refused")
@@ -377,7 +375,6 @@ def reset_requested(params, file_root: Path | str, *, backup: Callable[[], objec
           params.remove(k)
         else:
           params.put(k, value, block=True)
-        _atomic_file(directory / k, None)  # discard stale fallback for owned key only
       else:
         _atomic_file(directory / k, None if text is None else text.encode())
     stage = "clear request"
