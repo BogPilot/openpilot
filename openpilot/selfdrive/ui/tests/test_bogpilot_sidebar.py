@@ -55,7 +55,7 @@ def test_sidebar_offroad_metrics_and_onroad_navigation(monkeypatch):
   from openpilot.selfdrive.ui.layouts import sidebar as m
   sidebar = m.Sidebar.__new__(m.Sidebar)
   sidebar._offroad_temp_status, sidebar._cpu_status, sidebar._ram_status = [m.MetricData(n, '--', m.Colors.GRAY) for n in ['TEMP', 'CPU', 'RAM']]
-  sidebar._temp_status, sidebar._panda_status, sidebar._connect_status = [m.MetricData(n, '--', m.Colors.GRAY) for n in ['TEMP', 'VEHICLE', 'CONNECT']]
+  sidebar._temp_status, sidebar._panda_status = [m.MetricData(n, '--', m.Colors.GRAY) for n in ['TEMP', 'VEHICLE']]
   sidebar._params = SimpleNamespace(get_bool=lambda key: key == 'Fahrenheit')
   sidebar._update_hardware_metrics(device(), fresh=True)
   assert [r.value for r in [sidebar._offroad_temp_status, sidebar._cpu_status, sidebar._ram_status]] == ['129°F', '25%', '41%']
@@ -64,8 +64,10 @@ def test_sidebar_offroad_metrics_and_onroad_navigation(monkeypatch):
   monkeypatch.setattr(m, 'ui_state', SimpleNamespace(started=False))
   sidebar._draw_metrics(m.rl.Rectangle(0, 0, 300, 1080))
   assert calls == [('TEMP', 338), ('CPU', 496), ('RAM', 654)]
-  calls.clear();m.ui_state.started = True;sidebar._draw_metrics(m.rl.Rectangle(0, 0, 300, 1080))
-  assert calls == [('TEMP', 338), ('VEHICLE', 496), ('CONNECT', 654)]
+  calls.clear()
+  m.ui_state.started = True
+  sidebar._draw_metrics(m.rl.Rectangle(0, 0, 300, 1080))
+  assert calls == [('TEMP', 338), ('VEHICLE', 496), ('RAM', 654)]
 
 
 def test_stale_subscription_resets_readings_and_bars(monkeypatch):

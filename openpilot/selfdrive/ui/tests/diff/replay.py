@@ -8,7 +8,6 @@ from tqdm import tqdm
 from typing import Literal
 from collections.abc import Callable
 from openpilot.cereal.messaging import PubMaster
-from openpilot.common.api import Api
 from openpilot.common.basedir import BASEDIR
 from openpilot.common.params import Params
 from openpilot.common.prefix import OpenpilotPrefix
@@ -36,8 +35,6 @@ def setup_state():
   params.put("GitCommit", "abc12340ff9131237ba23a1d0fbd8edf9c80e87", block=True)
   params.put("GitCommitDate", "'1732924800 2024-11-30 00:00:00 +0000'", block=True)
 
-  # Patch Api.get_token to return a static token so the pairing QR code is deterministic across runs
-  Api.get_token = lambda self, payload_extra=None, expiry_hours=0: "test_token"
 
 
 def run_replay(variant: LayoutVariant) -> None:

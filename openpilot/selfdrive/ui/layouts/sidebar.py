@@ -1,5 +1,4 @@
 import pyray as rl
-import time
 from dataclasses import dataclass
 from collections.abc import Callable
 from openpilot.cereal import log
@@ -76,7 +75,6 @@ class Sidebar(Widget):
 
     self._temp_status = MetricData(tr_noop("TEMP"), tr_noop("GOOD"), Colors.GOOD)
     self._panda_status = MetricData(tr_noop("VEHICLE"), tr_noop("ONLINE"), Colors.GOOD)
-    self._connect_status = MetricData(tr_noop("CONNECT"), tr_noop("OFFLINE"), Colors.WARNING)
     self._recording_audio = False
 
     self._home_img = gui_app.texture("bogpilot/button_home.png", HOME_BTN.width, HOME_BTN.height)
@@ -123,13 +121,12 @@ class Sidebar(Widget):
     self._update_hardware_metrics(device_state, fresh=True)
     self._update_network_status(device_state)
     self._update_temperature_status(device_state)
-    self._update_connection_status(device_state)
     self._update_panda_status()
 
   def _update_hardware_metrics(self, device_state, *, fresh: bool):
     readings = device_readings(device_state, fresh=fresh, fahrenheit=self._params.get_bool("Fahrenheit"))
     colors = {"good": Colors.GOOD, "warning": Colors.WARNING, "danger": Colors.DANGER, "unknown": Colors.GRAY}
-    for metric, reading in zip((self._offroad_temp_status, self._cpu_status, self._ram_status), readings):
+    for metric, reading in zip((self._offroad_temp_status, self._cpu_status, self._ram_status), readings, strict=True):
       metric.update(metric.label, reading.value, colors[reading.level])
 
   def _update_network_status(self, device_state):
@@ -145,14 +142,6 @@ class Sidebar(Widget):
     else:
       self._temp_status.update(tr_noop("TEMP"), tr_noop("HIGH"), Colors.DANGER)
 
-  def _update_connection_status(self, device_state):
-    last_ping = device_state.lastAthenaPingTime
-    if last_ping == 0:
-      self._connect_status.update(tr_noop("CONNECT"), tr_noop("OFFLINE"), Colors.WARNING)
-    elif time.monotonic_ns() - last_ping < 80_000_000_000:  # 80 seconds in nanoseconds
-      self._connect_status.update(tr_noop("CONNECT"), tr_noop("ONLINE"), Colors.GOOD)
-    else:
-      self._connect_status.update(tr_noop("CONNECT"), tr_noop("ERROR"), Colors.DANGER)
 
   def _update_panda_status(self):
     if ui_state.panda_type == log.PandaState.PandaType.unknown:
@@ -217,8 +206,8 @@ class Sidebar(Widget):
     rl.draw_text_ex(self._font_regular, tr(self._net_type), text_pos, FONT_SIZE, 0, Colors.WHITE)
 
   def _draw_metrics(self, rect: rl.Rectangle):
-    # Preserve onroad vehicle/connect behavior; restore the requested BogPilot offroad telemetry layout.
-    metrics = ([(self._temp_status, 338), (self._panda_status, 496), (self._connect_status, 654)] if ui_state.started else
+    # Keep thermal and vehicle readiness onroad; show genuine RAM instead of removed cloud status.
+    metrics = ([(self._temp_status, 338), (self._panda_status, 496), (self._ram_status, 654)] if ui_state.started else
                [(self._offroad_temp_status, 338), (self._cpu_status, 496), (self._ram_status, 654)])
 
     for metric, y_offset in metrics:

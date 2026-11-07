@@ -59,7 +59,6 @@ class TestWidgetLeaks(OpenpilotTestCase):
     # tici dialogs
     from openpilot.selfdrive.ui.onroad.cabin_camera_dialog import CabinCameraDialog as TiciCabinCameraDialog
     from openpilot.selfdrive.ui.layouts.onboarding import OnboardingWindow as TiciOnboardingWindow
-    from openpilot.selfdrive.ui.widgets.pairing_dialog import PairingDialog as TiciPairingDialog
     from openpilot.system.ui.widgets.confirm_dialog import ConfirmDialog
     from openpilot.system.ui.widgets.option_dialog import MultiOptionDialog
     from openpilot.system.ui.widgets.html_render import HtmlModal
@@ -79,7 +78,7 @@ class TestWidgetLeaks(OpenpilotTestCase):
       lambda: BigInputDialog("test"),
       lambda: MiciFccModal(text="test"),
       # tici
-      TiciCabinCameraDialog, TiciOnboardingWindow, TiciPairingDialog, Keyboard,
+      TiciCabinCameraDialog, TiciOnboardingWindow, Keyboard,
       lambda: ConfirmDialog("test", "ok"),
       lambda: MultiOptionDialog("test", ["a", "b"]),
       lambda: HtmlModal(text="test"),

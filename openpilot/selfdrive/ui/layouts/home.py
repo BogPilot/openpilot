@@ -7,7 +7,6 @@ from openpilot.common.version import get_build_metadata
 from openpilot.selfdrive.ui.widgets.offroad_alerts import UpdateAlert, OffroadAlert
 from openpilot.selfdrive.ui.widgets.exp_mode_button import ExperimentalModeButton
 from openpilot.selfdrive.ui.widgets.bogpilot_stats import BogPilotStatsWidget
-from openpilot.selfdrive.ui.widgets.setup import SetupWidget
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.lib.application import gui_app, FontWeight, MousePos, TextAlignment
 from openpilot.system.ui.lib.multilang import tr, trn
@@ -57,7 +56,6 @@ class HomeLayout(Widget):
     self.alert_notif_rect = rl.Rectangle(0, 0, 220, HEADER_HEIGHT - 10)
 
     self._stats_widget = BogPilotStatsWidget(self.params)
-    self._setup_widget = SetupWidget()
 
     self._exp_mode_button = ExperimentalModeButton()
     self._setup_callbacks()
@@ -201,13 +199,6 @@ class HomeLayout(Widget):
     )
     self._exp_mode_button.render(exp_rect)
 
-    setup_rect = rl.Rectangle(
-      self.right_column_rect.x,
-      self.right_column_rect.y + exp_height + SPACING,
-      self.right_column_rect.width,
-      self.right_column_rect.height - exp_height - SPACING,
-    )
-    self._setup_widget.render(setup_rect)
 
   def _refresh(self):
     self._version_text = self._get_version_text()
