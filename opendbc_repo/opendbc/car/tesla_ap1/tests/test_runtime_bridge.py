@@ -95,38 +95,10 @@ def test_both_radar_schema_spellings():
   assert not lead_present(NS(status=False))
 
 
-def test_aol_default_off_and_unavailable_safety_bit_is_fail_closed(monkeypatch):
-  monkeypatch.setattr(runtime, "aol_bit", lambda: 8)
-  cp = NS(carFingerprint=AP1, alternativeExperience=0)
-  runtime.apply_ap1_alternative_experience(cp, Params())
-  assert cp.alternativeExperience == 0
-  runtime.apply_ap1_alternative_experience(cp, Params(AlwaysOnLateral=b"1"))
-  assert cp.alternativeExperience == 8
-  monkeypatch.setattr(runtime, "aol_bit", lambda: 0)
-  cp.alternativeExperience = 0
-  runtime.apply_ap1_alternative_experience(cp, Params(AlwaysOnLateral=b"1"))
-  assert cp.alternativeExperience == 0
-
-
-def test_aol_never_changes_stock_tesla(monkeypatch):
-  monkeypatch.setattr(runtime, "aol_bit", lambda: 8)
-  cp = NS(carFingerprint="TESLA_MODEL_3", alternativeExperience=0)
-  runtime.apply_ap1_alternative_experience(cp, Params(AlwaysOnLateral=b"1"))
-  assert cp.alternativeExperience == 0
-
-
-def test_aol_requires_calibration_good_can_and_no_disable_events(monkeypatch):
-  monkeypatch.setattr(runtime, "aol_bit", lambda: 8)
-  p = runtime.Ap1Lateral(NS(carFingerprint=AP1, alternativeExperience=8), Params(AlwaysOnLateralMain=b"1"))
-  cs = car()
-  assert not p.update(cs, False, False, False)
-  assert not p.update(cs, False, True, True)
-  cs.canValid = False
-  assert not p.update(cs, False, True, False)
-  cs.canValid = True
-  assert p.update(cs, False, True, False)
-  cs.vEgo = 0
-  assert not p.update(cs, False, True, False)
+def test_release_has_no_aol_runtime_core_or_bit_request():
+  assert not hasattr(runtime, "aol_bit")
+  assert not hasattr(runtime, "Ap1Lateral")
+  assert not hasattr(runtime, "apply_ap1_alternative_experience")
 
 
 def test_ap1_volume_defaults_use_audible_profile_and_preserve_choices():

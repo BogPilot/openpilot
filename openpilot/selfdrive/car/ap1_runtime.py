@@ -1,6 +1,5 @@
-"""AP1 runtime options, with unknown-key-safe file fallback and AOL off by default."""
+"""AP1 option reads and volume defaults; experimental AOL is not in this release."""
 from pathlib import Path
-from opendbc.car.tesla_ap1.aol_gate import AP1AolGate
 
 AP1 = "TESLA_AP1_MODELS"
 
@@ -18,37 +17,6 @@ def read_option(params, key, default=""):
   if isinstance(value, bytes):
     value = value.decode("utf-8", "replace")
   return str(value).strip().lower()
-
-
-def aol_bit():
-  # A missing safety implementation is NOT permission to invent a bit.
-  try:
-    from opendbc.safety import ALTERNATIVE_EXPERIENCE
-  except ImportError:
-    return 0
-  return int(getattr(ALTERNATIVE_EXPERIENCE, "ALWAYS_ON_LATERAL", 0))
-
-
-def apply_ap1_alternative_experience(CP, params):
-  if CP.carFingerprint == AP1 and read_option(params, "AlwaysOnLateral", "0") in ("1", "true", "on"):
-    CP.alternativeExperience |= aol_bit()
-
-
-class Ap1Lateral:
-  def __init__(self, CP, params):
-    self.available = CP.carFingerprint == AP1 and bool(CP.alternativeExperience) and bool(CP.alternativeExperience & aol_bit())
-    self.main = read_option(params, "AlwaysOnLateralMain", "1") in ("1", "true", "on") if self.available else False
-    try:
-      self.pause_speed = float(read_option(params, "PauseAOLOnBrake", "0")) if self.available else 0.0
-    except ValueError:
-      self.pause_speed = 0.0
-    self.gate = AP1AolGate()
-
-  def update(self, CS, engaged, calibrated, blocked):
-    allowed = (self.available and (self.main or CS.cruiseState.enabled) and CS.cruiseState.available and
-               str(CS.gearShifter) == "drive" and CS.canValid and calibrated and not blocked and
-               not (CS.brakePressed and CS.vEgo < self.pause_speed and not CS.standstill))
-    return self.gate.update(bool(allowed), engaged, CS.vEgo, CS.steeringAngleDeg)
 
 
 def apply_ap1_volume_defaults(CP, params, store=None, profile=None):
