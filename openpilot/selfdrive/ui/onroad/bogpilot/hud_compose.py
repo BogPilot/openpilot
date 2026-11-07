@@ -30,7 +30,7 @@ from openpilot.selfdrive.ui.onroad.alert_renderer import AlertRenderer
 from openpilot.selfdrive.ui.onroad.bogpilot import redesign as R
 from openpilot.selfdrive.ui.onroad.bogpilot.bogpilot_hud import cluster_layout
 from openpilot.selfdrive.ui.onroad.bogpilot.file_toggles import toggles
-from openpilot.selfdrive.ui.onroad.bogpilot.style import PILL_LABEL_SPACE
+from openpilot.selfdrive.ui.onroad.bogpilot.style import PILL_LABEL_SPACE, CLUSTER_GAP
 from openpilot.selfdrive.ui.ui_state import ui_state
 
 DESIGN_W, DESIGN_H = 2160.0, 1080.0
@@ -41,8 +41,10 @@ EXP_BTN = 192                # stock UI_CONFIG.button_size
 MAX_AGE = 0.5
 FULL = log.SelfdriveState.AlertSize.full
 BP = "openpilot.selfdrive.ui.onroad.bogpilot."
-PEER_LAYERS = (("lead_lockon", BP + "lead_lockon"), ("lead_labels", BP + "lead_labels"),
-               ("driver_monitor", BP + "driver_monitor"))
+# t920u: the w2 driver-monitor relocation layer (daily 150 px cluster slot, 150/192 scale) is no longer loaded. The
+# driver monitor is ALWAYS the stock 0.11.2 DriverStateRenderer drawn by its own render() at its stock corner and size
+# (self.dm below), so face/head pose/arcs/fade are stock code end to end. driver_monitor.py stays in tree, unused.
+PEER_LAYERS = (("lead_lockon", BP + "lead_lockon"), ("lead_labels", BP + "lead_labels"))
 ALERT_MODULE = BP + "alert_banner"
 
 
@@ -70,10 +72,13 @@ class PolicyToggles:
 
   hide_lead_marker (:768) = longitudinal and AdvancedCustomUI and HideLeadMarker and not DebugMode
   onroad_distance_button (:1110) = longitudinal and ((QOLVisuals and OnroadDistanceButton) or DebugMode)
+  adjacent_leads = adjacent_lead_tracking or human_lane_changes (bogpilot_onroad_toggles, 367e1fe :908 / :1003): the
+    daily radard computed frogpilotRadarState.leadLeft/Right exactly then, and daily drawLead drew every status=true
+    adjacent lead. Here radard also computes them for BSMFlameTracks, so the UI applies the daily gate itself.
   The longitudinal term is applied by the caller from the real CarParams. A read failure fails closed: the lead
   marker is reported hidden (so no lock-on box is drawn) and there is no personality pill."""
 
-  CLOSED = {"hide_lead_marker": True, "onroad_distance_button": False}
+  CLOSED = {"hide_lead_marker": True, "onroad_distance_button": False, "adjacent_leads": False}
 
   def __init__(self, store=None, clock=time.monotonic, ttl=2.0):
     self._store, self.clock, self.ttl = store, clock, ttl
@@ -93,7 +98,14 @@ class PolicyToggles:
         debug = bool(s.get_bool("DebugMode", False))
         hide = bool(s.toggle_bool("AdvancedCustomUI", level) and s.toggle_bool("HideLeadMarker", level) and not debug)
         odb = bool((s.toggle_bool("QOLVisuals", level) and s.toggle_bool("OnroadDistanceButton", level)) or debug)
-        self._value = {"hide_lead_marker": hide, "onroad_distance_button": odb}
+        adj = False
+        try:
+          from openpilot.common.bogpilot_onroad_toggles import onroad_toggles
+          t = onroad_toggles(s, getattr(ui_state, "CP", None))
+          adj = bool(t.adjacent_lead_tracking or t.human_lane_changes)
+        except Exception:
+          adj = False   # fail closed: no adjacent boxes
+        self._value = {"hide_lead_marker": hide, "onroad_distance_button": odb, "adjacent_leads": adj}
       except Exception:
         self._value = dict(self.CLOSED)
     return self._value
@@ -143,6 +155,7 @@ class HudFrame:
   alert: object
   full_alert: bool
   layout: object
+  adjacent_leads: bool = False
   personality_rect: object = None
   keepouts: list = field(default_factory=list)
   label_keepouts: list = field(default_factory=list)
@@ -261,6 +274,7 @@ class HudComposer:
       rhd=bool(dm_ok and sm["driverMonitoringState"].isRHD),
       hide_lead_marker=bool(longitudinal and pol["hide_lead_marker"]),
       onroad_distance_button=bool(longitudinal and pol["onroad_distance_button"]),
+      adjacent_leads=bool(longitudinal and pol.get("adjacent_leads", False)),
       # Daily 04d560f3e drawLead(): with the redesign the lead labels are always drawn (LeadInfo only drives the
       # legacy chevron metrics), so the redesign path enables them whenever the lock-on itself is allowed.
       lead_info=redesign,
@@ -272,8 +286,10 @@ class HudComposer:
   def _keepouts(self, f, ss_ok):
     """Screen-space reservations.
     keepouts        everything incl. the DM and pill reservations (lead lock-on)
-    dm_keepouts     everything except the DM's own reservation (w2 relocation)
-    label_keepouts  everything except the pill's own reservation (w3); its DM entry is set after the DM decision"""
+    dm_keepouts     everything except the DM's own reservation (kept for the unused w2 relocation API)
+    label_keepouts  everything except the pill's own reservation (w3), always including the stock DM corner
+    t920u: the DM is always the stock corner renderer, so the display-only personality pill sits beside it (driver
+    side, CLUSTER_GAP from the stock DM rect) instead of in the old daily slot the stock DM covers."""
     rect, s = f.rect, f.scale
     base = [to_screen(k, rect, s) for k in f.layout.keepouts()]
     # stock experimental-mode button (hud_renderer: top-right, border 30, 192 px)
@@ -290,6 +306,8 @@ class HudComposer:
     if f.wide and f.onroad_distance_button and f.traffic_mode is not None and ss_ok and not f.full_alert:
       p = R.personality_rect(f.rhd, rect.width / s)        # design-space disc; w3 adds its own 40 px label band
       pill = to_screen(p, rect, s)
+      gap = CLUSTER_GAP * s
+      pill.x = dm.x - gap - pill.width if f.rhd else dm.x + dm.width + gap
       band = rl.Rectangle(pill.x, pill.y - PILL_LABEL_SPACE, pill.width, pill.height + PILL_LABEL_SPACE)
     extra = [band] if band is not None else []
     f.base_keepouts, f.stock_dm_rect, f.personality_rect = base, dm, pill
@@ -342,6 +360,8 @@ class HudComposer:
       if ok and on:
         ok, box = self._call("lead_lockon", lead.draw, f)
         box = box if (ok and box is not None and box is not False) else None
+    if lead is not None and getattr(getattr(lead, "lock", None), "adjacent_painted", None):
+      self.order.append("adjacent_leads")
     if box is not None:
       self.order.append("lead_lockon")
     elif getattr(self.model, "bp_pending_primary", None) is not None:
@@ -358,19 +378,8 @@ class HudComposer:
       f.base_keepouts = f.base_keepouts + extra
       f.label_keepouts = f.label_keepouts + extra
 
-    # Driver monitor before the pill: the relocated DM sits beside the pill (daily dmIconCenter), while the stock
-    # corner DM is a keepout that suppresses the pill (the DM always wins over a display-only control).
-    dm = self._layer("driver_monitor", f)
-    dm_on = False
-    if dm is not None:
-      ok, _ = self._call("driver_monitor", dm.update, f)
-      if ok:
-        ok, dm_on = self._call("driver_monitor", dm.enabled, f)
-        dm_on = bool(ok and dm_on)
-    f.dm_relocated = dm_on
-    bounds = getattr(dm, "bounds", None) if dm_on else None
-    if bounds is not None:
-      f.label_keepouts = f.base_keepouts + [rl.Rectangle(bounds.x, bounds.y, bounds.width, bounds.height)]
+    # t920u: stock 0.11.2 driver monitor only (no relocation); its stock corner stays reserved for labels/pill.
+    f.dm_relocated = False
 
     labels = self._layer("lead_labels", f)
     if labels is not None:
@@ -382,15 +391,8 @@ class HudComposer:
           if ok:
             self.order.append("lead_labels")
 
-    painted = False
-    if dm_on:
-      ok, painted = self._call("driver_monitor", dm.draw, f)
-      painted = bool(ok and painted is not False)   # w2 draw returns None after painting the native renderer
-    if painted:
-      self.order.append("driver_monitor")
-    else:
-      self.dm.render(rect)
-      self.order.append("stock_dm")
+    self.dm.render(rect)            # stock DriverStateRenderer.render(): stock visibility, pose, fade, arcs, corner
+    self.order.append("stock_dm")
 
     self._alert(rect)
 

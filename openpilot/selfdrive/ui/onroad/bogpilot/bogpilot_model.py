@@ -9,7 +9,8 @@ from openpilot.selfdrive.ui.onroad.model_renderer import ModelRenderer
 from openpilot.selfdrive.ui.mici.onroad.model_renderer import ModelRenderer as MiciModelRenderer
 from openpilot.selfdrive.ui.onroad.bogpilot.file_toggles import toggles
 from openpilot.selfdrive.ui.onroad.bogpilot.flame_tracks import FlameTracks, FlameSideInput
-from openpilot.selfdrive.ui.onroad.bogpilot.bsm_state import adjacent_leads
+import time
+from openpilot.selfdrive.ui.onroad.bogpilot.bsm_state import adjacent_leads, blindspots, BsmPolicy
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.shader_polygon import draw_polygon
 
@@ -18,6 +19,8 @@ class BlindspotOverlay:
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
     self._flames = FlameTracks()
+    self._bsm_policy = BsmPolicy()
+    self.bp_bsm_shown = (False, False)   # sides whose red lane fill was painted this frame (tests / evidence)
     # w9 composition: while a lock-on layer may replace the primary marker, the stock leadOne chevron is held back
     # (computed by the stock code, not drawn) and painted by bp_flush_primary_lead() if the lock-on does not paint.
     # leadTwo always keeps its stock marker.
@@ -56,13 +59,14 @@ class BlindspotOverlay:
     sm = ui_state.sm
     empty = np.empty((0, 2), dtype=np.float32)
     lanes, shown = [empty, empty], [False, False]
-    # Do not paint from the previous drive's car state.
+    now = time.monotonic()
+    # Do not paint from the previous drive's or a stale car state (t921u: recv_time age <= 0.5 s as well).
     fresh = (sm.valid["carState"] and sm.alive["carState"] and
              sm.recv_frame["carState"] > ui_state.started_frame and
              all(sm.valid[name] and sm.alive[name] and sm.recv_frame[name] > ui_state.started_frame
                  for name in ("modelV2", "extrinsicsCalibration")))
-    if fresh and toggles.get("BlindSpotPath"):
-      cs = sm["carState"]
+    flags = blindspots(sm, ui_state.started_frame, now) if fresh else (False, False)
+    if fresh and self._bsm_policy.enabled(bool(toggles.get("BlindSpotPath"))):
       for side, (outer, inner) in enumerate(((0, 1), (3, 2))):
         a, b = self._lane_lines[outer].raw_points, self._lane_lines[inner].raw_points
         n = min(len(a), len(b))
@@ -81,10 +85,11 @@ class BlindspotOverlay:
         # screen coordinates. Convert exactly once before BSM or flame paint.
         poly = poly + self._overlay_offset()
         lanes[side] = poly
-        if (cs.leftBlindspot, cs.rightBlindspot)[side]:
+        if flags[side]:
           draw_polygon(self._rect, poly, rl.Color(255, 0, 0, 110))
           shown[side] = True
-    adj = adjacent_leads(sm, ui_state.started_frame) if fresh else [(False, 0.0)] * 2
+    self.bp_bsm_shown = (shown[0], shown[1])
+    adj = adjacent_leads(sm, ui_state.started_frame, now) if fresh else [(False, 0.0)] * 2
     inputs = [FlameSideInput(shown[i], adj[i][0], adj[i][1]) for i in range(2)]
     if not fresh:
       # Reset animation state across dropped car state / drive transitions.

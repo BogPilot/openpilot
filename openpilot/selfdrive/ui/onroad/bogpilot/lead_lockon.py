@@ -11,6 +11,17 @@ import time
 
 
 @dataclass(frozen=True)
+class AdjacentTarget:
+  """frogpilotRadarState.leadLeft / leadRight (radard bogpilot_radar: closest moving radar track between that side's
+  lane lines, excluding the leadOne/leadTwo track ids). Daily annotated_camera.cc drawLead(adjacent=true)."""
+  side: int            # 0 = left (car frame), 1 = right; independent of RHD
+  box: object
+  d_rel: float
+  v_lead: float
+  speed: str           # absolute speed, number only, display units ("" when below ADJ_SPEED_MIN: box only)
+
+
+@dataclass(frozen=True)
 class LockTarget:
   box: object
   view: object
@@ -53,6 +64,8 @@ class LeadLockOn:
     self.clock = clock
     self._style = style
     self.target = None
+    self.adjacent: list[AdjacentTarget] = []
+    self.adjacent_painted: list[int] = []
 
   @property
   def style(self):
@@ -61,8 +74,16 @@ class LeadLockOn:
       self._style = redesign
     return self._style
 
-  def update(self, renderer, sm, started_frame, *, enabled, engaged, longitudinal, local=False, hide_marker=False):
+  @staticmethod
+  def _service_ok(sm, service, now, started_frame, max_age):
+    age = now - sm.recv_time[service]
+    return bool(sm.valid[service] and sm.alive[service] and sm.recv_frame[service] > started_frame
+                and math.isfinite(age) and 0 <= age <= max_age)
+
+  def update(self, renderer, sm, started_frame, *, enabled, engaged, longitudinal, local=False, hide_marker=False,
+             adjacent=False, metric=False):
     self.target = None
+    self.adjacent = []
     if hide_marker or not (enabled and engaged and longitudinal):
       return None
     try:
@@ -70,14 +91,51 @@ class LeadLockOn:
       # Calibration is a low-rate service; model/radar/carState must be recent.
       for service, max_age in (("radarState", 0.5), ("modelV2", 0.5),
                                ("carState", 0.5), ("selfdriveState", 0.5), ("extrinsicsCalibration", 5.0)):
-        age = now - sm.recv_time[service]
-        if not (sm.valid[service] and sm.alive[service] and sm.recv_frame[service] > started_frame
-                and math.isfinite(age) and 0 <= age <= max_age):
+        if not self._service_ok(sm, service, now, started_frame, max_age):
           return None
+      ego = float(sm["carState"].vEgo)
+      if adjacent:
+        self.adjacent = self._adjacent(renderer, sm, now, started_frame, ego, local, metric)
       lead = sm["radarState"].leadOne
-      d, y, v, ego = float(lead.dRel), float(lead.yRel), float(lead.vRel), float(sm["carState"].vEgo)
+      d, y, v = float(lead.dRel), float(lead.yRel), float(lead.vRel)
       if not lead.present or not _finite(d, y, v, ego) or d <= 0 or ego < 0:
         return None
+      box = self._project_box(renderer, d, y, d, local)
+      if box is None:
+        return None
+      view = renderer._rect
+      self.target = LockTarget(box, self.style.rect(view.x, view.y, view.width, view.height), d, v, ego, started_frame, now + 0.5)
+    except (AttributeError, KeyError, IndexError, TypeError, ValueError, OverflowError):
+      return None
+    return self.target
+
+  def _adjacent(self, renderer, sm, now, started_frame, ego, local, metric):
+    """Fail closed per side: frogpilotRadarState must be valid/alive/current-drive/<=0.5 s (same rule as radarState)."""
+    out = []
+    try:
+      if not self._service_ok(sm, "frogpilotRadarState", now, started_frame, 0.5) or not _finite(ego) or ego < 0:
+        return out
+      frs = sm["frogpilotRadarState"]
+      for side, lead in enumerate((frs.leadLeft, frs.leadRight)):
+        if not lead.status:
+          continue
+        d, y, v = float(lead.dRel), float(lead.yRel), float(lead.vLead)
+        if not _finite(d, y, v) or d <= 0:
+          continue
+        # daily drawLead: box sized by d_rel + |yRel| for adjacent leads, projected at the lead's own (dRel, -yRel)
+        box = self._project_box(renderer, d, y, d + abs(y), local)
+        if box is None:
+          continue
+        n = math.floor(max(0.0, v) * (3.6 if metric else 2.2369362920544) + 0.5)   # Qt qRound (half away from 0)
+        speed = str(int(n)) if n >= self.style.ADJ_SPEED_MIN else ""
+        out.append(AdjacentTarget(side, box, d, v, speed))
+    except (AttributeError, KeyError, IndexError, TypeError, ValueError, OverflowError):
+      return []
+    return out
+
+  def _project_box(self, renderer, d, y, size_d, local):
+    """Stock calibrated projection of (d, -y) at the model path's road height; None when not cleanly on screen."""
+    try:
       points = renderer._path.raw_points
       if len(points) < 2:
         return None
@@ -107,15 +165,14 @@ class LeadLockOn:
         cx, cy = cx + view.x, cy + view.y
       if not (view.x <= cx <= view.x + view.width and view.y <= cy <= view.y + view.height):
         return None
-      box = self.style.lead_lock_box(cx, cy, d, view.x + view.width, view.y + view.height, view.x)
+      box = self.style.lead_lock_box(cx, cy, size_d, view.x + view.width, view.y + view.height, view.x)
       # Painter's outline/glow extends past its nominal box; never clamp a lead
       # from outside the view onto a visible edge. Reserve its full footprint.
       if not _inside(box, view, 24):
         return None
-      self.target = LockTarget(box, self.style.rect(view.x, view.y, view.width, view.height), d, v, ego, started_frame, now + 0.5)
+      return box
     except (AttributeError, KeyError, IndexError, TypeError, ValueError, OverflowError):
       return None
-    return self.target
 
   def paint(self, renderer, target, *, keepouts=()):
     """Returns painted box for label adapter, or None. Never call above alerts.
@@ -140,6 +197,35 @@ class LeadLockOn:
       rl.end_scissor_mode()
     return target.box
 
+  def paint_adjacent(self, renderer, *, keepouts=(), label_keepouts=(), rhd=False, v_ego=0.0, primary=None):
+    """Daily drawLead(adjacent=true): muted lock box coloured by leadDistanceColor(dRel, adjacent, vEgo) and the
+    absolute speed (number only) inside it, moved beside the box when the corner icons would cover it.
+    Suppressed (never moved) over reserved rects or the primary box. Returns painted sides."""
+    self.adjacent_painted = []
+    if not self.adjacent:
+      return []
+    R = self.style
+    view = renderer._rect
+    blocked = list(keepouts)
+    if primary is not None:
+      blocked.append(R.rect(primary.x - 24, primary.y - 24, primary.width + 48, primary.height + 48))
+    import pyray as rl
+    for a in self.adjacent:
+      fp = R.rect(a.box.x - 24, a.box.y - 24, a.box.width + 48, a.box.height + 48)
+      if any(_overlaps(fp, k) for k in blocked):
+        continue
+      color = R.lead_distance_color(a.d_rel, True, v_ego)
+      rl.begin_scissor_mode(int(view.x), int(view.y), int(view.width), int(view.height))
+      try:
+        R.paint_lead_lock(a.box, "", color, view)
+        if a.speed:
+          R.paint_adjacent_speed(a.box, a.speed, color, list(label_keepouts), rhd, view)
+      finally:
+        rl.end_scissor_mode()
+      blocked.append(fp)   # left and right never stack on each other
+      self.adjacent_painted.append(a.side)
+    return list(self.adjacent_painted)
+
 
 class LeadLockOnLayer:
   """w9 composer adapter. Raw current renderer and SubMaster are required.
@@ -156,6 +242,8 @@ class LeadLockOnLayer:
 
   def reset(self):
     self.lock.target = None
+    self.lock.adjacent = []
+    self.lock.adjacent_painted = []
 
   def update(self, frame):
     self.reset()
@@ -167,10 +255,10 @@ class LeadLockOnLayer:
     self.lock.update(renderer, sm, frame.started_frame,
                      enabled=bool(frame.redesign), engaged=bool(getattr(frame, "engaged", False)),
                      longitudinal=bool(frame.longitudinal),
-                     hide_marker=bool(getattr(frame, "hide_lead_marker", True)))
+                     hide_marker=bool(getattr(frame, "hide_lead_marker", True)),
+                     adjacent=bool(getattr(frame, "adjacent_leads", False)), metric=bool(getattr(frame, "is_metric", False)))
 
-  def enabled(self, frame):
-    self.update(frame)
+  def _primary_ok(self, frame):
     target = self.lock.target
     if target is None:
       return False
@@ -178,7 +266,20 @@ class LeadLockOnLayer:
     footprint = self.lock.style.rect(box.x - 24, box.y - 24, box.width + 48, box.height + 48)
     return not any(_overlaps(footprint, k) for k in getattr(frame, "keepouts", ()))
 
+  def enabled(self, frame):
+    self.update(frame)
+    return self._primary_ok(frame) or bool(self.lock.adjacent)
+
   def draw(self, frame):
+    """Adjacent boxes first (daily order: left, right, then leadOne); returns the PRIMARY box or None so the
+    composer still flushes the stock leadOne chevron when the lock-on itself is not painted."""
+    primary = self.lock.target.box if self._primary_ok(frame) else None
+    ego = self.lock.target.v_ego if self.lock.target is not None else float(frame.sm["carState"].vEgo)
+    self.lock.paint_adjacent(frame.model_renderer, keepouts=getattr(frame, "keepouts", ()),
+                             label_keepouts=getattr(frame, "label_keepouts", ()), rhd=bool(getattr(frame, "rhd", False)),
+                             v_ego=ego, primary=primary)
+    if primary is None:
+      return None
     return self.lock.paint(frame.model_renderer, self.lock.target, keepouts=getattr(frame, "keepouts", ()))
 
 
