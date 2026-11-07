@@ -15,6 +15,7 @@ from openpilot.selfdrive.controls.lib.drive_helpers import CONTROL_N, get_accel_
 from openpilot.selfdrive.car.cruise import V_CRUISE_MAX, V_CRUISE_UNSET
 from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.controls.lib.ap1_planning import Ap1Planning
+from openpilot.selfdrive.controls.lib.ap1_curve_speed import Ap1CurveSpeed
 
 A_CRUISE_MAX_VALS = [1.6, 1.2, 0.8, 0.6]
 A_CRUISE_MAX_BP = [0., 10.0, 25., 40.]
@@ -61,6 +62,7 @@ class LongitudinalPlanner:
     self.fcw = False
     self.dt = dt
     self.ap1_plan = Ap1Planning(CP, dt)
+    self.curve_speed = Ap1CurveSpeed(CP, dt)
     self.allow_throttle = True
 
     self.v_desired_filter = FirstOrderFilter(init_v, 2.0, self.dt)
@@ -91,6 +93,9 @@ class LongitudinalPlanner:
     # PCM cruise speed may be updated a few cycles later, check if initialized
     v_cruise_initialized = sm['carState'].vCruise != V_CRUISE_UNSET
     reset_state = reset_state or not v_cruise_initialized
+
+    # AP1 curve speed control: can only lower the cruise speed (never above the driver's set speed).
+    v_cruise = self.curve_speed.update(sm, v_ego, v_cruise, reset_state)
 
     throttle_probs = sm['modelV2'].meta.disengagePredictions.gasPressProbs
     throttle_prob = throttle_probs[1] if len(throttle_probs) > 1 else 1.0
@@ -142,6 +147,9 @@ class LongitudinalPlanner:
                   (self.a_cruise, LongitudinalPlanSource.cruise, cruise_should_stop)]
     if sm['selfdriveState'].experimentalMode:
       candidates.append((output_a_target_e2e, LongitudinalPlanSource.e2e, output_should_stop_e2e))
+    if self.curve_speed.a_brake < 0.0:
+      # AP1 look-ahead curve brake: an extra min() candidate, so it can only add braking.
+      candidates.append((self.curve_speed.a_brake, LongitudinalPlanSource.cruise, False))
 
     output_a_target, self.mpc.source, _ = min(candidates, key=lambda c: c[0])
     self.output_should_stop = any(should_stop for _, _, should_stop in candidates)
@@ -174,3 +182,10 @@ class LongitudinalPlanner:
     longitudinalPlan.allowThrottle = bool(self.allow_throttle)
 
     pm.send('longitudinalPlan', plan_send)
+
+  def publish_frogpilot_plan(self, pm):
+    # CSC report for the cluster's CSC MAX slot; valid only while AP1 CSC is on with fresh inputs.
+    msg = messaging.new_message('frogpilotPlan')
+    msg.valid = bool(self.curve_speed.valid)
+    self.curve_speed.fill(msg.frogpilotPlan)
+    pm.send('frogpilotPlan', msg)
