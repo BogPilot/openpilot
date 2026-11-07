@@ -27,6 +27,12 @@ class PackageTests(unittest.TestCase):
     self.write("launch_env.sh", b'export AGNOS_VERSION="19.9"\n')
     self.write("openpilot/system/manager/process_config.py", b'procs = []\n')
     self.write("common/version.h", b'"synthetic"\n')
+    self.write("openpilot/common/version.h", b'#define COMMA_VERSION "0.0.0-synthetic"\n')
+    self.write("RELEASES.md", b"Version 0.0.0 (synthetic)\n* notes\n\nolder\n")
+    for name in ("git.py", "basedir.py", "swaglog.py"):
+      self.write("openpilot/common/" + name, b"# synthetic\n")
+    self.write("openpilot/common/version.py", b'BUILD_METADATA_FILENAME = "build.json"\n'
+               b"def build_metadata_from_dict(d): pass\ndef get_build_metadata(p): pass\n")
     for name in m.MODELS:
       self.write("openpilot/selfdrive/modeld/models/" + name, b"synthetic" * 12501)
     self.artifacts = []
@@ -39,7 +45,8 @@ class PackageTests(unittest.TestCase):
     for name in ("panda/board/obj/panda_h7.bin.signed", "panda/board/obj/bootstub.panda_h7.bin"):
       self.write(name, b"synthetic firmware", 0o644)
       self.add_artifact(name, "data")
-    self.git("init", "-q")
+    self.git("init", "-q", "-b", "port/synthetic-metadata")
+    self.git("remote", "add", "origin", "git@github.com:Example/synthetic.git")
     self.git("config", "user.name", "Synthetic Test")
     self.git("config", "user.email", "synthetic@example.invalid")
     self.commit()
@@ -471,3 +478,127 @@ class PackageTests(unittest.TestCase):
 
 if __name__ == "__main__":
   unittest.main()
+
+
+class BuildMetadataTests(PackageTests):
+  """Regression: archives previously shipped without build.json (bench startup stopped)."""
+  def bundle_ok(self):
+    report = self.privacy_fixture(self.verify())
+    out = self.base / "meta.tar"
+    m.bundle(self.root, report, out)
+    return report, out
+
+  def test_archive_contains_validated_bound_build_json(self):
+    report, out = self.bundle_ok()
+    with tarfile.open(out) as tar:
+      raw = tar.extractfile("build.json").read()
+    data = m.validate_build_metadata(raw, self.sha)
+    self.assertEqual(data["openpilot"]["git_commit"], self.sha)
+    self.assertFalse(data["openpilot"]["is_dirty"])
+    self.assertEqual(data["channel"], "port/synthetic-metadata")
+    self.assertEqual(data["openpilot"]["version"], "0.0.0-synthetic")
+    self.assertEqual(m.check_archive(out, self.sha), report["build_metadata_sha256"])
+    self.assertEqual(m.main(["check-archive", "--root", str(self.root), "--candidate", self.sha,
+                             "--artifact-manifest", str(self.manifest), "--report", str(self.base / "x.json"),
+                             "--output", str(out)]), 0)
+
+  def test_archive_without_build_json_fails(self):
+    _, out = self.bundle_ok()
+    stripped = self.base / "stripped.tar"
+    with tarfile.open(out) as src, tarfile.open(stripped, "w") as dst:
+      for info in src.getmembers():
+        if info.name != "build.json":
+          dst.addfile(info, src.extractfile(info) if info.isfile() else None)
+    with self.assertRaisesRegex(ValueError, "missing"):
+      m.check_archive(stripped, self.sha)
+
+  def test_wrong_candidate_sha_fails(self):
+    _, out = self.bundle_ok()
+    with self.assertRaisesRegex(ValueError, "SHA mismatch"):
+      m.check_archive(out, "f" * 40)
+
+  def test_invalid_json_and_schema_fail(self):
+    good = m.generate_build_metadata(self.root, self.sha)
+    with self.assertRaisesRegex(ValueError, "valid JSON"):
+      m.validate_build_metadata(b"{not json", self.sha)
+    data = json.loads(good)
+    for mutate in (lambda d: d.pop("channel"), lambda d: d["openpilot"].pop("version"),
+                   lambda d: d["openpilot"].__setitem__("extra", "x"),
+                   lambda d: d["openpilot"].__setitem__("is_dirty", True),
+                   lambda d: d["openpilot"].__setitem__("is_dirty", "false"),
+                   lambda d: d["openpilot"].__setitem__("build_style", "release"),
+                   lambda d: d.__setitem__("channel", "release-tizi"),
+                   lambda d: d.__setitem__("channel", "HEAD"),
+                   lambda d: d["openpilot"].__setitem__("git_origin", "https://user:token@github.com/a/b.git"),
+                   lambda d: d["openpilot"].__setitem__("git_origin", "/Users/someone/private-repo"),
+                   lambda d: d["openpilot"].__setitem__("git_commit_date", "yesterday")):
+      bad = json.loads(good)
+      mutate(bad)
+      with self.assertRaises(ValueError):
+        m.validate_build_metadata(json.dumps(bad).encode(), self.sha)
+
+  def test_dirty_or_wrong_head_refuses_generation(self):
+    self.write("SConstruct", b"# modified\n")
+    with self.assertRaisesRegex(ValueError, "dirty"):
+      m.generate_build_metadata(self.root, self.sha)
+    with self.assertRaisesRegex(ValueError, "HEAD"):
+      m.generate_build_metadata(self.root, "0" * 40)
+
+  def test_detached_head_refused_not_fabricated(self):
+    self.git("checkout", "-q", "--detach")
+    with self.assertRaisesRegex(ValueError, "channel"):
+      m.generate_build_metadata(self.root, self.sha)
+
+  def test_missing_runtime_prerequisite_blocks_verify(self):
+    for name in ("openpilot/common/version.py", "RELEASES.md"):
+      self.git("rm", "-q", name)
+      self.commit()
+      with self.assertRaisesRegex(ValueError, "prerequisite"):
+        self.verify()
+      self.git("checkout", "-q", "HEAD~1", "--", name)
+      self.commit()
+
+  def test_runtime_api_drift_blocks_verify(self):
+    self.write("openpilot/common/version.py", b'BUILD_METADATA_FILENAME = "meta.json"\n')
+    self.commit()
+    with self.assertRaisesRegex(ValueError, "runtime API"):
+      self.verify()
+
+  def test_tracked_build_json_refused(self):
+    self.write("build.json", b"{}")
+    self.commit()
+    with self.assertRaises(ValueError):
+      self.verify()
+
+
+class RealVersionModuleTests(unittest.TestCase):
+  """Deserialize generated metadata with THIS checkout's openpilot/common/version.py.
+  Logging/git helper modules are stubbed (only the build.json branch is exercised);
+  this is the source schema API check, not a packaged-device runtime import."""
+  def test_real_schema_roundtrip(self):
+    repo = Path(__file__).resolve().parents[3]
+    import sys, types, dataclasses
+    stubs = {"openpilot": types.ModuleType("openpilot"), "openpilot.common": types.ModuleType("openpilot.common"),
+             "openpilot.common.basedir": types.ModuleType("b"), "openpilot.common.swaglog": types.ModuleType("s"),
+             "openpilot.common.git": types.ModuleType("g")}
+    stubs["openpilot.common.basedir"].BASEDIR = str(repo)
+    stubs["openpilot.common.swaglog"].cloudlog = None
+    for n in ("get_commit", "get_origin", "get_branch", "get_short_branch", "get_commit_date"):
+      setattr(stubs["openpilot.common.git"], n, lambda *a, **k: "")
+    with patch.dict(sys.modules, stubs):
+      vs = importlib.util.spec_from_file_location("op_version_real", repo / "openpilot/common/version.py")
+      v = importlib.util.module_from_spec(vs)
+      vs.loader.exec_module(v)
+      head = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"]).decode().strip()
+      dirty = subprocess.check_output(["git", "-C", str(repo), "status", "--porcelain", "--untracked-files=no"]).strip()
+      branch = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "--abbrev-ref", "HEAD"]).decode().strip()
+      if dirty or branch == "HEAD":
+        self.skipTest("real checkout dirty/detached; generation correctly refuses")
+      raw = m.generate_build_metadata(repo, head)
+      with tempfile.TemporaryDirectory() as d:
+        Path(d, v.BUILD_METADATA_FILENAME).write_bytes(raw)
+        meta = v.get_build_metadata(d)
+      self.assertEqual(dataclasses.asdict(meta), json.loads(raw))
+      self.assertEqual(meta.openpilot.git_commit, head)
+      self.assertFalse(meta.release_channel)
+      self.assertFalse(meta.tested_channel)
