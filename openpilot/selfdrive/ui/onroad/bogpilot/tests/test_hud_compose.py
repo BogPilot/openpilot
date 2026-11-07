@@ -60,7 +60,7 @@ def env(state, toggle_vals, log):
     "messaging": None, "SERVICE_LIST": {}, "cloudlog": log, "AlertRenderer": AlertRenderer,
     "R": SimpleNamespace(personality_rect=personality_rect, lkas_fault_border_color=lambda ms: ("lkas", ms)),
     "cluster_layout": lambda: L.layout_from_toggles(lambda k: toggle_vals.get(k, L.ClusterLayout().swap if k == "SwapSpeedGraph" else False)),
-    "toggles": SimpleNamespace(get=lambda k: toggle_vals[k]), "PILL_LABEL_SPACE": 40, "ui_state": state,
+    "toggles": SimpleNamespace(get=lambda k: toggle_vals[k]), "PILL_LABEL_SPACE": 40, "CLUSTER_GAP": 6, "ui_state": state,
     "dataclass": dataclass, "field": field, "importlib": importlib, "time": time, "__name__": "hud_compose_synthetic",
   })
   return ns
@@ -185,7 +185,9 @@ class TestOrder(Base):
               "driver_monitor": Layer(self.calls, "driver_monitor", {"driver_state"}, draw=True)}
     c = self.composer(layers)
     c.render(self.rect)
-    self.assertEqual(list(self.calls), ["model", "lead_lockon", "hud", "lead_labels", "driver_monitor", "alert"])
+    # t920u: a driver_monitor relocation layer, even if supplied, is never used; the stock DM always paints
+    self.assertEqual(list(self.calls), ["model", "lead_lockon", "hud", "lead_labels", "stock_dm", "alert"])
+    self.assertFalse(c.frame.dm_relocated)
     self.assertTrue(self.model.defer_seen)
     self.assertNotIn("stock_lead0", self.calls)
     self.assertEqual(c.frame.lead_label_box.t(), (900, 500, 120, 100))
@@ -258,23 +260,28 @@ class TestGatingGeometry(Base):
     self.assertEqual(f.stock_dm_rect.t(), (60, 828, 192, 192))       # stock corner DM, 0.11.2 geometry
     self.assertIn((30 + 2100 - 30 - 192, 60, 192, 192), [k.t() for k in f.keepouts])   # stock exp button
     s = f.scale
-    self.assertEqual(f.personality_rect.t(), Rect(30 + 20 * s, 30 + 825 * s, 150 * s, 150 * s).t())
-    # the stock DM overlaps the pill reservation: w3 sees it in label_keepouts and suppresses its pill
-    self.assertTrue(overlaps(f.stock_dm_rect, f.personality_rect))
+    # t920u: stock-corner DM always; the pill sits beside it on the driver side, CLUSTER_GAP away, never under it
+    self.assertEqual(f.personality_rect.t(), Rect(60 + 192 + 6 * s, 30 + 825 * s, 150 * s, 150 * s).t())
+    self.assertFalse(overlaps(f.stock_dm_rect, f.personality_rect))
+    band = Rect(f.personality_rect.x, f.personality_rect.y - 40, f.personality_rect.width, f.personality_rect.height + 40)
+    self.assertFalse(any(overlaps(k, band) for k in f.label_keepouts))
     self.assertIn(f.stock_dm_rect, f.label_keepouts)
+    self.assertIn(f.stock_dm_rect, f.keepouts)
     # capsule/graph from ClusterLayout.keepouts mapped with the cluster's own scale
     for k in L.layout_from_toggles(lambda k: self.toggles.get(k, False)).keepouts():
       self.assertIn(Rect(30 + k[0] * s, 30 + k[1] * s, k[2] * s, k[3] * s).t(), [r.t() for r in f.keepouts])
 
-  def test_relocated_dm_replaces_corner_in_label_keepouts(self):
+  def test_stock_dm_never_relocated(self):
     dm = Layer(self.calls, "driver_monitor", {"driver_state"})
     c = self.composer({"driver_monitor": dm})
     c.render(self.rect)
     f = c.frame
-    self.assertTrue(f.dm_relocated and f.dm_personality_visible)
-    self.assertNotIn(f.stock_dm_rect, f.label_keepouts)
-    self.assertFalse(any(overlaps(k, f.personality_rect) for k in f.label_keepouts))
-    self.assertFalse(any(overlaps(dm.bounds, k) for k in f.dm_keepouts))
+    self.assertFalse(f.dm_relocated)
+    self.assertEqual(dm.frames, [])                    # relocation layer not consulted at all
+    self.assertIn("stock_dm", self.calls)
+    self.assertNotIn("driver_monitor", self.calls)
+    self.assertIn(f.stock_dm_rect, f.label_keepouts)
+    self.assertNotIn("driver_monitor", [n for n, _ in self.ns["PEER_LAYERS"]])
 
   def test_rhd_mirrors(self):
     self.state.sm["driverMonitoringState"].isRHD = True
@@ -283,6 +290,8 @@ class TestGatingGeometry(Base):
     f = c.frame
     self.assertEqual(f.stock_dm_rect.t(), (30 + 2100 - 126 - 96, 828, 192, 192))
     self.assertGreater(f.personality_rect.x, 30 + 2100 / 2)
+    self.assertFalse(overlaps(f.stock_dm_rect, f.personality_rect))
+    self.assertAlmostEqual(f.personality_rect.x + f.personality_rect.width, f.stock_dm_rect.x - 6 * f.scale)
 
   def test_stale_dm_state_not_used_for_rhd(self):
     self.state.sm["driverMonitoringState"].isRHD = True
@@ -383,7 +392,7 @@ class TestPolicy(unittest.TestCase):
 
   def test_failure_closed(self):
     v = self.ns()["PolicyToggles"](self.Store(QOLVisuals=KeyError("x")), clock=lambda: 0.0).get()
-    self.assertEqual(v, {"hide_lead_marker": True, "onroad_distance_button": False})
+    self.assertEqual(v, {"hide_lead_marker": True, "onroad_distance_button": False, "adjacent_leads": False})
 
 
 class TestTrafficAndLoader(unittest.TestCase):
@@ -411,14 +420,12 @@ class TestTrafficAndLoader(unittest.TestCase):
     def loader(name):
       if name.endswith("lead_lockon"):
         return SimpleNamespace(make_layer=lambda mici=False: None if mici else "LAYER")
-      if name.endswith("driver_monitor"):
-        return SimpleNamespace()
       err = ModuleNotFoundError(name)
       err.name = name
       raise err
     layers, missing = ns["load_peer_layers"](loader)
     self.assertEqual(layers, {"lead_lockon": "LAYER"})
-    self.assertEqual(missing, {"lead_labels": "module not present", "driver_monitor": "no make_layer adapter"})
+    self.assertEqual(missing, {"lead_labels": "module not present"})   # t920u: driver_monitor no longer a peer
     self.assertEqual(log.errors, [])
     self.assertEqual(ns["load_peer_layers"](loader, mici=True)[0], {})
 
@@ -450,6 +457,7 @@ class TestModelDeferral(unittest.TestCase):
         drawn.extend(v.n for v in self._lead_vehicles if v.glow and v.chevron)
     ns = adapter_namespace("bogpilot_model", {"ModelRenderer": Base, "MiciModelRenderer": Base, "toggles": None,
                                               "FlameTracks": lambda: None, "FlameSideInput": None, "adjacent_leads": None,
+                                              "blindspots": None, "BsmPolicy": lambda: None, "time": None,
                                               "ui_state": None, "draw_polygon": None, "np": None, "rl": None})
     m = ns["BogPilotModelRenderer"]()
     m._draw_lead_indicator()

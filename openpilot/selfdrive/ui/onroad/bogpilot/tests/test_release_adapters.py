@@ -51,6 +51,13 @@ class TestDefaults(unittest.TestCase):
       self.assertEqual(list(Path(folder).iterdir()), [])
 
 
+class _FreshTimes(dict):
+  """recv_time defaults to 'just received' (time.monotonic()); tests set explicit stale ages."""
+  def __missing__(self, key):
+    import time
+    return time.monotonic()
+
+
 class TestRadarContract(unittest.TestCase):
   def setUp(self):
     self.module = load("bsm_state")
@@ -73,6 +80,14 @@ class TestRadarContract(unittest.TestCase):
     self.sm.alive["radarState"] = False
     self.assertEqual(self.module.adjacent_leads(self.sm, 10), [(False, 0.0)] * 2)
 
+  def test_stale_topic_rejected(self):
+    import time
+    self.sm.add()
+    self.sm.recv_time["frogpilotRadarState"] = time.monotonic() - 0.6
+    self.assertEqual(self.module.adjacent_leads(self.sm, 10), [(False, 0.0)] * 2)
+    self.sm.recv_time["frogpilotRadarState"] = time.monotonic() - 0.3
+    self.assertEqual(self.module.adjacent_leads(self.sm, 10), [(True, 40.0), (False, 20.0)])
+
   def test_nonfinite_speed_never_triggers(self):
     self.sm.add()
     self.sm["frogpilotRadarState"].leadLeft.vLead = float("inf")
@@ -83,6 +98,7 @@ class FakeSM(dict):
   def __init__(self):
     super().__init__()
     self.valid, self.alive, self.recv_frame = {}, {}, {}
+    self.recv_time = _FreshTimes()
 
   def add(self):
     for name in ("radarState", "frogpilotRadarState"):
@@ -234,7 +250,8 @@ class TestModelAdapter(unittest.TestCase):
       "rl": SimpleNamespace(Color=lambda *args: args),
       "toggles": SimpleNamespace(get=lambda _: True),
       "ui_state": SimpleNamespace(sm=self.sm, started_frame=10),
-      "adjacent_leads": logic.adjacent_leads,
+      "adjacent_leads": logic.adjacent_leads, "blindspots": logic.blindspots, "time": __import__("time"),
+      "BsmPolicy": lambda: SimpleNamespace(enabled=lambda b: b),
       "draw_polygon": lambda *args: self.draws.append(args),
     })
 

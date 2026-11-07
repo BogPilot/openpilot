@@ -70,6 +70,7 @@ class UIState:
         "vehicleParameters",
         "testJoystick",
         "rawAudioData",
+        "frogpilotRadarState",   # BogPilot: adjacent radar leads (radard bogpilot_radar) for adjacent boxes / BSM flames
       ]
     )
 
