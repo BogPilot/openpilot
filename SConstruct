@@ -18,6 +18,7 @@ Decider('MD5-timestamp')
 
 SetOption('num_jobs', max(1, int(os.cpu_count()/(1 if "CI" in os.environ else 2))))
 
+AddOption('--verified-stock-models', action='store_true', default=False, help='Candidate-only: verify and consume exact pinned stock QCOM models; build all other default targets')
 AddOption('--ccflags', action='store', type='string', default='', help='pass arbitrary flags over the command line')
 AddOption('--verbose', action='store_true', default=False, help='show full build commands')
 release = not os.path.exists(File('#.gitmodules').abspath) # file absent on release branch, see release_files.py
