@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import math
 
+from openpilot.cereal import log
 
 from openpilot.common.realtime import DT_MDL
 from openpilot.selfdrive.modeld.constants import ModelConstants
@@ -131,7 +132,13 @@ class Ap1CurveSpeed:
 
     t, x, v, yaw, yaw_t = path
     CS = sm['carState']
-    blinker = bool(CS.leftBlinker or CS.rightBlinker)
+    # The model may continue a lane change after the stalk signal is released.
+    # Use the existing blinker cancellation/release path; do not change tuning.
+    try:
+      lane_change = sm["modelV2"].meta.laneChangeState != log.LaneChangeState.off
+    except AttributeError:
+      return self._inactive(v_cruise, reset_state)
+    blinker = bool(CS.leftBlinker or CS.rightBlinker or lane_change)
     v_ego = max(float(v_ego), 0.0)
 
     self.road_curvature, time_to_curve = calculate_road_curvature(yaw, v, yaw_t)
