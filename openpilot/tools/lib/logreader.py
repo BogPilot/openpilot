@@ -18,7 +18,7 @@ from urllib.parse import parse_qs, urlparse
 from openpilot.cereal import log as capnp_log
 from openpilot.common.swaglog import cloudlog
 from openpilot.tools.lib.filereader import FileReader
-from openpilot.tools.lib.file_sources import comma_api_source, internal_source, openpilotci_source, comma_car_segments_source, Source
+from openpilot.tools.lib.file_sources import internal_source, openpilotci_source, comma_car_segments_source, Source
 from openpilot.tools.lib.route import SegmentRange, FileName
 from openpilot.tools.lib.log_time_series import msgs_to_time_series
 
@@ -246,7 +246,7 @@ class LogReader:
   def __init__(self, identifier: str | list[str], default_mode: ReadMode = ReadMode.RLOG,
                sources: list[Source] | None = None, sort_by_time=False, only_union_types=False):
     if sources is None:
-      sources = [internal_source, comma_api_source, openpilotci_source, comma_car_segments_source]
+      sources = [internal_source, openpilotci_source, comma_car_segments_source]  # BogPilot: no Connect API source
 
     self.default_mode = default_mode
     self.sources = sources
