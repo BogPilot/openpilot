@@ -13,7 +13,7 @@ ACTIVE_ALERT_ROWS = (
   ("LeadDepartingAlert", "Lead Departed Alert", "Alert when the tracked lead moves more than 1 m from its stopped distance at over 1 m/s while your car remains stopped."),
 )
 ACTIVE_ALERT_KEYS = tuple(row[0] for row in ACTIVE_ALERT_ROWS)
-FRESH_DEFAULTS = {key: True for key in ACTIVE_ALERT_KEYS}
+FRESH_DEFAULTS = dict.fromkeys(ACTIVE_ALERT_KEYS, True)
 OMITTED_ALERT_KEYS = ("GoatScream", "LoudBlindspotAlert", "SpeedLimitChangedAlert")
 
 

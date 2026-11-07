@@ -29,10 +29,14 @@ VOLUME_KEYS = ("EngageVolume", "DisengageVolume", "RefuseVolume", "PromptVolume"
 APPROVED_PARAM_DEFAULTS = {
   "AlwaysOnLateral": "0",
   "NudgelessLaneChange": "0",
+  "AdjacentLeadsUI": "1",  # t956u; never override saved OFF
+  "ScreenRecorder": "1",
+  "GreenLightAlert": "1",  # t968u; integrate ONLY with live alert consumer
+  "LeadDepartingAlert": "1",
   "AlertVolumeControl": "0",
   "TuningLevel": "0",
   "TuningLevelConfirmed": "0",
-  **{k: "101" for k in VOLUME_KEYS},
+  **dict.fromkeys(VOLUME_KEYS, "101"),
 }
 REQUIRED_FILE_ONLY = frozenset({"RedesignUI", "BSMFlameTracks", "SwapSpeedGraph", "DeveloperHUD", "HideAccelGraph"})
 # Keys the CSC / longitudinal toggles depend on (must be typed Params).

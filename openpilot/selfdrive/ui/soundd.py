@@ -93,7 +93,7 @@ def _bogpilot_int(text: str | None, default: int) -> int:
     return default
   try:
     return int(float(text))
-  except ValueError:
+  except (ValueError, TypeError, OverflowError):
     return default
 
 SAMPLE_RATE = 48000

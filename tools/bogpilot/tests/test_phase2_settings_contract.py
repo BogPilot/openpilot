@@ -13,7 +13,7 @@ def test_source_contract():
   assert c.audit(ROOT) == []
 
 def test_saved_values_are_never_migration_targets():
-  saved = {k: "0" for k in c.CONTRACT}
+  saved = dict.fromkeys(c.CONTRACT, "0")
   saved.update(EngageVolume="37", DisengageVolume="0.000000", AdjacentLeadsUI="0", ScreenRecorder="0")
   original = saved.copy()
   assert c.missing_defaults(saved) == {}

@@ -177,7 +177,7 @@ class TestVisualsSettings(unittest.TestCase):
     self.typed = {}
     params = SimpleNamespace(get=lambda k: self.typed.get(k), put=lambda k, v: self.typed.__setitem__(k, v),
                              put_bool=lambda k, v: self.typed.__setitem__(k, "1" if v else "0"),
-                             all_keys=lambda: [b"BlindSpotPath", b"AdjacentLeadsUI", b"PedalsOnUI", b"ScreenRecorder", b"CustomUI", b"BlindSpotMetrics", b"OnroadDistanceButton", b"BorderMetrics", b"QOLVisuals"])
+                             all_keys=lambda: [b"BlindSpotPath", b"AdjacentLeadsUI", b"PedalsOnUI", b"ScreenRecorder", b"CustomUI", b"BlindSpotMetrics", b"OnroadDistanceButton", b"BorderMetrics", b"QOLVisuals", b"DriverCamera"])
     self._env = os.environ.get("BOGPILOT_PARAMS_DIR"); os.environ["BOGPILOT_PARAMS_DIR"] = self.tmp
     self.store = ParamStore(params=params, cache_ttl=0)
 
@@ -193,12 +193,12 @@ class TestVisualsSettings(unittest.TestCase):
 
   def test_registered_in_settings(self):
     from openpilot.selfdrive.ui.layouts.settings import settings as S
-    from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import BogPilotVisualsLayout, VISUAL_KEYS
+    from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import VISUAL_KEYS
     self.assertEqual(int(S.PanelType.BOGPILOT_VISUALS), 6)
     src = Path(S.__file__).read_text()
     self.assertIn("PanelType.BOGPILOT_VISUALS: PanelInfo(tr_noop(\"Visuals\"), BogPilotVisualsLayout())", src)
     self.assertEqual(VISUAL_KEYS, ("AdjacentLeadsUI", "BlindSpotPath", "BlindSpotMetrics", "OnroadDistanceButton",
-                                   "PedalsOnUI", "ScreenRecorder"))
+                                   "PedalsOnUI", "ScreenRecorder", "DriverCamera"))
 
   def test_only_existing_registered_keys_no_new_defaults(self):
     from openpilot.common.bogpilot_params import BOGPILOT_PARAMS

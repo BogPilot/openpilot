@@ -190,8 +190,6 @@ AP1_PARAM_PROFILE: dict[str, str] = {
   # (AlertVolumeControl 0, every volume 101) from openpilot/common/bogpilot_alert_volumes.py. The legacy
   # 367e1fe engage/disengage mute is intentionally dropped and must never be re-applied.
   "CustomAlerts": "1",                   # FrogPilot custom alerts on
-  "GreenLightAlert": "1",                # green light alert
-  "LeadDepartingAlert": "1",             # lead departing alert
 
   # --- System ---
   "PreferredSchedule": "1",              # OSM map update schedule: Weekly (default Monthly)
