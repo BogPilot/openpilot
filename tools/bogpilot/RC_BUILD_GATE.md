@@ -15,7 +15,19 @@ descended from stock C3X release-tizi f7db927c728bab57bb1263e05465766a8f28fc9d.
 Do not use `git_src_commit` as candidate identity: that is an upstream marker.
 Only untracked `.panda-source.json` is allowed as generated metadata, and only with
 matching source_commit and dirty=false; firmware gate additionally verifies its
-content inventory. Do not build in/fill the frozen Git checkout with outputs.
+content inventory.
+`build.json` is NOT read from the checkout: `rc_package.py` generates it from the
+clean Git checkout (stock BuildMetadata fields: channel=current branch, git_commit=
+candidate, git_origin=remote.origin.url, git_commit_date=`%ct %ci`, version from
+openpilot/common/version.h, release_notes from RELEASES.md, build_style=unknown,
+is_dirty=false) and embeds it at archive root. verify/bundle/check-archive BLOCK on
+missing/dirty/detached/release-like-channel/credentialed-origin/wrong-SHA/invalid
+JSON or schema metadata, or missing version.py/git.py/basedir.py/swaglog.py/
+version.h/RELEASES.md runtime prerequisites. This is static; packaged-device
+`get_build_metadata()` deserialization remains a separate runtime check.
+Bench startup liveness: `manager_smoke.py` judges managerState process state
+(required ui,logmessaged stable PIDs >=60s, offroad, no restart); log volume is
+never a stall signal. Do not build in/fill the frozen Git checkout with outputs.
 
 Artifact manifest is EXACT packaging track's schema 1:
 

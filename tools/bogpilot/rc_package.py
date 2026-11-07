@@ -36,6 +36,16 @@ MODELS = ("driving_tinygrad.pkl", "dmonitoring_model_tinygrad.pkl",
           "dm_warp_1344x760_tinygrad.pkl", "dm_warp_1928x1208_tinygrad.pkl",
           "driving_warp_1344x760_tinygrad.pkl", "driving_warp_1928x1208_tinygrad.pkl")
 SHA = re.compile(r"[0-9a-f]{40}")
+# build.json mirrors openpilot.common.version.BuildMetadata/OpenpilotMetadata (asdict shape).
+BUILD_METADATA = "build.json"
+METADATA_FIELDS = ("build_style", "git_commit", "git_commit_date", "git_origin", "is_dirty", "release_notes", "version")
+METADATA_RUNTIME = ("openpilot/common/version.py", "openpilot/common/git.py", "openpilot/common/basedir.py",
+                    "openpilot/common/swaglog.py", "openpilot/common/version.h", "RELEASES.md")
+RELEASE_LIKE = ("release-tizi-staging", "release-mici-staging", "release-tizi", "release-mici", "nightly",
+                "nightly-chestnut", "devel-staging", "nightly-dev", "nightly-chestnut-dev")
+# Credential-free public remote forms only: no user:password@, token or query.
+ORIGIN = re.compile(r"(git@github\.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+|https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)")
+COMMIT_DATE = re.compile(r"'[0-9]+ [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} [+-][0-9]{4}'")
 HASH = re.compile(r"[0-9a-f]{64}")
 
 
@@ -55,7 +65,7 @@ def safe_name(name):
   p = PurePosixPath(name)
   if not name or str(p) != name or p.is_absolute() or any(x in ("..", ".git") for x in p.parts) or "\\" in name:
     raise ValueError("unsafe relative path")
-  if name == "RC_PACKAGE.json":
+  if name in ("RC_PACKAGE.json", BUILD_METADATA):
     raise ValueError("reserved package metadata path")
   lower = [x.lower() for x in p.parts]
   if any(x in (".ssh", ".aws", ".gnupg", "secrets", "private", "params", "params_bogpilot", "rlogs", "routes") for x in lower):
@@ -81,6 +91,81 @@ def source_catalog(root, ref):
     mode, kind, blob = meta.decode().split()
     result[name.decode()] = {"mode": mode, "blob": blob}
   return result
+
+
+def validate_build_metadata(raw, candidate):
+  """Strict schema for packaged build.json; returns parsed dict or raises."""
+  try:
+    data = json.loads(raw)
+  except (ValueError, UnicodeDecodeError):
+    raise ValueError("build metadata is not valid JSON") from None
+  op = data.get("openpilot") if isinstance(data, dict) else None
+  if set(data) != {"channel", "openpilot"} or not isinstance(op, dict) or set(op) != set(METADATA_FIELDS):
+    raise ValueError("build metadata schema mismatch")
+  if any(type(op[k]) is not str for k in METADATA_FIELDS if k != "is_dirty") or type(data["channel"]) is not str:
+    raise ValueError("build metadata field types invalid")
+  if op["git_commit"] != candidate:
+    raise ValueError("build metadata candidate SHA mismatch")
+  if op["is_dirty"] is not False:
+    raise ValueError("build metadata dirty")
+  if op["build_style"] != "unknown":
+    raise ValueError("build metadata must not claim a release build style")
+  if data["channel"] in ("", "HEAD", "unknown") or data["channel"] in RELEASE_LIKE:
+    raise ValueError("build metadata channel missing or release/tested-like")
+  if not ORIGIN.fullmatch(op["git_origin"]):
+    raise ValueError("build metadata origin not a credential-free public remote")
+  if not COMMIT_DATE.fullmatch(op["git_commit_date"]) or op["version"] in ("", "unknown") or not op["release_notes"]:
+    raise ValueError("build metadata date/version/notes invalid")
+  return data
+
+
+def generate_build_metadata(root, candidate):
+  """Truthful build.json from the exact clean Git checkout, using stock field semantics."""
+  root = Path(root)
+  if git(root, "rev-parse", "HEAD").decode().strip() != candidate:
+    raise ValueError("metadata checkout HEAD does not match candidate")
+  if git(root, "status", "--porcelain", "--untracked-files=no").strip():
+    raise ValueError("metadata checkout dirty")
+  version_h = (root / "openpilot/common/version.h").read_text()
+  data = {"channel": git(root, "rev-parse", "--abbrev-ref", "HEAD").decode().strip(),
+          "openpilot": {"build_style": "unknown", "git_commit": candidate,
+                        "git_commit_date": git(root, "show", "--no-patch", "--format='%ct %ci'", candidate).decode().strip(),
+                        "git_origin": git(root, "config", "--get", "remote.origin.url").decode().strip(),
+                        "is_dirty": False,
+                        "release_notes": (root / "RELEASES.md").read_text().split("\n\n", 1)[0],
+                        "version": version_h.split('"')[1]}}
+  raw = (json.dumps(data, sort_keys=True, indent=2) + "\n").encode()
+  validate_build_metadata(raw, candidate)
+  return raw
+
+
+def check_metadata_runtime(root, names):
+  """Static prerequisites so packaged get_build_metadata() can read build.json."""
+  for name in METADATA_RUNTIME:
+    if name not in names:
+      raise ValueError("metadata runtime prerequisite missing: " + name)
+  text = (Path(root) / "openpilot/common/version.py").read_text()
+  for needle in ('BUILD_METADATA_FILENAME = "build.json"', "def build_metadata_from_dict(", "def get_build_metadata("):
+    if needle not in text:
+      raise ValueError("metadata runtime API missing: " + needle)
+
+
+def check_archive(archive, candidate):
+  """Archive must carry validated build.json bound to RC_PACKAGE.json."""
+  with tarfile.open(archive) as tar:
+    names = tar.getnames()
+    if names.count(BUILD_METADATA) != 1 or names.count("RC_PACKAGE.json") != 1:
+      raise ValueError("archive build/package metadata missing or duplicated")
+    raw = tar.extractfile(BUILD_METADATA).read()
+    report = json.load(tar.extractfile("RC_PACKAGE.json"))
+  validate_build_metadata(raw, candidate)
+  if (report.get("candidate_sha") != candidate or
+      report.get("build_metadata_sha256") != hashlib.sha256(raw).hexdigest()):
+    raise ValueError("archive build metadata not bound to package report")
+  for name in METADATA_RUNTIME:
+    if name not in names:
+      raise ValueError("archive metadata runtime prerequisite missing: " + name)
+  return hashlib.sha256(raw).hexdigest()
 
 
 def path_id(name):
@@ -277,6 +362,8 @@ def verify(root, candidate, manifest, shipping_manifest=None):
       raise ValueError("artifact checksum mismatch: " + name)
     entries[name] = {"sha256": checksum, "size": info.st_size, "mode": "0755" if mode & 0o111 else "0644"}
   provenance = validate_panda(root, candidate, exclusions)
+  check_metadata_runtime(root, names)
+  build_metadata = generate_build_metadata(root, candidate)
   return {"schema": 1, "kind": "cataloged-excluded-source-test-build" if exclusions else "full-tree-test-build",
           "source_scope": "cataloged_source_with_explicit_exclusions" if exclusions else "complete_tracked_source_and_explicit_artifacts",
           "source_catalog": catalog, "source_catalog_sha256": hashlib.sha256(canonical(catalog)).hexdigest(),
@@ -287,6 +374,8 @@ def verify(root, candidate, manifest, shipping_manifest=None):
           "inventory_sha256": hashlib.sha256(canonical(entries)).hexdigest(),
           "artifact_manifest_sha256": hashlib.sha256(raw_manifest).hexdigest(),
           "panda_source_manifest_sha256": provenance,
+          "build_metadata": build_metadata.decode(),
+          "build_metadata_sha256": hashlib.sha256(build_metadata).hexdigest(),
           "prerequisites": ["assembled native/runtime gate still required", "AGNOS 19.9 comma3X only",
                             "DEBUG policy unchanged; no automatic flash", "known-good rollback source+artifacts required"]}
 
@@ -417,11 +506,19 @@ def bundle(root, report, output):
           if digest(path) != entry["sha256"]:
             raise ValueError("source changed during archive read")
       import io
+      build_raw = report["build_metadata"].encode()
+      validate_build_metadata(build_raw, report["candidate_sha"])
+      if hashlib.sha256(build_raw).hexdigest() != report["build_metadata_sha256"]:
+        raise ValueError("build metadata changed since verify")
+      info = tarfile.TarInfo(BUILD_METADATA)
+      info.size, info.mode, info.mtime = len(build_raw), 0o644, 0
+      tar.addfile(info, io.BytesIO(build_raw))
       metadata = canonical(report) + b"\n"
       info = tarfile.TarInfo("RC_PACKAGE.json")
       info.size, info.mode, info.mtime = len(metadata), 0o644, 0
       tar.addfile(info, io.BytesIO(metadata))
     # link is exclusive and atomic on same filesystem; do not overwrite a rival.
+    check_archive(temp, report["candidate_sha"])
     os.link(temp, output)
     return digest(output)
   finally:
@@ -430,7 +527,7 @@ def bundle(root, report, output):
 
 def main(argv=None):
   ap = argparse.ArgumentParser(description=__doc__)
-  ap.add_argument("command", choices=("verify", "bundle"))
+  ap.add_argument("command", choices=("verify", "bundle", "check-archive"))
   ap.add_argument("--root", required=True, type=Path)
   ap.add_argument("--candidate", required=True)
   ap.add_argument("--artifact-manifest", required=True, type=Path)
@@ -440,6 +537,13 @@ def main(argv=None):
   ap.add_argument("--shipping-manifest", type=Path)
   ap.add_argument("--review-record", type=Path)
   args = ap.parse_args(argv)
+  if args.command == "check-archive":
+    try:
+      print("PASS archive build.json", check_archive(args.output, args.candidate), "(static; not runtime/road validation)")
+      return 0
+    except Exception as exc:
+      print("BLOCKED:", type(exc).__name__, str(exc) if isinstance(exc, ValueError) else "archive unreadable")
+      return 1
   try:
     report_path = outside(args.root, args.report)
     if report_path.exists():

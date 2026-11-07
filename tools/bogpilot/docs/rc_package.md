@@ -160,3 +160,13 @@ Adapter validation includes actual recorded worker consumable-schema binding
 through the actual track9 audit, adapter and tar round-trip. Neither constitutes
 final candidate attestation or a real native build. Final SHA/inventory/native run
 remain exclusively the integrator's responsibility.
+
+## build.json (added after bench startup stopped on missing metadata)
+
+`verify` now generates truthful `build.json` from the clean candidate checkout and
+records `build_metadata`/`build_metadata_sha256` in the report; `bundle` writes it
+at archive root and re-checks the temp archive before publishing it. Re-check any
+archive with `rc_package.py check-archive --root R --candidate FULL_SHA
+--artifact-manifest A --report UNUSED --output ARCHIVE.tar`. Generation refuses a
+detached HEAD rather than inventing a channel.
+
