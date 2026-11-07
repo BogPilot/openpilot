@@ -130,6 +130,32 @@ class BuildGateTests(unittest.TestCase):
     self.manifest["artifacts"][0]["format"] = "elf-arm"
     self.blocked("final_native_artifacts")
 
+  def webcam_fixture(self, suffix=""):
+    p = self.source / "openpilot/system/manager/process_config.py"
+    p.write_text(p.read_text() + '\nWEBCAM = os.getenv("USE_WEBCAM") is not None\n'
+                 + 'web = PythonProcess("webcamerad", "openpilot.system.camerad.webcam.camerad", driverview, enabled=WEBCAM)\n' + suffix)
+
+  def test_optional_webcam_requires_verified_guard_and_explicit_profile(self):
+    self.webcam_fixture()
+    optional = M.conditional_webcam_imports(self.source)
+    self.assertEqual(optional, ["openpilot.system.camerad.webcam.camerad"])
+    # Exercise receipt scoping independently of source dirty/file inventory rejection.
+    self.evidence["gates"]["imports"]["profile"] = {"target": "comma3x", "use_webcam": False}
+    result = self.run_gate()
+    self.assertEqual(next(c for c in result["checks"] if c["name"] == "gate_imports")["status"], "pass")
+    for profile in ({"target": "comma3x", "use_webcam": True}, {}, {"target": "pc", "use_webcam": False}):
+      self.evidence["gates"]["imports"]["profile"] = profile
+      result = self.run_gate()
+      self.assertEqual(next(c for c in result["checks"] if c["name"] == "gate_imports")["status"], "blocked")
+
+  def test_reassigned_webcam_guard_is_not_optional(self):
+    self.webcam_fixture("WEBCAM = True\n")
+    self.assertEqual(M.conditional_webcam_imports(self.source), [])
+
+  def test_required_controls_import_cannot_be_waived_by_profile(self):
+    self.evidence["gates"]["imports"].update(profile={"target": "comma3x", "use_webcam": False}, modules={})
+    self.blocked("gate_imports")
+
   def test_log_tampering(self):
     (self.logs / "fixture.log").write_text("tampered")
     self.blocked("gate_build")

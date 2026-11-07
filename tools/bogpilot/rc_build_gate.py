@@ -71,6 +71,30 @@ def service_inventory(root: Path) -> tuple[list[str], list[str]]:
   return sorted(modules), sorted(executables)
 
 
+def conditional_webcam_imports(root: Path) -> list[str]:
+  """Only the exact stock USE_WEBCAM guard can classify this import optional.
+
+  Unknown/reassigned guards remain required. No process config is executed.
+  """
+  tree = ast.parse((root / "openpilot/system/manager/process_config.py").read_text())
+  writes = [n for n in ast.walk(tree) if isinstance(n, ast.Name) and n.id == "WEBCAM" and isinstance(n.ctx, ast.Store)]
+  expected = ast.parse('os.getenv("USE_WEBCAM") is not None', mode="eval").body
+  verified = len(writes) == 1 and any(
+    isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name)
+    and n.targets[0].id == "WEBCAM" and ast.dump(n.value) == ast.dump(expected) for n in tree.body)
+  if not verified:
+    return []
+  modules = []
+  for n in ast.walk(tree):
+    if not (isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "PythonProcess" and len(n.args) >= 2):
+      continue
+    if ast.literal_eval(n.args[0]) != "webcamerad" or ast.literal_eval(n.args[1]) != "openpilot.system.camerad.webcam.camerad":
+      continue
+    if any(k.arg == "enabled" and isinstance(k.value, ast.Name) and k.value.id == "WEBCAM" for k in n.keywords):
+      modules.append(ast.literal_eval(n.args[1]))
+  return sorted(set(modules))
+
+
 def elf_kind(path: Path, elf_class: int, machine: int) -> bool:
   with path.open("rb") as f:
     h = f.read(64)
@@ -247,7 +271,10 @@ def inspect(root: Path, candidate: str, artifact_root: Path | None = None, manif
       require(completed, "missing full build completion log")
     if name == "imports":
       statuses = item["modules"]
-      require(bool(modules) and all(statuses.get(m) == "pass" for m in modules), "missing/blocked service import")
+      required = modules
+      if item.get("profile") == {"target": "comma3x", "use_webcam": False}:
+        required = [m for m in modules if m not in conditional_webcam_imports(root)]
+      require(bool(required) and all(statuses.get(m) == "pass" for m in required), "missing/blocked required service import")
       require(item["daemons_started"] is False, "daemon execution forbidden")
     return {"status": "pass", "hashed_logs": len(item["logs"])}
   for name in GATES:
@@ -265,7 +292,8 @@ def inspect(root: Path, candidate: str, artifact_root: Path | None = None, manif
   return {"schema": 1, "candidate_sha": candidate, "status": "pass" if passed else "blocked",
           "candidate_ready": passed, "installable": False, "device_boot_validated": False,
           "road_validated": False, "checks": gate.checks,
-          "native_plan": {"build": ["scons", "-j4"], "targets": [], "python_imports": modules,
+          "native_plan": {"build": ["scons", "-j4"], "targets": [], "python_imports": modules, "conditional_webcam_imports": conditional_webcam_imports(root),
+                      "default_c3x_required_python_imports": [m for m in modules if m not in conditional_webcam_imports(root)],
                           "native_executables_not_executed": native,
                           "constraints": ["One primary-coordinated VM lock slot only after final SHA and UI ready",
                                           "Imports require isolated container HOME/PARAMS_ROOT/LOG_ROOT and timeouts",
