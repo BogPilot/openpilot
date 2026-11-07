@@ -109,6 +109,18 @@ class TestIntegrationSurface(unittest.TestCase):
           self.assertNotIn("stream", node.module or "")
 
 
+def hud_stubs():
+  """Names bogpilot_hud.py imports for the t913u features (arc, pedals, LIMIT tile, record button), headless."""
+  class _Widget:
+    is_pressed = False
+    def __init__(self, *a, **k):
+      pass
+  return {"SL": load("speed_limit_display"), "ARC": load("steering_arc"), "PED": load("pedals"), "math": __import__("math"),
+          "UI_CONFIG": SimpleNamespace(button_size=192, wheel_icon_size=144), "ExpButton": _Widget, "Widget": _Widget,
+          "cloudlog": SimpleNamespace(exception=lambda *a: None), "REC_CX": 95, "REC_CY": 696, "REC_HIT": 174,
+          "rl": SimpleNamespace(Color=lambda *c: c)}
+
+
 def adapter_namespace(name, env):
   tree = ast.parse((ROOT / f"{name}.py").read_text())
   tree.body = [node for node in tree.body if not isinstance(node, (ast.Import, ast.ImportFrom))]
@@ -144,7 +156,7 @@ class TestHudAdapter(unittest.TestCase):
                                  (False if key == "HideAccelGraph" else self.enabled)),
       "L": load("cluster_layout"), "time": __import__("time"),
       "AccelGraph": lambda hz=20: SimpleNamespace(paint=lambda r: calls.append("graph"), clear=lambda: None),
-      "messaging": None, "SERVICE_LIST": {},
+      "messaging": None, "SERVICE_LIST": {}, **hud_stubs(),
     })
     self.env["draw_cluster"] = lambda hud, rect, mici=False: calls.append(("cluster", mici))
 
