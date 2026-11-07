@@ -1,7 +1,8 @@
 """Release-tizi redesign adapter, retaining the upstream HUD state and controls.
 
 Stream 8 owns the cluster composition below: speed capsule, accel graph (SwapSpeedGraph order), HideAccelGraph
-(graph hidden, capsule kept in the lower slot) and the CSC MAX slot from a validated planner report only. There are
+(graph hidden, capsule kept in the lower slot) and the CSC MAX slot from a validated planner report only
+(plannerd's frogpilotPlan, AP1 CSC). The slot also needs CurveSpeedController and ShowCSCStatus on. There are
 deliberately no uploads, streaming, custom planner imports or unknown Params deps.
 """
 import time
@@ -29,8 +30,38 @@ def display_set_speed(hud, mici=False):
   return hud.set_speed * (0.621371 if mici and not ui_state.is_metric else 1.0)
 
 
+class CscStatusToggle:
+  """Daily csc_status: CurveSpeedController and ShowCSCStatus (367e1fe tuning-level rule), cached.
+
+  Display only: ShowCSCStatus never changes what the planner does. Any read failure hides the slot."""
+
+  def __init__(self, store=None, clock=time.monotonic, ttl=2.0):
+    self._store = store
+    self.clock = clock
+    self.ttl = ttl
+    self._next = -1.0
+    self._value = False
+
+  def get(self) -> bool:
+    now = self.clock()
+    if now >= self._next:
+      self._next = now + self.ttl
+      try:
+        if self._store is None:
+          from openpilot.common.bogpilot_store import ParamStore
+          self._store = ParamStore()
+        self._value = bool(self._store.toggle_bool("CurveSpeedController") and self._store.toggle_bool("ShowCSCStatus"))
+      except Exception:
+        self._value = False
+    return self._value
+
+
+csc_status_toggle = CscStatusToggle()
+
+
 def csc_slot(hud, mici=False):
-  ctx = L.CscContext(redesign=True, cruise_set=bool(hud.is_cruise_set), set_speed_display=display_set_speed(hud, mici),
+  ctx = L.CscContext(redesign=True, show_status=csc_status_toggle.get(), cruise_set=bool(hud.is_cruise_set),
+                     set_speed_display=display_set_speed(hud, mici),
                      display_conv=MS_TO_KPH if ui_state.is_metric else MS_TO_MPH, t=time.monotonic())
   return L.csc_slot(getattr(hud, "bp_csc", L.INVALID_CSC), ctx)
 

@@ -39,3 +39,17 @@ and the code it carries from older BogPilot lines.
   it was not acted on.
 - The C3 product line and the `agnos199-port-screensaver` worktree may carry the screensaver port.
   The C3 executor owns that.
+
+## Curve speed control port (AP1 CSC, regular mode)
+- Sources: daily `bogpilot-tesla@04d560f3e`. `selfdrive/controls/lib/curve_speed.py` (Tesla look-ahead curve
+  brake; commits c8b9efbf4 and 59830e538) is BogPilot-authored, with no Cursor author, committer or trailer.
+  `frogpilot/controls/lib/curve_speed_controller.py` (learning and target) and `calculate_road_curvature()` in
+  `frogpilot/common/frogpilot_utilities.py` are FrogPilot 0.9.7 code by FrogAi. The latter is credited upstream to
+  Pfeiferj. The BogPilot Tesla cap hook sits on top.
+- The repository license is MIT (comma.ai LICENSE). The daily FrogPilot files carry no separate license header,
+  so the C3X files name their origin in a module docstring (`bogpilot_csc.py`, `ap1_curve_brake.py`).
+- C3X files: `selfdrive/controls/lib/ap1_curve_brake.py`, `ap1_curve_speed.py`, `bogpilot_csc.py`, and the hooks in
+  `longitudinal_planner.py`, `plannerd.py` and `ui/onroad/bogpilot/bogpilot_hud.py`.
+- No Cursor-authored code is involved. The previous audit listed no CSC candidates, and Tinkla has no separate
+  CSC. Not ported: the FrogPilot weather reduction (C3X has no weather source), the speed limit controller and
+  Experimental/Conditional Experimental speed policy.

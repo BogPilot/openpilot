@@ -18,7 +18,7 @@ def main():
 
   ldw = LaneDepartureWarning()
   longitudinal_planner = LongitudinalPlanner(CP)
-  pm = messaging.PubMaster(['longitudinalPlan', 'driverAssistance'])
+  pm = messaging.PubMaster(['longitudinalPlan', 'driverAssistance', 'frogpilotPlan'])
   sm = messaging.SubMaster(['carControl', 'carState', 'controlsState', 'vehicleParameters', 'radarState', 'modelV2', 'selfdriveState'],
                            poll='modelV2')
 
@@ -27,6 +27,7 @@ def main():
     if sm.updated['modelV2']:
       longitudinal_planner.update(sm)
       longitudinal_planner.publish(sm, pm)
+      longitudinal_planner.publish_frogpilot_plan(pm)
 
       ldw.update(sm.frame, sm['modelV2'], sm['carState'], sm['carControl'])
       msg = messaging.new_message('driverAssistance')
