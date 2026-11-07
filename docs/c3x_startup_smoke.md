@@ -29,15 +29,17 @@ may recreate TuningLevel=0 / Confirmed=0; no selection is confirmed by startup.
 reset=None) -> StartupResult(events, errors, profile_suppressed)`.
 `after_defaults(params, *, file_root=None, startup=None) -> StartupResult`.
 Default file root: BOGPILOT_PARAMS_DIR or /data/params_bogpilot. Backup root:
-BOGPILOT_BACKUP_DIR or /cache/bogpilot/settings. Injected `backup()` must return
+BOGPILOT_BACKUP_DIR or /cache/bogpilot/settings-backups. Injected `backup()` must return
 only a durable success receipt or false/raise. Never pass a failed truthy wrapper.
 
-**w5 contract not available during implementation.** Proposed default optional
-adapter is `openpilot.system.bogpilot.settings_backup.backup_settings(params,
-file_root, backup_root, reason="boot"|"pre-reset")`, returning an object whose
-`success is True` only after durable originals. Absent adapter is nonfatal and
-reported; requested resets stay blocked. Parent must confirm/adapt this small
-adapter to w5's actual API before combined validation. No backup logic is copied.
+w5 contract reviewed at 946906c34820f232263208a5ee1f90701ca85b7c. Default optional
+adapter: `openpilot.system.bogpilot.settings_backup.backup_settings(params, *,
+file_root, backup_root, reason="startup"|"before-reset")`, returning BackupResult
+whose `success is True` only after durable originals. Absent adapter is nonfatal
+and reported; requested resets stay blocked. No backup logic is copied.
+Startup compares w6 reset_defaults keys with w5 effective persistent SETTING_KEYS
+plus FILE_KEYS; mismatched/private/unbacked scope blocks reset before invocation.
+Parent must assemble corrected w6 scope, not its original mismatched version.
 The boot snapshot is never automatically restored. Reset takes a fresh pre-reset
 snapshot; w5 owns retention/idempotence.
 
@@ -51,8 +53,8 @@ Before a successful pre-reset receipt is handed to w6, startup atomically writes
 and fsyncs file-only `AP1StockReset1` intent. This happens **after originals are
 backed up, before reset can mutate or clear its request**; a marker failure blocks
 reset. The marker suppresses AP1 profile replay across manager restarts, including
-power loss between successful reset and the next hook. Keep this marker in backup
-coverage. No typed Params operation uses it. A reset failure after receipt may leave
+power loss between successful reset and the next hook. This lifecycle policy marker is deliberately outside w5 setting snapshots;
+it must persist in the live file store and is not restored from archives. No typed Params operation uses it. A reset failure after receipt may leave
 the marker; this intentionally preserves the owner's explicit stock-selection intent.
 No marker is written on absent/failed backup. Pending or failed reset suppresses
 AP1 for the current initialization even if the optional module is missing.
@@ -73,7 +75,7 @@ All BOGPILOT file/backup paths are sandboxed. The tests import **actual** Python
 manager, process classes/config and hooks, but explicitly mock hardware, IPC,
 registration, native Params, schemas and logging. Process.start and subprocess.Popen
 raise if a daemon launch is attempted. No daemon/hardware/registration is started.
-31 pass / 2 skipped on the isolated base: w6 runtime and w8 migration skips are
+32 pass / 2 skipped on the isolated base: w6 runtime and w8 migration skips are
 explicit missing-peer validations. w7 suite absent. Contract fixture backup/reset
 tests prove orchestration only, NOT durability or peer transaction correctness.
 

@@ -282,7 +282,7 @@ def test_failed_backup_has_no_intent_marker_or_profile_replay(tmp_path):
 
 def test_backup_adapter_rejects_truthy_failure(monkeypatch, tmp_path):
   snapshots = []
-  def snapshot(params, directory, destination, *, reason):
+  def snapshot(params, *, file_root, backup_root, reason):
     snapshots.append(reason)
     return NS(success=False)  # object is truthy, but must not authorize reset
   def reset(params, directory, *, backup):
@@ -291,7 +291,7 @@ def test_backup_adapter_rejects_truthy_failure(monkeypatch, tmp_path):
   module = NS(backup_settings=snapshot)
   monkeypatch.setattr(lifecycle.importlib, "import_module", lambda name: module)
   result = lifecycle.before_defaults(MemoryParams(), file_root=tmp_path, cache_root=tmp_path / "cache", reset=reset)
-  assert snapshots == ["boot", "pre-reset"]
+  assert snapshots == ["startup", "before-reset"]
   assert not (tmp_path / "AP1StockReset1").exists()
   assert result.errors == ["reset: backup failed"]
 
@@ -308,3 +308,21 @@ def test_screensaver_peer_migration_when_present(monkeypatch, tmp_path):
   lifecycle.after_defaults(MemoryParams(), file_root=tmp_path)
   assert (tmp_path / "OffroadScreensaver").read_text().strip() == "1"
   assert bogpilot_toggles.FILE_TOGGLES["OffroadScreensaver"][0] is False
+
+
+def test_default_adapters_block_unbacked_reset_scope(monkeypatch, tmp_path):
+  called = []
+  def snapshot(params, **kwargs):
+    called.append("backup")
+    return NS(success=True)
+  def reset(*args, **kwargs):
+    raise AssertionError("scope mismatch must not invoke reset")
+  backup = NS(backup_settings=snapshot, SETTING_KEYS=frozenset(), FILE_KEYS=frozenset())
+  reset_module = NS(reset_requested=reset, reset_defaults=lambda: {"SearchInput": ""})
+  monkeypatch.setattr(lifecycle.importlib, "import_module", lambda name: backup if name.endswith("settings_backup") else reset_module)
+  params = MemoryParams()
+  params.values["DoToggleResetStock"] = True
+  result = lifecycle.before_defaults(params, file_root=tmp_path, cache_root=tmp_path / "cache")
+  assert "reset: backup scope mismatch" in result.errors
+  assert called == ["backup"] and result.profile_suppressed
+  assert not (tmp_path / "AP1StockReset1").exists()

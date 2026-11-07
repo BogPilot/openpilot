@@ -48,21 +48,23 @@ def before_defaults(params, *, file_root: Path | None = None,
 
   # Optional adapter contract for w5. No restore-from-cache path is authorized:
   # current persistent settings are authoritative on every ordinary manager boot.
+  backup_module = None
   if backup is None:
     module = _optional("openpilot.system.bogpilot.settings_backup", result)
+    backup_module = module
     snapshot = getattr(module, "backup_settings", None)
     if snapshot is not None:
-      destination = Path(cache_root or os.getenv("BOGPILOT_BACKUP_DIR", "/cache/bogpilot/settings"))
+      destination = Path(cache_root or os.getenv("BOGPILOT_BACKUP_DIR", "/cache/bogpilot/settings-backups"))
       def snapshot_receipt(reason):
-        outcome = snapshot(params, directory, destination, reason=reason)
-        # Do not accept a truthy failed-result wrapper. This adapter is pending
-        # w5 contract confirmation; only explicit success authorizes reset.
+        outcome = snapshot(params, file_root=directory, backup_root=destination, reason=reason)
+        # w5 BackupResult.success is true only after durable snapshot publication.
+        # Do not accept a truthy failed-result wrapper.
         return outcome if getattr(outcome, "success", False) is True else None
       try:
-        result.events.append("backup:boot" if snapshot_receipt("boot") else "backup:failed")
+        result.events.append("backup:boot" if snapshot_receipt("startup") else "backup:failed")
       except Exception as exc:
         result.errors.append(f"backup: {type(exc).__name__}")
-      backup = lambda: snapshot_receipt("pre-reset")
+      backup = lambda: snapshot_receipt("before-reset")
 
   def guarded_backup():
     receipt = backup()
@@ -91,6 +93,21 @@ def before_defaults(params, *, file_root: Path | None = None,
   if reset is None:
     module = _optional("openpilot.system.bogpilot.toggle_reset", result)
     reset = getattr(module, "reset_requested", None)
+    if reset is not None and backup_module is not None and result.profile_suppressed:
+      try:
+        # Backup excludes private/freeform/runtime settings. Fail closed on scope
+        # drift rather than allowing reset to erase keys absent from the archive.
+        from openpilot.common.bogpilot_params import BOGPILOT_PARAMS
+        covered = set(backup_module.FILE_KEYS) | {
+          k for k in backup_module.SETTING_KEYS
+          if k in BOGPILOT_PARAMS and BOGPILOT_PARAMS[k][0] == "PERSISTENT"
+        }
+        if set(module.reset_defaults()) - covered:
+          raise ValueError("reset scope exceeds backup")
+      except Exception:
+        result.errors.append("reset: backup scope mismatch")
+        result.profile_suppressed = True
+        reset = None
   try:
     if reset is not None:
       outcome = reset(params, directory, backup=guarded_backup if backup is not None else None)
