@@ -257,11 +257,12 @@ class TestGatingGeometry(Base):
     f = c.frame
     self.assertAlmostEqual(f.scale, min(1, 2100 / 2160, 1020 / 1080))
     self.assertTrue(f.wide)
-    self.assertEqual(f.stock_dm_rect.t(), (60, 828, 192, 192))       # stock corner DM, 0.11.2 geometry
+    # t922u: the personality button takes the stock DM corner; the stock-size DM moves beside it (button/2 + gap + 96)
+    s = f.scale
+    self.assertEqual(f.stock_dm_rect.t(), Rect(60 + 75 * s + 6 * s + 8 + 96, 828, 192, 192).t())
     self.assertIn((30 + 2100 - 30 - 192, 60, 192, 192), [k.t() for k in f.keepouts])   # stock exp button
     s = f.scale
-    # t920u: stock-corner DM always; the pill sits beside it on the driver side, CLUSTER_GAP away, never under it
-    self.assertEqual(f.personality_rect.t(), Rect(60 + 192 + 6 * s, 30 + 825 * s, 150 * s, 150 * s).t())
+    self.assertEqual(f.personality_rect.t(), Rect(156 - 75 * s, 924 - 75 * s, 150 * s, 150 * s).t())
     self.assertFalse(overlaps(f.stock_dm_rect, f.personality_rect))
     band = Rect(f.personality_rect.x, f.personality_rect.y - 40, f.personality_rect.width, f.personality_rect.height + 40)
     self.assertFalse(any(overlaps(k, band) for k in f.label_keepouts))
@@ -288,10 +289,11 @@ class TestGatingGeometry(Base):
     c = self.composer()
     c.render(self.rect)
     f = c.frame
-    self.assertEqual(f.stock_dm_rect.t(), (30 + 2100 - 126 - 96, 828, 192, 192))
+    s = f.scale
+    self.assertEqual(f.stock_dm_rect.t(), Rect(30 + 2100 - 126 - 96 - (75 * s + 6 * s + 8 + 96), 828, 192, 192).t())
     self.assertGreater(f.personality_rect.x, 30 + 2100 / 2)
     self.assertFalse(overlaps(f.stock_dm_rect, f.personality_rect))
-    self.assertAlmostEqual(f.personality_rect.x + f.personality_rect.width, f.stock_dm_rect.x - 6 * f.scale)
+    self.assertAlmostEqual(f.stock_dm_rect.x + f.stock_dm_rect.width, f.personality_rect.x - 6 * s - 8)
 
   def test_stale_dm_state_not_used_for_rhd(self):
     self.state.sm["driverMonitoringState"].isRHD = True

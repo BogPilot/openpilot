@@ -254,11 +254,13 @@ class TestBsm(unittest.TestCase):
       def get_bool(self, k, default=False):
         return self.debug
     P = self.m.BsmPolicy
-    self.assertTrue(P(Store(True), clock=lambda: 0).enabled(True))
-    self.assertFalse(P(Store(False), clock=lambda: 0).enabled(True))      # CustomUI off hides (daily)
-    self.assertFalse(P(Store(True), clock=lambda: 0).enabled(False))      # BlindSpotPath off hides
-    self.assertTrue(P(Store(False, debug=True), clock=lambda: 0).enabled(False))
-    self.assertTrue(P(Store(True, boom=True), clock=lambda: 0).enabled(True))   # unreadable store: prior behaviour
+    CP = SimpleNamespace(carFingerprint="TESLA_AP1_MODELS")
+    self.assertFalse(P(Store(True), clock=lambda: 0).enabled(True, None))   # no capability
+    self.assertTrue(P(Store(True), clock=lambda: 0).enabled(True, CP))
+    self.assertFalse(P(Store(False), clock=lambda: 0).enabled(True, CP))      # CustomUI off hides (daily)
+    self.assertFalse(P(Store(True), clock=lambda: 0).enabled(False, CP))      # BlindSpotPath off hides
+    self.assertTrue(P(Store(False, debug=True), clock=lambda: 0).enabled(False, CP))
+    self.assertTrue(P(Store(True, boom=True), clock=lambda: 0).enabled(True, CP))   # unreadable store: prior behaviour
 
   def test_model_fill_left_right_both_off_and_stale(self):
     draws = []
@@ -266,7 +268,7 @@ class TestBsm(unittest.TestCase):
 
     class Base:
       def __init__(self):
-        self._rect = SimpleNamespace(x=0, y=0)
+        self._rect = SimpleNamespace(x=0, y=0, width=2160, height=1080)
         x = np.array([0, 10, 20], dtype=np.float32)
         self._lane_lines = [SimpleNamespace(raw_points=np.column_stack((x, np.full(3, y), x * 0))) for y in (-5.4, -1.8, 1.8, 5.4)]
       def _draw_lane_lines(self):
@@ -285,7 +287,7 @@ class TestBsm(unittest.TestCase):
       "ModelRenderer": Base, "MiciModelRenderer": Base, "FlameTracks": Flames, "FlameSideInput": lambda *a: a, "np": np,
       "rl": SimpleNamespace(Color=lambda *a: a), "toggles": SimpleNamespace(get=lambda _: True),
       "ui_state": SimpleNamespace(sm=sm, started_frame=10), "adjacent_leads": self.m.adjacent_leads,
-      "blindspots": self.m.blindspots, "BsmPolicy": lambda: SimpleNamespace(enabled=lambda b: b),
+      "blindspots": self.m.blindspots, "BsmPolicy": lambda: SimpleNamespace(enabled=lambda b, cp=None: b),
       "time": SimpleNamespace(monotonic=lambda: now[0]), "draw_polygon": lambda *a: draws.append(a)})
     model = env["BogPilotModelRenderer"]()
     cs = sm["carState"]
@@ -300,22 +302,27 @@ class TestBsm(unittest.TestCase):
 
 
 class TestPolicyAdjacentGate(unittest.TestCase):
-  def test_adjacent_gate_is_daily_tracking_or_hlc(self):
+  def test_adjacent_gate_is_adjacent_leads_setting_not_hlc(self):
+    """t921u: UI gate = has_radar and (AdjacentLeadsUI or DebugMode); human_lane_changes (no C3X controller) is ignored."""
     from openpilot.selfdrive.ui.onroad.bogpilot.tests.test_hud_compose import env, Log
     ns = env(SimpleNamespace(CP=None), {}, Log())
 
     class Store:
+      def __init__(self, adj, debug=False):
+        self.adj, self.debug = adj, debug
       def tuning_level(self):
         return 3
       def get_bool(self, k, default=None):
-        return False
+        return self.debug if k == "DebugMode" else False
       def toggle_bool(self, k, level=None):
-        return False
-    for a, h, want in ((True, False, True), (False, True, True), (False, False, False)):
-      fake = SimpleNamespace(onroad_toggles=lambda s, cp, a=a, h=h: SimpleNamespace(adjacent_lead_tracking=a, human_lane_changes=h))
+        return self.adj if k == "AdjacentLeadsUI" else False
+    for adj, debug, radar, hlc, want in ((True, False, True, False, True), (False, False, True, True, False),
+                                         (False, True, True, False, True), (True, False, False, False, False)):
+      fake = SimpleNamespace(onroad_toggles=lambda s, cp, r=radar, h=hlc: SimpleNamespace(has_radar=r, human_lane_changes=h,
+                                                                                           adjacent_lead_tracking=False))
       with patch.dict(sys.modules, {"openpilot.common.bogpilot_onroad_toggles": fake}):
-        v = ns["PolicyToggles"](Store(), clock=lambda: 0.0).get()
-      self.assertEqual(v["adjacent_leads"], want, (a, h))
+        v = ns["PolicyToggles"](Store(adj, debug), clock=lambda: 0.0).get()
+      self.assertEqual(v["adjacent_leads"], want, (adj, debug, radar, hlc))
 
 
 class TestUiSubscribes(unittest.TestCase):

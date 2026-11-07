@@ -66,7 +66,7 @@ class BlindspotOverlay:
              all(sm.valid[name] and sm.alive[name] and sm.recv_frame[name] > ui_state.started_frame
                  for name in ("modelV2", "extrinsicsCalibration")))
     flags = blindspots(sm, ui_state.started_frame, now) if fresh else (False, False)
-    if fresh and self._bsm_policy.enabled(bool(toggles.get("BlindSpotPath"))):
+    if fresh and self._bsm_policy.enabled(bool(toggles.get("BlindSpotPath")), getattr(ui_state, "CP", None)):
       for side, (outer, inner) in enumerate(((0, 1), (3, 2))):
         a, b = self._lane_lines[outer].raw_points, self._lane_lines[inner].raw_points
         n = min(len(a), len(b))
@@ -86,7 +86,8 @@ class BlindspotOverlay:
         poly = poly + self._overlay_offset()
         lanes[side] = poly
         if flags[side]:
-          draw_polygon(self._rect, poly, rl.Color(255, 0, 0, 110))
+          bottom = self._rect.y + self._rect.height
+          draw_polygon(self._rect, extend_to_bottom(poly, bottom), rl.Color(255, 0, 0, 110))
           shown[side] = True
     self.bp_bsm_shown = (shown[0], shown[1])
     adj = adjacent_leads(sm, ui_state.started_frame, now) if fresh else [(False, 0.0)] * 2
@@ -95,6 +96,27 @@ class BlindspotOverlay:
       # Reset animation state across dropped car state / drive transitions.
       self._flames.trigger.update(0, False, inputs)
     self._flames.update_and_paint(inputs, lanes)
+
+
+def extend_to_bottom(poly, bottom):
+  """t922u: continue the BSM lane fill down to the screen bottom (behind the DM / personality button).
+
+  Stock _map_line_to_polygon drops every point outside the clip region, so the projected lane stops where its
+  nearest visible model point is. The road plane is flat near the car, so each lane edge is continued along its
+  own nearest projected direction until it meets y = bottom. poly = left edge near->far, then right edge far->near."""
+  n = len(poly) // 2
+  if n < 2 or len(poly) != 2 * n:
+    return poly
+  left, right = poly[:n], poly[n:][::-1]
+  def ext(edge):
+    k = min(3, len(edge) - 1)
+    d = edge[0] - edge[k]
+    if edge[0, 1] >= bottom or d[1] <= 1e-3:
+      return edge[:0]
+    t = (bottom - edge[0, 1]) / d[1]
+    return (edge[0] + t * d)[None, :].astype(poly.dtype)
+  el, er = ext(left), ext(right)
+  return np.concatenate((el, left, right[::-1], er), axis=0)
 
 
 class BogPilotModelRenderer(BlindspotOverlay, ModelRenderer):

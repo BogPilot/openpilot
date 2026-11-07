@@ -225,7 +225,7 @@ class TestModelAdapter(unittest.TestCase):
 
     class Base:
       def __init__(self):
-        self._rect = SimpleNamespace(x=70, y=30)
+        self._rect = SimpleNamespace(x=70, y=30, width=2100, height=1020)
         x = np.array([0, 10, 20], dtype=np.float32)
         self._lane_lines = [SimpleNamespace(raw_points=np.column_stack((x, np.full(3, y), x * 0)))
                             for y in (-5.4, -1.8, 1.8, 5.4)]
@@ -251,7 +251,7 @@ class TestModelAdapter(unittest.TestCase):
       "toggles": SimpleNamespace(get=lambda _: True),
       "ui_state": SimpleNamespace(sm=self.sm, started_frame=10),
       "adjacent_leads": logic.adjacent_leads, "blindspots": logic.blindspots, "time": __import__("time"),
-      "BsmPolicy": lambda: SimpleNamespace(enabled=lambda b: b),
+      "BsmPolicy": lambda: SimpleNamespace(enabled=lambda b, cp=None: b),
       "draw_polygon": lambda *args: self.draws.append(args),
     })
 
