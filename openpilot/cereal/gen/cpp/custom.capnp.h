@@ -12,23 +12,118 @@
 #error "Version mismatch between generated code and library headers.  You must use the same version of the Cap'n Proto compiler and library."
 #endif
 
+#include <car.capnp.h>
 
 CAPNP_BEGIN_HEADER
 
 namespace capnp {
 namespace schemas {
 
+CAPNP_DECLARE_SCHEMA(95bd710036ea524c);
+CAPNP_DECLARE_SCHEMA(c448a20328bdd2ee);
+CAPNP_DECLARE_SCHEMA(80c6847e87cb97b8);
+enum class AudibleAlert_80c6847e87cb97b8: uint16_t {
+  NONE,
+  ENGAGE,
+  DISENGAGE,
+  REFUSE,
+  WARNING_SOFT,
+  WARNING_IMMEDIATE,
+  PROMPT,
+  PROMPT_REPEAT,
+  PROMPT_DISTRACTED,
+  ANGRY,
+  CONTINUED,
+  DEJA_VU,
+  DOC,
+  FART,
+  FIREFOX,
+  GOAT,
+  HAL9000,
+  MAIL,
+  NESSIE,
+  NOICE,
+  STARTUP,
+  THIS_IS_FINE,
+  UWU,
+};
+CAPNP_DECLARE_ENUM(AudibleAlert, 80c6847e87cb97b8);
 CAPNP_DECLARE_SCHEMA(81c2f05a394cf4af);
 CAPNP_DECLARE_SCHEMA(aedffd8f31e7b55d);
+enum class EventName_aedffd8f31e7b55d: uint16_t {
+  BLOCK_USER,
+  CUSTOM_STARTUP_ALERT,
+  FORCING_STOP,
+  GOAT_STEER_SATURATED,
+  GREEN_LIGHT,
+  HOLIDAY_ACTIVE,
+  LANE_CHANGE_BLOCKED_LOUD,
+  LEAD_DEPARTING,
+  NO_LANE_AVAILABLE,
+  OPENPILOT_CRASHED,
+  PEDAL_INTERCEPTOR_NO_BRAKE,
+  SPEED_LIMIT_CHANGED,
+  TORQUE_N_N_LOAD,
+  TRAFFIC_MODE_ACTIVE,
+  TRAFFIC_MODE_INACTIVE,
+  TURNING_LEFT,
+  TURNING_RIGHT,
+  ACCEL30,
+  ACCEL35,
+  ACCEL40,
+  DEJA_VU_CURVE,
+  FIREFOX_STEER_SATURATED,
+  HAL9000,
+  OPENPILOT_CRASHED_RANDOM_EVENT,
+  THIS_IS_FINE_STEER_SATURATED,
+  TO_BE_CONTINUED,
+  V_CRUISE69,
+  YOUR_FROG_TRIED_TO_KILL_ME,
+  YOUVE_GOT_MAIL,
+  AP1_FOLLOW_DISTANCE_CHANGED,
+};
+CAPNP_DECLARE_ENUM(EventName, aedffd8f31e7b55d);
 CAPNP_DECLARE_SCHEMA(f35cc4560bbf6ec2);
+CAPNP_DECLARE_SCHEMA(8d65dd40bad40951);
 CAPNP_DECLARE_SCHEMA(da96579883444c35);
+CAPNP_DECLARE_SCHEMA(ccb4d6b0dc102d40);
+CAPNP_DECLARE_SCHEMA(8033e8e60d6a0edb);
+enum class Type_8033e8e60d6a0edb: uint16_t {
+  LKAS,
+};
+CAPNP_DECLARE_ENUM(Type, 8033e8e60d6a0edb);
 CAPNP_DECLARE_SCHEMA(80ae746ee2596b11);
+CAPNP_DECLARE_SCHEMA(ffb6cb15610754b0);
+enum class AlertSize_ffb6cb15610754b0: uint16_t {
+  NONE,
+  SMALL,
+  MID,
+  FULL,
+};
+CAPNP_DECLARE_ENUM(AlertSize, ffb6cb15610754b0);
+CAPNP_DECLARE_SCHEMA(a2c63a48f3d64159);
+enum class AlertStatus_a2c63a48f3d64159: uint16_t {
+  NORMAL,
+  USER_PROMPT,
+  CRITICAL,
+  FROGPILOT,
+};
+CAPNP_DECLARE_ENUM(AlertStatus, a2c63a48f3d64159);
 CAPNP_DECLARE_SCHEMA(a5cd762cd951a455);
 CAPNP_DECLARE_SCHEMA(f98d843bfd7004a3);
-CAPNP_DECLARE_SCHEMA(b86e6369214c01c8);
+CAPNP_DECLARE_SCHEMA(8680697a802a3cd0);
+enum class TurnDirection_8680697a802a3cd0: uint16_t {
+  NONE,
+  TURN_LEFT,
+  TURN_RIGHT,
+};
+CAPNP_DECLARE_ENUM(TurnDirection, 8680697a802a3cd0);
 CAPNP_DECLARE_SCHEMA(f416ec09499d9d19);
 CAPNP_DECLARE_SCHEMA(a1680744031fdb2d);
 CAPNP_DECLARE_SCHEMA(cb9fd56c7057593a);
+CAPNP_DECLARE_SCHEMA(8511c6ee1d2a98c1);
+CAPNP_DECLARE_SCHEMA(b86e6369214c01c8);
+CAPNP_DECLARE_SCHEMA(c7195fc350bd23ea);
 CAPNP_DECLARE_SCHEMA(c2243c65e0340384);
 CAPNP_DECLARE_SCHEMA(9ccdc8676701b412);
 CAPNP_DECLARE_SCHEMA(cd96dafb67a082d0);
@@ -44,105 +139,226 @@ CAPNP_DECLARE_SCHEMA(a4f1eb3323f5f582);
 
 namespace cereal {
 
-struct CustomReserved0 {
-  CustomReserved0() = delete;
+struct FrogPilotCarControl {
+  FrogPilotCarControl() = delete;
 
   class Reader;
   class Builder;
   class Pipeline;
+  struct HUDControl;
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(81c2f05a394cf4af, 0, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(95bd710036ea524c, 0, 1)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
   };
 };
 
-struct CustomReserved1 {
-  CustomReserved1() = delete;
+struct FrogPilotCarControl::HUDControl {
+  HUDControl() = delete;
 
   class Reader;
   class Builder;
   class Pipeline;
+  typedef ::capnp::schemas::AudibleAlert_80c6847e87cb97b8 AudibleAlert;
+
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(aedffd8f31e7b55d, 0, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(c448a20328bdd2ee, 1, 0)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
   };
 };
 
-struct CustomReserved2 {
-  CustomReserved2() = delete;
+struct FrogPilotCarEvent {
+  FrogPilotCarEvent() = delete;
 
   class Reader;
   class Builder;
   class Pipeline;
+  typedef ::capnp::schemas::EventName_aedffd8f31e7b55d EventName;
+
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(f35cc4560bbf6ec2, 0, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(81c2f05a394cf4af, 1, 0)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
   };
 };
 
-struct CustomReserved3 {
-  CustomReserved3() = delete;
+struct FrogPilotCarParams {
+  FrogPilotCarParams() = delete;
 
   class Reader;
   class Builder;
   class Pipeline;
+  struct SafetyConfig;
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(da96579883444c35, 0, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(f35cc4560bbf6ec2, 1, 1)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
   };
 };
 
-struct CustomReserved4 {
-  CustomReserved4() = delete;
+struct FrogPilotCarParams::SafetyConfig {
+  SafetyConfig() = delete;
 
   class Reader;
   class Builder;
   class Pipeline;
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(80ae746ee2596b11, 0, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(8d65dd40bad40951, 1, 0)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
   };
 };
 
-struct CustomReserved5 {
-  CustomReserved5() = delete;
+struct FrogPilotCarState {
+  FrogPilotCarState() = delete;
 
   class Reader;
   class Builder;
   class Pipeline;
+  struct ButtonEvent;
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(a5cd762cd951a455, 0, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(da96579883444c35, 3, 0)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
   };
 };
 
-struct CustomReserved6 {
-  CustomReserved6() = delete;
+struct FrogPilotCarState::ButtonEvent {
+  ButtonEvent() = delete;
+
+  class Reader;
+  class Builder;
+  class Pipeline;
+  typedef ::capnp::schemas::Type_8033e8e60d6a0edb Type;
+
+
+  struct _capnpPrivate {
+    CAPNP_DECLARE_STRUCT_HEADER(ccb4d6b0dc102d40, 0, 0)
+    #if !CAPNP_LITE
+    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
+    #endif  // !CAPNP_LITE
+  };
+};
+
+struct FrogPilotControlsState {
+  FrogPilotControlsState() = delete;
+
+  class Reader;
+  class Builder;
+  class Pipeline;
+  typedef ::capnp::schemas::AlertSize_ffb6cb15610754b0 AlertSize;
+
+  typedef ::capnp::schemas::AlertStatus_a2c63a48f3d64159 AlertStatus;
+
+
+  struct _capnpPrivate {
+    CAPNP_DECLARE_STRUCT_HEADER(80ae746ee2596b11, 2, 3)
+    #if !CAPNP_LITE
+    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
+    #endif  // !CAPNP_LITE
+  };
+};
+
+struct FrogPilotDeviceState {
+  FrogPilotDeviceState() = delete;
 
   class Reader;
   class Builder;
   class Pipeline;
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(f98d843bfd7004a3, 0, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(a5cd762cd951a455, 1, 0)
+    #if !CAPNP_LITE
+    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
+    #endif  // !CAPNP_LITE
+  };
+};
+
+struct FrogPilotModelDataV2 {
+  FrogPilotModelDataV2() = delete;
+
+  class Reader;
+  class Builder;
+  class Pipeline;
+  typedef ::capnp::schemas::TurnDirection_8680697a802a3cd0 TurnDirection;
+
+
+  struct _capnpPrivate {
+    CAPNP_DECLARE_STRUCT_HEADER(f98d843bfd7004a3, 1, 0)
+    #if !CAPNP_LITE
+    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
+    #endif  // !CAPNP_LITE
+  };
+};
+
+struct FrogPilotNavigation {
+  FrogPilotNavigation() = delete;
+
+  class Reader;
+  class Builder;
+  class Pipeline;
+
+  struct _capnpPrivate {
+    CAPNP_DECLARE_STRUCT_HEADER(f416ec09499d9d19, 1, 0)
+    #if !CAPNP_LITE
+    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
+    #endif  // !CAPNP_LITE
+  };
+};
+
+struct FrogPilotPlan {
+  FrogPilotPlan() = delete;
+
+  class Reader;
+  class Builder;
+  class Pipeline;
+
+  struct _capnpPrivate {
+    CAPNP_DECLARE_STRUCT_HEADER(a1680744031fdb2d, 13, 2)
+    #if !CAPNP_LITE
+    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
+    #endif  // !CAPNP_LITE
+  };
+};
+
+struct FrogPilotRadarState {
+  FrogPilotRadarState() = delete;
+
+  class Reader;
+  class Builder;
+  class Pipeline;
+  struct LeadData;
+
+  struct _capnpPrivate {
+    CAPNP_DECLARE_STRUCT_HEADER(cb9fd56c7057593a, 0, 2)
+    #if !CAPNP_LITE
+    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
+    #endif  // !CAPNP_LITE
+  };
+};
+
+struct FrogPilotRadarState::LeadData {
+  LeadData() = delete;
+
+  class Reader;
+  class Builder;
+  class Pipeline;
+
+  struct _capnpPrivate {
+    CAPNP_DECLARE_STRUCT_HEADER(8511c6ee1d2a98c1, 7, 0)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
@@ -164,36 +380,6 @@ struct CustomReserved7 {
   };
 };
 
-struct CustomReserved8 {
-  CustomReserved8() = delete;
-
-  class Reader;
-  class Builder;
-  class Pipeline;
-
-  struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(f416ec09499d9d19, 0, 0)
-    #if !CAPNP_LITE
-    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
-    #endif  // !CAPNP_LITE
-  };
-};
-
-struct CustomReserved9 {
-  CustomReserved9() = delete;
-
-  class Reader;
-  class Builder;
-  class Pipeline;
-
-  struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(a1680744031fdb2d, 0, 0)
-    #if !CAPNP_LITE
-    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
-    #endif  // !CAPNP_LITE
-  };
-};
-
 struct CustomReserved10 {
   CustomReserved10() = delete;
 
@@ -202,7 +388,7 @@ struct CustomReserved10 {
   class Pipeline;
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(cb9fd56c7057593a, 0, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(c7195fc350bd23ea, 0, 0)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
@@ -346,9 +532,9 @@ struct CustomReserved19 {
 
 // =======================================================================================
 
-class CustomReserved0::Reader {
+class FrogPilotCarControl::Reader {
 public:
-  typedef CustomReserved0 Reads;
+  typedef FrogPilotCarControl Reads;
 
   Reader() = default;
   inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
@@ -363,6 +549,9 @@ public:
   }
 #endif  // !CAPNP_LITE
 
+  inline bool hasHudControl() const;
+  inline  ::cereal::FrogPilotCarControl::HUDControl::Reader getHudControl() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -375,9 +564,9 @@ private:
   friend class ::capnp::Orphanage;
 };
 
-class CustomReserved0::Builder {
+class FrogPilotCarControl::Builder {
 public:
-  typedef CustomReserved0 Builds;
+  typedef FrogPilotCarControl Builds;
 
   Builder() = delete;  // Deleted to discourage incorrect usage.
                        // You can explicitly initialize to nullptr instead.
@@ -391,6 +580,13 @@ public:
   inline ::kj::StringTree toString() const { return asReader().toString(); }
 #endif  // !CAPNP_LITE
 
+  inline bool hasHudControl();
+  inline  ::cereal::FrogPilotCarControl::HUDControl::Builder getHudControl();
+  inline void setHudControl( ::cereal::FrogPilotCarControl::HUDControl::Reader value);
+  inline  ::cereal::FrogPilotCarControl::HUDControl::Builder initHudControl();
+  inline void adoptHudControl(::capnp::Orphan< ::cereal::FrogPilotCarControl::HUDControl>&& value);
+  inline ::capnp::Orphan< ::cereal::FrogPilotCarControl::HUDControl> disownHudControl();
+
 private:
   ::capnp::_::StructBuilder _builder;
   template <typename, ::capnp::Kind>
@@ -401,9 +597,86 @@ private:
 };
 
 #if !CAPNP_LITE
-class CustomReserved0::Pipeline {
+class FrogPilotCarControl::Pipeline {
 public:
-  typedef CustomReserved0 Pipelines;
+  typedef FrogPilotCarControl Pipelines;
+
+  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
+  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
+      : _typeless(kj::mv(typeless)) {}
+
+  inline  ::cereal::FrogPilotCarControl::HUDControl::Pipeline getHudControl();
+private:
+  ::capnp::AnyPointer::Pipeline _typeless;
+  friend class ::capnp::PipelineHook;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+};
+#endif  // !CAPNP_LITE
+
+class FrogPilotCarControl::HUDControl::Reader {
+public:
+  typedef HUDControl Reads;
+
+  Reader() = default;
+  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
+
+  inline ::capnp::MessageSize totalSize() const {
+    return _reader.totalSize().asPublic();
+  }
+
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const {
+    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
+  }
+#endif  // !CAPNP_LITE
+
+  inline  ::cereal::FrogPilotCarControl::HUDControl::AudibleAlert getAudibleAlert() const;
+
+private:
+  ::capnp::_::StructReader _reader;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::List;
+  friend class ::capnp::MessageBuilder;
+  friend class ::capnp::Orphanage;
+};
+
+class FrogPilotCarControl::HUDControl::Builder {
+public:
+  typedef HUDControl Builds;
+
+  Builder() = delete;  // Deleted to discourage incorrect usage.
+                       // You can explicitly initialize to nullptr instead.
+  inline Builder(decltype(nullptr)) {}
+  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
+  inline operator Reader() const { return Reader(_builder.asReader()); }
+  inline Reader asReader() const { return *this; }
+
+  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const { return asReader().toString(); }
+#endif  // !CAPNP_LITE
+
+  inline  ::cereal::FrogPilotCarControl::HUDControl::AudibleAlert getAudibleAlert();
+  inline void setAudibleAlert( ::cereal::FrogPilotCarControl::HUDControl::AudibleAlert value);
+
+private:
+  ::capnp::_::StructBuilder _builder;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  friend class ::capnp::Orphanage;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+};
+
+#if !CAPNP_LITE
+class FrogPilotCarControl::HUDControl::Pipeline {
+public:
+  typedef HUDControl Pipelines;
 
   inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
   inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
@@ -417,9 +690,9 @@ private:
 };
 #endif  // !CAPNP_LITE
 
-class CustomReserved1::Reader {
+class FrogPilotCarEvent::Reader {
 public:
-  typedef CustomReserved1 Reads;
+  typedef FrogPilotCarEvent Reads;
 
   Reader() = default;
   inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
@@ -434,6 +707,28 @@ public:
   }
 #endif  // !CAPNP_LITE
 
+  inline  ::cereal::FrogPilotCarEvent::EventName getName() const;
+
+  inline bool getEnable() const;
+
+  inline bool getNoEntry() const;
+
+  inline bool getWarning() const;
+
+  inline bool getUserDisable() const;
+
+  inline bool getSoftDisable() const;
+
+  inline bool getImmediateDisable() const;
+
+  inline bool getPreEnable() const;
+
+  inline bool getPermanent() const;
+
+  inline bool getOverrideLongitudinal() const;
+
+  inline bool getOverrideLateral() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -446,9 +741,9 @@ private:
   friend class ::capnp::Orphanage;
 };
 
-class CustomReserved1::Builder {
+class FrogPilotCarEvent::Builder {
 public:
-  typedef CustomReserved1 Builds;
+  typedef FrogPilotCarEvent Builds;
 
   Builder() = delete;  // Deleted to discourage incorrect usage.
                        // You can explicitly initialize to nullptr instead.
@@ -462,6 +757,39 @@ public:
   inline ::kj::StringTree toString() const { return asReader().toString(); }
 #endif  // !CAPNP_LITE
 
+  inline  ::cereal::FrogPilotCarEvent::EventName getName();
+  inline void setName( ::cereal::FrogPilotCarEvent::EventName value);
+
+  inline bool getEnable();
+  inline void setEnable(bool value);
+
+  inline bool getNoEntry();
+  inline void setNoEntry(bool value);
+
+  inline bool getWarning();
+  inline void setWarning(bool value);
+
+  inline bool getUserDisable();
+  inline void setUserDisable(bool value);
+
+  inline bool getSoftDisable();
+  inline void setSoftDisable(bool value);
+
+  inline bool getImmediateDisable();
+  inline void setImmediateDisable(bool value);
+
+  inline bool getPreEnable();
+  inline void setPreEnable(bool value);
+
+  inline bool getPermanent();
+  inline void setPermanent(bool value);
+
+  inline bool getOverrideLongitudinal();
+  inline void setOverrideLongitudinal(bool value);
+
+  inline bool getOverrideLateral();
+  inline void setOverrideLateral(bool value);
+
 private:
   ::capnp::_::StructBuilder _builder;
   template <typename, ::capnp::Kind>
@@ -472,9 +800,9 @@ private:
 };
 
 #if !CAPNP_LITE
-class CustomReserved1::Pipeline {
+class FrogPilotCarEvent::Pipeline {
 public:
-  typedef CustomReserved1 Pipelines;
+  typedef FrogPilotCarEvent Pipelines;
 
   inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
   inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
@@ -488,9 +816,9 @@ private:
 };
 #endif  // !CAPNP_LITE
 
-class CustomReserved2::Reader {
+class FrogPilotCarParams::Reader {
 public:
-  typedef CustomReserved2 Reads;
+  typedef FrogPilotCarParams Reads;
 
   Reader() = default;
   inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
@@ -505,6 +833,19 @@ public:
   }
 #endif  // !CAPNP_LITE
 
+  inline bool getCanUsePedal() const;
+
+  inline bool getCanUseSDSU() const;
+
+  inline  ::uint32_t getFpFlags() const;
+
+  inline bool getIsHDA2() const;
+
+  inline bool getOpenpilotLongitudinalControlDisabled() const;
+
+  inline bool hasSafetyConfigs() const;
+  inline  ::capnp::List< ::cereal::FrogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>::Reader getSafetyConfigs() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -517,9 +858,9 @@ private:
   friend class ::capnp::Orphanage;
 };
 
-class CustomReserved2::Builder {
+class FrogPilotCarParams::Builder {
 public:
-  typedef CustomReserved2 Builds;
+  typedef FrogPilotCarParams Builds;
 
   Builder() = delete;  // Deleted to discourage incorrect usage.
                        // You can explicitly initialize to nullptr instead.
@@ -533,6 +874,28 @@ public:
   inline ::kj::StringTree toString() const { return asReader().toString(); }
 #endif  // !CAPNP_LITE
 
+  inline bool getCanUsePedal();
+  inline void setCanUsePedal(bool value);
+
+  inline bool getCanUseSDSU();
+  inline void setCanUseSDSU(bool value);
+
+  inline  ::uint32_t getFpFlags();
+  inline void setFpFlags( ::uint32_t value);
+
+  inline bool getIsHDA2();
+  inline void setIsHDA2(bool value);
+
+  inline bool getOpenpilotLongitudinalControlDisabled();
+  inline void setOpenpilotLongitudinalControlDisabled(bool value);
+
+  inline bool hasSafetyConfigs();
+  inline  ::capnp::List< ::cereal::FrogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>::Builder getSafetyConfigs();
+  inline void setSafetyConfigs( ::capnp::List< ::cereal::FrogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>::Reader value);
+  inline  ::capnp::List< ::cereal::FrogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>::Builder initSafetyConfigs(unsigned int size);
+  inline void adoptSafetyConfigs(::capnp::Orphan< ::capnp::List< ::cereal::FrogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>>&& value);
+  inline ::capnp::Orphan< ::capnp::List< ::cereal::FrogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>> disownSafetyConfigs();
+
 private:
   ::capnp::_::StructBuilder _builder;
   template <typename, ::capnp::Kind>
@@ -543,9 +906,9 @@ private:
 };
 
 #if !CAPNP_LITE
-class CustomReserved2::Pipeline {
+class FrogPilotCarParams::Pipeline {
 public:
-  typedef CustomReserved2 Pipelines;
+  typedef FrogPilotCarParams Pipelines;
 
   inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
   inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
@@ -559,9 +922,9 @@ private:
 };
 #endif  // !CAPNP_LITE
 
-class CustomReserved3::Reader {
+class FrogPilotCarParams::SafetyConfig::Reader {
 public:
-  typedef CustomReserved3 Reads;
+  typedef SafetyConfig Reads;
 
   Reader() = default;
   inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
@@ -576,6 +939,8 @@ public:
   }
 #endif  // !CAPNP_LITE
 
+  inline  ::uint16_t getSafetyParam() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -588,9 +953,9 @@ private:
   friend class ::capnp::Orphanage;
 };
 
-class CustomReserved3::Builder {
+class FrogPilotCarParams::SafetyConfig::Builder {
 public:
-  typedef CustomReserved3 Builds;
+  typedef SafetyConfig Builds;
 
   Builder() = delete;  // Deleted to discourage incorrect usage.
                        // You can explicitly initialize to nullptr instead.
@@ -604,6 +969,9 @@ public:
   inline ::kj::StringTree toString() const { return asReader().toString(); }
 #endif  // !CAPNP_LITE
 
+  inline  ::uint16_t getSafetyParam();
+  inline void setSafetyParam( ::uint16_t value);
+
 private:
   ::capnp::_::StructBuilder _builder;
   template <typename, ::capnp::Kind>
@@ -614,9 +982,9 @@ private:
 };
 
 #if !CAPNP_LITE
-class CustomReserved3::Pipeline {
+class FrogPilotCarParams::SafetyConfig::Pipeline {
 public:
-  typedef CustomReserved3 Pipelines;
+  typedef SafetyConfig Pipelines;
 
   inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
   inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
@@ -630,9 +998,9 @@ private:
 };
 #endif  // !CAPNP_LITE
 
-class CustomReserved4::Reader {
+class FrogPilotCarState::Reader {
 public:
-  typedef CustomReserved4 Reads;
+  typedef FrogPilotCarState Reads;
 
   Reader() = default;
   inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
@@ -647,6 +1015,48 @@ public:
   }
 #endif  // !CAPNP_LITE
 
+  inline bool getAccelPressed() const;
+
+  inline bool getAlwaysOnLateralAllowed() const;
+
+  inline bool getAlwaysOnLateralEnabled() const;
+
+  inline bool getBrakeLights() const;
+
+  inline float getDashboardSpeedLimit() const;
+
+  inline bool getDecelPressed() const;
+
+  inline bool getDistancePressed() const;
+
+  inline bool getDistanceLongPressed() const;
+
+  inline bool getDistanceVeryLongPressed() const;
+
+  inline bool getEcoGear() const;
+
+  inline bool getForceCoast() const;
+
+  inline bool getIsParked() const;
+
+  inline bool getPauseLateral() const;
+
+  inline bool getPauseLongitudinal() const;
+
+  inline bool getSportGear() const;
+
+  inline bool getTrafficModeEnabled() const;
+
+  inline bool getResumePressed() const;
+
+  inline  ::uint8_t getSpdCtrlLvr() const;
+
+  inline float getAp1AmbientTempC() const;
+
+  inline float getAp1MotorTorqueNm() const;
+
+  inline float getAp1MotorRpm() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -659,9 +1069,9 @@ private:
   friend class ::capnp::Orphanage;
 };
 
-class CustomReserved4::Builder {
+class FrogPilotCarState::Builder {
 public:
-  typedef CustomReserved4 Builds;
+  typedef FrogPilotCarState Builds;
 
   Builder() = delete;  // Deleted to discourage incorrect usage.
                        // You can explicitly initialize to nullptr instead.
@@ -675,6 +1085,69 @@ public:
   inline ::kj::StringTree toString() const { return asReader().toString(); }
 #endif  // !CAPNP_LITE
 
+  inline bool getAccelPressed();
+  inline void setAccelPressed(bool value);
+
+  inline bool getAlwaysOnLateralAllowed();
+  inline void setAlwaysOnLateralAllowed(bool value);
+
+  inline bool getAlwaysOnLateralEnabled();
+  inline void setAlwaysOnLateralEnabled(bool value);
+
+  inline bool getBrakeLights();
+  inline void setBrakeLights(bool value);
+
+  inline float getDashboardSpeedLimit();
+  inline void setDashboardSpeedLimit(float value);
+
+  inline bool getDecelPressed();
+  inline void setDecelPressed(bool value);
+
+  inline bool getDistancePressed();
+  inline void setDistancePressed(bool value);
+
+  inline bool getDistanceLongPressed();
+  inline void setDistanceLongPressed(bool value);
+
+  inline bool getDistanceVeryLongPressed();
+  inline void setDistanceVeryLongPressed(bool value);
+
+  inline bool getEcoGear();
+  inline void setEcoGear(bool value);
+
+  inline bool getForceCoast();
+  inline void setForceCoast(bool value);
+
+  inline bool getIsParked();
+  inline void setIsParked(bool value);
+
+  inline bool getPauseLateral();
+  inline void setPauseLateral(bool value);
+
+  inline bool getPauseLongitudinal();
+  inline void setPauseLongitudinal(bool value);
+
+  inline bool getSportGear();
+  inline void setSportGear(bool value);
+
+  inline bool getTrafficModeEnabled();
+  inline void setTrafficModeEnabled(bool value);
+
+  inline bool getResumePressed();
+  inline void setResumePressed(bool value);
+
+  inline  ::uint8_t getSpdCtrlLvr();
+  inline void setSpdCtrlLvr( ::uint8_t value);
+
+  inline float getAp1AmbientTempC();
+  inline void setAp1AmbientTempC(float value);
+
+  inline float getAp1MotorTorqueNm();
+  inline void setAp1MotorTorqueNm(float value);
+
+  inline float getAp1MotorRpm();
+  inline void setAp1MotorRpm(float value);
+
 private:
   ::capnp::_::StructBuilder _builder;
   template <typename, ::capnp::Kind>
@@ -685,9 +1158,9 @@ private:
 };
 
 #if !CAPNP_LITE
-class CustomReserved4::Pipeline {
+class FrogPilotCarState::Pipeline {
 public:
-  typedef CustomReserved4 Pipelines;
+  typedef FrogPilotCarState Pipelines;
 
   inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
   inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
@@ -701,9 +1174,9 @@ private:
 };
 #endif  // !CAPNP_LITE
 
-class CustomReserved5::Reader {
+class FrogPilotCarState::ButtonEvent::Reader {
 public:
-  typedef CustomReserved5 Reads;
+  typedef ButtonEvent Reads;
 
   Reader() = default;
   inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
@@ -730,9 +1203,9 @@ private:
   friend class ::capnp::Orphanage;
 };
 
-class CustomReserved5::Builder {
+class FrogPilotCarState::ButtonEvent::Builder {
 public:
-  typedef CustomReserved5 Builds;
+  typedef ButtonEvent Builds;
 
   Builder() = delete;  // Deleted to discourage incorrect usage.
                        // You can explicitly initialize to nullptr instead.
@@ -756,9 +1229,9 @@ private:
 };
 
 #if !CAPNP_LITE
-class CustomReserved5::Pipeline {
+class FrogPilotCarState::ButtonEvent::Pipeline {
 public:
-  typedef CustomReserved5 Pipelines;
+  typedef ButtonEvent Pipelines;
 
   inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
   inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
@@ -772,9 +1245,9 @@ private:
 };
 #endif  // !CAPNP_LITE
 
-class CustomReserved6::Reader {
+class FrogPilotControlsState::Reader {
 public:
-  typedef CustomReserved6 Reads;
+  typedef FrogPilotControlsState Reads;
 
   Reader() = default;
   inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
@@ -789,6 +1262,23 @@ public:
   }
 #endif  // !CAPNP_LITE
 
+  inline  ::cereal::FrogPilotControlsState::AlertStatus getAlertStatus() const;
+
+  inline bool hasAlertText1() const;
+  inline  ::capnp::Text::Reader getAlertText1() const;
+
+  inline bool hasAlertText2() const;
+  inline  ::capnp::Text::Reader getAlertText2() const;
+
+  inline  ::cereal::FrogPilotControlsState::AlertSize getAlertSize() const;
+
+  inline float getAlertBlinkingRate() const;
+
+  inline bool hasAlertType() const;
+  inline  ::capnp::Text::Reader getAlertType() const;
+
+  inline  ::cereal::CarControl::HUDControl::AudibleAlert getAlertSound() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -801,9 +1291,9 @@ private:
   friend class ::capnp::Orphanage;
 };
 
-class CustomReserved6::Builder {
+class FrogPilotControlsState::Builder {
 public:
-  typedef CustomReserved6 Builds;
+  typedef FrogPilotControlsState Builds;
 
   Builder() = delete;  // Deleted to discourage incorrect usage.
                        // You can explicitly initialize to nullptr instead.
@@ -817,6 +1307,39 @@ public:
   inline ::kj::StringTree toString() const { return asReader().toString(); }
 #endif  // !CAPNP_LITE
 
+  inline  ::cereal::FrogPilotControlsState::AlertStatus getAlertStatus();
+  inline void setAlertStatus( ::cereal::FrogPilotControlsState::AlertStatus value);
+
+  inline bool hasAlertText1();
+  inline  ::capnp::Text::Builder getAlertText1();
+  inline void setAlertText1( ::capnp::Text::Reader value);
+  inline  ::capnp::Text::Builder initAlertText1(unsigned int size);
+  inline void adoptAlertText1(::capnp::Orphan< ::capnp::Text>&& value);
+  inline ::capnp::Orphan< ::capnp::Text> disownAlertText1();
+
+  inline bool hasAlertText2();
+  inline  ::capnp::Text::Builder getAlertText2();
+  inline void setAlertText2( ::capnp::Text::Reader value);
+  inline  ::capnp::Text::Builder initAlertText2(unsigned int size);
+  inline void adoptAlertText2(::capnp::Orphan< ::capnp::Text>&& value);
+  inline ::capnp::Orphan< ::capnp::Text> disownAlertText2();
+
+  inline  ::cereal::FrogPilotControlsState::AlertSize getAlertSize();
+  inline void setAlertSize( ::cereal::FrogPilotControlsState::AlertSize value);
+
+  inline float getAlertBlinkingRate();
+  inline void setAlertBlinkingRate(float value);
+
+  inline bool hasAlertType();
+  inline  ::capnp::Text::Builder getAlertType();
+  inline void setAlertType( ::capnp::Text::Reader value);
+  inline  ::capnp::Text::Builder initAlertType(unsigned int size);
+  inline void adoptAlertType(::capnp::Orphan< ::capnp::Text>&& value);
+  inline ::capnp::Orphan< ::capnp::Text> disownAlertType();
+
+  inline  ::cereal::CarControl::HUDControl::AudibleAlert getAlertSound();
+  inline void setAlertSound( ::cereal::CarControl::HUDControl::AudibleAlert value);
+
 private:
   ::capnp::_::StructBuilder _builder;
   template <typename, ::capnp::Kind>
@@ -827,9 +1350,762 @@ private:
 };
 
 #if !CAPNP_LITE
-class CustomReserved6::Pipeline {
+class FrogPilotControlsState::Pipeline {
 public:
-  typedef CustomReserved6 Pipelines;
+  typedef FrogPilotControlsState Pipelines;
+
+  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
+  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
+      : _typeless(kj::mv(typeless)) {}
+
+private:
+  ::capnp::AnyPointer::Pipeline _typeless;
+  friend class ::capnp::PipelineHook;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+};
+#endif  // !CAPNP_LITE
+
+class FrogPilotDeviceState::Reader {
+public:
+  typedef FrogPilotDeviceState Reads;
+
+  Reader() = default;
+  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
+
+  inline ::capnp::MessageSize totalSize() const {
+    return _reader.totalSize().asPublic();
+  }
+
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const {
+    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
+  }
+#endif  // !CAPNP_LITE
+
+  inline  ::int16_t getFreeSpace() const;
+
+  inline  ::int16_t getUsedSpace() const;
+
+private:
+  ::capnp::_::StructReader _reader;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::List;
+  friend class ::capnp::MessageBuilder;
+  friend class ::capnp::Orphanage;
+};
+
+class FrogPilotDeviceState::Builder {
+public:
+  typedef FrogPilotDeviceState Builds;
+
+  Builder() = delete;  // Deleted to discourage incorrect usage.
+                       // You can explicitly initialize to nullptr instead.
+  inline Builder(decltype(nullptr)) {}
+  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
+  inline operator Reader() const { return Reader(_builder.asReader()); }
+  inline Reader asReader() const { return *this; }
+
+  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const { return asReader().toString(); }
+#endif  // !CAPNP_LITE
+
+  inline  ::int16_t getFreeSpace();
+  inline void setFreeSpace( ::int16_t value);
+
+  inline  ::int16_t getUsedSpace();
+  inline void setUsedSpace( ::int16_t value);
+
+private:
+  ::capnp::_::StructBuilder _builder;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  friend class ::capnp::Orphanage;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+};
+
+#if !CAPNP_LITE
+class FrogPilotDeviceState::Pipeline {
+public:
+  typedef FrogPilotDeviceState Pipelines;
+
+  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
+  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
+      : _typeless(kj::mv(typeless)) {}
+
+private:
+  ::capnp::AnyPointer::Pipeline _typeless;
+  friend class ::capnp::PipelineHook;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+};
+#endif  // !CAPNP_LITE
+
+class FrogPilotModelDataV2::Reader {
+public:
+  typedef FrogPilotModelDataV2 Reads;
+
+  Reader() = default;
+  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
+
+  inline ::capnp::MessageSize totalSize() const {
+    return _reader.totalSize().asPublic();
+  }
+
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const {
+    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
+  }
+#endif  // !CAPNP_LITE
+
+  inline  ::cereal::FrogPilotModelDataV2::TurnDirection getTurnDirection() const;
+
+private:
+  ::capnp::_::StructReader _reader;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::List;
+  friend class ::capnp::MessageBuilder;
+  friend class ::capnp::Orphanage;
+};
+
+class FrogPilotModelDataV2::Builder {
+public:
+  typedef FrogPilotModelDataV2 Builds;
+
+  Builder() = delete;  // Deleted to discourage incorrect usage.
+                       // You can explicitly initialize to nullptr instead.
+  inline Builder(decltype(nullptr)) {}
+  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
+  inline operator Reader() const { return Reader(_builder.asReader()); }
+  inline Reader asReader() const { return *this; }
+
+  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const { return asReader().toString(); }
+#endif  // !CAPNP_LITE
+
+  inline  ::cereal::FrogPilotModelDataV2::TurnDirection getTurnDirection();
+  inline void setTurnDirection( ::cereal::FrogPilotModelDataV2::TurnDirection value);
+
+private:
+  ::capnp::_::StructBuilder _builder;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  friend class ::capnp::Orphanage;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+};
+
+#if !CAPNP_LITE
+class FrogPilotModelDataV2::Pipeline {
+public:
+  typedef FrogPilotModelDataV2 Pipelines;
+
+  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
+  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
+      : _typeless(kj::mv(typeless)) {}
+
+private:
+  ::capnp::AnyPointer::Pipeline _typeless;
+  friend class ::capnp::PipelineHook;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+};
+#endif  // !CAPNP_LITE
+
+class FrogPilotNavigation::Reader {
+public:
+  typedef FrogPilotNavigation Reads;
+
+  Reader() = default;
+  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
+
+  inline ::capnp::MessageSize totalSize() const {
+    return _reader.totalSize().asPublic();
+  }
+
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const {
+    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
+  }
+#endif  // !CAPNP_LITE
+
+  inline bool getApproachingIntersection() const;
+
+  inline bool getApproachingTurn() const;
+
+  inline float getNavigationSpeedLimit() const;
+
+private:
+  ::capnp::_::StructReader _reader;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::List;
+  friend class ::capnp::MessageBuilder;
+  friend class ::capnp::Orphanage;
+};
+
+class FrogPilotNavigation::Builder {
+public:
+  typedef FrogPilotNavigation Builds;
+
+  Builder() = delete;  // Deleted to discourage incorrect usage.
+                       // You can explicitly initialize to nullptr instead.
+  inline Builder(decltype(nullptr)) {}
+  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
+  inline operator Reader() const { return Reader(_builder.asReader()); }
+  inline Reader asReader() const { return *this; }
+
+  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const { return asReader().toString(); }
+#endif  // !CAPNP_LITE
+
+  inline bool getApproachingIntersection();
+  inline void setApproachingIntersection(bool value);
+
+  inline bool getApproachingTurn();
+  inline void setApproachingTurn(bool value);
+
+  inline float getNavigationSpeedLimit();
+  inline void setNavigationSpeedLimit(float value);
+
+private:
+  ::capnp::_::StructBuilder _builder;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  friend class ::capnp::Orphanage;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+};
+
+#if !CAPNP_LITE
+class FrogPilotNavigation::Pipeline {
+public:
+  typedef FrogPilotNavigation Pipelines;
+
+  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
+  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
+      : _typeless(kj::mv(typeless)) {}
+
+private:
+  ::capnp::AnyPointer::Pipeline _typeless;
+  friend class ::capnp::PipelineHook;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+};
+#endif  // !CAPNP_LITE
+
+class FrogPilotPlan::Reader {
+public:
+  typedef FrogPilotPlan Reads;
+
+  Reader() = default;
+  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
+
+  inline ::capnp::MessageSize totalSize() const {
+    return _reader.totalSize().asPublic();
+  }
+
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const {
+    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
+  }
+#endif  // !CAPNP_LITE
+
+  inline float getAccelerationJerk() const;
+
+  inline float getAccelerationJerkStock() const;
+
+  inline bool getCscControllingSpeed() const;
+
+  inline float getCscSpeed() const;
+
+  inline bool getCscTraining() const;
+
+  inline float getDangerJerk() const;
+
+  inline  ::int64_t getDesiredFollowDistance() const;
+
+  inline bool getExperimentalMode() const;
+
+  inline bool getForcingStop() const;
+
+  inline float getForcingStopLength() const;
+
+  inline bool hasFrogpilotEvents() const;
+  inline  ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>::Reader getFrogpilotEvents() const;
+
+  inline float getIncreasedStoppedDistance() const;
+
+  inline bool getLateralCheck() const;
+
+  inline float getLaneWidthLeft() const;
+
+  inline float getLaneWidthRight() const;
+
+  inline float getMaxAcceleration() const;
+
+  inline float getMinAcceleration() const;
+
+  inline bool getRedLight() const;
+
+  inline float getRoadCurvature() const;
+
+  inline float getSlcMapSpeedLimit() const;
+
+  inline float getSlcMapboxSpeedLimit() const;
+
+  inline float getSlcNextSpeedLimit() const;
+
+  inline float getSlcOverriddenSpeed() const;
+
+  inline float getSlcSpeedLimit() const;
+
+  inline float getSlcSpeedLimitOffset() const;
+
+  inline bool hasSlcSpeedLimitSource() const;
+  inline  ::capnp::Text::Reader getSlcSpeedLimitSource() const;
+
+  inline float getSpeedJerk() const;
+
+  inline float getSpeedJerkStock() const;
+
+  inline bool getSpeedLimitChanged() const;
+
+  inline float getTFollow() const;
+
+  inline bool getThemeUpdated() const;
+
+  inline bool getTogglesUpdated() const;
+
+  inline bool getTrackingLead() const;
+
+  inline float getUnconfirmedSlcSpeedLimit() const;
+
+  inline float getVCruise() const;
+
+  inline bool getWeatherDaytime() const;
+
+  inline  ::int16_t getWeatherId() const;
+
+private:
+  ::capnp::_::StructReader _reader;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::List;
+  friend class ::capnp::MessageBuilder;
+  friend class ::capnp::Orphanage;
+};
+
+class FrogPilotPlan::Builder {
+public:
+  typedef FrogPilotPlan Builds;
+
+  Builder() = delete;  // Deleted to discourage incorrect usage.
+                       // You can explicitly initialize to nullptr instead.
+  inline Builder(decltype(nullptr)) {}
+  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
+  inline operator Reader() const { return Reader(_builder.asReader()); }
+  inline Reader asReader() const { return *this; }
+
+  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const { return asReader().toString(); }
+#endif  // !CAPNP_LITE
+
+  inline float getAccelerationJerk();
+  inline void setAccelerationJerk(float value);
+
+  inline float getAccelerationJerkStock();
+  inline void setAccelerationJerkStock(float value);
+
+  inline bool getCscControllingSpeed();
+  inline void setCscControllingSpeed(bool value);
+
+  inline float getCscSpeed();
+  inline void setCscSpeed(float value);
+
+  inline bool getCscTraining();
+  inline void setCscTraining(bool value);
+
+  inline float getDangerJerk();
+  inline void setDangerJerk(float value);
+
+  inline  ::int64_t getDesiredFollowDistance();
+  inline void setDesiredFollowDistance( ::int64_t value);
+
+  inline bool getExperimentalMode();
+  inline void setExperimentalMode(bool value);
+
+  inline bool getForcingStop();
+  inline void setForcingStop(bool value);
+
+  inline float getForcingStopLength();
+  inline void setForcingStopLength(float value);
+
+  inline bool hasFrogpilotEvents();
+  inline  ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>::Builder getFrogpilotEvents();
+  inline void setFrogpilotEvents( ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>::Reader value);
+  inline  ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>::Builder initFrogpilotEvents(unsigned int size);
+  inline void adoptFrogpilotEvents(::capnp::Orphan< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>>&& value);
+  inline ::capnp::Orphan< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>> disownFrogpilotEvents();
+
+  inline float getIncreasedStoppedDistance();
+  inline void setIncreasedStoppedDistance(float value);
+
+  inline bool getLateralCheck();
+  inline void setLateralCheck(bool value);
+
+  inline float getLaneWidthLeft();
+  inline void setLaneWidthLeft(float value);
+
+  inline float getLaneWidthRight();
+  inline void setLaneWidthRight(float value);
+
+  inline float getMaxAcceleration();
+  inline void setMaxAcceleration(float value);
+
+  inline float getMinAcceleration();
+  inline void setMinAcceleration(float value);
+
+  inline bool getRedLight();
+  inline void setRedLight(bool value);
+
+  inline float getRoadCurvature();
+  inline void setRoadCurvature(float value);
+
+  inline float getSlcMapSpeedLimit();
+  inline void setSlcMapSpeedLimit(float value);
+
+  inline float getSlcMapboxSpeedLimit();
+  inline void setSlcMapboxSpeedLimit(float value);
+
+  inline float getSlcNextSpeedLimit();
+  inline void setSlcNextSpeedLimit(float value);
+
+  inline float getSlcOverriddenSpeed();
+  inline void setSlcOverriddenSpeed(float value);
+
+  inline float getSlcSpeedLimit();
+  inline void setSlcSpeedLimit(float value);
+
+  inline float getSlcSpeedLimitOffset();
+  inline void setSlcSpeedLimitOffset(float value);
+
+  inline bool hasSlcSpeedLimitSource();
+  inline  ::capnp::Text::Builder getSlcSpeedLimitSource();
+  inline void setSlcSpeedLimitSource( ::capnp::Text::Reader value);
+  inline  ::capnp::Text::Builder initSlcSpeedLimitSource(unsigned int size);
+  inline void adoptSlcSpeedLimitSource(::capnp::Orphan< ::capnp::Text>&& value);
+  inline ::capnp::Orphan< ::capnp::Text> disownSlcSpeedLimitSource();
+
+  inline float getSpeedJerk();
+  inline void setSpeedJerk(float value);
+
+  inline float getSpeedJerkStock();
+  inline void setSpeedJerkStock(float value);
+
+  inline bool getSpeedLimitChanged();
+  inline void setSpeedLimitChanged(bool value);
+
+  inline float getTFollow();
+  inline void setTFollow(float value);
+
+  inline bool getThemeUpdated();
+  inline void setThemeUpdated(bool value);
+
+  inline bool getTogglesUpdated();
+  inline void setTogglesUpdated(bool value);
+
+  inline bool getTrackingLead();
+  inline void setTrackingLead(bool value);
+
+  inline float getUnconfirmedSlcSpeedLimit();
+  inline void setUnconfirmedSlcSpeedLimit(float value);
+
+  inline float getVCruise();
+  inline void setVCruise(float value);
+
+  inline bool getWeatherDaytime();
+  inline void setWeatherDaytime(bool value);
+
+  inline  ::int16_t getWeatherId();
+  inline void setWeatherId( ::int16_t value);
+
+private:
+  ::capnp::_::StructBuilder _builder;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  friend class ::capnp::Orphanage;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+};
+
+#if !CAPNP_LITE
+class FrogPilotPlan::Pipeline {
+public:
+  typedef FrogPilotPlan Pipelines;
+
+  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
+  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
+      : _typeless(kj::mv(typeless)) {}
+
+private:
+  ::capnp::AnyPointer::Pipeline _typeless;
+  friend class ::capnp::PipelineHook;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+};
+#endif  // !CAPNP_LITE
+
+class FrogPilotRadarState::Reader {
+public:
+  typedef FrogPilotRadarState Reads;
+
+  Reader() = default;
+  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
+
+  inline ::capnp::MessageSize totalSize() const {
+    return _reader.totalSize().asPublic();
+  }
+
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const {
+    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
+  }
+#endif  // !CAPNP_LITE
+
+  inline bool hasLeadLeft() const;
+  inline  ::cereal::FrogPilotRadarState::LeadData::Reader getLeadLeft() const;
+
+  inline bool hasLeadRight() const;
+  inline  ::cereal::FrogPilotRadarState::LeadData::Reader getLeadRight() const;
+
+private:
+  ::capnp::_::StructReader _reader;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::List;
+  friend class ::capnp::MessageBuilder;
+  friend class ::capnp::Orphanage;
+};
+
+class FrogPilotRadarState::Builder {
+public:
+  typedef FrogPilotRadarState Builds;
+
+  Builder() = delete;  // Deleted to discourage incorrect usage.
+                       // You can explicitly initialize to nullptr instead.
+  inline Builder(decltype(nullptr)) {}
+  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
+  inline operator Reader() const { return Reader(_builder.asReader()); }
+  inline Reader asReader() const { return *this; }
+
+  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const { return asReader().toString(); }
+#endif  // !CAPNP_LITE
+
+  inline bool hasLeadLeft();
+  inline  ::cereal::FrogPilotRadarState::LeadData::Builder getLeadLeft();
+  inline void setLeadLeft( ::cereal::FrogPilotRadarState::LeadData::Reader value);
+  inline  ::cereal::FrogPilotRadarState::LeadData::Builder initLeadLeft();
+  inline void adoptLeadLeft(::capnp::Orphan< ::cereal::FrogPilotRadarState::LeadData>&& value);
+  inline ::capnp::Orphan< ::cereal::FrogPilotRadarState::LeadData> disownLeadLeft();
+
+  inline bool hasLeadRight();
+  inline  ::cereal::FrogPilotRadarState::LeadData::Builder getLeadRight();
+  inline void setLeadRight( ::cereal::FrogPilotRadarState::LeadData::Reader value);
+  inline  ::cereal::FrogPilotRadarState::LeadData::Builder initLeadRight();
+  inline void adoptLeadRight(::capnp::Orphan< ::cereal::FrogPilotRadarState::LeadData>&& value);
+  inline ::capnp::Orphan< ::cereal::FrogPilotRadarState::LeadData> disownLeadRight();
+
+private:
+  ::capnp::_::StructBuilder _builder;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  friend class ::capnp::Orphanage;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+};
+
+#if !CAPNP_LITE
+class FrogPilotRadarState::Pipeline {
+public:
+  typedef FrogPilotRadarState Pipelines;
+
+  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
+  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
+      : _typeless(kj::mv(typeless)) {}
+
+  inline  ::cereal::FrogPilotRadarState::LeadData::Pipeline getLeadLeft();
+  inline  ::cereal::FrogPilotRadarState::LeadData::Pipeline getLeadRight();
+private:
+  ::capnp::AnyPointer::Pipeline _typeless;
+  friend class ::capnp::PipelineHook;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+};
+#endif  // !CAPNP_LITE
+
+class FrogPilotRadarState::LeadData::Reader {
+public:
+  typedef LeadData Reads;
+
+  Reader() = default;
+  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
+
+  inline ::capnp::MessageSize totalSize() const {
+    return _reader.totalSize().asPublic();
+  }
+
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const {
+    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
+  }
+#endif  // !CAPNP_LITE
+
+  inline float getDRel() const;
+
+  inline float getYRel() const;
+
+  inline float getVRel() const;
+
+  inline float getARel() const;
+
+  inline float getVLead() const;
+
+  inline float getALeadDEPRECATED() const;
+
+  inline float getDPath() const;
+
+  inline float getVLat() const;
+
+  inline float getVLeadK() const;
+
+  inline float getALeadK() const;
+
+  inline bool getFcw() const;
+
+  inline bool getStatus() const;
+
+  inline float getALeadTau() const;
+
+  inline float getModelProb() const;
+
+  inline bool getRadar() const;
+
+  inline  ::int32_t getRadarTrackId() const;
+
+private:
+  ::capnp::_::StructReader _reader;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::List;
+  friend class ::capnp::MessageBuilder;
+  friend class ::capnp::Orphanage;
+};
+
+class FrogPilotRadarState::LeadData::Builder {
+public:
+  typedef LeadData Builds;
+
+  Builder() = delete;  // Deleted to discourage incorrect usage.
+                       // You can explicitly initialize to nullptr instead.
+  inline Builder(decltype(nullptr)) {}
+  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
+  inline operator Reader() const { return Reader(_builder.asReader()); }
+  inline Reader asReader() const { return *this; }
+
+  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const { return asReader().toString(); }
+#endif  // !CAPNP_LITE
+
+  inline float getDRel();
+  inline void setDRel(float value);
+
+  inline float getYRel();
+  inline void setYRel(float value);
+
+  inline float getVRel();
+  inline void setVRel(float value);
+
+  inline float getARel();
+  inline void setARel(float value);
+
+  inline float getVLead();
+  inline void setVLead(float value);
+
+  inline float getALeadDEPRECATED();
+  inline void setALeadDEPRECATED(float value);
+
+  inline float getDPath();
+  inline void setDPath(float value);
+
+  inline float getVLat();
+  inline void setVLat(float value);
+
+  inline float getVLeadK();
+  inline void setVLeadK(float value);
+
+  inline float getALeadK();
+  inline void setALeadK(float value);
+
+  inline bool getFcw();
+  inline void setFcw(bool value);
+
+  inline bool getStatus();
+  inline void setStatus(bool value);
+
+  inline float getALeadTau();
+  inline void setALeadTau(float value);
+
+  inline float getModelProb();
+  inline void setModelProb(float value);
+
+  inline bool getRadar();
+  inline void setRadar(bool value);
+
+  inline  ::int32_t getRadarTrackId();
+  inline void setRadarTrackId( ::int32_t value);
+
+private:
+  ::capnp::_::StructBuilder _builder;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  friend class ::capnp::Orphanage;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+};
+
+#if !CAPNP_LITE
+class FrogPilotRadarState::LeadData::Pipeline {
+public:
+  typedef LeadData Pipelines;
 
   inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
   inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
@@ -901,148 +2177,6 @@ private:
 class CustomReserved7::Pipeline {
 public:
   typedef CustomReserved7 Pipelines;
-
-  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
-  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
-      : _typeless(kj::mv(typeless)) {}
-
-private:
-  ::capnp::AnyPointer::Pipeline _typeless;
-  friend class ::capnp::PipelineHook;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::ToDynamic_;
-};
-#endif  // !CAPNP_LITE
-
-class CustomReserved8::Reader {
-public:
-  typedef CustomReserved8 Reads;
-
-  Reader() = default;
-  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
-
-  inline ::capnp::MessageSize totalSize() const {
-    return _reader.totalSize().asPublic();
-  }
-
-#if !CAPNP_LITE
-  inline ::kj::StringTree toString() const {
-    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
-  }
-#endif  // !CAPNP_LITE
-
-private:
-  ::capnp::_::StructReader _reader;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::ToDynamic_;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::_::PointerHelpers;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::List;
-  friend class ::capnp::MessageBuilder;
-  friend class ::capnp::Orphanage;
-};
-
-class CustomReserved8::Builder {
-public:
-  typedef CustomReserved8 Builds;
-
-  Builder() = delete;  // Deleted to discourage incorrect usage.
-                       // You can explicitly initialize to nullptr instead.
-  inline Builder(decltype(nullptr)) {}
-  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
-  inline operator Reader() const { return Reader(_builder.asReader()); }
-  inline Reader asReader() const { return *this; }
-
-  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
-#if !CAPNP_LITE
-  inline ::kj::StringTree toString() const { return asReader().toString(); }
-#endif  // !CAPNP_LITE
-
-private:
-  ::capnp::_::StructBuilder _builder;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::ToDynamic_;
-  friend class ::capnp::Orphanage;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::_::PointerHelpers;
-};
-
-#if !CAPNP_LITE
-class CustomReserved8::Pipeline {
-public:
-  typedef CustomReserved8 Pipelines;
-
-  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
-  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
-      : _typeless(kj::mv(typeless)) {}
-
-private:
-  ::capnp::AnyPointer::Pipeline _typeless;
-  friend class ::capnp::PipelineHook;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::ToDynamic_;
-};
-#endif  // !CAPNP_LITE
-
-class CustomReserved9::Reader {
-public:
-  typedef CustomReserved9 Reads;
-
-  Reader() = default;
-  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
-
-  inline ::capnp::MessageSize totalSize() const {
-    return _reader.totalSize().asPublic();
-  }
-
-#if !CAPNP_LITE
-  inline ::kj::StringTree toString() const {
-    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
-  }
-#endif  // !CAPNP_LITE
-
-private:
-  ::capnp::_::StructReader _reader;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::ToDynamic_;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::_::PointerHelpers;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::List;
-  friend class ::capnp::MessageBuilder;
-  friend class ::capnp::Orphanage;
-};
-
-class CustomReserved9::Builder {
-public:
-  typedef CustomReserved9 Builds;
-
-  Builder() = delete;  // Deleted to discourage incorrect usage.
-                       // You can explicitly initialize to nullptr instead.
-  inline Builder(decltype(nullptr)) {}
-  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
-  inline operator Reader() const { return Reader(_builder.asReader()); }
-  inline Reader asReader() const { return *this; }
-
-  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
-#if !CAPNP_LITE
-  inline ::kj::StringTree toString() const { return asReader().toString(); }
-#endif  // !CAPNP_LITE
-
-private:
-  ::capnp::_::StructBuilder _builder;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::ToDynamic_;
-  friend class ::capnp::Orphanage;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::_::PointerHelpers;
-};
-
-#if !CAPNP_LITE
-class CustomReserved9::Pipeline {
-public:
-  typedef CustomReserved9 Pipelines;
 
   inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
   inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
@@ -1767,6 +2901,1727 @@ private:
 #endif  // !CAPNP_LITE
 
 // =======================================================================================
+
+inline bool FrogPilotCarControl::Reader::hasHudControl() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline bool FrogPilotCarControl::Builder::hasHudControl() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline  ::cereal::FrogPilotCarControl::HUDControl::Reader FrogPilotCarControl::Reader::getHudControl() const {
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarControl::HUDControl>::get(_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline  ::cereal::FrogPilotCarControl::HUDControl::Builder FrogPilotCarControl::Builder::getHudControl() {
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarControl::HUDControl>::get(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+#if !CAPNP_LITE
+inline  ::cereal::FrogPilotCarControl::HUDControl::Pipeline FrogPilotCarControl::Pipeline::getHudControl() {
+  return  ::cereal::FrogPilotCarControl::HUDControl::Pipeline(_typeless.getPointerField(0));
+}
+#endif  // !CAPNP_LITE
+inline void FrogPilotCarControl::Builder::setHudControl( ::cereal::FrogPilotCarControl::HUDControl::Reader value) {
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarControl::HUDControl>::set(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), value);
+}
+inline  ::cereal::FrogPilotCarControl::HUDControl::Builder FrogPilotCarControl::Builder::initHudControl() {
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarControl::HUDControl>::init(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline void FrogPilotCarControl::Builder::adoptHudControl(
+    ::capnp::Orphan< ::cereal::FrogPilotCarControl::HUDControl>&& value) {
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarControl::HUDControl>::adopt(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::cereal::FrogPilotCarControl::HUDControl> FrogPilotCarControl::Builder::disownHudControl() {
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotCarControl::HUDControl>::disown(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+
+inline  ::cereal::FrogPilotCarControl::HUDControl::AudibleAlert FrogPilotCarControl::HUDControl::Reader::getAudibleAlert() const {
+  return _reader.getDataField< ::cereal::FrogPilotCarControl::HUDControl::AudibleAlert>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline  ::cereal::FrogPilotCarControl::HUDControl::AudibleAlert FrogPilotCarControl::HUDControl::Builder::getAudibleAlert() {
+  return _builder.getDataField< ::cereal::FrogPilotCarControl::HUDControl::AudibleAlert>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarControl::HUDControl::Builder::setAudibleAlert( ::cereal::FrogPilotCarControl::HUDControl::AudibleAlert value) {
+  _builder.setDataField< ::cereal::FrogPilotCarControl::HUDControl::AudibleAlert>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::cereal::FrogPilotCarEvent::EventName FrogPilotCarEvent::Reader::getName() const {
+  return _reader.getDataField< ::cereal::FrogPilotCarEvent::EventName>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline  ::cereal::FrogPilotCarEvent::EventName FrogPilotCarEvent::Builder::getName() {
+  return _builder.getDataField< ::cereal::FrogPilotCarEvent::EventName>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarEvent::Builder::setName( ::cereal::FrogPilotCarEvent::EventName value) {
+  _builder.setDataField< ::cereal::FrogPilotCarEvent::EventName>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarEvent::Reader::getEnable() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<16>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarEvent::Builder::getEnable() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<16>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarEvent::Builder::setEnable(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<16>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarEvent::Reader::getNoEntry() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<17>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarEvent::Builder::getNoEntry() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<17>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarEvent::Builder::setNoEntry(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<17>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarEvent::Reader::getWarning() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<18>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarEvent::Builder::getWarning() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<18>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarEvent::Builder::setWarning(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<18>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarEvent::Reader::getUserDisable() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<19>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarEvent::Builder::getUserDisable() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<19>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarEvent::Builder::setUserDisable(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<19>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarEvent::Reader::getSoftDisable() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<20>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarEvent::Builder::getSoftDisable() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<20>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarEvent::Builder::setSoftDisable(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<20>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarEvent::Reader::getImmediateDisable() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<21>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarEvent::Builder::getImmediateDisable() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<21>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarEvent::Builder::setImmediateDisable(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<21>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarEvent::Reader::getPreEnable() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<22>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarEvent::Builder::getPreEnable() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<22>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarEvent::Builder::setPreEnable(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<22>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarEvent::Reader::getPermanent() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<23>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarEvent::Builder::getPermanent() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<23>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarEvent::Builder::setPermanent(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<23>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarEvent::Reader::getOverrideLongitudinal() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<24>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarEvent::Builder::getOverrideLongitudinal() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<24>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarEvent::Builder::setOverrideLongitudinal(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<24>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarEvent::Reader::getOverrideLateral() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<25>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarEvent::Builder::getOverrideLateral() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<25>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarEvent::Builder::setOverrideLateral(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<25>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarParams::Reader::getCanUsePedal() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarParams::Builder::getCanUsePedal() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarParams::Builder::setCanUsePedal(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarParams::Reader::getCanUseSDSU() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarParams::Builder::getCanUseSDSU() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarParams::Builder::setCanUseSDSU(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint32_t FrogPilotCarParams::Reader::getFpFlags() const {
+  return _reader.getDataField< ::uint32_t>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint32_t FrogPilotCarParams::Builder::getFpFlags() {
+  return _builder.getDataField< ::uint32_t>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarParams::Builder::setFpFlags( ::uint32_t value) {
+  _builder.setDataField< ::uint32_t>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarParams::Reader::getIsHDA2() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarParams::Builder::getIsHDA2() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarParams::Builder::setIsHDA2(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarParams::Reader::getOpenpilotLongitudinalControlDisabled() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarParams::Builder::getOpenpilotLongitudinalControlDisabled() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarParams::Builder::setOpenpilotLongitudinalControlDisabled(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarParams::Reader::hasSafetyConfigs() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline bool FrogPilotCarParams::Builder::hasSafetyConfigs() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::List< ::cereal::FrogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>::Reader FrogPilotCarParams::Reader::getSafetyConfigs() const {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::FrogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>>::get(_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline  ::capnp::List< ::cereal::FrogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>::Builder FrogPilotCarParams::Builder::getSafetyConfigs() {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::FrogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>>::get(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline void FrogPilotCarParams::Builder::setSafetyConfigs( ::capnp::List< ::cereal::FrogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::FrogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>>::set(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::List< ::cereal::FrogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>::Builder FrogPilotCarParams::Builder::initSafetyConfigs(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::FrogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>>::init(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), size);
+}
+inline void FrogPilotCarParams::Builder::adoptSafetyConfigs(
+    ::capnp::Orphan< ::capnp::List< ::cereal::FrogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::FrogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>>::adopt(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::List< ::cereal::FrogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>> FrogPilotCarParams::Builder::disownSafetyConfigs() {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::FrogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>>::disown(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+
+inline  ::uint16_t FrogPilotCarParams::SafetyConfig::Reader::getSafetyParam() const {
+  return _reader.getDataField< ::uint16_t>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint16_t FrogPilotCarParams::SafetyConfig::Builder::getSafetyParam() {
+  return _builder.getDataField< ::uint16_t>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarParams::SafetyConfig::Builder::setSafetyParam( ::uint16_t value) {
+  _builder.setDataField< ::uint16_t>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarState::Reader::getAccelPressed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarState::Builder::getAccelPressed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setAccelPressed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarState::Reader::getAlwaysOnLateralAllowed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarState::Builder::getAlwaysOnLateralAllowed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setAlwaysOnLateralAllowed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarState::Reader::getAlwaysOnLateralEnabled() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarState::Builder::getAlwaysOnLateralEnabled() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setAlwaysOnLateralEnabled(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarState::Reader::getBrakeLights() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarState::Builder::getBrakeLights() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setBrakeLights(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotCarState::Reader::getDashboardSpeedLimit() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotCarState::Builder::getDashboardSpeedLimit() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setDashboardSpeedLimit(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarState::Reader::getDecelPressed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarState::Builder::getDecelPressed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setDecelPressed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarState::Reader::getDistancePressed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarState::Builder::getDistancePressed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setDistancePressed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarState::Reader::getDistanceLongPressed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarState::Builder::getDistanceLongPressed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setDistanceLongPressed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarState::Reader::getDistanceVeryLongPressed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<7>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarState::Builder::getDistanceVeryLongPressed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<7>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setDistanceVeryLongPressed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<7>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarState::Reader::getEcoGear() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarState::Builder::getEcoGear() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setEcoGear(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarState::Reader::getForceCoast() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarState::Builder::getForceCoast() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setForceCoast(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarState::Reader::getIsParked() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarState::Builder::getIsParked() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setIsParked(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarState::Reader::getPauseLateral() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarState::Builder::getPauseLateral() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setPauseLateral(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarState::Reader::getPauseLongitudinal() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarState::Builder::getPauseLongitudinal() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setPauseLongitudinal(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarState::Reader::getSportGear() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarState::Builder::getSportGear() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setSportGear(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarState::Reader::getTrafficModeEnabled() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<14>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarState::Builder::getTrafficModeEnabled() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<14>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setTrafficModeEnabled(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<14>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotCarState::Reader::getResumePressed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<15>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotCarState::Builder::getResumePressed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<15>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setResumePressed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<15>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint8_t FrogPilotCarState::Reader::getSpdCtrlLvr() const {
+  return _reader.getDataField< ::uint8_t>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint8_t FrogPilotCarState::Builder::getSpdCtrlLvr() {
+  return _builder.getDataField< ::uint8_t>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setSpdCtrlLvr( ::uint8_t value) {
+  _builder.setDataField< ::uint8_t>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotCarState::Reader::getAp1AmbientTempC() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotCarState::Builder::getAp1AmbientTempC() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setAp1AmbientTempC(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotCarState::Reader::getAp1MotorTorqueNm() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotCarState::Builder::getAp1MotorTorqueNm() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setAp1MotorTorqueNm(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotCarState::Reader::getAp1MotorRpm() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotCarState::Builder::getAp1MotorRpm() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotCarState::Builder::setAp1MotorRpm(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::cereal::FrogPilotControlsState::AlertStatus FrogPilotControlsState::Reader::getAlertStatus() const {
+  return _reader.getDataField< ::cereal::FrogPilotControlsState::AlertStatus>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline  ::cereal::FrogPilotControlsState::AlertStatus FrogPilotControlsState::Builder::getAlertStatus() {
+  return _builder.getDataField< ::cereal::FrogPilotControlsState::AlertStatus>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotControlsState::Builder::setAlertStatus( ::cereal::FrogPilotControlsState::AlertStatus value) {
+  _builder.setDataField< ::cereal::FrogPilotControlsState::AlertStatus>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotControlsState::Reader::hasAlertText1() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline bool FrogPilotControlsState::Builder::hasAlertText1() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::Text::Reader FrogPilotControlsState::Reader::getAlertText1() const {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline  ::capnp::Text::Builder FrogPilotControlsState::Builder::getAlertText1() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline void FrogPilotControlsState::Builder::setAlertText1( ::capnp::Text::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::set(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::Text::Builder FrogPilotControlsState::Builder::initAlertText1(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::init(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), size);
+}
+inline void FrogPilotControlsState::Builder::adoptAlertText1(
+    ::capnp::Orphan< ::capnp::Text>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::adopt(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::Text> FrogPilotControlsState::Builder::disownAlertText1() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::disown(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+
+inline bool FrogPilotControlsState::Reader::hasAlertText2() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline bool FrogPilotControlsState::Builder::hasAlertText2() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::Text::Reader FrogPilotControlsState::Reader::getAlertText2() const {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline  ::capnp::Text::Builder FrogPilotControlsState::Builder::getAlertText2() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline void FrogPilotControlsState::Builder::setAlertText2( ::capnp::Text::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::set(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::Text::Builder FrogPilotControlsState::Builder::initAlertText2(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::init(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), size);
+}
+inline void FrogPilotControlsState::Builder::adoptAlertText2(
+    ::capnp::Orphan< ::capnp::Text>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::adopt(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::Text> FrogPilotControlsState::Builder::disownAlertText2() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::disown(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+
+inline  ::cereal::FrogPilotControlsState::AlertSize FrogPilotControlsState::Reader::getAlertSize() const {
+  return _reader.getDataField< ::cereal::FrogPilotControlsState::AlertSize>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline  ::cereal::FrogPilotControlsState::AlertSize FrogPilotControlsState::Builder::getAlertSize() {
+  return _builder.getDataField< ::cereal::FrogPilotControlsState::AlertSize>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotControlsState::Builder::setAlertSize( ::cereal::FrogPilotControlsState::AlertSize value) {
+  _builder.setDataField< ::cereal::FrogPilotControlsState::AlertSize>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotControlsState::Reader::getAlertBlinkingRate() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotControlsState::Builder::getAlertBlinkingRate() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotControlsState::Builder::setAlertBlinkingRate(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotControlsState::Reader::hasAlertType() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS).isNull();
+}
+inline bool FrogPilotControlsState::Builder::hasAlertType() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::Text::Reader FrogPilotControlsState::Reader::getAlertType() const {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_reader.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS));
+}
+inline  ::capnp::Text::Builder FrogPilotControlsState::Builder::getAlertType() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS));
+}
+inline void FrogPilotControlsState::Builder::setAlertType( ::capnp::Text::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::set(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::Text::Builder FrogPilotControlsState::Builder::initAlertType(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::init(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS), size);
+}
+inline void FrogPilotControlsState::Builder::adoptAlertType(
+    ::capnp::Orphan< ::capnp::Text>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::adopt(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::Text> FrogPilotControlsState::Builder::disownAlertType() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::disown(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS));
+}
+
+inline  ::cereal::CarControl::HUDControl::AudibleAlert FrogPilotControlsState::Reader::getAlertSound() const {
+  return _reader.getDataField< ::cereal::CarControl::HUDControl::AudibleAlert>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+
+inline  ::cereal::CarControl::HUDControl::AudibleAlert FrogPilotControlsState::Builder::getAlertSound() {
+  return _builder.getDataField< ::cereal::CarControl::HUDControl::AudibleAlert>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotControlsState::Builder::setAlertSound( ::cereal::CarControl::HUDControl::AudibleAlert value) {
+  _builder.setDataField< ::cereal::CarControl::HUDControl::AudibleAlert>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::int16_t FrogPilotDeviceState::Reader::getFreeSpace() const {
+  return _reader.getDataField< ::int16_t>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline  ::int16_t FrogPilotDeviceState::Builder::getFreeSpace() {
+  return _builder.getDataField< ::int16_t>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotDeviceState::Builder::setFreeSpace( ::int16_t value) {
+  _builder.setDataField< ::int16_t>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::int16_t FrogPilotDeviceState::Reader::getUsedSpace() const {
+  return _reader.getDataField< ::int16_t>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline  ::int16_t FrogPilotDeviceState::Builder::getUsedSpace() {
+  return _builder.getDataField< ::int16_t>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotDeviceState::Builder::setUsedSpace( ::int16_t value) {
+  _builder.setDataField< ::int16_t>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::cereal::FrogPilotModelDataV2::TurnDirection FrogPilotModelDataV2::Reader::getTurnDirection() const {
+  return _reader.getDataField< ::cereal::FrogPilotModelDataV2::TurnDirection>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline  ::cereal::FrogPilotModelDataV2::TurnDirection FrogPilotModelDataV2::Builder::getTurnDirection() {
+  return _builder.getDataField< ::cereal::FrogPilotModelDataV2::TurnDirection>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotModelDataV2::Builder::setTurnDirection( ::cereal::FrogPilotModelDataV2::TurnDirection value) {
+  _builder.setDataField< ::cereal::FrogPilotModelDataV2::TurnDirection>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotNavigation::Reader::getApproachingIntersection() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotNavigation::Builder::getApproachingIntersection() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotNavigation::Builder::setApproachingIntersection(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotNavigation::Reader::getApproachingTurn() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotNavigation::Builder::getApproachingTurn() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotNavigation::Builder::setApproachingTurn(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotNavigation::Reader::getNavigationSpeedLimit() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotNavigation::Builder::getNavigationSpeedLimit() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotNavigation::Builder::setNavigationSpeedLimit(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getAccelerationJerk() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getAccelerationJerk() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setAccelerationJerk(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getAccelerationJerkStock() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getAccelerationJerkStock() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setAccelerationJerkStock(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotPlan::Reader::getCscControllingSpeed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<64>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotPlan::Builder::getCscControllingSpeed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<64>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setCscControllingSpeed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<64>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getCscSpeed() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getCscSpeed() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setCscSpeed(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotPlan::Reader::getCscTraining() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<65>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotPlan::Builder::getCscTraining() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<65>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setCscTraining(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<65>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getDangerJerk() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getDangerJerk() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setDangerJerk(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::int64_t FrogPilotPlan::Reader::getDesiredFollowDistance() const {
+  return _reader.getDataField< ::int64_t>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+
+inline  ::int64_t FrogPilotPlan::Builder::getDesiredFollowDistance() {
+  return _builder.getDataField< ::int64_t>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setDesiredFollowDistance( ::int64_t value) {
+  _builder.setDataField< ::int64_t>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotPlan::Reader::getExperimentalMode() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<66>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotPlan::Builder::getExperimentalMode() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<66>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setExperimentalMode(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<66>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotPlan::Reader::getForcingStop() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<67>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotPlan::Builder::getForcingStop() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<67>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setForcingStop(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<67>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getForcingStopLength() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getForcingStopLength() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setForcingStopLength(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotPlan::Reader::hasFrogpilotEvents() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline bool FrogPilotPlan::Builder::hasFrogpilotEvents() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>::Reader FrogPilotPlan::Reader::getFrogpilotEvents() const {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>>::get(_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline  ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>::Builder FrogPilotPlan::Builder::getFrogpilotEvents() {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>>::get(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline void FrogPilotPlan::Builder::setFrogpilotEvents( ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>>::set(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>::Builder FrogPilotPlan::Builder::initFrogpilotEvents(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>>::init(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), size);
+}
+inline void FrogPilotPlan::Builder::adoptFrogpilotEvents(
+    ::capnp::Orphan< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>>::adopt(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>> FrogPilotPlan::Builder::disownFrogpilotEvents() {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::FrogPilotCarEvent,  ::capnp::Kind::STRUCT>>::disown(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+
+inline float FrogPilotPlan::Reader::getIncreasedStoppedDistance() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getIncreasedStoppedDistance() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setIncreasedStoppedDistance(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotPlan::Reader::getLateralCheck() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<68>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotPlan::Builder::getLateralCheck() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<68>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setLateralCheck(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<68>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getLaneWidthLeft() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getLaneWidthLeft() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setLaneWidthLeft(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getLaneWidthRight() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getLaneWidthRight() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setLaneWidthRight(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getMaxAcceleration() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getMaxAcceleration() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setMaxAcceleration(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getMinAcceleration() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getMinAcceleration() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setMinAcceleration(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotPlan::Reader::getRedLight() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<69>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotPlan::Builder::getRedLight() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<69>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setRedLight(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<69>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getRoadCurvature() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getRoadCurvature() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setRoadCurvature(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getSlcMapSpeedLimit() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<14>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getSlcMapSpeedLimit() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<14>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setSlcMapSpeedLimit(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<14>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getSlcMapboxSpeedLimit() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<15>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getSlcMapboxSpeedLimit() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<15>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setSlcMapboxSpeedLimit(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<15>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getSlcNextSpeedLimit() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<16>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getSlcNextSpeedLimit() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<16>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setSlcNextSpeedLimit(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<16>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getSlcOverriddenSpeed() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<17>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getSlcOverriddenSpeed() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<17>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setSlcOverriddenSpeed(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<17>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getSlcSpeedLimit() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<18>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getSlcSpeedLimit() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<18>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setSlcSpeedLimit(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<18>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getSlcSpeedLimitOffset() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<19>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getSlcSpeedLimitOffset() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<19>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setSlcSpeedLimitOffset(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<19>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotPlan::Reader::hasSlcSpeedLimitSource() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline bool FrogPilotPlan::Builder::hasSlcSpeedLimitSource() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::Text::Reader FrogPilotPlan::Reader::getSlcSpeedLimitSource() const {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline  ::capnp::Text::Builder FrogPilotPlan::Builder::getSlcSpeedLimitSource() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline void FrogPilotPlan::Builder::setSlcSpeedLimitSource( ::capnp::Text::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::set(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::Text::Builder FrogPilotPlan::Builder::initSlcSpeedLimitSource(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::init(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), size);
+}
+inline void FrogPilotPlan::Builder::adoptSlcSpeedLimitSource(
+    ::capnp::Orphan< ::capnp::Text>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::adopt(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::Text> FrogPilotPlan::Builder::disownSlcSpeedLimitSource() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::disown(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+
+inline float FrogPilotPlan::Reader::getSpeedJerk() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<20>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getSpeedJerk() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<20>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setSpeedJerk(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<20>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getSpeedJerkStock() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<21>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getSpeedJerkStock() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<21>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setSpeedJerkStock(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<21>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotPlan::Reader::getSpeedLimitChanged() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<70>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotPlan::Builder::getSpeedLimitChanged() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<70>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setSpeedLimitChanged(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<70>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getTFollow() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<22>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getTFollow() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<22>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setTFollow(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<22>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotPlan::Reader::getThemeUpdated() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<71>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotPlan::Builder::getThemeUpdated() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<71>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setThemeUpdated(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<71>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotPlan::Reader::getTogglesUpdated() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<72>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotPlan::Builder::getTogglesUpdated() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<72>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setTogglesUpdated(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<72>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotPlan::Reader::getTrackingLead() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<73>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotPlan::Builder::getTrackingLead() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<73>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setTrackingLead(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<73>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getUnconfirmedSlcSpeedLimit() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<23>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getUnconfirmedSlcSpeedLimit() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<23>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setUnconfirmedSlcSpeedLimit(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<23>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotPlan::Reader::getVCruise() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<24>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotPlan::Builder::getVCruise() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<24>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setVCruise(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<24>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotPlan::Reader::getWeatherDaytime() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<74>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotPlan::Builder::getWeatherDaytime() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<74>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setWeatherDaytime(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<74>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::int16_t FrogPilotPlan::Reader::getWeatherId() const {
+  return _reader.getDataField< ::int16_t>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+
+inline  ::int16_t FrogPilotPlan::Builder::getWeatherId() {
+  return _builder.getDataField< ::int16_t>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotPlan::Builder::setWeatherId( ::int16_t value) {
+  _builder.setDataField< ::int16_t>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotRadarState::Reader::hasLeadLeft() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline bool FrogPilotRadarState::Builder::hasLeadLeft() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline  ::cereal::FrogPilotRadarState::LeadData::Reader FrogPilotRadarState::Reader::getLeadLeft() const {
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotRadarState::LeadData>::get(_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline  ::cereal::FrogPilotRadarState::LeadData::Builder FrogPilotRadarState::Builder::getLeadLeft() {
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotRadarState::LeadData>::get(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+#if !CAPNP_LITE
+inline  ::cereal::FrogPilotRadarState::LeadData::Pipeline FrogPilotRadarState::Pipeline::getLeadLeft() {
+  return  ::cereal::FrogPilotRadarState::LeadData::Pipeline(_typeless.getPointerField(0));
+}
+#endif  // !CAPNP_LITE
+inline void FrogPilotRadarState::Builder::setLeadLeft( ::cereal::FrogPilotRadarState::LeadData::Reader value) {
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotRadarState::LeadData>::set(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), value);
+}
+inline  ::cereal::FrogPilotRadarState::LeadData::Builder FrogPilotRadarState::Builder::initLeadLeft() {
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotRadarState::LeadData>::init(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline void FrogPilotRadarState::Builder::adoptLeadLeft(
+    ::capnp::Orphan< ::cereal::FrogPilotRadarState::LeadData>&& value) {
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotRadarState::LeadData>::adopt(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::cereal::FrogPilotRadarState::LeadData> FrogPilotRadarState::Builder::disownLeadLeft() {
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotRadarState::LeadData>::disown(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+
+inline bool FrogPilotRadarState::Reader::hasLeadRight() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline bool FrogPilotRadarState::Builder::hasLeadRight() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline  ::cereal::FrogPilotRadarState::LeadData::Reader FrogPilotRadarState::Reader::getLeadRight() const {
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotRadarState::LeadData>::get(_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline  ::cereal::FrogPilotRadarState::LeadData::Builder FrogPilotRadarState::Builder::getLeadRight() {
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotRadarState::LeadData>::get(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+#if !CAPNP_LITE
+inline  ::cereal::FrogPilotRadarState::LeadData::Pipeline FrogPilotRadarState::Pipeline::getLeadRight() {
+  return  ::cereal::FrogPilotRadarState::LeadData::Pipeline(_typeless.getPointerField(1));
+}
+#endif  // !CAPNP_LITE
+inline void FrogPilotRadarState::Builder::setLeadRight( ::cereal::FrogPilotRadarState::LeadData::Reader value) {
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotRadarState::LeadData>::set(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), value);
+}
+inline  ::cereal::FrogPilotRadarState::LeadData::Builder FrogPilotRadarState::Builder::initLeadRight() {
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotRadarState::LeadData>::init(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline void FrogPilotRadarState::Builder::adoptLeadRight(
+    ::capnp::Orphan< ::cereal::FrogPilotRadarState::LeadData>&& value) {
+  ::capnp::_::PointerHelpers< ::cereal::FrogPilotRadarState::LeadData>::adopt(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::cereal::FrogPilotRadarState::LeadData> FrogPilotRadarState::Builder::disownLeadRight() {
+  return ::capnp::_::PointerHelpers< ::cereal::FrogPilotRadarState::LeadData>::disown(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+
+inline float FrogPilotRadarState::LeadData::Reader::getDRel() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotRadarState::LeadData::Builder::getDRel() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotRadarState::LeadData::Builder::setDRel(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotRadarState::LeadData::Reader::getYRel() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotRadarState::LeadData::Builder::getYRel() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotRadarState::LeadData::Builder::setYRel(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotRadarState::LeadData::Reader::getVRel() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotRadarState::LeadData::Builder::getVRel() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotRadarState::LeadData::Builder::setVRel(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotRadarState::LeadData::Reader::getARel() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotRadarState::LeadData::Builder::getARel() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotRadarState::LeadData::Builder::setARel(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotRadarState::LeadData::Reader::getVLead() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotRadarState::LeadData::Builder::getVLead() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotRadarState::LeadData::Builder::setVLead(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotRadarState::LeadData::Reader::getALeadDEPRECATED() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotRadarState::LeadData::Builder::getALeadDEPRECATED() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotRadarState::LeadData::Builder::setALeadDEPRECATED(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotRadarState::LeadData::Reader::getDPath() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotRadarState::LeadData::Builder::getDPath() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotRadarState::LeadData::Builder::setDPath(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotRadarState::LeadData::Reader::getVLat() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<7>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotRadarState::LeadData::Builder::getVLat() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<7>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotRadarState::LeadData::Builder::setVLat(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<7>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotRadarState::LeadData::Reader::getVLeadK() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotRadarState::LeadData::Builder::getVLeadK() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotRadarState::LeadData::Builder::setVLeadK(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotRadarState::LeadData::Reader::getALeadK() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotRadarState::LeadData::Builder::getALeadK() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotRadarState::LeadData::Builder::setALeadK(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotRadarState::LeadData::Reader::getFcw() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<320>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotRadarState::LeadData::Builder::getFcw() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<320>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotRadarState::LeadData::Builder::setFcw(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<320>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotRadarState::LeadData::Reader::getStatus() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<321>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotRadarState::LeadData::Builder::getStatus() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<321>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotRadarState::LeadData::Builder::setStatus(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<321>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotRadarState::LeadData::Reader::getALeadTau() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotRadarState::LeadData::Builder::getALeadTau() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotRadarState::LeadData::Builder::setALeadTau(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS, value);
+}
+
+inline float FrogPilotRadarState::LeadData::Reader::getModelProb() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS);
+}
+
+inline float FrogPilotRadarState::LeadData::Builder::getModelProb() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotRadarState::LeadData::Builder::setModelProb(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool FrogPilotRadarState::LeadData::Reader::getRadar() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<322>() * ::capnp::ELEMENTS);
+}
+
+inline bool FrogPilotRadarState::LeadData::Builder::getRadar() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<322>() * ::capnp::ELEMENTS);
+}
+inline void FrogPilotRadarState::LeadData::Builder::setRadar(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<322>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::int32_t FrogPilotRadarState::LeadData::Reader::getRadarTrackId() const {
+  return _reader.getDataField< ::int32_t>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS, -1);
+}
+
+inline  ::int32_t FrogPilotRadarState::LeadData::Builder::getRadarTrackId() {
+  return _builder.getDataField< ::int32_t>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS, -1);
+}
+inline void FrogPilotRadarState::LeadData::Builder::setRadarTrackId( ::int32_t value) {
+  _builder.setDataField< ::int32_t>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS, value, -1);
+}
 
 }  // namespace
 
