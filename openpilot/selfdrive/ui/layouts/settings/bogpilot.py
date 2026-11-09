@@ -68,13 +68,15 @@ def working_pages():
   from openpilot.selfdrive.ui.bogpilot.phase3_steering_tuning import (
     ACTIVE_CONTROLS as STEER_CONTROLS, PAGE_KEY as STEER_KEY, PAGE_TITLE as STEER_TITLE, create_steering_tuning_layout)
   from openpilot.selfdrive.ui.bogpilot import phase3_gas_brake as gas_brake
+  from openpilot.selfdrive.ui.bogpilot import bogpilot_model_selector as model_selector
   return {
     "alerts_sounds": (Page("volume", "Alert Volume Controller", create_volume_layout, ("AlertVolumeControl", *VOLUME_KEYS)),
                       Page("alerts", "BogPilot Alerts", create_alerts_layout, tuple(ACTIVE_ALERT_KEYS))),
-    # Driving Controls: ONE tuple (Gas/Brake + Steering Tuning). Gas/Brake, Steering Tuning, Lane Changes.
+    # Driving Controls: ONE tuple (Gas/Brake + Steering Tuning). Gas/Brake, Steering Tuning, Lane Changes, Driving Model.
     "driving": (Page(gas_brake.PAGE_KEY, gas_brake.PAGE_TITLE, gas_brake.create_gas_brake_layout, gas_brake.CONTROLS),
                 Page(STEER_KEY, STEER_TITLE, create_steering_tuning_layout, STEER_CONTROLS),
-                Page("lane_changes", "Lane Changes", _lane_changes_layout, LANE_CHANGE_CONTROLS)),
+                Page("lane_changes", "Lane Changes", _lane_changes_layout, LANE_CHANGE_CONTROLS),
+                Page(model_selector.PAGE_KEY, model_selector.PAGE_TITLE, model_selector.create_driving_model_layout, model_selector.CONTROLS)),
     "vehicle": (Page("car_selection", "Car Selection", create_car_selection_layout,
                      ("CarMake", "CarModel", "CarModelName", "ForceFingerprint")),
                 Page("vehicle_controls", "Vehicle Controls", create_vehicle_settings_layout, tuple(TITLES)),

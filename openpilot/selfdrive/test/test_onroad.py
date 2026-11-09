@@ -52,7 +52,7 @@ PROCS = {
   "openpilot.selfdrive.ui.ui": 40.0,
   "openpilot.system.sensord.sensord": 13.0,
   "openpilot.selfdrive.controls.radard": 2.0,
-  "openpilot.selfdrive.modeld.modeld": 22.0,
+  "openpilot.selfdrive.modeld.bogpilot_modeld": 22.0,
   "openpilot.selfdrive.modeld.dmonitoringmodeld": 18.0,
   "openpilot.system.hardware.hardwared": 4.0,
   "openpilot.selfdrive.locationd.calibrationd": 2.0,

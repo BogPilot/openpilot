@@ -48,14 +48,14 @@ class TestIntegrationContracts(unittest.TestCase):
       self.assertNotIn(forbidden, pages)
     self.assertFalse((ROOT / "opendbc_repo/opendbc/car/tesla_ap1/aol_gate.py").exists())
 
-  def test_model_selector_modules_present_but_not_registered_or_launched(self):
-    """t994: modelSelector merged as modules only; no Driving Model page, no modeld launcher swap (stock model only)."""
+  def test_driving_model_selector_registered_with_stock_safe_launcher(self):
+    """t999: BogPilot's own Driving Model page is registered and modeld starts through the fallback-safe launcher."""
     pages = (ROOT / "openpilot/selfdrive/ui/layouts/settings/bogpilot.py").read_text()
-    self.assertNotIn("phase3_model", pages)
-    self.assertNotIn("Driving Model", pages)
+    self.assertIn("bogpilot_model_selector", pages)
+    self.assertNotIn("phase3_model", pages)  # the retired catalog/downloader UI stays unregistered
     pc = (ROOT / "openpilot/system/manager/process_config.py").read_text()
+    self.assertIn("openpilot.selfdrive.modeld.bogpilot_modeld", pc)
     self.assertNotIn("phase3_modeld_launcher", pc)
-    self.assertIn("modeld", pc)
 
   def test_stop_accel_rows_registered_t1003u(self):
     pages = (ROOT / "openpilot/selfdrive/ui/bogpilot/phase3_gas_brake.py").read_text()
