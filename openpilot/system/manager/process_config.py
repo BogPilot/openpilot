@@ -78,7 +78,7 @@ procs = [
   PythonProcess("timed", "openpilot.system.timed", always_run, enabled=not PC),
 
   # BogPilot Driving Model selector: stock modeld unless a validated model is selected (falls back to stock on any failure)
-  PythonProcess("modeld", "openpilot.selfdrive.modeld.bogpilot_modeld", only_onroad),
+  PythonProcess("modeld", "openpilot.common.bogpilot_models.launcher", only_onroad),
   PythonProcess("dmonitoringmodeld", "openpilot.selfdrive.modeld.dmonitoringmodeld", driverview, enabled=(WEBCAM or not PC)),
 
   PythonProcess("sensord", "openpilot.system.sensord.sensord", only_onroad, enabled=not PC),

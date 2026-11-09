@@ -6,8 +6,8 @@ from pathlib import Path
 
 from openpilot.common.bogpilot_models import alert, selection
 from openpilot.common.tests import bogpilot_model_fixtures as fx
-from openpilot.selfdrive.modeld import bogpilot_modeld as launcher
-from openpilot.selfdrive.modeld.tests.test_bogpilot_modeld import STOCK_DIR, FakeModeld
+from openpilot.common.bogpilot_models import launcher
+from openpilot.common.tests.test_bogpilot_model_launcher import STOCK_DIR, FakeModeld
 from openpilot.selfdrive.ui.bogpilot.bogpilot_model_selector import ModelSelectorController
 
 

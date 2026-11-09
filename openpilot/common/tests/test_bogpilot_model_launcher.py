@@ -1,4 +1,4 @@
-"""bogpilot_modeld launcher: stock equivalence, validated alternate loading, every fallback path, no mid-drive switching."""
+"""bogpilot model launcher: stock equivalence, validated alternate loading, every fallback path, no mid-drive switching."""
 import tempfile
 import types
 import unittest
@@ -8,9 +8,9 @@ import numpy as np
 
 from openpilot.common.bogpilot_models import alert, resolve, selection
 from openpilot.common.tests import bogpilot_model_fixtures as fx
-from openpilot.selfdrive.modeld import bogpilot_modeld as launcher
+from openpilot.common.bogpilot_models import launcher
 
-MODELD_SRC = Path(__file__).resolve().parents[1] / "modeld.py"
+MODELD_SRC = Path(__file__).resolve().parents[2] / "selfdrive/modeld/modeld.py"
 STOCK_DIR = Path("/stock/models")
 OFF = lambda: True  # noqa: E731
 
@@ -263,8 +263,8 @@ class TestRealModeldContract(unittest.TestCase):
       real.ModelState = original
 
   def test_process_config_runs_the_launcher_when_registered(self):
-    pc = (Path(__file__).resolve().parents[3] / "system/manager/process_config.py").read_text()
-    self.assertIn('PythonProcess("modeld", "openpilot.selfdrive.modeld.bogpilot_modeld", only_onroad)', pc)
+    pc = (Path(__file__).resolve().parents[2] / "system/manager/process_config.py").read_text()
+    self.assertIn('PythonProcess("modeld", "openpilot.common.bogpilot_models.launcher", only_onroad)', pc)
 
 
 if __name__ == "__main__":

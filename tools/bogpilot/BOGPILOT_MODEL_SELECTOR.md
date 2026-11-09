@@ -43,7 +43,7 @@ Anything else is "Not usable: <reason>" on the page and can never be selected.
   page says so and shows nothing else (no buttons). Selection is refused unless the car is offroad (`ui_state.is_offroad`
   must be exactly True) and is stored (Params if the key is compiled, else the BogPilot file store) as
   `BogPilotDrivingModel` = JSON with the id and the sha256 of the manifest and the model, so later file swaps are caught.
-- modeld starts through `openpilot/selfdrive/modeld/bogpilot_modeld.py`. It resolves the choice ONCE per modeld start
+- modeld starts through `openpilot/common/bogpilot_models/launcher.py`. It resolves the choice ONCE per modeld start
   (modeld only runs onroad), so nothing can change mid-drive. Default selected, or any error inside the selector, means
   the untouched stock `modeld.main()` runs: no patching, no hashing, no writes.
 - An alternate is used only if it validates again at start and the pins still match; then it loads and runs one zero-frame

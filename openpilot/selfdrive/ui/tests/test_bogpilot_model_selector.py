@@ -336,9 +336,15 @@ class TestInstalledModels(unittest.TestCase):
 
 class TestLayoutShowEvent(unittest.TestCase):
   def test_construct_and_show_event_without_rendering(self):
-    pytest = __import__("pytest")
-    pytest.importorskip("pyray")
-    with tempfile.TemporaryDirectory() as tmp:
+    from unittest import mock
+    try:
+      # hosts without /sys/firmware/devicetree (docker/VM) pretend to be a tizi so gui_app imports; nothing is rendered
+      with mock.patch("openpilot.common.hardware.comma.hardware.get_device_type", lambda: "tizi"):
+        import pyray as rl
+        from openpilot.system.ui.lib.application import gui_app
+    except Exception as e:  # pyray / device stack not available on this host
+      self.skipTest(f"raylib widgets unavailable: {type(e).__name__}")
+    with tempfile.TemporaryDirectory() as tmp, mock.patch.object(gui_app, "font", lambda *a: rl.Font()):
       ctrl = ModelSelectorController(lambda: True, MemStore(), tmp)
       layout = create_driving_model_layout(ctrl)
       layout.show_event()
