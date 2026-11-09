@@ -3,6 +3,7 @@ from opendbc.car.interfaces import CarInterfaceBase
 from opendbc.car.tesla_ap1.carcontroller import CarController
 from opendbc.car.tesla_ap1.carstate import CarState
 from opendbc.car.tesla_ap1.radar_interface import RadarInterface
+from opendbc.car.tesla_ap1.modelx_fingerprint import s_contradicts_x
 from opendbc.car.tesla_ap1.safety_flags import dashcam_only_for_candidate, flags_for_candidate
 from opendbc.car.tesla_ap1.toggles import ap1_standstill_engage, disable_openpilot_long
 from opendbc.car.tesla_ap1.values import CAR, match_ap1_chassis
@@ -21,6 +22,9 @@ class CarInterface(CarInterfaceBase):
     # steering behaves like autopilot. AP1 is an explicit user exception for
     # the Mobileye chassis port (HSO pause instead of blending).
     ret.dashcamOnly = dashcam_only_for_candidate(candidate) or (not docs and not match_ap1_chassis(fingerprint))
+    if candidate == CAR.TESLA_AP1_MODELX:
+      # S-only CAN on a manually selected Model X stays dashcam (no output).
+      ret.dashcamOnly = ret.dashcamOnly or s_contradicts_x(fingerprint)
 
     ret.steerControlType = structs.CarParams.SteerControlType.angle
 
@@ -31,6 +35,10 @@ class CarInterface(CarInterfaceBase):
     # 0.9.7: openpilot long = not DisableOpenpilotLongitudinal (default off, so
     # long is ON). Chassis 0x2b9 only, no 0x2bf powertrain DAS. AP1StandstillEngage
     # only matters with openpilot long on.
+    # Model X is lateral-only until bench/vehicle verification. Tinkla's X long
+    # path also sends AP2-style DAS_control on powertrain bus 4, which needs a
+    # second panda this tree does not have. Chassis-only long is unverified on X,
+    # so openpilot longitudinal stays off and the car keeps stock ACC.
     long_on = candidate == CAR.TESLA_AP1_MODELS and not ret.dashcamOnly and not disable_openpilot_long()
     standstill = long_on and ap1_standstill_engage(candidate)
     safety_params = flags_for_candidate(candidate, fingerprint, standstill=standstill)

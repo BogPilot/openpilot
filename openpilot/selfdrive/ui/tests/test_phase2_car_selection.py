@@ -20,9 +20,11 @@ class FakeParams:
     self.v[key] = bool(value)
   def remove(self, key):
     self.v.pop(key, None)
+  def all_keys(self):
+    return list(self.v.keys())
 
 
-PLATFORMS = {"TESLA_AP1_MODELS": object(), "MOCK": object(), "TOYOTA_RAV4": object()}
+PLATFORMS = {"TESLA_AP1_MODELS": object(), "TESLA_AP1_MODELX": object(), "MOCK": object(), "TOYOTA_RAV4": object()}
 
 
 class TestPhase2CarSelection(unittest.TestCase):
@@ -66,11 +68,47 @@ class TestPhase2CarSelection(unittest.TestCase):
     self.assertFalse(cs.apply_choice(self.p, cs.AP1_S, offroad=False))
     self.assertIsNone(self.p.get(cs.MODEL_KEY))
 
-  def test_model_x_refused_no_invented_platform(self):
-    self.assertFalse(cs.apply_choice(self.p, cs.AP1_X, offroad=True))
+  def test_apply_model_x_sets_params_and_labels(self):
+    self.assertFalse(cs.apply_choice(self.p, cs.AP1_X, offroad=False))
     self.assertIsNone(self.p.get(cs.MODEL_KEY))
-    self.assertNotIn(cs.AP1_X, cs.available_choices())
-    self.assertIn("unavailable", cs.CHOICE_LABELS[cs.AP1_X].lower())
+    self.assertIn(cs.AP1_X, cs.available_choices())
+    self.assertEqual(cs.available_choices(), (cs.AUTO, cs.AP1_S, cs.AP1_X))
+    self.assertEqual(cs.CHOICE_LABELS[cs.AP1_X], "Tesla AP1 Model X")
+    self.assertNotIn("unavailable", cs.CHOICE_LABELS[cs.AP1_X].lower())
+    desc = cs.CHOICE_DESCRIPTIONS[cs.AP1_X]
+    for phrase in ("lateral only", "stock cruise", "unverified", "automatic detection returns no car",
+                   "next time the car starts"):
+      self.assertIn(phrase, desc.lower() if phrase == "unverified" else desc)
+    self.assertTrue(cs.apply_choice(self.p, cs.AP1_X, offroad=True))
+    self.assertEqual(self.p.get(cs.MODEL_KEY), cs.AP1_X_PLATFORM)
+    self.assertEqual(self.p.get(cs.MAKE_KEY), cs.AP1_X_MAKE)
+    self.assertEqual(self.p.get(cs.MODEL_NAME_KEY), cs.AP1_X_DOC)
+    self.assertEqual(cs.AP1_X_DOC, "Tesla Model X (Autopilot 1) 2016")
+    self.assertTrue(self.p.get_bool(cs.FORCE_KEY))
+    self.assertEqual(cs.current_choice(self.p), cs.AP1_X)
+    self.assertEqual(cs.choice_label(self.p), "Tesla AP1 Model X (forced)")
+    self.assertEqual(cs.selected_fingerprint(self.p, None, PLATFORMS), (cs.AP1_X_PLATFORM, True))
+    self.assertEqual(cs.selected_fingerprint(self.p, "TOYOTA_RAV4", PLATFORMS), ("TOYOTA_RAV4", False))
+    self.assertEqual(cs.selected_fingerprint(self.p, cs.AP1_S_PLATFORM, PLATFORMS), (cs.AP1_S_PLATFORM, False))
+    self.p.put_bool(cs.FORCE_KEY, False)
+    self.assertEqual(cs.choice_label(self.p), "Tesla AP1 Model X (fallback)")
+    self.assertTrue(cs.apply_choice(self.p, cs.AUTO, offroad=True))
+    self.assertEqual(cs.current_choice(self.p), cs.AUTO)
+    self.assertEqual(cs.selected_fingerprint(self.p, None, PLATFORMS), (None, False))
+
+  def test_model_x_does_not_get_model_s_profile(self):
+    import tempfile
+    from openpilot.common import bogpilot_ap1_profile as profile
+    self.p.put(cs.MODEL_KEY, cs.AP1_X_PLATFORM)
+    self.assertFalse(profile.is_ap1(self.p))
+    before = dict(self.p.v)
+    with tempfile.TemporaryDirectory() as tmp:
+      written = profile.apply_ap1_defaults_once(self.p, bogpilot_dir=tmp)
+    self.assertEqual(written, [])
+    self.assertEqual(self.p.v, before)
+    model_s = FakeParams()
+    model_s.put(cs.MODEL_KEY, cs.AP1_S_PLATFORM)
+    self.assertTrue(profile.is_ap1(model_s))
 
   def test_invalid_saved_platform_ignored(self):
     self.p.put(cs.MODEL_KEY, "NOT_A_REAL_PLATFORM")

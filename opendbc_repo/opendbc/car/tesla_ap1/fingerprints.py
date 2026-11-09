@@ -9,10 +9,10 @@ Pre-AP: data values may be taken from the third-party legacy port; never its
 code. Tinkla Autosteer lockout is not ported. AP2/Raven FW live outside this
 brand (see bogpilot-tesla 026cfb3 selfdrive/car/tesla/fingerprints.py).
 
-AP1 Model S has no FW_VERSIONS row yet. Selection is:
+AP1 Model S and Model X have no FW_VERSIONS rows (Tinkla published no Model X FW).
+Selection is detect_ap1_candidate in car_helpers.get_car, not FW:
   - CarModel / ForceFingerprint fallback in get_car, or
-  - chassis CAN signature (values.match_ap1_chassis) when no FW match exists
-    (wired in opendbc.car.car_helpers.fingerprint).
+  - Model X marker match, or the Model S chassis signature when no X marker is present.
 """
 from opendbc.car.structs import CarParams
 from opendbc.car.tesla_ap1.values import CAR  # noqa: F401

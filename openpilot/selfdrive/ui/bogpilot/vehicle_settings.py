@@ -13,6 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 
 DISABLE_LONG_KEY = "DisableOpenpilotLongitudinal"
+# Model S only. Model X does not enable these Vehicle Controls.
 AP1_FINGERPRINT = "TESLA_AP1_MODELS"
 
 

@@ -5,12 +5,13 @@ from dataclasses import dataclass
 from opendbc.car.tesla_ap1.values import CANBUS, CAR, TeslaPlatform
 
 # Production identities that exist in this tree.
-# CAR.TESLA_AP1_MODELS has no FW_VERSIONS row in fingerprints.py, so the
-# platform enum member is the AP1 Model S identity. Do not match on shared
-# CarSpecs or dbc_dict: AP1 and AP2 share those, and that would be ambiguous.
+# Names map here. Fingerprint dicts do not: a chassis signature still returns
+# ap1_s from classify_ap1_chassis. Model X recognition is detect_ap1_candidate
+# in car_helpers, not classify_tesla_platform.
 # CAR.TESLA_MODELS_RAVEN is intentionally absent. Raven is not ap2.
 _PRODUCTION = {
   CAR.TESLA_AP1_MODELS: TeslaPlatform.ap1_s,
+  CAR.TESLA_AP1_MODELX: TeslaPlatform.ap1_x,
 }
 
 _FIXTURE_ONLY = (TeslaPlatform.preap, TeslaPlatform.ap1_x)
@@ -30,8 +31,8 @@ class EarlyPlatformFixture:
   """Test-built identity for preap and ap1_x.
 
   Not a CAN fingerprint and not an FW query result. Production recognition
-  does not construct this. preap and ap1_x stay unmatched until a real
-  fingerprint exists.
+  does not construct this. preap stays unmatched. ap1_x is also returned for
+  CAR.TESLA_AP1_MODELX; a fingerprint dict still does not select ap1_x.
   """
 
   platform: TeslaPlatform
@@ -60,9 +61,10 @@ def classify_tesla_platform(fingerprint) -> TeslaPlatform | None:
   """Return one TeslaPlatform, or None when the identity is empty or ambiguous.
 
   None means longitudinal is not allowed. A bus-0 address set classifies as
-  ap1_s only through classify_ap1_chassis. preap and ap1_x are returned only
-  for an EarlyPlatformFixture. A dict that is not that chassis signature
-  returns None.
+  ap1_s only through classify_ap1_chassis. ap1_x is returned for
+  CAR.TESLA_AP1_MODELX (or its name) and for an EarlyPlatformFixture.
+  A fingerprint dict never returns ap1_x. preap is returned only for an
+  EarlyPlatformFixture. A dict that is not the chassis signature returns None.
   """
   if isinstance(fingerprint, EarlyPlatformFixture):
     return fingerprint.platform

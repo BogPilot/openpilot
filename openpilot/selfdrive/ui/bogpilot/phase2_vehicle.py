@@ -5,6 +5,7 @@ No generic make/model overrides or stored-but-unconsumed preferences.
 """
 from pathlib import Path
 
+# Model S only. Model X is lateral-only and does not get these toggles.
 AP1 = "TESLA_AP1_MODELS"
 LONG = "DisableOpenpilotLongitudinal"
 CLUSTER = "EnableICIntegration"

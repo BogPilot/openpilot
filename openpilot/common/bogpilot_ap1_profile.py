@@ -12,8 +12,9 @@ Original notes:
 One-time BogPilot toggle profile for the Tesla AP1 Model S.
 
 AP1 is never auto-fingerprinted: owners pick "Tesla AP1 Model S" under
-Vehicle Settings, which stores CarModel=TESLA_AP1_MODELS. The first time
-BogPilot sees that (at boot, or offroad when settings close), it applies the
+Vehicle Settings, which stores CarModel=TESLA_AP1_MODELS. Model X
+(CarModel=TESLA_AP1_MODELX) must not receive this Model S profile. The first time
+BogPilot sees Model S (at boot, or offroad when settings close), it applies the
 maintainer's recommended toggles below, once:
 
   - a Params key is written only if its current value still equals the
@@ -294,6 +295,7 @@ def _is_converted_default(key, current, table, metric) -> bool:
 
 
 def is_ap1(params) -> bool:
+  """Model S AP1 only. Model X (TESLA_AP1_MODELX) must not receive the S profile."""
   try:
     if _text(params.get("CarModel")) == AP1_CAR_MODEL:
       return True

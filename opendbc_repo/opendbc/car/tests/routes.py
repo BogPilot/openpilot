@@ -11,6 +11,7 @@ from opendbc.car.mock.values import CAR as MOCK
 from opendbc.car.rivian.values import CAR as RIVIAN
 from opendbc.car.subaru.values import CAR as SUBARU
 from opendbc.car.tesla.values import CAR as TESLA
+from opendbc.car.tesla_ap1.values import CAR as TESLA_AP1
 from opendbc.car.toyota.values import CAR as TOYOTA
 from opendbc.car.values import Platform
 from opendbc.car.volkswagen.values import CAR as VOLKSWAGEN
@@ -38,6 +39,9 @@ non_tested_cars = [
 
   # These are on the 2-bit DAS_steeringControlType firmware, which is dashcam only, need new routes
   TESLA.TESLA_MODEL_X,
+
+  # AP1 Model X has no public route in this tree.
+  TESLA_AP1.TESLA_AP1_MODELX,
 
 ]
 

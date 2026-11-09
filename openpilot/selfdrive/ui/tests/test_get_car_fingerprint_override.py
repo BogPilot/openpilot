@@ -15,8 +15,9 @@ from openpilot.selfdrive.ui.bogpilot import phase2_car_selection as sel
 CPS = car_helpers.CarParams.FingerprintSource
 
 
-def _run(params, detected=None, source=None):
-  fp = (detected, {}, "", [], source if source is not None else CPS.can, True)
+def _run(params, detected=None, source=None, fingerprints=None):
+  buses = {} if fingerprints is None else fingerprints
+  fp = (detected, buses, "", [], source if source is not None else CPS.can, True)
   with mock.patch.object(car_helpers, "fingerprint", return_value=fp):
     return get_car(lambda *a, **k: [], lambda *a, **k: None, lambda *_: None, False, False, None,
                    fingerprint_override=lambda d: sel.selected_fingerprint(params, d))
@@ -75,9 +76,20 @@ class TestGetCarOverride(unittest.TestCase):
     self.assertFalse(sel.apply_choice(self.p, sel.AP1_S, offroad=False))
     self.assertEqual(_run(self.p).CP.carFingerprint, "MOCK")
 
-  def test_model_x_refused(self):
-    self.assertFalse(sel.apply_choice(self.p, sel.AP1_X, offroad=True))
-    self.assertEqual(_run(self.p).CP.carFingerprint, "MOCK")
+  def test_model_x_used_when_detection_fails(self):
+    self.assertTrue(sel.apply_choice(self.p, sel.AP1_X, offroad=True))
+    self.assertEqual(self.p.get(sel.MODEL_KEY), "TESLA_AP1_MODELX")
+    CI = _run(self.p)
+    self.assertEqual(str(CI.CP.carFingerprint), "TESLA_AP1_MODELX")
+    self.assertEqual(CI.CP.fingerprintSource, CPS.fixed)
+
+  def test_detected_model_s_not_overridden_by_saved_model_x(self):
+    from opendbc.car.tesla_ap1.tests.tinkla_modelx_data import TINKLA_AP1_MODELS_VARIANTS
+    sel.apply_choice(self.p, sel.AP1_X, offroad=True)
+    buses = {0: dict(TINKLA_AP1_MODELS_VARIANTS[0]), 2: {0x399: 8, 0x2B9: 8, 0x488: 4}}
+    CI = _run(self.p, detected=None, fingerprints=buses)
+    self.assertEqual(str(CI.CP.carFingerprint), "TESLA_AP1_MODELS")
+    self.assertEqual(CI.CP.fingerprintSource, CPS.can)
 
   def test_default_signature_without_override_unchanged(self):
     fp = (None, {}, "", [], CPS.can, True)

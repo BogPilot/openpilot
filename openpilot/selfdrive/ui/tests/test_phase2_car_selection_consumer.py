@@ -16,6 +16,16 @@ class TestSelectionConsumerContract(unittest.TestCase):
     self.assertEqual(cs.selected_fingerprint(p, None, PLATFORMS), (None, False))
     self.assertEqual(cs.selected_fingerprint(p, "TOYOTA_RAV4", PLATFORMS), ("TOYOTA_RAV4", False))
 
+  def test_model_x_apply_and_detection_wins(self):
+    p = FakeParams()
+    self.assertTrue(cs.apply_choice(p, cs.AP1_X, offroad=True))
+    self.assertEqual(p.get(cs.MODEL_KEY), cs.AP1_X_PLATFORM)
+    self.assertEqual(cs.selected_fingerprint(p, None, PLATFORMS), (cs.AP1_X_PLATFORM, True))
+    self.assertEqual(cs.selected_fingerprint(p, cs.AP1_S_PLATFORM, PLATFORMS), (cs.AP1_S_PLATFORM, False))
+    self.assertEqual(cs.selected_fingerprint(p, "TOYOTA_RAV4", PLATFORMS), ("TOYOTA_RAV4", False))
+    self.assertTrue(cs.apply_choice(p, cs.AUTO, offroad=True))
+    self.assertEqual(cs.selected_fingerprint(p, None, PLATFORMS), (None, False))
+
 
 if __name__ == "__main__":
   unittest.main()

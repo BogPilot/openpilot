@@ -11,7 +11,7 @@ from opendbc.car.tesla_ap1.stalk_follow import dtr_sample, follow_seconds, parse
 from opendbc.car.tesla_ap1.phase3_stalk_controls import StalkControls
 from opendbc.car.tesla_ap1.speed_limit import dashboard_speed_limit_ms
 from opendbc.car.tesla_ap1.steer_fault import steer_fault_temporary
-from opendbc.car.tesla_ap1.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTTONS
+from opendbc.car.tesla_ap1.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTTONS, is_ap1_family
 from opendbc.car.interfaces import CarStateBase
 from opendbc.can import CANDefine, CANParser
 
@@ -86,7 +86,10 @@ class CarState(CarStateBase):
     # Any non-zero hands level is driver input (override, grey border), as in
     # frog_ap1. AP1 EPAS reports 0, 1, 3. The AP1 lateral pause stays at
     # TinklaHandsOnLevel 2 in CarController (hso.ap1_steering_pressed).
-    ap1 = self.CP.carFingerprint == CAR.TESLA_AP1_MODELS
+    # Structural AP1 (Model S and Model X): hands override and EAC fault handling.
+    ap1 = is_ap1_family(self.CP.carFingerprint)
+    # Model S only. Cluster, stalk follow, standstill, and regen stay off on Model X.
+    ap1_s = self.CP.carFingerprint == CAR.TESLA_AP1_MODELS
     if ap1:
       ret.steeringPressed = ap1_driver_input(self.hands_on_level)
     else:
@@ -147,14 +150,17 @@ class CarState(CarStateBase):
     ret.leftBlinker = (cp.vl["GTW_carState"]["BC_indicatorLStatus"] == 1)
     ret.rightBlinker = (cp.vl["GTW_carState"]["BC_indicatorRStatus"] == 1)
 
-    # Seatbelt
-    ret.seatbeltUnlatched = (cp.vl["SDM1"]["SDM_bcklDrivStatus"] != 1)
+    # Seatbelt. Model X reads RCM_status (0x211); Model S keeps SDM1.
+    if self.CP.carFingerprint == CAR.TESLA_AP1_MODELX:
+      ret.seatbeltUnlatched = cp.vl["RCM_status"]["RCM_buckleDriverStatus"] != 1
+    else:
+      ret.seatbeltUnlatched = (cp.vl["SDM1"]["SDM_bcklDrivStatus"] != 1)
 
-    # Blindspot. AP1 only: stock DAS_blindSpotRearLeft/Right from 0x399 on
+    # Blindspot. Model S only: stock DAS_blindSpotRearLeft/Right from 0x399 on
     # cp_cam. Fail-closed: WARNING/SNA/garbage/stale/bad-checksum dropout =>
     # Blindspot True (OCCUPIED). Only recent checksum-OK NO_WARNING clears.
     # Held BSM_HOLD_S; stale after BSM_STALE_S. Other Teslas: no BSM.
-    if ap1:
+    if ap1_s:
       ret.leftBlindspot, ret.rightBlindspot = self.ap1_bsm.update(frames_from_vl_all(cp_cam), DT_CTRL)
 
     # AEB
@@ -179,6 +185,7 @@ class CarState(CarStateBase):
     # 0.11.2 has no cruiseState.speedOffset. AP1 publishes the stalk follow
     # seconds in bogpilot.ap1StalkFollowS so the openpilot planner can set tFollow.
     # 0 means no ready detent. 255 holds the last seconds via parse_stalk_raw.
+    # Model S only. Stalk follow is not published for Model X.
     stalk_follow_s = follow_seconds(self.stalk_follow) if self.CP.carFingerprint == CAR.TESLA_AP1_MODELS else 0.0
 
     # Experimental holds never modify the buttonEvents above or stock PCM state.
@@ -195,20 +202,22 @@ class CarState(CarStateBase):
     self.msg_stw_actn_req = copy.copy(cp.vl["STW_ACTN_RQ"])
     self.acc_state = cp_cam.vl["DAS_control"]["DAS_accState"]
     self.das_control_counters.extend(cp_cam.vl_all["DAS_control"]["DAS_controlCounter"])
-    self.cluster_stock = self.new_cluster_frames(cp_cam) if ap1 else {}
+    # Model S only. Cluster substitution is not used on Model X.
+    self.cluster_stock = self.new_cluster_frames(cp_cam) if ap1_s else {}
+    # Structural AP1: stock 0x488 counters for the steer handover.
     if ap1:
       steer_ctrs = cp_cam.vl_all.get("DAS_steeringControl", {}).get("DAS_steeringControlCounter", [])
       self.stock_steer_counters = [int(c) for c in steer_ctrs]
 
-    # AP1: Mobileye fused (stock 0x399 on cp_cam / bus 2) then GTW UI map/mpp
+    # Model S: Mobileye fused (stock 0x399 on cp_cam / bus 2) then GTW UI map/mpp
     # into FrogPilot dashboardSpeedLimit (m/s). Cluster TX is on bus 0 and
     # never reaches cp_cam. Freq-0 UI msgs on chassis; missing → 0.
-    # AP1: stock Autopilot active (stock 0x399 on bus 2, state 3/4/5). Gates the
+    # Model S: stock Autopilot active (stock 0x399 on bus 2, state 3/4/5). Gates the
     # standstill-experiment standby DAS_control (Tinkla: not while stock AP).
-    if ap1:
+    if ap1_s:
       st = cp_cam.vl.get("AutopilotStatus", {}).get("autopilotStatus", 0)
       self.stock_ap_active = 3 <= int(st or 0) <= 5
-    if ap1:
+    if ap1_s:
       fused = cp_cam.vl.get("AutopilotStatus", {}).get("DAS_fusedSpeedLimit")
       ui_map = cp.vl.get("UI_driverAssistMapData", {}).get("UI_mapSpeedLimit")
       gps = cp.vl.get("UI_gpsVehicleSpeed", {})
@@ -216,8 +225,8 @@ class CarState(CarStateBase):
         fused, ui_map, gps.get("UI_mppSpeedLimit"), gps.get("UI_mapSpeedLimitUnits"),
       )
 
-    if ap1:
-      # Regen-aware stop braking inputs (regen_aware.py).
+    if ap1_s:
+      # Model S only. Regen-aware stop braking inputs (regen_aware.py).
       fp_ret.ap1MotorTorqueNm = float(cp.vl["DI_torque1"]["DI_torqueMotor"])
       fp_ret.ap1MotorRpm = float(cp.vl["DI_torque1"]["DI_motorRPM"])
       amb = cp.vl.get("GTW_ESP1", {})
@@ -232,7 +241,8 @@ class CarState(CarStateBase):
     fp_ret.ap1StalkPullToggle = self.stalk_pull_toggle
     fp_ret.ap1StalkFwdToggle = self.stalk_fwd_toggle
     fp_ret.ap1StockApActive = bool(self.stock_ap_active)
-    fp_ret.ap1StalkFollowS = float(stalk_follow_s) if ap1 else 0.0
+    # Model S only. Stalk follow seconds stay 0 on Model X.
+    fp_ret.ap1StalkFollowS = float(stalk_follow_s) if ap1_s else 0.0
 
     return ret
 
@@ -265,7 +275,11 @@ class CarState(CarStateBase):
       ("BrakeMessage", 50),
     ]
 
-    messages.append(("SDM1", 10))
+    # Model X seatbelt is RCM_status (0x211). SDM1 stays in this slot for Model S.
+    if CP.carFingerprint == CAR.TESLA_AP1_MODELX:
+      messages.append(("RCM_status", 10))
+    else:
+      messages.append(("SDM1", 10))
 
     if CP.carFingerprint == CAR.TESLA_AP1_MODELS:
       # GTW map / mpp speed limits for dashboardSpeedLimit. Frequency 0 so a
@@ -276,6 +290,9 @@ class CarState(CarStateBase):
       messages.append(("EPB_epasControl", OPTIONAL))
       # 0x208 outside air temperature for regen_aware.py. Frequency 0 (no canValid effect).
       messages.append(("GTW_ESP1", OPTIONAL))
+    elif CP.carFingerprint == CAR.TESLA_AP1_MODELX:
+      # Model X lateral path needs the EPB EAC allow frame. Map, GPS, and ambient stay Model S only.
+      messages.append(("EPB_epasControl", OPTIONAL))
 
     cam_messages = [
       # sig_address, frequency
@@ -290,6 +307,9 @@ class CarState(CarStateBase):
         cam_messages.append((MSG_NAMES[addr], OPTIONAL))
       # Stock 0x488 counter for handover continuity (steer_counter.py).
       # Frequency 0: missing stock frames fall back to the old cadence.
+      cam_messages.append(("DAS_steeringControl", OPTIONAL))
+    elif CP.carFingerprint == CAR.TESLA_AP1_MODELX:
+      # Model X follows the stock 0x488 counter. Cluster RX stays Model S only.
       cam_messages.append(("DAS_steeringControl", OPTIONAL))
 
     return {

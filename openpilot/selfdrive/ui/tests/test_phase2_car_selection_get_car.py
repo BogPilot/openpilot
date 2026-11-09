@@ -55,9 +55,10 @@ def _get_car_cp(detected, params):
     candidate, fingerprints, vin, car_fw, source, exact_match = car_helpers.fingerprint(
       None, None, None, None)
     if candidate is None:
-      from opendbc.car.tesla_ap1.values import CAR as AP1CAR, match_ap1_chassis
-      if match_ap1_chassis(fingerprints):
-        candidate = AP1CAR.TESLA_AP1_MODELS
+      from opendbc.car.tesla_ap1.modelx_fingerprint import detect_ap1_candidate
+      detected_ap1 = detect_ap1_candidate(fingerprints)
+      if detected_ap1 is not None:
+        candidate = detected_ap1
         source = SOURCE_CAN
     candidate, used_saved = override(candidate)
     if used_saved:
@@ -73,6 +74,18 @@ def _get_car_cp(detected, params):
     CP.fingerprintSource = source
     CP.fuzzyFingerprint = not exact_match
     return CP
+
+
+MOBILEYE = {0x399: 8, 0x2B9: 8, 0x488: 4}
+
+
+def _get_car_from_can(fp, params):
+  """fingerprint() returns no candidate so get_car runs detect_ap1_candidate."""
+  result = (None, fp, "0" * 17, [], SOURCE_CAN, True)
+  override = lambda d: cs.selected_fingerprint(params, d)
+  with mock.patch.object(car_helpers, "fingerprint", return_value=result):
+    CI = car_helpers.get_car(None, None, None, False, False, None, fingerprint_override=override)
+    return CI.CP
 
 
 class TestGetCarSelectionConsumer(unittest.TestCase):
@@ -122,6 +135,40 @@ class TestGetCarSelectionConsumer(unittest.TestCase):
     CP2 = _get_car_cp(None, self.p)
     self.assertEqual(CP2.carFingerprint, "MOCK")
     self.assertNotEqual(CP2.fingerprintSource, SOURCE_FIXED)
+
+  def test_can_detects_model_x_and_model_s(self):
+    from opendbc.car.tesla_ap1.tests.tinkla_modelx_data import TINKLA_AP1_MODELX, TINKLA_AP1_MODELS_VARIANTS
+    x_fp = {0: dict(TINKLA_AP1_MODELX), 2: dict(MOBILEYE)}
+    CP = _get_car_from_can(x_fp, self.p)
+    self.assertEqual(str(CP.carFingerprint), "TESLA_AP1_MODELX")
+    self.assertEqual(CP.fingerprintSource, SOURCE_CAN)
+
+    s_fp = {0: dict(TINKLA_AP1_MODELS_VARIANTS[0]), 2: dict(MOBILEYE)}
+    CP = _get_car_from_can(s_fp, self.p)
+    self.assertEqual(str(CP.carFingerprint), "TESLA_AP1_MODELS")
+    self.assertEqual(CP.fingerprintSource, SOURCE_CAN)
+
+  def test_ambiguous_can_is_mock(self):
+    from opendbc.car.tesla_ap1.tests.tinkla_modelx_data import TINKLA_AP1_MODELX
+    fp = {0: dict(TINKLA_AP1_MODELX), 2: dict(MOBILEYE)}
+    fp[0][0x201] = 5  # SDM1, S-only
+    CP = _get_car_from_can(fp, self.p)
+    self.assertEqual(str(CP.carFingerprint), "MOCK")
+    self.assertNotEqual(CP.fingerprintSource, SOURCE_FIXED)
+
+  def test_saved_model_x_when_detection_is_none(self):
+    self.assertTrue(cs.apply_choice(self.p, cs.AP1_X, offroad=True))
+    CP = _get_car_from_can({0: {}, 2: {}}, self.p)
+    self.assertEqual(str(CP.carFingerprint), "TESLA_AP1_MODELX")
+    self.assertEqual(CP.fingerprintSource, SOURCE_FIXED)
+
+  def test_detected_model_s_not_overridden_by_saved_model_x(self):
+    from opendbc.car.tesla_ap1.tests.tinkla_modelx_data import TINKLA_AP1_MODELS_VARIANTS
+    self.assertTrue(cs.apply_choice(self.p, cs.AP1_X, offroad=True))
+    s_fp = {0: dict(TINKLA_AP1_MODELS_VARIANTS[0]), 2: dict(MOBILEYE)}
+    CP = _get_car_from_can(s_fp, self.p)
+    self.assertEqual(str(CP.carFingerprint), "TESLA_AP1_MODELS")
+    self.assertEqual(CP.fingerprintSource, SOURCE_CAN)
 
 
 if __name__ == "__main__":
