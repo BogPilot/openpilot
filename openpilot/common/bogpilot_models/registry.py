@@ -231,9 +231,28 @@ def validate_entry(entry: Entry, cache: dict | None = None) -> Validation:
   by the release gates), so it is not re-hashed here.
   """
   try:
-    return _validate(entry, cache)
+    sig = _signature(entry) if cache is not None else None
+    if sig is not None and sig in cache:
+      return cache[sig]  # unchanged manifest + file sizes/mtimes: no re-hash and no re-parse
+    v = _validate(entry, cache)
+    if sig is not None:
+      cache[sig] = v
+    return v
   except Exception as e:  # defensive: validation must report, not crash modeld or the UI
     return Validation(False, [f"validation error: {type(e).__name__}"])
+
+
+def _signature(entry: Entry):
+  if entry.builtin or entry.manifest is None or entry.directory is None:
+    return None
+  parts = []
+  try:
+    for name in (MANIFEST_NAME, *(f.name for f in entry.manifest.files)):
+      st = os.lstat(entry.directory / name)
+      parts.append((name, st.st_size, st.st_mtime_ns, st.st_ino))
+  except OSError:
+    return None  # missing/unreadable: validate from scratch so the real reason is reported
+  return ("validation", str(entry.directory), entry.manifest.sha256, tuple(parts))
 
 
 def _validate(entry: Entry, cache: dict | None) -> Validation:
