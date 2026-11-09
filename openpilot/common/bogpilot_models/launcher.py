@@ -22,7 +22,7 @@ def _log(level: str, msg: str) -> None:
     from openpilot.common.swaglog import cloudlog
     getattr(cloudlog, level)(msg)
   except Exception:
-    print(f"bogpilot_modeld {level}: {msg}")
+    print(f"bogpilot_models.launcher {level}: {msg}")
 
 
 class _OverlayDir:

@@ -44,7 +44,7 @@ class TestIntegrationContracts(unittest.TestCase):
 
   def test_forbidden_features_absent_from_runtime(self):
     pages = (ROOT / "openpilot/selfdrive/ui/layouts/settings/bogpilot.py").read_text()
-    for forbidden in ("GoatScream", "AlwaysOnLateral", "ModelSelector", "model_selector", "TheBog"):
+    for forbidden in ("GoatScream", "AlwaysOnLateral", "TheBog"):
       self.assertNotIn(forbidden, pages)
     self.assertFalse((ROOT / "opendbc_repo/opendbc/car/tesla_ap1/aol_gate.py").exists())
 
@@ -54,7 +54,7 @@ class TestIntegrationContracts(unittest.TestCase):
     self.assertIn("bogpilot_model_selector", pages)
     self.assertNotIn("phase3_model", pages)  # the retired catalog/downloader UI stays unregistered
     pc = (ROOT / "openpilot/system/manager/process_config.py").read_text()
-    self.assertIn("openpilot.selfdrive.modeld.bogpilot_modeld", pc)
+    self.assertIn("openpilot.common.bogpilot_models.launcher", pc)
     self.assertNotIn("phase3_modeld_launcher", pc)
 
   def test_stop_accel_rows_registered_t1003u(self):
