@@ -42,6 +42,13 @@ def test_ap1_model_s_does_not_select_preap_or_ap1_x():
     assert classify_tesla_platform(candidate) not in (TeslaPlatform.preap, TeslaPlatform.ap1_x)
 
 
+def test_model_x_name_maps_to_ap1_x_fingerprint_dict_does_not():
+  assert classify_tesla_platform(CAR.TESLA_AP1_MODELX) == TeslaPlatform.ap1_x
+  assert classify_tesla_platform("TESLA_AP1_MODELX") == TeslaPlatform.ap1_x
+  assert long_control_allowed(TeslaPlatform.ap1_x) is False
+  assert classify_tesla_platform({0: {0x45: 8, 0x2B9: 8, 0x488: 4}}) == TeslaPlatform.ap1_s
+
+
 def test_preap_and_ap1_x_only_from_explicit_fixture():
   assert classify_tesla_platform(EarlyPlatformFixture(TeslaPlatform.preap)) == TeslaPlatform.preap
   assert classify_tesla_platform(EarlyPlatformFixture(TeslaPlatform.ap1_x)) == TeslaPlatform.ap1_x

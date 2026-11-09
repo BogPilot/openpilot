@@ -20,9 +20,12 @@ def flags_for_candidate(candidate, fingerprint=None, standstill=False):
     flags |= FLAG_TESLA_AP1 | FLAG_TESLA_LONG_CONTROL
     if standstill:
       flags |= FLAG_TESLA_AP1_STANDSTILL
+  elif candidate == CAR.TESLA_AP1_MODELX:
+    # Model X is lateral only: AP1 chassis safety, no long control, no standstill.
+    flags |= FLAG_TESLA_AP1
   return (flags,)
 
 
 def dashcam_only_for_candidate(candidate):
-  """False only for CAR.TESLA_AP1_MODELS."""
-  return candidate != CAR.TESLA_AP1_MODELS
+  """False for Model S and Model X AP1. True for every other candidate."""
+  return candidate not in (CAR.TESLA_AP1_MODELS, CAR.TESLA_AP1_MODELX)

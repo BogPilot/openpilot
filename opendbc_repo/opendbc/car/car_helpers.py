@@ -153,9 +153,10 @@ def get_car(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_multip
   candidate, fingerprints, vin, car_fw, source, exact_match = fingerprint(can_recv, can_send, set_obd_multiplexing, cached_params)
 
   if candidate is None:
-    from opendbc.car.tesla_ap1.values import CAR as AP1, match_ap1_chassis
-    if match_ap1_chassis(fingerprints):
-      candidate = AP1.TESLA_AP1_MODELS
+    from opendbc.car.tesla_ap1.modelx_fingerprint import detect_ap1_candidate
+    detected_ap1 = detect_ap1_candidate(fingerprints)
+    if detected_ap1 is not None:
+      candidate = detected_ap1
       source = CarParams.FingerprintSource.can
 
   # BogPilot Car Selection (568fea rule): saved CarModel is used when detection failed

@@ -1,20 +1,15 @@
 """BogPilot > Vehicle Settings > Car Selection.
 
 Manual selection writes CarModel / ForceFingerprint so a bench or bring-up can
-pick Tesla AP1 Model S when automatic detection returned None (unmatched CAN /
-no signature). Auto (default) clears the override.
+pick Tesla AP1 Model S or Tesla AP1 Model X when automatic detection returned
+None (unmatched CAN / no signature). Auto (default) clears the override.
 
 SAFETY: the saved model is applied ONLY when detection returned None. A
 positively detected different car always wins — ForceFingerprint must never
-replace a recognised non-AP1 (or any other) identity. See REVIEW.md blocker.
+replace a recognised identity. Do not invent FW_VERSIONS rows.
 
-Aligned with CAR_DETECTION.md (t993): only TESLA_AP1_MODELS is a real Platforms
-entry. AP1 Model X (ap1_x) stays fixture-only — listed but not writable. Do not
-invent FW_VERSIONS rows.
-
-Consumer wiring (get_car fingerprint_override + card.py) is NOT applied here;
-see PROPOSED_shared.patch for the integrator. This is a NEW safety-relevant
-consumer on feae (env FINGERPRINT was the only fixed path).
+Model X is lateral only (stock cruise) and unverified on a car. A saved Model X
+is used only when automatic detection returns no car.
 """
 from __future__ import annotations
 
@@ -28,17 +23,21 @@ AP1_S_PLATFORM = "TESLA_AP1_MODELS"
 AP1_S_MAKE = "Tesla"
 AP1_S_DOC = "Tesla Model S (Autopilot 1) 2014-16"
 
-# UI labels: Auto first (default). Model X is shown but not selectable for force.
+AP1_X_PLATFORM = "TESLA_AP1_MODELX"
+AP1_X_MAKE = "Tesla"
+AP1_X_DOC = "Tesla Model X (Autopilot 1) 2016"
+
+# UI labels: Auto first (default), then Model S, then Model X.
 CHOICE_ORDER = (AUTO, AP1_S, AP1_X)
 CHOICE_LABELS = {
   AUTO: "Auto",
   AP1_S: "Tesla AP1 Model S",
-  AP1_X: "Tesla AP1 Model X (unavailable)",
+  AP1_X: "Tesla AP1 Model X",
 }
 CHOICE_DESCRIPTIONS = {
   AUTO: "Automatic detection (chassis + Mobileye when present). Default. Clears any saved CarModel / ForceFingerprint. Takes effect the next time the car starts.",
   AP1_S: "Use Tesla AP1 Model S (TESLA_AP1_MODELS) via CarModel + ForceFingerprint only when automatic detection returns no car. A positively detected different car always wins. Takes effect the next time the car starts.",
-  AP1_X: "AP1 Model X is not a registered platform in this tip (fixture-only). Cannot be forced without inventing a Platforms / FW entry — not offered.",
+  AP1_X: "Tesla AP1 Model X (TESLA_AP1_MODELX) is lateral only, with stock cruise. Unverified on a car. Applies only when automatic detection returns no car. Takes effect the next time the car starts.",
 }
 
 
@@ -82,29 +81,33 @@ def current_choice(params) -> str:
     return AUTO
   if saved == AP1_S_PLATFORM:
     return AP1_S
-  # Unknown / other saved model: surface as Auto for this AP1-only picker, but
+  if saved == AP1_X_PLATFORM:
+    return AP1_X
+  # Unknown / other saved model: surface as Auto for this AP1 picker, but
   # do not clear it here (owner may have set it elsewhere).
   return AUTO
 
 
 def choice_label(params) -> str:
   choice = current_choice(params)
-  if choice == AP1_S and _text(params.get(MODEL_KEY)) == AP1_S_PLATFORM:
+  platforms = {AP1_S: AP1_S_PLATFORM, AP1_X: AP1_X_PLATFORM}
+  platform = platforms.get(choice)
+  if platform is not None and _text(params.get(MODEL_KEY)) == platform:
     force = bool(params.get_bool(FORCE_KEY))
-    base = CHOICE_LABELS[AP1_S]
+    base = CHOICE_LABELS[choice]
     return f"{base} (forced)" if force else f"{base} (fallback)"
   return CHOICE_LABELS[choice]
 
 
 def available_choices():
-  """Writable choices only (Auto + Model S). Model X excluded from apply list."""
-  return (AUTO, AP1_S)
+  """Writable choices: Auto, Model S, and Model X."""
+  return CHOICE_ORDER
 
 
 def apply_choice(params, choice: str, *, offroad: bool) -> bool:
   """Write CarModel/ForceFingerprint for a writable choice. Offroad-only.
 
-  Returns True when Params were updated. Model X and unknown ids refuse.
+  Returns True when Params were updated. Unknown ids refuse.
   """
   if not offroad:
     return False
@@ -119,7 +122,14 @@ def apply_choice(params, choice: str, *, offroad: bool) -> bool:
     params.put(MODEL_NAME_KEY, AP1_S_DOC, block=True)
     params.put_bool(FORCE_KEY, True, block=True)
     return True
-  # AP1_X and anything else: refuse (no Platforms entry / do not invent)
+  if choice == AP1_X:
+    if not valid_platform(AP1_X_PLATFORM):
+      return False
+    params.put(MAKE_KEY, AP1_X_MAKE, block=True)
+    params.put(MODEL_KEY, AP1_X_PLATFORM, block=True)
+    params.put(MODEL_NAME_KEY, AP1_X_DOC, block=True)
+    params.put_bool(FORCE_KEY, True, block=True)
+    return True
   return False
 
 
@@ -141,7 +151,7 @@ def clear_selection(params) -> None:
 
 
 def create_car_selection_layout(params=None):
-  """Lazy UI factory: Auto / Tesla AP1 Model S (+ unavailable Model X note)."""
+  """Lazy UI factory: Auto, Tesla AP1 Model S, and Tesla AP1 Model X."""
   from openpilot.common.params import Params
   from openpilot.selfdrive.ui.ui_state import ui_state
   from openpilot.system.ui.lib.application import gui_app
@@ -159,16 +169,12 @@ def create_car_selection_layout(params=None):
       self._select = button_item(
         lambda: tr("Car Selection"),
         lambda: tr("SELECT"),
-        lambda: tr("Choose Auto (default) or force Tesla AP1 Model S when detection fails. Takes effect the next time the car starts."),
+        lambda: tr("Choose Auto (default), Tesla AP1 Model S, or Tesla AP1 Model X when detection fails. Takes effect the next time the car starts."),
         callback=self._open_picker,
         enabled=ui_state.is_offroad,
       )
       self._current = text_item(lambda: tr("Current selection"), "")
-      self._note = text_item(
-        lambda: tr("AP1 Model X"),
-        lambda: tr(CHOICE_DESCRIPTIONS[AP1_X]),
-      )
-      self.scroller = Scroller([self._select, self._current, self._note], line_separator=True, spacing=0)
+      self.scroller = Scroller([self._select, self._current], line_separator=True, spacing=0)
 
     def _open_picker(self):
       if not ui_state.is_offroad():

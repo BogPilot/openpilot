@@ -1,7 +1,8 @@
-"""Tesla Autopilot 1 (HW1, Mobileye) Model S.
+"""Tesla Autopilot 1 (HW1, Mobileye) Model S and Model X.
 
 Legacy chassis-bus port (BogPilot). Separate brand from opendbc.car.tesla so
 the Model 3/Y port stays untouched. Panda safety: SafetyModel.tesla with the AP1 flag.
+Model X is lateral-only. AP2 is not a platform in this tree.
 """
 from collections import namedtuple
 from dataclasses import dataclass, field
@@ -32,6 +33,12 @@ class CAR(Platforms):
   TESLA_AP1_MODELS = TeslaAp1PlatformConfig(
     [CarDocs("Tesla Model S (Autopilot 1) 2014-16", "Autopilot", support_type=SupportType.COMMUNITY, support_link="#community")],
     CarSpecs(wheelbase=2.959, steerRatio=15.0),
+  )
+  # Tinkla mass is 2560 + 136 kg. CarSpecs in 0.11.2 has no mass field.
+  # centerToFront is 0.5 * wheelbase via the CarSpecs default centerToFrontRatio.
+  TESLA_AP1_MODELX = TeslaAp1PlatformConfig(
+    [CarDocs("Tesla Model X (Autopilot 1) 2016", "Autopilot", support_type=SupportType.COMMUNITY, support_link="#community")],
+    CarSpecs(wheelbase=2.964, steerRatio=15.0),
   )
 
 
@@ -117,6 +124,19 @@ def match_ap1_chassis(fingerprint) -> bool:
   mobileye = {0x399: 8, 0x2B9: 8, 0x488: 4}
   return (all(bus0.get(addr) == length for addr, length in AP1_CHASSIS_SIGNATURE.items()) and
           all(camera.get(addr) == length for addr, length in mobileye.items()))
+
+
+_AP1_FAMILY = frozenset((str(CAR.TESLA_AP1_MODELS), str(CAR.TESLA_AP1_MODELX)))
+
+
+def is_ap1_family(candidate) -> bool:
+  """True for Model S AP1 and Model X AP1. Accepts a CAR member or its name."""
+  if candidate is None or isinstance(candidate, bool):
+    return False
+  try:
+    return str(candidate) in _AP1_FAMILY
+  except Exception:
+    return False
 
 
 DBC = CAR.create_dbc_map()

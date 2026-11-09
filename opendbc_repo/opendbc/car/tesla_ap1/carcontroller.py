@@ -23,7 +23,7 @@ from opendbc.car.tesla_ap1.steer_counter import Ap1SteerCounterSync
 from opendbc.car.tesla_ap1.teslacan import TeslaCAN
 from opendbc.car.tesla_ap1.slc_raise import cruise_set_mph
 from opendbc.car.tesla_ap1.toggles import enable_ic_integration
-from opendbc.car.tesla_ap1.values import DBC, CANBUS, CAR, TeslaAp1SafetyFlags
+from opendbc.car.tesla_ap1.values import DBC, CANBUS, CAR, TeslaAp1SafetyFlags, is_ap1_family
 
 VisualAlert = structs.CarControl.HUDControl.VisualAlert
 AudibleAlert = structs.CarControl.HUDControl.AudibleAlert
@@ -37,7 +37,7 @@ class CarController(CarControllerBase):
     self.packer = CANPacker(dbc_names[Bus.chassis])
     self.pt_packer = CANPacker(DBC[CP.carFingerprint][Bus.pt])
     self.tesla_can = TeslaCAN(self.packer, self.pt_packer)
-    # AP1 only. Tinkla-style cluster frames (cluster.py).
+    # Model S only. Dash cluster substitution is not used on Model X.
     self.cluster = ClusterController() if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
     # modelV2 path for the cluster lanes. opendbc cannot subscribe to messaging,
     # so openpilot's card sets this to a callable returning the latest modelV2
@@ -50,19 +50,15 @@ class CarController(CarControllerBase):
     # AP1 hands pause + resume hold (hso.Ap1DriverYield). Read by the
     # interface for the steerOverride event so the border stays grey.
     self.ap1_yield = Ap1DriverYield()
-    # AP1 engage / lat-resume blend from the measured wheel (engage_ramp.py).
-    self.ap1_steer_ramp = Ap1EngageSteerRamp() if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
-    # AP1 0x488 phase and counter follow the stock DAS (steer_counter.py).
-    self.ap1_steer_sync = Ap1SteerCounterSync() if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
-    # AP1 accel slew (long_smooth.py): drive release at 5 m/s^3, regen ramps in
-    # at 2.0 m/s^3 (faster for deeper requests). Requests at or below -2.0 m/s^2,
-    # FCW and the stopping state pass through on the same step.
+    # Structural AP1 (Model S and Model X): engage blend from the measured wheel.
+    self.ap1_steer_ramp = Ap1EngageSteerRamp() if is_ap1_family(CP.carFingerprint) else None
+    # Structural AP1: 0x488 phase and counter follow the stock DAS (steer_counter.py).
+    self.ap1_steer_sync = Ap1SteerCounterSync() if is_ap1_family(CP.carFingerprint) else None
+    # Model S only. Accel slew is longitudinal tuning and stays off on Model X.
     self.ap1_accel_smoother = Ap1AccelSmoother() if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
-    # AP1 DAS_jerkMin/Max: +/-1.5 in the comfort band, full +/-8 once the request
-    # sent is at or below -0.5 m/s^2, on urgent frames and below 1 m/s (long_smooth.Ap1JerkLimit).
+    # Model S only. Jerk limits are longitudinal tuning and stay off on Model X.
     self.ap1_jerk_limit = Ap1JerkLimit() if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
-    # AP1 standstill experiment: on only when the installed safety param has
-    # TESLA_FLAG_AP1_STANDSTILL (interface sets it from AP1StandstillEngage).
+    # Model S only. Standstill experiment follows the Model S safety param.
     configs = list(getattr(CP, "safetyConfigs", []) or [])
     self.ap1_standstill = (CP.carFingerprint == CAR.TESLA_AP1_MODELS and len(configs) > 0 and
                            bool(int(getattr(configs[0], "safetyParam", 0)) & TeslaAp1SafetyFlags.STANDSTILL))
@@ -70,9 +66,10 @@ class CarController(CarControllerBase):
   def update(self, CC, CS, now_nanos):
     actuators = CC.actuators
 
-    # Model 3/Y still cancels cruise when HANDS_ON and hands_on_level >= 3.
-    # AP1 does not. Tinkla HSO pauses lateral and leaves long engaged.
-    ap1 = self.CP.carFingerprint == CAR.TESLA_AP1_MODELS
+    # Structural AP1 (Model S and Model X): hands pause, no hands-on cancel,
+    # chassis DAS only, and the lateral session. Longitudinal messages still
+    # follow openpilotLongitudinalControl, which stays false on Model X.
+    ap1 = is_ap1_family(self.CP.carFingerprint)
     hands_on_fault = (not ap1) and CS.steer_warning == "EAC_ERROR_HANDS_ON" and CS.hands_on_level >= 3
     # AP1 longitudinal is chassis 0x2b9. Do not also plan powertrain 0x2bf.
     chassis_das_only = ap1

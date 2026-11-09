@@ -18,12 +18,16 @@ def decode(addr, dat):
   return addr, {}
 
 
-def make_controller(long=True, raw=True):
+def make_controller(long=True, raw=True, fingerprint=None, safety_param=0):
   from opendbc.car.tesla_ap1.carcontroller import CarController
   from opendbc.car.tesla_ap1.values import DBC, CAR
   assert raw
-  CP = SimpleNamespace(carFingerprint=CAR.TESLA_AP1_MODELS, openpilotLongitudinalControl=long, safetyConfigs=[])
-  controller = CarController(DBC[CAR.TESLA_AP1_MODELS], CP)
+  if fingerprint is None:
+    fingerprint = CAR.TESLA_AP1_MODELS
+  # Default safetyConfigs stays empty so existing Model S callers are unchanged.
+  configs = [SimpleNamespace(safetyParam=safety_param)] if safety_param else []
+  CP = SimpleNamespace(carFingerprint=fingerprint, openpilotLongitudinalControl=long, safetyConfigs=configs)
+  controller = CarController(DBC[fingerprint], CP)
   update = controller.update
   controller.update = lambda CC, CS, now: update(CC.as_reader() if hasattr(CC, "as_reader") else CC, CS, now)
   return controller

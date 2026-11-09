@@ -37,34 +37,41 @@ lowercase `bogpilot-c3x-donotuse`.
 
 - Device: **comma 3X**
 - OS: **AGNOS 19.9** (see `launch_env.sh`: `AGNOS_VERSION="19.9"`)
-- Supported research target for this tip: Tesla **AP1 Model S** (`TESLA_AP1_MODELS`)
+- Supported research target for this tip: Tesla **AP1 Model S** (`TESLA_AP1_MODELS`), unchanged
+- Tesla **AP1 Model X** (`TESLA_AP1_MODELX`): manual selection, and strict marker auto-detect. Lateral only, stock ACC, unverified on a car
+- Tesla **Model X AP2** is blocked: no second-panda / powertrain safety path, and Tinkla's AP2 Model X fingerprint is an identical copy of the AP1 Model X fingerprint
+- **PreAP** is still unsupported
 - Signed TRES/H7 panda firmware in the tip is left byte-identical; do not flash
   alternate panda firmware from this guide
 
 ## Car detection (AP1)
 
 AP1 has **empty `FW_VERSIONS`**. There is no ECU firmware table row that can
-select the car by itself. Detection therefore works like this:
+select Model S or Model X by itself. Detection therefore works like this:
 
-1. **Preferred — live CAN signature** via `match_ap1_chassis` (wired in
+1. **Preferred — live CAN** via `detect_ap1_candidate` (wired in
    `opendbc.car.car_helpers.get_car` when no other candidate matches):
-   - **bus0 / chassis** must present all of: `0x45` (8), `0x118` (6), `0x370` (8), `0x20A` (8)
-   - **bus2 / autopilot_chassis (stock Mobileye)** must present all of: `0x399` (8), `0x2B9` (8), `0x488` (4)
-   - Chassis alone is not enough; Mobileye bus-2 must match too
+   - **Model S AP1** when `match_ap1_chassis` is true and there is no Model X marker. This is the same rule as before:
+     - **bus0 / chassis** must present all of: `0x45` (8), `0x118` (6), `0x370` (8), `0x20A` (8)
+     - **bus2 / autopilot_chassis (stock Mobileye)** must present all of: `0x399` (8), `0x2B9` (8), `0x488` (4)
+     - Chassis alone is not enough; Mobileye bus-2 must match too
+   - **Model X AP1** only when that same chassis + Mobileye signature matches, at least one Model X-only marker is present, no Model S-only message is present, and every standard bus-0 frame matches Tinkla's Model X capture. An X-looking capture that is not a clean Model X (including an S/X conflict) is left undetected. Model S detection is unchanged when no X marker is present.
 2. **Developer fixed fingerprint** — `get_car` honours the process environment
-   variable `FINGERPRINT=TESLA_AP1_MODELS` (standard openpilot fixed-fingerprint
+   variable `FINGERPRINT=TESLA_AP1_MODELS` or `FINGERPRINT=TESLA_AP1_MODELX` (standard openpilot fixed-fingerprint
    path). Use only when you intentionally bypass CAN selection (bench harness
    debugging, etc.)
 3. **Car Selection (saved CarModel / ForceFingerprint)** — Vehicle Settings has a
-   Car Selection page that saves `CarMake` / `CarModel` / `ForceFingerprint`. `get_car`
+   Car Selection page that saves `CarMake` / `CarModel` / `ForceFingerprint` for Auto, Tesla AP1 Model S, or Tesla AP1 Model X. `get_car`
    uses the saved model **only as a fallback when no car was positively detected**
    (CAN signature or env `FINGERPRINT` win). A saved choice can never override a
    detected different car. With no car attached and no saved choice, the result is
-   still "no car / MOCK"
+   still "no car / MOCK". Model X AP1 from this menu is lateral only, stock ACC, and unverified on a car.
+
+Model X AP2 is not a platform. AP2 needs the powertrain bus and a second panda, and the signed AP1 safety mode does not implement that path. Tinkla's AP2 Model X fingerprint dict is an identical copy of the AP1 Model X dict, so it cannot be told apart on CAN. PreAP remains unsupported.
 
 If the device is on a bench **without** a car / harness, or CAN is incomplete,
 **"no car detected" / MOCK is expected** for this codepath. Vehicle Controls
-rows stay hidden until the fingerprint is `TESLA_AP1_MODELS`.
+rows stay hidden until the fingerprint is `TESLA_AP1_MODELS`. Model X does not show those rows.
 
 ## Menu map
 
@@ -90,7 +97,7 @@ UI -> store -> consumer test.
   - Steering Tuning: Advanced Lateral Tuning parent, Actuator Delay, Steer Ratio, Pause Steering Below, Turn Signal Only (all default OFF/unset = stock steering; friction / lateral-accel rows appear only on torque-controlled cars). Lane Changes (Driving Controls > Lane Changes: Lane Changes, Automatic Lane Changes, delay, minimum speed, minimum lane width, one change per signal) is registered; Automatic (nudgeless) and One-per-signal stay dormant until you change a row offroad (saved legacy values never activate on their own). Blind-spot SNA, stale (>1.5 s without a good 0x399 frame) or invalid data counts as OCCUPIED and blocks lane changes. Human-Like Lane Changes and Turn Desires have no menu row in this build and stay dormant. Speed Limit Controller is **not** in this build (held, see below)
 - **Vehicle Settings**
   - Car Selection (fallback only, see above)
-  - Vehicle Controls: three AP1 toggles, only when fingerprint is `TESLA_AP1_MODELS`: Disable openpilot Longitudinal; Dash Cluster Integration; Earlier, Gentler Regen Stops
+  - Vehicle Controls: three AP1 toggles, only when fingerprint is `TESLA_AP1_MODELS` (Model X does not show these rows): Disable openpilot Longitudinal; Dash Cluster Integration; Earlier, Gentler Regen Stops
   - Stalk Controls (replaces "Wheel Controls"): twist follow, experimental pull/push with a hold time of 1.10-5.00 s, **default 1.23 s**
   - Vehicle Info: read-only last-detected / UNVERIFIED CarParams text
 - **System Settings**
