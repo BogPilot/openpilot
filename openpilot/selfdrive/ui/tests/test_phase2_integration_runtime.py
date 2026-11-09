@@ -7,18 +7,19 @@ from openpilot.selfdrive.ui.layouts.settings.bogpilot import working_pages
 
 def test_real_schema_vehicle_info_is_explicitly_unverified():
   cp = car.CarParams.new_message()
-  assert "Unavailable" in vehicle_info(cp)["Vehicle Info"]
+  assert vehicle_info(cp)["Vehicle Info"] in ("not detected", "Unavailable - non-vehicle / mock CarParams")  # t994 vehicle lane labels
   cp.carFingerprint = "TESLA_AP1_MODELS"
   cp.brand = "tesla_ap1"
   cp.dashcamOnly = False
   assert supported(cp)
-  assert "current vehicle not verified" in vehicle_info(cp)["Vehicle Info"]
+  assert "UNVERIFIED" in vehicle_info(cp)["Vehicle Info"]  # t994 vehicle lane provenance label
 
 
 def test_actual_factories_and_honest_restart_semantics():
   pages = working_pages()
   assert {page.key for page in pages["alerts_sounds"]} == {"volume", "alerts"}
-  assert {page.key for page in pages["vehicle"]} == {"vehicle_controls", "vehicle_info"}
+  assert {page.key for page in pages["vehicle"]} == {"car_selection", "vehicle_controls", "stalk_controls", "vehicle_info"}
+  assert {page.key for page in pages["system"]} == {"system_data", "system_device", "system_utilities"}
   assert all(callable(page.factory) and page.controls for group in pages.values() for page in group)
   assert "next sound service start" in (Path(__file__).parents[1] / "bogpilot/phase2_sounds.py").read_text()
 
@@ -72,6 +73,6 @@ def test_native_volume_click_store_actual_soundd_consumer(tmp_path, monkeypatch)
   widget.controller.action_item.toggle._callback(True)
   assert (tmp_path / "AlertVolumeControl").read_text() == "1"
   volume.set_volume("PromptVolume", 50)
-  widget.volumes["PromptVolume"].action_item.callback(2)
+  widget.volumes["PromptVolume"].action_item.callback(3)  # buttons: [Mute, -, label, +] (t994 soundsUI)
   assert volume.read_volume("PromptVolume") == 51
   assert volume.effective_gain("PromptVolume", .8) == .51

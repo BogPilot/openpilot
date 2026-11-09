@@ -270,6 +270,15 @@ class UIState:
         self.usb_unknown = False
 
 
+
+from openpilot.common.bogpilot_store import store as bp_device_store
+from openpilot.selfdrive.ui.bogpilot.phase3_device_controls_runtime import (
+  screen_timeout as bp_screen_timeout,
+  screen_brightness as bp_screen_brightness,
+  screen_awake as bp_screen_awake,
+  screen_enabled as bp_screen_enabled,
+)
+
 class Device:
   def __init__(self):
     self._ignition = False
@@ -301,7 +310,8 @@ class Device:
       return self._override_interactive_timeout
 
     ignition_timeout = 10 if gui_app.big_ui() else 5
-    return ignition_timeout if ui_state.ignition else 30
+    stock = ignition_timeout if ui_state.ignition else 30
+    return bp_screen_timeout(bp_device_store(), ui_state.ignition, stock)
 
   def _reset_interactive_timeout(self) -> None:
     self._interaction_time = time.monotonic() + self.interactive_timeout
@@ -350,6 +360,7 @@ class Device:
 
       clipped_brightness = float(np.interp(clipped_brightness, [0, 1], [30, 100]))
 
+    clipped_brightness = bp_screen_brightness(bp_device_store(), ui_state.started, clipped_brightness, self._bp_attention())
     brightness = round(self._brightness_filter.update(clipped_brightness))
     if not self._awake:
       brightness = 0
@@ -359,12 +370,18 @@ class Device:
       self._brightness_event.set()
       self._last_brightness = brightness
 
+  def _bp_attention(self):
+    # Review MAJOR 2: with the Screen master OFF this must be a no-op so stock wake behaviour is unchanged.
+    if not bp_screen_enabled(bp_device_store()):
+      return False
+    return bool(ui_state.sm["selfdriveState"].alertType) or ui_state.engaged != getattr(self, "_bp_last_engaged", ui_state.engaged)
+
   def _update_wakefulness(self):
     # Handle interactive timeout
     ignition_just_turned_off = not ui_state.ignition and self._ignition
     self._ignition = ui_state.ignition
 
-    if ignition_just_turned_off or any(ev.left_down for ev in gui_app.mouse_events):
+    if ignition_just_turned_off or self._bp_attention() or any(ev.left_down for ev in gui_app.mouse_events):
       self._reset_interactive_timeout()
 
     interaction_timeout = time.monotonic() > self._interaction_time
@@ -373,7 +390,8 @@ class Device:
         callback()
     self._prev_timed_out = interaction_timeout
 
-    self._set_awake(ui_state.ignition or not interaction_timeout or PC)
+    self._bp_last_engaged = ui_state.engaged
+    self._set_awake(bp_screen_awake(bp_device_store(), ui_state.ignition, interaction_timeout, PC, self._bp_attention()))
 
   def _set_awake(self, on: bool):
     if on != self._awake:

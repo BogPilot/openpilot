@@ -286,6 +286,233 @@ class TestPhase2Alerts(unittest.TestCase):
       self.assertIn(stock.alert_type, am.alerts)
       self.assertNotIn(f"bogpilot{key}/permanent", am.alerts)
 
+  def _load_alert_and_sound_namespaces(self):
+    from openpilot.cereal import log
+    from opendbc.car.structs import car
+    root = MODULE_PATH.parents[3]
+    ns = dict(IntEnum=IntEnum, DT_CTRL=.01, log=log, car=car, dataclass=dataclass, defaultdict=defaultdict)
+    events = ast.parse((root / "selfdrive/selfdrived/events.py").read_text())
+    wanted = {"Priority", "ET", "Alert"}
+    nodes = [n for n in events.body if isinstance(n, ast.ClassDef) and n.name in wanted]
+    for name, val in dict(AlertStatus=log.SelfdriveState.AlertStatus, AlertSize=log.SelfdriveState.AlertSize,
+                          VisualAlert=car.CarControl.HUDControl.VisualAlert, AudibleAlert=log.SelfdriveState.AudibleAlert).items():
+      ns[name] = val
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), "current_events_classes", "exec"), ns)
+    ns["EmptyAlert"] = ns["Alert"]("", "", ns["AlertStatus"].normal, ns["AlertSize"].none,
+                                   ns["Priority"].LOWEST, ns["VisualAlert"].none, ns["AudibleAlert"].none, 0.)
+    amtree = ast.parse((root / "selfdrive/selfdrived/alertmanager.py").read_text())
+    nodes = [n for n in amtree.body if isinstance(n, ast.ClassDef) and n.name in {"AlertEntry", "AlertManager"}]
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), "current_alertmanager_classes", "exec"), ns)
+    soundtree = ast.parse((root / "selfdrive/ui/soundd.py").read_text())
+    sndns = dict(AudibleAlert=log.SelfdriveState.AudibleAlert, MAX_VOLUME=1., CRITICAL_MAX=-1)
+    table = [n for n in soundtree.body if isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name) and n.target.id == "sound_list"]
+    methods = [n for n in soundtree.body if isinstance(n, ast.ClassDef) and n.name == "Soundd"][0].body
+    funcs = [n for n in methods if isinstance(n, ast.FunctionDef) and n.name in {"get_audible_alert", "update_alert"}]
+    # Also capture _VOLUME_ALERT_KEYS binding if present as Assign/AnnAssign after AudibleAlert bind.
+    volume_assigns = []
+    for n in soundtree.body:
+      if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "_VOLUME_ALERT_KEYS" for t in n.targets):
+        volume_assigns.append(n)
+      if isinstance(n, ast.FunctionDef) and n.name == "_bogpilot_bind_volume_keys":
+        volume_assigns.append(n)
+    exec(compile(ast.Module(body=table + funcs + volume_assigns, type_ignores=[]), "current_soundd_dispatch", "exec"), sndns)
+    return ns, sndns, log, car
+
+  def _green_runtime(self, store=None):
+    from openpilot.cereal import log
+    from opendbc.car.structs import car
+    model = log.ModelDataV2.new_message()
+    model.position.x = [0., 20.]
+    model.velocity.x = [0., 0.]
+    model.velocity.t = [0., 10.]
+    radar = log.RadarState.new_message()
+    radar.leadOne.present = False
+    cs = car.CarState.new_message(standstill=True, gearShifter="drive", canValid=True, vEgo=0.)
+    class SM(dict):
+      def all_checks(self, services):
+        return True
+    sm = SM(modelV2=model, radarState=radar)
+    sm.updated = {"modelV2": True}
+    runtime = m.Phase2AlertRuntime(store if store is not None else FakeStore())
+    for i in range(30):
+      sm.recv_time = {"modelV2": i * .05, "radarState": i * .05}
+      self.assertEqual(runtime.update(cs, sm, i * .05), ())
+    model.position.x = [0., 100.]
+    model.velocity.x = [5., 5.]
+    return runtime, cs, sm, model
+
+  def test_goat_scream_and_dormant_alerts_omitted(self):
+    self.assertEqual(set(m.ACTIVE_ALERT_KEYS), {"GreenLightAlert", "LeadDepartingAlert"})
+    for key in ("GoatScream", "LoudBlindspotAlert", "SpeedLimitChangedAlert", "CustomAlerts"):
+      self.assertNotIn(key, m.ACTIVE_ALERT_KEYS)
+      self.assertNotIn(key, {row[0] for row in m.ACTIVE_ALERT_ROWS})
+    self.assertIn("GoatScream", m.OMITTED_ALERT_KEYS)
+    self.assertEqual(m.AP1_NEVER_WRITE_KEYS, m.ACTIVE_ALERT_KEYS)
+    self.assertEqual(m.ALERT_SOUND_FILE, "warning.wav")
+    self.assertEqual(m.ALERT_VOLUME_PARAM, "PromptVolume")
+
+  def test_dispatch_optional_producer_to_sound_selection(self):
+    """Native producer -> dispatch_optional_alerts -> AlertManager -> soundd prompt/warning.wav."""
+    ns, sndns, log, car = self._load_alert_and_sound_namespaces()
+    api = SimpleNamespace(**ns)
+    runtime, cs, sm, model = self._green_runtime()
+    am = ns["AlertManager"]()
+    # Confirm release across three frames via the real dispatch helper.
+    fired = ()
+    for t in (1.5, 1.55, 1.6):
+      sm.recv_time = {"modelV2": t, "radarState": t}
+      self.assertTrue(m.dispatch_optional_alerts(runtime, am, int(t * 100), cs, sm, t, event_api=api))
+      am.process_alerts(int(t * 100), set())
+      if am.current_alert.alert_text_1 == "Light turned green":
+        fired = ("GreenLightAlert",)
+    self.assertEqual(fired, ("GreenLightAlert",))
+    self.assertEqual(am.current_alert.audible_alert, log.SelfdriveState.AudibleAlert.prompt)
+    self.assertEqual(am.current_alert.alert_type, "bogpilotGreenLightAlert/permanent")
+    # soundd selection: prompt -> warning.wav once; volume param PromptVolume.
+    sound = SimpleNamespace(current_alert=log.SelfdriveState.AudibleAlert.none,
+                            current_sound=log.SelfdriveState.AudibleAlert.none, current_sound_frame=0,
+                            loaded_sounds={}, pending_stop=False)
+    sound.update_alert = MethodType(sndns["update_alert"], sound)
+    ss = log.SelfdriveState.new_message()
+    ss.alertSound = am.current_alert.audible_alert
+    class SoundSM(dict):
+      updated = {"selfdriveState": True}
+    sndns["get_audible_alert"](sound, SoundSM(selfdriveState=ss))
+    self.assertEqual(sound.current_alert, log.SelfdriveState.AudibleAlert.prompt)
+    self.assertEqual(sndns["sound_list"][sound.current_sound][:2], (m.ALERT_SOUND_FILE, 1))
+    sound_src = (MODULE_PATH.parents[3] / "selfdrive/ui/soundd.py").read_text()
+    self.assertIn('AudibleAlert.prompt: "PromptVolume"', sound_src)
+    self.assertEqual(m.ALERT_VOLUME_PARAM, "PromptVolume")
+
+  def test_dispatch_optional_respects_saved_off_and_fail_closed(self):
+    ns, sndns, log, car = self._load_alert_and_sound_namespaces()
+    api = SimpleNamespace(**ns)
+    # Saved OFF: producer path must not emit even when model releases.
+    runtime, cs, sm, model = self._green_runtime(FakeStore({"GreenLightAlert": False, "LeadDepartingAlert": True}))
+    am = ns["AlertManager"]()
+    for t in (1.5, 1.55, 1.6):
+      sm.recv_time = {"modelV2": t, "radarState": t}
+      self.assertTrue(m.dispatch_optional_alerts(runtime, am, int(t * 100), cs, sm, t, event_api=api))
+      am.process_alerts(int(t * 100), set())
+    self.assertNotEqual(getattr(am.current_alert, "alert_text_1", ""), "Light turned green")
+    self.assertNotIn("bogpilotGreenLightAlert/permanent", am.alerts)
+
+    # Fail-closed: a broken runtime.update must not touch stock entries and returns False.
+    class Boom:
+      store = FakeStore()
+      def update(self, *a, **k):
+        raise RuntimeError("boom")
+    am = ns["AlertManager"]()
+    stock = ns["Alert"]("Pay attention", "", ns["AlertStatus"].normal, ns["AlertSize"].small,
+                        ns["Priority"].LOW, ns["VisualAlert"].none, ns["AudibleAlert"].preAlert, 3.)
+    stock.alert_type = "driverDistracted1/permanent"
+    stock.event_type = "permanent"
+    am.add_many(0, [stock])
+    am.process_alerts(0, set())
+    self.assertFalse(m.dispatch_optional_alerts(Boom(), am, 1, cs, sm, 2.0))
+    self.assertIn("driverDistracted1/permanent", am.alerts)
+    self.assertIs(am.current_alert, stock)
+    for key in m.ACTIVE_ALERT_KEYS:
+      self.assertNotIn(f"bogpilot{key}/permanent", am.alerts)
+
+  def test_lead_departed_dispatch_to_prompt_sound(self):
+    ns, sndns, log, car = self._load_alert_and_sound_namespaces()
+    model = log.ModelDataV2.new_message()
+    model.position.x = [0., 100.]
+    model.velocity.x = [0., 0.]
+    model.velocity.t = [0., 10.]
+    radar = log.RadarState.new_message()
+    radar.leadOne.present = True
+    radar.leadOne.dRel = 10.
+    radar.leadOne.vRel = 0.
+    radar.leadOne.vLead = 0.
+    radar.leadOne.radarTrackId = 3
+    cs = car.CarState.new_message(standstill=False, gearShifter="drive", canValid=True, vEgo=5.)
+    class SM(dict):
+      def all_checks(self, services):
+        return True
+    sm = SM(modelV2=model, radarState=radar)
+    sm.updated = {"modelV2": True}
+    runtime = m.Phase2AlertRuntime(FakeStore())
+    am = ns["AlertManager"]()
+    api = SimpleNamespace(**ns)
+    for i in range(30):
+      sm.recv_time = {"modelV2": i * .05, "radarState": i * .05}
+      self.assertTrue(m.dispatch_optional_alerts(runtime, am, i, cs, sm, i * .05, event_api=api))
+    # Stop with tracked lead, then depart.
+    cs = car.CarState.new_message(standstill=True, gearShifter="drive", canValid=True, vEgo=0.)
+    sm.recv_time = {"modelV2": 1.5, "radarState": 1.5}
+    self.assertTrue(m.dispatch_optional_alerts(runtime, am, 150, cs, sm, 1.5, event_api=api))
+    radar.leadOne.dRel = 10.8
+    radar.leadOne.vLead = 2.
+    sm.recv_time = {"modelV2": 1.55, "radarState": 1.55}
+    self.assertTrue(m.dispatch_optional_alerts(runtime, am, 155, cs, sm, 1.55, event_api=api))
+    radar.leadOne.dRel = 11.2
+    sm.recv_time = {"modelV2": 1.6, "radarState": 1.6}
+    self.assertTrue(m.dispatch_optional_alerts(runtime, am, 160, cs, sm, 1.6, event_api=api))
+    am.process_alerts(160, set())
+    self.assertEqual(am.current_alert.alert_text_1, "Lead departed")
+    self.assertEqual(am.current_alert.audible_alert, log.SelfdriveState.AudibleAlert.prompt)
+    sound = SimpleNamespace(current_alert=log.SelfdriveState.AudibleAlert.none,
+                            current_sound=log.SelfdriveState.AudibleAlert.none, current_sound_frame=0,
+                            loaded_sounds={}, pending_stop=False)
+    sound.update_alert = MethodType(sndns["update_alert"], sound)
+    ss = log.SelfdriveState.new_message()
+    ss.alertSound = am.current_alert.audible_alert
+    class SoundSM(dict):
+      updated = {"selfdriveState": True}
+    sndns["get_audible_alert"](sound, SoundSM(selfdriveState=ss))
+    self.assertEqual(sndns["sound_list"][sound.current_sound][:2], (m.ALERT_SOUND_FILE, 1))
+
+  def test_ap1_profile_must_not_clobber_saved_off(self):
+    """Simulate AP1 apply rules: saved OFF must not be rewritten even if profile lists ON.
+
+    feae already omits GreenLight/LeadDeparting from AP1_PARAM_PROFILE; this locks the
+    lane contract that INT's shared patch must keep AP1_NEVER_WRITE_KEYS unwritable.
+    """
+    table = {k: "1" for k in m.ACTIVE_ALERT_KEYS}  # shipping fresh-ON defaults
+    table["CustomAlerts"] = "0"
+    # Hostile profile that would historically clobber OFF when table default was 0.
+    hostile = {k: "1" for k in m.ACTIVE_ALERT_KEYS}
+    hostile["CustomAlerts"] = "1"
+    saved = {k: "0" for k in m.ACTIVE_ALERT_KEYS}  # user saved OFF
+
+    def values_equal(a, b):
+      return str(a).strip() == str(b).strip()
+
+    written = []
+    for key, value in hostile.items():
+      if key in m.AP1_NEVER_WRITE_KEYS:
+        continue  # proposed NEVER_PROFILE_KEYS / AP1_NEVER_WRITE contract
+      current = saved.get(key)
+      if current is None or values_equal(current, table.get(key)):
+        saved[key] = value
+        written.append(key)
+    for key in m.ACTIVE_ALERT_KEYS:
+      self.assertEqual(saved[key], "0")
+      self.assertNotIn(key, written)
+    # CustomAlerts is not an active gate for these alerts; independent keys stay OFF.
+    self.assertFalse(m.read_enabled(FakeStore({k: False for k in m.ACTIVE_ALERT_KEYS}), "GreenLightAlert"))
+    self.assertFalse(m.read_enabled(FakeStore({k: False for k in m.ACTIVE_ALERT_KEYS}), "LeadDepartingAlert"))
+
+  def test_create_optional_alert_runtime_returns_runtime(self):
+    # With an injectable store path via Phase2AlertRuntime; create_optional uses ParamStore.
+    # Prove the success factory path returns an object exposing update/store.
+    rt = m.Phase2AlertRuntime(FakeStore())
+    self.assertTrue(callable(rt.update))
+    self.assertTrue(hasattr(rt, "store"))
+    # create_optional_alert_runtime itself: may return None only on hard ParamStore failure;
+    # with FakeStore path covered above. Guard that exceptions become None via the factory.
+    real = m.Phase2AlertRuntime
+    class BoomRuntime:
+      def __init__(self, *a, **k):
+        raise RuntimeError("no store")
+    m.Phase2AlertRuntime = BoomRuntime
+    try:
+      self.assertIsNone(m.create_optional_alert_runtime())
+    finally:
+      m.Phase2AlertRuntime = real
+
 
 if __name__ == "__main__":
   unittest.main()

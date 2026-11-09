@@ -1,11 +1,19 @@
-"""BogPilot > Vehicle Settings > Vehicle Info; read-only ecac1eb56 text rows.
+"""BogPilot > Vehicle Settings > Vehicle Info; read-only snapshot.
 
 ui_state.CP comes from CarParamsPersistent: never imply current identification.
 No Params writes, controls, VIN, serial, ECU, or firmware reads.
+
+Provenance labels (t994 vehicle lane):
+  - no CarParams  -> "not detected"
+  - persisted CP  -> "LAST-DETECTED / UNVERIFIED"
+  - current=True  -> "CURRENT" (only for a caller with live-session CP)
 """
 from __future__ import annotations
 
 UNAVAILABLE = "Unavailable"
+NOT_DETECTED = "not detected"
+LAST_UNVERIFIED = "LAST-DETECTED / UNVERIFIED"
+CURRENT = "CURRENT"
 INFO_KEYS = ("Vehicle Info", "Detected Make", "Detected Model / Fingerprint",
              "openpilot Longitudinal Support", "Radar Support", "Stop-and-Go Support")
 
@@ -40,20 +48,19 @@ def vehicle_info(cp, *, current=False):
   """
   rows = dict.fromkeys(INFO_KEYS, UNAVAILABLE)
   if cp is None:
-    rows["Vehicle Info"] = "Unavailable — no detected CarParams (bench / not identified)"
+    rows["Vehicle Info"] = NOT_DETECTED
     return rows
   fp = _identity(_field(cp, "carFingerprint"))
   brand = _identity(_field(cp, "brand"))
   if brand == UNAVAILABLE:  # older schema
     brand = _identity(_field(cp, "carName"))
   if _field(cp, "notCar") is True or brand.lower() == "mock" or fp.lower() == "mock":
-    rows["Vehicle Info"] = "Unavailable — non-vehicle / mock CarParams"
+    rows["Vehicle Info"] = "Unavailable - non-vehicle / mock CarParams"
     return rows
   if fp == UNAVAILABLE:
-    rows["Vehicle Info"] = "Unavailable — vehicle not identified"
+    rows["Vehicle Info"] = NOT_DETECTED
     return rows
-  rows["Vehicle Info"] = ("Current-session CarParams" if current else
-                          "Last detected CarParams — current vehicle not verified")
+  rows["Vehicle Info"] = CURRENT if current else LAST_UNVERIFIED
   rows["Detected Make"] = brand
   rows["Detected Model / Fingerprint"] = fp
   rows["openpilot Longitudinal Support"] = _support(cp, "openpilotLongitudinalControl")

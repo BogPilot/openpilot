@@ -131,7 +131,9 @@ def hud_stubs():
     is_pressed = False
     def __init__(self, *a, **k):
       pass
-  return {"SL": load("speed_limit_display"), "ARC": load("steering_arc"), "PED": load("pedals"), "math": __import__("math"),
+  hidden = SimpleNamespace(visible=False)
+  cem = SimpleNamespace(HIDDEN=hidden, read_status=lambda *a, **k: hidden, paint_status=lambda *a, **k: None)  # t994 gas lane CEM badge
+  return {"CEM": cem, "SL": load("speed_limit_display"), "ARC": load("steering_arc"), "PED": load("pedals"), "math": __import__("math"),
           "UI_CONFIG": SimpleNamespace(button_size=192, wheel_icon_size=144), "ExpButton": _Widget, "Widget": _Widget,
           "cloudlog": SimpleNamespace(exception=lambda *a: None), "REC_CX": 95, "REC_CY": 696, "REC_HIT": 174,
           "rl": SimpleNamespace(Color=lambda *c: c)}

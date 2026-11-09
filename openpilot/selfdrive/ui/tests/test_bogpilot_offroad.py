@@ -127,7 +127,7 @@ def test_widget_draws_original_rows_and_honest_absence():
     obj._render(rl.Rectangle(0, 0, 765, 865))
     texts = [call.args[1] for call in label.call_args_list]
     assert all(title in texts for title in ["ALL TIME (ON DEVICE)", "PAST WEEK (ON DEVICE)", "BOGPILOT"])
-    assert texts.count("—") == 9 and "0" not in texts
+    assert texts.count("–") == 9  # EN DASH: EM DASH is not in the font atlas (t994 driveStats) and "0" not in texts
     for call in label.call_args_list:
       rect = call.args[0]
       assert rect.x >= 0 and rect.y >= 0 and rect.x + rect.width <= 765 and rect.y + rect.height <= 865

@@ -13,6 +13,7 @@ from openpilot.common.realtime import config_realtime_process, Priority, Ratekee
 from openpilot.common.swaglog import cloudlog, ForwardingHandler
 
 from opendbc.car import DT_CTRL, structs
+from opendbc.car.tesla_ap1.phase3_stalk_controls import apply_experimental_toggle, experimental_supported
 from opendbc.car.can_definitions import CanData, CanRecvCallable, CanSendCallable
 from opendbc.car.carlog import carlog
 from opendbc.car.fw_versions import ObdCallback
@@ -67,7 +68,7 @@ class Car:
 
   def __init__(self, CI=None, RI=None) -> None:
     self.can_sock = messaging.sub_sock('can', timeout=20)
-    self.sm = messaging.SubMaster(['pandaStates', 'carControl', 'onroadEvents'])
+    self.sm = messaging.SubMaster(['pandaStates', 'carControl', 'onroadEvents', 'deviceState'])
     self.pm = messaging.PubMaster(['sendcan', 'carState', 'carParams', 'carOutput', 'radarTracks', 'frogpilotCarState'])
 
     self.can_rcv_cum_timeout_counter = 0
@@ -100,7 +101,13 @@ class Car:
         with car.CarParams.from_bytes(cached_params_raw) as _cached_params:
           cached_params = _cached_params
 
-      self.CI = get_car(*self.can_callbacks, obd_callback(self.params), alpha_long_allowed, is_release, cached_params)
+      from openpilot.selfdrive.ui.bogpilot.phase2_car_selection import selected_fingerprint
+
+      def fingerprint_override(detected):
+        return selected_fingerprint(self.params, detected)
+
+      self.CI = get_car(*self.can_callbacks, obd_callback(self.params), alpha_long_allowed, is_release, cached_params,
+                        fingerprint_override=fingerprint_override)
       self.RI = interfaces[self.CI.CP.carFingerprint].RadarInterface(self.CI.CP)
       self.CP = self.CI.CP
 
@@ -174,18 +181,21 @@ class Car:
     if self.ap1_model is not None:
       self.ap1_model.update(0)
 
-    # Update carState from CAN
+    # Read live device/control state before arming experimental-only gestures.
+    self.sm.update(0)
+    started = bool(self.sm.valid["deviceState"] and self.sm.alive["deviceState"] and self.sm["deviceState"].started)
+    if hasattr(self.CI.CS, "stalk_controls_allowed"):
+      self.CI.CS.stalk_controls_allowed = (started and experimental_supported(self.CP)
+                                        and self.params.get_bool("ExperimentalModeConfirmed"))
+    # Update carState from CAN. Physical buttons/cancel remain untouched.
     CS = self.CI.update(can_list)
 
-    if self.CP.brand == "tesla_ap1" and self.CP.openpilotLongitudinalControl:
-      if CS.bogpilot.ap1StalkPullToggle or CS.bogpilot.ap1StalkFwdToggle:
-        self.experimental_mode = not self.experimental_mode
-        self.params.put_bool("ExperimentalMode", self.experimental_mode)
+    mode = apply_experimental_toggle(self.params, self.CP, CS, started)
+    if mode is not None:
+      self.experimental_mode = mode
 
     # Update radar tracks from CAN
     RD: structs.RadarDataT | None = self.RI.update(can_list)
-
-    self.sm.update(0)
 
     can_rcv_valid = len(can_strs) > 0
 

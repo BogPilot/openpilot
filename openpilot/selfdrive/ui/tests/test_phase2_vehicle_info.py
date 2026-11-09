@@ -1,7 +1,9 @@
 """Synthetic fixtures only; no real Params or personal vehicle data."""
 import unittest
 from types import SimpleNamespace as NS
-from openpilot.selfdrive.ui.bogpilot.phase2_vehicle_info import INFO_KEYS, vehicle_info, refresh_info_items
+from openpilot.selfdrive.ui.bogpilot.phase2_vehicle_info import (
+  INFO_KEYS, NOT_DETECTED, LAST_UNVERIFIED, CURRENT, vehicle_info, refresh_info_items,
+)
 
 
 def cp(**changes):
@@ -12,20 +14,20 @@ def cp(**changes):
 
 
 class TestVehicleInfo(unittest.TestCase):
-  def test_missing(self):
+  def test_missing_is_not_detected(self):
     rows = vehicle_info(None)
     self.assertEqual(tuple(rows), INFO_KEYS)
-    self.assertIn("bench", rows["Vehicle Info"])
+    self.assertEqual(rows["Vehicle Info"], NOT_DETECTED)
     self.assertEqual(rows["Radar Support"], "Unavailable")
 
-  def test_persisted_not_claimed_current(self):
+  def test_persisted_last_detected_unverified(self):
     rows = vehicle_info(cp())
-    self.assertIn("not verified", rows["Vehicle Info"])
+    self.assertEqual(rows["Vehicle Info"], LAST_UNVERIFIED)
     self.assertEqual(rows["Detected Make"], "tesla")
     self.assertEqual(rows["Detected Model / Fingerprint"], "TESLA_AP1_MODELS")
 
   def test_explicit_current(self):
-    self.assertEqual(vehicle_info(cp(), current=True)["Vehicle Info"], "Current-session CarParams")
+    self.assertEqual(vehicle_info(cp(), current=True)["Vehicle Info"], CURRENT)
 
   def test_support(self):
     rows = vehicle_info(cp(openpilotLongitudinalControl=False, radarUnavailable=True, autoResumeSng=False))
@@ -43,10 +45,13 @@ class TestVehicleInfo(unittest.TestCase):
     self.assertEqual(vehicle_info(NS(carName="tesla", carFingerprint="TEST_PLATFORM"))["Detected Make"], "tesla")
 
   def test_mock_and_unidentified(self):
-    for obj in (cp(notCar=True), cp(brand="mock"), cp(carFingerprint="mock"), cp(carFingerprint="")):
+    for obj in (cp(notCar=True), cp(brand="mock"), cp(carFingerprint="mock")):
       rows = vehicle_info(obj)
       self.assertIn("Unavailable", rows["Vehicle Info"])
       self.assertEqual(rows["Radar Support"], "Unavailable")
+    # empty fingerprint -> not detected (honest no-id)
+    rows = vehicle_info(cp(carFingerprint=""))
+    self.assertEqual(rows["Vehicle Info"], NOT_DETECTED)
 
   def test_no_writes_or_private_fields(self):
     obj = cp(carVin="SYNTHETIC_PRIVATE", serial="SYNTHETIC_SERIAL")
@@ -66,6 +71,7 @@ class TestVehicleInfo(unittest.TestCase):
     items = {key: Item() for key in INFO_KEYS}
     refresh_info_items(items, cp())
     refresh_info_items(items, None)
+    self.assertEqual(items["Vehicle Info"].text, NOT_DETECTED)
     self.assertEqual(items["Detected Make"].text, "Unavailable")
     self.assertTrue(all(item.visible for item in items.values()))
 

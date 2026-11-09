@@ -31,8 +31,11 @@ FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
   "BSMFlameTracks": (True, "'Bog to the Future' flame tracks behind >88 mph blind-spot passers"),
   "ConfidenceBall": (True, "Model confidence ball on the onroad edge"),
   "RedesignUI": (True, "BogPilot onroad redesign"),
-  "ShowUploadRate": (True, "Onroad upload-rate readout"),
-  "RemoteUIStream": (True, "Remote UI screen stream server (only serves while a viewer is connected)"),
+  # Telemetry-removal orphans (t994 telemetryAudit): no uploader/athena/webrtc/hevc_streamd
+  # processes remain on feae. Defaults OFF; do NOT register menus. Preserve any existing
+  # owner file values if present; only the missing-file default changes.
+  "ShowUploadRate": (False, "REMOVED/unsupported: onroad upload-rate readout (no uploader)"),
+  "RemoteUIStream": (False, "REMOVED/unsupported: remote UI stream server (no webrtc/stream)"),
   # UI (default off)
   "DeveloperHUD": (False, "Developer HUD"),
   "SwapSpeedGraph": (True, "Accel graph on top, speed row below it"),
@@ -40,8 +43,8 @@ FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
   # Reserved, default OFF. Not features yet; the names are pinned so nothing ships them on.
   "OccViz": (False, "Occupancy visualisation (reserved, default OFF)"),
   "LiveYOLO": (False, "Live YOLO object overlay (reserved, default OFF)"),
-  # System
-  "HevcStream": (True, "hevc_streamd live route video stream (onroad only, not on PC)"),
+  # System — HevcStream orphan (no hevc_streamd process packaged)
+  "HevcStream": (False, "REMOVED/unsupported: hevc_streamd live route video stream"),
   # Car code (Tesla AP1); default decided by the car port
   "EnableICIntegration": (CAR_DEPENDENT, "AP1 instrument-cluster substitution"),
   "RegenComfortBrake": (CAR_DEPENDENT, "AP1 regen-sized lead approaches"),

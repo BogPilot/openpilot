@@ -33,7 +33,7 @@ def daemon_fixture():
   return d, cs
 
 
-def raise_optional(*_):
+def raise_optional(*_, **__):
   raise RuntimeError("optional producer fault")
 
 

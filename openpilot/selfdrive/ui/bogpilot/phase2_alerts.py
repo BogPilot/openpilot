@@ -15,10 +15,15 @@ ACTIVE_ALERT_ROWS = (
 ACTIVE_ALERT_KEYS = tuple(row[0] for row in ACTIVE_ALERT_ROWS)
 FRESH_DEFAULTS = dict.fromkeys(ACTIVE_ALERT_KEYS, True)
 OMITTED_ALERT_KEYS = ("GoatScream", "LoudBlindspotAlert", "SpeedLimitChangedAlert")
+# INT must keep these out of AP1 profile writes so saved OFF survives marker cycles.
+AP1_NEVER_WRITE_KEYS = ACTIVE_ALERT_KEYS
+# Audio contract (no schema change): AudibleAlert.prompt -> warning.wav once via PromptVolume.
+ALERT_SOUND_FILE = "warning.wav"
+ALERT_VOLUME_PARAM = "PromptVolume"
 
 
 def read_enabled(store, key):
-  # Explicit default overrides the legacy registry default, never stored OFF.
+  # Explicit default True: fresh install ON; stored False is preserved; never gated by CustomAlerts.
   return store.get_bool(key, default=True)
 
 
@@ -141,6 +146,8 @@ def make_alert(key, event_api=None):
   """Use the current AlertManager + existing prompt audio, no schema changes.
 
   Lowest priority intentionally keeps ALL stock safety and DM alerts ahead.
+  Sound path is AudibleAlert.prompt -> soundd warning.wav (ALERT_SOUND_FILE) once,
+  volume key PromptVolume (ALERT_VOLUME_PARAM). Goat Scream is never selected.
   """
   if event_api is None:
     from openpilot.selfdrive.selfdrived import events as event_api
@@ -219,12 +226,13 @@ def create_optional_alert_runtime():
     return None
 
 
-def dispatch_optional_alerts(runtime, am, frame, cs, sm, now):
+def dispatch_optional_alerts(runtime, am, frame, cs, sm, now, event_api=None):
   """Only optional work is guarded. Stock creation/add/process stay outside.
 
   False permanently disables this instance until daemon restart. Discard only
   our owned notifications, including partially-added ones, without touching
   stock entries. KeyboardInterrupt/SystemExit are intentionally not swallowed.
+  event_api is optional for Mac-native tests that AST-load Alert classes without msgq.
   """
   try:
     keys = runtime.update(cs, sm, now)
@@ -232,7 +240,7 @@ def dispatch_optional_alerts(runtime, am, frame, cs, sm, now):
                 and sm.all_checks(["modelV2", "radarState"])
                 and all(0 <= now - sm.recv_time[service] <= .25 for service in ("modelV2", "radarState")))
     enabled = tuple(k for k in ACTIVE_ALERT_KEYS if read_enabled(runtime.store, k))
-    add_to_alert_manager(am, frame, keys, enabled, eligible)
+    add_to_alert_manager(am, frame, keys, enabled, eligible, event_api=event_api)
     return True
   except Exception:
     for key in ACTIVE_ALERT_KEYS:

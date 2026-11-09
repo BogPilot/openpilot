@@ -202,10 +202,10 @@ class ParamStore:
     return int(self.get_float(key, None if default is None else float(default)))
 
   # ---- writes ----
-  def put_bool(self, key: str, value: bool) -> None:
-    self.put(key, "1" if value else "0")
+  def put_bool(self, key: str, value: bool, *, block: bool = False) -> None:
+    self.put(key, "1" if value else "0", block=block)
 
-  def put(self, key: str, value) -> None:
+  def put(self, key: str, value, *, block: bool = False) -> None:
     if isinstance(value, bool):
       text = "1" if value else "0"
     elif isinstance(value, float):
@@ -213,25 +213,29 @@ class ParamStore:
     else:
       text = value if isinstance(value, str) else str(value)
     self.invalidate(key)
+    def write(method, value):
+      if block:
+        return method(key, value, block=True)
+      return method(key, value)
     if self.is_param_key(key):
       try:
         row = BOGPILOT_PARAMS.get(key)
         typ = row[1] if row else "STRING"
         if typ == "BOOL":
           if hasattr(self._params, "put_bool"):
-            self._params.put_bool(key, parse_bool(text, False))
+            write(self._params.put_bool, parse_bool(text, False))
           else:
-            self._params.put(key, "1" if parse_bool(text, False) else "0")
+            write(self._params.put, "1" if parse_bool(text, False) else "0")
         elif typ == "INT":
-          self._params.put(key, int(float(text)))
+          write(self._params.put, int(float(text)))
         elif typ == "FLOAT":
-          self._params.put(key, float(text))
+          write(self._params.put, float(text))
         else:
-          self._params.put(key, text)
+          write(self._params.put, text)
         return
       except Exception:
         try:
-          self._params.put(key, text)
+          write(self._params.put, text)
           return
         except Exception:
           pass

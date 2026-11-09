@@ -104,7 +104,7 @@ class TestCarParamsCapability(unittest.TestCase):
   def test_lane_change_blocking_still_reads_carstate_flags(self):
     root = Path(__file__).resolve().parents[5]
     src = (root / "selfdrive/controls/lib/desire_helper.py").read_text()
-    self.assertIn("carstate.leftBlindspot", src)
+    self.assertIn("bsm_side_occupied(carstate", src)  # t994 laneChange: fail-closed helper reads carstate flags
     self.assertNotIn("enableBsm", src)
 
 
@@ -133,12 +133,13 @@ class TestCanToUiPipeline(unittest.TestCase):
   def test_off(self):
     self.assertEqual(self.flags(frame_399())[1], (False, False))
 
-  def test_sna_ignored(self):
-    self.assertEqual(self.flags(frame_399(left=3, right=3))[1], (False, False))
+  def test_sna_is_occupied_fail_closed(self):
+    # t994 laneChange: SNA is encoded OCCUPIED (never "clear") so automatic lane changes are blocked.
+    self.assertEqual(self.flags(frame_399(left=3, right=3))[1], (True, True))
 
   def test_bad_checksum_rejected(self):
     raw, ui = self.flags(frame_399(left=1, right=1, good_checksum=False))
-    self.assertEqual(ui, (False, False))
+    self.assertEqual(ui, (True, True))  # no checksum-OK frame -> unknown -> occupied (fail closed); frame itself not trusted
     self.assertGreaterEqual(self.p.ci.CS.ap1_bsm.bad_checksum, 1)
 
   def test_hold_then_expires(self):
@@ -177,7 +178,7 @@ class TestVisualsSettings(unittest.TestCase):
     self.typed = {}
     params = SimpleNamespace(get=lambda k: self.typed.get(k), put=lambda k, v: self.typed.__setitem__(k, v),
                              put_bool=lambda k, v: self.typed.__setitem__(k, "1" if v else "0"),
-                             all_keys=lambda: [b"BlindSpotPath", b"AdjacentLeadsUI", b"PedalsOnUI", b"ScreenRecorder", b"CustomUI", b"BlindSpotMetrics", b"OnroadDistanceButton", b"BorderMetrics", b"QOLVisuals", b"DriverCamera"])
+                             all_keys=lambda: [b"BlindSpotPath", b"AdjacentLeadsUI", b"PedalsOnUI", b"ScreenRecorder", b"CustomUI", b"BlindSpotMetrics", b"OnroadDistanceButton", b"BorderMetrics", b"QOLVisuals", b"DriverCamera", b"DynamicPedalsOnUI", b"Fahrenheit", b"NumericalTemp", b"ShowCPU", b"ShowMemoryUsage", b"NavigationUI", b"ShowSpeedLimits"])
     self._env = os.environ.get("BOGPILOT_PARAMS_DIR"); os.environ["BOGPILOT_PARAMS_DIR"] = self.tmp
     self.store = ParamStore(params=params, cache_ttl=0)
 
@@ -197,17 +198,25 @@ class TestVisualsSettings(unittest.TestCase):
     self.assertEqual(int(S.PanelType.BOGPILOT_VISUALS), 6)
     src = Path(S.__file__).read_text()
     self.assertIn("PanelType.BOGPILOT_VISUALS: PanelInfo(tr_noop(\"Visuals\"), BogPilotVisualsLayout())", src)
-    self.assertEqual(VISUAL_KEYS, ("AdjacentLeadsUI", "BlindSpotPath", "BlindSpotMetrics", "OnroadDistanceButton",
+    from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import EXISTING_VISUAL_KEYS
+    self.assertEqual(EXISTING_VISUAL_KEYS, ("AdjacentLeadsUI", "BlindSpotPath", "BlindSpotMetrics", "OnroadDistanceButton",
                                    "PedalsOnUI", "ScreenRecorder", "DriverCamera"))
+    for k in EXISTING_VISUAL_KEYS:
+      self.assertIn(k, VISUAL_KEYS)
 
   def test_only_existing_registered_keys_no_new_defaults(self):
     from openpilot.common.bogpilot_params import BOGPILOT_PARAMS
+    from openpilot.common.bogpilot_toggles import FILE_ONLY_UI_KEYS
     from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import VISUAL_KEYS
     for k in VISUAL_KEYS:
+      if k in FILE_ONLY_UI_KEYS:
+        continue
       self.assertIn(k, BOGPILOT_PARAMS)
 
   def test_initial_state_reflects_store_and_click_writes(self):
     from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import VISUAL_KEYS
+    from openpilot.common.bogpilot_toggles import FILE_ONLY_UI_KEYS
+    VISUAL_KEYS = [k for k in VISUAL_KEYS if k not in FILE_ONLY_UI_KEYS]  # t994: file-only rows (SwapSpeedGraph) covered by visualsTheme tests
     for k in VISUAL_KEYS:
       self.typed[k] = "0"
     lay = self.make()
@@ -220,13 +229,14 @@ class TestVisualsSettings(unittest.TestCase):
       tog._callback(True) if getattr(tog, "_callback", None) else lay._write(k, True)
       self.assertEqual(self.typed[k], "1", k)
     lay.refresh()
-    self.assertTrue(all(lay._toggles[k].action_item.get_state() for k in lay._toggles))
+    self.assertTrue(all(lay._toggles[k].action_item.get_state() for k in lay._toggles if k in VISUAL_KEYS))
 
   def test_initial_state_uses_actual_key_defaults(self):
     from openpilot.common.bogpilot_params import BOGPILOT_PARAMS
     from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import VISUAL_KEYS
+    from openpilot.common.bogpilot_toggles import FILE_ONLY_UI_KEYS
     lay = self.make()      # nothing stored: each row shows the registry default, unchanged by this panel
-    for k in VISUAL_KEYS:
+    for k in (k for k in VISUAL_KEYS if k not in FILE_ONLY_UI_KEYS):
       self.assertEqual(lay._toggles[k].action_item.get_state(), BOGPILOT_PARAMS[k][2] == "1", k)
     self.assertEqual(self.typed, {})
 

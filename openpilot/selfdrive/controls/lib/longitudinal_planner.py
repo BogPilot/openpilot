@@ -16,6 +16,12 @@ from openpilot.selfdrive.car.cruise import V_CRUISE_MAX, V_CRUISE_UNSET
 from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.controls.lib.ap1_planning import Ap1Planning
 from openpilot.selfdrive.controls.lib.ap1_curve_speed import Ap1CurveSpeed
+try:  # optional Gas/Brake consumers: import/init failure falls back to the stock planner
+  from openpilot.selfdrive.controls.lib.phase3_long_accel import LongAccelPort
+  from openpilot.selfdrive.controls.lib.phase3_long_stopping import LongStoppingRuntime
+except Exception:
+  LongAccelPort = LongStoppingRuntime = None
+from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import get_T_FOLLOW
 
 A_CRUISE_MAX_VALS = [1.6, 1.2, 0.8, 0.6]
 A_CRUISE_MAX_BP = [0., 10.0, 25., 40.]
@@ -35,8 +41,11 @@ def get_max_accel(v_ego):
 def get_coast_accel(pitch):
   return np.sin(pitch) * -5.65 - 0.3  # fitted from data using xx/projects/allow_throttle/compute_coast_accel.py
 
-def get_cruise_accel(e2e, v_cruise, v_ego, a_cruise_prev, angle_steers, CP, dt, accel_coast, allow_throttle):
+def get_cruise_accel(e2e, v_cruise, v_ego, a_cruise_prev, angle_steers, CP, dt, accel_coast, allow_throttle, profile_limits=None):
   max_accel = ACCEL_MAX if e2e else get_max_accel(v_ego)
+
+  if profile_limits is not None and not e2e:
+    max_accel = profile_limits[1]
 
   if not e2e:
     a_total_max = np.interp(v_ego, _A_TOTAL_MAX_BP, _A_TOTAL_MAX_V)
@@ -48,7 +57,8 @@ def get_cruise_accel(e2e, v_cruise, v_ego, a_cruise_prev, angle_steers, CP, dt, 
       coast_limit = np.interp(v_ego, [MIN_ALLOW_THROTTLE_SPEED, MIN_ALLOW_THROTTLE_SPEED*2], [max_accel, clipped_accel_coast])
       max_accel = min(max_accel, coast_limit)
 
-  target_accel = np.clip(v_cruise - v_ego, A_CRUISE_MIN, max_accel)
+  min_accel = profile_limits[0] if profile_limits is not None and not e2e else A_CRUISE_MIN
+  target_accel = np.clip(v_cruise - v_ego, min_accel, max_accel)
   j_cruise = np.interp(v_ego, A_CRUISE_MAX_BP, J_CRUISE_VALS)
   target_accel = float(np.clip(target_accel, a_cruise_prev - j_cruise * dt, a_cruise_prev + j_cruise * dt))
 
@@ -63,6 +73,14 @@ class LongitudinalPlanner:
     self.dt = dt
     self.ap1_plan = Ap1Planning(CP, dt)
     self.curve_speed = Ap1CurveSpeed(CP, dt)
+    try:
+      self.long_accel = LongAccelPort(CP, dt)
+      self.long_stopping = LongStoppingRuntime(self.long_accel.store, CP, dt)
+    except Exception:
+      cloudlog.exception("BogPilot Gas/Brake runtime unavailable at init; stock planner behaviour")
+      self.long_accel = None
+      self.long_stopping = None
+    self.force_stop_result = None
     self.allow_throttle = True
 
     self.v_desired_filter = FirstOrderFilter(init_v, 2.0, self.dt)
@@ -94,8 +112,38 @@ class LongitudinalPlanner:
     v_cruise_initialized = sm['carState'].vCruise != V_CRUISE_UNSET
     reset_state = reset_state or not v_cruise_initialized
 
+    t_follow = self.ap1_plan.t_follow(sm["carState"], not reset_state)
+    if t_follow is None:
+      t_follow = get_T_FOLLOW(sm['selfdriveState'].personality)
+    # Any settings/Params failure falls back to the exact stock behaviour; it must never take the planner down.
+    try:
+      if self.long_accel is None:
+        raise RuntimeError("Gas/Brake runtime not initialised")
+      conditional = self.long_accel.update(sm, reset_state, context={"t_follow": t_follow})
+      profile_limits = self.long_accel.limits(v_ego, v_cruise, ACCEL_MIN)
+      action_delay = self.long_accel.delay()
+    except Exception:
+      if self.long_accel is not None:  # init failure was already logged once
+        cloudlog.exception("BogPilot Gas/Brake settings unavailable; stock acceleration behaviour")
+      conditional, profile_limits, action_delay = False, None, self.CP.longitudinalActuatorDelay
+    experimental = sm['selfdriveState'].experimentalMode or conditional
+
     # AP1 curve speed control: can only lower the cruise speed (never above the driver's set speed).
     v_cruise = self.curve_speed.update(sm, v_ego, v_cruise, reset_state)
+    try:
+      if self.long_stopping is None or self.long_accel is None:
+        raise RuntimeError("stopping runtime not initialised")
+      self.long_stopping.store = self.long_accel.store
+      observation = self.long_stopping.observe_model_stop(sm, self.long_accel, active=not reset_state)
+      self.force_stop_result = self.long_stopping.arbitrate_force_stop(
+        v_cruise, model_stop=observation, longitudinal_active=not reset_state,
+        gas_pressed=bool(sm['carState'].gasPressed), accel_pressed=bool(sm['carState'].bogpilot.accelPressed),
+        standstill=bool(sm['carState'].standstill), v_ego=v_ego, dt=self.dt)
+      v_cruise = self.force_stop_result.target
+    except Exception:
+      if self.long_stopping is not None and self.long_accel is not None:
+        cloudlog.exception("BogPilot force-stop unavailable; stock cruise target retained")
+      self.force_stop_result = None
 
     throttle_probs = sm['modelV2'].meta.disengagePredictions.gasPressProbs
     throttle_prob = throttle_probs[1] if len(throttle_probs) > 1 else 1.0
@@ -131,21 +179,21 @@ class LongitudinalPlanner:
     # Save starting point for next iteration
     a_prev = self.output_a_target
 
-    action_t =  self.CP.longitudinalActuatorDelay + DT_MDL
+    action_t = action_delay + DT_MDL
     output_a_target_mpc = get_accel_from_plan(self.v_desired_trajectory, self.a_desired_trajectory, CONTROL_N_T_IDX,
                                               action_t=action_t)
     output_should_stop_mpc = should_stop(v_ego, output_a_target_mpc)
     output_a_target_e2e = sm['modelV2'].action.desiredAcceleration
     output_should_stop_e2e = sm['modelV2'].action.shouldStop
 
-    self.a_cruise = get_cruise_accel(sm['selfdriveState'].experimentalMode, v_cruise, v_ego,
+    self.a_cruise = get_cruise_accel(experimental, v_cruise, v_ego,
                                      self.a_cruise, steer_angle_without_offset, self.CP, self.dt,
-                                     accel_coast, self.allow_throttle)
+                                     accel_coast, self.allow_throttle, profile_limits)
     cruise_should_stop = should_stop(v_ego, self.a_cruise)
 
     candidates = [(output_a_target_mpc, self.mpc.source, output_should_stop_mpc),
                   (self.a_cruise, LongitudinalPlanSource.cruise, cruise_should_stop)]
-    if sm['selfdriveState'].experimentalMode:
+    if experimental:
       candidates.append((output_a_target_e2e, LongitudinalPlanSource.e2e, output_should_stop_e2e))
     if self.curve_speed.a_brake < 0.0:
       # AP1 look-ahead curve brake: an extra min() candidate, so it can only add braking.
@@ -184,8 +232,21 @@ class LongitudinalPlanner:
     pm.send('longitudinalPlan', plan_send)
 
   def publish_frogpilot_plan(self, pm):
+    try:
+      if self.long_accel is not None:
+        self.long_accel.publish_status()
+    except Exception:
+      cloudlog.exception("BogPilot CEM status unavailable")
     # CSC report for the cluster's CSC MAX slot; valid only while AP1 CSC is on with fresh inputs.
     msg = messaging.new_message('frogpilotPlan')
-    msg.valid = bool(self.curve_speed.valid)
+    la = self.long_accel
+    msg.valid = bool(self.curve_speed.valid or (la is not None and la.conditions is not None) or
+                     (self.force_stop_result is not None and self.force_stop_result.forcing_stop))
     self.curve_speed.fill(msg.frogpilotPlan)
+    if la is not None:
+      msg.frogpilotPlan.experimentalMode = bool(la.cem.experimental)
+      msg.frogpilotPlan.redLight = bool(la.cem.red_light)
+    if self.force_stop_result is not None:
+      msg.frogpilotPlan.forcingStop = self.force_stop_result.forcing_stop
+      msg.frogpilotPlan.forcingStopLength = self.force_stop_result.tracked_model_length
     pm.send('frogpilotPlan', msg)

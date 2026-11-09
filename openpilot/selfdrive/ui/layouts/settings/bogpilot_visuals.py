@@ -1,24 +1,26 @@
-"""BogPilot Visuals: the one settings entry for BogPilot onroad visuals that are already implemented.
+"""BogPilot Visuals: settings entry for BogPilot onroad visuals with real consumers.
 
-Only existing registered keys; nothing new is registered and no default changes. Each row reads and writes the
-key through ParamStore, so a typed (registered) key goes to Params and a file-only key to /data/params_bogpilot,
-the same owner every onroad consumer already reads:
-  AdjacentLeadsUI  -> hud_compose.PolicyToggles (adjacent lead boxes)
-  BlindSpotPath    -> file_toggles + bogpilot_model BsmPolicy (BSM lane fill; AP1 cars only)
-  BlindSpotMetrics -> hud_compose.bsm_border (BSM border half, with the existing BorderMetrics parent)
-  OnroadDistanceButton -> hud_compose PolicyToggles (personality button; DM moves beside it)
-  PedalsOnUI       -> hud_renderer pedals
-  ScreenRecorder   -> onroad record button
-  DriverCamera     -> layouts/main.py reverse driver camera (with QOLVisuals parent, default on)
-Consumers re-read within their 2 s caches. No controls, safety, tuning or reset options live here.
+Leaf rows already on feae:
+  AdjacentLeadsUI, BlindSpotPath, BlindSpotMetrics, OnroadDistanceButton,
+  PedalsOnUI, ScreenRecorder, DriverCamera.
+
+t994 visualsTheme adds parent / peer gates that Bardo had ON but were unregistered:
+  QOLVisuals, CustomUI, BorderMetrics, DynamicPedalsOnUI, SwapSpeedGraph,
+  Fahrenheit, NumericalTemp, ShowCPU, ShowMemoryUsage, NavigationUI, ShowSpeedLimits.
+
+Each row reads/writes through ParamStore (typed Params or /data/params_bogpilot for
+file-only keys like SwapSpeedGraph). Consumers re-read within their caches.
+Omitted theme keys (AccelerationPath, ModelUI, …) stay documented in
+phase2_visuals_theme.OMITTED — no inert rows.
 """
 from openpilot.system.ui.widgets import Widget
 from openpilot.system.ui.widgets.list_view import toggle_item
 from openpilot.system.ui.widgets.scroller_tici import Scroller
 from openpilot.system.ui.lib.multilang import tr, tr_noop
+from openpilot.selfdrive.ui.bogpilot.phase2_visuals_theme import NEW_VISUAL_TOGGLES
 
-# key, title, description
-VISUAL_TOGGLES = (
+# key, title, description — existing leaf rows first (stable order for tests/screenshots)
+_EXISTING = (
   ("AdjacentLeadsUI", tr_noop("Adjacent Lead Speed Boxes"),
    tr_noop("Show boxes with the speed of radar-tracked cars in the lanes beside you while openpilot is engaged.")),
   ("BlindSpotPath", tr_noop("Blind Spot Lane Fill"),
@@ -36,7 +38,13 @@ VISUAL_TOGGLES = (
   ("DriverCamera", tr_noop("Show Driver Camera When In Reverse"),
    tr_noop("Show the driver camera feed when the vehicle is in reverse.")),
 )
+
+# New theme/parent rows (tr_noop wrappers)
+_NEW = tuple((k, tr_noop(title), tr_noop(desc)) for k, title, desc in NEW_VISUAL_TOGGLES)
+
+VISUAL_TOGGLES = _EXISTING + _NEW
 VISUAL_KEYS = tuple(k for k, _, _ in VISUAL_TOGGLES)
+EXISTING_VISUAL_KEYS = tuple(k for k, _, _ in _EXISTING)
 
 
 def _store():

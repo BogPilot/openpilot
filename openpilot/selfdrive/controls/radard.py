@@ -14,6 +14,11 @@ from openpilot.common.swaglog import cloudlog
 from openpilot.common.simple_kalman import KF1D
 from opendbc.car.tesla_ap1.lead_filter import Ap1LeadGlitchFilter
 
+try:  # optional Human Lane Changes consumer; import failure = stock radar behaviour
+  from openpilot.selfdrive.controls.lib.phase3_lanechange import LaneChangeSettingsReader, human_lane_change_track, valid_vision_lead
+except Exception:
+  LaneChangeSettingsReader = human_lane_change_track = valid_vision_lead = None
+
 
 # Default lead acceleration decay set to 50% at 1s
 _LEAD_ACCEL_TAU = 1.5
@@ -152,10 +157,10 @@ def get_RadarState_from_vision(lead_msg: capnp._DynamicStructReader, v_ego: floa
 
 
 def get_lead(v_ego: float, ready: bool, tracks: dict[int, Track], lead_msg: capnp._DynamicStructReader,
-             model_v_ego: float, lead_prob: float, low_speed_override: bool = True) -> dict[str, Any]:
+             model_v_ego: float, lead_prob: float, low_speed_override: bool = True, preferred_track=None) -> dict[str, Any]:
   # Determine leads, this is where the essential logic happens
   if len(tracks) > 0 and ready and lead_prob > .5:
-    track = match_vision_to_track(v_ego, lead_msg, tracks)
+    track = preferred_track if preferred_track is not None and valid_vision_lead(lead_msg) else match_vision_to_track(v_ego, lead_msg, tracks)
   else:
     track = None
 
@@ -178,7 +183,9 @@ def get_lead(v_ego: float, ready: bool, tracks: dict[int, Track], lead_msg: capn
 
 
 class RadarD:
-  def __init__(self, delay: float = 0.0, ap1_lead_filter: bool = False):
+  def __init__(self, delay: float = 0.0, ap1_lead_filter: bool = False, stopping_runtime=None, lane_change_settings=None):
+    self.stopping_runtime = stopping_runtime
+    self.lane_change_settings = lane_change_settings
     self.ap1_lead_filters = [Ap1LeadGlitchFilter(DT_MDL) for _ in range(2)] if ap1_lead_filter else None
     self.tracks: dict[int, Track] = {}
     self.kalman_params = KalmanParams(DT_MDL)
@@ -193,7 +200,7 @@ class RadarD:
 
     self.ready = False
 
-  def update(self, sm: messaging.SubMaster, rr: car.RadarData):
+  def update(self, sm: messaging.SubMaster, rr: car.RadarData, *, traffic_mode=None):
     self.ready = sm.seen['modelV2']
 
     if sm.recv_frame['carState'] != self.last_v_ego_frame:
@@ -242,6 +249,21 @@ class RadarD:
 
       self.radar_state.leadOne = get_lead(self.v_ego, self.ready, self.tracks, leads_v3[0], model_v_ego, self.lead_prob_filters[0].x, low_speed_override=True)
       self.radar_state.leadTwo = get_lead(self.v_ego, self.ready, self.tracks, leads_v3[1], model_v_ego, self.lead_prob_filters[1].x, low_speed_override=False)
+      # Human adjacent preference: ONLY leadOne, and only when Phase3HumanLaneChangesEnabled
+      # adopted + settings.human. leadTwo keeps the in-lane match (never duplicated).
+      if self.lane_change_settings is not None:
+        try:
+          preferred = human_lane_change_track(
+            self.tracks, sm['modelV2'],
+            {self.radar_state.leadOne.radarTrackId, self.radar_state.leadTwo.radarTrackId} - {-1},
+            enabled=self.lane_change_settings.read().human,
+            valid=self.ready and self.radar_state_valid and not any(rr.errors.to_dict().values()))
+        except Exception:
+          cloudlog.exception("radard: human lane change lead unavailable; stock")
+          preferred = None
+        if preferred is not None:
+          self.radar_state.leadOne = get_lead(self.v_ego, self.ready, self.tracks, leads_v3[0], model_v_ego,
+                                              self.lead_prob_filters[0].x, low_speed_override=True, preferred_track=preferred)
       if self.ap1_lead_filters is not None:
         for i, field in enumerate(("leadOne", "leadTwo")):
           lead = getattr(self.radar_state, field).to_dict()
@@ -253,6 +275,14 @@ class RadarD:
           filtered["present"] = filtered.pop("status", False)
           setattr(self.radar_state, field, filtered)
 
+
+    # Only final selected leads are offset, once per newly allocated radarState.
+    # Raw tracks/AP1 filtering/association remain in physical coordinates.
+    if self.stopping_runtime is not None:
+      try:
+        self.stopping_runtime.adjust_radar_state(self.radar_state, traffic_mode=traffic_mode)
+      except Exception:
+        cloudlog.exception("BogPilot stopped-distance settings unavailable")
 
   def publish(self, pm: messaging.PubMaster):
     assert self.radar_state is not None
@@ -277,13 +307,28 @@ def main() -> None:
   sm = messaging.SubMaster(['modelV2', 'carState', 'radarTracks'], poll='modelV2')
   pm = messaging.PubMaster(['radarState', *BOGPILOT_RADAR_SERVICES])
 
-  RD = RadarD(CP.radarDelay, ap1_lead_filter=CP.carFingerprint == "TESLA_AP1_MODELS")
+  try:  # optional consumer: any init failure must not take radard (and engagement) down; None = stock radar behaviour
+    from openpilot.common.bogpilot_store import ParamStore
+    from openpilot.selfdrive.controls.lib.phase3_long_stopping import LongStoppingRuntime
+    stopping = LongStoppingRuntime(ParamStore(cache_ttl=1.0), CP)
+  except Exception:
+    cloudlog.exception("radard: stopping runtime unavailable; stock behaviour")
+    stopping = None
+  try:
+    lane_settings = LaneChangeSettingsReader(CP=CP)
+  except Exception:
+    cloudlog.exception("radard: lane change settings unavailable; stock behaviour")
+    lane_settings = None
+  RD = RadarD(CP.radarDelay, ap1_lead_filter=CP.carFingerprint == "TESLA_AP1_MODELS", stopping_runtime=stopping,
+              lane_change_settings=lane_settings)
   BP = BogPilotRadar(CP)
 
   while 1:
     sm.update()
 
-    RD.update(sm, sm['radarTracks'])
+    # card mirrors this authoritative carState field to frogpilotCarState.
+    traffic_mode = bool(sm['carState'].bogpilot.trafficModeEnabled) if sm.all_checks(['carState']) else None
+    RD.update(sm, sm['radarTracks'], traffic_mode=traffic_mode)
     RD.publish(pm)
     # BogPilot: adjacent leads for BSM flames / UI (frogpilotRadarState)
     BP.update(RD, sm)

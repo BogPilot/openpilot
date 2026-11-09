@@ -1,5 +1,37 @@
 {
-  "source_commit": "946906c34820f232263208a5ee1f90701ca85b7c",
+  "file_keys": [
+    "AP1StandstillEngage",
+    "BSMFlameTracks",
+    "ConfidenceBall",
+    "ConfidenceBallSide",
+    "DeveloperHUD",
+    "EnableICIntegration",
+    "HevcStream",
+    "HideAccelGraph",
+    "LiveYOLO",
+    "OccViz",
+    "OffroadScreensaver",
+    "RedesignUI",
+    "RegenAwareStop",
+    "RegenComfortBrake",
+    "RemoteUIStream",
+    "SwapSpeedGraph",
+    "Phase3LongAccelProfilesEnabled",
+    "Phase3AdvancedLongEnabled",
+    "Phase3CEMEnabled",
+    "Phase3StoppedDistanceEnabled",
+    "Phase3ForceStopsEnabled",
+    "Phase3ManualWeatherEnabled",
+    "Phase3SpeedLimitEnabled",
+    "Phase3PersonalitiesEnabled",
+    "Phase3HumanFollowingEnabled",
+    "Phase3LeadDetectionEnabled",
+    "Phase3LaneChangeEnabled",
+    "Phase3HumanLaneChangesEnabled",
+    "Phase3TurnDesiresEnabled",
+    "Phase3StopAccelEnabled",
+    "Phase3StoppingRateEnabled"
+  ],
   "setting_keys": [
     "AccelerationPath",
     "AccelerationProfile",
@@ -293,22 +325,5 @@
     "WheelIcon",
     "WheelSpeed"
   ],
-  "file_keys": [
-    "AP1StandstillEngage",
-    "BSMFlameTracks",
-    "ConfidenceBall",
-    "ConfidenceBallSide",
-    "DeveloperHUD",
-    "EnableICIntegration",
-    "HevcStream",
-    "HideAccelGraph",
-    "LiveYOLO",
-    "OccViz",
-    "OffroadScreensaver",
-    "RedesignUI",
-    "RegenAwareStop",
-    "RegenComfortBrake",
-    "RemoteUIStream",
-    "SwapSpeedGraph"
-  ]
+  "source_commit": "946906c34820f232263208a5ee1f90701ca85b7c"
 }

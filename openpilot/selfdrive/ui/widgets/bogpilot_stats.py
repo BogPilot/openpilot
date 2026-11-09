@@ -1,4 +1,8 @@
-"""The existing three-row BogPilot stats card, using read-only on-device data."""
+"""The existing three-row BogPilot stats card, using read-only on-device data.
+
+Unavailable placeholder uses EN DASH (U+2013) because the frozen font atlas
+loads EXTRA_FONT_CHARS with U+2013 but not EM DASH U+2014 (which rendered as "?").
+"""
 import time
 import pyray as rl
 
@@ -34,7 +38,7 @@ class BogPilotStatsWidget(Widget):
       gui_label(rl.Rectangle(x, y, width, 55 * scale), title, int(44 * scale), font_weight=FontWeight.MEDIUM)
       values = (row.drives, row.distance, row.hours)
       for col, (value, label) in enumerate(zip(values, (tr("Drives"), unit, tr("Hours")), strict=True)):
-        value_text = str(value) if row.available else "—"
+        value_text = str(value) if row.available else "–"  # EN DASH U+2013 (in EXTRA_FONT_CHARS); EM DASH U+2014 missing from atlas -> "?"
         gui_label(rl.Rectangle(x + col * column, y + 65 * scale, column, 75 * scale), value_text, int(65 * scale))
         gui_label(rl.Rectangle(x + col * column, y + 140 * scale, column, 50 * scale), label, int(38 * scale), color=rl.Color(160, 160, 160, 255))
       if not row.available:

@@ -56,7 +56,7 @@ def test_sidebar_offroad_metrics_and_onroad_navigation(monkeypatch):
   sidebar = m.Sidebar.__new__(m.Sidebar)
   sidebar._offroad_temp_status, sidebar._cpu_status, sidebar._ram_status = [m.MetricData(n, '--', m.Colors.GRAY) for n in ['TEMP', 'CPU', 'RAM']]
   sidebar._temp_status, sidebar._panda_status = [m.MetricData(n, '--', m.Colors.GRAY) for n in ['TEMP', 'VEHICLE']]
-  sidebar._params = SimpleNamespace(get_bool=lambda key: key == 'Fahrenheit')
+  sidebar._params = SimpleNamespace(get_bool=lambda key: key in {'Fahrenheit', 'ShowCPU', 'ShowMemoryUsage', 'NumericalTemp'})  # t994 visualsTheme gating keys (compiled defaults ON)
   sidebar._update_hardware_metrics(device(), fresh=True)
   assert [r.value for r in [sidebar._offroad_temp_status, sidebar._cpu_status, sidebar._ram_status]] == ['129°F', '25%', '41%']
   calls = []
@@ -86,7 +86,8 @@ def test_stale_subscription_resets_readings_and_bars(monkeypatch):
 def test_brand_asset_is_authentic_and_stock_navigation_untouched():
   from openpilot.selfdrive.ui.layouts import sidebar as m
   source = Path(m.__file__).read_text()
-  assert 'gui_app.texture("bogpilot/button_home.png", HOME_BTN.width, HOME_BTN.height)' in source
+  assert 'gui_app.texture("bogpilot/button_home.png")' in source
+  assert 'HOME_BTN.width / float(self._home_img.width)' in source
   assert 'self._flag_img if ui_state.started else self._home_img' in source
   assert 'self._on_settings_click()' in source and 'self._on_flag_click()' in source
   asset = Path(m.__file__).parents[2] / 'assets/bogpilot/button_home.png'

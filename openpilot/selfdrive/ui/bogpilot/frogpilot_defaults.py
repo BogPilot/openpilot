@@ -1,6 +1,6 @@
 """FrogPilot/BogPilot setting defaults and tuning levels.
 
-BogPilot policy (stream 5): shipping defaults 2026-11-06 — BorderMetrics Minimal ON; Developer HUD/Widgets/Sidebar OFF; Sidebar CPU/GPU/RAM ON at Minimal; NudgelessLaneChange OFF; AOL OFF; TuningLevel unset; ModelUI Advanced.
+BogPilot policy (stream 5): shipping defaults 2026-11-06 - BorderMetrics Minimal ON; Developer HUD/Widgets/Sidebar OFF; Sidebar CPU/GPU/RAM ON at Minimal; NudgelessLaneChange OFF; AOL OFF; TuningLevel unset; ModelUI Advanced.
 Generated from frogpilot/common/frogpilot_variables.py (frogpilot_default_params + misc_tuning_levels)
 in BogPilot bogpilot-tesla 367e1fe. Columns: key, default, tuning level, stock-openpilot value.
 Values that are bytes in the source are stored as text here. Personal values (API keys, tokens) are
@@ -297,7 +297,7 @@ DEFAULT_ROWS: tuple[tuple[str, str, int, str], ...] = (
   ('StartAccel', '', 3, ''),
   ('StartAccelStock', '', 3, ''),
   ('StartupMessageBottom', 'Hands present, mind at ease', 0, 'Always keep hands on wheel and eyes on road'),
-  ('StartupMessageTop', 'Your m∞v', 0, 'Be ready to take over at any time'),
+  ('StartupMessageTop', 'Your move', 0, 'Be ready to take over at any time'),
   ('StaticPedalsOnUI', '0', 1, '0'),
   ('SteerDelay', '', 3, ''),
   ('SteerDelayStock', '', 3, ''),

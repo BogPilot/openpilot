@@ -290,7 +290,10 @@ WheelIcon
 WheelSpeed
 """.split())
 FILE_RESET_KEYS = FILE_ONLY_UI_KEYS | {"OffroadScreensaver", "ConfidenceBall"}
-UNSET_KEYS = frozenset({"TuningLevel", "TuningLevelConfirmed"})
+# t994 gasAccelStop adoption markers (file-only): a reset must return the consumers to the stock-equivalent un-adopted state,
+# otherwise rewritten registry defaults (Sport accel, Human ON, ...) would go live on a "reset" device.
+ADOPTION_MARKERS = tuple("Phase3LongAccelProfilesEnabled Phase3AdvancedLongEnabled Phase3CEMEnabled Phase3StoppedDistanceEnabled Phase3ForceStopsEnabled Phase3ManualWeatherEnabled Phase3SpeedLimitEnabled Phase3PersonalitiesEnabled Phase3HumanFollowingEnabled Phase3LeadDetectionEnabled Phase3LaneChangeEnabled Phase3HumanLaneChangesEnabled Phase3TurnDesiresEnabled Phase3StopAccelEnabled Phase3StoppingRateEnabled".split())
+UNSET_KEYS = frozenset({"TuningLevel", "TuningLevelConfirmed", *ADOPTION_MARKERS})
 
 
 @dataclass(frozen=True)
@@ -305,6 +308,39 @@ def reset_defaults() -> dict[str, str | None]:
   for k, (value, _level) in PARAM_OVERRIDES.items():
     if k in values:
       values[k] = value
+  values.update({k: "1" if FILE_TOGGLES[k][0] else "0" for k in sorted(FILE_RESET_KEYS)})
+  values["OffroadScreensaver"] = "0"
+  values["AlertVolumeControl"] = "0"
+  for k in values:
+    if k.endswith("Volume"):
+      values[k] = "101"
+  values.update(dict.fromkeys(UNSET_KEYS))
+  return values
+
+
+# t994: fresh-install Device Controls = STOCK power behaviour. The compiled libparams defaults (9 -> 6 h, onroad 30 s)
+# cannot change without a native rebuild, so startup moves them once (bogpilot_startup) and resets use this overlay.
+DEVICE_STOCK_FRESH = {"DeviceShutdown": "33", "ScreenTimeoutOnroad": "10"}
+
+
+def shipping_defaults() -> dict[str, str | None]:
+  """BogPilot SHIPPING defaults for the Utilities "Reset BogPilot Settings to Defaults" row.
+
+  reset_defaults() above is the *stock openpilot* policy (BOGPILOT_PARAMS stock column), which turns the
+  shipped-ON features (Green Light, Lead Departed, Adjacent Lead Speed Boxes ...) OFF. Shipping defaults
+  come from the registry default column + the locked shipping overlays, so a reset restores exactly what a
+  fresh install gets. Same key scope/exclusions as reset_defaults (identity/auth/calibration never touched).
+  """
+  values: dict[str, str | None] = {}
+  for k in sorted(RESET_KEYS):
+    default = BOGPILOT_PARAMS[k][2]
+    if default is None:
+      continue  # no shipped default: leave the saved value alone
+    values[k] = default if default != "" else None
+  for k, (value, _level) in PARAM_OVERRIDES.items():
+    if k in values:
+      values[k] = value
+  values.update({k: v for k, v in DEVICE_STOCK_FRESH.items() if k in values})
   values.update({k: "1" if FILE_TOGGLES[k][0] else "0" for k in sorted(FILE_RESET_KEYS)})
   values["OffroadScreensaver"] = "0"
   values["AlertVolumeControl"] = "0"

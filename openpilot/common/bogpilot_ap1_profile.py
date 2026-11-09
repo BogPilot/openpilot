@@ -97,6 +97,9 @@ NEVER_PROFILE_KEYS = frozenset({
   "IsMetric", "Fahrenheit", "UseSI",
   # driving model: a fresh device won't have the maintainer's model downloaded
   "Model",
+  # BogPilot Alerts: independent Green Light / Lead Departed defaults ON; saved OFF must survive
+  # AP1 profile / DoToggleReset marker cycles. Never reintroduce these as profile writes.
+  "GreenLightAlert", "LeadDepartingAlert",
 })
 
 # Keys deliberately listed even though the value equals the table default, so the
@@ -189,7 +192,9 @@ AP1_PARAM_PROFILE: dict[str, str] = {
   # Alert volumes are NOT part of this profile (stream 7): AP1 keeps the FrogPilot defaults
   # (AlertVolumeControl 0, every volume 101) from openpilot/common/bogpilot_alert_volumes.py. The legacy
   # 367e1fe engage/disengage mute is intentionally dropped and must never be re-applied.
-  "CustomAlerts": "1",                   # FrogPilot custom alerts on
+  # CustomAlerts master gate intentionally omitted: GreenLightAlert / LeadDepartingAlert are
+  # independent, fresh-ON, and listed in NEVER_PROFILE_KEYS so saved OFF cannot be clobbered.
+  # GoatScream / LoudBlindspot / SpeedLimitChanged stay omitted from runtime and menus.
 
   # --- System ---
   "PreferredSchedule": "1",              # OSM map update schedule: Weekly (default Monthly)

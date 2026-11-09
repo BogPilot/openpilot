@@ -56,3 +56,34 @@ def device_readings(device_state: Any, *, fresh: bool, fahrenheit: bool = False)
   except (AttributeError, ValueError, TypeError, OverflowError):
     pass
   return temp, cpu, ram
+
+
+# --- t994 visualsTheme: visibility gates for ShowCPU / ShowMemoryUsage / NumericalTemp ---
+def metric_visibility_from_params(params) -> "tuple[bool, bool, bool, bool]":
+  """(show_cpu, show_memory, numerical_temp, fahrenheit) from a Params-like object.
+
+  Defaults match shipping registry (CPU/RAM/NumericalTemp ON, Fahrenheit OFF) so a
+  missing key preserves prior on-screen behaviour.
+  """
+  def b(key: str, default: bool) -> bool:
+    try:
+      if hasattr(params, "get_bool"):
+        v = params.get_bool(key)
+        if v is None:
+          return default
+        return bool(v)
+    except Exception:
+      pass
+    try:
+      raw = params.get(key) if hasattr(params, "get") else None
+    except Exception:
+      raw = None
+    if raw is None:
+      return default
+    if isinstance(raw, bool):
+      return raw
+    if isinstance(raw, (bytes, bytearray)):
+      raw = raw.decode("utf-8", "replace")
+    return str(raw).strip().lower() in ("1", "true", "yes", "on")
+
+  return b("ShowCPU", True), b("ShowMemoryUsage", True), b("NumericalTemp", True), b("Fahrenheit", False)

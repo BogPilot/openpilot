@@ -29,6 +29,16 @@ def pm_patch(mocker, name, value, constant=False):
 class TestPowerMonitoring(OpenpilotTestCase):
   def setup_method(self):
     self._fixture("mocker").patch("time.monotonic", mock_time_monotonic)
+    # t994: BogPilot Device Controls hooks are covered in test_int_t994_device_hooks; these are the stock-path tests.
+    class _StockStore:
+      def get_bool(self, *a, **k):
+        return False
+      def raw(self, *a, **k):
+        return None
+    from unittest import mock as _mock
+    _p = _mock.patch("openpilot.system.hardware.power_monitoring.bp_device_store", lambda: _StockStore())
+    _p.start()
+    self.addCleanup(_p.stop)
     self.params = Params()
 
   # Test to see that it doesn't do anything when pandaState is None

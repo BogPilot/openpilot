@@ -149,7 +149,7 @@ def fingerprint(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_mu
 
 
 def get_car(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_multiplexing: ObdCallback, alpha_long_allowed: bool,
-            is_release: bool, cached_params: CarParamsT | None = None):
+            is_release: bool, cached_params: CarParamsT | None = None, fingerprint_override=None):
   candidate, fingerprints, vin, car_fw, source, exact_match = fingerprint(can_recv, can_send, set_obd_multiplexing, cached_params)
 
   if candidate is None:
@@ -157,6 +157,14 @@ def get_car(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_multip
     if match_ap1_chassis(fingerprints):
       candidate = AP1.TESLA_AP1_MODELS
       source = CarParams.FingerprintSource.can
+
+  # BogPilot Car Selection (568fea rule): saved CarModel is used when detection failed
+  # or ForceFingerprint is on. fingerprint_override returns (candidate, used_saved).
+  if fingerprint_override is not None:
+    candidate, used_saved = fingerprint_override(candidate)
+    if used_saved:
+      source = CarParams.FingerprintSource.fixed
+      carlog.error({"event": "using saved fingerprint", "candidate": str(candidate)})
 
   if candidate is None:
     carlog.error({"event": "car doesn't match any fingerprints", "fingerprints": repr(fingerprints)})

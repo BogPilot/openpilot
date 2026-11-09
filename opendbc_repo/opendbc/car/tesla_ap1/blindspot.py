@@ -3,26 +3,33 @@
 The stock DAS sends DAS_blindSpotRearLeft / DAS_blindSpotRearRight in 0x399
 on bus 2 (cp_cam), the frame the cluster substitution already reads. Values
 (tesla_can.dbc VAL_ 921): 0 NO_WARNING, 1 WARNING_LEVEL_1, 2 WARNING_LEVEL_2,
-3 SNA. 1 and 2 count as a car in the blind spot. 0 and 3 do not set the flag.
+3 SNA.
+
+Fail-closed for lane change: left/right Blindspot is True (OCCUPIED) when
+  - WARNING_LEVEL_1/2 is held, OR
+  - SNA (3) on a checksum-OK frame, OR
+  - garbage/unreadable value on a checksum-OK frame, OR
+  - no checksum-OK 0x399 frame within BSM_STALE_S (dropout / bad-checksum skip).
+Only a recent checksum-OK NO_WARNING (0) clears that side.
 
 0x399 comes at about 2.4 Hz, so each side holds for BSM_HOLD_S after the last
-frame that said 1 or 2. A single warning frame shows for BSM_HOLD_S; a run of
-warning frames shows for the run plus BSM_HOLD_S, with no gaps between frames.
-
-opendbc has no Tesla checksum check, so a frame whose DAS_statusChecksum does
-not match its bytes is skipped here (no new detection, the hold still runs
-out). Read-only: nothing here is sent to the car.
+occupied report. Bad-checksum frames are skipped (no refresh); staleness then
+forces OCCUPIED. Read-only: nothing here is sent to the car.
 """
 from opendbc.car.tesla_ap1.cluster import (
   AUTOPILOT_STATUS, CHECKSUM_SIGNALS, MSG_NAMES, SIGNALS, pack, tesla_checksum,
 )
 
-# Seconds a side stays on after the last 0x399 frame that reported it.
+# Seconds a side stays on after the last occupied report.
 BSM_HOLD_S = 1.0
+# No checksum-OK frame within this many seconds → OCCUPIED (unknown).
+BSM_STALE_S = 1.5
 
 BSM_LEFT = "DAS_blindSpotRearLeft"
 BSM_RIGHT = "DAS_blindSpotRearRight"
-BSM_DETECTED = (1, 2)  # WARNING_LEVEL_1, WARNING_LEVEL_2. 3 is SNA.
+BSM_DETECTED = (1, 2)  # WARNING_LEVEL_1, WARNING_LEVEL_2
+BSM_SNA = 3
+BSM_CLEAR = 0
 
 _NAME = MSG_NAMES[AUTOPILOT_STATUS]
 _CHECKSUM = CHECKSUM_SIGNALS[AUTOPILOT_STATUS]
@@ -45,6 +52,20 @@ def detected(value):
     return False
 
 
+def is_sna(value):
+  try:
+    return int(value) == BSM_SNA
+  except (TypeError, ValueError):
+    return True  # unreadable → treat as invalid/SNA
+
+
+def is_clear(value):
+  try:
+    return int(value) == BSM_CLEAR
+  except (TypeError, ValueError):
+    return False
+
+
 def frames_from_vl_all(cp_cam):
   """0x399 frames received this step, oldest first, as {signal: value}."""
   sigs = cp_cam.vl_all.get(_NAME, {}) if hasattr(cp_cam.vl_all, "get") else {}
@@ -60,32 +81,54 @@ def frames_from_vl_all(cp_cam):
 
 
 class Ap1Blindspot:
-  """Per-side hold (latch-off delay) over the 0x399 blind-spot fields."""
+  """Per-side hold + staleness: SNA/stale/invalid → OCCUPIED (Blindspot True)."""
 
-  def __init__(self, hold_s=BSM_HOLD_S):
+  def __init__(self, hold_s=BSM_HOLD_S, stale_s=BSM_STALE_S):
     self.hold_s = hold_s
-    self.left_s = 0.0   # seconds of hold left
+    self.stale_s = stale_s
+    self.left_s = 0.0   # seconds of occupied hold left
     self.right_s = 0.0
+    # Age since last checksum-OK frame for that side; start stale → OCCUPIED.
+    self.left_age = stale_s + 1.0
+    self.right_age = stale_s + 1.0
     self.bad_checksum = 0
 
   @property
   def left(self):
-    return self.left_s > 0.0
+    return self.left_s > 0.0 or self.left_age > self.stale_s
 
   @property
   def right(self):
-    return self.right_s > 0.0
+    return self.right_s > 0.0 or self.right_age > self.stale_s
+
+  @property
+  def left_valid(self):
+    return self.left_age <= self.stale_s
+
+  @property
+  def right_valid(self):
+    return self.right_age <= self.stale_s
+
+  def _apply_side(self, side: str, value) -> None:
+    age_attr = f"{side}_age"
+    hold_attr = f"{side}_s"
+    setattr(self, age_attr, 0.0)  # fresh checksum-OK observation
+    if is_clear(value):
+      setattr(self, hold_attr, 0.0)
+    else:
+      # WARNING, SNA, or garbage → OCCUPIED
+      setattr(self, hold_attr, self.hold_s)
 
   def update(self, frames, dt):
-    """Age the holds by dt, then apply this step's frames. Returns (left, right)."""
+    """Age holds/freshness by dt, then apply this step's frames. Returns (left, right) OCCUPIED."""
     self.left_s = max(0.0, self.left_s - dt)
     self.right_s = max(0.0, self.right_s - dt)
+    self.left_age += dt
+    self.right_age += dt
     for f in frames:
       if not checksum_ok(f):
         self.bad_checksum += 1
         continue
-      if detected(f.get(BSM_LEFT)):
-        self.left_s = self.hold_s
-      if detected(f.get(BSM_RIGHT)):
-        self.right_s = self.hold_s
+      self._apply_side("left", f.get(BSM_LEFT))
+      self._apply_side("right", f.get(BSM_RIGHT))
     return self.left, self.right

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from collections.abc import Callable
 from openpilot.cereal import log
 from openpilot.common.params import Params
-from openpilot.selfdrive.ui.bogpilot.sidebar_metrics import device_readings
+from openpilot.selfdrive.ui.bogpilot.sidebar_metrics import device_readings, metric_visibility_from_params
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app, FontWeight, MousePos, FONT_SCALE
 from openpilot.system.ui.lib.multilang import tr, tr_noop
@@ -77,7 +77,15 @@ class Sidebar(Widget):
     self._panda_status = MetricData(tr_noop("VEHICLE"), tr_noop("ONLINE"), Colors.GOOD)
     self._recording_audio = False
 
-    self._home_img = gui_app.texture("bogpilot/button_home.png", HOME_BTN.width, HOME_BTN.height)
+    # Load BogPilot home mark at native PNG resolution (360x360). Forcing a CPU
+    # image_resize down to HOME_BTN (180) then drawing with GPU bilinear double-filters
+    # the arc AA and looks like clipped/smudged pixels on the lower-left sidebar logo.
+    # Draw at HOME_BTN with an explicit scale so only one filter step runs.
+    self._home_img = gui_app.texture("bogpilot/button_home.png")
+    if not (self._home_img.width > 0 and self._home_img.height > 0):
+      # ui is a managed process (selfdrived raises processNotRunning if it is down): never crash on an asset failure.
+      self._home_img = gui_app.texture("images/button_home.png", HOME_BTN.width, HOME_BTN.height)
+    self._home_draw_scale = HOME_BTN.width / float(self._home_img.width) if self._home_img.width > 0 else 1.0
     self._flag_img = gui_app.texture("images/button_flag.png", HOME_BTN.width, HOME_BTN.height)
     self._settings_img = gui_app.texture("images/button_settings.png", SETTINGS_BTN.width, SETTINGS_BTN.height)
     self._mic_img = gui_app.texture("icons/microphone.png", 30, 30)
@@ -124,7 +132,11 @@ class Sidebar(Widget):
     self._update_panda_status()
 
   def _update_hardware_metrics(self, device_state, *, fresh: bool):
-    readings = device_readings(device_state, fresh=fresh, fahrenheit=self._params.get_bool("Fahrenheit"))
+    show_cpu, show_memory, numerical_temp, fahrenheit = metric_visibility_from_params(self._params)
+    self._show_cpu = show_cpu
+    self._show_memory = show_memory
+    self._numerical_temp = numerical_temp
+    readings = device_readings(device_state, fresh=fresh, fahrenheit=fahrenheit)
     colors = {"good": Colors.GOOD, "warning": Colors.WARNING, "danger": Colors.DANGER, "unknown": Colors.GRAY}
     for metric, reading in zip((self._offroad_temp_status, self._cpu_status, self._ram_status), readings, strict=True):
       metric.update(metric.label, reading.value, colors[reading.level])
@@ -174,7 +186,9 @@ class Sidebar(Widget):
     button_img = self._flag_img if ui_state.started else self._home_img
 
     tint = Colors.BUTTON_PRESSED if (ui_state.started and flag_pressed) else Colors.BUTTON_NORMAL
-    rl.draw_texture_ex(button_img, rl.Vector2(HOME_BTN.x, HOME_BTN.y), 0.0, 1.0, tint)
+    # Offroad home uses native-size texture + scale; onroad flag stays 1:1 at HOME_BTN.
+    draw_scale = 1.0 if ui_state.started else self._home_draw_scale
+    rl.draw_texture_ex(button_img, rl.Vector2(HOME_BTN.x, HOME_BTN.y), 0.0, draw_scale, tint)
 
     # Microphone button
     if self._recording_audio:
@@ -207,10 +221,22 @@ class Sidebar(Widget):
 
   def _draw_metrics(self, rect: rl.Rectangle):
     # Keep thermal and vehicle readiness onroad; show genuine RAM instead of removed cloud status.
-    metrics = ([(self._temp_status, 338), (self._panda_status, 496), (self._ram_status, 654)] if ui_state.started else
-               [(self._offroad_temp_status, 338), (self._cpu_status, 496), (self._ram_status, 654)])
-
-    for metric, y_offset in metrics:
+    # t994 visualsTheme: gate CPU/RAM/numeric temp from preserved ShowCPU / ShowMemoryUsage / NumericalTemp.
+    show_cpu = getattr(self, "_show_cpu", True)
+    show_memory = getattr(self, "_show_memory", True)
+    numerical_temp = getattr(self, "_numerical_temp", True)
+    slots = (338, 496, 654)
+    if ui_state.started:
+      chosen = [self._temp_status, self._panda_status]
+      if show_memory:
+        chosen.append(self._ram_status)
+    else:
+      chosen = [self._offroad_temp_status if numerical_temp else self._temp_status]
+      if show_cpu:
+        chosen.append(self._cpu_status)
+      if show_memory:
+        chosen.append(self._ram_status)
+    for metric, y_offset in zip(chosen, slots[:len(chosen)], strict=True):
       self._draw_metric(rect, metric, rect.y + y_offset)
 
   def _draw_metric(self, rect: rl.Rectangle, metric: MetricData, y: float):

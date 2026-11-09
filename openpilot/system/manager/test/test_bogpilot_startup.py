@@ -125,11 +125,12 @@ def test_profile_non_ap1_no_writes(tmp_path):
   p = MemoryParams()
   result = lifecycle.after_defaults(p, file_root=tmp_path)
   assert result.events[-1:] == ["ap1:0"]
-  assert not p.values
+  # t994 INT: the only writes are the one-shot Device Controls stock-default moves (compiled 9 / 30 -> stock 33 / 10)
+  assert p.values == {"DeviceShutdown": "33", "ScreenTimeoutOnroad": "10"}
   # Only the assembled w8 one-shot screensaver default-off migration marker may exist; no AP1 profile writes.
   written = {path.name for path in tmp_path.iterdir()}
-  assert written <= {"ScreensaverDefaultOff1"}
-  assert ("screensaver:migrated" in result.events) == bool(written)
+  assert written <= {"ScreensaverDefaultOff1", "DeviceStockDefaults1"}
+  assert ("screensaver:migrated" in result.events) == ("ScreensaverDefaultOff1" in written)
 
 
 def test_profile_optional_storage_unavailable(tmp_path):
