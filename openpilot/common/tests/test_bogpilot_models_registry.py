@@ -284,6 +284,21 @@ class TestValidation(unittest.TestCase):
     p.write_bytes(p.read_bytes()[:-1] + b"\x07")  # same size, new content: the cache must not hide it
     self.assertFalse(registry.validate_entry(e, cache).ok)
 
+  def test_whole_validation_result_is_cached_until_a_file_changes(self):
+    d = fx.install_model(self.root, "memo")
+    e = registry.get_entry("memo", self.root)
+    cache = {}
+    v1 = registry.validate_entry(e, cache)
+    self.assertTrue(v1.ok)
+    self.assertIs(registry.validate_entry(e, cache), v1)  # no re-hash, no re-parse while stat is unchanged
+    p = d / "driving.pkl"
+    p.write_bytes(p.read_bytes()[:-1] + b"\x09")
+    v2 = registry.validate_entry(e, cache)
+    self.assertIsNot(v2, v1)
+    self.assertFalse(v2.ok)
+    p.unlink()
+    self.assertIn("missing", registry.validate_entry(e, cache).reason)
+
   def test_validate_never_raises(self):
     e = registry.Entry("x", "x", "1", "MIT", False, Path("/definitely/not/here"), registry.parse_manifest(good_manifest(id="x")), ())
     self.assertFalse(registry.validate_entry(e).ok)

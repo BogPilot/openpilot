@@ -124,7 +124,7 @@ def select(model_id: str, is_offroad: Callable[[], bool], store=None, root=None,
   entry = registry.get_entry(model_id, root)
   if entry is None or entry.builtin:
     return SelectResult(False, "That model is not installed.")
-  v = registry.validate_entry(entry, cache)
+  v = registry.validate_entry(entry)  # always fresh (never cached): the pins written below must describe the files as they are now
   if not v.ok:
     return SelectResult(False, f"{entry.name} cannot be used: {v.reason}")
   store.put(KEY_SELECTION, json.dumps({"v": 1, "id": entry.id, "pin_model": v.model_sha256,
