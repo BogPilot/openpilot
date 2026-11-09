@@ -8,8 +8,7 @@ from opendbc.car.tesla_ap1.blindspot import Ap1Blindspot, frames_from_vl_all
 from opendbc.car.tesla_ap1.cluster import CLUSTER_ADDRS, COUNTER_SIGNALS, MSG_NAMES
 from opendbc.car.tesla_ap1.hso import ap1_driver_input
 from opendbc.car.tesla_ap1.stalk_follow import dtr_sample, follow_seconds, parse_stalk_raw
-from opendbc.car.tesla_ap1.stalk_pull_hold import PULL_HOLD_ENABLED, StalkPullHold
-from opendbc.car.tesla_ap1.stalk_fwd_hold import FWD_HOLD_ENABLED, StalkFwdHold
+from opendbc.car.tesla_ap1.phase3_stalk_controls import StalkControls
 from opendbc.car.tesla_ap1.speed_limit import dashboard_speed_limit_ms
 from opendbc.car.tesla_ap1.steer_fault import steer_fault_temporary
 from opendbc.car.tesla_ap1.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTTONS
@@ -36,12 +35,11 @@ class CarState(CarStateBase):
     # DTR_Dist_Rq decision. Python only; cereal was not extended.
     self.spd_ctrl_lvr = 0
     self.stalk_follow = None
-    # AP1 long RWD pull → Experimental Mode (see stalk_pull_hold.py).
-    self.stalk_pull_hold = StalkPullHold()
+    # Experimental-only holds; normal buttonEvents and PCM engagement stay fixed.
     self.stalk_pull_toggle = False
-    # AP1 long FWD hold while disengaged → Experimental Mode (stalk_fwd_hold.py).
-    self.stalk_fwd_hold = StalkFwdHold()
     self.stalk_fwd_toggle = False
+    self.stalk_controls = StalkControls()
+    self.stalk_controls_allowed = False  # card supplies live onroad/experimental eligibility
     # AP1 only. {addr: decoded values} for stock cluster frames (bus 2) that
     # arrived this step. Read by CarController for the cluster frames.
     self.cluster_stock = {}
@@ -153,8 +151,9 @@ class CarState(CarStateBase):
     ret.seatbeltUnlatched = (cp.vl["SDM1"]["SDM_bcklDrivStatus"] != 1)
 
     # Blindspot. AP1 only: stock DAS_blindSpotRearLeft/Right from 0x399 on
-    # cp_cam (1/2 = warning, 3 = SNA ignored, bad checksum skipped), held
-    # BSM_HOLD_S per side because 0x399 is ~2.4 Hz. Other Teslas: no BSM.
+    # cp_cam. Fail-closed: WARNING/SNA/garbage/stale/bad-checksum dropout =>
+    # Blindspot True (OCCUPIED). Only recent checksum-OK NO_WARNING clears.
+    # Held BSM_HOLD_S; stale after BSM_STALE_S. Other Teslas: no BSM.
     if ap1:
       ret.leftBlindspot, ret.rightBlindspot = self.ap1_bsm.update(frames_from_vl_all(cp_cam), DT_CTRL)
 
@@ -182,21 +181,15 @@ class CarState(CarStateBase):
     # 0 means no ready detent. 255 holds the last seconds via parse_stalk_raw.
     stalk_follow_s = follow_seconds(self.stalk_follow) if self.CP.carFingerprint == CAR.TESLA_AP1_MODELS else 0.0
 
-    # AP1: long RWD pull while already engaged → one Experimental Mode toggle.
-    # Uses prior cruise enabled so the engage pull itself does not fire.
-    # DI may bump set speed mid-hold (resume); accepted — see stalk_pull_hold.py.
-    # AP1: long FWD hold while already disengaged → one Experimental Mode toggle.
-    # Cancel-while-engaged is disarmed; engage mid-hold aborts (stalk_fwd_hold.py).
-    self.stalk_pull_toggle = False
-    self.stalk_fwd_toggle = False
-    if self.CP.carFingerprint == CAR.TESLA_AP1_MODELS:
-      prev = getattr(self, "out", None)
-      was_engaged = bool(prev.cruiseState.enabled) if prev is not None else False
-      spd = cp.vl["STW_ACTN_RQ"].get("SpdCtrlLvr_Stat")
-      if PULL_HOLD_ENABLED:
-        self.stalk_pull_toggle = self.stalk_pull_hold.update(spd, was_engaged, DT_CTRL)
-      if FWD_HOLD_ENABLED:
-        self.stalk_fwd_toggle = self.stalk_fwd_hold.update(spd, was_engaged, DT_CTRL)
+    # Experimental holds never modify the buttonEvents above or stock PCM state.
+    prev = getattr(self, "out", None)
+    was_engaged = bool(prev.cruiseState.enabled) if prev is not None else False
+    sample_ns = ts_map.get("SpdCtrlLvr_Stat", 0) if isinstance(ts_map, dict) else 0
+    self.stalk_pull_toggle, self.stalk_fwd_toggle = self.stalk_controls.update(
+      self.spd_ctrl_lvr, was_engaged, sample_ns,
+      bool(cp.can_valid and cp_cam.can_valid), self.stalk_controls_allowed, self.CP)
+    if not self.stalk_controls.settings.twist_follow:
+      stalk_follow_s = 0.0  # planner falls back to normal profile; no speed/engage changes
 
     # Messages needed by carcontroller
     self.msg_stw_actn_req = copy.copy(cp.vl["STW_ACTN_RQ"])

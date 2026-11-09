@@ -18,6 +18,7 @@ from openpilot.selfdrive.ui.onroad.bogpilot import cluster_layout as L
 from openpilot.selfdrive.ui.onroad.bogpilot.accel_graph import AccelGraph
 from openpilot.selfdrive.ui.onroad.bogpilot import speed_limit_display as SL
 from openpilot.selfdrive.ui.onroad.bogpilot import steering_arc as ARC
+from openpilot.selfdrive.ui.onroad.bogpilot import phase3_cem_status as CEM
 from openpilot.selfdrive.ui.onroad.bogpilot import pedals as PED
 from openpilot.selfdrive.ui.onroad.bogpilot.style import REC_CX, REC_CY, REC_HIT
 from openpilot.selfdrive.ui.onroad.exp_button import ExpButton
@@ -114,12 +115,28 @@ def draw_cluster(hud, rect, mici=False):
     rl.rl_pop_matrix()
 
 
+def draw_cem_status(hud, rect):
+  if not getattr(hud, "bp_cem", CEM.HIDDEN).visible:
+    return
+  try:
+    scale = min(1.0, rect.width / 2160.0, rect.height / 1080.0)
+    box = rl.Rectangle(rect.x + 30 * scale, rect.y + 470 * scale, 280 * scale, 54 * scale)
+    CEM.paint_status(hud.bp_cem, box)
+    if hasattr(hud, "bp_extra_keepouts"):
+      hud.bp_extra_keepouts.append(box)
+  except Exception:
+    cloudlog.exception("cem status badge failed")
+
+
 class ClusterState:
   """Accel graph samples and the validated CSC report, shared by the C3X and C4 renderers."""
 
   def _bp_init(self):
     self.bp_graph = AccelGraph(hz=GRAPH_HZ)
     self.bp_csc = L.INVALID_CSC
+    self.bp_cem = CEM.HIDDEN
+    from openpilot.common.bogpilot_store import ParamStore
+    self._bp_cem_store = ParamStore(cache_ttl=.1)
     self._bp_graph_t = -1.0
     self._bp_started = None
     self._bp_drive_start = 0.0
@@ -130,6 +147,7 @@ class ClusterState:
     self._bp_limit_policy = SL.LimitPolicyReader(cp_fn=lambda: ui_state.CP)
 
   def _bp_update(self):
+    self.bp_cem = CEM.HIDDEN
     sm = ui_state.sm
     now = time.monotonic()
     if self._bp_started != ui_state.started_frame:
@@ -150,6 +168,11 @@ class ClusterState:
     if self._bp_plan_sm is not None:
       self._bp_plan_sm.update(0)
       self.bp_csc = L.read_csc_status(self._bp_plan_sm, now, self._bp_drive_start)
+      try:  # display-only badge must never break the onroad HUD
+        self.bp_cem = CEM.read_status(self._bp_cem_store, self._bp_plan_sm, now, self._bp_drive_start,
+                                      bool(_fresh(sm, "selfdriveState") and sm["selfdriveState"].enabled))
+      except Exception:
+        self.bp_cem = CEM.HIDDEN
     dashboard = SL.read_dashboard_limit(self._bp_plan_sm, now, self._bp_drive_start)
     self.bp_limit = SL.speed_limit_view(self._bp_limit_policy.get(), dashboard, self.bp_csc,
                                         MS_TO_KPH if ui_state.is_metric else MS_TO_MPH)
@@ -330,6 +353,7 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
         self._exp_button.render(rl.Rectangle(button_x, rect.y + 30, UI_CONFIG_BUTTON, UI_CONFIG_BUTTON))
     if redesign and wide:
       self._bp_render_extras(rect)
+    draw_cem_status(self, rect)
 
   def _bp_render_extras(self, rect):
     scale = min(1.0, rect.width / 2160.0, rect.height / 1080.0)
@@ -388,3 +412,5 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
     super()._render(rect)
     if toggles.get("RedesignUI") and self._can_draw_top_icons:
       draw_cluster(self, rect, mici=True)
+    if self._can_draw_top_icons:
+      draw_cem_status(self, rect)

@@ -28,6 +28,15 @@ AP1_VOLUME_PROFILE: dict[str, str] = dict(FROGPILOT_VOLUME_DEFAULTS)
 
 AUTO_VOLUME_PERCENT = 101
 WARNING_IMMEDIATE_MIN_PERCENT = 25
+# Safety alert categories can never be muted below an audible floor (consumer-side, independent of the UI).
+# promptRepeat shares PromptVolume. Engage / Disengage / Refuse are informational and stay mutable.
+SAFETY_FLOOR_PERCENT = 25
+SAFETY_FLOOR_KEYS: tuple[str, ...] = (
+  "PromptVolume",
+  "PromptDistractedVolume",
+  "WarningSoftVolume",
+  "WarningImmediateVolume",
+)
 
 VOLUME_PARAM_KEYS: tuple[str, ...] = (
   "EngageVolume",
@@ -64,8 +73,8 @@ def is_muted_engage_disengage(profile: dict[str, str]) -> bool:
 def volume_fraction(percent: int | float, *, key: str | None = None) -> float:
   """Convert a FrogPilot percent setting to a soundd gain. 101 -> sentinel 1.01 (auto)."""
   pct = int(percent)
-  if key == "WarningImmediateVolume":
-    pct = max(pct, WARNING_IMMEDIATE_MIN_PERCENT)
+  if key in SAFETY_FLOOR_KEYS:
+    pct = max(pct, SAFETY_FLOOR_PERCENT)
   return pct / 100.0
 
 

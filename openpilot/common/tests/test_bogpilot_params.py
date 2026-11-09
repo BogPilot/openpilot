@@ -21,7 +21,7 @@ RAW_REF = FIXTURE["defaults"]
 # (AOL off, metrics on, TuningLevel intentionally unset 0/0, ...). The fixture itself stays untouched.
 from openpilot.common.bogpilot_shipping_defaults import PARAM_OVERRIDES as SHIPPING
 REF = {k: ([SHIPPING[k][0], SHIPPING[k][1], v[2]] if k in SHIPPING else v) for k, v in RAW_REF.items()}
-# t968u explicit fresh-ON exceptions after the historical shipping snapshot.
+# explicit fresh-ON exceptions after the historical shipping snapshot.
 # Preserve the immutable 367e1fe fixture and every other default/level/stock value.
 REQUESTED_ALERT_DEFAULTS = {"GreenLightAlert": ["1", 0, "0"], "LeadDepartingAlert": ["1", 0, "0"]}
 REF.update(REQUESTED_ALERT_DEFAULTS)
@@ -109,9 +109,10 @@ def test_reset_and_backup(tmp_path):
 def test_file_toggle_defaults(monkeypatch, tmp_path):
   monkeypatch.setattr(bt, "BOGPILOT_DIR", tmp_path)
   # stream 5: SwapSpeedGraph ships ON; stream 8: HideAccelGraph ships OFF
-  on = {"BSMFlameTracks", "ConfidenceBall", "RedesignUI", "ShowUploadRate", "RemoteUIStream", "HevcStream",
-        "SwapSpeedGraph"}
-  off = {"DeveloperHUD", "HideAccelGraph", "OccViz", "LiveYOLO", "OffroadScreensaver"}
+  # telemetryAudit: cloud-only orphans (upload rate / remote stream / HEVC stream) ship OFF (no menus, no uploader).
+  on = {"BSMFlameTracks", "ConfidenceBall", "RedesignUI", "SwapSpeedGraph"}
+  off = {"DeveloperHUD", "HideAccelGraph", "OccViz", "LiveYOLO", "OffroadScreensaver",
+         "ShowUploadRate", "RemoteUIStream", "HevcStream"}
   for k in on:
     assert bt.read_toggle(k) is True, k
   for k in off:

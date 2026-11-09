@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from collections.abc import Callable
 
 GROUPS = (("alerts_sounds", "Alerts and Sounds"),
-          ("driving", "Driving Controls"), ("vehicle", "Vehicle Settings"))
+          ("driving", "Driving Controls"), ("vehicle", "Vehicle Settings"),
+          ("system", "System Settings"))
 
 
 @dataclass(frozen=True)
@@ -60,7 +61,11 @@ class Navigation:
     if not self.path:
       return "BogPilot"
     group = next(g for g in self.groups if g[0] == self.path[0])
-    return group[1] if len(self.path) == 1 else next(p.title for p in group[2] if p.key == self.path[1])
+    if len(self.path) == 1:
+      return group[1]
+    # A leaf with its own inner pages (Data, Device Controls) may report its current title.
+    inner = getattr(self._cache.get(self.path), "navigation_title", None)
+    return inner if isinstance(inner, str) and inner else next(p.title for p in group[2] if p.key == self.path[1])
 
   def entries(self):
     if not self.path:
@@ -103,6 +108,10 @@ class Navigation:
   def back(self):
     if not self.path:
       return False
+    # A leaf with inner pages consumes Back first (navigation_back() -> True when it moved up).
+    inner_back = getattr(self._cache.get(self.path), "navigation_back", None)
+    if len(self.path) == 2 and callable(inner_back) and inner_back():
+      return True
     self._move(self.path[:-1])
     return True
 

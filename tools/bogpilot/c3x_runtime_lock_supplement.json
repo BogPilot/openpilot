@@ -1,0 +1,23 @@
+{
+ "attestations": {
+  "openpilot/selfdrive/modeld/modeld.py": {
+   "change": "t994 integration: DesireHelper receives modelV2 + model_valid (lane-change policy); no model loading/runtime change",
+   "sha256": "4540a2677a7ce5d25f4b5ea30e4704b58397155ad5767982f4c7cedbccf72eff",
+   "stock_git_blob": "feae029245e281e37667457a74387671458d716f:openpilot/selfdrive/modeld/modeld.py sha256 8eeb7065cb6d672b18d0b5062fe932c1611b3b1b882bf560e81917d79a3501f1"
+  },
+  "pyproject.toml": {
+   "change": "removes PyJWT[crypto], websocket_client deps and the teleoprtc submodule/source",
+   "sha256": "ef7a0bdaabb1a5a7a97db2b13eb7c50c249d9ccacefec69c57454ea75098629f",
+   "stock_git_blob": "7be8f97c0f890e2bba69e2a2ca0d4a5ab8634346"
+  },
+  "uv.lock": {
+   "change": "removed packages: cryptography 50.0.1, libdatachannel-py, pyjwt 2.14.0, spidev 3.8, teleoprtc 1.0.1, websocket-client 1.9.2; none added; no remaining package version/source changed; lock revision 3->5 and openpilot/pandacan dependency lists only",
+   "sha256": "75a30aecd6d7e9e8f88a35d38d619ef1f54bca0e9747af4a6583f0a31363ec21",
+   "stock_git_blob": "8144a10bfabafbb41f87b57acf776829e7b56708"
+  }
+ },
+ "base_manifest_sha256": "933974835b4d6aa7617a128e18ce8aa60aff6b73099c2f31801e687566d09b57",
+ "evidence": "No removed package is imported by tinygrad_repo (except extra/testsig), modeld, transformations or camerad; tinygrad 0.14.0 editable and numpy unchanged. See lanes/modelSelector/HANDOFF.md. Device venv must be built from this same lock; any further lock change fails closed again.",
+ "purpose": "Attest the two lock files (and, for t994, modeld.py's DesireHelper call) that differ from the immutable f7db927 stock pin ONLY because of intentional telemetry/cloud removal. All other 1660 pinned compiler/runtime inputs must still match exactly.",
+ "schema": 1
+}

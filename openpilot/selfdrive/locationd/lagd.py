@@ -183,6 +183,7 @@ class LateralLagEstimator:
     self.okay_window_sec = okay_window_sec
     self.min_recovery_buffer_sec = min_recovery_buffer_sec
     self.initial_lag = CP.steerActuatorDelay + 0.2
+    self.delay_override: float | None = None  # Steering Tuning > Actuator Delay (offroad choice, next drive)
     self.block_size = block_size
     self.block_count = block_count
     self.min_valid_block_count = min_valid_block_count
@@ -238,6 +239,10 @@ class LateralLagEstimator:
       lateralDelay.lateralDelay = min(MAX_LAG, max(MIN_LAG, valid_mean_lag))
     else:
       lateralDelay.lateralDelay = self.initial_lag
+
+    if self.delay_override is not None:
+      # Same clamp as the learned value; estimates below stay untouched so learning is not contaminated.
+      lateralDelay.lateralDelay = min(MAX_LAG, max(MIN_LAG, self.delay_override))
 
     if not np.isnan(current_mean_lag) and not np.isnan(current_std):
       lateralDelay.lateralDelayEstimate = current_mean_lag
@@ -396,6 +401,8 @@ def main():
   CP = messaging.log_from_bytes(params.get("CarParams", block=True), car.CarParams)
 
   lag_learner = LateralLagEstimator(CP, 1. / SERVICE_LIST['deviceMotion'].frequency)
+  from openpilot.selfdrive.controls.lib.phase3_steering_tuning import load_steering_tuning
+  lag_learner.delay_override = load_steering_tuning(CP).delay_override
   if (initial_lag_params := retrieve_initial_lag(params, CP)) is not None:
     lag, valid_blocks = initial_lag_params
     lag_learner.reset(lag, valid_blocks)

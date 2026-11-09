@@ -38,6 +38,22 @@ Quick start: `bash <(curl -fsSL openpilot.comma.ai)`
 </table>
 
 
+BogPilot on comma 3X (AGNOS 19.9)
+------
+
+**Use branch `bogpilot-c3x-donotuse`**, not the repository default `bogpilot-tesla`.
+
+| | |
+|---|---|
+| Branch | [`bogpilot-c3x-donotuse`](https://github.com/BogPilot/openpilot/tree/bogpilot-c3x-donotuse) |
+| Installer URL | `installer.comma.ai/BogPilot/bogpilot-c3x-donotuse` |
+| Device / OS | comma **3X** on **AGNOS 19.9** (openpilot 0.11.2 line) |
+| Do not install for this target | GitHub default `bogpilot-tesla` (0.9.7 / AGNOS ~10.1, unrelated history) |
+
+AP1 Model S detection needs the chassis+Mobileye CAN signature (or a developer `FINGERPRINT`); there is no AP1 FW row. Menus on this tip are an active-only shell (BogPilot: Alerts and Sounds, Driving Controls > Gas/Brake + Steering Tuning, Vehicle Settings incl. Stalk Controls, System Settings; plus Visuals). Speed Limit Controller is not in this build. Full install, car-detect, menu map, and known limits: **[docs/bogpilot_c3x.md](docs/bogpilot_c3x.md)**.
+
+Pre-AP signal data values may reference an upstream legacy port (data only); that port's code is not used.
+
 Using openpilot in a car
 ------
 

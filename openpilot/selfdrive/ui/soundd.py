@@ -40,7 +40,7 @@ except Exception:  # pragma: no cover - keep stock soundd usable without the pac
     if not alert_volume_control:
       return ambient
     pct = int(percent)
-    if key == "WarningImmediateVolume":
+    if key in ("PromptVolume", "PromptDistractedVolume", "WarningSoftVolume", "WarningImmediateVolume"):
       pct = max(pct, 25)
     frac = pct / 100.0
     return ambient if abs(frac - 1.01) < 1e-9 else frac
@@ -177,15 +177,23 @@ class Soundd:
     self.pending_stop = False
 
     self.spl_filter_weighted = FirstOrderFilter(0, 2.5, FILTER_DT, initialized=False)
+    self._bp_ambient_volume = MIN_VOLUME
+    self._bp_next_reload = 0.0
+    self._bp_reload_volumes()
+
+  def _bp_reload_volumes(self):
+    """Live consumer: re-read file-first store; clamp percents to 0..101.
+    Safety-alert floor (>=25 for Prompt, PromptDistracted, WarningSoft, WarningImmediate) remains in alert_volumes.volume_fraction / resolve_alert_gain.
+    Stock warningSoft/warningImmediate ramp to MAX_VOLUME is unchanged.
+    """
     self._bp_alert_volume_control = _bogpilot_bool(
       _bogpilot_read_param("AlertVolumeControl"),
       _bogpilot_bool(FROGPILOT_VOLUME_DEFAULTS.get("AlertVolumeControl"), False),
     )
     self._bp_volume_percents = {
-      key: _bogpilot_int(_bogpilot_read_param(key), int(float(FROGPILOT_VOLUME_DEFAULTS.get(key, "101"))))
+      key: max(0, min(101, _bogpilot_int(_bogpilot_read_param(key), int(float(FROGPILOT_VOLUME_DEFAULTS.get(key, "101"))))))
       for key in VOLUME_PARAM_KEYS
     }
-    self._bp_ambient_volume = MIN_VOLUME
 
   def load_sounds(self):
     self.loaded_sounds: dict[int, np.ndarray] = {}
@@ -288,6 +296,11 @@ class Soundd:
       cloudlog.info(f"soundd stream started: {stream.samplerate=} {stream.channels=} {stream.dtype=} {stream.device=}, {stream.blocksize=}")
       while True:
         sm.update(0)
+
+        # BogPilot: idle ~1 s reload of Alert Volume Controller (skip while an alert plays)
+        if self.current_alert == AudibleAlert.none and time.monotonic() >= self._bp_next_reload:
+          self._bp_reload_volumes()
+          self._bp_next_reload = time.monotonic() + 1.0
 
         # freeze ambient estimate during alerts to avoid mic feedback increasing volume
         if sm.updated['soundPressure']:

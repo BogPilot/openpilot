@@ -10,3 +10,7 @@ openpilot is designed to be used on the comma four.
 ## How does it work?
 
 In short, openpilot uses the car's existing APIs for the built-in [ADAS](https://en.wikipedia.org/wiki/Advanced_driver-assistance_system) system and simply provides better acceleration, braking, and steering inputs than the stock system.
+
+## BogPilot comma 3X
+
+[Install / car detection / menu map](bogpilot_c3x.md) for AGNOS 19.9 (`bogpilot-c3x-donotuse`).

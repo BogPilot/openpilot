@@ -7,6 +7,8 @@
 Port notes: time-based 0.5 s hold instead of a frame count; a stale/invalid carState counts as "not reverse"
 (timer resets) so a frozen gear cannot hold the view. No params, processes, recording or uploads are touched:
 onroad the cabin stream already runs (camerad/dmonitoringmodeld are started-or-driverview processes).
+Safety: layouts/main.py draws the stock onroad alert_renderer ON TOP of the reverse cabin view; soundd is
+unaffected (still started via driverview when onroad). Toggle off (DriverCamera or QOLVisuals) => stock onroad.
 """
 from __future__ import annotations
 
