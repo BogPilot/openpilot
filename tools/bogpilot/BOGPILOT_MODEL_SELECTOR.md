@@ -1,6 +1,6 @@
 # BogPilot Driving Model selector (0.11.2, clean-room, lane t999)
 
-Written from scratch for BogPilot. No sunnypilot or FrogPilot selector, catalog, loader or model code is used, copied or
+Written from scratch for BogPilot. No third-party selector, catalog, loader or model code is used, copied or
 paraphrased. The only inputs are this tree's own modeld.py contract and the shipped stock model files.
 
 ## What ships
