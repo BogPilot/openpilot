@@ -293,7 +293,10 @@ FILE_RESET_KEYS = FILE_ONLY_UI_KEYS | {"OffroadScreensaver", "ConfidenceBall"}
 # t994 gasAccelStop adoption markers (file-only): a reset must return the consumers to the stock-equivalent un-adopted state,
 # otherwise rewritten registry defaults (Sport accel, Human ON, ...) would go live on a "reset" device.
 ADOPTION_MARKERS = tuple("Phase3LongAccelProfilesEnabled Phase3AdvancedLongEnabled Phase3CEMEnabled Phase3StoppedDistanceEnabled Phase3ForceStopsEnabled Phase3ManualWeatherEnabled Phase3SpeedLimitEnabled Phase3PersonalitiesEnabled Phase3HumanFollowingEnabled Phase3LeadDetectionEnabled Phase3LaneChangeEnabled Phase3HumanLaneChangesEnabled Phase3TurnDesiresEnabled Phase3StopAccelEnabled Phase3StoppingRateEnabled".split())
-UNSET_KEYS = frozenset({"TuningLevel", "TuningLevelConfirmed", *ADOPTION_MARKERS})
+UNSET_KEYS = frozenset({"TuningLevel", "TuningLevelConfirmed"})  # literal on purpose: rc_settings_gate audits it statically
+# t999 BogPilot Driving Model selection (+ its runtime fallback state, file store): a reset returns to Default (stock).
+DRIVING_MODEL_KEYS = ("BogPilotDrivingModel", "BogPilotDrivingModelState")
+UNSET_ALL = UNSET_KEYS | frozenset(ADOPTION_MARKERS) | frozenset(DRIVING_MODEL_KEYS)
 
 
 @dataclass(frozen=True)
@@ -314,7 +317,7 @@ def reset_defaults() -> dict[str, str | None]:
   for k in values:
     if k.endswith("Volume"):
       values[k] = "101"
-  values.update(dict.fromkeys(UNSET_KEYS))
+  values.update(dict.fromkeys(UNSET_ALL))
   return values
 
 
@@ -347,7 +350,7 @@ def shipping_defaults() -> dict[str, str | None]:
   for k in values:
     if k.endswith("Volume"):
       values[k] = "101"
-  values.update(dict.fromkeys(UNSET_KEYS))
+  values.update(dict.fromkeys(UNSET_ALL))
   return values
 
 

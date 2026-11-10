@@ -182,7 +182,8 @@ class TestReset(unittest.TestCase):
     setting_keys, file_keys = set(scope["setting_keys"]), set(scope["file_keys"])
     self.assertTrue(RESET_KEYS <= setting_keys, RESET_KEYS - setting_keys)
     self.assertTrue(FILE_RESET_KEYS <= file_keys, FILE_RESET_KEYS - file_keys)
-    self.assertTrue(set(reset_defaults()) <= setting_keys | file_keys)
+    # BogPilotDrivingModelState is derived runtime state (fallback record): cleared on reset, deliberately not backed up.
+    self.assertTrue(set(reset_defaults()) - {"BogPilotDrivingModelState"} <= setting_keys | file_keys)
     # Assembly additionally checks the actual installed peer module's scope.
     if importlib.util.find_spec("openpilot.system.bogpilot.settings_backup"):
       from openpilot.system.bogpilot.settings_backup import SETTING_KEYS, FILE_KEYS

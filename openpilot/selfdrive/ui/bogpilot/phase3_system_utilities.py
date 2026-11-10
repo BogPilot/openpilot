@@ -67,6 +67,9 @@ ADOPTION_MARKERS = (
   "Phase3StoppingRateEnabled",
 )
 
+# t999 Driving Model selection + fallback state (file store): reset returns to Default (stock).
+DRIVING_MODEL_KEYS = ("BogPilotDrivingModel", "BogPilotDrivingModelState")
+
 
 def shipping_defaults():
   """BogPilot fresh-install / shipping defaults (NOT stock-off values).
@@ -99,7 +102,7 @@ def shipping_defaults():
     if key.endswith("Volume"):
       values[key] = "101"
   # Fresh install: TuningLevel unset + all Phase3 adoption markers absent.
-  for key in ("TuningLevel", "TuningLevelConfirmed", *ADOPTION_MARKERS):
+  for key in ("TuningLevel", "TuningLevelConfirmed", *ADOPTION_MARKERS, *DRIVING_MODEL_KEYS):
     values[key] = None
   return values
 
