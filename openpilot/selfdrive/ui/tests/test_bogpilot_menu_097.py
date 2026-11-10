@@ -590,6 +590,23 @@ class TestMenuNative(NativeCase):
     self.tl.set_level(2)
     self.assertTrue(swap.is_visible)
 
+  def test_adjacent_lead_boxes_and_numerical_temp_are_visible_at_minimal(self):
+    """t1033: both are ON by default, so they sit at Minimal (registry level 0) and show at every level."""
+    from openpilot.common.bogpilot_store import registry_level
+    from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import BogPilotVisualsLayout
+    keys = ("AdjacentLeadsUI", "NumericalTemp")
+    for key in keys:
+      self.assertEqual(registry_level(key), 0, key)
+      self.assertEqual(self.tl.row_level(key), 0, key)
+    layout = BogPilotVisualsLayout(store=self.store)
+    for level in range(4):
+      self.tl.set_level(level)
+      for key in keys:
+        self.assertTrue(layout._toggles[key].is_visible, (key, level))
+        self.assertTrue(self.tl.row_visible(key, level), (key, level))
+    # saved choices are untouched: gating never writes the rows
+    self.assertEqual({k: v for k, v in self.saved().items() if k in keys}, {})
+
   def test_screenshots(self):
     if not self.shots:
       self.skipTest("T1024_SHOTS not set")

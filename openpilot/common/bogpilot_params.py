@@ -37,7 +37,7 @@ import sys
 BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] = {
   "AccelerationPath": ("PERSISTENT", "BOOL", "1", 2, "0"),
   "AccelerationProfile": ("PERSISTENT", "INT", "2", 0, "0"),
-  "AdjacentLeadsUI": ("PERSISTENT", "BOOL", "1", 3, "0"),
+  "AdjacentLeadsUI": ("PERSISTENT", "BOOL", "1", 0, "0"),
   "AdjacentPath": ("PERSISTENT", "BOOL", "0", 3, "0"),
   "AdjacentPathMetrics": ("PERSISTENT", "BOOL", "0", 3, "0"),
   "AdvancedCustomUI": ("PERSISTENT", "BOOL", "0", 2, "0"),
@@ -266,7 +266,7 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "NoLogging": ("PERSISTENT", "BOOL", "0", 2, "0"),
   "NoUploads": ("PERSISTENT", "BOOL", "0", 2, "0"),
   "NudgelessLaneChange": ("PERSISTENT", "BOOL", "0", 0, "0"),
-  "NumericalTemp": ("PERSISTENT", "BOOL", "1", 3, "0"),
+  "NumericalTemp": ("PERSISTENT", "BOOL", "1", 0, "0"),
   "Offroad_BadNvme": ("CLEAR_ON_MANAGER_START", "STRING", None, None, None),
   "Offroad_IsTakingSnapshot": ("CLEAR_ON_MANAGER_START", "STRING", None, None, None),
   "Offroad_NeosUpdate": ("CLEAR_ON_MANAGER_START", "STRING", None, None, None),
