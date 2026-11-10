@@ -193,11 +193,15 @@ class TestVisualsSettings(unittest.TestCase):
     return BogPilotVisualsLayout(store=self.store)
 
   def test_registered_in_settings(self):
+    # t1024: Visuals is no longer its own sidebar panel; the BogPilot menu opens it under Theme and Appearance / APPEARANCE
+    # (its two navigation widgets under Navigation / NAVIGATION).
     from openpilot.selfdrive.ui.layouts.settings import settings as S
+    from openpilot.selfdrive.ui.layouts.settings.bogpilot import menu_sections
     from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import VISUAL_KEYS
-    self.assertEqual(int(S.PanelType.BOGPILOT_VISUALS), 6)
     src = Path(S.__file__).read_text()
-    self.assertIn("PanelType.BOGPILOT_VISUALS: PanelInfo(tr_noop(\"Visuals\"), BogPilotVisualsLayout())", src)
+    self.assertNotIn("BOGPILOT_VISUALS", src)
+    reached = {k for s in menu_sections() for p in s.pills for pg in p.pages for k in pg.controls}
+    self.assertLessEqual(set(VISUAL_KEYS), reached)
     from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import EXISTING_VISUAL_KEYS
     self.assertEqual(EXISTING_VISUAL_KEYS, ("AdjacentLeadsUI", "BlindSpotPath", "BlindSpotMetrics", "OnroadDistanceButton",
                                    "PedalsOnUI", "ScreenRecorder", "DriverCamera"))

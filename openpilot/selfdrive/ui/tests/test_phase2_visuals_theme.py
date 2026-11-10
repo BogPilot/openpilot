@@ -145,7 +145,9 @@ class TestCatalog(unittest.TestCase):
       self.assertIn(k, VISUAL_KEYS)
     for k in NEW_VISUAL_KEYS:
       self.assertIn(k, VISUAL_KEYS)
-    self.assertEqual(len(VISUAL_KEYS), len(EXISTING_VISUAL_KEYS) + len(NEW_VISUAL_KEYS))
+    # t1025: plus "Bog to the Future" (BSMFlameTracks), the one row with no entry in the theme audit
+    self.assertEqual(len(VISUAL_KEYS), len(EXISTING_VISUAL_KEYS) + len(NEW_VISUAL_KEYS) + 1)
+    self.assertIn("BSMFlameTracks", VISUAL_KEYS)
 
 
 class TestSidebarPolicy(unittest.TestCase):

@@ -43,9 +43,18 @@ _EXISTING = (
 # New theme/parent rows (tr_noop wrappers)
 _NEW = tuple((k, tr_noop(title), tr_noop(desc)) for k, title, desc in NEW_VISUAL_TOGGLES)
 
-VISUAL_TOGGLES = _EXISTING + _NEW
+# t1025: "Bog to the Future" flame tire tracks (onroad flame_tracks.py). File-only key: read and written through the store's
+# legacy file path, /data/params_bogpilot/BSMFlameTracks, the same file the renderer reads. Default on.
+_FLAME = (("BSMFlameTracks", tr_noop("Bog to the Future"),
+           tr_noop("Draw burning tire tracks down the lane beside you behind a car that passes faster than 88 mph. "
+                   "Display only; needs the blind spot lane fill.")),)
+
+VISUAL_TOGGLES = _EXISTING[:3] + _FLAME + _EXISTING[3:] + _NEW
 VISUAL_KEYS = tuple(k for k, _, _ in VISUAL_TOGGLES)
 EXISTING_VISUAL_KEYS = tuple(k for k, _, _ in _EXISTING)
+# t1024: the two navigation widgets live under Navigation in the 0.9.7 menu; the rest is Theme and Appearance.
+NAVIGATION_KEYS = ("NavigationUI", "ShowSpeedLimits")
+APPEARANCE_KEYS = tuple(k for k in VISUAL_KEYS if k not in NAVIGATION_KEYS)
 
 
 def _store():
@@ -54,12 +63,14 @@ def _store():
 
 
 class BogPilotVisualsLayout(Widget):
-  def __init__(self, store=None):
+  def __init__(self, store=None, keys=None):
     super().__init__()
     self._store = store if store is not None else _store()
     self._toggles = {}
     items = []
     for key, title, desc in VISUAL_TOGGLES:
+      if keys is not None and key not in keys:
+        continue
       item = toggle_item(lambda t=title: tr(t), lambda d=desc: tr(d), self._read(key),
                          callback=lambda state, k=key: self._write(k, state))
       attach_help(item, key)
