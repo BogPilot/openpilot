@@ -234,7 +234,7 @@ SIGNALS = load_signals()
 
 @dataclass(frozen=True)
 class ModelPath:
-  """Fitted DAS_lanes poly from modelV2.position (ego frame, y left+)."""
+  """Fitted DAS_lanes poly (DAS frame, y + right, same as modelV2 y)."""
   c0: float
   c1: float
   c2: float
@@ -264,6 +264,9 @@ class HudInputs:
   # as dig 30 (route 21 dig=60 was 0.2 packing vs IC 0.4). Used so the dash
   # tracks an SLC raise without fake stalk on 0x45.
   cruise_set_mph: float | None = None
+  # ICLanes (ic_lanes.py): DAS-unit C0..C3 from the near lane lines, sent as is
+  # (no 2^n scale, C0 / C1 kept). None keeps the shipped model_path mapping.
+  lane_poly: ModelPath | None = None
 
 
 def hands_on_state(h):
@@ -305,7 +308,8 @@ def _clip(value, lo_hi):
 def lane_c2(curvature):
   """Tinkla scales the path x^2 coefficient by (1/IC_LANE_SCALE)^2.
 
-  For a path of curvature k, y = k/2 * x^2. Left positive, as in modelV2.
+  For a path of curvature k, y = k/2 * x^2. Same sign as modelV2 y (+ right
+  in the DAS frame, see ic_lanes.py).
   Clipped to DBC DAS_virtualLaneC2 range.
   """
   f = 1.0 / IC_LANE_SCALE
@@ -377,6 +381,10 @@ def path_from_model_v2(model_v2) -> ModelPath | None:
 
 def lanes_path_values(h: HudInputs):
   """C0..C3 and view range for DAS_lanes. Model path or curvature fallback."""
+  if h.lane_poly is not None:
+    p = h.lane_poly
+    return (_clip(p.c0, C0_RANGE), _clip(p.c1, C1_RANGE), _clip(p.c2, C2_RANGE), _clip(p.c3, C3_RANGE),
+            clamp_view_range_m(p.view_range_m))
   if h.model_path is not None:
     p = h.model_path
     # C0 and C1 stay 0 (see path_from_model_v2).

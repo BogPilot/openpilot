@@ -17,6 +17,7 @@ from opendbc.car.tesla_ap1.cluster import (
   CLUSTER_BUS, ClusterController, HudInputs, path_from_model_v2,
 )
 from opendbc.car.tesla_ap1.engage_ramp import Ap1EngageSteerRamp
+from opendbc.car.tesla_ap1.ic_lanes import IcLanes
 from opendbc.car.tesla_ap1.hso import AP1_HANDS_ON_LEVEL, Ap1DriverYield, ap1_lat_active, ap1_steering_pressed
 from opendbc.car.tesla_ap1.long_smooth import Ap1AccelSmoother, Ap1JerkLimit, ap1_brake_urgent, ap1_fcw
 from opendbc.car.tesla_ap1.steer_counter import Ap1SteerCounterSync
@@ -44,6 +45,10 @@ class CarController(CarControllerBase):
     # (or None). Unset or failing: build_das_lanes falls back to actuator
     # curvature + 50 m, exactly like the 0.9.7 messaging-unavailable path.
     self.model_v2_provider = None
+    # Model S only. ICLanes (ic_lanes.py): engaged 0x239 path from the near lane
+    # lines in cluster units. Default on; /data/params_bogpilot/ICLanes = 0/false/off
+    # restores the shipped mapping. None after any failure (shipped mapping again).
+    self.ic_lanes = IcLanes(CP.carFingerprint) if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
     # AP1 engage soft-start: hold measured ANGLE for ~300 ms after enable.
     self.ap1_prev_enabled = False
     self.ap1_engage_frame = None
@@ -217,6 +222,25 @@ class CarController(CarControllerBase):
       self.model_v2_provider = None
       return None
 
+  def _ic_lanes_poly(self, enabled, ic_on, curvature):
+    """Lane polynomial while engaged and ICLanes is on, else None.
+
+    modelV2 comes from the same provider as the shipped path. A failure turns
+    ICLanes off for the drive; the shipped mapping then goes on. Display only.
+    """
+    if self.ic_lanes is None:
+      return None
+    try:
+      self.ic_lanes.poll()
+      if not (ic_on and enabled and self.ic_lanes.on):
+        return None
+      model = self.model_v2_provider() if self.model_v2_provider is not None else None
+      return self.ic_lanes.poly(model, curvature)[0]
+    except Exception:
+      carlog.exception("tesla ap1 ic lanes disabled")
+      self.ic_lanes = None
+      return None
+
   def cluster_frames(self, CC, CS, now_nanos):
     """Cluster frames for this step. A failure here turns them off for the
     rest of the drive (stock frames then flow through the panda). It must not
@@ -225,6 +249,7 @@ class CarController(CarControllerBase):
       ic_on = enable_ic_integration(self.CP.carFingerprint)
       enabled = bool(CC.enabled)
       model_path = self._model_path_for_cluster(enabled, ic_on)
+      lane_poly = self._ic_lanes_poly(enabled, ic_on, float(CC.actuators.curvature))
       hud = CC.hudControl
       h = HudInputs(
         enabled=enabled,
@@ -239,6 +264,7 @@ class CarController(CarControllerBase):
         curvature=float(CC.actuators.curvature),
         ic_integration=ic_on,
         model_path=model_path,
+        lane_poly=lane_poly,
         # hudControl.setSpeed is the OP cruise target (m/s); may already include
         # the AP1 SLC raise via controlsd's cluster_display_kph lift. Packed
         # with DBC factor 0.4 so IC dig matches (not 2× from legacy 0.2).
