@@ -662,7 +662,7 @@ _add("menu.navigation", "Navigation",
      "The navigation widgets shown on the driving screen, such as the posted speed limit tile.")
 _add("menu.system", "System Settings",
      "Local data and statistics, device and screen controls, and utilities such as resetting settings to the BogPilot defaults.")
-_add("menu.theme", "Theme and Appearance",
+_add("menu.theme", "Appearance",
      "The driving screen visuals: blind spot warnings, widgets, sidebar metrics and Bog to the Future.")
 _add("menu.vehicle", "Vehicle Settings",
      "Pick the car, change vehicle controls, set up the stalk controls and see vehicle info.")

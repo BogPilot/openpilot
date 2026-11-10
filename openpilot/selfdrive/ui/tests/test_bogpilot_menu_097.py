@@ -13,7 +13,7 @@ EXPECTED_ROWS = (
   ("driving", "Driving Controls", ("DRIVING MODEL", "GAS / BRAKE", "STEERING")),
   ("navigation", "Navigation", ("NAVIGATION",)),
   ("system", "System Settings", ("DATA", "DEVICE CONTROLS", "UTILITIES")),
-  ("theme", "Theme and Appearance", ("APPEARANCE",)),
+  ("theme", "Appearance", ("APPEARANCE",)),
   ("vehicle", "Vehicle Settings", ("VEHICLE SETTINGS", "WHEEL CONTROLS")),
 )
 
