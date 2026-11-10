@@ -26,7 +26,7 @@ Counter: openpilot sends stock counter + 1. While substituting, the stock frame
 that would have carried that counter is the one the panda drops, so the
 counter seen on bus 0 stays continuous at the start and end of substitution.
 
-Frames (opendbc/tesla_can.dbc, the DBC this tree loads):
+Frames (opendbc/tesla_ap1_can.dbc, the DBC the AP1 platform loads; DAS_accSpeedLimit factor 0.4):
 
   0x399 AutopilotStatus  (Tinkla's DBC calls it DAS_status), 2 Hz, checksum
   0x389 DAS_status2      2 Hz, checksum
@@ -144,7 +144,7 @@ class Signal:
 
 def _dbc_path():
   from opendbc import DBC_PATH
-  return os.path.join(DBC_PATH, "tesla_can.dbc")
+  return os.path.join(DBC_PATH, "tesla_ap1_can.dbc")
 
 
 _SG = re.compile(r"^\s*SG_\s+(\w+)\s*:\s*(\d+)\|(\d+)@([01])([+-])\s*\(([^,]+),([^)]+)\)")
