@@ -10,7 +10,7 @@ always empty defaults.
 DEFAULT_ROWS: tuple[tuple[str, str, int, str], ...] = (
   ('AccelerationPath', '1', 2, '0'),
   ('AccelerationProfile', '2', 0, '0'),
-  ('AdjacentLeadsUI', '1', 3, '0'),
+  ('AdjacentLeadsUI', '1', 0, '0'),
   ('AdjacentPath', '0', 3, '0'),
   ('AdjacentPathMetrics', '0', 3, '0'),
   ('AdvancedCustomUI', '0', 2, '0'),
@@ -193,7 +193,7 @@ DEFAULT_ROWS: tuple[tuple[str, str, int, str], ...] = (
   ('NoLogging', '0', 2, '0'),
   ('NoUploads', '0', 2, '0'),
   ('NudgelessLaneChange', '0', 0, '0'),
-  ('NumericalTemp', '1', 3, '0'),
+  ('NumericalTemp', '1', 0, '0'),
   ('Offset1', '5', 0, '0'),
   ('Offset2', '5', 0, '0'),
   ('Offset3', '5', 0, '0'),
