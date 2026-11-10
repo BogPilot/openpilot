@@ -18,6 +18,8 @@ class TestRuntimeConsumers(unittest.TestCase):
 
   def test_screen_timeout_parent_off_preserves_stock(self):
     self.store.put("ScreenTimeout", "15")
+    self.assertEqual(screen_timeout(self.store, False, 30), 15)   # t1035: unset master reads On like the 0.9.7 table
+    self.store.put_bool("ScreenManagement", False)                  # explicit Off keeps the stock timeout
     self.assertEqual(screen_timeout(self.store, False, 30), 30)
     self.store.put_bool("ScreenManagement", True)
     self.assertEqual(screen_timeout(self.store, False, 30), 15)

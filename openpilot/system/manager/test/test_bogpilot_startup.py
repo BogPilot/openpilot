@@ -126,7 +126,7 @@ def test_profile_non_ap1_no_writes(tmp_path):
   result = lifecycle.after_defaults(p, file_root=tmp_path)
   assert result.events[-1:] == ["ap1:0"]
   # t1035: Device/Screen defaults are the shipped 0.9.7 table, so startup writes nothing for them
-  assert p.values == {}
+  assert {k: v for k, v in p.values.items() if k != "FrogPilotStats"} == {}   # drive-stats initialises FrogPilotStats
   # Only the assembled w8 one-shot screensaver default-off migration marker may exist; no AP1 profile writes.
   written = {path.name for path in tmp_path.iterdir()}
   assert written <= {"ScreensaverDefaultOff1"}
@@ -283,7 +283,7 @@ def test_failed_backup_has_no_intent_marker_or_profile_replay(tmp_path):
   lifecycle.after_defaults(p, file_root=tmp_path, startup=result)
   assert not (tmp_path / "AP1StockReset1").exists()
   assert not (tmp_path / "AP1DefaultsApplied").exists()
-  assert p.values == {"CarModel": "TESLA_AP1_MODELS", "DoToggleResetStock": True}
+  assert {k: v for k, v in p.values.items() if k != "FrogPilotStats"} == {"CarModel": "TESLA_AP1_MODELS", "DoToggleResetStock": True}
 
 
 def test_backup_adapter_rejects_truthy_failure(monkeypatch, tmp_path):
