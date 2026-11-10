@@ -137,7 +137,7 @@ def menu_sections():
              Pill("device_controls", tr_noop("DEVICE CONTROLS"), tr_noop("Device Controls"), pick("system_device")),
              Pill("utilities", tr_noop("UTILITIES"), tr_noop("Utilities"), pick("system_utilities"))),
             "menu.system"),
-    Section("theme", tr_noop("Theme and Appearance"), "menu_theme.png",
+    Section("theme", tr_noop("Appearance"), "menu_theme.png",
             (Pill("appearance", tr_noop("APPEARANCE"), tr_noop("Appearance"),
                   (Page("appearance", "Appearance", _appearance_layout, APPEARANCE_KEYS),)),),
             "menu.theme"),

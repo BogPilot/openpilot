@@ -83,7 +83,7 @@ def test_actual_settings_menu_preserves_visuals_and_replaces_cloud():
   source = Path(__file__).parents[1] / "layouts/settings/settings.py"
   text = source.read_text()
   assert 'PanelType.BOGPILOT: PanelInfo(tr_noop("BogPilot"), BogPilotLayout())' in text
-  # t1024: Visuals moved into the BogPilot panel (Theme and Appearance / APPEARANCE); it is not a sidebar panel any more.
+  # t1024: Visuals moved into the BogPilot panel (Appearance / APPEARANCE); it is not a sidebar panel any more.
   assert "BogPilotVisualsLayout" not in text and "BOGPILOT_VISUALS" not in text
   from openpilot.selfdrive.ui.layouts.settings.bogpilot import menu_sections
   assert any(pg.key == "appearance" for s in menu_sections() for p in s.pills for pg in p.pages)

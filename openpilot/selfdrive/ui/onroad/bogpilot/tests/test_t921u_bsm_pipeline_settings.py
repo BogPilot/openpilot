@@ -193,7 +193,7 @@ class TestVisualsSettings(unittest.TestCase):
     return BogPilotVisualsLayout(store=self.store)
 
   def test_registered_in_settings(self):
-    # t1024: Visuals is no longer its own sidebar panel; the BogPilot menu opens it under Theme and Appearance / APPEARANCE
+    # t1024: Visuals is no longer its own sidebar panel; the BogPilot menu opens it under Appearance / APPEARANCE
     # (its two navigation widgets under Navigation / NAVIGATION).
     from openpilot.selfdrive.ui.layouts.settings import settings as S
     from openpilot.selfdrive.ui.layouts.settings.bogpilot import menu_sections

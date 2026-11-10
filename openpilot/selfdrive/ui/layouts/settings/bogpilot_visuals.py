@@ -52,7 +52,7 @@ _FLAME = (("BSMFlameTracks", tr_noop("Bog to the Future"),
 VISUAL_TOGGLES = _EXISTING[:3] + _FLAME + _EXISTING[3:] + _NEW
 VISUAL_KEYS = tuple(k for k, _, _ in VISUAL_TOGGLES)
 EXISTING_VISUAL_KEYS = tuple(k for k, _, _ in _EXISTING)
-# t1024: the two navigation widgets live under Navigation in the 0.9.7 menu; the rest is Theme and Appearance.
+# t1024: the two navigation widgets live under Navigation in the 0.9.7 menu; the rest is Appearance.
 NAVIGATION_KEYS = ("NavigationUI", "ShowSpeedLimits")
 APPEARANCE_KEYS = tuple(k for k in VISUAL_KEYS if k not in NAVIGATION_KEYS)
 
