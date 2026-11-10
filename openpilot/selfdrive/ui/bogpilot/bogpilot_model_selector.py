@@ -178,6 +178,7 @@ def create_driving_model_layout(controller=None):
   from openpilot.system.ui.widgets.confirm_dialog import ConfirmDialog
   from openpilot.system.ui.widgets.list_view import button_item, text_item
   from openpilot.system.ui.widgets.scroller_tici import Scroller
+  from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
 
   if controller is None:
     from openpilot.selfdrive.ui.ui_state import ui_state
@@ -210,15 +211,18 @@ def create_driving_model_layout(controller=None):
       self._open_desc = []
       if snap.only_default:
         # Status, one explanation, and the Default row. No buttons and no empty sections.
-        items.append(text_item(snap.status, ""))
-        items.append(text_item(ONLY_DEFAULT_TEXT, ""))
+        items.append(attach_help(text_item(snap.status, ""), "driving_model.status"))
+        items.append(attach_help(text_item(ONLY_DEFAULT_TEXT, ""), "driving_model.status"))
         for row in snap.rows:
           item = text_item(row.title, "", row.detail or None)
+          attach_help(item, "driving_model.default" if row.id == STOCK_ID else "driving_model.entry",
+                      extra=lambda r=row: r.detail)
           items.append(item)
           if row.detail:
             self._open_desc.append(item)
       else:
         status = text_item(snap.status, "", snap.notice or None)
+        attach_help(status, "driving_model.status", extra=lambda: snap.notice)
         items.append(status)
         if snap.notice:
           self._open_desc.append(status)
@@ -234,6 +238,8 @@ def create_driving_model_layout(controller=None):
               callback=lambda mid=row.id, name=row.title: self._confirm(mid, name),
               enabled=row.selectable,
             )
+          attach_help(item, "driving_model.default" if row.id == STOCK_ID else "driving_model.entry",
+                      extra=lambda r=row: r.detail)
           items.append(item)
           if row.active and desc:
             self._open_desc.append(item)

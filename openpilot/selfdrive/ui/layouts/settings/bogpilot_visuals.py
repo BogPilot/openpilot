@@ -18,6 +18,7 @@ from openpilot.system.ui.widgets.list_view import toggle_item
 from openpilot.system.ui.widgets.scroller_tici import Scroller
 from openpilot.system.ui.lib.multilang import tr, tr_noop
 from openpilot.selfdrive.ui.bogpilot.phase2_visuals_theme import NEW_VISUAL_TOGGLES
+from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
 
 # key, title, description — existing leaf rows first (stable order for tests/screenshots)
 _EXISTING = (
@@ -61,6 +62,7 @@ class BogPilotVisualsLayout(Widget):
     for key, title, desc in VISUAL_TOGGLES:
       item = toggle_item(lambda t=title: tr(t), lambda d=desc: tr(d), self._read(key),
                          callback=lambda state, k=key: self._write(k, state))
+      attach_help(item, key)
       self._toggles[key] = item
       items.append(item)
     self._scroller = Scroller(items, line_separator=True, spacing=0)

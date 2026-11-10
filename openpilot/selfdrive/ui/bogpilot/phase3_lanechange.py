@@ -92,6 +92,7 @@ class LaneChangeLayout:
     from openpilot.system.ui.widgets.list_view import toggle_item, multiple_button_item
     from openpilot.system.ui.widgets.scroller_tici import Scroller
     from openpilot.system.ui.lib.multilang import tr
+    from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
 
     class _Layout(Widget):
       def __init__(self):
@@ -124,6 +125,7 @@ class LaneChangeLayout:
               0,
               callback=lambda index, r=row: self._step(r, index),
             )
+          attach_help(item, key)
           items.append(item)
         self.scroller = Scroller(items, line_separator=True, spacing=0)
 

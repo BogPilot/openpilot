@@ -32,6 +32,7 @@ def build_data_layout(*, params=None, store=None, offroad=None, capable=None, sh
   from openpilot.system.ui.widgets.option_dialog import MultiOptionDialog
   from openpilot.system.ui.widgets.keyboard import Keyboard
   from openpilot.system.ui.widgets.list_view import button_item, text_item
+  from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help_first
   from openpilot.system.ui.widgets.scroller_tici import Scroller
 
   params = params if params is not None else Params()
@@ -92,8 +93,10 @@ def build_data_layout(*, params=None, store=None, offroad=None, capable=None, sh
       return text_item(lambda: tr(title), lambda: tr("Unavailable"), lambda: tr(PENDING[title]))
 
     def action(self, title, label, callback, description=""):
-      return button_item(lambda: tr(title), lambda: tr(label), lambda: tr(description),
-                         callback=lambda: self.attempt(callback), enabled=self.allowed)
+      return attach_help_first(
+        button_item(lambda: tr(title), lambda: tr(label), lambda: tr(description),
+                    callback=lambda: self.attempt(callback), enabled=self.allowed),
+        f"data:{title}:{label}", f"data:{title}")
 
     def attempt(self, callback):
       if not self.allowed():
@@ -151,7 +154,9 @@ def build_data_layout(*, params=None, store=None, offroad=None, capable=None, sh
       gui_app.push_widget(dialog)
 
     def manage(self, title):
-      return button_item(lambda: tr(title), lambda: tr("MANAGE"), callback=lambda: self.go(title), enabled=lambda: not self.busy)
+      return attach_help_first(
+        button_item(lambda: tr(title), lambda: tr("MANAGE"), callback=lambda: self.go(title), enabled=lambda: not self.busy),
+        f"data:{title}")
 
     def go(self, title):
       if not self.busy:
@@ -242,9 +247,11 @@ def build_data_layout(*, params=None, store=None, offroad=None, capable=None, sh
         items = [self.unavailable("BogPilot Backups")]
       elif title == "Toggle Backups":
         items = [
-          text_item("Scope", f"{len(FEATURE_SPECS)} audited nonsecret feature preferences",
-                    "Exact installed-source/schema/platform/vehicle compatibility required. "
-                    "Security/calibration/identity/DM/cloud/policy keys excluded. No cloud upload."),
+          attach_help_first(
+            text_item("Scope", f"{len(FEATURE_SPECS)} audited nonsecret feature preferences",
+                      "Exact installed-source/schema/platform/vehicle compatibility required. "
+                      "Security/calibration/identity/DM/cloud/policy keys excluded. No cloud upload."),
+            "data:Toggle Backups.scope"),
           self.action("Toggle Backups", "BACKUP", lambda: self.run(archives.backup)),
           self.action("Toggle Backups", "DELETE", lambda: self.backup_select(lambda n: self.confirm(
             "Delete this compatible feature-toggle backup?", lambda: archives.delete(n), "Delete"))),

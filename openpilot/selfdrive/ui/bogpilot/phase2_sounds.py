@@ -236,6 +236,7 @@ def create_volume_layout():
   from openpilot.system.ui.widgets import Widget
   from openpilot.system.ui.widgets.list_view import toggle_item, multiple_button_item, text_item
   from openpilot.system.ui.widgets.scroller_tici import Scroller
+  from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
 
   class VolumeLayout(Widget):
     def __init__(self):
@@ -252,10 +253,12 @@ def create_volume_layout():
         ),
         read_controller(), callback=self.set_controller, enabled=ui_state.is_offroad,
       )
+      attach_help(self.controller, "AlertVolumeControl")
       self.note = text_item(
         lambda: tr("Warning minimum"),
         lambda: tr(f"{WARNING_FLOOR}% floor - Prompt, Prompt Distracted and Warning alerts cannot be muted"),
       )
+      attach_help(self.note, "AlertVolumeFloor")
       self.precedence = text_item(
         lambda: tr("Storage"),
         lambda: tr("File store first, then Params. Volume keys are file-only on this build."),
@@ -277,6 +280,7 @@ def create_volume_layout():
           button_width=150,
         )
         row.set_enabled(ui_state.is_offroad)
+        attach_help(row, key)
         self.volumes[key] = row
         items.append(row)
       self.scroller = Scroller(items, line_separator=True, spacing=0)

@@ -261,6 +261,7 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
   from openpilot.system.ui.lib.multilang import tr
   from openpilot.system.ui.widgets import Widget
   from openpilot.system.ui.widgets.list_view import button_item, text_item, toggle_item
+  from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
   from openpilot.system.ui.widgets.option_dialog import MultiOptionDialog
   from openpilot.system.ui.widgets import DialogResult
   from openpilot.system.ui.widgets.scroller_tici import Scroller
@@ -363,20 +364,21 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
       if not runtime_hooks:
         return text_item(lambda: tr(title), lambda: tr("Runtime integration pending"),
                          lambda: tr("Preference not advertised as working until PROPOSED ui_state/power hooks land."))
-      return button_item(lambda: tr(title), lambda: tr(label(current_f)), lambda: tr(desc),
-                         callback=open_dialog, enabled=self.allowed)
+      return attach_help(button_item(lambda: tr(title), lambda: tr(label(current_f)), lambda: tr(desc),
+                                     callback=open_dialog, enabled=self.allowed), key)
 
     def make_scroller(self):
       items = []
       if not menu.path:
         for title in ("Device Settings", "Screen Settings"):
-          items.append(button_item(lambda t=title: tr(t), lambda: tr("MANAGE"),
-                                   callback=lambda t=title: self.go(t)))
+          items.append(attach_help(button_item(lambda t=title: tr(t), lambda: tr("MANAGE"),
+                                               callback=lambda t=title: self.go(t)), "system:" + title))
       elif menu.path[-1] == "Device Settings":
-        items.append(toggle_item(lambda: tr("Device Settings"),
-                                 lambda: tr("Master for shutdown timer and low-voltage cutoff. Off keeps stock power protection."),
-                                 menu.store.get_bool(DEVICE_MASTER, False),
-                                 callback=lambda v: self.put(DEVICE_MASTER, v), enabled=self.allowed))
+        items.append(attach_help(toggle_item(lambda: tr("Device Settings"),
+                                             lambda: tr("Master for shutdown timer and low-voltage cutoff. Off keeps stock power protection."),
+                                             menu.store.get_bool(DEVICE_MASTER, False),
+                                             callback=lambda v: self.put(DEVICE_MASTER, v), enabled=self.allowed),
+                                 "system:Device Settings"))
         if runtime_hooks:
           items += [self.number("DeviceShutdown", "Device Shutdown Timer"),
                     self.number("LowVoltageShutdown", "Low-Voltage Cutoff")]
@@ -387,30 +389,33 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
           items.append(text_item(lambda t=title: tr(t), lambda: tr("Unavailable"),
                                  lambda t=title: tr(UNAVAILABLE[t])))
       elif menu.path[-1] == "Screen Settings":
-        items.append(toggle_item(lambda: tr("Screen Settings"),
-                                 lambda: tr("Master for brightness, timeout and standby. Off keeps stock display behavior."),
-                                 menu.store.get_bool(SCREEN_MASTER, False),
-                                 callback=lambda v: self.put(SCREEN_MASTER, v), enabled=self.allowed))
+        items.append(attach_help(toggle_item(lambda: tr("Screen Settings"),
+                                             lambda: tr("Master for brightness, timeout and standby. Off keeps stock display behavior."),
+                                             menu.store.get_bool(SCREEN_MASTER, False),
+                                             callback=lambda v: self.put(SCREEN_MASTER, v), enabled=self.allowed),
+                                 "system:Screen Settings"))
         if runtime_hooks:
           items += [
             self.number("ScreenBrightness", "Screen Brightness (Offroad)"),
             self.number("ScreenBrightnessOnroad", "Screen Brightness (Onroad)"),
             self.number("ScreenTimeout", "Screen Timeout (Offroad)"),
             self.number("ScreenTimeoutOnroad", "Screen Timeout (Onroad)"),
-            toggle_item(lambda: tr("Standby Mode"),
-                        lambda: tr("Allow display sleep while ignition is on after timeout. Alerts and engagement changes wake."),
-                        menu.store.get_bool("StandbyMode", False),
-                        callback=lambda v: self.put("StandbyMode", v), enabled=self.allowed),
+            attach_help(toggle_item(lambda: tr("Standby Mode"),
+                                    lambda: tr("Allow display sleep while ignition is on after timeout. Alerts and engagement changes wake."),
+                                    menu.store.get_bool("StandbyMode", False),
+                                    callback=lambda v: self.put("StandbyMode", v), enabled=self.allowed), "StandbyMode"),
           ]
         else:
           for title in ("Screen Brightness (Offroad)", "Screen Brightness (Onroad)",
                         "Screen Timeout (Offroad)", "Screen Timeout (Onroad)", "Standby Mode"):
             items.append(text_item(title, "Runtime integration pending"))
         items += [
-          button_item(lambda: tr("Screen Recorder"), lambda: tr("Start Recording"),
-                      callback=lambda: menu.run_action("start_recording"), enabled=self.allowed),
-          button_item(lambda: tr("Screen Recorder"), lambda: tr("Stop Recording"),
-                      callback=lambda: menu.run_action("stop_recording"), enabled=self.allowed),
+          attach_help(button_item(lambda: tr("Screen Recorder"), lambda: tr("Start Recording"),
+                                  callback=lambda: menu.run_action("start_recording"), enabled=self.allowed),
+                      "ScreenRecorderControl"),
+          attach_help(button_item(lambda: tr("Screen Recorder"), lambda: tr("Stop Recording"),
+                                  callback=lambda: menu.run_action("stop_recording"), enabled=self.allowed),
+                      "ScreenRecorderControl"),
           text_item(lambda: tr("Offroad Screensaver"), lambda: tr("Unavailable"),
                     lambda: tr(UNAVAILABLE["Offroad Screensaver"])),
         ]

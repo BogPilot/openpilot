@@ -126,6 +126,7 @@ def make_layout(cp, store, offroad):
   from openpilot.system.ui.widgets import Widget
   from openpilot.system.ui.widgets.list_view import toggle_item, text_item, dual_button_item, button_item
   from openpilot.system.ui.widgets.scroller_tici import Scroller
+  from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
 
   class SteeringTuningLayout(Widget):
     def __init__(self):
@@ -144,6 +145,7 @@ def make_layout(cp, store, offroad):
         item = toggle_item(title, description, store.get_bool(key),
                            callback=lambda value, k=key: e.write(k, value), enabled=lambda k=key: e.can_edit(k))
         self.toggles[key] = item
+        attach_help(item, key)
         return add(item, key)
 
       # Offroad only, applies next drive; no reboot. QOL rows need no vehicle; Advanced rows need a detected car.
@@ -152,15 +154,16 @@ def make_layout(cp, store, offroad):
       for key in NUMERIC_ORDER:
         title = {"SteerDelay": "Actuator Delay", "SteerRatio": "Steer Ratio", "SteerFriction": "Friction", "SteerLatAccel": "Lateral Acceleration"}[key]
         # text_item resolves its callables at construction, before any car is known: they must never raise.
-        add(text_item(title, lambda k=key: e.shown(k), lambda k=key: e.hint(k)), key)
+        add(attach_help(text_item(title, lambda k=key: e.shown(k), lambda k=key: e.hint(k)), key), key)
         add(dual_button_item("-0.01", "+0.01", left_callback=lambda k=key: e.step(k, -1), right_callback=lambda k=key: e.step(k, 1),
                              enabled=lambda k=key: e.can_edit(k)), key)
         add(button_item("Reset " + title, "RESET", callback=lambda k=key: e.reset(k), enabled=lambda k=key: e.can_edit(k)), key)
       toggle("ForceAutoTuneOff", "Force Auto-Tune Off", "Torque cars with live tuning: use the set Friction and Lateral Acceleration instead of live values.")
       toggle("ForceAutoTune", "Force Auto-Tune On", "Torque cars without native live tuning: learn Friction and Lateral Acceleration live (validity gate stays).")
       toggle("QOLLateral", "Quality of Life", "Steering quality-of-life options. Offroad only; applies next drive.")
-      add(text_item("Pause Steering Below", lambda: f"{e.value('PauseLateralSpeed'):g} " + ("km/h" if store.get_bool("IsMetric") else "mph"),
-                    "0 is Off. Steering is suppressed below this speed. Uses the saved speed units; does not rewrite values."), "PauseLateralSpeed")
+      add(attach_help(text_item("Pause Steering Below", lambda: f"{e.value('PauseLateralSpeed'):g} " + ("km/h" if store.get_bool("IsMetric") else "mph"),
+                                "0 is Off. Steering is suppressed below this speed. Uses the saved speed units; does not rewrite values."),
+                      "PauseLateralSpeed"), "PauseLateralSpeed")
       add(dual_button_item("-1", "+1", left_callback=lambda: e.write("PauseLateralSpeed", e.value("PauseLateralSpeed") - 1),
                            right_callback=lambda: e.write("PauseLateralSpeed", e.value("PauseLateralSpeed") + 1),
                            enabled=lambda: e.can_edit("PauseLateralSpeed")), "PauseLateralSpeed")

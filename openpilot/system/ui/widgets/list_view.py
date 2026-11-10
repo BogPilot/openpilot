@@ -283,6 +283,9 @@ class ListItem(Widget):
     self.description_visible = description_visible
     self.callback = callback
     self.description_opened_callback: Callable | None = None
+    # BogPilot: when set, tapping the row's text area opens a help popup instead of expanding the inline description.
+    self.help_callback: Callable | None = None
+    self.help_key: str | None = None
     self.action_item = action_item
 
     self.set_rect(rl.Rectangle(0, 0, ITEM_BASE_WIDTH, ITEM_BASE_HEIGHT))
@@ -301,6 +304,9 @@ class ListItem(Widget):
 
   def set_description_opened_callback(self, callback: Callable) -> None:
     self.description_opened_callback = callback
+
+  def set_help_callback(self, callback: Callable | None) -> None:
+    self.help_callback = callback
 
   def set_touch_valid_callback(self, touch_callback: Callable[[], bool]) -> None:
     super().set_touch_valid_callback(touch_callback)
@@ -321,6 +327,11 @@ class ListItem(Widget):
       if rl.check_collision_point_rec(mouse_pos, action_rect):
         # Click was on right item, don't toggle description
         return
+
+    if self.help_callback is not None:
+      # Tap on the text area: show the help popup (reads and writes nothing).
+      self.help_callback()
+      return
 
     self._set_description_visible(not self.description_visible)
 

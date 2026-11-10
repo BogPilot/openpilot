@@ -250,6 +250,7 @@ def make_settings(group, store=None, capabilities=Capabilities(), cp=None, can_e
   from openpilot.system.ui.widgets.label import gui_label
   from openpilot.system.ui.lib.application import FontWeight
   from openpilot.system.ui.widgets.scroller_tici import Scroller
+  from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
   if store is None:
     from openpilot.common.bogpilot_store import ParamStore
     store = ParamStore()
@@ -298,6 +299,7 @@ def make_settings(group, store=None, capabilities=Capabilities(), cp=None, can_e
       self.items = {}
       root = toggle_item(c.title, HISTORICAL_DESCRIPTIONS.get(c.parent, ""), c.active(),
                          callback=lambda value: self._write(c.parent, value), enabled=parent_enabled)
+      attach_help(root, c.parent)
       self.items[c.parent] = root
       items = [root]
       for row in c.rows():
@@ -317,6 +319,7 @@ def make_settings(group, store=None, capabilities=Capabilities(), cp=None, can_e
           action = NumberAction(c, row.key)
           action.set_enabled(enabled)
           item = ListItem(title=title, description=desc, action_item=action)
+        attach_help(item, row.key)
         self.items[row.key] = item
         items.append(item)
       if not c.active():

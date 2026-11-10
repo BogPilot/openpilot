@@ -159,6 +159,7 @@ class StoppingSettingsLayout:
     from openpilot.system.ui.widgets import Widget
     from openpilot.system.ui.widgets.list_view import ListItem, DualButtonAction, toggle_item, button_item, multiple_button_item
     from openpilot.system.ui.widgets.scroller_tici import Scroller
+    from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
 
     class _Layout(Widget):
       def __init__(self):
@@ -208,6 +209,10 @@ class StoppingSettingsLayout:
             # width preserves the historical label, effective number and unit.
             action.set_rect(rl.Rectangle(0, 0, 300, 0))
             item = ListItem(title=lambda r=row: f"{r.title} {self.model.value(r):g}{r.unit}", action_item=action)
+          if row.kind == "page":
+            attach_help(item, "weather." + row.key if row.key in ("LowVisibility", "Rain", "RainStorm", "Snow") else row.key)
+          else:
+            attach_help(item, row.key)
           items.append(item)
         self.scroller = Scroller(items, line_separator=True, spacing=0)
 

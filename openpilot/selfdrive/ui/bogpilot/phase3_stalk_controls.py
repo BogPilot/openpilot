@@ -50,6 +50,7 @@ def create_stalk_controls_layout(store=None):
   from openpilot.system.ui.widgets import Widget
   from openpilot.system.ui.widgets.list_view import ListItem, DualButtonAction, toggle_item, text_item
   from openpilot.system.ui.widgets.scroller_tici import Scroller
+  from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
 
   class StalkControlsLayout(Widget):
     def __init__(self):
@@ -70,6 +71,8 @@ def create_stalk_controls_layout(store=None):
                                    action_item=action)
       self.note = text_item(tr('Standard Stalk Engagement / Cancel'), tr('Fixed'),
                             tr('Pre-AP double-pull is not supported by this build. No engagement timing is adjustable here.'))
+      for key, item in {**self.toggles, **self.delays, 'standard_engage_cancel_fixed': self.note}.items():
+        attach_help(item, key)
       self.scroller = Scroller([self.toggles['twist_follow'], self.toggles['experimental_pull'], self.delays['pull_hold_s'],
                                 self.toggles['experimental_push'], self.delays['push_hold_s'], self.note],
                                line_separator=True, spacing=0)
