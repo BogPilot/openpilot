@@ -416,6 +416,14 @@ _add("BlindSpotMetrics", "Blind Spot Border",
      "Turns the matching half of the screen border red while the blind spot monitor reports a vehicle.",
      note="Needs Status Border. Only on cars that report blind spot data.",
      default="On", default_param="BlindSpotMetrics")
+_add("BSMFlameTracks", "Bog to the Future",
+     "Draws two burning tire tracks down the lane beside you, for 3 seconds, behind a car that passes you faster than 88 mph "
+     "(about 142 km/h). Display only: it never steers, brakes or changes how the car drives.",
+     when="It fires when the blind spot lane fill on that side switches off, with a radar-tracked car in that lane going over "
+          "88 mph. So it needs a car that reports blind spot data (Tesla AP1), the Blind Spot Lane Fill on, and a radar "
+          "that tracks the car in the next lane. On most drives it never shows.",
+     note="Display only, no effect on control. Needs Blind Spot Lane Fill and Driving Screen Widgets.",
+     default="On", default_param="BSMFlameTracks")
 _add("OnroadDistanceButton", "Driving Personality Button",
      "Shows a button in the driver-side corner that shows and changes the driving personality.",
      note="Needs Quality of Life Visuals and openpilot longitudinal control.",
@@ -638,6 +646,28 @@ SKIPPED_TITLES: frozenset[str] = frozenset({
 })
 
 
+# ---------------------------------------------------------------- Main menu rows (0.9.7 layout)
+_add("menu.tuning_level", "Tuning Level",
+     "Chooses how many settings the BogPilot menu shows. Minimal shows the basics, Standard adds the common options, Advanced "
+     "adds the fine tuning, and Developer shows every setting. A setting that is hidden keeps its value; only the menu row is "
+     "hidden, and a setting above your level reads as its default.",
+     when="Pick Minimal or Standard for a simpler menu. Pick Developer to see everything.",
+     note="Developer shows settings that change how the car drives. The level can only be changed while the car is off.",
+     default="Developer, until you pick a level; your choice is then saved")
+_add("menu.alerts_sounds", "Alerts and Sounds",
+     "The alert volume controller and the BogPilot alerts.")
+_add("menu.driving", "Driving Controls",
+     "Choose the driving model, tune gas and brake, and adjust steering and lane changes.")
+_add("menu.navigation", "Navigation",
+     "The navigation widgets shown on the driving screen, such as the posted speed limit tile.")
+_add("menu.system", "System Settings",
+     "Local data and statistics, device and screen controls, and utilities such as resetting settings to the BogPilot defaults.")
+_add("menu.theme", "Theme and Appearance",
+     "The driving screen visuals: blind spot warnings, widgets, sidebar metrics and Bog to the Future.")
+_add("menu.vehicle", "Vehicle Settings",
+     "Pick the car, change vehicle controls, set up the stalk controls and see vehicle info.")
+
+
 # Row ids that appear on a page more than once under different titles map to the same entry here.
 ALIASES: dict[str, str] = {
   "group:advanced": "AdvancedLongitudinalTune",
@@ -747,12 +777,22 @@ def open_help(key: str, extra: str = ""):
   return dialog
 
 
+def _gate(item, key: str):
+  """Tuning Level: hide the row while the chosen level is below the level the row needs. Rows with no level always show."""
+  if not hasattr(item, "set_level_gate"):
+    return
+  from openpilot.selfdrive.ui.bogpilot import tuning_level
+  if tuning_level.row_level(key) is not None:
+    item.set_level_gate(lambda k=key: tuning_level.row_visible(k))
+
+
 def attach_help(item, key: str, extra=None):
   """Make a ListItem open the help for `key` when its text area is tapped. The switch / buttons are untouched.
 
   extra: optional callable returning live text (for example a model's hash line) shown under the help.
   Unknown keys leave the row alone, so a row without an entry keeps the stock inline description.
   """
+  _gate(item, key)
   if resolve(key) is None or not hasattr(item, "set_help_callback"):
     return item  # unknown key, or a stand-in row that is not a ListItem: leave it alone
   item.set_help_callback(lambda: open_help(key, extra() if callable(extra) else (extra or "")))

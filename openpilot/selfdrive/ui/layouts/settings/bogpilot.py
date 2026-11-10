@@ -1,5 +1,5 @@
 """BogPilot submenu: only registered, implemented leaf factories; no import-time Params writes."""
-from openpilot.selfdrive.ui.layouts.settings.phase2_navigation import Page, build_layout
+from openpilot.selfdrive.ui.layouts.settings.phase2_navigation import Page
 from openpilot.system.ui.widgets import Widget
 
 
@@ -92,10 +92,68 @@ def working_pages():
   }
 
 
+def _navigation_layout():
+  from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import BogPilotVisualsLayout, NAVIGATION_KEYS
+  return BogPilotVisualsLayout(keys=NAVIGATION_KEYS)
+
+
+def _appearance_layout():
+  from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import BogPilotVisualsLayout, APPEARANCE_KEYS
+  return BogPilotVisualsLayout(keys=APPEARANCE_KEYS)
+
+
+def menu_sections():
+  """The 0.9.7 menu: six sections (plus the Tuning Level row the widget adds on top), each pill opening an existing page.
+
+  Dropped from the 0.9.7 menu because nothing real stands behind them: MAP DATA (no offline map data in this tree) and
+  THEME (the theme options are the Appearance toggles; there is no separate theme page). Lane Changes sits under STEERING,
+  and the Visuals page is APPEARANCE (its two navigation widgets move to NAVIGATION).
+  """
+  from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import APPEARANCE_KEYS, NAVIGATION_KEYS
+  from openpilot.selfdrive.ui.layouts.settings.menu_097 import Pill, Section
+  from openpilot.system.ui.lib.multilang import tr_noop
+  pages = working_pages()
+  by_key = {page.key: page for group in pages.values() for page in group}
+
+  def pick(*keys):
+    return tuple(by_key[k] for k in keys)
+
+  gas, steer, lanes, model = (by_key[k] for k in ("gas_brake", "steering_tuning", "lane_changes", "driving_model"))
+  return (
+    Section("alerts_sounds", tr_noop("Alerts and Sounds"), "menu_alerts.png",
+            (Pill("manage", tr_noop("MANAGE"), tr_noop("Alerts and Sounds"), pick("volume", "alerts")),),
+            "menu.alerts_sounds"),
+    Section("driving", tr_noop("Driving Controls"), "menu_driving.png",
+            (Pill("driving_model", tr_noop("DRIVING MODEL"), tr_noop("Driving Model"), (model,)),
+             Pill("gas_brake", tr_noop("GAS / BRAKE"), tr_noop("Gas / Brake"), (gas,)),
+             Pill("steering", tr_noop("STEERING"), tr_noop("Steering"), (steer, lanes))),
+            "menu.driving"),
+    Section("navigation", tr_noop("Navigation"), "menu_navigation.png",
+            (Pill("navigation", tr_noop("NAVIGATION"), tr_noop("Navigation"),
+                  (Page("navigation_widgets", "Navigation Widgets", _navigation_layout, NAVIGATION_KEYS),)),),
+            "menu.navigation"),
+    Section("system", tr_noop("System Settings"), "menu_system.png",
+            (Pill("data", tr_noop("DATA"), tr_noop("Data"), pick("system_data")),
+             Pill("device_controls", tr_noop("DEVICE CONTROLS"), tr_noop("Device Controls"), pick("system_device")),
+             Pill("utilities", tr_noop("UTILITIES"), tr_noop("Utilities"), pick("system_utilities"))),
+            "menu.system"),
+    Section("theme", tr_noop("Theme and Appearance"), "menu_theme.png",
+            (Pill("appearance", tr_noop("APPEARANCE"), tr_noop("Appearance"),
+                  (Page("appearance", "Appearance", _appearance_layout, APPEARANCE_KEYS),)),),
+            "menu.theme"),
+    Section("vehicle", tr_noop("Vehicle Settings"), "menu_vehicle.png",
+            (Pill("vehicle_settings", tr_noop("VEHICLE SETTINGS"), tr_noop("Vehicle Settings"),
+                  pick("car_selection", "vehicle_controls", "vehicle_info")),
+             Pill("wheel_controls", tr_noop("WHEEL CONTROLS"), tr_noop("Wheel Controls"), pick("stalk_controls"))),
+            "menu.vehicle"),
+  )
+
+
 class BogPilotLayout(Widget):
   def __init__(self):
     super().__init__()
-    self.content = build_layout(working_pages())
+    from openpilot.selfdrive.ui.layouts.settings.menu_097 import build_menu
+    self.content = build_menu(menu_sections())
 
   def show_event(self):
     super().show_event()

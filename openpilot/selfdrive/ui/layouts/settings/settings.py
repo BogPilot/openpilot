@@ -2,7 +2,6 @@ import pyray as rl
 from dataclasses import dataclass, field
 from enum import IntEnum
 from collections.abc import Callable
-from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import BogPilotVisualsLayout
 from openpilot.selfdrive.ui.layouts.settings.developer import DeveloperLayout
 from openpilot.selfdrive.ui.layouts.settings.device import DeviceLayout
 from openpilot.selfdrive.ui.layouts.settings.bogpilot import BogPilotLayout
@@ -38,7 +37,6 @@ class PanelType(IntEnum):
   SOFTWARE = 3
   BOGPILOT = 4
   DEVELOPER = 5
-  BOGPILOT_VISUALS = 6
 
 
 @dataclass
@@ -64,7 +62,6 @@ class SettingsLayout(Widget):
       PanelType.SOFTWARE: PanelInfo(tr_noop("Software"), SoftwareLayout()),
       PanelType.BOGPILOT: PanelInfo(tr_noop("BogPilot"), BogPilotLayout()),
       PanelType.DEVELOPER: PanelInfo(tr_noop("Developer"), DeveloperLayout()),
-      PanelType.BOGPILOT_VISUALS: PanelInfo(tr_noop("Visuals"), BogPilotVisualsLayout()),
     }
 
     self._font_medium = gui_app.font(FontWeight.MEDIUM)

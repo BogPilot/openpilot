@@ -286,6 +286,8 @@ class ListItem(Widget):
     # BogPilot: when set, tapping the row's text area opens a help popup instead of expanding the inline description.
     self.help_callback: Callable | None = None
     self.help_key: str | None = None
+    # BogPilot: Tuning Level gate. When set and it returns False the row is hidden (see bogpilot/tuning_level.py).
+    self.level_gate: Callable[[], bool] | None = None
     self.action_item = action_item
 
     self.set_rect(rl.Rectangle(0, 0, ITEM_BASE_WIDTH, ITEM_BASE_HEIGHT))
@@ -307,6 +309,16 @@ class ListItem(Widget):
 
   def set_help_callback(self, callback: Callable | None) -> None:
     self.help_callback = callback
+
+  def set_level_gate(self, gate: Callable[[], bool] | None) -> None:
+    self.level_gate = gate
+
+  @property
+  def is_visible(self) -> bool:
+    if not super().is_visible:
+      return False
+    gate = getattr(self, "level_gate", None)
+    return True if gate is None else bool(gate())
 
   def set_touch_valid_callback(self, touch_callback: Callable[[], bool]) -> None:
     super().set_touch_valid_callback(touch_callback)
