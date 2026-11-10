@@ -352,7 +352,7 @@ class TestFlameTracksToggle(NativeCase):
 class TestMenuNative(NativeCase):
   def setUp(self):
     super().setUp()
-    while len(self.gui_app._nav_stack) > 1:
+    while self.gui_app._nav_stack[-1] is not self.base and len(self.gui_app._nav_stack) > 1:
       self.gui_app.pop_widget()
     from openpilot.selfdrive.ui.layouts.settings.bogpilot import menu_sections
     from openpilot.selfdrive.ui.layouts.settings.menu_097 import build_menu

@@ -50,5 +50,6 @@ def test_actual_menu_and_visual_consumer_key():
   from openpilot.selfdrive.ui.layouts.settings import bogpilot_visuals
   source = Path(bogpilot_visuals.__file__).read_text()
   assert '("AdjacentLeadsUI", tr_noop("Adjacent Lead Speed Boxes")' in source
-  settings = Path(bogpilot_visuals.__file__).with_name('settings.py').read_text()
-  assert 'PanelInfo(tr_noop("Visuals"), BogPilotVisualsLayout())' in settings
+  # 0.9.7 menu: the Visuals sidebar panel is gone; the same layout is reached from the Appearance and Navigation pages.
+  menu = Path(bogpilot_visuals.__file__).with_name("bogpilot.py").read_text()
+  assert "BogPilotVisualsLayout(keys=APPEARANCE_KEYS)" in menu
