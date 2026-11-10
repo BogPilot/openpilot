@@ -30,7 +30,7 @@ NEW_VISUAL_TOGGLES: tuple[tuple[str, str, str], ...] = (
    "Parent for blind-spot (and future torque/signal) status coloring on the screen border. "
    "Required for Blind Spot Border."),
   ("DynamicPedalsOnUI", "Dynamic Pedals",
-   "When Pedals on Screen is on, vary pedal opacity with measured acceleration instead of static on/off."),
+   "When Pedals on Screen is on, vary pedal icon strength with measured acceleration. Off hides the pedal overlay."),
   ("SwapSpeedGraph", "Accel Graph on Top",
    "Put the acceleration graph above the speed row in the top-left cluster. Display only; file-backed."),
   ("Fahrenheit", "Temperature in Fahrenheit",

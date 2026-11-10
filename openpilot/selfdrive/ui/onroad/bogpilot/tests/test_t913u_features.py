@@ -275,6 +275,11 @@ class TestPedals(unittest.TestCase):
     self.assertEqual(PED.policy_from_store(S(**on), True), PED.PedalPolicy(True, True, False))
     self.assertEqual(PED.policy_from_store(S(**on), False), PED.CLOSED)       # needs openpilot longitudinal
     self.assertFalse(PED.policy_from_store(S(PedalsOnUI=True), True).show)    # needs CustomUI
+    # t1027: Dynamic off and Static off hides, even when Pedals on Screen is on
+    neither = dict(CustomUI=True, PedalsOnUI=True, DynamicPedalsOnUI=False, StaticPedalsOnUI=False)
+    self.assertEqual(PED.policy_from_store(S(**neither), True), PED.CLOSED)
+    static = dict(CustomUI=True, PedalsOnUI=True, DynamicPedalsOnUI=False, StaticPedalsOnUI=True)
+    self.assertEqual(PED.policy_from_store(S(**static), True), PED.PedalPolicy(True, False, True))
 
   def test_footprint_and_shapes_inside_daily_keepout(self):
     self.assertEqual(PED.pedal_rect(2160, False), (30, 486, 120, 120))

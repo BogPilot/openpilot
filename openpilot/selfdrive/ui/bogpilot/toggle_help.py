@@ -454,7 +454,7 @@ _add("BorderMetrics", "Status Border",
      default="On", default_param="BorderMetrics")
 _add("DynamicPedalsOnUI", "Dynamic Pedals",
      "When Pedals on Screen is on, each pedal icon's strength follows the car's measured acceleration: the gas pedal grows with "
-     "acceleration, and the brake grows with deceleration and is full at a standstill. Off draws both pedals at full strength.",
+     "acceleration, and the brake grows with deceleration and is full at a standstill. Off hides the pedal overlay.",
      default="On", default_param="DynamicPedalsOnUI")
 _add("SwapSpeedGraph", "Accel Graph on Top",
      "Puts the acceleration graph above the speed row in the top-left corner of the driving screen. Display only.",

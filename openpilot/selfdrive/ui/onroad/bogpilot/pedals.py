@@ -2,7 +2,7 @@
 
 Response (UNCHANGED from daily bogpilot-tesla 04d560f3e FrogPilotAnnotatedCameraWidget::paintPedalIcons):
   gate     pedals_on_ui = openpilot_longitudinal and CustomUI and PedalsOnUI (367e1fe :877-879, tuning-level rule);
-           Dynamic / Static sub-modes; with neither, both icons are drawn at full strength (daily opacity 1).
+           Dynamic / Static sub-modes; with neither, the overlay is hidden (not drawn at full strength).
   Dynamic  brake = 1 at standstill, else max(0.25, |aEgo|) when aEgo < -0.25, else 0.25;  gas = max(0.25, aEgo)
   Static   brake = 1 if standstill or brakeLights or aEgo < -0.25 else 0.25;               gas = 1 if aEgo > 0.25 else 0.25
   Signals  carState.aEgo (MEASURED vehicle acceleration, m/s^2), carState.standstill, frogpilotCarState.brakeLights.
@@ -40,10 +40,16 @@ CLOSED = PedalPolicy()
 
 
 def policy_from_store(store, longitudinal: bool) -> PedalPolicy:
+  """Show the overlay only when a mode is selected. Dynamic off + Static off hides it."""
   level = store.tuning_level()
   b = lambda k: bool(store.toggle_bool(k, level))  # noqa: E731
-  show = bool(longitudinal) and b("CustomUI") and b("PedalsOnUI")
-  return PedalPolicy(show=show, dynamic=show and b("DynamicPedalsOnUI"), static=show and b("StaticPedalsOnUI"))
+  parent = bool(longitudinal) and b("CustomUI") and b("PedalsOnUI")
+  dynamic = parent and b("DynamicPedalsOnUI")
+  static = parent and b("StaticPedalsOnUI")
+  # Neither mode used to draw both pedals at full strength; that left no way to hide them
+  # from the Dynamic Pedals toggle. Hide unless Dynamic or Static is on.
+  show = dynamic or static
+  return PedalPolicy(show=show, dynamic=dynamic, static=static)
 
 
 def daily_opacity(policy: PedalPolicy, a_ego: float, standstill: bool, brake_lights: bool) -> tuple[float, float]:
