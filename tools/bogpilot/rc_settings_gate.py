@@ -120,6 +120,15 @@ def module_literals(source: str, names: tuple[str, ...]) -> dict[str, object]:
   return found
 
 
+# A real import (static or importlib), not a path string such as the frozen archive scope listing toggle_metadata.py.
+_IMPORT_TM = re.compile(r"^\s*(?:from\s+[\w.]*toggle_metadata\b|from\s+[\w.]+\s+import\s+[^\n#]*\btoggle_metadata\b|import\s+[\w.]*toggle_metadata\b)", re.M)
+_DYNAMIC_TM = re.compile(r"import_module\([^)]*toggle_metadata")
+
+
+def _imports_toggle_metadata(text: str) -> bool:
+  return bool(_IMPORT_TM.search(text) or _DYNAMIC_TM.search(text))
+
+
 def _literal(node, consts=None):
   consts = consts or {}
   if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "frozenset":
@@ -288,7 +297,7 @@ def _run(root: Path, rep: Report) -> None:
             f"known-unrendered={sorted(known)}")
   consumers = sorted(str(p.relative_to(root)) for p in (root / "openpilot").rglob("*.py")
                      if "/tests/" not in str(p) and p.name != "toggle_metadata.py"
-                     and re.search(r"\btoggle_metadata\b", p.read_text(encoding="utf-8", errors="replace")))
+                     and _imports_toggle_metadata(p.read_text(encoding="utf-8", errors="replace")))
   rep.check("ui.metadata_unrendered", not (known and consumers),
             f"consumers={consumers}" + (f"; BLOCKER if rendered: {sorted(known)}" if known else ""))
 
