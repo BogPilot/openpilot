@@ -25,6 +25,9 @@ REF = {k: ([SHIPPING[k][0], SHIPPING[k][1], v[2]] if k in SHIPPING else v) for k
 # Preserve the immutable 367e1fe fixture and every other default/level/stock value.
 REQUESTED_ALERT_DEFAULTS = {"GreenLightAlert": ["1", 0, "0"], "LeadDepartingAlert": ["1", 0, "0"]}
 REF.update(REQUESTED_ALERT_DEFAULTS)
+# t1033: two default-ON rows move from Developer (3) to Minimal (0); default and stock value unchanged.
+REQUESTED_MINIMAL_LEVELS = {"AdjacentLeadsUI": ["1", 0, "0"], "NumericalTemp": ["1", 0, "0"]}
+REF.update(REQUESTED_MINIMAL_LEVELS)
 STOCK_011_KEYS = set(bp.FROGPILOT_STOCK_KEY_DEFAULTS)
 
 
@@ -33,6 +36,9 @@ def test_fixture_is_367e1fe():
   assert len(RAW_REF) == 338
   for key, expected in REQUESTED_ALERT_DEFAULTS.items():
     assert RAW_REF[key] == ["0", expected[1], expected[2]]
+    assert REF[key] == expected
+  for key, expected in REQUESTED_MINIMAL_LEVELS.items():
+    assert RAW_REF[key] == ["1", 3, "0"]   # the immutable snapshot keeps the 367e1fe level
     assert REF[key] == expected
 
 
