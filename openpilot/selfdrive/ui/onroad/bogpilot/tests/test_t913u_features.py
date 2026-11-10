@@ -1,4 +1,4 @@
-"""t913u: speed-limit pill, steering arc, pedals and screen recorder contracts (headless; no window, no device).
+"""speed-limit pill, steering arc, pedals and screen recorder contracts (headless; no window, no device).
 
 The recorder tests run the REAL ffmpeg encoder on synthetic frames in a temporary directory (sandbox only) and check
 the saved files with ffprobe. Nothing here captures a screen or reads private data."""
@@ -275,6 +275,11 @@ class TestPedals(unittest.TestCase):
     self.assertEqual(PED.policy_from_store(S(**on), True), PED.PedalPolicy(True, True, False))
     self.assertEqual(PED.policy_from_store(S(**on), False), PED.CLOSED)       # needs openpilot longitudinal
     self.assertFalse(PED.policy_from_store(S(PedalsOnUI=True), True).show)    # needs CustomUI
+    # Dynamic off and Static off hides, even when Pedals on Screen is on
+    neither = dict(CustomUI=True, PedalsOnUI=True, DynamicPedalsOnUI=False, StaticPedalsOnUI=False)
+    self.assertEqual(PED.policy_from_store(S(**neither), True), PED.CLOSED)
+    static = dict(CustomUI=True, PedalsOnUI=True, DynamicPedalsOnUI=False, StaticPedalsOnUI=True)
+    self.assertEqual(PED.policy_from_store(S(**static), True), PED.PedalPolicy(True, False, True))
 
   def test_footprint_and_shapes_inside_daily_keepout(self):
     self.assertEqual(PED.pedal_rect(2160, False), (30, 486, 120, 120))
