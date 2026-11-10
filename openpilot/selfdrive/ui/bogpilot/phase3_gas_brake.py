@@ -70,6 +70,7 @@ def create_gas_brake_layout(store=None, cp_source=None, can_edit=None):
   from openpilot.system.ui.widgets.list_view import button_item
   from openpilot.system.ui.widgets.scroller_tici import Scroller
   from openpilot.selfdrive.ui.layouts.settings.phase2_navigation import content_bounds
+  from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
   if store is None:
     from openpilot.common.bogpilot_store import ParamStore
     store = ParamStore()
@@ -91,8 +92,8 @@ def create_gas_brake_layout(store=None, cp_source=None, can_edit=None):
       self._build_root()
 
     def _build_root(self):
-      items = [button_item(title, "MANAGE", desc, callback=lambda k=key: self.open_panel(k),
-                           enabled=lambda: self.cp.openpilotLongitudinalControl)
+      items = [attach_help(button_item(title, "MANAGE", desc, callback=lambda k=key: self.open_panel(k),
+                                       enabled=lambda: self.cp.openpilotLongitudinalControl), "group:" + key)
                for key, title, desc in root_entries(self.store)]
       self.root = Scroller(items, line_separator=True, spacing=0)
 

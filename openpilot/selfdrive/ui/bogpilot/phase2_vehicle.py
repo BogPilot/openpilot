@@ -103,6 +103,7 @@ def create_vehicle_settings_layout(params=None):
   from openpilot.system.ui.widgets.confirm_dialog import ConfirmDialog
   from openpilot.system.ui.widgets.list_view import toggle_item
   from openpilot.system.ui.widgets.scroller_tici import Scroller
+  from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
 
   class VehicleSettingsLayout(Widget):
     def __init__(self):
@@ -111,6 +112,8 @@ def create_vehicle_settings_layout(params=None):
       self.rows = {key: toggle_item(lambda k=key: tr(TITLES[k]), lambda k=key: tr(DESCRIPTIONS[k]), False,
                                    callback=lambda state, k=key: self.set_value(k, state),
                                    enabled=lambda k=key: self.model.enabled(k)) for key in TITLES}
+      for key, row in self.rows.items():
+        attach_help(row, key)
       self.scroller = Scroller(list(self.rows.values()), line_separator=True, spacing=0)
 
     def set_value(self, key, state):

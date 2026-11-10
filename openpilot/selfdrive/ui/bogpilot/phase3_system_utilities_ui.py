@@ -19,6 +19,7 @@ def create_utilities_layout(*, params=None, store=None, offroad=None, capable=No
   from openpilot.system.ui.widgets import Widget, DialogResult
   from openpilot.system.ui.widgets.confirm_dialog import ConfirmDialog
   from openpilot.system.ui.widgets.list_view import button_item, text_item, toggle_item
+  from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
   from openpilot.system.ui.widgets.scroller_tici import Scroller
 
   params = params if params is not None else Params()
@@ -78,16 +79,16 @@ def create_utilities_layout(*, params=None, store=None, offroad=None, capable=No
 
     def _make_scroller(self):
       items = []
-      items.append(toggle_item(
+      items.append(attach_help(toggle_item(
         lambda: tr("Debug Mode"),
         lambda: tr("Show BogPilot developer metrics on the next drive. Clears automatically on the following offroad transition (not a permanent preference). Existing onroad HUD/BSM/lead consumers honor this while set."),
         actions.get_debug_mode(),
         callback=self.on_debug_mode,
         enabled=self.allowed,
-      ))
+      ), "DebugMode"))
       items.append(self.unavailable("Flash Panda"))
       items.append(self.unavailable("Force Drive State"))
-      items.append(button_item(
+      items.append(attach_help(button_item(
         lambda: tr("Reset BogPilot Settings to Defaults"),
         lambda: tr("RESET"),
         lambda: tr("Restore audited BogPilot shipping defaults. A durable local backup is written first. Vehicle identity, calibration and cloud credentials are kept. No reboot."),
@@ -97,8 +98,8 @@ def create_utilities_layout(*, params=None, store=None, offroad=None, capable=No
           "Reset",
         ),
         enabled=self.allowed,
-      ))
-      items.append(button_item(
+      ), "BogPilotDefaultsReset"))
+      items.append(attach_help(button_item(
         lambda: tr("Reset Toggles to Stock openpilot"),
         lambda: tr("RESET"),
         lambda: tr("Queue stock openpilot toggle reset for the NEXT manager restart. Existing audited lifecycle writes a durable backup first. No reboot now."),
@@ -108,8 +109,8 @@ def create_utilities_layout(*, params=None, store=None, offroad=None, capable=No
           "Queue Reset",
         ),
         enabled=self.allowed,
-      ))
-      items.append(button_item(
+      ), "DoToggleResetStock"))
+      items.append(attach_help(button_item(
         lambda: tr("Clear Caches"),
         lambda: tr("CLEAR"),
         lambda: tr("Delete allowlisted download/model caches and soft API cache params. Settings backups, /cache/params and OS/boot slots are never touched."),
@@ -119,8 +120,8 @@ def create_utilities_layout(*, params=None, store=None, offroad=None, capable=No
           "Clear",
         ),
         enabled=self.allowed,
-      ))
-      items.append(button_item(
+      ), "ClearCaches"))
+      items.append(attach_help(button_item(
         lambda: tr("Save Debug Report Locally"),
         lambda: tr("SAVE"),
         lambda: tr("Write a local diagnostics JSON under /data/bogpilot_debug_reports. Nothing is uploaded."),
@@ -130,7 +131,7 @@ def create_utilities_layout(*, params=None, store=None, offroad=None, capable=No
           "Save",
         ),
         enabled=self.allowed,
-      ))
+      ), "LocalDebugReport"))
       if show_status:
         items.append(text_item(lambda: tr("Status"), lambda: tr(self.status or "Ready; no changes made")))
       return Scroller(items, line_separator=True, spacing=0)

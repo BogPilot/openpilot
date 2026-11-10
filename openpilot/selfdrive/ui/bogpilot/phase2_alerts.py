@@ -258,6 +258,7 @@ def create_alerts_layout(store=None):
   from openpilot.system.ui.widgets.list_view import toggle_item
   from openpilot.system.ui.widgets.scroller_tici import Scroller
   from openpilot.system.ui.lib.multilang import tr
+  from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
   if store is None:
     from openpilot.common.bogpilot_store import ParamStore
     store = ParamStore()
@@ -269,6 +270,7 @@ def create_alerts_layout(store=None):
       for key, title, description in ACTIVE_ALERT_ROWS:
         self.items[key] = toggle_item(lambda t=title: tr(t), lambda d=description: tr(d), read_enabled(store, key),
                                       callback=lambda state, k=key: self.write(k, state))
+        attach_help(self.items[key], key)
       self.scroller = Scroller(list(self.items.values()), line_separator=True, spacing=0)
 
     def write(self, key, state):

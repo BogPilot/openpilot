@@ -160,6 +160,7 @@ def create_car_selection_layout(params=None):
   from openpilot.system.ui.widgets.list_view import button_item, text_item
   from openpilot.system.ui.widgets.option_dialog import MultiOptionDialog
   from openpilot.system.ui.widgets.scroller_tici import Scroller
+  from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
 
   class CarSelectionLayout(Widget):
     def __init__(self):
@@ -174,6 +175,8 @@ def create_car_selection_layout(params=None):
         enabled=ui_state.is_offroad,
       )
       self._current = text_item(lambda: tr("Current selection"), "")
+      attach_help(self._select, "CarSelection")
+      attach_help(self._current, "CarSelection.current")
       self.scroller = Scroller([self._select, self._current], line_separator=True, spacing=0)
 
     def _open_picker(self):
