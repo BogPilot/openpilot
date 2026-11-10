@@ -215,7 +215,7 @@ class TestHelpNative(unittest.TestCase):
         return _o(*a, **k)
       setattr(self.store, name, wrapper)
     # Leave only the base widget on the stack.
-    while len(self.gui_app._nav_stack) > 1:
+    while self.gui_app._nav_stack[-1] is not self.base and len(self.gui_app._nav_stack) > 1:
       self.gui_app.pop_widget()
 
   # -- helpers -------------------------------------------------------------------------------------------------------
