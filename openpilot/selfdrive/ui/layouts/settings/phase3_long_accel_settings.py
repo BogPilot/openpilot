@@ -47,9 +47,9 @@ HISTORICAL_DESCRIPTIONS = {'AdvancedLongitudinalTune': '<b>Advanced acceleration
  'HumanAcceleration': '<b>Acceleration that mimics human behavior</b> by easing the throttle at low speeds and '
                       'adding extra power when taking off from a stop.',
  'StopAccel': '<b>The acceleration openpilot commands to hold a stop.</b> More negative brakes harder; the '
-              'current tree default is kept until you change it. Cannot be set above -0.5 m/s².',
+              'current tree default is kept until you change it. Cannot be set above -0.5 m/s^2.',
  'StoppingDecelRate': '<b>How quickly the braking command ramps toward Stop Acceleration</b> while stopping. '
-                      'Lower is gentler. Cannot be set below 0.1 m/s³.',
+                      'Lower is gentler. Cannot be set below 0.1 m/s^3.',
  'CESpeedLead': '<b>Switch to "Experimental Mode" when driving below this speed with a lead</b> to help openpilot '
                 'handle low-speed situations more smoothly.'}
 
@@ -70,9 +70,9 @@ class Row:
 
 ROWS = (
   Row("LongitudinalActuatorDelay", "Actuator Delay", "number", low=0, high=1, step=.01, unit=" seconds"),
-  Row("MaxDesiredAcceleration", "Maximum Acceleration", "number", low=.1, high=4, step=.1, unit=" m/s²"),
-  Row("StopAccel", "Stop Acceleration", "number", low=-4, high=-.5, step=.01, unit=" m/s²"),
-  Row("StoppingDecelRate", "Stopping Rate", "number", low=.1, high=1, step=.01, unit=" m/s³"),
+  Row("MaxDesiredAcceleration", "Maximum Acceleration", "number", low=.1, high=4, step=.1, unit=" m/s^2"),
+  Row("StopAccel", "Stop Acceleration", "number", low=-4, high=-.5, step=.01, unit=" m/s^2"),
+  Row("StoppingDecelRate", "Stopping Rate", "number", low=.1, high=1, step=.01, unit=" m/s^3"),
   Row("AccelerationProfile", "Acceleration Profile", "choice", choices=("Standard", "Eco", "Sport", "Sport+")),
   Row("DecelerationProfile", "Deceleration Profile", "choice", choices=("Standard", "Eco", "Eco+")),
   Row("HumanAcceleration", "Human-Like Acceleration"),
