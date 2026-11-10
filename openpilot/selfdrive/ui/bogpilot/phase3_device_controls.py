@@ -39,14 +39,14 @@ UNAVAILABLE = {
 }
 
 DEFAULTS = {
-  DEVICE_MASTER: False,
-  "DeviceShutdown": 33,  # stock: 30 h (MAX_TIME_OFFROAD_S)
+  DEVICE_MASTER: True,
+  "DeviceShutdown": 9,  # 0.9.7 table: 6 h
   "LowVoltageShutdown": 11.8,
-  SCREEN_MASTER: False,
+  SCREEN_MASTER: True,
   "ScreenBrightness": 101,
   "ScreenBrightnessOnroad": 101,
   "ScreenTimeout": 30,
-  "ScreenTimeoutOnroad": 10,  # stock onroad timeout
+  "ScreenTimeoutOnroad": 30,
   "StandbyMode": False,
 }
 
@@ -173,7 +173,7 @@ class DeviceControlsMenu:
     if self.path[-1] == "Device Settings":
       rows = [
         {"kind": "toggle", "key": DEVICE_MASTER, "title": "Device Settings",
-         "value": self.store.get_bool(DEVICE_MASTER, False)},
+         "value": self.store.get_bool(DEVICE_MASTER, DEFAULTS[DEVICE_MASTER])},
         {"kind": "number", "key": "DeviceShutdown", "title": "Device Shutdown Timer",
          "value": int(float(self.store.raw("DeviceShutdown") or DEFAULTS["DeviceShutdown"])),
          "label": shutdown_label(int(float(self.store.raw("DeviceShutdown") or DEFAULTS["DeviceShutdown"]))),
@@ -189,7 +189,7 @@ class DeviceControlsMenu:
     if self.path[-1] == "Screen Settings":
       return [
         {"kind": "toggle", "key": SCREEN_MASTER, "title": "Screen Settings",
-         "value": self.store.get_bool(SCREEN_MASTER, False)},
+         "value": self.store.get_bool(SCREEN_MASTER, DEFAULTS[SCREEN_MASTER])},
         {"kind": "number", "key": "ScreenBrightness", "title": "Screen Brightness (Offroad)",
          "value": int(float(self.store.raw("ScreenBrightness") or DEFAULTS["ScreenBrightness"])),
          "requires": SCREEN_MASTER},
@@ -376,7 +376,7 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
       elif menu.path[-1] == "Device Settings":
         items.append(attach_help(toggle_item(lambda: tr("Device Settings"),
                                              lambda: tr("Master for shutdown timer and low-voltage cutoff. Off keeps stock power protection."),
-                                             menu.store.get_bool(DEVICE_MASTER, False),
+                                             menu.store.get_bool(DEVICE_MASTER, DEFAULTS[DEVICE_MASTER]),
                                              callback=lambda v: self.put(DEVICE_MASTER, v), enabled=self.allowed),
                                  "system:Device Settings"))
         if runtime_hooks:
@@ -391,7 +391,7 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
       elif menu.path[-1] == "Screen Settings":
         items.append(attach_help(toggle_item(lambda: tr("Screen Settings"),
                                              lambda: tr("Master for brightness, timeout and standby. Off keeps stock display behavior."),
-                                             menu.store.get_bool(SCREEN_MASTER, False),
+                                             menu.store.get_bool(SCREEN_MASTER, DEFAULTS[SCREEN_MASTER]),
                                              callback=lambda v: self.put(SCREEN_MASTER, v), enabled=self.allowed),
                                  "system:Screen Settings"))
         if runtime_hooks:

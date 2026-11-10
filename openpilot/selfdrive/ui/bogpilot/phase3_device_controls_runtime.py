@@ -21,11 +21,11 @@ def _number(store, key, default, lo, hi):
 
 
 def device_enabled(store) -> bool:
-  return store.get_bool(DEVICE_MASTER, False)
+  return store.get_bool(DEVICE_MASTER, True)
 
 
 def screen_enabled(store) -> bool:
-  return store.get_bool(SCREEN_MASTER, False)
+  return store.get_bool(SCREEN_MASTER, True)
 
 
 def screen_timeout(store, onroad: bool, stock: int) -> int:
@@ -33,7 +33,7 @@ def screen_timeout(store, onroad: bool, stock: int) -> int:
   if not screen_enabled(store):
     return int(stock)
   key = "ScreenTimeoutOnroad" if onroad else "ScreenTimeout"
-  return int(_number(store, key, stock, 5, 60))
+  return int(_number(store, key, 30, 5, 60))
 
 
 def screen_brightness(store, onroad: bool, stock: float, attention: bool = False) -> float:
@@ -62,7 +62,7 @@ def shutdown_time(store, stock: float) -> float:
   """Seconds offroad before shutdown. Never extends stock MAX_TIME_OFFROAD_S protection."""
   if not device_enabled(store):
     return float(stock)
-  value = int(_number(store, "DeviceShutdown", 33, 0, 33))
+  value = int(_number(store, "DeviceShutdown", 9, 0, 33))
   seconds = 300 if value == 0 else value * 900 if value <= 3 else (value - 3) * 3600
   return float(min(stock, seconds))
 

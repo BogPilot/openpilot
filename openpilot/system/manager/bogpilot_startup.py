@@ -121,29 +121,6 @@ def before_defaults(params, *, file_root: Path | None = None,
   return result
 
 
-DEVICE_STOCK_MARKER = "DeviceStockDefaults1"
-# key -> (compiled 0.9.7 default, STOCK value). Compiled defaults live in the precompiled libparams (not changed
-# in this build), so fresh installs are moved to stock once; any value the user already changed is left alone.
-DEVICE_STOCK_DEFAULTS = {"DeviceShutdown": ("9", "33"), "ScreenTimeoutOnroad": ("30", "10")}
-
-
-def _device_stock_defaults(params, directory: Path) -> list[str]:
-  marker = directory / DEVICE_STOCK_MARKER
-  if marker.exists():
-    return []
-  changed = []
-  for key, (compiled, stock) in DEVICE_STOCK_DEFAULTS.items():
-    raw = params.get(key)
-    if isinstance(raw, bytes):
-      raw = raw.decode(errors="ignore")
-    raw = None if raw is None else str(raw).strip()
-    if raw in (None, "", compiled):
-      params.put(key, stock)
-      changed.append(key)
-  directory.mkdir(parents=True, exist_ok=True)
-  marker.write_text("1\n")
-  return changed
-
 
 def after_defaults(params, *, file_root: Path | None = None, startup: StartupResult | None = None) -> StartupResult:
   """After native registered defaults, before metadata/registration/process startup.
@@ -170,11 +147,6 @@ def after_defaults(params, *, file_root: Path | None = None, startup: StartupRes
       f"drive-stats:{status['stats']}/{status['history']}")
   except Exception as exc:
     result.errors.append(f"drive-stats: {type(exc).__name__}")
-  try:
-    changed = _device_stock_defaults(params, directory)
-    result.events.append(f"device-stock:{len(changed)}")
-  except Exception as exc:
-    result.errors.append(f"device-stock: {type(exc).__name__}")
   if (startup is not None and startup.profile_suppressed) or (directory / "AP1StockReset1").exists():
     result.events.append("ap1:suppressed-stock-reset")
     return result
