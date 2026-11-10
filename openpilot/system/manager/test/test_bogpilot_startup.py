@@ -129,7 +129,7 @@ def test_profile_non_ap1_no_writes(tmp_path):
   assert {k: v for k, v in p.values.items() if k != "FrogPilotStats"} == {}   # drive-stats initialises FrogPilotStats
   # Only the assembled w8 one-shot screensaver default-off migration marker may exist; no AP1 profile writes.
   written = {path.name for path in tmp_path.iterdir()}
-  assert written <= {"ScreensaverDefaultOff1"}
+  assert written <= {"ScreensaverDefaultOff1", "DriveHistory"}   # DriveHistory: drive-stats store init
   assert ("screensaver:migrated" in result.events) == ("ScreensaverDefaultOff1" in written)
 
 
