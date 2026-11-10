@@ -93,8 +93,6 @@ def shipping_defaults():
   for key, (value, _level) in PARAM_OVERRIDES.items():
     if key in values:
       values[key] = value
-  from openpilot.system.bogpilot.toggle_reset import DEVICE_STOCK_FRESH
-  values.update({key: v for key, v in DEVICE_STOCK_FRESH.items() if key in values})
   values.update({key: "1" if FILE_TOGGLES[key][0] else "0" for key in sorted(FILE_RESET_KEYS)})
   values["OffroadScreensaver"] = "0"
   values["AlertVolumeControl"] = "0"

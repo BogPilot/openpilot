@@ -321,11 +321,6 @@ def reset_defaults() -> dict[str, str | None]:
   return values
 
 
-# t994: fresh-install Device Controls = STOCK power behaviour. The compiled libparams defaults (9 -> 6 h, onroad 30 s)
-# cannot change without a native rebuild, so startup moves them once (bogpilot_startup) and resets use this overlay.
-DEVICE_STOCK_FRESH = {"DeviceShutdown": "33", "ScreenTimeoutOnroad": "10"}
-
-
 def shipping_defaults() -> dict[str, str | None]:
   """BogPilot SHIPPING defaults for the Utilities "Reset BogPilot Settings to Defaults" row.
 
@@ -343,7 +338,6 @@ def shipping_defaults() -> dict[str, str | None]:
   for k, (value, _level) in PARAM_OVERRIDES.items():
     if k in values:
       values[k] = value
-  values.update({k: v for k, v in DEVICE_STOCK_FRESH.items() if k in values})
   values.update({k: "1" if FILE_TOGGLES[k][0] else "0" for k in sorted(FILE_RESET_KEYS)})
   values["OffroadScreensaver"] = "0"
   values["AlertVolumeControl"] = "0"
