@@ -82,7 +82,7 @@ def test_ui_refuses_non_finite_and_nudges_stop_at_the_floor(store):
   assert c.nudge("StopAccel", 1) and c.display_value("StopAccel") == pytest.approx(-0.5)      # cannot rise above the floor
   c.change("StoppingDecelRate", .1)
   assert c.nudge("StoppingDecelRate", -1) and c.display_value("StoppingDecelRate") == pytest.approx(.1)
-  assert c.value_text("StopAccel") == "-0.50 m/s²" and c.value_text("StoppingDecelRate") == "0.10 m/s³"
+  assert c.value_text("StopAccel") == "-0.50 m/s^2" and c.value_text("StoppingDecelRate") == "0.10 m/s^3"
 
 
 def test_ui_shows_clamped_value_for_a_stale_saved_one(store):
@@ -268,3 +268,12 @@ def test_reset_removes_the_stop_row_markers_and_the_consumer_returns_to_stock(st
 def test_longcontrol_source_guards_unchanged():
   src = (ROOT / "openpilot/selfdrive/controls/lib/longcontrol.py").read_text()
   assert "stock (feae) stopping behaviour" in src and "stopping_store=None" in src
+
+
+def test_settings_units_and_descriptions_are_ascii():
+  """t1019: the font atlas has no superscripts; units read m/s^2 and m/s^3 (rendered rows and their descriptions)."""
+  from openpilot.selfdrive.ui.layouts.settings import phase3_long_accel_settings as S
+  units = {r.key: r.unit for r in S.ROWS}
+  assert units["StopAccel"] == " m/s^2" and units["MaxDesiredAcceleration"] == " m/s^2" and units["StoppingDecelRate"] == " m/s^3"
+  src = Path(S.__file__).read_text()
+  assert "m/s\u00b2" not in src and "m/s\u00b3" not in src
