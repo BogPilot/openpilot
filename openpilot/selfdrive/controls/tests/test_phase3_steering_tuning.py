@@ -416,12 +416,16 @@ class TestSteeringTuning(unittest.TestCase):
       def make(*args, **kwargs):
         n = NS(kind=kind, args=args, visible=lambda: True, **kwargs)
         n.set_visible = lambda fn, n=n: setattr(n, 'visible', fn)
+        n.set_level_gate = lambda fn, n=n: setattr(n, 'level_gate', fn)
         return n
       return make
     for key in ('toggle_item', 'text_item', 'dual_button_item', 'button_item'):
       setattr(factory, key, item(key))
     gated = ModuleType('openpilot.selfdrive.ui.bogpilot.gated_actions')   # D2: dual rows come from the gated factory
     gated.gated_dual_button_item = item('dual_button_item')
+    gated.gated_value_step_item = item('value_step')    # value rows: (title, description, value, on_minus, on_plus)
+    gated.reset_section_item = item('reset_section')
+    gated.RESET_SECTION_TITLE = 'Reset section to defaults'
     scroll = ModuleType('openpilot.system.ui.widgets.scroller_tici')
     scroll.Scroller = lambda items, **kwargs: NS(items=items)
     return {'openpilot.system.ui.widgets': widgets, 'openpilot.system.ui.widgets.list_view': factory,
@@ -435,15 +439,14 @@ class TestSteeringTuning(unittest.TestCase):
       layout = make_layout(cp, store, lambda: True)
       rows = layout.scroller.items
       next(x for x in rows if x.kind == 'toggle_item' and x.args[0] == 'Advanced Lateral Tuning').callback(True)
-      idx = next(i for i, x in enumerate(rows) if x.kind == 'text_item' and x.args[0] == 'Friction')
-      rows[idx + 1].right_callback()
+      next(x for x in rows if x.kind == 'value_step' and x.args[0] == 'Friction').args[4]()
       self.assertAlmostEqual(store.get_float('SteerFriction'), .11)
       _, lac = replay(SteeringTuning(cp, store))
       self.assertAlmostEqual(lac.torque_params.friction, .11)
       next(x for x in rows if x.kind == 'toggle_item' and x.args[0] == 'Quality of Life').callback(True)
-      idx = next(i for i, x in enumerate(rows) if x.kind == 'text_item' and x.args[0] == 'Pause Steering Below')
+      pause = next(x for x in rows if x.kind == 'value_step' and x.args[0] == 'Pause Steering Below')
       for _ in range(20):
-        rows[idx + 1].right_callback()
+        pause.args[4]()
       self.assertEqual(store.get_int('PauseLateralSpeed'), 20)
       self.assertAlmostEqual(SteeringTuning(cp, store).pause_speed, 20 * .44704)
 
@@ -464,7 +467,7 @@ class TestSteeringTuning(unittest.TestCase):
     with patch.dict(sys.modules, self._stub_widgets()):
       rows = make_layout(lambda: box['cp'], store, lambda: True).scroller.items
       def shown():
-        return {x.args[0] for x in rows if x.kind in ('toggle_item', 'text_item') and x.visible()}
+        return {x.args[0] for x in rows if x.kind in ('toggle_item', 'value_step') and x.visible()}
       self.assertEqual(shown(), {'Quality of Life', 'Pause Steering Below', 'Turn Signal Only'})
       box['cp'] = self.ap1()
       # The value rows appear once their parent toggle is switched on.

@@ -128,6 +128,10 @@ _add("AlertVolumeFloor", "Warning minimum",
      "louder. This limit is enforced where the sound is played, so a lower saved value is ignored.",
      default="25 percent", range="25 to 100 percent")
 
+_add("section.reset_defaults", "Reset section to defaults",
+     "Sets every setting in this section back to its default, after you confirm. Settings in other sections keep their values.",
+     note="Only works while the car is off.")
+
 # ---------------------------------------------------------------- Vehicle
 _add("DisableOpenpilotLongitudinal", "Disable openpilot Longitudinal Control",
      "Uses the car's own adaptive cruise control for speed and following distance instead of openpilot's gas and brake control. "

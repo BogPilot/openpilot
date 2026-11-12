@@ -161,6 +161,58 @@ class FollowingEditor:
       return f"{v:.2f}" + (" second" if round(v / 0.01) == 100 else " seconds")
     return f"{v:.0f}{row.unit}"
 
+  def default(self, key):
+    """The existing default a value row shows as "default: X", or None when there is none to show.
+
+    Following Distance uses the table already in this file (`_P_FOLLOW_DEFAULT`: Aggressive 1.25, Standard 1.45,
+    Relaxed 1.75) and the same numbers in bogpilot_defaults.py (AggressiveFollow, StandardFollow, RelaxedFollow).
+    Jerk rows and Lead Detection use store.default(key), the same source value() already falls back to:
+    Aggressive jerks 50 except Danger 100; Standard/Relaxed jerks 100 (bogpilot_defaults.py); Lead Detection 35.
+    A missing or non-finite catalog entry is not a default: no hint and no reset for that key.
+    """
+    row = BY_KEY.get(key)
+    if row is None or row.kind != "value":
+      return None
+    try:
+      v = float(self.store.default(key))
+    except (TypeError, ValueError, KeyError, AttributeError):
+      return None
+    return v if math.isfinite(v) else None
+
+  def default_shown(self, key):
+    """Hint text in the same units as the live value, or None when there is no default."""
+    d = self.default(key)
+    if d is None:
+      return None
+    row = BY_KEY[key]
+    if row.unit == " seconds":
+      return f"{d:.2f}" + (" second" if round(d / 0.01) == 100 else " seconds")
+    return f"{d:.0f}{row.unit}" if row.unit == "%" else f"{d:g}{row.unit}"
+
+  def at_default(self, key):
+    """True unless the value in effect differs from the existing default. An unknown value is not highlighted."""
+    from openpilot.selfdrive.ui.bogpilot.step_defaults import differs_from_default
+    d = self.default(key)
+    if d is None:
+      return True
+    try:
+      v = self.value(key)
+    except (KeyError, TypeError, ValueError):
+      return True
+    if not math.isfinite(v):
+      return True
+    return not differs_from_default(v, d)
+
+  def section_defaults(self, keys):
+    """Reset table for a section: each of its value keys that can be edited right now, with its existing default.
+    A key locked at this moment (onroad, Tuning Level, parent off, no long control) is left alone."""
+    return {k: self.default(k) for k in keys if self.default(k) is not None and self.can_edit(k)}
+
+
+def profile_value_keys(profile):
+  """Follow + five jerk keys for one profile (the keys a section reset may write)."""
+  return (f"{profile}Follow", *(f"{profile}{s}" for s, _, _ in _SUB))
+
 
 def visible_rows(editor, section=None):
   """section None = Gas / Brake level rows; 'personalities' = profile list; profile name = that profile."""
@@ -189,11 +241,6 @@ def _human_lane_change_item(store, CP, runtime_integrated, offroad):
     return human_lane_change_item(store, CP, runtime_integrated=runtime_integrated, offroad=offroad)
   except AttributeError:   # a live CarParams proxy with no CarParams yet: no row
     return None
-
-
-def _plain(text):
-  """Dialog text: the 0.9.7 wording uses <b> tags that the confirmation dialog does not render."""
-  return text.replace("<b>", "").replace("</b>", "")
 
 
 def _manage_toggle_item(title, desc, state, toggle_callback, toggle_enabled, manage_callback, manage_enabled):
@@ -251,14 +298,23 @@ def build_items(editor, store, CP, section=None, confirm=None, request_confirm=N
   dialog stack needs (the reset runs from on_yes only). refresh() is called after a write (the page rebuilds there).
 
   section "personalities" is one inline page: each profile switch is followed by its own rows (Following Distance, the five
-  smoothness rows, Reset to Defaults), indented under it and present only while that profile is on."""
-  from openpilot.system.ui.widgets.list_view import toggle_item, text_item, button_item
-  from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_dual_button_item
+  smoothness rows, and one Reset section to defaults), indented under it and present only while that profile is on."""
+  from openpilot.system.ui.lib.multilang import tr
+  from openpilot.system.ui.widgets.list_view import toggle_item
+  from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_value_step_item, reset_section_item, RESET_SECTION_TITLE
   from openpilot.selfdrive.ui.bogpilot.nesting import indent_under
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
+  from openpilot.selfdrive.ui.bogpilot import tuning_level
 
   toggles = {}
   items = list(lead_items) if section == "longitudinal_tuning" else []
+  value_items = []
+
+  # Hosts may still pass the older synchronous confirm(text)->bool; wrap it for the shared reset row.
+  if request_confirm is None and confirm is not None:
+    def request_confirm(text, on_yes, _ask=confirm):
+      if _ask(text):
+        on_yes()
 
   def after():
     if refresh is not None:
@@ -268,12 +324,40 @@ def build_items(editor, store, CP, section=None, confirm=None, request_confirm=N
     editor.write(key, bool(value))
     after()
 
-  def reset(p):
-    text = f"Are you sure you want to completely reset your settings for the <b>{p}</b> personality?"
-    if request_confirm is not None:
-      request_confirm(_plain(text), lambda: editor.reset(p))
-    elif confirm is not None and confirm(text):
-      editor.reset(p)
+  def must(ok, key):
+    # A refused write raises, so the shared reset row stops and tells the user instead of failing silently.
+    if not ok:
+      raise PermissionError(f"{key} was not reset")
+
+  def stepper(row):
+    # One row: [minus] [value] [plus]. Minus is ASCII "-" (the Inter atlas has no U+2212).
+    # Grey "default: X" under the value; the value is outlined when it is not the default.
+    k = row.key
+    item = gated_value_step_item(row.title, row.desc + "<br><br>" + APPLIES,
+                                 lambda k=k: editor.label(k),
+                                 lambda k=k, r=row: editor.write(k, editor.value(k) - r.step),
+                                 lambda k=k, r=row: editor.write(k, editor.value(k) + r.step),
+                                 minus=f"-{row.step:g}", plus=f"+{row.step:g}",
+                                 enabled=lambda k=k: editor.can_edit(k),
+                                 default_text=lambda k=k: editor.default_shown(k),
+                                 is_default=lambda k=k: editor.at_default(k),
+                                 translate=tr)
+    return attach_help(item, k)
+
+  def add_section_reset(parent, keys, rows):
+    # One "Reset section to defaults" row: asks first, then writes only these keys back to their existing defaults.
+    # Shown only while one of its value rows is shown, and also behind the parent toggle's Tuning Level, so it is
+    # hidden whenever the rows it resets are hidden. Enabled only while one of those keys can be edited.
+    item = reset_section_item(lambda keys=keys: editor.section_defaults(keys),
+                              lambda k, default: must(editor.write(k, default), k),
+                              title=lambda: tr(RESET_SECTION_TITLE),
+                              enabled=lambda keys=keys: any(editor.can_edit(k) for k in keys),
+                              request_confirm=request_confirm)
+    item.set_visible(lambda rows=rows: any(r.is_visible for r in rows))
+    item.set_level_gate(lambda p=parent: tuning_level.row_visible(p))
+    attach_help(item, "section.reset_defaults")
+    items.append(item)
+    return item
 
   for row in visible_rows(editor, section):
     k = row.key
@@ -293,15 +377,19 @@ def build_items(editor, store, CP, section=None, confirm=None, request_confirm=N
       if lc_item is not None:
         items.append(attach_help(lc_item, "HumanLaneChanges"))
     if row.kind == "value":
-      items.append(attach_help(text_item(row.title, lambda k=k: editor.label(k), row.desc + "<br><br>" + APPLIES), k))
-      items.append(gated_dual_button_item(f"−{row.step:g}", f"+{row.step:g}",
-        left_callback=lambda k=k, r=row: editor.write(k, editor.value(k) - r.step),
-        right_callback=lambda k=k, r=row: editor.write(k, editor.value(k) + r.step),
-        enabled=lambda k=k: editor.can_edit(k)))
+      item = stepper(row)
+      items.append(item)
+      value_items.append((k, item))
     if row.kind == "reset":
       p = k[len("Reset"):-len("Personality")]
-      items.append(button_item(row.title, "RESET", callback=lambda p=p: reset(p), description=row.desc,
-                               enabled=lambda k=k: editor.can_edit(k)))
+      keys = profile_value_keys(p)
+      rows = [it for key, it in value_items if key in keys]
+      add_section_reset(row.parent, keys, rows)
+  if section == "longitudinal_tuning":
+    # Lead Detection has no pre-existing RESET row; its parent toggle lives on the Gas / Brake page.
+    lead_rows = [it for key, it in value_items if key == "LeadDetectionThreshold"]
+    if lead_rows:
+      add_section_reset("LongitudinalTune", ("LeadDetectionThreshold",), lead_rows)
   return items, toggles
 
 
@@ -317,8 +405,9 @@ def shown_keys(editor, section):
 
 def make_layout(CP, store, offroad, section=None, confirm=None, lead_items=(), runtime_integrated=False,
                 request_confirm=None):
-  """Raylib list for one section. confirm(text)->bool asks
-  'Are you sure you want to completely reset your settings for the <b>X</b> personality?' (04d560f3).
+  """Raylib list for one section. Value rows use the shared stepper (grey default hint, highlight when changed).
+  Each section has one "Reset section to defaults" row (shared confirm). confirm and request_confirm are accepted
+  so a host can still inject the dialog; the shared reset row is the one that asks.
   section "longitudinal_tuning": lead_items = the already-built Acceleration/Deceleration/HumanAcceleration
   items (placed first); the delivered human_lane_change_item is mounted after Human-Like Following
   (runtime_integrated passed through; that helper gates itself until its consumer is integrated)."""

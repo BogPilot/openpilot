@@ -238,9 +238,56 @@ class SettingsController:
     value = float(Decimal(str(current)) + Decimal(str(step)) * direction)
     return self.change(key, value)
 
+  # ---- defaults for the value rows: exactly what display_value() shows while the key is unsaved (no new number) ----
+  #   MaxDesiredAcceleration "4.0"   openpilot/common/bogpilot_params.py:242 (UI catalog bogpilot_defaults.py:181)
+  #   CESpeed "0", CESpeedLead "0"   bogpilot_params.py:91-92 (bogpilot_defaults.py:60-61)
+  #   CESignalSpeed "55"             bogpilot_params.py:89 (bogpilot_defaults.py:58)
+  #   CEModelStopTime "8.0"          bogpilot_params.py:83 (bogpilot_defaults.py:52)
+  # The mph rows in metric show the same int(mph * 1.609344) display_value() already shows for an unsaved key.
+  # No default, so no hint and no reset: LongitudinalActuatorDelay, StopAccel, StoppingDecelRate (registry default ""
+  # at bogpilot_params.py:225,406,409 and bogpilot_defaults.py:168,313,316; STOCK_DISPLAY shows the car's stock value).
+  def unsaved_value(self, key):
+    """The value a number row shows while its key is unsaved, or None when the key has no default (never invented)."""
+    row = BY_KEY.get(key)
+    if row is None or row.kind != "number" or key in STOCK_DISPLAY:
+      return None
+    getter = getattr(self.store, "default", None)
+    try:
+      value = float(getter(key)) if getter is not None else None
+    except (TypeError, ValueError):
+      return None
+    if value is None or not math.isfinite(value):
+      return None
+    if row.unit == " mph" and self.store.get_bool("IsMetric", False):
+      return int(value * 1.609344)
+    return value
+
+  def default_text(self, key):
+    value = self.unsaved_value(key)
+    return None if value is None else self.format_value(key, value)
+
+  def at_default(self, key):
+    from openpilot.selfdrive.ui.bogpilot.step_defaults import differs_from_default
+    return not differs_from_default(self.display_value(key), self.unsaved_value(key))
+
+  def section_defaults(self, keys):
+    """Reset table for this group: each of its number keys that has a default and can be edited right now (offroad,
+    openpilot longitudinal, row shown for the Tuning Level and parent), with that default. Locked keys are left alone."""
+    if not self.can_edit() or not self.long_available():
+      return {}
+    shown = {r.key for r in self.rows()}
+    return {k: self.unsaved_value(k) for k in keys if k in shown and self.unsaved_value(k) is not None}
+
+  def reset_write(self, key, value):
+    """Section-reset writer: the same guarded change() as the -/+ buttons; a refused write raises (the row reports it)."""
+    if not self.change(key, value):
+      raise PermissionError(f"{key} was not reset")
+
   def value_text(self, key):
+    return self.format_value(key, self.display_value(key))
+
+  def format_value(self, key, value):
     row = BY_KEY[key]
-    value = self.display_value(key)
     _, _, step, unit = self.number_contract(row)
     if not math.isfinite(value):
       return "—"
@@ -253,44 +300,18 @@ class SettingsController:
 
 
 def make_settings(group, store=None, capabilities=Capabilities(), cp=None, can_edit=lambda: True, extra_items=None):
-  import pyray as rl
   from openpilot.system.ui.widgets import Widget
-  from openpilot.system.ui.widgets.button import Button
-  from openpilot.system.ui.widgets.list_view import ItemAction, ListItem, toggle_item, text_item
-  from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_multiple_button_item
-  from openpilot.system.ui.widgets.label import gui_label
-  from openpilot.system.ui.lib.application import FontWeight
+  from openpilot.system.ui.widgets.list_view import toggle_item, text_item
+  from openpilot.selfdrive.ui.bogpilot.gated_actions import (RESET_SECTION_TITLE, gated_multiple_button_item,
+                                                             gated_value_step_item, reset_section_item)
+  from openpilot.selfdrive.ui.bogpilot import tuning_level
+  from openpilot.system.ui.lib.multilang import tr
   from openpilot.system.ui.widgets.scroller_tici import Scroller
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
   from openpilot.selfdrive.ui.bogpilot.nesting import indent_under
   if store is None:
     from openpilot.common.bogpilot_store import ParamStore
     store = ParamStore()
-
-  class NumberAction(ItemAction):
-    def __init__(self, controller, key):
-      super().__init__(width=500)
-      self.controller, self.key = controller, key
-      self.minus = Button("−", click_callback=lambda: self.change(-1), text_padding=0)
-      self.plus = Button("+", click_callback=lambda: self.change(1), text_padding=0)
-
-    def change(self, direction):
-      if self.enabled:
-        self.controller.nudge(self.key, direction)
-
-    def set_touch_valid_callback(self, callback):
-      super().set_touch_valid_callback(callback)
-      self.minus.set_touch_valid_callback(callback)
-      self.plus.set_touch_valid_callback(callback)
-
-    def _render(self, rect):
-      y = rect.y + (rect.height - 100) / 2
-      self.minus.set_enabled(self.enabled)
-      self.plus.set_enabled(self.enabled)
-      self.minus.render(rl.Rectangle(rect.x, y, 90, 100))
-      self.plus.render(rl.Rectangle(rect.x + rect.width - 90, y, 90, 100))
-      gui_label(rl.Rectangle(rect.x + 95, y, rect.width - 190, 100), self.controller.value_text(self.key),
-                font_size=34, font_weight=FontWeight.MEDIUM)
 
   class SettingsPanel(Widget):
     def __init__(self):
@@ -329,17 +350,38 @@ def make_settings(group, store=None, capabilities=Capabilities(), cp=None, can_e
                                             callback=lambda value, k=row.key: self._write(k, value))
           item.action_item.set_enabled(enabled)
         else:
-          action = NumberAction(c, row.key)
-          action.set_enabled(enabled)
-          item = ListItem(title=title, description=desc, action_item=action)
+          # The shared value row [-] [value] [+] (was a custom inline action with U+2212). Same step, same guards: the
+          # lock is re-read every frame and change() still refuses a stale tap. Hint and outline only with a default.
+          has_default = c.unsaved_value(row.key) is not None
+          item = gated_value_step_item(title, desc, lambda k=row.key: c.value_text(k),
+                                       on_minus=lambda k=row.key: c.nudge(k, -1), on_plus=lambda k=row.key: c.nudge(k, 1),
+                                       button_width=280,
+                                       enabled=lambda r=row: c.enabled(r) and bool(can_edit()) and c.long_available(),
+                                       default_text=(lambda k=row.key: c.default_text(k)) if has_default else None,
+                                       is_default=(lambda k=row.key: c.at_default(k)) if has_default else None,
+                                       translate=tr)
         attach_help(item, row.key)
         self.items[row.key] = item
         items.append(item)
+      self.reset = None
+      reset_keys = tuple(r.key for r in rows if c.unsaved_value(r.key) is not None)
+      if reset_keys:
+        # One reset row for the group, after its own rows: asks first, then writes only these keys back to their
+        # existing defaults (unsaved_value). Locked like the rows; shown only while one of them is shown, and behind
+        # the group switch's own Tuning Level.
+        rows_of_reset = tuple(self.items[k] for k in reset_keys)
+        self.reset = reset_section_item(lambda: c.section_defaults(reset_keys), c.reset_write,
+                                        title=lambda: tr(RESET_SECTION_TITLE),
+                                        enabled=lambda: bool(can_edit()) and c.long_available(), on_done=self._build)
+        attach_help(self.reset, "section.reset_defaults")
+        self.reset.set_visible(lambda: any(i.is_visible for i in rows_of_reset))
+        self.reset.set_level_gate(lambda: tuning_level.row_visible(c.parent))
+        items.append(self.reset)
       extra = list(extra_items()) if extra_items is not None and c.active() else []
       items.extend(extra)   # rows another module owns (Longitudinal Tuning: following rows), after this group's own
       # Every row belongs to the group switch at the top; a row with its own parent (and With Lead under Below) goes one level
       # deeper. Visibility already follows the saved values (SettingsController.rows), so the helper only indents.
-      indent_under(root, *(self.items[r.key] for r in rows), *extra)
+      indent_under(root, *(self.items[r.key] for r in rows), *((self.reset,) if self.reset is not None else ()), *extra)
       for row in rows:
         parent = row.parent or ("CESpeed" if row.key == "CESpeedLead" else None)
         if parent in self.items and parent != row.key:

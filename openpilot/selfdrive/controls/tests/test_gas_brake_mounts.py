@@ -155,15 +155,14 @@ def test_personalities_toggle_and_profile_values_reach_the_planner_reader(store)
   assert page.navigation_title == "Driving Personalities"
   ensure_on(store, panel, "Standard", "StandardPersonalityProfile")
   own = ["Following Distance", "Acceleration Smoothness", "Braking Smoothness", "Safety Gap Bias",
-         "Slowdown Response", "Speed-Up Response", "Reset to Defaults"]
+         "Slowdown Response", "Speed-Up Response", "Reset section to defaults"]   # one section reset per profile
   assert [x for x in titles(panel) if x] == ["Aggressive", *own, "Standard", *own, "Relaxed", *own]
   standard = titled(panel, "Standard")
   at = rows(panel).index(standard)
-  assert standard.indent == 0 and all(i.indent == INDENT for i in rows(panel)[at + 1:at + 1 + 11])   # 6 value rows x 2 + reset - 2
-  t = titles(panel)
-  follow = [i for i in rows(panel)[at:] if i.title == "" and hasattr(i.action_item, "right_button")][0]   # Standard's own
+  assert standard.indent == 0 and all(i.indent == INDENT for i in rows(panel)[at + 1:at + 1 + 7])   # 6 value rows + section reset
+  follow = [i for i in rows(panel)[at:] if i.title == "Following Distance"][0]   # Standard's own shared value row
   before = F.FollowingToggles.read(store, cp).standard_follow
-  follow.action_item.right_button._click_callback()
+  press(follow, +1)
   assert F.FollowingToggles.read(store, cp).standard_follow == pytest.approx(before + 0.01)
 
 
@@ -199,7 +198,7 @@ def test_reset_to_defaults_only_runs_after_the_confirmation_says_yes(store, monk
   cp = make_cp()
   asked = []
   monkeypatch.setattr("openpilot.selfdrive.ui.bogpilot.phase3_gas_brake_mounts._request_confirm",
-                      lambda text, on_yes: asked.append((text, on_yes)))
+                      lambda text, on_yes: asked.append((text, on_yes)))   # the section reset asks through the mount
   page, _ = page_for(store, cp)
   switch(page, "Driving Personalities")
   manage(page, "Driving Personalities").callback()
@@ -207,8 +206,8 @@ def test_reset_to_defaults_only_runs_after_the_confirmation_says_yes(store, monk
   ensure_on(store, panel, "Aggressive", "AggressivePersonalityProfile")
   store.put("AggressiveFollow", 2.5, block=True)
   store.invalidate()
-  titled(panel, "Reset to Defaults").callback()
-  assert len(asked) == 1 and "<b>" not in asked[0][0] and "Aggressive" in asked[0][0]
+  reset_rows(panel)[0].callback()                                       # Aggressive's section reset comes first
+  assert len(asked) == 1 and "<b>" not in asked[0][0]
   assert store.get_float("AggressiveFollow") == pytest.approx(2.5)        # nothing yet
   asked[0][1]()
   assert store.get_float("AggressiveFollow") == pytest.approx(1.25)
@@ -240,8 +239,7 @@ def test_longitudinal_tuning_shows_following_rows_only_once_the_group_is_on(stor
   assert F.FollowingToggles.read(store, cp).human_following is (not before)
   assert store.get_bool("HumanFollowing") is (not before)
 
-  value = [i for i in rows(page.panel) if i.title == "" and hasattr(i.action_item, "right_button")][-1]
-  value.action_item.right_button._click_callback()
+  press(titled(page.panel, "Lead Detection Confidence Threshold"), +1)   # shared value row, + button
   assert F.FollowingToggles.read(store, cp).lead_detection_probability == pytest.approx(0.36)
 
 
@@ -284,9 +282,9 @@ def test_speed_limit_controller_rows_write_what_the_planner_reads(store):
   # sub page: offsets
   [i for i in rows(panel) if i.title == "Speed Limit Offsets"][0].callback()
   assert page.navigation_title == "Speed Limit Controller"           # header stays on the group name
-  offset = [i for i in rows(panel) if i.title == "" and hasattr(i.action_item, "right_button")][0]
+  offset = [i for i in rows(panel) if i.title.startswith("Speed Offset (")][0]   # the shared value row
   before = store.get_int("Offset1")
-  offset.action_item.right_button._click_callback()
+  press(offset, +1)
   assert store.get_int("Offset1") == before + 1
   from openpilot.selfdrive.controls.lib import phase3_speed_control as sc
   assert sc.slc_adopted(store)
@@ -370,3 +368,171 @@ def test_the_advanced_longitudinal_rows_sit_under_their_switch(store):
   switch(page.panel, "Advanced Longitudinal Tuning")
   rs = rows(page.panel)
   assert rs[0].indent == 0 and len(rs) > 1 and all(i.indent == INDENT for i in rs[1:])
+
+
+# ------------------------------------------------------------------------------------- value rows and section resets
+def press(item, step):
+  """A tap on the shared value row's - (step -1) or + (step +1) button: the same callback a tap dispatches."""
+  action = item.action_item
+  action.callback(action.value_index + step)
+
+
+def confirm_yes(monkeypatch):
+  """The section reset asks first; answer yes straight away and record the question."""
+  from openpilot.selfdrive.ui.bogpilot import gated_actions
+  asked = []
+
+  def ask(text, on_yes):
+    asked.append(text)
+    on_yes()
+  monkeypatch.setattr(gated_actions, "_confirm_dialog", ask)
+  return asked
+
+
+def reset_rows(widget):
+  from openpilot.selfdrive.ui.bogpilot.gated_actions import RESET_SECTION_TITLE
+  return [i for i in rows(widget) if i.title == RESET_SECTION_TITLE]
+
+
+def test_standstill_tap_speed_is_one_value_row_with_its_default_and_a_reset(store, monkeypatch):
+  from openpilot.selfdrive.ui.bogpilot.gated_actions import GatedValueStepAction
+  asked = confirm_yes(monkeypatch)
+  page, flag = page_for(store)
+  tap = titled(page, GB.TAP_FROM_ZERO_TITLE)
+  assert isinstance(tap.action_item, GatedValueStepAction)
+  assert tap.action_item.hint_text == "default: 15 mph" and not tap.action_item.highlighted
+  assert "" not in [i.title for i in rows(page) if i.is_visible]  # no blank button row under the value any more
+  press(tap, +1)
+  assert store.get_int(GB.TAP_FROM_ZERO_KEY) == 16 and tap.action_item.highlighted
+  (reset,) = reset_rows(page)
+  assert rows(page).index(reset) == rows(page).index(tap) + 1 and reset.is_visible and reset.action_item.enabled
+  flag[0] = False                                                # onroad: locked, nothing written, nothing asked
+  assert not reset.action_item.enabled and not tap.action_item.enabled
+  reset.callback()
+  assert asked == [] and store.get_int(GB.TAP_FROM_ZERO_KEY) == 16
+  flag[0] = True
+  reset.callback()
+  assert len(asked) == 1 and store.get_int(GB.TAP_FROM_ZERO_KEY) == 15 and not tap.action_item.highlighted
+
+
+def test_standstill_tap_speed_reset_follows_the_tap_row(store):
+  # greyed (shown, locked) without openpilot longitudinal or with no car yet; hidden on a known non-AP1 car
+  for cp in (make_cp(long=False), None):
+    page = GB.create_gas_brake_layout(store, cp_source=lambda cp=cp: cp, can_edit=lambda: True)
+    page.show_event()
+    tap, (reset,) = titled(page, GB.TAP_FROM_ZERO_TITLE), reset_rows(page)
+    assert tap.is_visible and reset.is_visible
+    assert not tap.action_item.enabled and not reset.action_item.enabled
+    # only the actions are locked; the rows stay enabled like the old text and button rows (help still opens)
+    assert tap.enabled and reset.enabled
+  page, _ = page_for(store, make_cp(fingerprint="TESLA_MODEL_3"))
+  assert GB.TAP_FROM_ZERO_TITLE not in titles(page) and reset_rows(page) == []
+  # below the tap row's Tuning Level both rows are gone
+  store.put("TuningLevel", 0, block=True)
+  store.invalidate()
+  page, _ = page_for(store)
+  assert GB.TAP_FROM_ZERO_TITLE not in titles(page) and reset_rows(page) == []
+
+
+def test_standstill_tap_speed_reset_writes_only_its_own_key(store):
+  with pytest.raises(PermissionError):
+    GB.reset_tap_from_zero(store, "SpeedLimitController", 15)
+  with pytest.raises(PermissionError):
+    GB.reset_tap_from_zero(store, GB.TAP_FROM_ZERO_KEY, 20)     # never a value other than the existing default
+  with pytest.raises(PermissionError):
+    GB.reset_tap_from_zero(store, GB.TAP_FROM_ZERO_KEY, 15, can_edit=lambda: False)
+  assert store.raw(GB.TAP_FROM_ZERO_KEY) is None
+  GB.reset_tap_from_zero(store, GB.TAP_FROM_ZERO_KEY, 15, can_edit=lambda: True, long_on=lambda: True)
+  store.invalidate()
+  assert store.raw(GB.TAP_FROM_ZERO_KEY) == "15"
+
+
+def slc_page(store, cp=None, offroad=True):
+  page, flag = page_for(store, cp, offroad)
+  page.open_panel("slc")
+  return page, flag
+
+
+def test_speed_limit_controller_value_rows_show_the_panels_unsaved_values_as_defaults(store):
+  page, _ = slc_page(store)
+  panel = page.panel
+  hints = {t: titled(panel, t).action_item.hint_text for t in ("Priority 1", "Priority 2", "Priority 3", "Look-ahead")}
+  # exactly what each row shows while nothing is saved (registry default, parsed by the panel's own reader)
+  assert hints == {"Priority 1": "default: Navigation", "Priority 2": "default: Map Data", "Priority 3": "default: Dashboard",
+                   "Look-ahead": "default: 5 seconds"}
+  assert [titled(panel, t).action_item.value_index for t in hints] == [1] * 4
+  assert not any(titled(panel, t).action_item.highlighted for t in hints)
+  [i for i in rows(panel) if i.title == "Speed Limit Offsets"][0].callback()
+  offsets = [i for i in rows(panel) if i.title.startswith("Speed Offset (")]
+  assert [i.action_item.hint_text for i in offsets] == ["default: +5 mph"] * 4 + ["default: +10 mph"] * 3
+  assert "" not in titles(panel)                                    # no blank button rows any more
+
+
+def test_speed_limit_controller_resets_write_only_their_own_section(store, monkeypatch):
+  asked = confirm_yes(monkeypatch)
+  page, flag = slc_page(store)
+  panel = page.panel
+  press(titled(panel, "Look-ahead"), +1)
+  press(titled(panel, "Priority 2"), +1)
+  assert store.get_int("SLCLookaheadLower") == 6 and titled(panel, "Look-ahead").action_item.highlighted
+  before_offset = store.raw("Offset1")
+  (reset,) = reset_rows(panel)
+  assert reset.indent == INDENT and titled(panel, "Look-ahead").indent == INDENT
+  assert titled(panel, "Speed Limit Controller").indent == 0
+  flag[0] = False                                                   # onroad: locked, nothing asked, nothing written
+  assert not reset.action_item.enabled
+  reset.callback()
+  assert asked == [] and store.get_int("SLCLookaheadLower") == 6
+  flag[0] = True
+  reset_rows(panel)[0].callback()
+  store.invalidate()
+  assert len(asked) == 1
+  assert (store.get_int("SLCLookaheadLower"), store.get("SLCPriority2")) == (5, "Map Data")
+  assert store.raw("Offset1") == before_offset                       # another section's keys are left alone
+  # the offsets page has its own reset, for the seven offsets only
+  [i for i in rows(panel) if i.title == "Speed Limit Offsets"][0].callback()
+  press([i for i in rows(panel) if i.title.startswith("Speed Offset (")][6], -1)
+  assert store.get_int("Offset7") == 9
+  (offset_reset,) = reset_rows(panel)
+  offset_reset.callback()
+  store.invalidate()
+  assert [store.get_int(f"Offset{i}") for i in range(1, 8)] == [5, 5, 5, 5, 10, 10, 10]
+  assert store.get_int("SLCLookaheadLower") == 5
+  # the toggle-only sub pages have no value rows and no reset
+  assert page.navigation_back() is True
+  for sub in ("Quality of Life", "Visual Settings"):
+    [i for i in rows(panel) if i.title == sub][0].callback()
+    assert reset_rows(panel) == []
+    assert page.navigation_back() is True
+
+
+def test_speed_limit_controller_reset_hides_with_its_rows(store):
+  # Speed Limit Controller off: only the switch, no value rows and no reset
+  page, _ = slc_page(store)
+  switch(page.panel, "Speed Limit Controller")
+  assert titles(page.panel) == ["Speed Limit Controller"] and reset_rows(page.panel) == []
+  # openpilot longitudinal off: the page lists nothing (no rows, no reset)
+  page, _ = slc_page(store, make_cp(long=False))
+  assert reset_rows(page.panel) == []
+  # below the rows' Tuning Level (Priority / Look-ahead are level 2): no value rows on the page, no reset
+  store.put("SpeedLimitController", True, block=True)
+  store.put("TuningLevel", 1, block=True)
+  store.invalidate()
+  page, _ = slc_page(store)
+  assert "Look-ahead" not in titles(page.panel) and reset_rows(page.panel) == []
+
+
+def test_speed_limit_controller_reset_leaves_hidden_priorities_alone(store, monkeypatch):
+  confirm_yes(monkeypatch)
+  page, _ = slc_page(store)
+  panel = page.panel
+  press(titled(panel, "Priority 3"), +1)
+  p3 = store.get("SLCPriority3")
+  while store.get("SLCPriority1") != "Highest":                    # Highest hides Priority 2 and 3
+    press(titled(panel, "Priority 1"), +1)
+    store.invalidate()
+  assert "Priority 3" not in titles(panel)
+  reset_rows(panel)[0].callback()
+  store.invalidate()
+  assert store.get("SLCPriority1") == "Navigation" and store.get("SLCPriority3") == p3   # hidden row: not written
+  assert "Priority 3" in titles(panel)                                                    # the page follows the reset

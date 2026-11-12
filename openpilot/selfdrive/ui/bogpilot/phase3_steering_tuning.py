@@ -23,7 +23,7 @@ NUMERIC_ORDER = ("SteerDelay", "SteerFriction", "SteerLatAccel", "SteerRatio")
 NUMERIC_STEP = .01
 DESCRIPTIONS = {
   "SteerDelay": "Seconds between a steering command and the car's response. Unset keeps the auto-learned value. Takes effect next drive.",
-  "SteerRatio": "Steering wheel angle to road wheel angle ratio. Reset keeps the auto-learned value. Takes effect next drive.",
+  "SteerRatio": "Steering wheel angle to road wheel angle ratio. Unset keeps the auto-learned value. Takes effect next drive.",
   "SteerFriction": "Torque-controlled cars only. Compensates steering friction. Needs Force Auto-Tune Off where live tuning exists.",
   "SteerLatAccel": "Torque-controlled cars only. Maps steering torque to turning response. Needs Force Auto-Tune Off where live tuning exists.",
   OVERRIDE_SENSITIVITY: "How hard you must push the wheel to take over steering. 1 needs the hardest push, 5 the lightest. 3 is the standard feel. Offroad only; applies next drive.",
@@ -147,6 +147,52 @@ class TuningEditor:
     row = self.rows.get(key)
     return DESCRIPTIONS[key] if row is None else f"Range {row.minimum:.2f}-{row.maximum:.2f}; step 0.01. {DESCRIPTIONS[key]}"
 
+  def default(self, key):
+    """The existing default a row shows as "default: X", or None when there is none to show (no car yet).
+    Numeric rows: NumericRow.default from controls/lib/phase3_steering_tuning.py numeric_rows (the car's own value, or
+    lagd's initial delay). Override Sensitivity: SENSITIVITY_DEFAULT (opendbc tesla_ap1/override.py). Pause Steering
+    Below: the registry default (bogpilot_params.py / bogpilot_defaults.py, read through ParamStore.default)."""
+    if key == OVERRIDE_SENSITIVITY:
+      return SENSITIVITY_DEFAULT
+    if key == "PauseLateralSpeed":
+      try:
+        value = float(self.store.default(key))
+      except (AttributeError, TypeError, ValueError, KeyError):
+        return None
+      return value if math.isfinite(value) else None
+    row = self.rows.get(key)
+    return None if row is None else row.default
+
+  def default_shown(self, key):
+    d = self.default(key)
+    if d is None:
+      return None
+    if key == OVERRIDE_SENSITIVITY:
+      return str(d)
+    if key == "PauseLateralSpeed":
+      return f"{d:g} " + ("km/h" if self.store.get_bool("IsMetric") else "mph")
+    return f"{d:.2f}"
+
+  def at_default(self, key):
+    """True unless the value in effect differs from the default (an unknown default is never highlighted)."""
+    from openpilot.selfdrive.ui.bogpilot.step_defaults import differs_from_default
+    d = self.default(key)
+    if d is None:
+      return True
+    try:
+      v = self.value(key)
+    except (KeyError, TypeError, ValueError):
+      return True
+    if key in self.rows:
+      v, d = round(float(v), 2), round(float(d), 2)
+    return not differs_from_default(v, d)
+
+  def section_defaults(self, keys):
+    """Reset table for a section: each of its keys that exists for this car and can be edited right now, with its
+    existing default. A key locked at this moment (onroad, Tuning Level, parent off, auto-tune exclusivity) is left
+    alone, exactly as its own value row is."""
+    return {k: self.default(k) for k in keys if self.default(k) is not None and self.can_edit(k)}
+
   def step(self, key, direction):
     if key == OVERRIDE_SENSITIVITY:
       return self.write(key, self.level() + int(direction))   # a step past 1 or 5 is refused by write
@@ -156,11 +202,13 @@ class TuningEditor:
 def make_layout(cp, store, offroad):
   """cp: CarParams or callable returning it. Items are fixed; vehicle-dependent ones hide via set_visible."""
   from openpilot.system.ui.widgets import Widget
-  from openpilot.system.ui.widgets.list_view import toggle_item, text_item, button_item
-  from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_dual_button_item
+  from openpilot.system.ui.widgets.list_view import toggle_item
+  from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_value_step_item, reset_section_item, RESET_SECTION_TITLE
+  from openpilot.system.ui.lib.multilang import tr
   from openpilot.system.ui.widgets.scroller_tici import Scroller
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help, override_sensitivity_help_key
   from openpilot.selfdrive.ui.bogpilot.nesting import indent_under
+  from openpilot.selfdrive.ui.bogpilot import tuning_level
 
   PARENT_KEYS = ("AdvancedLateralTune", "QOLLateral")
   QOL_KEYS = ("PauseLateralSpeed", "PauseLateralOnSignal")
@@ -191,35 +239,63 @@ def make_layout(cp, store, offroad):
       # Offroad only, applies next drive; no reboot. QOL rows need no vehicle; Advanced rows need a detected car.
       toggle("AdvancedLateralTune", "Advanced Lateral Tuning",
              "Fine-tune steering. Needs a previously detected car. Offroad only; applies next drive. Stock safety limits are unchanged.")
+      def stepper(key, title, description, minus, plus, on_minus, on_plus):
+        # One row: [minus] [value] [plus], value between the buttons, grey "default: X" under it, outlined when changed.
+        # Its callables run before any car is known: they must never raise.
+        shown = pause_text if key == "PauseLateralSpeed" else (lambda k=key: e.shown(k))
+        item = gated_value_step_item(title, description, shown, on_minus, on_plus, minus=minus, plus=plus, enabled=lambda k=key: e.can_edit(k),
+                                     default_text=lambda k=key: e.default_shown(k), is_default=lambda k=key: e.at_default(k),
+                                     translate=tr)
+        return item
+
+      def pause_text():
+        return f"{e.value('PauseLateralSpeed'):g} " + ("km/h" if store.get_bool("IsMetric") else "mph")
+
+      def must(ok, key):
+        # A refused write raises, so the shared reset row stops and tells the user instead of failing silently.
+        if not ok:
+          raise PermissionError(f"{key} was not reset")
+
+      def section_reset(parent, keys, write, rows):
+        # One "Reset section to defaults" row: asks first, then writes only these keys back to their existing defaults.
+        # Shown only while one of its value rows is shown (their visibility and Tuning Level gates), and also behind the
+        # parent toggle's own Tuning Level, so it is hidden whenever the rows it resets are hidden. Enabled only while
+        # one of those keys can be edited.
+        item = reset_section_item(lambda: e.section_defaults(keys), write, title=lambda: tr(RESET_SECTION_TITLE),
+                                  enabled=lambda: any(e.can_edit(k) for k in keys))
+        item.set_visible(lambda: any(r.is_visible for r in rows))
+        item.set_level_gate(lambda: tuning_level.row_visible(parent))
+        attach_help(item, "section.reset_defaults")
+        items.append(item)
+        return item
+
+      numeric_rows_shown = []
       for key in NUMERIC_ORDER:
         title = {"SteerDelay": "Actuator Delay", "SteerRatio": "Steer Ratio", "SteerFriction": "Friction", "SteerLatAccel": "Lateral Acceleration"}[key]
-        # text_item resolves its callables at construction, before any car is known: they must never raise.
-        add(attach_help(text_item(title, lambda k=key: e.shown(k), lambda k=key: e.hint(k)), key), key)
-        add(gated_dual_button_item("-0.01", "+0.01", left_callback=lambda k=key: e.step(k, -1), right_callback=lambda k=key: e.step(k, 1),
-                             enabled=lambda k=key: e.can_edit(k)), key)
-        add(button_item("Reset " + title, "RESET", callback=lambda k=key: e.reset(k), enabled=lambda k=key: e.can_edit(k)), key)
+        numeric_rows_shown.append(add(attach_help(stepper(key, title, lambda k=key: e.hint(k), "-0.01", "+0.01",
+                                                          lambda k=key: e.step(k, -1), lambda k=key: e.step(k, 1)), key), key))
       toggle("ForceAutoTuneOff", "Force Auto-Tune Off", "Torque cars with live tuning: use the set Friction and Lateral Acceleration instead of live values.")
       toggle("ForceAutoTune", "Force Auto-Tune On", "Torque cars without native live tuning: learn Friction and Lateral Acceleration live (validity gate stays).")
+      # Removing a numeric key is its existing reset: the value goes back to the default shown in its hint.
+      self.advanced_reset = section_reset("AdvancedLateralTune", NUMERIC_ORDER, lambda k, _default: must(e.reset(k), k),
+                                          numeric_rows_shown)
       toggle("QOLLateral", "Quality of Life", "Steering quality-of-life options. Offroad only; applies next drive.")
-      add(attach_help(text_item("Pause Steering Below", lambda: f"{e.value('PauseLateralSpeed'):g} " + ("km/h" if store.get_bool("IsMetric") else "mph"),
-                                "0 is Off. Steering is suppressed below this speed. Uses the saved speed units; does not rewrite values."),
-                      "PauseLateralSpeed"), "PauseLateralSpeed")
-      add(gated_dual_button_item("-1", "+1", left_callback=lambda: e.write("PauseLateralSpeed", e.value("PauseLateralSpeed") - 1),
-                           right_callback=lambda: e.write("PauseLateralSpeed", e.value("PauseLateralSpeed") + 1),
-                           enabled=lambda: e.can_edit("PauseLateralSpeed")), "PauseLateralSpeed")
+      pause_row = add(attach_help(stepper("PauseLateralSpeed", "Pause Steering Below",
+                                          "0 is Off. Steering is suppressed below this speed. Uses the saved speed units; does not rewrite values.",
+                                          "-1", "+1", lambda: e.write("PauseLateralSpeed", e.value("PauseLateralSpeed") - 1),
+                                          lambda: e.write("PauseLateralSpeed", e.value("PauseLateralSpeed") + 1)),
+                                  "PauseLateralSpeed"), "PauseLateralSpeed")
       toggle("PauseLateralOnSignal", "Turn Signal Only", "Only pause steering below the speed while a turn signal is on.")
-      add(attach_help(text_item("Override Sensitivity", lambda: e.shown(OVERRIDE_SENSITIVITY), lambda: e.hint(OVERRIDE_SENSITIVITY)),
+      self.qol_reset = section_reset("QOLLateral", ("PauseLateralSpeed",), lambda k, default: must(e.write(k, int(default)), k),
+                                     [pause_row])
+      add(attach_help(stepper(OVERRIDE_SENSITIVITY, "Override Sensitivity", lambda: e.hint(OVERRIDE_SENSITIVITY), "-", "+",
+                              lambda: e.step(OVERRIDE_SENSITIVITY, -1), lambda: e.step(OVERRIDE_SENSITIVITY, 1)),
                       OVERRIDE_SENSITIVITY,
                       key_fn=lambda: override_sensitivity_help_key(None if e.cp is None else e.cp.carFingerprint)), OVERRIDE_SENSITIVITY)
-      add(gated_dual_button_item("-", "+", left_callback=lambda: e.step(OVERRIDE_SENSITIVITY, -1),
-                           right_callback=lambda: e.step(OVERRIDE_SENSITIVITY, 1),
-                           enabled=lambda: e.can_edit(OVERRIDE_SENSITIVITY)), OVERRIDE_SENSITIVITY)
-      add(button_item("Reset Override Sensitivity", "RESET", callback=lambda: e.reset(OVERRIDE_SENSITIVITY),
-                      enabled=lambda: e.can_edit(OVERRIDE_SENSITIVITY)), OVERRIDE_SENSITIVITY)
       # Visibility already follows the saved parent value (TuningEditor.visible), so the children are only indented.
       indent_under(self.toggles["AdvancedLateralTune"], *(i for i, k in placed if k not in PARENT_KEYS + (OVERRIDE_SENSITIVITY,)
-                                                           and k not in QOL_KEYS))
-      indent_under(self.toggles["QOLLateral"], *(i for i, k in placed if k in QOL_KEYS))
+                                                           and k not in QOL_KEYS), self.advanced_reset)
+      indent_under(self.toggles["QOLLateral"], *(i for i, k in placed if k in QOL_KEYS), self.qol_reset)
       self.scroller = Scroller(items, line_separator=True, spacing=0)
 
     def show_event(self):

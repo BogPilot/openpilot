@@ -153,7 +153,9 @@ class TestLayoutRow(NativeCase):
     titles = self.titles("tesla_ap1")
     self.assertIn("Pause Steering Below", titles)
     self.assertIn("Override Sensitivity", titles)
-    self.assertIn("Reset Override Sensitivity", titles)
+    # Option B: no per-row RESET; Override Sensitivity is not in a section Reset either.
+    self.assertNotIn("Reset Override Sensitivity", titles)
+    self.assertFalse(any(t.startswith("Reset ") and t != "Reset section to defaults" for t in titles))
     self.assertGreater(titles.index("Override Sensitivity"), titles.index("Pause Steering Below"))
     self.assertNotIn("Override Sensitivity", self.titles("toyota"))
     self.assertNotIn("Override Sensitivity", self.titles(None))

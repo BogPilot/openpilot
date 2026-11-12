@@ -9,7 +9,10 @@ def test_engine_default_is_1_23_seconds():
   assert s.push_hold_s == 1.23
 
 
-def test_ui_text_states_default_1_23():
+def test_ui_uses_engine_default_for_the_hint():
   from pathlib import Path
   src = (Path(__file__).resolve().parents[1] / "bogpilot" / "phase3_stalk_controls.py").read_text()
-  assert "Default 1.23 seconds" in src
+  # The 1.23 s figure lives on DEFAULT_HOLD_S; the row shows it as the shared "default: X" hint.
+  assert "DEFAULT_HOLD_S" in src
+  assert "default_text" in src
+  assert "Default 1.23 seconds" not in src

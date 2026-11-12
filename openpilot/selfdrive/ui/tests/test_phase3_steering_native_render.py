@@ -33,6 +33,12 @@ class TestSteeringTuningNativeRender(unittest.TestCase):
     store = ParamStore(MemoryParams())  # file-backed under BOGPILOT_PARAMS_DIR (all_keys empty)
     box = {"cp": None, "offroad": True}
     gui_app.init_window("Steering Tuning real native render")
+    # reset_section_item binds _confirm_dialog at construction; auto-yes so a later section-reset tap writes.
+    from unittest.mock import patch
+    from openpilot.selfdrive.ui.bogpilot import gated_actions
+    confirm_patch = patch.object(gated_actions, "_confirm_dialog", lambda text, yes: yes())
+    confirm_patch.start()
+    self.addCleanup(confirm_patch.stop)
     layout = make_layout(lambda: box["cp"], store, lambda: box["offroad"])
     nav = build_layout({"driving": [Page(PAGE_KEY, PAGE_TITLE, lambda: layout, ACTIVE_CONTROLS)]})
     rect = rl.Rectangle(500, 0, 1660, 1080)
@@ -44,9 +50,14 @@ class TestSteeringTuningNativeRender(unittest.TestCase):
       finally:
         rl.end_drawing()
 
-    def click_dual(item, side):
-      button = item.action_item.left_button if side == "left" else item.action_item.right_button
-      button._click_callback()
+    def click_step(item, side):
+      # The value row is [-] [value] [+]: tap the real button through the gated action's own hit test.
+      from openpilot.system.ui.widgets.list_view import BUTTON_HEIGHT, RIGHT_ITEM_PADDING
+      a = item.action_item
+      i = 0 if side == "left" else len(a.buttons) - 1
+      x = a._rect.x + i * (a.button_width + RIGHT_ITEM_PADDING) + a.button_width / 2
+      y = a._rect.y + (a._rect.height - BUTTON_HEIGHT) / 2 + BUTTON_HEIGHT / 2
+      a._handle_mouse_release(rl.Vector2(x, y))
 
     nav.show_event()
     render()
@@ -69,16 +80,17 @@ class TestSteeringTuningNativeRender(unittest.TestCase):
     self.assertTrue(store.get_bool("AdvancedLateralTune"))
     items = layout.scroller._items
     ratio = next(i for i in items if getattr(i, "title", "") == "Steer Ratio")
-    ratio_buttons = items[items.index(ratio) + 1]
-    click_dual(ratio_buttons, "right")
+    self.assertFalse(ratio.action_item.highlighted)
+    self.assertTrue(ratio.action_item.hint_text.endswith("15.00"))
+    click_step(ratio, "right")
     self.assertAlmostEqual(store.get_float("SteerRatio"), 15.01)
+    self.assertTrue(ratio.action_item.highlighted)
     render()
-    reset = items[items.index(ratio) + 2]
-    reset.callback()
+    layout.advanced_reset.callback()
     self.assertIsNone(store.raw("SteerRatio"))
     box["offroad"] = False
     render()
-    click_dual(ratio_buttons, "right")
+    click_step(ratio, "right")
     self.assertIsNone(store.raw("SteerRatio"))  # onroad: widget callback cannot write
     for _ in range(2):
       nav.hide_event()

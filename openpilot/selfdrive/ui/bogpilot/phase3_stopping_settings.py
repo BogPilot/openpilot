@@ -92,6 +92,46 @@ class StoppingSettingsModel:
   def value(self, row):
     return self.store.get_float(row.key)
 
+  # ---- default for the Quality of Life value row: what value() shows while the key is unsaved (no new number) ----
+  #   IncreasedStoppedDistance "0"   openpilot/common/bogpilot_params.py:196 (UI catalog bogpilot_defaults.py:141)
+  # Only the Quality of Life page gets a hint and a reset; the latent weather rows stay without one until their
+  # capabilities turn on (they are hidden on this build).
+  DEFAULT_PAGES = ("qol",)
+
+  def default(self, page, row):
+    """The value a number row shows while its key is unsaved, or None when there is no default (never invented)."""
+    if page not in self.DEFAULT_PAGES or row.kind != "number":
+      return None
+    getter = getattr(self.store, "default", None)
+    try:
+      value = float(getter(row.key)) if getter is not None else None
+    except (TypeError, ValueError):
+      return None
+    return value if value is not None and math.isfinite(value) else None
+
+  def value_text(self, row, value):
+    return f"{value:g}{row.unit}"
+
+  def at_default(self, page, row):
+    from openpilot.selfdrive.ui.bogpilot.step_defaults import differs_from_default
+    return not differs_from_default(self.value(row), self.default(page, row))
+
+  def section_defaults(self, page):
+    """Reset table for one page: each number row on it now that has a default, with that default. Nothing else."""
+    if not self.can_edit():
+      return {}
+    out = {}
+    for row in self.rows(page):
+      d = self.default(page, row)
+      if d is not None:
+        out[row.key] = d
+    return out
+
+  def reset_write(self, page, key, value):
+    """Section-reset writer: the same guarded change() as the -/+ buttons; a refused write raises (the row reports it)."""
+    if not self.change(page, key, value=value):
+      raise PermissionError(f"{key} was not reset")
+
   def _commit(self, key, value):
     """Blocking write, then read back through a cleared cache.
 
@@ -155,10 +195,13 @@ class StoppingSettingsModel:
 class StoppingSettingsLayout:
   """Embeddable raylib page. Parent provides genuine installed capabilities + offroad edit guard."""
   def __new__(cls, store, CP, capabilities, can_edit=lambda: False, start_page="root"):
-    import pyray as rl
     from openpilot.system.ui.widgets import Widget
-    from openpilot.system.ui.widgets.list_view import ListItem, toggle_item, button_item
-    from openpilot.selfdrive.ui.bogpilot.gated_actions import GatedDualButtonAction, gated_multiple_button_item
+    from openpilot.system.ui.widgets.list_view import toggle_item, button_item
+    from openpilot.selfdrive.ui.bogpilot.gated_actions import (RESET_SECTION_TITLE, gated_multiple_button_item,
+                                                               gated_value_step_item, reset_section_item)
+    from openpilot.selfdrive.ui.bogpilot import tuning_level
+    from openpilot.selfdrive.ui.bogpilot.nesting import indent_under
+    from openpilot.system.ui.lib.multilang import tr
     from openpilot.system.ui.widgets.scroller_tici import Scroller
     from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
 
@@ -195,6 +238,9 @@ class StoppingSettingsLayout:
 
       def _build(self):
         items = []
+        values = []   # this page's value rows, for its one reset row
+        parent = None
+        page = self.page
         for row in self.model.rows(self.page):
           if row.kind == "page":
             item = button_item(row.title, "MANAGE", callback=lambda k=row.key: self._open(k))
@@ -210,18 +256,49 @@ class StoppingSettingsLayout:
                                         selected_source=lambda: choices.index(store.get(MANUAL_WEATHER_KEY, "clear")))
             item.action_item.set_enabled(can_edit)
           else:
-            action = GatedDualButtonAction("−", "+", lambda k=row.key: self._change(k, delta=-1),
-                                           lambda k=row.key: self._change(k, delta=1), enabled=can_edit)
-            # DualButtonAction normally reserves the full row. A bounded action
-            # width preserves the historical label, effective number and unit.
-            action.set_rect(rl.Rectangle(0, 0, 300, 0))
-            item = ListItem(title=lambda r=row: f"{r.title} {self.model.value(r):g}{r.unit}", action_item=action)
+            # The shared value row: title, then [-] [value] [+] (the value moved from the title to between the buttons,
+            # ASCII "-" instead of U+2212). Same step, same lock, same writes.
+            has_default = self.model.default(page, row) is not None
+            item = gated_value_step_item(row.title.rstrip(":"), row.description or None,
+                                         lambda r=row: self.model.value_text(r, self.model.value(r)),
+                                         on_minus=lambda k=row.key: self._change(k, delta=-1),
+                                         on_plus=lambda k=row.key: self._change(k, delta=1), button_width=200, enabled=can_edit,
+                                         default_text=(lambda r=row: self.model.value_text(r, self.model.default(page, r)))
+                                         if has_default else None,
+                                         is_default=(lambda r=row: self.model.at_default(page, r)) if has_default else None,
+                                         translate=tr)
+            if has_default:
+              values.append(item)
+          if row.kind == "toggle" and row.key == "QOLLongitudinal":
+            parent = item
           if row.kind == "page":
             attach_help(item, "weather." + row.key if row.key in ("LowVisibility", "Rain", "RainStorm", "Snow") else row.key)
           else:
             attach_help(item, row.key)
           items.append(item)
+        self.reset = None
+        if values:
+          # One reset row for the page, after its rows: asks first, then writes only the value rows' keys back to their
+          # existing defaults (StoppingSettingsModel.default). Locked like those rows; shown only while one of them is
+          # shown, and behind the Quality of Life switch's own Tuning Level.
+          rows_of_reset = tuple(values)
+          self.reset = reset_section_item(lambda: self.model.section_defaults(page),
+                                          lambda k, v: self.model.reset_write(page, k, v),
+                                          title=lambda: tr(RESET_SECTION_TITLE), enabled=can_edit, on_done=self._after_reset)
+          attach_help(self.reset, "section.reset_defaults")
+          self.reset.set_visible(lambda: any(i.is_visible for i in rows_of_reset))
+          self.reset.set_level_gate(lambda: tuning_level.row_visible("QOLLongitudinal"))
+          items.append(self.reset)
+        if parent is not None:
+          # Everything on the page belongs to the Quality of Life switch: one level in (Appearance style). Visibility
+          # already follows the saved switch (rows()), so this only indents; the MANAGE row keeps its behavior.
+          indent_under(parent, *(i for i in items if i is not parent))
         self.scroller = Scroller(items, line_separator=True, spacing=0)
+
+      def _after_reset(self):
+        store.invalidate()
+        self._build()
+        self.scroller.show_event()
 
       def show_event(self):
         super().show_event()

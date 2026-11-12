@@ -341,3 +341,48 @@ def test_stop_bounds_clamped_in_runtime_reads(store):
   assert LS.offset_lead({"present": True, "dRel": 0.2}, 10.0)["dRel"] == 0.2
   assert LS.offset_lead({"present": True, "dRel": 30.0}, 3.0)["dRel"] == 27.0
   assert LS.offset_lead({"present": False, "dRel": 30.0}, 3.0)["dRel"] == 30.0
+
+
+# ---------------------------------------------------------------------------------------------------
+# 4. Quality of Life value row and its section reset
+# ---------------------------------------------------------------------------------------------------
+def test_quality_of_life_stopped_distance_is_one_value_row_with_a_default_and_a_reset(store, monkeypatch):
+  from openpilot.selfdrive.ui.bogpilot import gated_actions
+  from openpilot.selfdrive.ui.bogpilot.gated_actions import GatedValueStepAction, RESET_SECTION_TITLE
+  from openpilot.selfdrive.ui.bogpilot.nesting import INDENT
+  asked = []
+  monkeypatch.setattr(gated_actions, "_confirm_dialog", lambda text, on_yes: (asked.append(text), on_yes()))
+  cp = make_cp()
+  flag = [True]
+  page = GB.create_gas_brake_layout(store, cp_source=lambda: cp, can_edit=lambda: flag[0])
+  page.show_event()
+  page.open_panel("qol")
+
+  def rows():
+    return list(page.panel.scroller._items)
+
+  def titled(title):
+    return [i for i in rows() if i.title == title][0]
+  row = titled("Increase Stopped Distance by")
+  assert isinstance(row.action_item, GatedValueStepAction)
+  assert row.action_item.hint_text == "default: 0 feet" and not row.action_item.highlighted
+  row.action_item.callback(row.action_item.value_index + 1)    # + (the callback a tap dispatches)
+  store.invalidate()
+  assert store.get_float("IncreasedStoppedDistance") == 1 and store.get_bool(DISTANCE_ACK, False)
+  row = titled("Increase Stopped Distance by")
+  assert row.action_item.highlighted
+  (reset,) = [i for i in rows() if i.title == RESET_SECTION_TITLE]
+  assert titled("Quality of Life").indent == 0 and row.indent == INDENT and reset.indent == INDENT
+  force = store.raw("ForceStops")
+  flag[0] = False                                               # onroad: locked, nothing asked or written
+  reset.callback()
+  assert asked == [] and store.get_float("IncreasedStoppedDistance") == 1
+  flag[0] = True
+  reset.callback()
+  store.invalidate()
+  assert len(asked) == 1 and store.get_float("IncreasedStoppedDistance") == 0
+  assert store.raw("ForceStops") == force                       # the switch on the same page is not part of the reset
+  # Quality of Life off: its rows and the reset go together
+  [i for i in rows() if i.title == "Quality of Life"][0].action_item.toggle._handle_mouse_release(None)
+  store.invalidate()
+  assert [i.title for i in rows()] == ["Quality of Life"]

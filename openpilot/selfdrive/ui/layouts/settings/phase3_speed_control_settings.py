@@ -222,15 +222,21 @@ class SlcEditor:
       v = 0
     return clamp_offset(v, self.is_metric())
 
+  def offset_text(self, value):
+    return f"{int(value):+d} " + ("km/h" if self.is_metric() else "mph")
+
   def priority_options(self, key):
     return PRIORITY1_OPTIONS if key == "SLCPriority1" else PRIORITY_OTHER_OPTIONS
 
   def priority(self, key):
-    opts = self.priority_options(key)
     try:
       v = self.store.get(key)
     except Exception:
       v = None
+    return self._priority_shown(key, v)
+
+  def _priority_shown(self, key, v):
+    opts = self.priority_options(key)
     if v in opts:
       return v
     default = "Dashboard" if key == "SLCPriority1" else "None"
@@ -242,6 +248,64 @@ class SlcEditor:
     except (TypeError, ValueError):
       v = LOOKAHEAD_HORIZON_DEFAULT
     return clamp_lookahead_horizon_s(v, LOOKAHEAD_HORIZON_DEFAULT)
+
+  def seconds_text(self, value):
+    return "Off" if value == 0 else f"{value} seconds"
+
+  # ---- defaults for the value rows: exactly what this panel shows while the key is unsaved (no new number) ----
+  # The store returns the registry default for an unsaved key (openpilot/common/bogpilot_params.py), and the readers
+  # above parse it. So the default of a row is that same parse of the registry default:
+  #   Offset1-4 "5", Offset5-7 "10"            bogpilot_params.py:277-283 (UI catalog bogpilot_defaults.py:198-204)
+  #   SLCLookaheadLower "5"                     bogpilot_params.py:366, = LOOKAHEAD_HORIZON_DEFAULT (phase3_speed_control.py:64)
+  #   SLCPriority1/2/3 Navigation / Map Data / Dashboard   bogpilot_params.py:370-372 (bogpilot_defaults.py:281-283);
+  #     priority() shows them as they are because each is one of its row's options ("Dashboard" / "None" above is only
+  #     for a stored value that is not an option).
+  # Known mismatch, left as is (held until after the menus): the UI catalog bogpilot_defaults.py:278 lists
+  # SLCLookaheadLower as "0"; the panel shows 5 when unsaved, and the hint and reset follow the panel.
+  def default(self, key):
+    """The value this row shows while its key is unsaved, or None when the key has no default (never invented)."""
+    from openpilot.common.bogpilot_store import registry_default
+    if key not in BY_KEY:
+      return None
+    text = registry_default(key)
+    if text in (None, ""):
+      return None
+    kind = BY_KEY[key][1]
+    try:
+      if kind == "offset":
+        return clamp_offset(int(float(text)), self.is_metric())
+      if kind == "seconds":
+        return clamp_lookahead_horizon_s(float(text), LOOKAHEAD_HORIZON_DEFAULT)
+    except (TypeError, ValueError):
+      return None
+    if kind == "priority":
+      return self._priority_shown(key, text)
+    return None
+
+  def default_text(self, key):
+    d = self.default(key)
+    if d is None:
+      return None
+    kind = BY_KEY[key][1]
+    return self.offset_text(d) if kind == "offset" else self.seconds_text(d) if kind == "seconds" else d
+
+  def shown_value(self, key):
+    kind = BY_KEY[key][1]
+    return self.offset(key) if kind == "offset" else self.seconds(key) if kind == "seconds" else self.priority(key)
+
+  def at_default(self, key):
+    from openpilot.selfdrive.ui.bogpilot.step_defaults import differs_from_default
+    return not differs_from_default(self.shown_value(key), self.default(key))
+
+  def section_defaults(self, keys):
+    """Reset table for one section: each of its keys that has a default and can be edited right now (offroad, row
+    shown for this car, Tuning Level and parent), with that default. Anything locked right now is left alone."""
+    return {k: self.default(k) for k in keys if self.default(k) is not None and self.can_edit(k)}
+
+  def reset_write(self, key, value):
+    """Section-reset writer: the same guarded write as the -/+ buttons; a refused write raises (the row reports it)."""
+    if not self.write(key, value):
+      raise PermissionError(f"{key} was not reset")
 
   def write(self, key, value):
     if not self.can_edit(key):
@@ -292,9 +356,16 @@ class SlcEditor:
 def make_layout(CP, store, offroad, section=None, open_section=None):
   """Raylib list for one section. section None = parent + choices + a button per sub panel; a SUB_PANELS key = its rows."""
   from openpilot.system.ui.widgets import Widget
-  from openpilot.system.ui.widgets.list_view import toggle_item, text_item, button_item
-  from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_dual_button_item, gated_multiple_button_item
+  from openpilot.system.ui.widgets.list_view import toggle_item, button_item
+  from openpilot.selfdrive.ui.bogpilot.gated_actions import (RESET_SECTION_TITLE, gated_multiple_button_item,
+                                                             gated_value_step_item, reset_section_item)
+  from openpilot.selfdrive.ui.bogpilot import tuning_level
+  from openpilot.selfdrive.ui.bogpilot.nesting import indent_under
+  from openpilot.system.ui.lib.multilang import tr
   from openpilot.system.ui.widgets.scroller_tici import Scroller
+
+  # Shared value row per value kind: (minus, plus, button width). ASCII "-" (the font has no U+2212). Steps unchanged.
+  STEP_CHROME = {"offset": ("-1", "+1", 220), "seconds": ("-1", "+1", 260), "priority": ("Prev", "Next", 260)}
 
   class SlcLayout(Widget):
     def __init__(self):
@@ -312,6 +383,8 @@ def make_layout(CP, store, offroad, section=None, open_section=None):
       self.toggles, self.choices = {}, {}
       self.shown = self._shown()
       items = []
+      values = []   # (key, row) of this section's value rows, for its one reset row
+      e = self.editor   # bound once, outside the loop, for the value rows' callbacks
       for row in (visible_rows(store, section, CP) if self.editor.available() else []):
         key, kind, title, desc, _, _ = row
         k = key
@@ -332,25 +405,43 @@ def make_layout(CP, store, offroad, section=None, open_section=None):
           item.set_enabled(lambda k=k: self.editor.can_edit(k))
           self.choices[k] = item
           items.append(item)
-        elif kind == "offset":
-          items.append(text_item(lambda k=k: offset_title(k, self.editor.is_metric()),
-                                 lambda k=k: f"{self.editor.offset(k):+d} " + ("km/h" if self.editor.is_metric() else "mph"),
-                                 APPLIES))
-          items.append(gated_dual_button_item("−1", "+1", left_callback=lambda k=k: self._step(k, -1),
-                                        right_callback=lambda k=k: self._step(k, +1), enabled=lambda k=k: self.editor.can_edit(k)))
-        elif kind == "seconds":
-          items.append(text_item(title, lambda k=k: "Off" if self.editor.seconds(k) == 0 else f"{self.editor.seconds(k)} seconds",
-                                 (desc or "") + ("<br><br>" if desc else "") + APPLIES))
-          items.append(gated_dual_button_item("−1", "+1", left_callback=lambda k=k: self._step(k, -1),
-                                        right_callback=lambda k=k: self._step(k, +1), enabled=lambda k=k: self.editor.can_edit(k)))
-        elif kind == "priority":
-          items.append(text_item(title, lambda k=k: self.editor.priority(k),
-                                 (desc or "") + ("<br><br>" if desc else "") + APPLIES))
-          items.append(gated_dual_button_item("Prev", "Next", left_callback=lambda k=k: self._step(k, -1),
-                                        right_callback=lambda k=k: self._step(k, +1), enabled=lambda k=k: self.editor.can_edit(k)))
+        elif kind in STEP_CHROME:
+          # One row: [-] [value] [+] (was a text row plus a red button row). Same steps, same lock, same writes.
+          minus, plus, width = STEP_CHROME[kind]
+          if kind == "offset":
+            row_title, row_desc, shown = (lambda k=k: offset_title(k, e.is_metric())), APPLIES, (lambda k=k: e.offset_text(e.offset(k)))
+          elif kind == "seconds":
+            row_title, row_desc, shown = title, (desc or "") + ("<br><br>" if desc else "") + APPLIES, (lambda k=k: e.seconds_text(e.seconds(k)))
+          else:
+            row_title, row_desc, shown = title, (desc or "") + ("<br><br>" if desc else "") + APPLIES, (lambda k=k: e.priority(k))
+          item = gated_value_step_item(row_title, row_desc, shown, on_minus=lambda k=k: self._step(k, -1),
+                                       on_plus=lambda k=k: self._step(k, +1), minus=minus, plus=plus, button_width=width,
+                                       enabled=lambda k=k: e.can_edit(k), default_text=lambda k=k: e.default_text(k),
+                                       is_default=lambda k=k: e.at_default(k), translate=tr)
+          values.append((k, item))
+          items.append(item)
+      self.reset = None
+      if values:
+        # One reset row for the section, right after its value rows: asks first, then writes only those keys back to
+        # the defaults above (SlcEditor.default). Locked whenever none of them can be edited; shown only while one of
+        # its rows is shown, and behind the Speed Limit Controller's own Tuning Level.
+        keys = tuple(k for k, _ in values)
+        rows_of_reset = tuple(i for _, i in values)
+        self.reset = reset_section_item(lambda: self.editor.section_defaults(keys), self.editor.reset_write,
+                                        title=lambda: tr(RESET_SECTION_TITLE),
+                                        enabled=lambda: any(self.editor.can_edit(k) for k in keys),
+                                        on_done=self._after_reset)
+        self.reset.set_visible(lambda: any(i.is_visible for i in rows_of_reset))
+        self.reset.set_level_gate(lambda: tuning_level.row_visible(PARENT_KEY))
+        items.append(self.reset)
       if section is None and open_section is not None:
         for sp in visible_sub_panels(store, CP):
           items.append(button_item(SUB_PANELS[sp], "OPEN", callback=lambda sp=sp: open_section(sp)))
+      parent = self.toggles.get(PARENT_KEY)
+      if parent is not None:
+        # Everything under the switch sits one level in (Appearance style). Visibility already follows the saved values
+        # (visible_rows), so this only indents; the OPEN rows keep their behavior.
+        indent_under(parent, *(i for i in items if i is not parent))
       self.scroller = Scroller(items, line_separator=True, spacing=0)
 
     def _toggle(self, key, value):
@@ -370,6 +461,11 @@ def make_layout(CP, store, offroad, section=None, open_section=None):
       else:
         self.editor.step_offset(key, delta)
       self._refresh()
+
+    def _after_reset(self):
+      store.invalidate()
+      self._build()          # a reset can change which rows show (Priority 1 back from Highest / Lowest)
+      self.scroller.show_event()
 
     def _refresh(self):
       store.invalidate()

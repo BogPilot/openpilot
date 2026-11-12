@@ -243,15 +243,21 @@ class TestOtherPages(unittest.TestCase):
     from openpilot.selfdrive.ui.bogpilot import phase3_lanechange as LC
     self.assertEqual([k for k, _ in LC.TREE[0][1]], ["NudgelessLaneChange", "MinimumLaneChangeSpeed", "OneLaneChange"])
     layout = LC.LaneChangeLayout(self.store, runtime_integrated=True, offroad=lambda: True)
-    titles = [(i.title.split(" (")[0], i.indent) for i in layout.scroller._items]
+    titles = []
+    for i in layout.scroller._items:
+      name = i.title.split(" (")[0]
+      if name == "Reset section to defaults":   # a section reset sits right after the value rows it resets
+        name += " (width)" if titles and titles[-1][0] == "Minimum Lane Width" else " (speed)"
+      titles.append((name, i.indent))
     names = [t for t, _ in titles]
     # whichever rows this tuning level offers keep the design order, parent before child
-    order = ["Lane Changes", "Automatic Lane Changes", "Lane Change Delay", "Minimum Lane Width", "Minimum Lane Change Speed",
-             "One Lane Change Per Signal"]
+    order = ["Lane Changes", "Automatic Lane Changes", "Lane Change Delay", "Minimum Lane Width", "Reset section to defaults (width)",
+             "Minimum Lane Change Speed", "Reset section to defaults (speed)", "One Lane Change Per Signal"]
     self.assertEqual(names, [n for n in order if n in names])
     for name, indent in titles:
       self.assertEqual(indent, {"Lane Changes": 0, "Automatic Lane Changes": INDENT, "Lane Change Delay": 2 * INDENT,
-                                "Minimum Lane Width": 2 * INDENT}.get(name, INDENT), name)
+                                "Minimum Lane Width": 2 * INDENT,
+                                "Reset section to defaults (width)": 2 * INDENT}.get(name, INDENT), name)
 
   def test_steering_children_are_indented_under_their_switch(self):
     from opendbc.car.tesla_ap1.interface import CarInterface

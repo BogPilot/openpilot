@@ -196,17 +196,18 @@ class TestStoppingWeatherRowShowsStored(NoWindow):
 # Every BogPilot settings panel that had a locked-row UI bug (icbsm_rc8.md rc7 locked-row audit rows 1-4, 6, 8, 9, 15,
 # 17, 19), plus the already-gated long-accel and stopping choice rows, now builds its rows from gated_actions.
 PANELS = {
-  "layouts/settings/phase3_speed_control_settings.py": 4,
-  "layouts/settings/phase3_long_accel_settings.py": 1,
-  "bogpilot/phase3_following.py": 1,
-  "bogpilot/phase3_stalk_controls.py": 1,
-  "bogpilot/phase3_stopping_settings.py": 2,
-  "bogpilot/phase3_steering_tuning.py": 3,
-  "bogpilot/phase3_lanechange.py": 1,
-  "bogpilot/phase2_sounds.py": 1,
+  "layouts/settings/phase3_speed_control_settings.py": 3,
+  "layouts/settings/phase3_long_accel_settings.py": 3,
+  "bogpilot/phase3_following.py": 2,
+  "bogpilot/phase3_stalk_controls.py": 2,
+  "bogpilot/phase3_stopping_settings.py": 3,
+  "bogpilot/phase3_steering_tuning.py": 2,   # one shared value-row factory call and one section reset factory call
+  "bogpilot/phase3_lanechange.py": 2,
+  "bogpilot/phase2_sounds.py": 2,   # the volume value rows and the section reset row
 }
 STOCK = re.compile(r"(?<![A-Za-z_])(dual_button_item|multiple_button_item|DualButtonAction|MultipleButtonAction)\s*\(")
-GATED = ("gated_dual_button_item", "gated_multiple_button_item", "GatedDualButtonAction", "GatedMultipleButtonAction")
+GATED = ("gated_dual_button_item", "gated_multiple_button_item", "GatedDualButtonAction", "GatedMultipleButtonAction",
+         "gated_value_step_item", "GatedValueStepAction", "reset_section_item")
 
 
 class TestPanelsUseGatedActions(unittest.TestCase):

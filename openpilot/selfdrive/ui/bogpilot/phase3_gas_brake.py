@@ -112,6 +112,35 @@ def tap_from_zero_value_text(store) -> str:
                                       store.get_bool("IsMetric", False))
 
 
+def tap_from_zero_default_mph() -> int:
+  """The existing default: what the row shows while nothing is saved. TAP_FROM_ZERO_DEFAULT_MPH = 15
+  (opendbc/car/tesla_ap1/op_long_set_speed.py:50), returned by parse_tap_from_zero_mph() for an unsaved key; the
+  registry row is "15" (openpilot/common/bogpilot_params.py:38). No new number."""
+  from opendbc.car.tesla_ap1.op_long_set_speed import parse_tap_from_zero_mph
+  return parse_tap_from_zero_mph(None)
+
+
+def tap_from_zero_default_text(store) -> str:
+  from opendbc.car.tesla_ap1.op_long_set_speed import format_tap_from_zero_display
+  return format_tap_from_zero_display(tap_from_zero_default_mph(), store.get_bool("IsMetric", False))
+
+
+def tap_from_zero_is_default(store) -> bool:
+  """The shown (parsed) value is the default. A stored value the parser rejects is shown as the default, so it is too."""
+  from opendbc.car.tesla_ap1.op_long_set_speed import parse_tap_from_zero_mph
+  return parse_tap_from_zero_mph(store.raw(TAP_FROM_ZERO_KEY)) == tap_from_zero_default_mph()
+
+
+def reset_tap_from_zero(store, key, value, can_edit=None, long_on=None) -> None:
+  """Section-reset writer: only the tap-speed key, only its existing default, under the same guards as the -/+ buttons
+  (offroad and openpilot longitudinal). A refused write raises so the reset row reports it instead of failing silently."""
+  if key != TAP_FROM_ZERO_KEY or int(value) != tap_from_zero_default_mph():
+    raise PermissionError(f"{key} is not in this section")
+  if (can_edit is not None and not can_edit()) or (long_on is not None and not long_on()):
+    raise PermissionError(f"{key} was not reset")
+  store.put(TAP_FROM_ZERO_KEY, str(int(value)), block=True)
+
+
 def nudge_tap_from_zero(store, direction: int, can_edit=None) -> int:
   """Move the setting by one whole mph if the new value is in 5-30. Returns the stored mph."""
   from opendbc.car.tesla_ap1.op_long_set_speed import (
@@ -130,8 +159,10 @@ def nudge_tap_from_zero(store, direction: int, can_edit=None) -> int:
 def create_gas_brake_layout(store=None, cp_source=None, can_edit=None):
   """Lazy factory for the phase2 navigation Page. All arguments are injectable for native tests."""
   from openpilot.system.ui.widgets import Widget
-  from openpilot.system.ui.widgets.list_view import button_item, text_item
-  from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_dual_button_item
+  from openpilot.system.ui.widgets.list_view import button_item
+  from openpilot.system.ui.lib.multilang import tr
+  from openpilot.selfdrive.ui.bogpilot.gated_actions import RESET_SECTION_TITLE, gated_value_step_item, reset_section_item
+  from openpilot.selfdrive.ui.bogpilot import tuning_level
   from openpilot.system.ui.widgets.scroller_tici import Scroller
   from openpilot.selfdrive.ui.bogpilot import menu_locks
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
@@ -208,13 +239,31 @@ def create_gas_brake_layout(store=None, cp_source=None, can_edit=None):
                                               enabled=lambda: self.cp.openpilotLongitudinalControl), "group:" + key))
       # Same no-car rule as the AP1-only Speed Limit Controller entry above (root_entries: mounts.slc_supported(cp) is not
       # False): with no CarParams yet the rows show greyed, hidden only on a known non-AP1 car. Gated button per D2.
+      # One value row [-] [value] [+] (was a text row plus a button row) and its own section reset row: same two rows,
+      # same gates. As on the old rows, the row itself stays enabled (its help still opens); its buttons and the reset
+      # are locked unless offroad with openpilot longitudinal (the same lock the old button row had).
       if tap_from_zero_visible(self.store, self.cp):
-        items.append(attach_help(text_item(TAP_FROM_ZERO_TITLE, lambda: tap_from_zero_value_text(self.store),
-                                           TAP_FROM_ZERO_DESC, enabled=lambda: self.cp.openpilotLongitudinalControl),
-                                 TAP_FROM_ZERO_KEY))
-        items.append(gated_dual_button_item("−", "+", left_callback=lambda: nudge_tap_from_zero(self.store, -1, self.can_edit),
-                                            right_callback=lambda: nudge_tap_from_zero(self.store, 1, self.can_edit),
-                                            enabled=lambda: self.can_edit() and self.cp.openpilotLongitudinalControl))
+        def tap_enabled():
+          return bool(self.can_edit() and self.cp.openpilotLongitudinalControl)
+
+        def long_on():
+          return bool(self.cp.openpilotLongitudinalControl)
+        tap = gated_value_step_item(TAP_FROM_ZERO_TITLE, TAP_FROM_ZERO_DESC, lambda: tap_from_zero_value_text(self.store),
+                                    on_minus=lambda: nudge_tap_from_zero(self.store, -1, self.can_edit),
+                                    on_plus=lambda: nudge_tap_from_zero(self.store, 1, self.can_edit),
+                                    button_width=200, enabled=tap_enabled,
+                                    default_text=lambda: tap_from_zero_default_text(self.store),
+                                    is_default=lambda: tap_from_zero_is_default(self.store), translate=tr)
+        items.append(attach_help(tap, TAP_FROM_ZERO_KEY))
+        # Reset writes only AP1TapFromZeroMph back to its existing default (tap_from_zero_default_mph).
+        reset = reset_section_item(lambda: {TAP_FROM_ZERO_KEY: tap_from_zero_default_mph()} if tap_enabled() else {},
+                                   lambda k, v: reset_tap_from_zero(self.store, k, v, self.can_edit, long_on),
+                                   title=lambda: tr(RESET_SECTION_TITLE), enabled=tap_enabled)
+        attach_help(reset, "section.reset_defaults")
+        # Shown exactly while the tap-speed row is shown (its car gate above and its Tuning Level gate).
+        reset.set_visible(lambda: tap.is_visible)
+        reset.set_level_gate(lambda: tuning_level.row_visible(TAP_FROM_ZERO_KEY))
+        items.append(reset)
       self.root = Scroller(items, line_separator=True, spacing=0)
 
     def open_panel(self, key):

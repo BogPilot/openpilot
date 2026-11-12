@@ -2,7 +2,7 @@
 
 No global rename of other brands' Wheel Controls. Parent owns navigation.
 """
-from opendbc.car.tesla_ap1.phase3_stalk_controls import Store, supported, experimental_supported, hold_seconds
+from opendbc.car.tesla_ap1.phase3_stalk_controls import Store, supported, experimental_supported, hold_seconds, DEFAULT_HOLD_S
 
 TITLES = {
   'twist_follow': 'Stalk Twist Following Distance',
@@ -51,8 +51,9 @@ def create_stalk_controls_layout(store=None):
   from openpilot.selfdrive.ui.ui_state import ui_state
   from openpilot.system.ui.lib.multilang import tr
   from openpilot.system.ui.widgets import Widget
-  from openpilot.system.ui.widgets.list_view import ListItem, toggle_item, text_item
-  from openpilot.selfdrive.ui.bogpilot.gated_actions import GatedDualButtonAction
+  from openpilot.system.ui.widgets.list_view import toggle_item, text_item
+  from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_value_step_item, reset_section_item, RESET_SECTION_TITLE
+  from openpilot.selfdrive.ui.bogpilot.step_defaults import differs_from_default
   from openpilot.system.ui.widgets.scroller_tici import Scroller
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
 
@@ -65,24 +66,47 @@ def create_stalk_controls_layout(store=None):
                                      getattr(self.settings, key), callback=lambda value, k=key: self.set_value(k, value),
                                      enabled=lambda k=key: self.model.enabled(k)) for key in TITLES}
       self.delays = {}
+      def hold_text(value):
+        return f"{float(value):.2f} s"
       for key, label in [('pull_hold_s', 'Experimental Pull Hold'), ('push_hold_s', 'Experimental Push Hold')]:
-        action = GatedDualButtonAction('−0.01 s', '+0.01 s',
-                                       lambda k=key: self.step(k, -1), lambda k=key: self.step(k, 1),
-                                       enabled=lambda k=key: self.model.enabled(k))
-        self.delays[key] = ListItem(title=lambda k=key, l=label: f'{tr(l)}: {getattr(self.settings, k):.2f} s',
-                                   description=tr('1.10–5.00 seconds, in 0.01-second steps. Default 1.23 seconds. '
-                                                  'Only Experimental Mode timing changes; normal engagement and cancel stay fixed.'),
-                                   action_item=action)
+        # Shared value row: [-] [value] [+]. Hold range, step, and DEFAULT_HOLD_S (1.23 s) are unchanged.
+        # Default source: opendbc/car/tesla_ap1/phase3_stalk_controls.py DEFAULT_HOLD_S = 1.23.
+        self.delays[key] = gated_value_step_item(
+          lambda l=label: tr(l),
+          lambda: tr('1.10–5.00 seconds, in 0.01-second steps. '
+                     'Only Experimental Mode timing changes; normal engagement and cancel stay fixed.'),
+          lambda k=key: hold_text(getattr(self.settings, k)),
+          lambda k=key: self.step(k, -1),
+          lambda k=key: self.step(k, 1),
+          enabled=lambda k=key: self.model.enabled(k),
+          default_text=lambda: hold_text(DEFAULT_HOLD_S),
+          is_default=lambda k=key: not differs_from_default(getattr(self.settings, k), DEFAULT_HOLD_S),
+          translate=tr,
+        )
+      # One reset for both hold keys, gated like those rows (experimental_supported + offroad). There is no
+      # Tuning Level parent for these keys in the params registry, so no invented level gate is applied.
+      def write_hold(key, value):
+        if not self.model.write(key, value):
+          raise PermissionError(f"{key} was not reset")
+      self.reset = reset_section_item(
+        # Both keys share DEFAULT_HOLD_S (opendbc/car/tesla_ap1/phase3_stalk_controls.py).
+        {"pull_hold_s": DEFAULT_HOLD_S, "push_hold_s": DEFAULT_HOLD_S},
+        write_hold,
+        title=lambda: tr(RESET_SECTION_TITLE),
+        enabled=lambda: self.model.enabled("pull_hold_s"),
+        on_done=self.refresh,
+      )
       self.note = text_item(tr('Standard Stalk Engagement / Cancel'), tr('Fixed'),
                             tr('Pre-AP double-pull is not supported by this build. No engagement timing is adjustable here.'))
       for key, item in {**self.toggles, **self.delays, 'standard_engage_cancel_fixed': self.note}.items():
         attach_help(item, key)
+      attach_help(self.reset, "section.reset_defaults")
       # An empty or short page says why (no car / wrong car / longitudinal control off) instead of showing nothing.
       from openpilot.selfdrive.ui.bogpilot import menu_locks
       note = menu_locks.cached(lambda: menu_locks.page_note(ui_state.CP, "stalk_controls", menu_locks.effective_disable_toggle()))
       self.note_row = menu_locks.note_row(note, "Not all rows are shown")
       self.scroller = Scroller([self.note_row, self.toggles['twist_follow'], self.toggles['tip_round'], self.toggles['experimental_pull'], self.delays['pull_hold_s'],
-                                self.toggles['experimental_push'], self.delays['push_hold_s'], self.note],
+                                self.toggles['experimental_push'], self.delays['push_hold_s'], self.reset, self.note],
                                line_separator=True, spacing=0)
 
     def set_value(self, key, value):
@@ -100,6 +124,7 @@ def create_stalk_controls_layout(store=None):
         item.action_item.set_state(getattr(self.settings, key))
       for key, item in self.delays.items():
         item.set_visible(self.model.visible(key))
+      self.reset.set_visible(self.model.visible("pull_hold_s"))
       self.note.set_visible(supported(ui_state.CP))
 
     def show_event(self):

@@ -61,6 +61,12 @@ def toggle(panel, key):
   panel.items[key].action_item.toggle._handle_mouse_release(None)
 
 
+def press(item, step):
+  # A tap on the shared value row's - (step -1) or + (step +1) button: the callback a tap dispatches.
+  action = item.action_item
+  action.callback(action.value_index + step)
+
+
 def render(panel, name=None):
   if os.environ.get("PHASE3_CALLBACK_ONLY"):
     return
@@ -134,8 +140,8 @@ def test_real_number_buttons_store_then_native_delay_and_actuator_cap_and_disabl
   store.put('LongitudinalActuatorDelay', .1)
   panel = AdvancedLongitudinalSettings(store, cp=cp)
   toggle(panel, 'AdvancedLongitudinalTune')
-  panel.items['MaxDesiredAcceleration'].action_item.plus._click_callback()
-  panel.items['LongitudinalActuatorDelay'].action_item.plus._click_callback()
+  press(panel.items['MaxDesiredAcceleration'], +1)
+  press(panel.items['LongitudinalActuatorDelay'], +1)
   assert store.get_float('MaxDesiredAcceleration') == .3
   assert store.get_float('LongitudinalActuatorDelay') == .11
   assert store.get_bool(ADVANCED_ACK, False)
@@ -370,3 +376,90 @@ def test_unwritten_speed_defaults_remain_mph_based_in_metric_without_seed_writes
   c = SettingsController('conditional', store)
   assert c.display_value('CESignalSpeed') == int(float(store.default('CESignalSpeed')) * 1.609344)
   assert store.raw('CESignalSpeed') is None
+
+
+# ------------------------------------------------------------------------------------- value rows and section resets
+def confirm_yes(monkeypatch):
+  from openpilot.selfdrive.ui.bogpilot import gated_actions
+  asked = []
+
+  def ask(text, on_yes):
+    asked.append(text)
+    on_yes()
+  monkeypatch.setattr(gated_actions, '_confirm_dialog', ask)
+  return asked
+
+
+def test_advanced_number_rows_hint_only_where_a_default_exists_and_reset_writes_only_it(store, monkeypatch):
+  from openpilot.selfdrive.ui.bogpilot.gated_actions import GatedValueStepAction
+  asked = confirm_yes(monkeypatch)
+  cp = planner().CP
+  flag = [True]
+  panel = AdvancedLongitudinalSettings(store, cp=cp, can_edit=lambda: flag[0])
+  toggle(panel, 'AdvancedLongitudinalTune')
+  for key in ('LongitudinalActuatorDelay', 'MaxDesiredAcceleration', 'StopAccel', 'StoppingDecelRate'):
+    assert isinstance(panel.items[key].action_item, GatedValueStepAction), key
+  hints = {k: panel.items[k].action_item.hint_text for k in panel.items if k != 'AdvancedLongitudinalTune'}
+  assert hints == {'LongitudinalActuatorDelay': '', 'MaxDesiredAcceleration': 'default: 4.0 m/s^2', 'StopAccel': '',
+                   'StoppingDecelRate': ''}            # no catalog default: no hint, never an invented number
+  for key in ('LongitudinalActuatorDelay', 'StopAccel', 'StoppingDecelRate'):
+    press(panel.items[key], -1)
+    assert not panel.items[key].action_item.highlighted
+  press(panel.items['MaxDesiredAcceleration'], -1)
+  assert store.get_float('MaxDesiredAcceleration') == pytest.approx(3.9)
+  assert panel.items['MaxDesiredAcceleration'].action_item.highlighted
+  saved = {k: store.raw(k) for k in ('LongitudinalActuatorDelay', 'StopAccel', 'StoppingDecelRate')}
+  assert panel.reset is not None and panel.reset.indent > 0
+  flag[0] = False                                       # onroad: locked, nothing asked or written
+  panel.reset.callback()
+  assert asked == [] and store.get_float('MaxDesiredAcceleration') == pytest.approx(3.9)
+  flag[0] = True
+  panel.reset.callback()
+  store.invalidate()
+  assert len(asked) == 1 and store.get_float('MaxDesiredAcceleration') == 4.0
+  assert {k: store.raw(k) for k in saved} == saved      # the keys without a default are never touched
+
+
+def test_conditional_number_rows_show_their_defaults_and_reset_follows_the_rows(store, monkeypatch):
+  confirm_yes(monkeypatch)
+  store.put('CESignalSpeed', 30)
+  store.put('CESpeed', 20)
+  panel = ConditionalExperimentalSettings(store)
+  assert panel.reset is None                            # group off: no rows, no reset
+  toggle(panel, 'ConditionalExperimental')
+  hints = {k: panel.items[k].action_item.hint_text for k in ('CESpeed', 'CESpeedLead', 'CEModelStopTime', 'CESignalSpeed')}
+  assert hints == {'CESpeed': 'default: Off', 'CESpeedLead': 'default: Off', 'CEModelStopTime': 'default: 8 seconds',
+                   'CESignalSpeed': 'default: 55 mph'}
+  assert panel.items['CESpeed'].action_item.highlighted and not panel.items['CESpeedLead'].action_item.highlighted
+  before = store.raw('CECurves')
+  panel.reset.callback()
+  store.invalidate()
+  assert (store.get_int('CESpeed'), store.get_int('CESpeedLead'), store.get_float('CEModelStopTime'),
+          store.get_int('CESignalSpeed')) == (0, 0, 8.0, 55)
+  assert store.raw('CECurves') == before                # switches in the group are not part of the reset
+  # metric: the mph default shows (and resets to) the same km/h value the row shows while unsaved
+  metric(store)
+  panel.show_event()
+  assert panel.items['CESignalSpeed'].action_item.hint_text == 'default: 88 km/h'
+  # below a row's Tuning Level the row is gone and the reset skips it
+  store.put('CEModelStopTime', 3)
+  store.put('TuningLevel', 1)
+  panel.show_event()
+  assert 'CEModelStopTime' not in panel.items and panel.reset is not None
+  panel.reset.callback()
+  store.invalidate()
+  assert store.get_float('CEModelStopTime') == 3.0
+
+
+def test_reset_is_locked_without_openpilot_longitudinal(store, monkeypatch):
+  asked = confirm_yes(monkeypatch)
+  cp = NS(openpilotLongitudinalControl=True, carFingerprint='TESLA_AP1_MODELS')   # a CarParams stand-in we can flip
+  panel = ConditionalExperimentalSettings(store, cp=cp)
+  toggle(panel, 'ConditionalExperimental')
+  store.put('CESpeed', 20)
+  cp.openpilotLongitudinalControl = False
+  panel.show_event()
+  if panel.reset is not None:
+    assert not panel.reset.action_item.enabled
+    panel.reset.callback()
+  assert asked == [] and store.get_int('CESpeed') == 20

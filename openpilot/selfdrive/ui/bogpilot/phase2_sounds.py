@@ -104,6 +104,30 @@ def read_volume(key: str) -> int:
   return clamp(key, raw_volume(key))
 
 
+def default_volume(key: str) -> int:
+  """The shipped default for a volume row: the same table and fallback raw_volume uses
+  (alert_volumes.BOGPILOT_VOLUME_DEFAULTS, read through soundd)."""
+  return int(float(_sd().BOGPILOT_VOLUME_DEFAULTS.get(key, "101")))
+
+
+def volume_defaults() -> dict[str, str]:
+  """Alert Volume section reset table: each volume row's key and its existing default. The controller switch
+  (AlertVolumeControl) is not a row of this section and is not reset; neither are the PreMute restore files."""
+  return {key: str(default_volume(key)) for key in VOLUME_KEYS}
+
+
+def write_volume_default(key: str, value: str) -> None:
+  """Section reset writer: only volume keys, through the same file-store write as the row buttons."""
+  if key not in VOLUME_KEYS:
+    raise KeyError(key)
+  _write(key, str(value))
+
+
+def is_default_volume(key: str) -> bool:
+  from openpilot.selfdrive.ui.bogpilot.step_defaults import differs_from_default
+  return not differs_from_default(read_volume(key), default_volume(key))
+
+
 def raw_out_of_range(key: str) -> bool:
   return raw_volume(key) != read_volume(key)
 
@@ -235,7 +259,7 @@ def create_volume_layout():
   from openpilot.system.ui.lib.multilang import tr
   from openpilot.system.ui.widgets import Widget
   from openpilot.system.ui.widgets.list_view import toggle_item, text_item
-  from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_multiple_button_item
+  from openpilot.selfdrive.ui.bogpilot.gated_actions import RESET_SECTION_TITLE, gated_value_step_item, reset_section_item
   from openpilot.system.ui.widgets.scroller_tici import Scroller
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
   from openpilot.selfdrive.ui.bogpilot.nesting import indent_under
@@ -268,25 +292,37 @@ def create_volume_layout():
       self.volumes = {}
       items = [self.controller, self.note, self.precedence]
       for key, title, _, _ in VOLUME_ROWS:
-        row = gated_multiple_button_item(
+        # [Mute|Min] [-] [label] [+]: the shared value row with Mute/Min in its leading slot (same buttons, same indices).
+        row = gated_value_step_item(
           lambda title=title: tr(title),
           lambda key=key: tr(self._desc(key)),
-          [
-            lambda key=key: tr(mute_button_title(key)),
-            MINUS_GLYPH,  # ASCII U+002D - never U+2212
-            lambda key=key: label(read_volume(key)),
-            PLUS_GLYPH,
-          ],
-          1,
+          lambda key=key: label(read_volume(key)),
+          leading=[lambda key=key: tr(mute_button_title(key))],
+          minus=MINUS_GLYPH,  # ASCII U+002D - never U+2212
+          plus=PLUS_GLYPH,
           callback=lambda index, key=key: self.on_button(key, index),
+          selected_index=1,
           button_width=150,
           enabled=ui_state.is_offroad,   # D2: lock the action too, so a locked tap cannot move the highlight
+          default_text=lambda key=key: label(default_volume(key)),
+          is_default=lambda key=key: is_default_volume(key),
+          translate=tr,
         )
         row.set_enabled(ui_state.is_offroad)
         attach_help(row, key)
         self.volumes[key] = row
         items.append(row)
-      indent_under(self.controller, *self.volumes.values())   # refresh() hides them while the controller is off
+      # One reset row for the section: asks first, then writes only the volume keys back to their defaults.
+      self.reset = reset_section_item(volume_defaults, write_volume_default, title=lambda: tr(RESET_SECTION_TITLE),
+                                      enabled=ui_state.is_offroad, on_done=lambda: self.refresh(force=True))
+      self.reset.set_enabled(ui_state.is_offroad)
+      attach_help(self.reset, "section.reset_defaults")
+      # Same Tuning Level as the controller it belongs to (AlertVolumeControl is level 2 in bogpilot_defaults.py), so
+      # the reset row is hidden whenever the controller and its volume rows are hidden.
+      from openpilot.selfdrive.ui.bogpilot import tuning_level
+      self.reset.set_level_gate(lambda: tuning_level.row_visible(PARENT_KEY))
+      items.append(self.reset)
+      indent_under(self.controller, *self.volumes.values(), self.reset)   # refresh() hides them while the controller is off
       self.scroller = Scroller(items, line_separator=True, spacing=0)
       self.refresh(force=True)
 
@@ -324,6 +360,7 @@ def create_volume_layout():
       self._last_idle_refresh = now
       enabled = read_controller()
       self.controller.action_item.set_state(enabled)
+      self.reset.set_visible(enabled)
       for key, row in self.volumes.items():
         row.set_visible(enabled)
         # Highlight Mute/Min when the row is in the muted/floor-with-restore state.

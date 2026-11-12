@@ -91,6 +91,30 @@ def numeric_bounds(row, metric):
   return low, high, step
 
 
+# Existing defaults only (never invent a number). Each value cites its already-shipping source.
+# LaneChangeTime "1.0": bogpilot_defaults.py / common/bogpilot_params.py BOGPILOT_PARAMS
+#   ("PERSISTENT", "FLOAT", "1.0", 1, "0"); consumer fallback number(..., 1.0, ...) at
+#   openpilot/selfdrive/controls/lib/phase3_lanechange.py:134.
+# LaneDetectionWidth "0": bogpilot_defaults.py / BOGPILOT_PARAMS; FEATURE_SPECS declared_default "0".
+# MinimumLaneChangeSpeed "20.0": bogpilot_defaults.py / BOGPILOT_PARAMS; FEATURE_SPECS declared_default "20.0".
+STEP_DEFAULTS = {
+  "LaneChangeTime": "1.0",
+  "LaneDetectionWidth": "0",
+  "MinimumLaneChangeSpeed": "20.0",
+}
+NUDGELESS_STEP_KEYS = ("LaneChangeTime", "LaneDetectionWidth")
+SPEED_STEP_KEYS = ("MinimumLaneChangeSpeed",)
+
+
+def format_step_value(value) -> str:
+  return f"{float(value):g}"
+
+
+def step_is_default(store, key: str) -> bool:
+  from openpilot.selfdrive.ui.bogpilot.step_defaults import differs_from_default
+  return not differs_from_default(store.get_float(key), STEP_DEFAULTS[key])
+
+
 class LaneChangeLayout:
   def __new__(cls, store=None, *, runtime_integrated=False, offroad=None):
     if not runtime_integrated:
@@ -98,11 +122,12 @@ class LaneChangeLayout:
     from openpilot.common.bogpilot_store import ParamStore
     from openpilot.system.ui.widgets import Widget
     from openpilot.system.ui.widgets.list_view import toggle_item
-    from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_multiple_button_item
+    from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_value_step_item, reset_section_item, RESET_SECTION_TITLE
     from openpilot.system.ui.widgets.scroller_tici import Scroller
     from openpilot.system.ui.lib.multilang import tr
     from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
-    from openpilot.selfdrive.ui.bogpilot.nesting import place
+    from openpilot.selfdrive.ui.bogpilot.nesting import place, indent_under
+    from openpilot.selfdrive.ui.bogpilot import tuning_level
 
     class _Layout(Widget):
       def __init__(self):
@@ -116,6 +141,8 @@ class LaneChangeLayout:
 
       def _build(self):
         by_key = {}
+        self.steps = {}
+        self.resets = {}
         for row in visible_rows(self.store, runtime_integrated=True):
           key, title, kind, *_ = row
           desc = DESCRIPTIONS[key]
@@ -128,18 +155,50 @@ class LaneChangeLayout:
               enabled=self._editable,
             )
           else:
-            # D2: the -/+ pair was never locked; lock the action like the toggles (offroad only).
-            item = gated_multiple_button_item(
-              lambda t=title, k=key: tr(t) + f" ({self.store.get_float(k):g})",
+            # Shared value row: [-] [value] [+], grey "default: X" under the value, outlined when changed.
+            # Offroad lock, range, and step are unchanged.
+            item = gated_value_step_item(
+              lambda t=title: tr(t),
               lambda d=desc: tr(d),
-              ["-", "+"],
-              0,
-              callback=lambda index, r=row: self._step(r, index),
+              lambda k=key: format_step_value(self.store.get_float(k)),
+              lambda r=row: self._step(r, -1),
+              lambda r=row: self._step(r, 1),
               enabled=self._editable,
+              default_text=lambda k=key: format_step_value(STEP_DEFAULTS[k]),
+              is_default=lambda k=key: step_is_default(self.store, k),
+              translate=tr,
             )
+            self.steps[key] = item
           attach_help(item, key)
           by_key[key] = item
         items = place(by_key, TREE)
+
+        def add_reset(parent_key, keys):
+          rows = [by_key[k] for k in keys if k in by_key]
+          parent = by_key.get(parent_key)
+          if not rows or parent is None:
+            return None
+          defaults = {k: STEP_DEFAULTS[k] for k in keys if k in by_key}
+
+          def write(key, value):
+            if not self._editable():
+              raise PermissionError(f"{key} was not reset")
+            # Only this section's existing keys, back to their existing defaults (no other writes).
+            self.store.put(key, value)
+            if hasattr(self.store, "invalidate"):
+              self.store.invalidate()
+
+          item = reset_section_item(defaults, write, title=lambda: tr(RESET_SECTION_TITLE),
+                                    enabled=self._editable)
+          item.set_visible(lambda rs=tuple(rows): any(r.is_visible for r in rs))
+          item.set_level_gate(lambda: tuning_level.row_visible(parent_key))
+          attach_help(item, "section.reset_defaults")
+          indent_under(parent, item)
+          items.insert(items.index(rows[-1]) + 1, item)
+          return item
+
+        self.resets["NudgelessLaneChange"] = add_reset("NudgelessLaneChange", NUDGELESS_STEP_KEYS)
+        self.resets["LaneChanges"] = add_reset("LaneChanges", SPEED_STEP_KEYS)
         self.scroller = Scroller(items, line_separator=True, spacing=0)
 
       def _toggle(self, key, state):
@@ -148,12 +207,12 @@ class LaneChangeLayout:
           self._build()
           self.scroller.show_event()
 
-      def _step(self, row, index):
+      def _step(self, row, direction):
         if self._editable():
           low, high, step = numeric_bounds(row, self.store.get_bool("IsMetric", False))
           key = row[0]
           value = self.store.get_float(key)
-          configure(self.store, key, str(round(max(low, min(high, value + (-step if index == 0 else step))), 1)))
+          configure(self.store, key, str(round(max(low, min(high, value + direction * step)), 1)))
 
       def show_event(self):
         super().show_event()
@@ -231,7 +290,8 @@ def turn_desire_item(store, *, runtime_integrated=False, offroad=None):
   return toggle_item(
     lambda: tr(TURN_DESIRE_ROW[1]),
     lambda: tr(
-      "While driving below minimum lane-change speed with a turn signal, ask the model to turn left/right. Requires active lateral control; off until you change this row."
+      "While driving below minimum lane-change speed with a turn signal, ask the model to turn left/right. "
+      "Requires active lateral control; off until you change this row."
     ),
     display_bool(store, "TurnDesires"),
     callback=write,
