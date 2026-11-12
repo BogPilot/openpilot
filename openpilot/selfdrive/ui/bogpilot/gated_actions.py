@@ -64,11 +64,30 @@ class GatedMultipleButtonAction(MultipleButtonAction):
   Without it, an enabled tap behaves exactly like stock (highlight follows the tap)."""
 
   def __init__(self, buttons, button_width: int, selected_index: int = 0, callback: Callable | None = None,
-               enabled: Enabled = True, selected_source: Callable[[], int] | None = None):
+               enabled: Enabled = True, selected_source: Callable[[], int] | None = None,
+               button_widths: Sequence[int] | None = None):
     super().__init__(buttons, button_width, selected_index, callback=callback)
+    # Optional width per pill, for rows whose labels differ a lot in length (e.g. "None" vs "Set With Gas Pedal"):
+    # one shared width wide enough for the longest label would not fit the row. Stock layout when not given.
+    self._button_widths = None
+    if button_widths is not None:
+      if len(button_widths) != len(buttons):
+        raise ValueError("button_widths needs one width per button")
+      self._button_widths = [int(w) for w in button_widths]
+      self.set_rect(rl.Rectangle(0, 0, sum(self._button_widths) + (len(buttons) - 1) * RIGHT_ITEM_PADDING, 0))
     self.set_enabled(enabled)
     self._selected_source = selected_source
     self._sync_selected()
+
+  def button_rects(self, rect) -> list:
+    """Pill rectangles inside `rect`, left to right (stock spacing)."""
+    widths = self._button_widths or [self.button_width] * len(self.buttons)
+    y = rect.y + (rect.height - BUTTON_HEIGHT) / 2
+    rects, x = [], rect.x
+    for w in widths:
+      rects.append(rl.Rectangle(x, y, w, BUTTON_HEIGHT))
+      x += w + RIGHT_ITEM_PADDING
+    return rects
 
   def _sync_selected(self) -> None:
     if self._selected_source is None:
@@ -80,12 +99,38 @@ class GatedMultipleButtonAction(MultipleButtonAction):
 
   def _render(self, rect):
     self._sync_selected()
-    return super()._render(rect)
+    if self._button_widths is None:
+      return super()._render(rect)
+    # Same colours, font and text placement as MultipleButtonAction._render, with a width per pill.
+    mouse_pos = rl.get_mouse_position()
+    for i, (text_src, r) in enumerate(zip(self.buttons, self.button_rects(rect), strict=True)):
+      pressed = rl.check_collision_point_rec(mouse_pos, r) and self.enabled and self.is_pressed
+      if i == self.selected_button:
+        bg = rl.Color(51, 171, 76, 255)
+      elif pressed:
+        bg = rl.Color(74, 74, 74, 255)
+      else:
+        bg = rl.Color(57, 57, 57, 255)
+      if not self.enabled:
+        bg = rl.Color(bg.r, bg.g, bg.b, 150)
+      rl.draw_rectangle_rounded(r, 1.0, 20, bg)
+      text = text_src() if callable(text_src) else str(text_src)
+      size = measure_text_cached(self._font, text, 40)
+      color = rl.Color(228, 228, 228, 255) if self.enabled else rl.Color(150, 150, 150, 255)
+      rl.draw_text_ex(self._font, text, rl.Vector2(r.x + (r.width - size.x) / 2, r.y + (BUTTON_HEIGHT - size.y) / 2), 40, 0, color)
 
   def _handle_mouse_release(self, mouse_pos):
     if not self.enabled:
       return
-    super()._handle_mouse_release(mouse_pos)
+    if self._button_widths is None:
+      super()._handle_mouse_release(mouse_pos)
+    else:
+      for i, r in enumerate(self.button_rects(self._rect)):
+        if rl.check_collision_point_rec(mouse_pos, r):
+          self.selected_button = i
+          if self.callback:
+            self.callback(i)
+          break
     self._sync_selected()
 
 
@@ -97,9 +142,10 @@ def gated_dual_button_item(left_text, right_text, left_callback: Callable | None
 
 def gated_multiple_button_item(title, description, buttons, selected_index: int, button_width: int = BUTTON_WIDTH,
                                callback: Callable | None = None, icon: str = "", enabled: Enabled = True,
-                               selected_source: Callable[[], int] | None = None) -> ListItem:
+                               selected_source: Callable[[], int] | None = None,
+                               button_widths: Sequence[int] | None = None) -> ListItem:
   action = GatedMultipleButtonAction(buttons, button_width, selected_index, callback=callback, enabled=enabled,
-                                     selected_source=selected_source)
+                                     selected_source=selected_source, button_widths=button_widths)
   return ListItem(title=title, description=description, icon=icon, action_item=action)
 
 

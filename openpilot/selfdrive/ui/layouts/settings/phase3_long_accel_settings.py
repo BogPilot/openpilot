@@ -54,6 +54,11 @@ HISTORICAL_DESCRIPTIONS = {'AdvancedLongitudinalTune': '<b>Advanced acceleration
                 'handle low-speed situations more smoothly.'}
 
 
+# Selector pills (Acceleration / Deceleration Profile). "Standard" is ~176 px at 40 px Inter Medium and spilled out of
+# the old 140 px pill; 190 px fits the full word (4 x 190 + 3 x 20 = 820 px, under the 880 px value rows).
+CHOICE_PILL_WIDTH = 190
+
+
 @dataclass(frozen=True)
 class Row:
   key: str
@@ -346,7 +351,7 @@ def make_settings(group, store=None, capabilities=Capabilities(), cp=None, can_e
           item = toggle_item(title, desc, store.get_bool(row.key),
                              callback=lambda value, k=row.key: self._write(k, value), enabled=enabled)
         elif row.kind == "choice":
-          item = gated_multiple_button_item(title, desc, list(row.choices), store.get_int(row.key), button_width=140,
+          item = gated_multiple_button_item(title, desc, list(row.choices), store.get_int(row.key), button_width=CHOICE_PILL_WIDTH,
                                             callback=lambda value, k=row.key: self._write(k, value))
           item.action_item.set_enabled(enabled)
         else:

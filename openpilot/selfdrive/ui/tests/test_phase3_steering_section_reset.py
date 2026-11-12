@@ -120,14 +120,19 @@ def test_value_rows_are_shared_rows_with_hints(layout, store):
   layout.box["cp"] = layout.cp
   store.put_bool("AdvancedLateralTune", True)
   store.put_bool("QOLLateral", True)
-  for title, minus, plus in (("Steer Ratio", "-0.01", "+0.01"), ("Actuator Delay", "-0.01", "+0.01"),
-                             ("Pause Steering Below", "-1", "+1"), ("Override Sensitivity", "-", "+")):
+  for title, minus, plus in (("Steer Ratio", "-", "+"), ("Actuator Delay", "-", "+"),
+                             ("Pause Steering Below", "-", "+"), ("Override Sensitivity", "-", "+")):
     a = row(layout, title).action_item
     assert isinstance(a, GatedValueStepAction)
     assert a.buttons[0] == minus and a.buttons[-1] == plus and a.value_index == 1
     assert a.hint_text.startswith("default: ") and not a.highlighted
   assert row(layout, "Override Sensitivity").action_item.hint_text == f"default: {SENSITIVITY_DEFAULT}"
   assert row(layout, "Pause Steering Below").action_item.hint_text == "default: 0 mph"
+  pause = row(layout, "Pause Steering Below").action_item
+  assert pause.buttons[pause.value_index]() == "0"   # number only in the pill; the unit stays in the hint
+  store.put_bool("IsMetric", True)
+  assert pause.buttons[pause.value_index]() == "0" and pause.hint_text == "default: 0 km/h"
+  store.put_bool("IsMetric", False)
   row(layout, "Pause Steering Below").action_item.callback(2)
   assert store.get_int("PauseLateralSpeed") == 1 and row(layout, "Pause Steering Below").action_item.highlighted
 

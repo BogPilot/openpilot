@@ -13,6 +13,13 @@ from openpilot.selfdrive.controls.lib.phase3_long_stopping import (
 )
 
 
+# Pill labels for Manual Weather Condition, in MANUAL_WEATHER order. Display only: the stored values are unchanged.
+# "Low visibility" (~253 px at 40 px Inter Medium) overran its pill, so the pill says "Low Vis" (~150 px); the pill is
+# 160 px so it fits (5 x 160 + 4 x 20 = 880 px, the same row width as the 280 px value rows).
+WEATHER_PILL_LABELS = ("Clear", "Low Vis", "Rain", "Storm", "Snow")
+WEATHER_PILL_WIDTH = 160
+
+
 @dataclass(frozen=True)
 class StoppingCapabilities:
   # Stop Acceleration / Stopping Rate live in the single Advanced Longitudinal Tuning panel
@@ -250,8 +257,8 @@ class StoppingSettingsLayout:
           elif row.kind == "condition":
             choices = list(MANUAL_WEATHER)
             selected = store.get(MANUAL_WEATHER_KEY, "clear")
-            item = gated_multiple_button_item(row.title, row.description, ["Clear", "Low visibility", "Rain", "Storm", "Snow"],
-                                        choices.index(selected) if selected in choices else 0, button_width=135,
+            item = gated_multiple_button_item(row.title, row.description, list(WEATHER_PILL_LABELS),
+                                        choices.index(selected) if selected in choices else 0, button_width=WEATHER_PILL_WIDTH, enabled=can_edit,
                                         callback=lambda index: self._change(MANUAL_WEATHER_KEY, choices[index]),
                                         selected_source=lambda: choices.index(store.get(MANUAL_WEATHER_KEY, "clear")))
             item.action_item.set_enabled(can_edit)

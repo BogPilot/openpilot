@@ -45,7 +45,7 @@ class TestOverrideSensitivityRow(MenuCase):
   def test_default_is_three_and_reads_back(self):
     e = self.editor()
     self.assertEqual(e.value(KEY), 3)
-    self.assertEqual(e.shown(KEY), "3 of 5 (default)")
+    self.assertEqual(e.shown(KEY), "3 of 5")
     self.assertTrue(e.write(KEY, 5))
     self.assertEqual(e.value(KEY), 5)
     self.assertEqual(e.shown(KEY), "5 of 5")
@@ -98,7 +98,7 @@ class TestOverrideSensitivityRow(MenuCase):
       self.file().write_text(text)
       self.store.invalidate()
       self.assertEqual(e.value(KEY), 3, text)
-      self.assertEqual(e.shown(KEY), "3 of 5 (default)", text)
+      self.assertEqual(e.shown(KEY), "3 of 5", text)
 
   def test_the_saved_file_is_what_the_car_code_reads(self):
     from opendbc.car.tesla_ap1 import override as ov

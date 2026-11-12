@@ -140,7 +140,9 @@ class TuningEditor:
   def shown(self, key):
     if key == OVERRIDE_SENSITIVITY:
       level = self.level()
-      return f"{level} of {len(SENSITIVITY_LEVELS)}" + (" (default)" if level == SENSITIVITY_DEFAULT else "")
+      # "3 of 5 (default)" (~289 px) overran the 150 px value pill; the grey "default: 3" hint and the outline
+      # (shown when not at the default) already say whether it is the default.
+      return f"{level} of {len(SENSITIVITY_LEVELS)}"
     return f"{self.value(key):.2f}" if key in self.rows else ""
 
   def hint(self, key):
@@ -203,7 +205,7 @@ def make_layout(cp, store, offroad):
   """cp: CarParams or callable returning it. Items are fixed; vehicle-dependent ones hide via set_visible."""
   from openpilot.system.ui.widgets import Widget
   from openpilot.system.ui.widgets.list_view import toggle_item
-  from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_value_step_item, reset_section_item, RESET_SECTION_TITLE
+  from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_value_step_item, reset_section_item, RESET_SECTION_TITLE, MINUS, PLUS
   from openpilot.system.ui.lib.multilang import tr
   from openpilot.system.ui.widgets.scroller_tici import Scroller
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help, override_sensitivity_help_key
@@ -249,7 +251,9 @@ def make_layout(cp, store, offroad):
         return item
 
       def pause_text():
-        return f"{e.value('PauseLateralSpeed'):g} " + ("km/h" if store.get_bool("IsMetric") else "mph")
+        # Number only: "150 km/h" (~177 px at 40 px Inter Medium) overran the 150 px value pill. The grey hint keeps
+        # the unit ("default: 0 mph" / "default: 0 km/h", default_shown).
+        return f"{e.value('PauseLateralSpeed'):g}"
 
       def must(ok, key):
         # A refused write raises, so the shared reset row stops and tells the user instead of failing silently.
@@ -272,7 +276,7 @@ def make_layout(cp, store, offroad):
       numeric_rows_shown = []
       for key in NUMERIC_ORDER:
         title = {"SteerDelay": "Actuator Delay", "SteerRatio": "Steer Ratio", "SteerFriction": "Friction", "SteerLatAccel": "Lateral Acceleration"}[key]
-        numeric_rows_shown.append(add(attach_help(stepper(key, title, lambda k=key: e.hint(k), "-0.01", "+0.01",
+        numeric_rows_shown.append(add(attach_help(stepper(key, title, lambda k=key: e.hint(k), MINUS, PLUS,
                                                           lambda k=key: e.step(k, -1), lambda k=key: e.step(k, 1)), key), key))
       toggle("ForceAutoTuneOff", "Force Auto-Tune Off", "Torque cars with live tuning: use the set Friction and Lateral Acceleration instead of live values.")
       toggle("ForceAutoTune", "Force Auto-Tune On", "Torque cars without native live tuning: learn Friction and Lateral Acceleration live (validity gate stays).")
@@ -282,7 +286,7 @@ def make_layout(cp, store, offroad):
       toggle("QOLLateral", "Quality of Life", "Steering quality-of-life options. Offroad only; applies next drive.")
       pause_row = add(attach_help(stepper("PauseLateralSpeed", "Pause Steering Below",
                                           "0 is Off. Steering is suppressed below this speed. Uses the saved speed units; does not rewrite values.",
-                                          "-1", "+1", lambda: e.write("PauseLateralSpeed", e.value("PauseLateralSpeed") - 1),
+                                          MINUS, PLUS, lambda: e.write("PauseLateralSpeed", e.value("PauseLateralSpeed") - 1),
                                           lambda: e.write("PauseLateralSpeed", e.value("PauseLateralSpeed") + 1)),
                                   "PauseLateralSpeed"), "PauseLateralSpeed")
       toggle("PauseLateralOnSignal", "Turn Signal Only", "Only pause steering below the speed while a turn signal is on.")

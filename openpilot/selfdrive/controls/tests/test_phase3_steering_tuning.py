@@ -426,6 +426,7 @@ class TestSteeringTuning(unittest.TestCase):
     gated.gated_value_step_item = item('value_step')    # value rows: (title, description, value, on_minus, on_plus)
     gated.reset_section_item = item('reset_section')
     gated.RESET_SECTION_TITLE = 'Reset section to defaults'
+    gated.MINUS, gated.PLUS = '-', '+'   # stepper labels the layout imports
     scroll = ModuleType('openpilot.system.ui.widgets.scroller_tici')
     scroll.Scroller = lambda items, **kwargs: NS(items=items)
     return {'openpilot.system.ui.widgets': widgets, 'openpilot.system.ui.widgets.list_view': factory,

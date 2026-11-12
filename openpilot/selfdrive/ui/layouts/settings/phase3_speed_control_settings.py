@@ -80,6 +80,11 @@ CHOICES = {
   "SLCFallback": (tr_noop("Set Speed"), tr_noop("Experimental Mode"), tr_noop("Previous Limit")),
   "SLCOverride": (tr_noop("None"), tr_noop("Set With Gas Pedal"), tr_noop("Max Set Speed")),
 }
+# Pill width per SLC choice label: label width at 40 px Inter Medium plus ~50 px, at least 200. "Experimental Mode"
+# (~371 px) and "Set With Gas Pedal" (~368 px) overran the old shared 300 px pills; a shared 420 px width would not fit
+# the row (3 x 420 + 40 = 1300 px), so each pill is sized to its own label (rows 1030 / 1000 px).
+CHOICE_PILL_WIDTHS = {"Set Speed": 250, "Experimental Mode": 420, "Previous Limit": 320,
+                      "None": 200, "Set With Gas Pedal": 420, "Max Set Speed": 340}
 PRIORITY1_OPTIONS = ("Dashboard", "Map Data", "Navigation", "Highest", "Lowest")
 PRIORITY_OTHER_OPTIONS = ("None", "Dashboard", "Map Data", "Navigation")
 OFFSET_BANDS = {False: ("0–24", "25–34", "35–44", "45–54", "55–64", "65–74", "75–99"),
@@ -365,7 +370,8 @@ def make_layout(CP, store, offroad, section=None, open_section=None):
   from openpilot.system.ui.widgets.scroller_tici import Scroller
 
   # Shared value row per value kind: (minus, plus, button width). ASCII "-" (the font has no U+2212). Steps unchanged.
-  STEP_CHROME = {"offset": ("-1", "+1", 220), "seconds": ("-1", "+1", 260), "priority": ("Prev", "Next", 260)}
+  # Plain -/+ on the stepper buttons; the step size is set by _step, not by the label.
+  STEP_CHROME = {"offset": ("-", "+", 220), "seconds": ("-", "+", 260), "priority": ("Prev", "Next", 260)}
 
   class SlcLayout(Widget):
     def __init__(self):
@@ -399,6 +405,7 @@ def make_layout(CP, store, offroad, section=None, open_section=None):
           ov = [o[0] for o in opts]
           # D2: lock the action (not only the ListItem) and show the stored choice, never a refused tap.
           item = gated_multiple_button_item(title, desc + "<br><br>" + APPLIES, [o[1] for o in opts], idx, button_width=300,
+                                            button_widths=[CHOICE_PILL_WIDTHS.get(o[1], 300) for o in opts],
                                             callback=lambda i, k=k, ov=ov: self._choose(k, ov[i]),
                                             enabled=lambda k=k: self.editor.can_edit(k),
                                             selected_source=lambda k=k, ov=ov: ov.index(self.editor.choice(k)))

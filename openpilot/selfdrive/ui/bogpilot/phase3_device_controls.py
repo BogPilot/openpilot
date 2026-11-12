@@ -200,8 +200,8 @@ class DeviceControlsMenu:
          "value": self.store.get_bool("StandbyMode", False), "requires": SCREEN_MASTER},
         {"kind": "toggle", "key": "ScreenRecorder", "title": "Screen Recorder Button",
          "value": self.store.get_bool("ScreenRecorder", DEFAULTS["ScreenRecorder"]), "requires": SCREEN_MASTER},
-        {"kind": "action", "title": "Screen Recorder", "label": "Start Recording", "action": "start_recording"},
-        {"kind": "action", "title": "Screen Recorder", "label": "Stop Recording", "action": "stop_recording"},
+        {"kind": "action", "title": "Screen Recorder", "label": "Start", "action": "start_recording"},
+        {"kind": "action", "title": "Screen Recorder", "label": "Stop", "action": "stop_recording"},
       ]
     raise ValueError("Unknown Device Controls page")
 
@@ -414,10 +414,10 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
         nest(master, *children)   # shown only while Screen Settings is on; the saved values stay
         items += children
         items += [
-          attach_help(button_item(lambda: tr("Screen Recorder"), lambda: tr("Start Recording"),
+          attach_help(button_item(lambda: tr("Screen Recorder"), lambda: tr("Start"),
                                   callback=lambda: menu.run_action("start_recording"), enabled=self.allowed),
                       "ScreenRecorderControl"),
-          attach_help(button_item(lambda: tr("Screen Recorder"), lambda: tr("Stop Recording"),
+          attach_help(button_item(lambda: tr("Screen Recorder"), lambda: tr("Stop"),
                                   callback=lambda: menu.run_action("stop_recording"), enabled=self.allowed),
                       "ScreenRecorderControl"),
         ]

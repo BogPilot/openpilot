@@ -169,11 +169,11 @@ def test_value_rows_are_shared_rows_with_hints(layout_env, store):
   layout.show_event()
   follow = row(layout, "Following Distance").action_item
   assert isinstance(follow, GatedValueStepAction)
-  assert follow.buttons[0] == "-0.01" and follow.buttons[-1] == "+0.01" and follow.value_index == 1
+  assert follow.buttons[0] == "-" and follow.buttons[-1] == "+" and follow.value_index == 1
   assert follow.hint_text == "default: 1.75 seconds" and not follow.highlighted
   jerk = row(layout, "Acceleration Smoothness").action_item
   assert isinstance(jerk, GatedValueStepAction)
-  assert jerk.buttons[0] == "-1" and jerk.buttons[-1] == "+1"
+  assert jerk.buttons[0] == "-" and jerk.buttons[-1] == "+"
   assert jerk.hint_text == "default: 100%" and not jerk.highlighted
   follow.callback(2)  # plus
   assert store.get_float("RelaxedFollow") == pytest.approx(1.76)

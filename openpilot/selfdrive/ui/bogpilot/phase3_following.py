@@ -158,7 +158,9 @@ class FollowingEditor:
     row = BY_KEY[key]
     v = self.value(key)
     if row.unit == " seconds":
-      return f"{v:.2f}" + (" second" if round(v / 0.01) == 100 else " seconds")
+      # Number only: "1.25 seconds" (~255 px at 40 px Inter Medium) overran the 150 px value pill. The grey hint
+      # under the pill keeps the unit ("default: 1.25 seconds", default_shown below).
+      return f"{v:.2f}"
     return f"{v:.0f}{row.unit}"
 
   def default(self, key):
@@ -301,7 +303,7 @@ def build_items(editor, store, CP, section=None, confirm=None, request_confirm=N
   smoothness rows, and one Reset section to defaults), indented under it and present only while that profile is on."""
   from openpilot.system.ui.lib.multilang import tr
   from openpilot.system.ui.widgets.list_view import toggle_item
-  from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_value_step_item, reset_section_item, RESET_SECTION_TITLE
+  from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_value_step_item, reset_section_item, RESET_SECTION_TITLE, MINUS, PLUS
   from openpilot.selfdrive.ui.bogpilot.nesting import indent_under
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
   from openpilot.selfdrive.ui.bogpilot import tuning_level
@@ -337,7 +339,7 @@ def build_items(editor, store, CP, section=None, confirm=None, request_confirm=N
                                  lambda k=k: editor.label(k),
                                  lambda k=k, r=row: editor.write(k, editor.value(k) - r.step),
                                  lambda k=k, r=row: editor.write(k, editor.value(k) + r.step),
-                                 minus=f"-{row.step:g}", plus=f"+{row.step:g}",
+                                 minus=MINUS, plus=PLUS,   # plain -/+; row.step is unchanged
                                  enabled=lambda k=k: editor.can_edit(k),
                                  default_text=lambda k=k: editor.default_shown(k),
                                  is_default=lambda k=k: editor.at_default(k),

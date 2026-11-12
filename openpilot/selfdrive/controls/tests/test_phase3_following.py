@@ -355,9 +355,10 @@ def test_ui_visibility_and_guards():
   assert "ResetRelaxedPersonality" in [r.key for r in U.visible_rows(ed, "Relaxed")]
   assert [r.key for r in U.visible_rows(ed, "longitudinal_tuning")] == ["HumanFollowing"]
   assert U.visible_rows(U.FollowingEditor(CP(long=False), s, lambda: True)) == []
-  assert ed.label("RelaxedFollow") == "2.00 seconds"
+  assert ed.label("RelaxedFollow") == "2.00"   # pill shows the number only; the unit stays in the hint
   s.put("RelaxedFollow", 1.0)
-  assert ed.label("RelaxedFollow") == "1.00 second"
+  assert ed.label("RelaxedFollow") == "1.00"
+  assert ed.default_shown("RelaxedFollow") == "1.75 seconds"
 
 
 @pytest.mark.usefixtures("adoption_mode")
