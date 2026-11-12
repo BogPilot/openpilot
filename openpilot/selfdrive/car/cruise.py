@@ -122,13 +122,16 @@ class VCruiseHelper:
         self.button_timers[b.type.raw] = 1 if b.pressed else 0
         self.button_change_states[b.type.raw] = {"standstill": CS.cruiseState.standstill, "enabled": enabled}
 
-  def initialize_v_cruise(self, CS, experimental_mode: bool) -> None:
+  def initialize_v_cruise(self, CS, experimental_mode: bool, set_limit_kph: float = 0.0) -> None:
     # initializing is handled by the PCM
     if self.CP.pcmCruise:
       return
 
     if any(b.type in (ButtonType.accelCruise, ButtonType.resumeCruise) for b in CS.buttonEvents) and self.v_cruise_initialized:
       self.v_cruise_kph = self.v_cruise_kph_last
+    elif set_limit_kph > 0.0:
+      # BogPilot: SetSpeedLimit (0.9.7 drive_helpers.py:157-158 @568fea947): posted limit + SLC offset, clipped as below.
+      self.v_cruise_kph = int(round(np.clip(set_limit_kph, V_CRUISE_MIN, V_CRUISE_MAX)))
     else:
       self.v_cruise_kph = int(round(np.clip(CS.vEgo * CV.MS_TO_KPH, V_CRUISE_INITIAL, V_CRUISE_MAX)))
 

@@ -87,6 +87,8 @@ class TestTeslaAp1Boundaries(unittest.TestCase):
       self.assertTrue(self.rx(addr, pressed))
       if addr == 0x20a:
         self.assertFalse(l.get_controls_allowed())
+      else:
+        self.assertTrue(l.get_controls_allowed())
       # New-base shared safety inhibits longitudinal on gas; userspace owns disengage.
       self.assertFalse(self.tx(0x2b9, acceleration(375, 400)), hex(addr))
 

@@ -1,11 +1,11 @@
 #pragma once
 
 #include "opendbc/safety/declarations.h"
+#include "opendbc/safety/modes/tesla_ap1.h"
+#include "opendbc/safety/modes/tesla_preap.h"
 
 static bool tesla_longitudinal = false;
 static bool tesla_stock_aeb = false;
-
-#include "opendbc/safety/modes/tesla_ap1.h"
 
 // Only rising edges while controls are not allowed are considered for these systems:
 // TODO: Only LKAS (non-emergency) is currently supported since we've only seen it
@@ -95,11 +95,7 @@ static bool tesla_get_quality_flag_valid(const CANPacket_t *msg) {
   return valid;
 }
 
-static void tesla_rx_hook(const CANPacket_t *msg) {
-  if (tesla_ap1) {
-    tesla_ap1_rx_hook(msg);
-    return;
-  }
+static void tesla_stock_rx_hook(const CANPacket_t *msg) {
   // Steering angle: (0.1 * val) - 819.2 in deg.
   if (msg_matches(msg, 0x370U, 0U)) {
     // Store it 1/10 deg to match steering request
@@ -193,10 +189,7 @@ static void tesla_rx_hook(const CANPacket_t *msg) {
   }
 }
 
-static bool tesla_tx_hook(const CANPacket_t *msg) {
-  if (tesla_ap1) {
-    return tesla_ap1_tx_hook(msg);
-  }
+static bool tesla_stock_tx_hook(const CANPacket_t *msg) {
   const AngleSteeringLimits TESLA_STEERING_LIMITS = {
     .max_angle = 3600,  // 360 deg, EPAS faults above this
     .angle_deg_to_can = 10,
@@ -294,10 +287,7 @@ static bool tesla_tx_hook(const CANPacket_t *msg) {
   return tx;
 }
 
-static bool tesla_fwd_hook(int bus_num, int addr) {
-  if (tesla_ap1) {
-    return tesla_ap1_fwd_hook(bus_num, addr);
-  }
+static bool tesla_stock_fwd_hook(int bus_num, int addr) {
   bool block_msg = false;
 
   if (bus_num == 2) {
@@ -322,13 +312,7 @@ static bool tesla_fwd_hook(int bus_num, int addr) {
   return block_msg;
 }
 
-static safety_config tesla_init(uint16_t param) {
-  tesla_ap1 = GET_FLAG(param, TESLA_FLAG_AP1);
-  if (tesla_ap1) {
-    return tesla_ap1_init_config(param);
-  }
-  // Clear AP1 longitudinal state when returning to stock (including release builds).
-  tesla_longitudinal = false;
+static safety_config tesla_stock_init(uint16_t param) {
   static const CanMsg TESLA_M3_Y_TX_MSGS[] = {
     {0x488, 0, 4, .check_relay = true, .disable_static_blocking = true},   // DAS_steeringControl
     {0x2b9, 0, 8, .check_relay = false},                                   // DAS_control (for cancel)
@@ -372,6 +356,55 @@ static safety_config tesla_init(uint16_t param) {
     ret = BUILD_SAFETY_CFG(tesla_model3_y_rx_checks, TESLA_M3_Y_LONG_TX_MSGS);
   } else {
     ret = BUILD_SAFETY_CFG(tesla_model3_y_rx_checks, TESLA_M3_Y_TX_MSGS);
+  }
+  return ret;
+}
+
+// Platform dispatch: AP1 (flag 8), Pre-AP (flag 32, never together with AP1), otherwise the stock Model 3 / Y code above, unchanged.
+static void tesla_rx_hook(const CANPacket_t *msg) {
+  if (tesla_ap1) {
+    tesla_ap1_rx_hook(msg);
+  } else if (tesla_preap) {
+    tesla_preap_rx_hook(msg);
+  } else {
+    tesla_stock_rx_hook(msg);
+  }
+}
+
+static bool tesla_tx_hook(const CANPacket_t *msg) {
+  bool tx;
+  if (tesla_ap1) {
+    tx = tesla_ap1_tx_hook(msg);
+  } else if (tesla_preap) {
+    tx = tesla_preap_tx_hook(msg);
+  } else {
+    tx = tesla_stock_tx_hook(msg);
+  }
+  return tx;
+}
+
+static bool tesla_fwd_hook(int bus_num, int addr) {
+  bool block_msg;
+  if (tesla_ap1) {
+    block_msg = tesla_ap1_fwd_hook(bus_num, addr);
+  } else if (tesla_preap) {
+    block_msg = true;  // Pre-AP: no harness relay, nothing is forwarded (also disable_forwarding)
+  } else {
+    block_msg = tesla_stock_fwd_hook(bus_num, addr);
+  }
+  return block_msg;
+}
+
+static safety_config tesla_init(uint16_t param) {
+  safety_config ret;
+  tesla_ap1 = GET_FLAG(param, TESLA_FLAG_AP1);
+  tesla_preap = !tesla_ap1 && GET_FLAG(param, TESLA_FLAG_PREAP);
+  if (tesla_ap1) {
+    ret = tesla_ap1_init_config(param);
+  } else if (tesla_preap) {
+    ret = tesla_preap_init_config(param);
+  } else {
+    ret = tesla_stock_init(param);
   }
   return ret;
 }

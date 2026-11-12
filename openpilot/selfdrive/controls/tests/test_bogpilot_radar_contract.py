@@ -1,4 +1,4 @@
-"""Stream 6: frogpilotRadarState producer contract for stream-4 BSM flames."""
+"""bogpilotRadarState producer contract for the BSM flames."""
 from types import SimpleNamespace
 from pathlib import Path
 import os
@@ -78,10 +78,10 @@ def _model(lane_ys=(-5.4, -1.8, 1.8, 5.4), length=100.0):
 
 class TestRadarContract(unittest.TestCase):
   def test_services_and_schema_fields(self):
-    self.assertEqual(SERVICES, ["frogpilotRadarState"])
+    self.assertEqual(SERVICES, ["bogpilotRadarState"])
     names = list(log.Event.schema.fieldnames)
-    self.assertIn("frogpilotRadarState", names)
-    msg = custom.FrogPilotRadarState.new_message()
+    self.assertIn("bogpilotRadarState", names)
+    msg = custom.BogPilotRadarState.new_message()
     msg.leadLeft = {"status": True, "vLead": 40.0}
     self.assertTrue(msg.leadLeft.status)
     self.assertAlmostEqual(msg.leadLeft.vLead, 40.0)
@@ -108,12 +108,12 @@ class TestRadarContract(unittest.TestCase):
                                           radarUnavailable=False, enableBsm=True), store)
     radar.update(RD, {"modelV2": _model()}, now=0.0)
     self.assertTrue(radar.lead_left.get("status"))
-    frs = radar.frogpilot_radar_state()
+    frs = radar.bogpilot_radar_state()
     self.assertTrue(frs.leadLeft.status)
     self.assertGreater(frs.leadLeft.vLead, 0.0)
 
   def test_file_only_ui_keys_never_touch_params(self):
-    self.assertEqual(FILE_ONLY_UI_KEYS, frozenset({"RedesignUI", "BSMFlameTracks", "SwapSpeedGraph", "HideAccelGraph", "DeveloperHUD"}))
+    self.assertEqual(FILE_ONLY_UI_KEYS, frozenset({"RedesignUI", "BSMFlameTracks", "SwapSpeedGraph", "HideAccelGraph", "DeveloperHUD", "ShowAccelGraph", "LowerSpeedLimitsBox"}))
     td = tempfile.mkdtemp()
     os.environ["BOGPILOT_PARAMS_DIR"] = td
     params = RegisteredParams({"BlindSpotPath", "RedesignUI"})

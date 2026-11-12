@@ -5,7 +5,7 @@ import math
 import unittest
 
 from openpilot.selfdrive.ui.bogpilot.phase3_device_controls import (
-  DeviceControlsMenu, DevicePreferences, MemoryStore, DEVICE_KEYS, RANGES, UNAVAILABLE,
+  DeviceControlsMenu, DevicePreferences, MemoryStore, DEVICE_KEYS, RANGES,
 )
 from openpilot.selfdrive.ui.bogpilot.phase3_device_controls_runtime import (
   screen_timeout, screen_brightness, screen_awake, shutdown_time, voltage_cutoff, shutdown_label,
@@ -143,16 +143,14 @@ class TestUIStoreConsumer(unittest.TestCase):
     with self.assertRaises(ValueError):
       prefs.set("NotAKey", True)
 
-  def test_unavailable_rows_are_explanations_not_toggles(self):
-    self.menu.go("Device Settings")
-    kinds = {r["title"]: r["kind"] for r in self.menu.rows() if r["kind"] == "unavailable"}
-    for title in ("Disable Logging", "High-Quality Recording", "Raise Temperature Limits"):
-      self.assertEqual(kinds[title], "unavailable")
-      self.assertIn(title, UNAVAILABLE)
-    self.menu.back()
-    self.menu.go("Screen Settings")
-    ss = {r["title"]: r for r in self.menu.rows()}
-    self.assertEqual(ss["Offroad Screensaver"]["kind"], "unavailable")
+  def test_placeholder_rows_are_hidden(self):
+    hidden = ("Disable Logging", "High-Quality Recording", "Raise Temperature Limits", "Offroad Screensaver")
+    for page in ("Device Settings", "Screen Settings"):
+      self.menu.go(page)
+      rows = self.menu.rows()
+      self.assertFalse([r for r in rows if r["kind"] == "unavailable"])
+      self.assertFalse([r for r in rows if r["title"] in hidden])
+      self.menu.back()
 
   def test_recorder_actions_invoke_injected_consumer(self):
     self.menu.go("Screen Settings")

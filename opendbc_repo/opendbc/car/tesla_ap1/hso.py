@@ -19,6 +19,8 @@ enabled and EPAS is not EAC_FAULT. Code 6 and a latched
 code 3 do not block that resume. Any other non-idle name stays a steer warning.
 """
 
+from opendbc.car.tesla_ap1.override import SIGNAL_HANDS, SIGNAL_NONE
+
 # selfdrive/car/tesla/carstate.py: load_float_param("TinklaHandsOnLevel", 2.0)
 AP1_HANDS_ON_LEVEL = 2
 # carState.steeringPressed (override / grey border). Stock Tesla port and
@@ -34,6 +36,10 @@ AP1_DRIVER_INPUT_LEVEL = 1
 # (Tinkla's HSO numb period is 50 frames = 0.5 s); shortened to 0.3 s.
 # Lateral then resumes through the 300 ms measured-angle soft-start
 # (AP1_ENGAGE_SOFT_START_FRAMES).
+# The hold also restarts on driver torque >= 1.0 Nm or wheel rate >= 30 deg/s (override.QUIET_*),
+# so a driver still leaning on the wheel with the hands flag at 0 does not get the command back, and
+# it waits for the EPAS gate (epas_gate.py) to see a clean EPAS state. Pre-AP then blends in with
+# the same smoothstep ramp (engage_ramp.py).
 AP1_RESUME_HOLD_S = 0.3
 # CarController runs at 100 Hz (DT_CTRL).
 AP1_CONTROL_HZ = 100
@@ -60,35 +66,46 @@ def ap1_driver_input(hands_on_level):
 class Ap1DriverYield:
   """Engaged-only hands pause with a resume hold. One update per CarController step.
 
-  Enters at hands_on_level >= AP1_HANDS_ON_LEVEL while enabled. Stays active
-  until hands_on_level has been 0 for AP1_RESUME_HOLD_FRAMES in a row; a level
-  1 or higher restarts the count. Not enabled clears it at once, so disengage
-  and re-engage are not delayed. `resumed` is true only on the step the hold
-  ends, so CarController can restart the measured-angle soft-start.
+  Enters at hands_on_level >= AP1_HANDS_ON_LEVEL while enabled, or when the
+  independent detector (override.DriverOverrideDetector) reports a signal; the
+  first signal of a pause is kept in `signal`. Stays active until the driver has
+  been quiet for AP1_RESUME_HOLD_FRAMES in a row: by default hands_on_level 0, or
+  the detector's `quiet` (hands 0, low torque, low wheel rate) when it is passed.
+  Any driver input restarts the count. Not enabled clears it at once, so
+  disengage and re-engage are not delayed. `resumed` is true only on the step
+  the hold ends, so CarController can restart the measured-angle soft-start.
   """
 
   def __init__(self):
     self.active = False
     self.quiet_frames = 0
     self.resumed = False
+    self.signal = SIGNAL_NONE
 
-  def update(self, enabled, hands_on_level):
+  def update(self, enabled, hands_on_level, override_signal=SIGNAL_NONE, quiet=None):
     self.resumed = False
     if not enabled:
       self.active = False
       self.quiet_frames = 0
+      self.signal = SIGNAL_NONE
       return False
-    if ap1_steering_pressed(hands_on_level):
+    if quiet is None:
+      quiet = not ap1_driver_input(hands_on_level)
+    pressed = ap1_steering_pressed(hands_on_level)
+    if pressed or override_signal != SIGNAL_NONE:
+      if not self.active:
+        self.signal = SIGNAL_HANDS if pressed else override_signal
       self.active = True
       self.quiet_frames = 0
     elif self.active:
-      if ap1_driver_input(hands_on_level):
+      if not quiet:
         self.quiet_frames = 0
       else:
         self.quiet_frames += 1
         if self.quiet_frames >= AP1_RESUME_HOLD_FRAMES:
           self.active = False
           self.quiet_frames = 0
+          self.signal = SIGNAL_NONE
           self.resumed = True
     return self.active
 

@@ -47,7 +47,7 @@ def test_consumer_removed_fails_closed(tmp_path):
   assert any("EngageVolume: consumer evidence missing" == e for e in errors)
 
 
-def test_t968_alert_policy_has_verified_consumers_not_other_dormant_alerts():
+def test_alert_policy_has_verified_consumers_not_other_dormant_alerts():
   assert c.PENDING_ALERT_DEFAULTS == {"GreenLightAlert": "1", "LeadDepartingAlert": "1"}
   assert c.PENDING_ALERT_LABELS["LeadDepartingAlert"] == "Lead Departed Alert"
   assert c.eligible(c.PENDING_ALERT_DEFAULTS) == ("GreenLightAlert", "LeadDepartingAlert")

@@ -28,11 +28,11 @@ from openpilot.selfdrive.controls import plannerd
 from openpilot.selfdrive.controls.lib.longitudinal_planner import LongitudinalPlanner
 from openpilot.cereal.services import SERVICE_LIST
 from openpilot.common.realtime import DT_MDL
-assert SERVICE_LIST['frogpilotPlan'].frequency == 20
+assert SERVICE_LIST['bogpilotPlan'].frequency == 20
 assert SERVICE_LIST['modelV2'].frequency == 20
 assert DT_MDL == 0.05
 assert callable(plannerd.main)
-assert callable(LongitudinalPlanner.publish_frogpilot_plan)
+assert callable(LongitudinalPlanner.publish_bogpilot_plan)
 print('actual native publisher imports and declared 20Hz cadence; no daemon executed')
 """
 

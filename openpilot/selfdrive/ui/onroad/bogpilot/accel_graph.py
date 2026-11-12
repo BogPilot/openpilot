@@ -1,4 +1,4 @@
-"""Port of frogpilot/ui/qt/onroad/accel_graph: 10 s rolling plot of the longitudinal acceleration command
+"""Port of bogpilot/ui/qt/onroad/accel_graph: 10 s rolling plot of the longitudinal acceleration command
 (carControl.actuators.accel) against the measured acceleration (carState.aEgo)."""
 from __future__ import annotations
 import math

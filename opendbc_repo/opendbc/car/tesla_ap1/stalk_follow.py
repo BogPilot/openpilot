@@ -1,4 +1,4 @@
-"""AP1 stalk distance scroll to FrogPilot follow profiles.
+"""AP1 stalk distance scroll to BogPilot follow profiles.
 
 Pure mapping. No CAN, no params, no controlsd, no actuation.
 
@@ -6,7 +6,7 @@ DTR_Dist_Rq on STW_ACTN_RQ (opendbc tesla_can.dbc and tesla_powertrain.dbc,
 and Tinkla carstate): 0, 33, 66, 100, 133, 166, 200 are ACC_DIST_1..7.
 255 is SNA. Those two sources agree, so this module does not invent a third scale.
 
-Detent keys are the stock FrogPilot default seconds; live_follow_seconds maps
+Detent keys are the stock BogPilot default seconds; live_follow_seconds maps
 them to the user's AggressiveFollow / StandardFollow / RelaxedFollow at use:
   traffic cruising gap is TRAFFIC_FOLLOW at v_ego >= CRUISING_SPEED (5 m/s): 1.00s
     (the same curve is 0.50s at 0 m/s; this module has no v_ego and does not apply it)
@@ -20,7 +20,7 @@ setproctitle. Do not edit get_T_FOLLOW or long_mpc to add a profile.
 
 Car state calls parse_stalk_raw and keeps the decision on the CarState
 instance (stalk_follow). Cereal is not extended. AP1 publishes follow_s on
-the existing cruiseState.speedOffset (0 when not ready). FrogPilotFollowing
+the existing cruiseState.speedOffset (0 when not ready). BogPilotFollowing
 copies that into tFollow. Detent 1 sets trafficModeEnabled. Detents 3, 5,
 and 7 write the existing LongitudinalPersonality param (aggressive, standard,
 relaxed) so the on-screen personality icon changes. Detents 2, 4, and 6 are
@@ -210,7 +210,7 @@ def follow_seconds(decision) -> float:
 
 
 def ap1_stalk_commands(decision):
-  """Existing FrogPilot controls for one stalk decision.
+  """Existing BogPilot controls for one stalk decision.
 
   Returns (traffic_mode, personality). personality is the
   LongitudinalPersonality int for detents 3, 5, and 7 only.

@@ -2,7 +2,7 @@
 
 Pure tests (no window): the section / pill / page mapping, Tuning Level filtering, saved-choice preservation, the flame tracks
 file round trip. Native tests (RAYLIB_BACKEND=headless): the real panel at 2160x1080, every pill opening its page, taps on the
-Tuning Level control, help on every row. Set T1024_SHOTS=/dir to also write the screenshots.
+Tuning Level control, help on every row. Set MENU_SHOTS=/dir to also write the screenshots.
 """
 import os
 import tempfile
@@ -198,12 +198,12 @@ class TestTuningLevel(MenuCase):
   def test_hidden_rows_inside_pages_follow_registry_levels(self):
     from openpilot.common.bogpilot_store import registry_level
     tl = self.tl
-    self.assertEqual(tl.row_level("BSMFlameTracks"), 1)
+    self.assertEqual(tl.row_level("BSMFlameTracks"), 0)
     self.assertEqual(tl.row_level("LaneChanges"), registry_level("LaneChanges"))
     self.assertIsNone(tl.row_level("read-only CarParams"))
     self.assertEqual(tl.row_level("group:profiles"), registry_level("LongitudinalTune"))
     for level in range(4):
-      for key in ("BSMFlameTracks", "SwapSpeedGraph", "LaneChanges", "NudgelessLaneChange"):
+      for key in ("BSMFlameTracks", "LowerSpeedLimitsBox", "ShowAccelGraph", "LaneChanges", "NudgelessLaneChange"):
         need = tl.row_level(key)
         self.assertEqual(tl.row_visible(key, level), need is None or level >= need, (key, level))
 
@@ -250,7 +250,7 @@ class NativeCase(MenuCase):
     gui_app.init_window("Menu 097 native test")
     cls.base = Base()
     gui_app.push_widget(cls.base)
-    cls.shots = os.getenv("T1024_SHOTS")
+    cls.shots = os.getenv("MENU_SHOTS")
     if cls.shots:
       os.makedirs(cls.shots, exist_ok=True)
 
@@ -305,7 +305,7 @@ class TestFlameTracksToggle(NativeCase):
     for word in ("display only", "88 mph", "blind spot", "tire tracks"):
       self.assertIn(word, text)
     self.assertEqual(row.help_key, "BSMFlameTracks")
-    self.assertEqual(self.tl.row_level("BSMFlameTracks"), 1)   # Standard
+    self.assertEqual(self.tl.row_level("BSMFlameTracks"), 0)   # Minimal
 
   def test_default_on_and_nothing_written_by_opening(self):
     layout = self.layout()
@@ -471,17 +471,32 @@ class TestMenuNative(NativeCase):
     from openpilot.selfdrive.ui.bogpilot.toggle_help import HELP, resolve
     for row in self.home_rows():
       self.assertTrue(row.icon and row.icon.startswith("bogpilot/menu_"), row.title)
-      self.assertIsNotNone(row.help_callback, row.title)
+      self.assertTrue(row.description, row.title)
       self.assertIsNotNone(resolve(row.help_key), row.title)
       self.assertIn(row.help_key, HELP)
 
-  def test_tapping_row_text_opens_help_popup(self):
+  def test_tapping_row_text_expands_the_help_under_the_row(self):
     self.draw()
-    row = self.home_rows()[2]
+    rows = self.home_rows()
+    row = rows[2]
     depth = len(self.gui_app._nav_stack)
+    closed_height = row.rect.height
     row._handle_mouse_release(self.rl.Vector2(row._rect.x + 200, row._rect.y + 60))
-    self.assertEqual(len(self.gui_app._nav_stack), depth + 1)
-    self.assertEqual(self.gui_app.get_active_widget().entry.title, "Driving Controls")
+    self.assertEqual(len(self.gui_app._nav_stack), depth)          # nothing is pushed
+    self.assertTrue(row.description_visible)
+    self.assertGreater(row.rect.height, closed_height)
+    self.assertIn("Driving Controls", row.description + "Driving Controls")
+    self.draw()
+    # a second tap collapses it; opening another row collapses the first
+    row._handle_mouse_release(self.rl.Vector2(row._rect.x + 200, row._rect.y + 60))
+    self.assertFalse(row.description_visible)
+    self.assertEqual(row.rect.height, closed_height)
+    row._handle_mouse_release(self.rl.Vector2(row._rect.x + 200, row._rect.y + 60))
+    other = rows[3]
+    other._handle_mouse_release(self.rl.Vector2(other._rect.x + 200, other._rect.y + 60))
+    self.assertFalse(row.description_visible)
+    self.assertTrue(other.description_visible)
+    self.assertEqual(len(self.gui_app._nav_stack), depth)
 
   def tap_pill(self, row, label):
     right = row.get_right_item_rect(row._rect)
@@ -579,22 +594,41 @@ class TestMenuNative(NativeCase):
   def test_level_gates_rows_inside_a_page(self):
     from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import BogPilotVisualsLayout
     layout = BogPilotVisualsLayout(store=self.store)
-    flame, swap = layout._toggles["BSMFlameTracks"], layout._toggles["SwapSpeedGraph"]
-    self.assertTrue(flame.is_visible and swap.is_visible)       # default: Developer
+    flame, graph = layout._toggles["BSMFlameTracks"], layout._toggles["ShowAccelGraph"]
+    lower = layout._toggles["LowerSpeedLimitsBox"]
+    self.assertTrue(flame.is_visible and graph.is_visible and lower.is_visible)  # default: Developer
     self.tl.set_level(0)
-    self.assertFalse(flame.is_visible)
-    self.assertFalse(swap.is_visible)
+    self.assertTrue(flame.is_visible)                           # Bog to the Future is Minimal
+    self.assertTrue(lower.is_visible)                           # Lower Speed Limits Box is Minimal
+    self.assertFalse(graph.is_visible)                          # Show Accel Graph is Developer
     self.tl.set_level(1)
-    self.assertTrue(flame.is_visible)
-    self.assertFalse(swap.is_visible)
+    self.assertTrue(flame.is_visible and lower.is_visible)
+    self.assertFalse(graph.is_visible)
     self.tl.set_level(2)
-    self.assertTrue(swap.is_visible)
+    self.assertTrue(flame.is_visible and lower.is_visible)
+    self.assertFalse(graph.is_visible)
+    self.tl.set_level(3)
+    self.assertTrue(graph.is_visible)
 
-  def test_adjacent_lead_boxes_and_numerical_temp_are_visible_at_minimal(self):
-    """both are ON by default, so they sit at Minimal (registry level 0) and show at every level."""
+  def test_bog_to_the_future_is_visible_at_every_level_and_stays_a_peer_under_appearance(self):
+    """Unique to this fork, so it shows at Minimal too. Its place (a peer row on Appearance) and its saved value are unchanged."""
+    from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import BogPilotVisualsLayout
+    self.assertEqual(self.tl.row_level("BSMFlameTracks"), 0)
+    layout = BogPilotVisualsLayout(store=self.store)
+    row = layout._toggles["BSMFlameTracks"]
+    self.assertEqual(row.indent, 0)
+    for level in range(4):
+      self.tl.set_level(level)
+      self.assertTrue(row.is_visible, level)
+      self.assertTrue(self.tl.row_visible("BSMFlameTracks", level), level)
+    self.assertEqual({k: v for k, v in self.saved().items() if k == "BSMFlameTracks"}, {})   # gating never writes the row
+
+  def test_adjacent_lead_boxes_are_visible_at_minimal(self):
+    """ON by default, so it sits at Minimal (registry level 0) and shows at every level. (The temperature units are no
+    longer a row: tapping the sidebar temperature box cycles them.)"""
     from openpilot.common.bogpilot_store import registry_level
     from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import BogPilotVisualsLayout
-    keys = ("AdjacentLeadsUI", "NumericalTemp")
+    keys = ("AdjacentLeadsUI",)
     for key in keys:
       self.assertEqual(registry_level(key), 0, key)
       self.assertEqual(self.tl.row_level(key), 0, key)
@@ -609,7 +643,7 @@ class TestMenuNative(NativeCase):
 
   def test_screenshots(self):
     if not self.shots:
-      self.skipTest("T1024_SHOTS not set")
+      self.skipTest("MENU_SHOTS not set")
     nav = self.menu.navigation
     for level, name in enumerate(("minimal", "standard", "advanced", "developer")):
       self.save_level(level)
@@ -627,10 +661,9 @@ class TestMenuNative(NativeCase):
     self.draw(shot="menu097_pagelist_steering.png")
     while nav.path:
       nav.back()
-    from openpilot.selfdrive.ui.bogpilot.toggle_help import open_help
-    dialog = open_help("BSMFlameTracks")
-    self.draw(shot="menu097_help_bog_to_the_future.png", widget=dialog)
-    self.draw(shot="menu097_help_tuning_level.png", widget=open_help("menu.tuning_level"))
+    row = self.home_rows()[0]
+    row._handle_mouse_release(self.rl.Vector2(row._rect.x + 200, row._rect.y + 60))
+    self.draw(shot="menu097_help_tuning_level.png")
 
 
 if __name__ == "__main__":

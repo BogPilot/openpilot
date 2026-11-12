@@ -1,18 +1,18 @@
-"""BogPilot radard publisher: frogpilotRadarState (adjacent leads) for stream-4 BSM flames / adjacent UI.
+"""BogPilot radard publisher: bogpilotRadarState (adjacent leads) for BSM flames / adjacent UI.
 
 Stock release-tizi keeps liveTracksDEPRECATED @16; this module does not reclaim that ordinal.
 
 Kept out of radard.py so the stock lead logic (and the AP1 lead filter wired by feat199) stays untouched:
 radard calls `update(RD, sm)` after its own update and `publish(pm, valid)` after radarState.
 
-  * frogpilotRadarState.leadLeft/leadRight: the closest radar track between the far and near lane lines
+  * bogpilotRadarState.leadLeft/leadRight: the closest radar track between the far and near lane lines
     on that side, inside the model's path length, moving (vLeadK >= 1) and not the in-path lead track
     (367e1fe Track.potential_adjacent_lead / get_adjacent_lead). Only computed when AdjacentLeadsUI
     (adjacent_lead_tracking) or HumanLaneChanges is on, as in 367e1fe; otherwise status is false.
   * liveTracks: every radar track, sorted by id (trackId, dRel, yRel, vRel), valid = radarState.valid.
 
 Toggles are re-read from the shared store every TOGGLE_REFRESH_S (367e1fe re-read them on
-frogpilotPlan.togglesUpdated; radard here does not subscribe to frogpilotPlan).
+bogpilotPlan.togglesUpdated; radard here does not subscribe to bogpilotPlan).
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ import numpy as np
 from openpilot.cereal import custom
 
 TOGGLE_REFRESH_S = 2.0
-SERVICES = ["frogpilotRadarState"]
+SERVICES = ["bogpilotRadarState"]
 
 
 def _interp(x: float, xp, fp) -> float:
@@ -95,9 +95,9 @@ class BogPilotRadar:
 
   @property
   def adjacent_enabled(self) -> bool:
-    """Compute adjacent leads when FrogPilot gates say so, or when BSM flames need them.
+    """Compute adjacent leads when BogPilot gates say so, or when BSM flames need them.
 
-    Stream 4 flames require leadLeft/leadRight.status + vLead; shipping defaults keep
+    The BSM flames require leadLeft/leadRight.status + vLead; shipping defaults keep
     DeveloperWidgets off, so AdjacentLeadsUI alone would never arm. BSMFlameTracks
     (file-backed, default ON) therefore also enables adjacent tracking.
     """
@@ -123,8 +123,8 @@ class BogPilotRadar:
       self.lead_left = {"status": False}
       self.lead_right = {"status": False}
 
-  def frogpilot_radar_state(self):
-    msg = custom.FrogPilotRadarState.new_message()
+  def bogpilot_radar_state(self):
+    msg = custom.BogPilotRadarState.new_message()
     msg.leadLeft = self.lead_left
     msg.leadRight = self.lead_right
     return msg
@@ -132,8 +132,8 @@ class BogPilotRadar:
   def publish(self, pm, valid: bool) -> None:
     # messaging import deferred so Mac unit tests need not load AGNOS msgq
     from openpilot.cereal import messaging
-    frs = messaging.new_message("frogpilotRadarState")
+    frs = messaging.new_message("bogpilotRadarState")
     frs.valid = valid
-    frs.frogpilotRadarState = self.frogpilot_radar_state()
-    pm.send("frogpilotRadarState", frs)
-    # liveTracks stays DEPRECATED on stock release-tizi Event @16; flames use frogpilotRadarState only.
+    frs.bogpilotRadarState = self.bogpilot_radar_state()
+    pm.send("bogpilotRadarState", frs)
+    # liveTracks stays DEPRECATED on stock release-tizi Event @16; flames use bogpilotRadarState only.

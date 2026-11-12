@@ -59,7 +59,7 @@ def cumulative_row(raw: Any, metric: bool) -> StatsRow:
     obj = _object(raw)
     if obj is None:
       return StatsRow()
-    return _row(obj["FrogPilotDrives"], obj["FrogPilotMeters"], obj["FrogPilotSeconds"], metric)
+    return _row(obj["BogPilotDrives"], obj["BogPilotMeters"], obj["BogPilotSeconds"], metric)
   except (ValueError, TypeError, KeyError, UnicodeError, OverflowError):
     return StatsRow(status="Invalid local data")
 
@@ -127,7 +127,7 @@ def read_rows(params: Any, *, history_path: Path = HISTORY_PATH, timezone_path: 
               now: datetime | None = None) -> tuple[StatsRow, StatsRow, StatsRow]:
   metric = params.get_bool("IsMetric")
   try:
-    raw = params.get("FrogPilotStats")
+    raw = params.get("BogPilotStats")
   except (KeyError, OSError, ValueError):
     raw = None
   total = cumulative_row(raw, metric)

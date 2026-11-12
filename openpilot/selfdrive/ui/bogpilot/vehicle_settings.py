@@ -1,6 +1,6 @@
-"""Vehicle settings model: restored from BogPilot 568fea frogpilot/ui/qt/offroad/vehicle_settings.cc.
+"""Vehicle settings model: restored from BogPilot 568fea bogpilot/ui/qt/offroad/vehicle_settings.cc.
 
-Only rows with an active consumer in this tree are offered (t964u):
+Only rows with an active consumer in this tree are offered:
   DisableOpenpilotLongitudinal      -> tesla_ap1 interface disable_openpilot_long() (car init) and onroad toggles
   EnableICIntegration (AP1)         -> tesla_ap1.toggles.enable_ic_integration (cluster TX, live)
   RegenComfortBrake (AP1)           -> tesla_ap1.regen_brake.regen_comfort_brake_enabled (lead MPC, live)

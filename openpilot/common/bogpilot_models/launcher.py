@@ -115,7 +115,15 @@ def run(m, store=None, demo=False):
 
 def main(demo=False):
   """Called by the manager with no arguments, exactly like stock modeld.main()."""
+  from setproctitle import setproctitle
+
   from openpilot.selfdrive.modeld import modeld as m
+  # process.py setproctitle's this module path, so procLog no longer contains
+  # "modeld" and a substring match attributes dmonitoringmodeld (stock FIFO 5
+  # on core 7, priority -6) to modeld. Stock modeld.main() still sets
+  # SCHED_FIFO 54 after the models load; restore the stock process title so
+  # that shows up. Priorities themselves are unchanged.
+  setproctitle("openpilot.selfdrive.modeld.modeld")
   return run(m, demo=demo)
 
 

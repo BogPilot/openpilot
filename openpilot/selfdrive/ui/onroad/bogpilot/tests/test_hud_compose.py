@@ -59,8 +59,8 @@ def env(state, toggle_vals, log):
     "rl": SimpleNamespace(Rectangle=Rect), "log": SimpleNamespace(SelfdriveState=SimpleNamespace(AlertSize=SimpleNamespace(full=FULL))),
     "messaging": None, "SERVICE_LIST": {}, "cloudlog": log, "AlertRenderer": AlertRenderer,
     "R": SimpleNamespace(personality_rect=personality_rect, lkas_fault_border_color=lambda ms: ("lkas", ms)),
-    "cluster_layout": lambda: L.layout_from_toggles(lambda k: toggle_vals.get(k, L.ClusterLayout().swap if k == "SwapSpeedGraph" else False)),
-    "toggles": SimpleNamespace(get=lambda k: toggle_vals[k]), "PILL_LABEL_SPACE": 40, "CLUSTER_GAP": 6, "ui_state": state,
+    "cluster_layout": lambda: L.layout_from_toggles(lambda k: toggle_vals.get(k, False)),
+    "toggles": SimpleNamespace(get=lambda k: toggle_vals[k]), "PILL_LABEL_SPACE": 40, "CLUSTER_GAP": 6, "ui_state": state, "TRAFFIC_RED": None, "UIStatus": SimpleNamespace(ENGAGED=1),
     "dataclass": dataclass, "field": field, "importlib": importlib, "time": time, "__name__": "hud_compose_synthetic",
   })
   return ns
@@ -146,8 +146,8 @@ class Base(unittest.TestCase):
   def setUp(self):
     self.log = Log()
     self.calls = Calls()
-    self.toggles = {"RedesignUI": True, "SwapSpeedGraph": True, "HideAccelGraph": False}
-    self.state = SimpleNamespace(started_frame=10, sm=SM(), is_metric=False, has_longitudinal_control=True)
+    self.toggles = {"RedesignUI": True, "ShowAccelGraph": False, "LowerSpeedLimitsBox": False}
+    self.state = SimpleNamespace(started_frame=10, sm=SM(), is_metric=False, has_longitudinal_control=True, status=1)
     self.ns = env(self.state, self.toggles, self.log)
     self.policy = SimpleNamespace(get=lambda: {"hide_lead_marker": False, "onroad_distance_button": True})
     self.traffic = SimpleNamespace(read=lambda now, start: False)
@@ -185,7 +185,7 @@ class TestOrder(Base):
               "driver_monitor": Layer(self.calls, "driver_monitor", {"driver_state"}, draw=True)}
     c = self.composer(layers)
     c.render(self.rect)
-    # t920u: a driver_monitor relocation layer, even if supplied, is never used; the stock DM always paints
+    # a driver_monitor relocation layer, even if supplied, is never used; the stock DM always paints
     self.assertEqual(list(self.calls), ["model", "lead_lockon", "hud", "lead_labels", "stock_dm", "alert"])
     self.assertFalse(c.frame.dm_relocated)
     self.assertTrue(self.model.defer_seen)
@@ -204,14 +204,22 @@ class TestOrder(Base):
 
 
 class TestStockFallback(Base):
-  def test_lock_not_painted_restores_stock_primary_chevron(self):
+  def test_lock_not_painted_does_not_draw_stock_chevron(self):
+    # rc7: when RedesignUI is on (including first frames and fail-closed hide),
+    # the stock orange lead chevron must not be flushed.
     for kw in ({"enabled": False}, {"draw": False}, {"raises": "draw"}, {"raises": "enabled"}):
       self.calls.clear()
       c = self.composer({"lead_lockon": Layer(self.calls, "lead_lockon", {"lead_chevron"}, **kw)})
       c.render(self.rect)
-      self.assertIn("stock_lead0", self.calls, kw)
-      self.assertLess(self.calls.index("stock_lead0"), self.calls.index("hud"))
+      self.assertNotIn("stock_lead0", self.calls, kw)
       self.assertIsNone(c.frame.lead_label_box)
+
+  def test_first_frame_fail_closed_hides_stock_chevron(self):
+    self.policy = type("P", (), {"get": lambda self: {"hide_lead_marker": True, "onroad_distance_button": False}})()
+    c = self.composer({"lead_lockon": Layer(self.calls, "lead_lockon", {"lead_chevron"}, enabled=False)})
+    c.render(self.rect)
+    self.assertNotIn("stock_lead0", self.calls)
+    self.assertTrue(self.toggles["RedesignUI"])
 
   def test_no_pending_stock_lead_no_flush(self):
     c = self.composer({"lead_lockon": Layer(self.calls, "lead_lockon", {"lead_chevron"}, enabled=False)},
@@ -257,7 +265,7 @@ class TestGatingGeometry(Base):
     f = c.frame
     self.assertAlmostEqual(f.scale, min(1, 2100 / 2160, 1020 / 1080))
     self.assertTrue(f.wide)
-    # t922u: the personality button takes the stock DM corner; the stock-size DM moves beside it (button/2 + gap + 96)
+    # the personality button takes the stock DM corner; the stock-size DM moves beside it (button/2 + gap + 96)
     s = f.scale
     self.assertEqual(f.stock_dm_rect.t(), Rect(60 + 75 * s + 6 * s + 8 + 96, 828, 192, 192).t())
     self.assertIn((30 + 2100 - 30 - 192, 60, 192, 192), [k.t() for k in f.keepouts])   # stock exp button
@@ -403,8 +411,8 @@ class TestTrafficAndLoader(unittest.TestCase):
 
     class TSM(dict):
       def __init__(self, t, ok=True):
-        super().__init__(frogpilotCarState=SimpleNamespace(trafficModeEnabled=True))
-        self.recv_time, self.valid, self.alive = {"frogpilotCarState": t}, {"frogpilotCarState": ok}, {"frogpilotCarState": ok}
+        super().__init__(bogpilotCarState=SimpleNamespace(trafficModeEnabled=True))
+        self.recv_time, self.valid, self.alive = {"bogpilotCarState": t}, {"bogpilotCarState": ok}, {"bogpilotCarState": ok}
 
       def update(self, timeout):
         pass
@@ -413,6 +421,27 @@ class TestTrafficAndLoader(unittest.TestCase):
     self.assertIsNone(R(TSM(9.0)).read(10.0, 5.0))        # stale
     self.assertIsNone(R(TSM(4.0)).read(4.1, 5.0))         # previous drive
     self.assertIsNone(R(TSM(9.9, ok=False)).read(10.0, 5.0))
+
+  def test_traffic_reader_message_received_after_the_frame_clock(self):
+    """On the road: no personality button. render() reads its clock first, then read() calls sm.update(0), which
+    stamps recv_time with a LATER time.monotonic() whenever a 100 Hz bogpilotCarState message is waiting (almost every
+    frame). The old 0.0 <= now - t test rejected exactly those frames, so traffic_mode stayed None and the pill and its
+    hold gesture were never drawn."""
+    ns = env(SimpleNamespace(), {}, Log())
+
+    class TSM(dict):
+      def __init__(self, stamp_after_now):
+        super().__init__(bogpilotCarState=SimpleNamespace(trafficModeEnabled=True))
+        self.stamp_after_now = stamp_after_now
+        self.recv_time, self.valid, self.alive = {"bogpilotCarState": 0.0}, {"bogpilotCarState": True}, {"bogpilotCarState": True}
+
+      def update(self, timeout):
+        self.recv_time["bogpilotCarState"] = 10.0 + self.stamp_after_now   # the frame clock is 10.0
+    R = ns["TrafficModeReader"]
+    for after in (0.0, 0.002, 0.02, 0.1, 0.2):
+      self.assertTrue(R(TSM(after)).read(10.0, 5.0), after)
+    self.assertIsNone(R(TSM(0.6)).read(10.0, 5.0))          # a stamp far in the future is still rejected
+    self.assertIsNone(R(TSM(-0.6)).read(10.0, 5.0))         # and so is a stale one
     self.assertIsNone(ns["TrafficModeReader"]().read(10.0, 5.0))   # topic absent from SERVICE_LIST
 
   def test_missing_peers_are_not_errors(self):
@@ -427,7 +456,7 @@ class TestTrafficAndLoader(unittest.TestCase):
       raise err
     layers, missing = ns["load_peer_layers"](loader)
     self.assertEqual(layers, {"lead_lockon": "LAYER"})
-    self.assertEqual(missing, {"lead_labels": "module not present"})   # t920u: driver_monitor no longer a peer
+    self.assertEqual(missing, {"lead_labels": "module not present"})   # driver_monitor no longer a peer
     self.assertEqual(log.errors, [])
     self.assertEqual(ns["load_peer_layers"](loader, mici=True)[0], {})
 

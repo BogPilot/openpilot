@@ -39,6 +39,20 @@ def before_defaults(params, *, file_root: Path | None = None,
   """
   result = StartupResult()
   directory = Path(file_root or os.getenv("BOGPILOT_PARAMS_DIR", "/data/params_bogpilot"))
+  # One-time carry-over of values saved under the pre-rename key names. Must run before registered defaults are
+  # applied (a default would make the new key look already set) and never blocks boot.
+  migration = _optional("openpilot.system.bogpilot.legacy_migration", result)
+  migrate = getattr(migration, "migrate_legacy_params", None)
+  done = getattr(migration, "migration_done", None)
+  if migrate is not None and done is not None:
+    try:
+      if not done(directory):
+        moved = migrate(params, file_root=directory)
+        if moved["migrated"]:
+          result.events.append(f"rename-migration:{len(moved['migrated'])}")
+        result.errors.extend(f"rename-migration: {e}" for e in moved["errors"])
+    except Exception as exc:
+      result.errors.append(f"rename-migration: {type(exc).__name__}")
   try:
     known = {k.decode() if isinstance(k, bytes) else k for k in params.all_keys()}
     result.profile_suppressed = "DoToggleResetStock" in known and params.get_bool("DoToggleResetStock")
@@ -131,6 +145,12 @@ def after_defaults(params, *, file_root: Path | None = None, startup: StartupRes
   result = StartupResult()
   directory = Path(file_root or os.getenv("BOGPILOT_PARAMS_DIR", "/data/params_bogpilot"))
   try:
+    from openpilot.system.bogpilot.boot_logo import install_boot_logo, install_boot_bg_png
+    result.events.append(f"boot-logo:{install_boot_logo()}")
+    result.events.append(f"boot-bg-png:{install_boot_bg_png()}")
+  except Exception as exc:
+    result.errors.append(f"boot-logo: {type(exc).__name__}")
+  try:
     from openpilot.common import bogpilot_toggles
     migrate = getattr(bogpilot_toggles, "migrate_screensaver_default_off", None)
     if migrate is not None:
@@ -138,6 +158,12 @@ def after_defaults(params, *, file_root: Path | None = None, startup: StartupRes
       result.events.append("screensaver:migrated")
     else:
       result.events.append("screensaver:dependency-missing")
+    layout = getattr(bogpilot_toggles, "migrate_ui_layout_defaults", None)
+    if layout is not None:
+      layout(directory=directory)
+      result.events.append("ui-layout:migrated")
+    else:
+      result.events.append("ui-layout:dependency-missing")
   except Exception as exc:
     result.errors.append(f"screensaver: {type(exc).__name__}")
   try:
@@ -156,4 +182,16 @@ def after_defaults(params, *, file_root: Path | None = None, startup: StartupRes
     result.events.append(f"ap1:{len(changed)}")
   except Exception as exc:
     result.errors.append(f"ap1: {type(exc).__name__}")
+  try:
+    from openpilot.common.bogpilot_ap1_profile import apply_legacy_slc_defaults_once
+    changed = apply_legacy_slc_defaults_once(params, bogpilot_dir=directory)
+    result.events.append(f"legacy-slc:{len(changed)}")
+  except Exception as exc:
+    result.errors.append(f"legacy-slc: {type(exc).__name__}")
+  try:
+    from openpilot.common.bogpilot_ap1_profile import apply_legacy_tesla_long_defaults_once
+    changed = apply_legacy_tesla_long_defaults_once(params, bogpilot_dir=directory)
+    result.events.append(f"legacy-tesla-long:{len(changed)}")
+  except Exception as exc:
+    result.errors.append(f"legacy-tesla-long: {type(exc).__name__}")
   return result

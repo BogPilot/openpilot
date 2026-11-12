@@ -12,6 +12,7 @@ from openpilot.selfdrive.ui.onroad.bogpilot.flame_tracks import FlameTracks, Fla
 import time
 from openpilot.selfdrive.ui.onroad.bogpilot.bsm_state import adjacent_leads, blindspots, BsmPolicy
 from openpilot.selfdrive.ui.ui_state import ui_state
+from openpilot.selfdrive.ui.onroad.bogpilot.style import TRAFFIC_PATH_GRADIENT
 from openpilot.system.ui.lib.shader_polygon import draw_polygon
 
 
@@ -60,35 +61,41 @@ class BlindspotOverlay:
     empty = np.empty((0, 2), dtype=np.float32)
     lanes, shown = [empty, empty], [False, False]
     now = time.monotonic()
-    # Do not paint from the previous drive's or a stale car state (t921u: recv_time age <= 0.5 s as well).
+    # Do not paint from the previous drive's or a stale car state.
     fresh = (sm.valid["carState"] and sm.alive["carState"] and
              sm.recv_frame["carState"] > ui_state.started_frame and
              all(sm.valid[name] and sm.alive[name] and sm.recv_frame[name] > ui_state.started_frame
                  for name in ("modelV2", "extrinsicsCalibration")))
     flags = blindspots(sm, ui_state.started_frame, now) if fresh else (False, False)
     if fresh and self._bsm_policy.enabled(bool(toggles.get("BlindSpotPath")), getattr(ui_state, "CP", None)):
-      for side, (outer, inner) in enumerate(((0, 1), (3, 2))):
-        a, b = self._lane_lines[outer].raw_points, self._lane_lines[inner].raw_points
-        n = min(len(a), len(b))
-        if n < 2:
-          continue
-        width = float(np.median(np.abs(a[:n, 1] - b[:n, 1])))
-        if not np.isfinite(width) or not 1.0 < width < 6.0:
-          continue
-        centre = (a[:n] + b[:n]) / 2.0
-        distance = min(100.0, float(centre[-1, 0]))
-        idx = self._get_path_length_idx(centre[:, 0], distance)
-        poly = self._map_line_to_polygon(centre, width / 2, 0.0, idx, distance)
-        if not poly.size or not np.isfinite(poly).all():
-          continue
-        # Mici stores camera projection in rect-local coordinates; tizi uses
-        # screen coordinates. Convert exactly once before BSM or flame paint.
-        poly = poly + self._overlay_offset()
-        lanes[side] = poly
-        if flags[side]:
-          bottom = self._rect.y + self._rect.height
-          draw_polygon(self._rect, extend_to_bottom(poly, bottom), rl.Color(255, 0, 0, 110))
-          shown[side] = True
+      # _map_line_to_polygon is not free; skip it unless a red fill is up, a flame
+      # is already burning, or the post-fill arm window is open (so a trigger this
+      # frame still has lane geometry to paint).
+      trig = self._flames.trigger
+      need_lanes = any(flags) or any(s.start_ms >= 0 or s.arm_until_ms >= 0 for s in getattr(trig, "side", ()))
+      if need_lanes:
+        for side, (outer, inner) in enumerate(((0, 1), (3, 2))):
+          a, b = self._lane_lines[outer].raw_points, self._lane_lines[inner].raw_points
+          n = min(len(a), len(b))
+          if n < 2:
+            continue
+          width = float(np.median(np.abs(a[:n, 1] - b[:n, 1])))
+          if not np.isfinite(width) or not 1.0 < width < 6.0:
+            continue
+          centre = (a[:n] + b[:n]) / 2.0
+          distance = min(100.0, float(centre[-1, 0]))
+          idx = self._get_path_length_idx(centre[:, 0], distance)
+          poly = self._map_line_to_polygon(centre, width / 2, 0.0, idx, distance)
+          if not poly.size or not np.isfinite(poly).all():
+            continue
+          # Mici stores camera projection in rect-local coordinates; tizi uses
+          # screen coordinates. Convert exactly once before BSM or flame paint.
+          poly = poly + self._overlay_offset()
+          lanes[side] = poly
+          if flags[side]:
+            bottom = self._rect.y + self._rect.height
+            draw_polygon(self._rect, extend_to_bottom(poly, bottom), rl.Color(255, 0, 0, 110))
+            shown[side] = True
     self.bp_bsm_shown = (shown[0], shown[1])
     adj = adjacent_leads(sm, ui_state.started_frame, now) if fresh else [(False, 0.0)] * 2
     inputs = [FlameSideInput(shown[i], adj[i][0], adj[i][1]) for i in range(2)]
@@ -99,7 +106,7 @@ class BlindspotOverlay:
 
 
 def extend_to_bottom(poly, bottom):
-  """t922u: continue the BSM lane fill down to the screen bottom (behind the DM / personality button).
+  """Continue the BSM lane fill down to the screen bottom (behind the DM / personality button).
 
   Stock _map_line_to_polygon drops every point outside the clip region, so the projected lane stops where its
   nearest visible model point is. The road plane is flat near the car, so each lane edge is continued along its
@@ -120,7 +127,15 @@ def extend_to_bottom(poly, bottom):
 
 
 class BogPilotModelRenderer(BlindspotOverlay, ModelRenderer):
-  pass
+  bp_traffic_red = False   # set by HudComposer each frame (engaged, longitudinal, Traffic Mode on)
+
+  def _draw_path(self, sm):
+    # 0.9.7 setPathEdgeColors: the path takes the status colour, TRAFFIC_RED in Traffic Mode while engaged.
+    # Experimental mode keeps its acceleration gradient. Same polygon, only the constant gradient differs.
+    if not self.bp_traffic_red or self._experimental_mode or not self._path.projected_points.size:
+      return super()._draw_path(sm)
+    self._blend_filter.update(int(sm['longitudinalPlan'].allowThrottle or not self._longitudinal_control))
+    draw_polygon(self._rect, self._path.projected_points, gradient=TRAFFIC_PATH_GRADIENT)
 
 
 class BogPilotMiciModelRenderer(BlindspotOverlay, MiciModelRenderer):

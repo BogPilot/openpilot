@@ -38,11 +38,6 @@ FORBIDDEN_CACHE_NAMES = frozenset({
 # Soft API/nav caches stored as Params strings — not secrets.
 API_CACHE_KEYS = ("ApiCache_DriveStats", "ApiCache_NavDestinations")
 
-PENDING = {
-  "Flash Panda": "Pending verified firmware/update lifecycle. No flash request is issued.",
-  "Force Drive State": "Pending isolated simulation policy; real ignition and safety state stay untouched.",
-}
-
 # Phase3 adoption markers (file-store). Surviving after a defaults reset would make
 # gas/brake/follow/speed consumers LIVE on rewritten shipping values — unlike a
 # fresh install. Cleared on every BogPilot-defaults reset.
@@ -81,8 +76,8 @@ def shipping_defaults():
   """
   from openpilot.common.bogpilot_params import BOGPILOT_PARAMS
   from openpilot.common.bogpilot_shipping_defaults import PARAM_OVERRIDES
-  from openpilot.common.bogpilot_toggles import FILE_TOGGLES
-  from openpilot.system.bogpilot.toggle_reset import RESET_KEYS, FILE_RESET_KEYS
+  from openpilot.common.bogpilot_toggles import FILE_CHOICES, FILE_TOGGLES
+  from openpilot.system.bogpilot.toggle_reset import RESET_KEYS, FILE_RESET_KEYS, FILE_CHOICE_RESET_KEYS
 
   values = {}
   for key in sorted(RESET_KEYS):
@@ -94,6 +89,7 @@ def shipping_defaults():
     if key in values:
       values[key] = value
   values.update({key: "1" if FILE_TOGGLES[key][0] else "0" for key in sorted(FILE_RESET_KEYS)})
+  values.update({key: FILE_CHOICES[key][0] for key in FILE_CHOICE_RESET_KEYS})
   values["OffroadScreensaver"] = "0"
   values["AlertVolumeControl"] = "0"
   for key in list(values):

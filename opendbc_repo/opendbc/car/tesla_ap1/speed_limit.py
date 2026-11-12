@@ -1,8 +1,8 @@
-"""AP1 posted speed limit for FrogPilot dashboardSpeedLimit.
+"""AP1 posted speed limit for BogPilot dashboardSpeedLimit.
 
 Mobileye DAS_fusedSpeedLimit (stock AutopilotStatus on autopilot_chassis /
 bus 2) first, then GTW UI_mapSpeedLimit / UI_mppSpeedLimit. Output is m/s for
-frogpilotCarState.dashboardSpeedLimit (same as Toyota/Ford/Hyundai).
+bogpilotCarState.dashboardSpeedLimit (same as Toyota/Ford/Hyundai).
 
 Stock 0x399 only: CarState reads AutopilotStatus from cp_cam
 (CANBUS.autopilot_chassis). Cluster TX is on chassis bus 0 and never reaches
@@ -14,6 +14,8 @@ physical mph or kph). Units come from UI_mapSpeedLimitUnits (0 MPH, 1 KPH).
 
 No new Params keys. AP1-only callers. Not a product, no warranty.
 """
+
+import math
 
 from opendbc.car.common.conversions import Conversions as CV
 
@@ -31,9 +33,36 @@ _UI_MAP_SNA = 31
 # DAS_fusedSpeedLimit physical (after DBC factor 5). NONE is 31*5=155.
 _FUSED_NONE_MIN = 150.0
 
+# UI_mppSpeedLimit physical after the same factor of 5. tesla_ap1_can.dbc has no VAL_ for this
+# signal (the sibling UI_mapSpeedLimit enumerates 31 as "SNA"; DAS_fusedSpeedLimit enumerates 31
+# as "NONE"). Tinkla 501c7de carstate.py:355 uses the physical value with no SNA check. 155 cannot
+# be a real posted limit, so treat it as none (fail closed).
+_MPP_SNA_PHYS = 31 * 5  # 155
+
 
 def _uom_to_ms(value: float, metric: bool) -> float:
   return float(value) * (CV.KPH_TO_MS if metric else CV.MPH_TO_MS)
+
+
+# Engage-set input only: a limit frame older than this counts as unknown. The UI map / mpp messages and
+# AutopilotStatus are frequency 0 (optional), so the parser keeps their last value forever. No age gate in
+# the refs (Tinkla 501c7de, BogPilot 0.9.7 and NAP parse them with no check), so this is our choice:
+# 3x the slowest period measured in captures (UI_gpsVehicleSpeed 1 s; UI_driverAssistMapData and
+# AutopilotStatus 0.5 s; worst gap seen 1.01 s).
+LIMIT_MAX_AGE_S = 3.0
+
+
+def frame_fresh(parser, msg_name: str, max_age_s: float = LIMIT_MAX_AGE_S) -> bool:
+  """True if msg_name was received within max_age_s of the parser's last update.
+
+  Uses CANParser._last_update_nanos (set on every update(), including empty
+  ones) so a silent bus does not keep a stale limit looking fresh against
+  last_nonempty_nanos. Falls back to last_nonempty_nanos if needed.
+  """
+  ts = getattr(parser, "ts_nanos", {}).get(msg_name)
+  last = max(ts.values()) if ts else 0
+  now = getattr(parser, "_last_update_nanos", 0) or getattr(parser, "last_nonempty_nanos", 0)
+  return last > 0 and (now - last) <= max_age_s * 1e9
 
 
 def fused_speed_limit_ms(fused_phys, metric: bool) -> float:
@@ -66,14 +95,14 @@ def ui_map_speed_limit_ms(ui_map_code, metric: bool) -> float:
 
 
 def mpp_speed_limit_ms(mpp_phys, metric: bool) -> float:
-  """UI_mppSpeedLimit physical value → m/s, or 0 if missing/zero."""
+  """UI_mppSpeedLimit physical value → m/s, or 0 if missing/zero/non-finite/raw 31 (155)."""
   if mpp_phys is None:
     return 0.0
   try:
     v = float(mpp_phys)
   except (TypeError, ValueError):
     return 0.0
-  if v <= 0.0:
+  if v <= 0.0 or v >= _MPP_SNA_PHYS or not math.isfinite(v):
     return 0.0
   return _uom_to_ms(v, metric)
 

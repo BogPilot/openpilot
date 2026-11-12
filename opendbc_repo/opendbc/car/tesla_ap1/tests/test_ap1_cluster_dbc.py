@@ -47,3 +47,23 @@ def test_cluster_signals_other_than_the_set_speed_are_unchanged():
     for name, sig in sigs.items():
       if (addr, name) != (c.DAS_STATUS2, "DAS_accSpeedLimit"):
         assert legacy[addr][name] == sig, (hex(addr), name)
+
+
+def test_controller_keeps_last_nonzero_set_while_enabled():
+  """While enabled, a missing (None/0) set keeps our last nonzero set on 0x389, not the stock digit; reset on disengage."""
+  ctl = c.ClusterController()
+  stock = {c.DAS_STATUS2: {"DAS_accSpeedLimit": 10.0}}
+  t = [0]
+
+  def digit(**kw):
+    t[0] += 10_000_000
+    frames = dict(ctl.update(_hud(**kw), stock, t[0]))
+    return c.unpack(c.DAS_STATUS2, frames[c.DAS_STATUS2])["DAS_accSpeedLimit"] if c.DAS_STATUS2 in frames else None
+
+  assert digit(cruise_set_mph=None) == 10.0          # nothing ours yet this engagement: stock
+  assert digit(cruise_set_mph=40.0) == 40.0
+  assert digit(cruise_set_mph=None) == 40.0          # set missing: keep ours
+  assert digit(cruise_set_mph=0.0) == 40.0
+  assert digit(cruise_set_mph=35.2) == 35.2          # a real change still shows
+  digit(enabled=False)                                # disengage clears it
+  assert digit(cruise_set_mph=None) == 10.0

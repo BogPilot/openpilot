@@ -161,7 +161,7 @@ class TestStatsAndExport(unittest.TestCase):
     self.addCleanup(self.tmp.cleanup)
     self.export = Path(self.tmp.name).resolve() / "exports"
     self.export.mkdir()
-    self.store = Store({"FrogPilotStats": '{"distance":5,"weeks":{}}'})
+    self.store = Store({"BogPilotStats": '{"distance":5,"weeks":{}}'})
     self.allowed = True
     self.backups = Path(self.tmp.name).resolve() / "stats_backups"
     self.p = b.SystemPreferences(self.store, lambda: self.allowed, lambda: True, stats_backup_dir=str(self.backups))
@@ -174,7 +174,7 @@ class TestStatsAndExport(unittest.TestCase):
 
   def test_reset_writes_durable_backup_first(self):
     self.p.reset_stats()
-    saved = list(self.backups.glob("FrogPilotStats.*.json"))
+    saved = list(self.backups.glob("BogPilotStats.*.json"))
     self.assertEqual(len(saved), 1)
     self.assertEqual(saved[0].read_text(), '{"distance":5,"weeks":{}}')
 
@@ -186,7 +186,7 @@ class TestStatsAndExport(unittest.TestCase):
     self.assertEqual(p.stats(), {"distance": 5, "weeks": {}})
 
   def test_bad_stats_preserved(self):
-    self.store.values["FrogPilotStats"] = "broken"
+    self.store.values["BogPilotStats"] = "broken"
     with self.assertRaises(ValueError):
       self.p.stats()
     self.assertEqual(self.store.writes, [])

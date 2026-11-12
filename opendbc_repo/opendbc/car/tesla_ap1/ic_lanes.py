@@ -1,6 +1,6 @@
 """AP1 cluster lane placement (0x239 DAS_lanes C0..C3). Display only.
 
-Ported from BogPilot 0.9.7 bogpilot-tesla-ic-discovery-2 selfdrive/car/tesla/ic_lanes.py
+Ported from BogPilot 0.9.7 bogpilot-tesla-ic-discovery selfdrive/car/tesla/ic_lanes.py
 (lane fix only; the 1 Hz shadow log and the lead "snap" log are not ported, they
 only logged and needed a radarState SubMaster that opendbc cannot own).
 

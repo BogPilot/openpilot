@@ -17,8 +17,10 @@ from opendbc.car.tesla_ap1.cluster import (
   CLUSTER_BUS, ClusterController, HudInputs, path_from_model_v2,
 )
 from opendbc.car.tesla_ap1.engage_ramp import Ap1EngageSteerRamp
+from opendbc.car.tesla_ap1.epas_gate import EAC_BLOCKING_STATUS, EpasGate
 from opendbc.car.tesla_ap1.ic_lanes import IcLanes
 from opendbc.car.tesla_ap1.hso import AP1_HANDS_ON_LEVEL, Ap1DriverYield, ap1_lat_active, ap1_steering_pressed
+from opendbc.car.tesla_ap1.override import DriverOverrideDetector, read_sensitivity_level
 from opendbc.car.tesla_ap1.long_smooth import Ap1AccelSmoother, Ap1JerkLimit, ap1_brake_urgent, ap1_fcw
 from opendbc.car.tesla_ap1.steer_counter import Ap1SteerCounterSync
 from opendbc.car.tesla_ap1.teslacan import TeslaCAN
@@ -55,6 +57,12 @@ class CarController(CarControllerBase):
     # AP1 hands pause + resume hold (hso.Ap1DriverYield). Read by the
     # interface for the steerOverride event so the border stays grey.
     self.ap1_yield = Ap1DriverYield()
+    # Independent override detector (override.py) and the angle of the last ANGLE
+    # frame sent (None when the last frame was not an active command).
+    self.ap1_override = DriverOverrideDetector(read_sensitivity_level())   # Override Sensitivity, read once per drive
+    self.ap1_cmd_deg = None
+    self.ap1_epas_gate = EpasGate()
+    self.ap1_prev_lat_session = False
     # Structural AP1 (Model S and Model X): engage blend from the measured wheel.
     self.ap1_steer_ramp = Ap1EngageSteerRamp() if is_ap1_family(CP.carFingerprint) else None
     # Structural AP1: 0x488 phase and counter follow the stock DAS (steer_counter.py).
@@ -80,20 +88,30 @@ class CarController(CarControllerBase):
     chassis_das_only = ap1
     soft_start = False
     driver_yield = False
+    epas_yield = False
+    lat_session = None
     # AP1 lateral session: engaged, or Always On Lateral steering while not engaged. controlsd only
-    # sets latActive without enabled when frogpilotCarState.alwaysOnLateralEnabled is true, so with
+    # sets latActive without enabled when bogpilotCarState.alwaysOnLateralEnabled is true, so with
     # AOL off steer_session == CC.enabled and nothing below changes.
     steer_session = bool(CC.enabled) or (ap1 and bool(CC.latActive))
     if ap1:
       enabled = steer_session
       # Hands >= 2 starts it; level 0 for AP1_RESUME_HOLD_S ends it. Only
       # during a lateral session, so it never holds off disengage or a new engage.
-      driver_yield = self.ap1_yield.update(enabled, CS.hands_on_level)
+      override_signal = self.ap1_override.update(
+        enabled, CS.hands_on_level, getattr(CS.out, "steeringTorque", 0.0), getattr(CS.out, "steeringRateDeg", 0.0),
+        CS.out.steeringAngleDeg, self.ap1_cmd_deg)
+      driver_yield = self.ap1_yield.update(enabled, CS.hands_on_level, override_signal, self.ap1_override.quiet)
       if enabled and not self.ap1_prev_enabled:
         self.ap1_engage_frame = self.frame
-      if self.ap1_yield.resumed:
+      # EPAS refusal gate (epas_gate.py): INHIBITED, FAULT, SNA or a blocking error code stops commanding on
+      # this frame. Both the end of that block and a new latActive start the measured-angle soft-start.
+      lat_session = bool(CC.latActive)
+      epas_yield = self.ap1_epas_gate.update(lat_session, CS.eac_status, CS.steer_warning, bool(CS.eac_fault))
+      if self.ap1_yield.resumed or self.ap1_epas_gate.resumed or (lat_session and not self.ap1_prev_lat_session):
         # Resume from the measured wheel through the engage soft-start.
         self.ap1_engage_frame = self.frame
+      self.ap1_prev_lat_session = lat_session
       if not enabled:
         self.ap1_engage_frame = None
       self.ap1_prev_enabled = enabled
@@ -107,9 +125,11 @@ class CarController(CarControllerBase):
     if self.ap1_steer_ramp is not None:
       # Planner path this step: same gate as build_actuator_plan's lkas branch
       # (hands pause / yield, EAC fault and soft-start hold take other branches).
-      hands_pause = CS.hands_on_level >= AP1_HANDS_ON_LEVEL or driver_yield
+      epas_blocked = epas_yield or CS.eac_status in EAC_BLOCKING_STATUS
+      hands_pause = CS.hands_on_level >= AP1_HANDS_ON_LEVEL or driver_yield or epas_blocked
       held = ap1_hold_measured_angle(True, steer_session, bool(CS.eac_fault), hands_pause,
-                                     CS.eac_status, CS.steer_warning, soft_start)
+                                     CS.eac_status, CS.steer_warning, soft_start,
+                                     lat_session=lat_session, epas_blocked=epas_blocked)
       path_active = (steer_session and lat_active and not hands_on_fault and not hands_pause and
                      not bool(CS.eac_fault) and not held)
       requested_angle = self.ap1_steer_ramp.update(path_active, CS.out.steeringAngleDeg, actuators.steeringAngleDeg)
@@ -124,7 +144,7 @@ class CarController(CarControllerBase):
       fcw = ap1_fcw(CC)
       accel = self.ap1_accel_smoother.update(actuators.accel, long_allowed_now, CS.out.vEgo, gas_neutral=gas_neutral,
                                              urgent=urgent, fcw=fcw,
-                                             a_ego=getattr(CS.out, "aEgo", None))
+                                             a_ego=getattr(CS.out, "aEgo", None), gas_pressed=gas_pressed)
       jerk_min, jerk_max = self.ap1_jerk_limit.update(accel, long_allowed_now, CS.out.vEgo, gas_neutral=gas_neutral,
                                                       urgent=urgent, fcw=fcw)
       jerk_limits = {"jerk_min": jerk_min, "jerk_max": jerk_max}
@@ -155,6 +175,8 @@ class CarController(CarControllerBase):
       eac_status=CS.eac_status if ap1 else None,
       soft_start=soft_start,
       driver_yield=driver_yield,
+      epas_yield=epas_yield,
+      lat_session=lat_session if ap1 else None,
       # AP1: neutral DAS_control while the driver presses the accelerator.
       gas_pressed=bool(getattr(CS.out, "gasPressed", False)) if ap1 else False,
       steer_tick=steer_tick,
@@ -164,6 +186,10 @@ class CarController(CarControllerBase):
                                   bool(getattr(CS, "stock_ap_active", False))) if (ap1 and self.ap1_standstill) else False,
     )
     self.apply_angle_last = plan.apply_angle_last
+    if plan.steer is not None:
+      self.ap1_cmd_deg = plan.steer.angle_deg if plan.steer.enabled else None
+    elif not steer_session:
+      self.ap1_cmd_deg = None
     if plan.steer is not None and self.ap1_steer_sync is not None:
       self.ap1_steer_sync.commit(plan.steer.counter, self.frame)
 

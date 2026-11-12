@@ -29,7 +29,7 @@ def pm_patch(mocker, name, value, constant=False):
 class TestPowerMonitoring(OpenpilotTestCase):
   def setup_method(self):
     self._fixture("mocker").patch("time.monotonic", mock_time_monotonic)
-    # BogPilot Device Controls hooks are covered in test_int_t994_device_hooks; these are the stock-path tests.
+    # BogPilot Device Controls hooks are covered in test_device_controls_hooks; these are the stock-path tests.
     class _StockStore:
       def get_bool(self, *a, **k):
         return False

@@ -143,6 +143,6 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"Version", {PERSISTENT, STRING}},
 
 
-    // FrogPilot / BogPilot keys (generated from openpilot/common/bogpilot_params.py)
+    // BogPilot keys (generated from openpilot/common/bogpilot_params.py)
 #include "common/params_keys_bogpilot.h"
 };

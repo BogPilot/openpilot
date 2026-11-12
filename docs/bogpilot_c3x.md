@@ -1,6 +1,6 @@
 # BogPilot on comma 3X (AGNOS 19.9)
 
-**Status:** research / do-not-use candidate (integration build). Not a release product. Stationary
+**Status:** research / do-not-use candidate. Not a release product. Stationary
 offroad validation only unless a later note says otherwise. You are responsible
 for local laws and for staying attentive behind the wheel.
 
@@ -120,7 +120,7 @@ parent toggles that gate them.
 |---|---|
 | Speed Limit Controller / Following | Held: high-risk longitudinal control, not integrated yet |
 | Lane Changes (automatic/nudgeless) | Integrated with adoption markers and BSM fail-closed; Human-Like Lane Changes / Turn Desires consumers present but no menu row (dormant) |
-| Drive stats producer (`trackd`) | Present but needs owner authorization before relying on it |
+| Drive stats producer (`trackd`) | Present but needs extra verification before relying on it |
 | Model Selector | **Paused** (stock models only) |
 | Always-On Lateral (AOL) | **Blocked** (safety findings); out of runtime |
 | The Bog | Not restored unless newly authorized |
@@ -131,7 +131,7 @@ parent toggles that gate them.
 - Missing menus on a fresh install are often **by design** of the active-only build, not a failed publish
 - No physical validation of alert audio, reverse camera or on-road behavior has been done; stationary offroad bench only
 - AP1 fingerprint needs the CAN signature (or developer `FINGERPRINT`); empty FW table
-- Drive Stats producer needs explicit owner authorization before you rely on it
+- Drive Stats producer needs extra verification before you rely on it
 - AOL core excluded; Model Selector paused; Goat Scream skipped
 - Telemetry: the tip's own cloud/uploader toggles default OFF and are audited by tests; no claim beyond what those tests prove (see README User Data section)
 - Lineage note: Pre-AP signal **data values** may come from an **upstream legacy port** (data only). BogPilot does not ship that port's code. Tinkla and BogPilot's own code are primary; NotAutopilot is contrast / fill only

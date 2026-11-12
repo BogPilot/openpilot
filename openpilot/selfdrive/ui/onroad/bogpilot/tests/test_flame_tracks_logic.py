@@ -1,6 +1,6 @@
 """Unit tests for Bog to the Future flame-track trigger (no pyray).
 
-Mirrors bogpilot-tesla bsm_flame_tracks.h FlameTrigger: 88 mph, 0.5 s grace, 3 s burn,
+Mirrors bogpilot-tesla bsm_flame_tracks.h FlameTrigger: 88 mph, 2222 ms post-BSM window, 3 s burn,
 flame height 0.55, toggle default ON.
 """
 from __future__ import annotations
@@ -10,7 +10,7 @@ import unittest
 from openpilot.selfdrive.ui.onroad.bogpilot.flame_tracks_logic import (
   DURATION_MS,
   FLAME_HEIGHT_SCALE,
-  GRACE_MS,
+  BSM_FLAME_WINDOW_MS,
   MPH_TO_MS,
   TOGGLE_DEFAULT,
   TOGGLE_KEY,
@@ -29,9 +29,9 @@ class TestFlameConstants(unittest.TestCase):
     self.assertAlmostEqual(TRIGGER_SPEED_MS, 88.0 * 0.44704, places=5)
     self.assertAlmostEqual(MPH_TO_MS, 0.44704, places=5)
 
-  def test_duration_and_grace(self):
+  def test_duration_and_window(self):
     self.assertEqual(DURATION_MS, 3000)
-    self.assertEqual(GRACE_MS, 500)
+    self.assertEqual(BSM_FLAME_WINDOW_MS, 2222)
 
   def test_flame_height_classic(self):
     self.assertAlmostEqual(FLAME_HEIGHT_SCALE, 0.55, places=5)
@@ -77,15 +77,54 @@ class TestFlameTrigger(unittest.TestCase):
     self.t.update(0, True, [_in(True), _in()])
     self.t.update(100, True, [_in(False, True, slow), _in()])  # arm, but slow
     self.assertFalse(self.t.any_active())
-    self.t.update(400, True, [_in(False, True, fast), _in()])  # within 500 ms grace
+    self.t.update(400, True, [_in(False, True, fast), _in()])  # well within BSM_FLAME_WINDOW_MS
     self.assertTrue(self.t.active(0))
 
-  def test_grace_expires(self):
+  def test_window_expires(self):
     fast = 90.0 * MPH_TO_MS
     self.t.update(0, True, [_in(True), _in()])
     self.t.update(100, True, [_in(False, True, 0.0), _in()])  # arm
-    self.t.update(700, True, [_in(False, True, fast), _in()])  # 600 ms after off > grace
+    self.t.update(100 + BSM_FLAME_WINDOW_MS + 1, True, [_in(False, True, fast), _in()])
     self.assertFalse(self.t.any_active())
+
+  def test_window_allows_2s_late_lead(self):
+    fast = 90.0 * MPH_TO_MS
+    self.t.update(0, True, [_in(True), _in()])
+    self.t.update(100, True, [_in(False, True, 0.0), _in()])
+    self.t.update(100 + 2000, True, [_in(False, True, fast), _in()])
+    self.assertTrue(self.t.active(0))
+    self.assertFalse(self.t.active(1))
+
+  def test_window_rejects_2_4s_late_lead(self):
+    fast = 90.0 * MPH_TO_MS
+    self.t.update(0, True, [_in(True), _in()])
+    self.t.update(100, True, [_in(False, True, 0.0), _in()])
+    self.t.update(100 + 2400, True, [_in(False, True, fast), _in()])
+    self.assertFalse(self.t.any_active())
+
+  def test_window_inclusive_at_2222_ms(self):
+    # now_ms <= arm_until_ms, so a lead at exactly 2222 ms after the falling edge still fires.
+    fast = 90.0 * MPH_TO_MS
+    self.t.update(0, True, [_in(True), _in()])
+    self.t.update(100, True, [_in(False, True, 0.0), _in()])
+    self.t.update(100 + 2222, True, [_in(False, True, fast), _in()])
+    self.assertTrue(self.t.active(0))
+
+  def test_window_closed_at_2223_ms(self):
+    fast = 90.0 * MPH_TO_MS
+    self.t.update(0, True, [_in(True), _in()])
+    self.t.update(100, True, [_in(False, True, 0.0), _in()])
+    self.t.update(100 + 2223, True, [_in(False, True, fast), _in()])
+    self.assertFalse(self.t.any_active())
+
+  def test_window_covers_2105_ms_event(self):
+    # Recorded delay from left BSM falling edge to the first >88 mph same-side lead.
+    fast = 89.954 * MPH_TO_MS
+    self.t.update(0, True, [_in(True), _in()])
+    self.t.update(100, True, [_in(False, True, 0.0), _in()])
+    self.t.update(100 + 2105.903, True, [_in(False, True, fast), _in()])
+    self.assertTrue(self.t.active(0))
+    self.assertFalse(self.t.active(1))
 
   def test_burn_ends_after_duration(self):
     fast = 90.0 * MPH_TO_MS

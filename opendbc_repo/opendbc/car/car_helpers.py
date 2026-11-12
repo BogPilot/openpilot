@@ -155,6 +155,10 @@ def get_car(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_multip
   if candidate is None:
     from opendbc.car.tesla_ap1.modelx_fingerprint import detect_ap1_candidate
     detected_ap1 = detect_ap1_candidate(fingerprints)
+    if detected_ap1 is None:
+      # Pre-AP Model S: AP1 detection first; only a positive Comma Pedal + no-Mobileye signature selects it.
+      from opendbc.car.tesla_ap1.preap.detection import detect_preap_candidate
+      detected_ap1 = detect_preap_candidate(fingerprints)
     if detected_ap1 is not None:
       candidate = detected_ap1
       source = CarParams.FingerprintSource.can
@@ -171,8 +175,14 @@ def get_car(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_multip
     carlog.error({"event": "car doesn't match any fingerprints", "fingerprints": repr(fingerprints)})
     candidate = "MOCK"
 
+  params_fingerprint = fingerprints
+  if source == CarParams.FingerprintSource.fixed:
+    from opendbc.car.tesla_ap1.values import ForcedFingerprint, is_ap1_family
+    if is_ap1_family(candidate):
+      params_fingerprint = ForcedFingerprint(fingerprints)
+
   CarInterface = interfaces[candidate]
-  CP: CarParams = CarInterface.get_params(candidate, fingerprints, car_fw, alpha_long_allowed, is_release, docs=False)
+  CP: CarParams = CarInterface.get_params(candidate, params_fingerprint, car_fw, alpha_long_allowed, is_release, docs=False)
   CP.carVin = vin
   CP.carFw = car_fw
   CP.fingerprintSource = source

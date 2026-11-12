@@ -242,6 +242,7 @@ void gen_crc_lookup_table_8(uint8_t poly, uint8_t crc_lut[]);
 void gen_crc_lookup_table_16(uint16_t poly, uint16_t crc_lut[]);
 bool steer_torque_cmd_checks(int desired_torque, int steer_req, const TorqueSteeringLimits limits);
 bool steer_angle_cmd_checks(int desired_angle, bool steer_control_enabled, const AngleSteeringLimits limits);
+bool steer_angle_cmd_checks_with_lateral_permission(int desired_angle, bool steer_control_enabled, const AngleSteeringLimits limits, bool lateral_allowed);
 bool steer_angle_cmd_checks_vm(int desired_angle, bool steer_control_enabled, const AngleSteeringLimits limits,
                                const AngleSteeringParams params);
 bool steer_curvature_cmd_checks(int desired_curvature, int steer_power, bool steer_control_enabled, const CurvatureSteeringLimits limits);

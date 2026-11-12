@@ -1,17 +1,17 @@
-"""BogPilot alert-volume policy for AGNOS 12.8 / 19.9 ports (stream 7).
+"""BogPilot alert-volume policy for AGNOS 12.8 / 19.9 ports (alert volumes).
 
-FrogPilot table defaults (frogpilot_variables / frogpilot_defaults):
+BogPilot table defaults (bogpilot_variables / bogpilot_defaults):
   AlertVolumeControl = 0 (off) — ambient volume for every alert, including engage/disengage
   EngageVolume / DisengageVolume / Prompt* / Refuse / Warning* = 101 (auto) when the controller is on
 
 The old AP1 one-time profile muted engage/disengage (AlertVolumeControl=1, volumes 0)
-because the car already chimes. Owner decision for the new bases: do **not** mute.
-AP1_VOLUME_PROFILE below matches FrogPilot defaults so engage/disengage stay audible.
+because the car already chimes. Policy for the new bases: do **not** mute.
+AP1_VOLUME_PROFILE below matches BogPilot defaults so engage/disengage stay audible.
 """
 from __future__ import annotations
 
-# FrogPilot / BogPilot table defaults (percent; 101 = auto/ambient)
-FROGPILOT_VOLUME_DEFAULTS: dict[str, str] = {
+# BogPilot table defaults (percent; 101 = auto/ambient)
+BOGPILOT_VOLUME_DEFAULTS: dict[str, str] = {
   "AlertVolumeControl": "0",
   "EngageVolume": "101",
   "DisengageVolume": "101",
@@ -23,8 +23,8 @@ FROGPILOT_VOLUME_DEFAULTS: dict[str, str] = {
 }
 
 # One-time AP1 shipping profile for alert volumes ONLY.
-# Intentionally identical to FrogPilot defaults — NOT the legacy mute.
-AP1_VOLUME_PROFILE: dict[str, str] = dict(FROGPILOT_VOLUME_DEFAULTS)
+# Intentionally identical to BogPilot defaults — NOT the legacy mute.
+AP1_VOLUME_PROFILE: dict[str, str] = dict(BOGPILOT_VOLUME_DEFAULTS)
 
 AUTO_VOLUME_PERCENT = 101
 WARNING_IMMEDIATE_MIN_PERCENT = 25
@@ -71,7 +71,7 @@ def is_muted_engage_disengage(profile: dict[str, str]) -> bool:
 
 
 def volume_fraction(percent: int | float, *, key: str | None = None) -> float:
-  """Convert a FrogPilot percent setting to a soundd gain. 101 -> sentinel 1.01 (auto)."""
+  """Convert a BogPilot percent setting to a soundd gain. 101 -> sentinel 1.01 (auto)."""
   pct = int(percent)
   if key in SAFETY_FLOOR_KEYS:
     pct = max(pct, SAFETY_FLOOR_PERCENT)

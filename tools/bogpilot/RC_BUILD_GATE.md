@@ -72,6 +72,16 @@ AST service inventory in the report enumerates exact required modules. Missing o
 GPU/device-constrained imports stay BLOCKED, not skipped passes. Receipt counters
 are deliberately not inferred from human prose. These receipts are unsigned.
 
+## ION gate (required since rc4)
+
+`msgq_repo/SConscript` compiles `visionbuf_ion.cc` only if `/dev/ion` exists on the BUILD host, otherwise it silently
+compiles the shm `visionbuf.cc`; the comma's camera driver can only import ION dma-bufs, so camerad aborts. Two required checks:
+
+1. `ion_visionbuf` (artifact bytes, `rc_ion_gate.py ARTIFACT_ROOT`): `openpilot/system/camerad/camerad`, `openpilot/system/loggerd/encoderd`
+   and `msgq_repo/msgq/visionipc/visionipc_pyx.so` must be ELF, contain `/dev/ion\0` and the symbol `_Z6ion_fdv`, and must not contain `msgq_visionbuf`.
+2. The `build` receipt log must contain the line `/dev/ion present in container` (the inner build script prints it; the build
+   container runs `touch /dev/ion` as root first; never on the device).
+
 ## ONE final native session (coordinator recipe, NOT automatic execution)
 
 1. Wait for explicit primary UI READY and native lock release. Assemble final UI,

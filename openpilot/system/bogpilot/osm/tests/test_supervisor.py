@@ -1,0 +1,255 @@
+import hashlib
+import json
+import os
+from types import SimpleNamespace
+
+from openpilot.system.bogpilot.osm import installer as I
+from openpilot.system.bogpilot.osm import supervisor as S
+from openpilot.system.bogpilot.osm.gps_feed import GpsFeed
+from openpilot.system.bogpilot.osm.memparams import MemParams
+from openpilot.system.bogpilot.osm.storage import OsmStorage
+from openpilot.system.bogpilot.osm.tests.test_installer import elf, fetcher, manifest_for
+
+SEL = '{"states":["WY"]}'
+
+
+def installed(tmp_path):
+  blob = elf()
+  man = manifest_for(blob)
+  st = OsmStorage(tmp_path / "osm")
+  I.install(st, man, fetcher(blob))
+  return st, man
+
+
+def test_wanted_gate_is_fail_closed(tmp_path):
+  st, man = installed(tmp_path)
+  assert S.wanted(SEL, True, st, man)
+  assert not S.wanted(SEL, False, st, man)                  # not adopted
+  assert not S.wanted("", True, st, man)                    # no regions
+  assert not S.wanted("garbage", True, st, man)
+  assert not S.wanted('{"states":["ZZ"]}', True, st, man)   # unknown region only
+  st.mapd_path.write_bytes(b"tampered")
+  assert not S.wanted(SEL, True, st, man)                   # binary not verified
+  assert not S.wanted(SEL, True, OsmStorage(tmp_path / "none"), man)
+
+
+def test_adopted_reads_marker_and_defaults_false(tmp_path, monkeypatch):
+  from openpilot.common import bogpilot_store as bs
+  monkeypatch.setattr(bs, "read_text", lambda key, default=None: None)
+  assert S.adopted(None) is False
+  monkeypatch.setattr(bs, "read_text", lambda key, default=None: "1" if key == S.ADOPTION_MARKER else None)
+  assert S.adopted(None) is True
+  monkeypatch.setattr(bs, "read_text", lambda key, default=None: (_ for _ in ()).throw(OSError("x")))
+  assert S.adopted(None) is False
+
+
+def test_manager_condition_default_off(tmp_path):
+  # fresh device: no marker, no maps, no binary -> never starts
+  params = SimpleNamespace(get=lambda k: None)
+  assert S.manager_condition(True, params, None) is False
+  assert S.manager_condition(False, SimpleNamespace(get=lambda k: (_ for _ in ()).throw(RuntimeError())), None) is False
+
+
+class FakeProc:
+  def __init__(self, exits_after=1):
+    self.polls = 0
+    self.exits_after = exits_after
+    self.terminated = False
+
+  def poll(self):
+    self.polls += 1
+    return 0 if self.polls > self.exits_after else None
+
+  def terminate(self):
+    self.terminated = True
+
+
+class Clock:
+  def __init__(self):
+    self.t = 0.0
+
+  def __call__(self):
+    return self.t
+
+  def sleep(self, dt):
+    self.t += dt
+
+
+def test_run_launches_verified_binary_with_backoff(tmp_path):
+  st, _ = installed(tmp_path)
+  mem = MemParams(tmp_path / "d")
+  clk = Clock()
+  launched = []
+
+  def popen(cmd, **kw):
+    launched.append(cmd)
+    return FakeProc(exits_after=2)
+
+  # production loads the pinned manifest; point it at the test blob's manifest
+  import openpilot.system.bogpilot.osm.supervisor as sup
+  man = manifest_for(st.mapd_path.read_bytes())
+  orig = sup.installer.load_manifest
+  sup.installer.load_manifest = lambda *a, **k: man
+  try:
+    res = S.run(st, mem, popen=popen, sm=None, sleep=clk.sleep, monotonic=clk, max_ticks=400)
+  finally:
+    sup.installer.load_manifest = orig
+  assert res["launches"] >= 3
+  assert all(c == [str(st.mapd_path)] for c in launched)
+  assert mem.get_text("MapdLogLevel") == "disabled"
+
+
+def test_run_never_executes_unverified_binary(tmp_path):
+  st, man = installed(tmp_path)
+  st.mapd_path.write_bytes(b"evil")
+  os.chmod(st.mapd_path, 0o755)
+  import openpilot.system.bogpilot.osm.supervisor as sup
+  orig = sup.installer.load_manifest
+  sup.installer.load_manifest = lambda *a, **k: man
+  launched = []
+  def bad_fetch(url):
+    raise OSError("offline")
+
+  clk = Clock()
+  try:
+    res = S.run(st, MemParams(tmp_path / "d"), popen=lambda c, **kw: launched.append(c) or FakeProc(), sm=None,
+                sleep=clk.sleep, monotonic=clk, max_ticks=10, fetch=bad_fetch)
+  finally:
+    sup.installer.load_manifest = orig
+  assert launched == [] and res["launches"] == 0 and res["installs"] >= 1
+
+
+def test_run_installs_pinned_binary_then_launches(tmp_path):
+  blob = elf()
+  man = manifest_for(blob)
+  st = OsmStorage(tmp_path / "osm")                       # nothing installed yet
+  import openpilot.system.bogpilot.osm.supervisor as sup
+  orig = sup.installer.load_manifest
+  sup.installer.load_manifest = lambda *a, **k: man
+  clk = Clock()
+  launched = []
+  try:
+    res = S.run(st, MemParams(tmp_path / "d"), popen=lambda c, **kw: launched.append(c) or FakeProc(exits_after=1000), sm=None,
+                sleep=clk.sleep, monotonic=clk, max_ticks=10, fetch=fetcher(blob))
+  finally:
+    sup.installer.load_manifest = orig
+  assert res["installs"] == 1 and res["launches"] == 1 and launched == [[str(st.mapd_path)]]
+  assert I.verify_installed(st, man)
+
+
+def test_run_wrong_hash_download_is_rejected_and_never_executed(tmp_path):
+  blob = elf()
+  man = manifest_for(blob)
+  st = OsmStorage(tmp_path / "osm")
+  import openpilot.system.bogpilot.osm.supervisor as sup
+  orig = sup.installer.load_manifest
+  sup.installer.load_manifest = lambda *a, **k: man
+  clk = Clock()
+  launched = []
+  try:
+    res = S.run(st, MemParams(tmp_path / "d"), popen=lambda c, **kw: launched.append(c) or FakeProc(), sm=None,
+                sleep=clk.sleep, monotonic=clk, max_ticks=10, fetch=fetcher(elf() + b"tampered"))
+  finally:
+    sup.installer.load_manifest = orig
+  assert launched == [] and res["installs"] >= 1
+
+
+def test_wanted_default_on_gate_needs_no_binary(tmp_path):
+  st = OsmStorage(tmp_path / "none")
+  assert S.wanted(SEL, True, st, require_binary=False)
+  assert not S.wanted("", True, st, require_binary=False)
+  assert not S.wanted(SEL, False, st, require_binary=False)
+
+
+def test_backoff_schedule():
+  assert [S.backoff(i) for i in range(6)] == [2.0, 5.0, 15.0, 60.0, 60.0, 60.0]
+
+
+class FakeSM:
+  def __init__(self, msgs, svc="gpsLocation"):
+    self.svc = svc
+    self.msgs = list(msgs)
+    self.updated = {"gpsLocation": False, "gpsLocationExternal": False}
+    self.valid = {"gpsLocation": True, "gpsLocationExternal": True}
+    self.cur = None
+
+  def update(self, _t):
+    if self.msgs:
+      self.cur = self.msgs.pop(0)
+      self.updated[self.svc] = True
+    else:
+      self.updated[self.svc] = False
+
+  def __getitem__(self, k):
+    return self.cur
+
+
+def gps(lat=0.5, lon=-0.5, fix=True, acc=4.0, speed=12.0, bearing=90.0):
+  return SimpleNamespace(latitude=lat, longitude=lon, hasFix=fix, horizontalAccuracy=acc, speed=speed, bearingDeg=bearing)
+
+
+def test_feed_step_publishes_and_goes_stale(tmp_path):
+  mem = MemParams(tmp_path / "d")
+  feed = GpsFeed(mem)
+  sm = FakeSM([gps()])
+  sm.update(0)
+  S.feed_step(sm, feed, 1.0)
+  assert json.loads(mem.get_text("LastGPSPosition"))["bearing"] == 90.0
+  sm.update(0)
+  S.feed_step(sm, feed, 1.0 + 10.0)
+  assert mem.get("LastGPSPosition") is None
+
+
+def test_feed_step_uses_external_receiver(tmp_path):
+  mem = MemParams(tmp_path / "d")
+  feed = GpsFeed(mem)
+  sm = FakeSM([gps(lat=0.75)], svc="gpsLocationExternal")
+  sm.update(0)
+  S.feed_step(sm, feed, 1.0)
+  assert json.loads(mem.get_text("LastGPSPosition"))["latitude"] == 0.75
+
+
+def test_feed_step_ignores_invalid_service(tmp_path):
+  mem = MemParams(tmp_path / "d")
+  feed = GpsFeed(mem)
+  sm = FakeSM([gps()])
+  sm.valid["gpsLocation"] = False
+  sm.update(0)
+  S.feed_step(sm, feed, 1.0)
+  assert mem.get("LastGPSPosition") is None
+
+
+def test_feed_step_survives_broken_sm(tmp_path):
+  feed = GpsFeed(MemParams(tmp_path / "d"))
+  S.feed_step(SimpleNamespace(updated={}, valid={}), feed, 0.0)
+  S.feed_step(SimpleNamespace(updated={"gpsLocation": True}, valid={"gpsLocation": True}, __getitem__=None), feed, 0.0)
+
+
+def test_memparams_rejects_unknown_keys(tmp_path):
+  mem = MemParams(tmp_path / "d")
+  for bad in ("../x", "Anything", "MapsSelected"):
+    try:
+      mem.put(bad, "x")
+      raise AssertionError(bad)
+    except KeyError:
+      pass
+
+
+def test_mapd_is_started_in_the_osm_root(tmp_path):
+  """mapd v1.12.0 resolves ./offline and tmp/ against its cwd (found with the real binary on aarch64)."""
+  blob = elf()
+  man = manifest_for(blob)
+  st = OsmStorage(tmp_path / "osm")
+  import openpilot.system.bogpilot.osm.supervisor as sup
+  seen = {}
+  def popen(cmd, **kw):
+    seen.update(kw)
+    return FakeProc()
+  orig = sup.installer.load_manifest
+  sup.installer.load_manifest = lambda *a, **k: man
+  clk = Clock()
+  try:
+    S.run(st, MemParams(tmp_path / "d"), popen=popen, sm=None, sleep=clk.sleep, monotonic=clk, max_ticks=10, fetch=fetcher(blob))
+  finally:
+    sup.installer.load_manifest = orig
+  assert seen.get("cwd") == str(st.root)

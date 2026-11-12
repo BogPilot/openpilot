@@ -265,19 +265,20 @@ def test_actual_card_state_update_uses_live_eligibility():
     alive = {'deviceState': True}
     def __init__(self): self.updates = 0
     def update(self, wait): self.updates += 1
-    def __getitem__(self, key): return device if key == 'deviceState' else NS(enabled=False)
+    def __getitem__(self, key): return device if key == 'deviceState' else NS(enabled=False, longActive=False)
 
-  data = {'ExperimentalMode': False, 'ExperimentalModeConfirmed': True}
+  data = {'ExperimentalMode': False, 'ExperimentalModeConfirmed': True, 'OnroadDistanceButtonPressed': False}
   writes = []
-  store = NS(get_bool=lambda key: data[key], put_bool=lambda key,value,block=False: (data.update({key:value}), writes.append(value)))
+  store = NS(get_bool=lambda key: data.get(key, False), put_bool=lambda key,value,block=False: (data.update({key:value}), writes.append(value)))
   parser = NS(stalk_controls_allowed=False)
+  hold = NS(apply_stalk=lambda traffic: None, update_button=lambda *a, **k: False)
   car = NS(CP=cp(), CI=NS(CS=parser, update=lambda frames: cs), RI=NS(update=lambda frames: None),
            sm=SM(), params=store, can_sock=None, ap1_model=None, experimental_mode=False,
-           can_rcv_cum_timeout_counter=0, v_cruise_helper=NS(update_v_cruise=lambda *args: None,
-             v_cruise_kph=50, v_cruise_cluster_kph=50), is_metric=True)
+           can_rcv_cum_timeout_counter=0, ap1_personality_sync=None, ap1_cluster_lift=False, v_cruise_helper=NS(update_v_cruise=lambda *args: None,
+             v_cruise_kph=50, v_cruise_cluster_kph=50), is_metric=True, traffic_mode_hold=hold)
   scope = {'messaging':NS(drain_sock_raw=lambda *args,**kw:[b'fake']), 'can_capnp_to_list':lambda frames:[],
            'experimental_supported':__import__('opendbc.car.tesla_ap1.phase3_stalk_controls',fromlist=['experimental_supported']).experimental_supported,
-           'apply_experimental_toggle':apply_experimental_toggle, 'REPLAY':False}
+           'apply_experimental_toggle':apply_experimental_toggle, 'REPLAY':False, 'time':__import__('time')}
   exec(compile(ast.fix_missing_locations(ast.Module(body=[method],type_ignores=[])), '<actual-card-state-update>', 'exec'),scope)
   scope['state_update'](car)
   assert parser.stalk_controls_allowed and writes == [True]

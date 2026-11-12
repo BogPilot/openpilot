@@ -1,4 +1,4 @@
-"""INT: Car Selection UI -> real Params -> get_car(fingerprint_override) -> CarParams consumer contract.
+"""Car Selection UI -> real Params -> get_car(fingerprint_override) -> CarParams consumer contract.
 
 Drives the real car_helpers.get_car with detection stubbed to fail/succeed. Requires the native
 (AGNOS/py3.12 with tqdm, capnp, compiled Params) environment.

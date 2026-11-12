@@ -17,6 +17,15 @@ FEATURE_SPECS = json.loads(r'''{
     "title": "AP1StandstillEngage",
     "type": "BOOL"
   },
+  "AP1TapFromZeroMph": {
+    "declared_default": "15",
+    "max": 30,
+    "min": 5,
+    "source": "BOGPILOT_PARAMS",
+    "step": 1,
+    "title": "Standstill Tap Speed",
+    "type": "INT"
+  },
   "AccelerationPath": {
     "declared_default": "1",
     "max": null,
@@ -684,7 +693,7 @@ FEATURE_SPECS = json.loads(r'''{
     "type": "BOOL"
   },
   "FPSCounter": {
-    "declared_default": "1",
+    "declared_default": "0",
     "max": null,
     "min": null,
     "source": "BOGPILOT_PARAMS",
@@ -1720,7 +1729,7 @@ FEATURE_SPECS = json.loads(r'''{
   },
   "SLCLookaheadHigher": {
     "declared_default": "0",
-    "max": 30,
+    "max": 15,
     "min": 0,
     "source": "BOGPILOT_PARAMS",
     "step": 1,
@@ -1728,12 +1737,12 @@ FEATURE_SPECS = json.loads(r'''{
     "type": "INT"
   },
   "SLCLookaheadLower": {
-    "declared_default": "0",
-    "max": 30,
+    "declared_default": "5",
+    "max": 15,
     "min": 0,
     "source": "BOGPILOT_PARAMS",
     "step": 1,
-    "title": "Lower Limit Lookahead Time",
+    "title": "Look-ahead",
     "type": "INT"
   },
   "SLCMapboxFiller": {
@@ -2343,4 +2352,4 @@ PROTECTED_EXCLUSIONS = json.loads(r'''{
   "ToyotaDSUBypass": "protected safety bypass"
 }''')
 
-COMPAT_SOURCE_FILES = ('openpilot/common/bogpilot_alert_volumes.py', 'openpilot/common/bogpilot_ap1_profile.py', 'openpilot/common/bogpilot_onroad_toggles.py', 'openpilot/common/bogpilot_params.py', 'openpilot/common/bogpilot_settings.py', 'openpilot/common/bogpilot_shipping_defaults.py', 'openpilot/common/bogpilot_store.py', 'openpilot/common/bogpilot_toggles.py', 'openpilot/selfdrive/car/ap1_runtime.py', 'openpilot/selfdrive/car/card.py', 'openpilot/selfdrive/controls/lib/ap1_curve_speed.py', 'openpilot/selfdrive/controls/lib/ap1_planning.py', 'openpilot/selfdrive/controls/lib/bogpilot_csc.py', 'openpilot/selfdrive/controls/lib/bogpilot_radar.py', 'openpilot/selfdrive/monitoring/dmonitoringd.py', 'openpilot/selfdrive/selfdrived/selfdrived.py', 'openpilot/selfdrive/test/helpers.py', 'openpilot/selfdrive/test/process_replay/process_replay.py', 'openpilot/selfdrive/ui/bogpilot/alert_volumes.py', 'openpilot/selfdrive/ui/bogpilot/frogpilot_defaults.py', 'openpilot/selfdrive/ui/bogpilot/offroad_stats.py', 'openpilot/selfdrive/ui/bogpilot/phase3_system_settings_backend.py', 'openpilot/selfdrive/ui/bogpilot/phase3_system_settings_feature_specs.py', 'openpilot/selfdrive/ui/bogpilot/phase3_system_settings_features.py', 'openpilot/selfdrive/ui/bogpilot/toggle_metadata.py', 'openpilot/selfdrive/ui/bogpilot/vehicle_settings.py', 'openpilot/selfdrive/ui/layouts/onboarding.py', 'openpilot/selfdrive/ui/layouts/settings/bogpilot.py', 'openpilot/selfdrive/ui/layouts/settings/bogpilot_visuals.py', 'openpilot/selfdrive/ui/layouts/settings/developer.py', 'openpilot/selfdrive/ui/layouts/settings/toggles.py', 'openpilot/selfdrive/ui/layouts/sidebar.py', 'openpilot/selfdrive/ui/mici/layouts/home.py', 'openpilot/selfdrive/ui/mici/layouts/onboarding.py', 'openpilot/selfdrive/ui/mici/layouts/settings/developer.py', 'openpilot/selfdrive/ui/mici/layouts/settings/toggles.py', 'openpilot/selfdrive/ui/onroad/bogpilot/bogpilot_hud.py', 'openpilot/selfdrive/ui/onroad/bogpilot/bogpilot_model.py', 'openpilot/selfdrive/ui/onroad/bogpilot/bsm_state.py', 'openpilot/selfdrive/ui/onroad/bogpilot/cluster_layout.py', 'openpilot/selfdrive/ui/onroad/bogpilot/file_toggles.py', 'openpilot/selfdrive/ui/onroad/bogpilot/flame_tracks_logic.py', 'openpilot/selfdrive/ui/onroad/bogpilot/hud_compose.py', 'openpilot/selfdrive/ui/onroad/bogpilot/pedals.py', 'openpilot/selfdrive/ui/onroad/bogpilot/speed_limit_display.py', 'openpilot/selfdrive/ui/onroad/exp_button.py', 'openpilot/selfdrive/ui/soundd.py', 'openpilot/selfdrive/ui/ui_state.py', 'openpilot/selfdrive/ui/widgets/bogpilot_stats.py', 'openpilot/selfdrive/ui/widgets/exp_mode_button.py', 'openpilot/system/bogpilot/toggle_reset.py', 'openpilot/system/hardware/power_monitoring.py', 'openpilot/system/loggerd/loggerd.h', 'openpilot/system/manager/manager.py', 'openpilot/system/manager/process_config.py', 'openpilot/tools/bogpilot/rc_startup_gate.py')
+COMPAT_SOURCE_FILES = ('openpilot/common/bogpilot_alert_volumes.py', 'openpilot/common/bogpilot_ap1_profile.py', 'openpilot/common/bogpilot_onroad_toggles.py', 'openpilot/common/bogpilot_params.py', 'openpilot/common/bogpilot_settings.py', 'openpilot/common/bogpilot_shipping_defaults.py', 'openpilot/common/bogpilot_store.py', 'openpilot/common/bogpilot_toggles.py', 'openpilot/selfdrive/car/ap1_runtime.py', 'openpilot/selfdrive/car/card.py', 'openpilot/selfdrive/controls/lib/ap1_curve_speed.py', 'openpilot/selfdrive/controls/lib/ap1_planning.py', 'openpilot/selfdrive/controls/lib/bogpilot_csc.py', 'openpilot/selfdrive/controls/lib/bogpilot_radar.py', 'openpilot/selfdrive/monitoring/dmonitoringd.py', 'openpilot/selfdrive/selfdrived/selfdrived.py', 'openpilot/selfdrive/test/helpers.py', 'openpilot/selfdrive/test/process_replay/process_replay.py', 'openpilot/selfdrive/ui/bogpilot/alert_volumes.py', 'openpilot/selfdrive/ui/bogpilot/bogpilot_defaults.py', 'openpilot/selfdrive/ui/bogpilot/offroad_stats.py', 'openpilot/selfdrive/ui/bogpilot/phase3_system_settings_backend.py', 'openpilot/selfdrive/ui/bogpilot/phase3_system_settings_feature_specs.py', 'openpilot/selfdrive/ui/bogpilot/phase3_system_settings_features.py', 'openpilot/selfdrive/ui/bogpilot/toggle_metadata.py', 'openpilot/selfdrive/ui/bogpilot/vehicle_settings.py', 'openpilot/selfdrive/ui/layouts/onboarding.py', 'openpilot/selfdrive/ui/layouts/settings/bogpilot.py', 'openpilot/selfdrive/ui/layouts/settings/bogpilot_visuals.py', 'openpilot/selfdrive/ui/layouts/settings/developer.py', 'openpilot/selfdrive/ui/layouts/settings/toggles.py', 'openpilot/selfdrive/ui/layouts/sidebar.py', 'openpilot/selfdrive/ui/mici/layouts/home.py', 'openpilot/selfdrive/ui/mici/layouts/onboarding.py', 'openpilot/selfdrive/ui/mici/layouts/settings/developer.py', 'openpilot/selfdrive/ui/mici/layouts/settings/toggles.py', 'openpilot/selfdrive/ui/onroad/bogpilot/bogpilot_hud.py', 'openpilot/selfdrive/ui/onroad/bogpilot/bogpilot_model.py', 'openpilot/selfdrive/ui/onroad/bogpilot/bsm_state.py', 'openpilot/selfdrive/ui/onroad/bogpilot/cluster_layout.py', 'openpilot/selfdrive/ui/onroad/bogpilot/file_toggles.py', 'openpilot/selfdrive/ui/onroad/bogpilot/flame_tracks_logic.py', 'openpilot/selfdrive/ui/onroad/bogpilot/hud_compose.py', 'openpilot/selfdrive/ui/onroad/bogpilot/pedals.py', 'openpilot/selfdrive/ui/onroad/bogpilot/speed_limit_display.py', 'openpilot/selfdrive/ui/onroad/exp_button.py', 'openpilot/selfdrive/ui/soundd.py', 'openpilot/selfdrive/ui/ui_state.py', 'openpilot/selfdrive/ui/widgets/bogpilot_stats.py', 'openpilot/selfdrive/ui/widgets/exp_mode_button.py', 'openpilot/system/bogpilot/toggle_reset.py', 'openpilot/system/hardware/power_monitoring.py', 'openpilot/system/loggerd/loggerd.h', 'openpilot/system/manager/manager.py', 'openpilot/system/manager/process_config.py', 'openpilot/tools/bogpilot/rc_startup_gate.py')

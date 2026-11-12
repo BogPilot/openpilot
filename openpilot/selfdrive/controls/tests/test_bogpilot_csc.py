@@ -35,7 +35,7 @@ def curve(v, k_at_t):
   return np.array([k_at_t(t) * v for t in T])
 
 
-# --- constants are the daily / FrogPilot values ---
+# --- constants are the daily / BogPilot values ---
 
 def test_constants_match_daily():
   assert (CRUISING_SPEED, DEFAULT_LATERAL_ACCELERATION, MINIMUM_LATERAL_ACCELERATION, THRESHOLD) == (5, 2.0, 1.3, 0.63)

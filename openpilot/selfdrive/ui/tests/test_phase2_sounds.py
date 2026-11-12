@@ -207,7 +207,7 @@ SAFETY_KEYS = ("PromptVolume", "PromptDistractedVolume", "WarningSoftVolume", "W
 
 
 def test_every_safety_category_has_audible_floor_in_ui_and_consumer(store):
-  """INT: UI row bounds, Mute->Min, saved 0 and the soundd gain all stay >= 25% for safety alerts."""
+  """UI row bounds, Mute->Min, saved 0 and the soundd gain all stay >= 25% for safety alerts."""
   from openpilot.selfdrive.ui import soundd
   ps.set_controller(True)
   for key in SAFETY_KEYS:

@@ -1,7 +1,7 @@
 """Phase 2 soundsUI: Alert Volume Controller (BogPilot > Alerts and Sounds).
 
-Source: bogpilot-tesla 0.9.7 @ 04d560f3 frogpilot/ui/qt/offroad/sounds_settings.cc:44-80.
-Lane base: feae0292 (prior model @ 3d0bfa9b / c6582fc3). ASCII '-' + Mute toggle.
+Source: bogpilot-tesla 0.9.7 @ 04d560f3 bogpilot/ui/qt/offroad/sounds_settings.cc:44-80.
+ASCII '-' + Mute toggle.
 
 Every offered key is read by selfdrive/ui/soundd.py via _bogpilot_read_param and applied per
 AudibleAlert by alert_volumes.resolve_alert_gain in soundd_thread.
@@ -15,7 +15,7 @@ File-store vs Params precedence (do not change without INT + soundd review)
    so the file is the effective consumer source.
 3. Reads never write. Saved on-disk values are preserved (out-of-range shown
    clamped in the UI but not rewritten until the user moves a control).
-4. Defaults come from FROGPILOT_VOLUME_DEFAULTS (controller OFF, volumes 101=Auto).
+4. Defaults come from BOGPILOT_VOLUME_DEFAULTS (controller OFF, volumes 101=Auto).
 5. Mute restore uses companion file <key>PreMute in the same file store so a restart
    can unmute back to the prior level.
 
@@ -89,13 +89,13 @@ def premute_key(key: str) -> str:
 def read_controller() -> bool:
   sd = _sd()
   return sd._bogpilot_bool(sd._bogpilot_read_param(PARENT_KEY),
-                           sd._bogpilot_bool(sd.FROGPILOT_VOLUME_DEFAULTS.get(PARENT_KEY), False))
+                           sd._bogpilot_bool(sd.BOGPILOT_VOLUME_DEFAULTS.get(PARENT_KEY), False))
 
 
 def raw_volume(key: str) -> int:
   """Exactly the integer soundd loads (stored, else default 101; non-numeric -> default)."""
   sd = _sd()
-  return sd._bogpilot_int(sd._bogpilot_read_param(key), int(float(sd.FROGPILOT_VOLUME_DEFAULTS.get(key, "101"))))
+  return sd._bogpilot_int(sd._bogpilot_read_param(key), int(float(sd.BOGPILOT_VOLUME_DEFAULTS.get(key, "101"))))
 
 
 def read_volume(key: str) -> int:
@@ -234,9 +234,11 @@ def create_volume_layout():
   from openpilot.selfdrive.ui.ui_state import ui_state
   from openpilot.system.ui.lib.multilang import tr
   from openpilot.system.ui.widgets import Widget
-  from openpilot.system.ui.widgets.list_view import toggle_item, multiple_button_item, text_item
+  from openpilot.system.ui.widgets.list_view import toggle_item, text_item
+  from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_multiple_button_item
   from openpilot.system.ui.widgets.scroller_tici import Scroller
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
+  from openpilot.selfdrive.ui.bogpilot.nesting import indent_under
 
   class VolumeLayout(Widget):
     def __init__(self):
@@ -266,7 +268,7 @@ def create_volume_layout():
       self.volumes = {}
       items = [self.controller, self.note, self.precedence]
       for key, title, _, _ in VOLUME_ROWS:
-        row = multiple_button_item(
+        row = gated_multiple_button_item(
           lambda title=title: tr(title),
           lambda key=key: tr(self._desc(key)),
           [
@@ -278,11 +280,13 @@ def create_volume_layout():
           1,
           callback=lambda index, key=key: self.on_button(key, index),
           button_width=150,
+          enabled=ui_state.is_offroad,   # D2: lock the action too, so a locked tap cannot move the highlight
         )
         row.set_enabled(ui_state.is_offroad)
         attach_help(row, key)
         self.volumes[key] = row
         items.append(row)
+      indent_under(self.controller, *self.volumes.values())   # refresh() hides them while the controller is off
       self.scroller = Scroller(items, line_separator=True, spacing=0)
       self.refresh(force=True)
 

@@ -34,6 +34,14 @@ ROWS = (
   ("LaneDetectionWidth", "Minimum Lane Width", "number", "NudgelessLaneChange", 0, 15, 0.1),
   ("OneLaneChange", "One Lane Change Per Signal", "toggle", "LaneChanges", None, None, None),
 )
+# Display tree: Delay and Minimum Lane Width sit under Automatic Lane Changes; speed and one-per-signal under Lane Changes.
+TREE = (
+  ("LaneChanges", (
+    ("NudgelessLaneChange", (("LaneChangeTime", ()), ("LaneDetectionWidth", ()))),
+    ("MinimumLaneChangeSpeed", ()),
+    ("OneLaneChange", ()),
+  )),
+)
 HUMAN_ROW = ("HumanLaneChanges", "Human-Like Lane Changes", "toggle", "LongitudinalTune", None, None, None)
 DESCRIPTIONS = {
   "LaneChanges": "Allow openpilot to change lanes.",
@@ -89,10 +97,12 @@ class LaneChangeLayout:
       raise RuntimeError("Lane-change consumers must be integrated before exposing controls")
     from openpilot.common.bogpilot_store import ParamStore
     from openpilot.system.ui.widgets import Widget
-    from openpilot.system.ui.widgets.list_view import toggle_item, multiple_button_item
+    from openpilot.system.ui.widgets.list_view import toggle_item
+    from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_multiple_button_item
     from openpilot.system.ui.widgets.scroller_tici import Scroller
     from openpilot.system.ui.lib.multilang import tr
     from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
+    from openpilot.selfdrive.ui.bogpilot.nesting import place
 
     class _Layout(Widget):
       def __init__(self):
@@ -105,7 +115,7 @@ class LaneChangeLayout:
         return offroad is not None and offroad()
 
       def _build(self):
-        items = []
+        by_key = {}
         for row in visible_rows(self.store, runtime_integrated=True):
           key, title, kind, *_ = row
           desc = DESCRIPTIONS[key]
@@ -118,15 +128,18 @@ class LaneChangeLayout:
               enabled=self._editable,
             )
           else:
-            item = multiple_button_item(
+            # D2: the -/+ pair was never locked; lock the action like the toggles (offroad only).
+            item = gated_multiple_button_item(
               lambda t=title, k=key: tr(t) + f" ({self.store.get_float(k):g})",
               lambda d=desc: tr(d),
               ["-", "+"],
               0,
               callback=lambda index, r=row: self._step(r, index),
+              enabled=self._editable,
             )
           attach_help(item, key)
-          items.append(item)
+          by_key[key] = item
+        items = place(by_key, TREE)
         self.scroller = Scroller(items, line_separator=True, spacing=0)
 
       def _toggle(self, key, state):
@@ -202,7 +215,7 @@ def turn_desire_row_available(store, *, runtime_integrated=False):
 
 
 def turn_desire_item(store, *, runtime_integrated=False, offroad=None):
-  """Historical Lateral Tuning child; import into lane10's native tuning group."""
+  """Historical Lateral Tuning child; import into the native tuning group."""
   if not turn_desire_row_available(store, runtime_integrated=runtime_integrated):
     return None
   from openpilot.system.ui.widgets.list_view import toggle_item

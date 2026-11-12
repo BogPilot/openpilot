@@ -132,6 +132,11 @@ struct OnroadEvent @0xc4fa6047f024e718 {
     excessiveActuation @96;
     bigModelLoading @100;
     bigModelFailed @102;
+    pedalNotResponding @105;  # Pre-AP: Comma Pedal stream missing or stale while pedal longitudinal is on
+    preapNotArmed @106;       # Pre-AP: openpilot enabled but the panda did not arm (controlsAllowed false): "pull the stalk again"
+    pedalRetrying @107;       # Pre-AP: the pedal did not take authority; retrying with back-off, the detail names the cause
+    experimentalModeUnconfirmed @108;  # Stalk hold: Experimental Mode has not been confirmed in Settings
+    ap1SpeedLimitUnknown @109;  # AP1 openpilot long: standstill engage with no known speed limit and no stalk tap set
 
     lowBatteryDEPRECATED @40;
     soundsUnavailableDEPRECATED @47;
@@ -2637,16 +2642,16 @@ struct Event {
     # DO change the name of the field and struct
     # DON'T change the ID (e.g. @107)
     # DON'T change which struct it points to
-    frogpilotCarControl @107 :Custom.FrogPilotCarControl;
-    frogpilotCarParams @108 :Custom.FrogPilotCarParams;
-    frogpilotCarState @109 :Custom.FrogPilotCarState;
-    frogpilotControlsState @110 :Custom.FrogPilotControlsState;
-    frogpilotDeviceState @111 :Custom.FrogPilotDeviceState;
-    frogpilotModelV2 @112 :Custom.FrogPilotModelDataV2;
-    frogpilotNavigation @113 :Custom.FrogPilotNavigation;
-    frogpilotOnroadEvents @114 :List(Custom.FrogPilotCarEvent);
-    frogpilotPlan @115 :Custom.FrogPilotPlan;
-    frogpilotRadarState @116 :Custom.FrogPilotRadarState;
+    bogpilotCarControl @107 :Custom.BogPilotCarControl;
+    bogpilotCarParams @108 :Custom.BogPilotCarParams;
+    bogpilotCarState @109 :Custom.BogPilotCarStateMsg;
+    bogpilotControlsState @110 :Custom.BogPilotControlsState;
+    bogpilotDeviceState @111 :Custom.BogPilotDeviceState;
+    bogpilotModelV2 @112 :Custom.BogPilotModelDataV2;
+    bogpilotNavigation @113 :Custom.BogPilotNavigation;
+    bogpilotOnroadEvents @114 :List(Custom.BogPilotCarEvent);
+    bogpilotPlan @115 :Custom.BogPilotPlan;
+    bogpilotRadarState @116 :Custom.BogPilotRadarState;
     customReserved10 @136 :Custom.CustomReserved10;
     customReserved11 @137 :Custom.CustomReserved11;
     customReserved12 @138 :Custom.CustomReserved12;

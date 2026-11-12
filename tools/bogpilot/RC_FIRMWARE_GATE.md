@@ -39,7 +39,7 @@ ALLOW_DEBUG, signing and keys remain unchanged. No binary commits or device acce
    commit with approved identity/hooks. Freeze `FINAL` to its full 40-hex SHA.
    Source checkout must be clean, not merely clean in firmware directories.
    Existing checked-in native outputs are not accepted as fresh build evidence.
-2. From that exact checkout, outside output paths in the source tree:
+2. From that exact checkout, with output paths outside the source tree:
 
 ```bash
 SOURCE=/absolute/path/to/final-candidate-checkout

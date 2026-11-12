@@ -12,22 +12,13 @@
 #define TESLA_FLAG_AP1_STANDSTILL 16U
 
 static bool tesla_ap1 = false;
+static bool tesla_ap1_longitudinal = false;
+static bool tesla_ap1_stock_aeb = false;
 static bool tesla_ap1_standstill = false;
-
-// AP1 angle rate tables (legacy Mobileye chassis). Not used for Model 3/Y.
-static const AngleSteeringLimits TESLA_AP1_STEERING_LIMITS = {
-  .max_angle = 3600,  // 360 deg
-  .angle_deg_to_can = 10,
-  .angle_rate_up_lookup = {
-    {2., 7., 17.},
-    {8., 4., 2.5}
-  },
-  .angle_rate_down_lookup = {
-    {2., 7., 17.},
-    {9., 5., 4.5}
-  },
-  .frequency = 20U,  // DAS_steeringControl ~20 Hz on AP1
-};
+// Last EPAS_sysStatus (0x370): the EPAS is not following angle commands. INHIBITED, FAULT or SNA, or an
+// error other than IDLE, HANDS_ON (3) and HIGH_ANGLE_REQ (6), the two codes that stay latched after a
+// hand-back. The host stops commanding in this state; the panda drops any ANGLE frame sent into it.
+static bool tesla_ap1_epas_refusing = false;
 
 static const LongitudinalLimits TESLA_AP1_LONG_LIMITS = {
   .max_accel = 425,       // 2. m/s^2
@@ -36,20 +27,17 @@ static const LongitudinalLimits TESLA_AP1_LONG_LIMITS = {
 };
 
 // Substitution windows: drop stock DAS from bus 2 only while OP recently TX'd.
-static const uint32_t TESLA_AP1_STEER_SUBSTITUTE_TIMEOUT_US = 100000U;  // 100 ms
-static const uint32_t TESLA_AP1_LONG_SUBSTITUTE_TIMEOUT_US = 50000U;    // 50 ms
 static uint32_t tesla_ap1_last_steer_tx_ts = 0;
 static uint32_t tesla_ap1_last_long_tx_ts = 0;
 static bool tesla_ap1_steer_tx_seen = false;
 static bool tesla_ap1_long_tx_seen = false;
 
 #define TESLA_AP1_CLUSTER_LEN 3
-static const int TESLA_AP1_CLUSTER_ADDRS[TESLA_AP1_CLUSTER_LEN] = {0x399, 0x389, 0x239};
-static const uint32_t TESLA_AP1_CLUSTER_TIMEOUT_US[TESLA_AP1_CLUSTER_LEN] = {750000U, 750000U, 150000U};
 static uint32_t tesla_ap1_cluster_tx_ts[TESLA_AP1_CLUSTER_LEN] = {0U, 0U, 0U};
 static bool tesla_ap1_cluster_tx_seen[TESLA_AP1_CLUSTER_LEN] = {false, false, false};
 
 static int tesla_ap1_cluster_index(int addr) {
+  const int TESLA_AP1_CLUSTER_ADDRS[TESLA_AP1_CLUSTER_LEN] = {0x399, 0x389, 0x239};
   int idx = -1;
   for (int i = 0; i < TESLA_AP1_CLUSTER_LEN; i++) {
     if (TESLA_AP1_CLUSTER_ADDRS[i] == addr) {
@@ -85,6 +73,12 @@ static void tesla_ap1_rx_hook(const CANPacket_t *msg) {
   if (msg_matches(msg, 0x370U, 0U)) {
     const int angle_meas_new = (((msg->data[4] & 0x3FU) << 8) | msg->data[5]) - 8192U;
     update_sample(&angle_meas, angle_meas_new);
+
+    const int epas_eac_status = msg->data[6] >> 5;   // 0 INHIBITED, 1 AVAILABLE, 2 ACTIVE, 3 FAULT, 4 SNA
+    const int epas_eac_error = msg->data[2] >> 4;
+    const bool epas_status_refuses = (epas_eac_status != 1) && (epas_eac_status != 2);
+    const bool epas_error_refuses = (epas_eac_error != 0) && (epas_eac_error != 3) && (epas_eac_error != 6);
+    tesla_ap1_epas_refusing = epas_status_refuses || epas_error_refuses;
 
     // While disengaged, openpilot sends no 0x488, so resync desired_angle_last
     // to the measured wheel. Rate tables unchanged once controls_allowed.
@@ -133,8 +127,8 @@ static void tesla_ap1_rx_hook(const CANPacket_t *msg) {
 
   // Stock AEB from DAS_control on bus 2
   if (msg_matches(msg, 0x2b9U, 2U)) {
-    if (tesla_longitudinal) {
-      tesla_stock_aeb = ((msg->data[2] & 0x03U) == 1U);
+    if (tesla_ap1_longitudinal) {
+      tesla_ap1_stock_aeb = ((msg->data[2] & 0x03U) == 1U);
     }
   }
 }
@@ -149,10 +143,28 @@ static bool tesla_ap1_tx_hook(const CANPacket_t *msg) {
     int raw_angle_can = ((msg->data[0] & 0x7FU) << 8) | msg->data[1];
     int desired_angle = raw_angle_can - 16384;
     int steer_control_type = msg->data[2] >> 6;
+    // AP1 angle rate tables (legacy Mobileye chassis). Not used for Model 3/Y.
+    const AngleSteeringLimits TESLA_AP1_STEERING_LIMITS = {
+      .max_angle = 3600,  // 360 deg
+      .angle_deg_to_can = 10,
+      .angle_rate_up_lookup = {
+        {2., 7., 17.},
+        {8., 4., 2.5}
+      },
+      .angle_rate_down_lookup = {
+        {2., 7., 17.},
+        {9., 5., 4.5}
+      },
+      .frequency = 20U,  // DAS_steeringControl ~20 Hz on AP1
+    };
     bool steer_control_enabled = (steer_control_type != 0) &&  // NONE
                                  (steer_control_type != 3);    // DISABLED
 
     if (steer_angle_cmd_checks(desired_angle, steer_control_enabled, TESLA_AP1_STEERING_LIMITS)) {
+      violation = true;
+    }
+    // Never send an active steering command into an EPAS that is INHIBITED, FAULT, SNA or in error.
+    if (steer_control_enabled && tesla_ap1_epas_refusing) {
       violation = true;
     }
   }
@@ -167,12 +179,12 @@ static bool tesla_ap1_tx_hook(const CANPacket_t *msg) {
 
   // DAS_control chassis longitudinal
   if (addr == 0x2b9) {
-    if (tesla_longitudinal) {
+    if (tesla_ap1_longitudinal) {
       int aeb_event = msg->data[2] & 0x03U;
       if (aeb_event != 0) {
         violation = true;
       }
-      if (tesla_stock_aeb) {
+      if (tesla_ap1_stock_aeb) {
         violation = true;
       }
 
@@ -229,6 +241,9 @@ static bool tesla_ap1_tx_hook(const CANPacket_t *msg) {
 }
 
 static bool tesla_ap1_fwd_hook(int bus_num, int addr) {
+  const uint32_t TESLA_AP1_STEER_SUBSTITUTE_TIMEOUT_US = 100000U;  // 100 ms
+  const uint32_t TESLA_AP1_LONG_SUBSTITUTE_TIMEOUT_US = 50000U;    // 50 ms
+  const uint32_t TESLA_AP1_CLUSTER_TIMEOUT_US[TESLA_AP1_CLUSTER_LEN] = {750000U, 750000U, 150000U};
   bool block_msg = false;
 
   if (bus_num == 2) {
@@ -237,7 +252,7 @@ static bool tesla_ap1_fwd_hook(int bus_num, int addr) {
                                              TESLA_AP1_STEER_SUBSTITUTE_TIMEOUT_US);
     }
 
-    if (tesla_longitudinal && (addr == 0x2b9) && !tesla_stock_aeb) {
+    if (tesla_ap1_longitudinal && (addr == 0x2b9) && !tesla_ap1_stock_aeb) {
       block_msg = tesla_ap1_op_recently_sent(tesla_ap1_last_long_tx_ts, tesla_ap1_long_tx_seen,
                                              TESLA_AP1_LONG_SUBSTITUTE_TIMEOUT_US);
     }
@@ -254,10 +269,11 @@ static bool tesla_ap1_fwd_hook(int bus_num, int addr) {
 
 static safety_config tesla_ap1_init_config(uint16_t param) {
   // AP1 enables longitudinal from the flag without the Model 3/Y ALLOW_DEBUG gate.
-  tesla_longitudinal = GET_FLAG(param, 1U);  // TeslaSafetyFlags.LONG_CONTROL
+  tesla_ap1_longitudinal = GET_FLAG(param, 1U);  // TeslaSafetyFlags.LONG_CONTROL
   tesla_ap1_standstill = GET_FLAG(param, TESLA_FLAG_AP1_STANDSTILL);
 
-  tesla_stock_aeb = false;
+  tesla_ap1_stock_aeb = false;
+  tesla_ap1_epas_refusing = false;
   tesla_ap1_steer_tx_seen = false;
   tesla_ap1_long_tx_seen = false;
   tesla_ap1_last_steer_tx_ts = 0;

@@ -23,6 +23,7 @@ from dataclasses import dataclass
 
 import numpy as np
 clip = np.clip
+from opendbc.car.tesla_ap1.epas_gate import EAC_BLOCKING_STATUS
 from opendbc.car.tesla_ap1.hso import AP1_HANDS_ON_LEVEL
 from opendbc.car.tesla_ap1.steer_fault import AP1_LATCHED_ANGLE_ERRORS
 from opendbc.car.tesla_ap1.values import CarControllerParams
@@ -65,7 +66,7 @@ AP1_STANDBY_JERK_MAX = 0.476
 
 
 def ap1_standby_allowed(standstill_flag, openpilot_longitudinal_control, enabled, in_drive, stock_ap_active):
-  """True when AP1 sends the standby DAS_control (experiment, default off)."""
+  """True when AP1 sends the standby DAS_control (experiment; AP1StandstillEngage is default ON on Model S AP1, toggles.py)."""
   return (bool(standstill_flag) and bool(openpilot_longitudinal_control) and not bool(enabled)
           and bool(in_drive) and not bool(stock_ap_active))
 
@@ -198,14 +199,20 @@ def _ap1_limited_angle(requested_angle_deg, last_angle_deg, measured_angle_deg, 
 
 
 def ap1_hold_measured_angle(chassis_das_only, enabled, eac_fault, hands_pause,
-                           eac_status, epas_error, soft_start):
+                           eac_status, epas_error, soft_start, lat_session=None, epas_blocked=False):
   """True when AP1 must command ANGLE at the measured wheel, not the planner.
 
   EPAS on route 0000000e stayed EAC_INHIBITED with code 6 while openpilot kept
   sending planner ANGLE; the wheel never moved and there was no UI fault.
   Hold measured until EAC_ACTIVE (and after soft-start / latched 6 or 3).
+  Only while openpilot wants lateral (lat_session, CarControl.latActive) and
+  EPAS is not refusing (epas_blocked): the hold is an ANGLE frame, and ANGLE is
+  never sent for a session that is not active or to an EPAS that is INHIBITED
+  or in error. None for lat_session means `enabled`.
   """
-  if not chassis_das_only or not enabled or eac_fault or hands_pause:
+  if lat_session is None:
+    lat_session = enabled
+  if not chassis_das_only or not enabled or not lat_session or epas_blocked or eac_fault or hands_pause:
     return False
   if soft_start:
     return True
@@ -224,7 +231,7 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
                         acc_state, das_counters, pcm_cancel, chassis_das_only=False,
                         epas_error=None, eac_fault=False, hands_on_level=0,
                         eac_status=None, soft_start=False, driver_yield=False, gas_pressed=False,
-                        steer_tick=None, standby=False, steer_session=None):
+                        steer_tick=None, standby=False, steer_session=None, lat_session=None, epas_yield=False):
   """Same steering branches CarController.update had before this function existed.
 
   Disengaged lateral: no steering frame. Sending type-NONE 0x488 while
@@ -259,9 +266,16 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
   # AP1 only. Hands pause and EAC_FAULT still win over a latched code 6 or 3.
   # Code 3 takes this path only after hands drop; at or above 2, hands_pause
   # keeps type NONE even though code 3 is not itself a temporary fault.
-  hands_pause = bool(chassis_das_only) and (hands_on_level >= AP1_HANDS_ON_LEVEL or bool(driver_yield))
+  # An EPAS that is INHIBITED, FAULT or SNA (or the gate in epas_gate.py, which also covers error
+  # codes and the clean-state wait) is not following ANGLE: stop commanding it, same NONE-at-measured
+  # branch as the hands pause, no held target.
+  epas_blocked = bool(chassis_das_only) and (bool(epas_yield) or eac_status in EAC_BLOCKING_STATUS)
+  hands_pause = bool(chassis_das_only) and (hands_on_level >= AP1_HANDS_ON_LEVEL or bool(driver_yield) or epas_blocked)
+  # lat_session: openpilot wants lateral now (CarControl.latActive). Without it nothing here may be an
+  # ANGLE frame, including the measured hold. None (default) keeps `steer_enabled`.
   hold_measured = ap1_hold_measured_angle(
-    chassis_das_only, steer_enabled, eac_fault, hands_pause, eac_status, epas_error, soft_start)
+    chassis_das_only, steer_enabled, eac_fault, hands_pause, eac_status, epas_error, soft_start,
+    lat_session=lat_session, epas_blocked=epas_blocked)
   if chassis_das_only and eac_fault:
     lkas_enabled = False
 

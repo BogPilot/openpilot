@@ -18,6 +18,7 @@ MAKE_KEY, MODEL_KEY, MODEL_NAME_KEY, FORCE_KEY = "CarMake", "CarModel", "CarMode
 AUTO = "auto"
 AP1_S = "ap1_s"
 AP1_X = "ap1_x"
+PREAP_S = "preap_s"
 
 AP1_S_PLATFORM = "TESLA_AP1_MODELS"
 AP1_S_MAKE = "Tesla"
@@ -27,17 +28,23 @@ AP1_X_PLATFORM = "TESLA_AP1_MODELX"
 AP1_X_MAKE = "Tesla"
 AP1_X_DOC = "Tesla Model X (Autopilot 1) 2016"
 
+PREAP_S_PLATFORM = "TESLA_PREAP_MODELS"
+PREAP_S_MAKE = "Tesla"
+PREAP_S_DOC = "Tesla Model S (Pre-Autopilot) 2012-14"
+
 # UI labels: Auto first (default), then Model S, then Model X.
-CHOICE_ORDER = (AUTO, AP1_S, AP1_X)
+CHOICE_ORDER = (AUTO, AP1_S, AP1_X, PREAP_S)
 CHOICE_LABELS = {
   AUTO: "Auto",
   AP1_S: "Tesla AP1 Model S",
   AP1_X: "Tesla AP1 Model X",
+  PREAP_S: "Tesla Pre-AP Model S",
 }
 CHOICE_DESCRIPTIONS = {
   AUTO: "Automatic detection (chassis + Mobileye when present). Default. Clears any saved CarModel / ForceFingerprint. Takes effect the next time the car starts.",
   AP1_S: "Use Tesla AP1 Model S (TESLA_AP1_MODELS) via CarModel + ForceFingerprint only when automatic detection returns no car. A positively detected different car always wins. Takes effect the next time the car starts.",
   AP1_X: "Tesla AP1 Model X (TESLA_AP1_MODELX) is lateral only, with stock cruise. Unverified on a car. Applies only when automatic detection returns no car. Takes effect the next time the car starts.",
+  PREAP_S: "Use Tesla Pre-Autopilot Model S (TESLA_PREAP_MODELS) via CarModel + ForceFingerprint only when automatic detection returns no car. Steering needs the Pre-AP panda safety mode in the installed panda firmware; longitudinal needs a calibrated Comma Pedal. Takes effect the next time the car starts.",
 }
 
 
@@ -83,6 +90,8 @@ def current_choice(params) -> str:
     return AP1_S
   if saved == AP1_X_PLATFORM:
     return AP1_X
+  if saved == PREAP_S_PLATFORM:
+    return PREAP_S
   # Unknown / other saved model: surface as Auto for this AP1 picker, but
   # do not clear it here (owner may have set it elsewhere).
   return AUTO
@@ -90,7 +99,7 @@ def current_choice(params) -> str:
 
 def choice_label(params) -> str:
   choice = current_choice(params)
-  platforms = {AP1_S: AP1_S_PLATFORM, AP1_X: AP1_X_PLATFORM}
+  platforms = {AP1_S: AP1_S_PLATFORM, AP1_X: AP1_X_PLATFORM, PREAP_S: PREAP_S_PLATFORM}
   platform = platforms.get(choice)
   if platform is not None and _text(params.get(MODEL_KEY)) == platform:
     force = bool(params.get_bool(FORCE_KEY))
@@ -100,7 +109,7 @@ def choice_label(params) -> str:
 
 
 def available_choices():
-  """Writable choices: Auto, Model S, and Model X."""
+  """Writable choices: Auto, AP1 Model S, AP1 Model X and Pre-AP Model S."""
   return CHOICE_ORDER
 
 
@@ -128,6 +137,14 @@ def apply_choice(params, choice: str, *, offroad: bool) -> bool:
     params.put(MAKE_KEY, AP1_X_MAKE, block=True)
     params.put(MODEL_KEY, AP1_X_PLATFORM, block=True)
     params.put(MODEL_NAME_KEY, AP1_X_DOC, block=True)
+    params.put_bool(FORCE_KEY, True, block=True)
+    return True
+  if choice == PREAP_S:
+    if not valid_platform(PREAP_S_PLATFORM):
+      return False
+    params.put(MAKE_KEY, PREAP_S_MAKE, block=True)
+    params.put(MODEL_KEY, PREAP_S_PLATFORM, block=True)
+    params.put(MODEL_NAME_KEY, PREAP_S_DOC, block=True)
     params.put_bool(FORCE_KEY, True, block=True)
     return True
   return False

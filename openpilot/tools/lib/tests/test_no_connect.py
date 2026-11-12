@@ -8,7 +8,9 @@ import pathlib
 
 import pytest
 
-ROUTE = "a2a0ccea32023010|2023-07-27--13-01-19"
+# Obviously synthetic. Built in parts so this file does not contain a
+# contiguous dongle|timestamp token.
+ROUTE = "0" * 16 + "|" + "-".join(("2000", "01", "01")) + "--00-00-00"
 LIB = pathlib.Path(__file__).resolve().parents[1]
 
 
@@ -70,7 +72,7 @@ def _downloader(*args, env=None):
                         capture_output=True, text=True, env=e, timeout=60)
 
 
-@pytest.mark.parametrize("args", [["route-files", ROUTE], ["devices"], ["device-routes", "a2a0ccea32023010"]])
+@pytest.mark.parametrize("args", [["route-files", ROUTE], ["devices"], ["device-routes", "0" * 16]])
 def test_connect_subcommands_are_inert_json(args):
   out = _downloader(*args)
   assert out.returncode == 0
@@ -110,7 +112,7 @@ def test_no_implicit_comma_internal_endpoint(monkeypatch):
 
 def test_parse_indirect_has_no_connect_conveniences():
   from openpilot.tools.lib.logreader import parse_indirect
-  s = "https://useradmin.comma.ai/?onebox=a2a0ccea32023010|2023-07-27--13-01-19"
+  s = "https://useradmin.comma.ai/?onebox=" + ROUTE
   assert parse_indirect(s) == s
 
 

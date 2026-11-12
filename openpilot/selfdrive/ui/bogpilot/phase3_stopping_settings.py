@@ -157,7 +157,8 @@ class StoppingSettingsLayout:
   def __new__(cls, store, CP, capabilities, can_edit=lambda: False, start_page="root"):
     import pyray as rl
     from openpilot.system.ui.widgets import Widget
-    from openpilot.system.ui.widgets.list_view import ListItem, DualButtonAction, toggle_item, button_item, multiple_button_item
+    from openpilot.system.ui.widgets.list_view import ListItem, toggle_item, button_item
+    from openpilot.selfdrive.ui.bogpilot.gated_actions import GatedDualButtonAction, gated_multiple_button_item
     from openpilot.system.ui.widgets.scroller_tici import Scroller
     from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
 
@@ -180,6 +181,13 @@ class StoppingSettingsLayout:
         self._build()
         self.scroller.show_event()
 
+      def navigation_back(self):
+        """Back is the top-left item of the settings sidebar: step up one inner page, True when it moved."""
+        if not self.history:
+          return False
+        self._back()
+        return True
+
       def _change(self, key, value=None, delta=None):
         self.model.change(self.page, key, value, delta)
         self._build()
@@ -187,8 +195,6 @@ class StoppingSettingsLayout:
 
       def _build(self):
         items = []
-        if self.history:
-          items.append(button_item("Back", "BACK", callback=self._back))
         for row in self.model.rows(self.page):
           if row.kind == "page":
             item = button_item(row.title, "MANAGE", callback=lambda k=row.key: self._open(k))
@@ -198,13 +204,14 @@ class StoppingSettingsLayout:
           elif row.kind == "condition":
             choices = list(MANUAL_WEATHER)
             selected = store.get(MANUAL_WEATHER_KEY, "clear")
-            item = multiple_button_item(row.title, row.description, ["Clear", "Low visibility", "Rain", "Storm", "Snow"],
+            item = gated_multiple_button_item(row.title, row.description, ["Clear", "Low visibility", "Rain", "Storm", "Snow"],
                                         choices.index(selected) if selected in choices else 0, button_width=135,
-                                        callback=lambda index: self._change(MANUAL_WEATHER_KEY, choices[index]))
+                                        callback=lambda index: self._change(MANUAL_WEATHER_KEY, choices[index]),
+                                        selected_source=lambda: choices.index(store.get(MANUAL_WEATHER_KEY, "clear")))
             item.action_item.set_enabled(can_edit)
           else:
-            action = DualButtonAction("−", "+", lambda k=row.key: self._change(k, delta=-1),
-                                      lambda k=row.key: self._change(k, delta=1), enabled=can_edit)
+            action = GatedDualButtonAction("−", "+", lambda k=row.key: self._change(k, delta=-1),
+                                           lambda k=row.key: self._change(k, delta=1), enabled=can_edit)
             # DualButtonAction normally reserves the full row. A bounded action
             # width preserves the historical label, effective number and unit.
             action.set_rect(rl.Rectangle(0, 0, 300, 0))

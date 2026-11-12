@@ -73,6 +73,6 @@ def test_native_volume_click_store_actual_soundd_consumer(tmp_path, monkeypatch)
   widget.controller.action_item.toggle._callback(True)
   assert (tmp_path / "AlertVolumeControl").read_text() == "1"
   volume.set_volume("PromptVolume", 50)
-  widget.volumes["PromptVolume"].action_item.callback(3)  # buttons: [Mute, -, label, +] (soundsUI)
+  widget.volumes["PromptVolume"].action_item.callback(3)  # buttons: [Mute, -, label, +]
   assert volume.read_volume("PromptVolume") == 51
   assert volume.effective_gain("PromptVolume", .8) == .51

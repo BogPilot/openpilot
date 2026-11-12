@@ -21,7 +21,9 @@ def _registered_keys():
   from openpilot.selfdrive.ui.bogpilot import phase3_lanechange, phase3_steering_tuning, phase3_device_controls
   from openpilot.selfdrive.ui.layouts.settings import phase3_long_accel_settings as accel, bogpilot_visuals
   from openpilot.selfdrive.ui.bogpilot import phase3_gas_brake
-  add("alerts", phase2_alerts.ACTIVE_ALERT_KEYS)
+  add("alerts", phase2_alerts.ALERT_PAGE_KEYS)
+  from openpilot.selfdrive.ui.bogpilot import phase2_driver_alerts
+  add("alerts", phase2_driver_alerts.DRIVER_ALERT_KEYS)
   add("sounds", phase2_sounds.VOLUME_KEYS)
   add("sounds", [phase2_sounds.PARENT_KEY])
   add("vehicle", phase2_vehicle.TITLES)
@@ -32,6 +34,7 @@ def _registered_keys():
   add("gas/brake", phase3_gas_brake.CONTROLS)
   add("steering", phase3_steering_tuning.ACTIVE_CONTROLS)
   add("visuals", bogpilot_visuals.VISUAL_KEYS)
+  add("visuals", [bogpilot_visuals.SIDE_KEY])
   add("device", phase3_device_controls.RANGES)
   add("device", [phase3_device_controls.DEVICE_MASTER, phase3_device_controls.SCREEN_MASTER, "StandbyMode"])
   return keys
@@ -143,17 +146,22 @@ class TestHelpTable(unittest.TestCase):
     from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
 
     class Row:
-      help_callback = None
+      description = None
+      opened = None
       help_key = None
 
-      def set_help_callback(self, cb):
-        self.help_callback = cb
+      def set_description(self, text):
+        self.description = text
+
+      def set_description_opened_callback(self, cb):
+        self.opened = cb
 
     row = Row()
     stand_in = object()  # a row that is not a ListItem has no hook: it is returned untouched
     self.assertIs(attach_help(stand_in, "DriverCamera"), stand_in)
     self.assertIs(attach_help(row, "NoSuchKey"), row)
-    self.assertIsNone(row.help_callback)
+    self.assertIsNone(row.description)
+    self.assertIsNone(row.opened)
     self.assertIsNone(row.help_key)
 
 
@@ -255,7 +263,7 @@ class TestHelpNative(unittest.TestCase):
     return item
 
   # -- tap behaviour -------------------------------------------------------------------------------------------------
-  def test_tap_text_opens_popup_and_switch_only_toggles(self):
+  def test_tap_text_expands_inline_and_switch_only_toggles(self):
     rl = self.rl
     from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import BogPilotVisualsLayout
     from openpilot.selfdrive.ui.bogpilot.toggle_help import HELP
@@ -264,50 +272,74 @@ class TestHelpNative(unittest.TestCase):
     item = self.prepare(layout._toggles["DriverCamera"])
     depth = len(self.gui_app._nav_stack)
     before = self.snapshot()
+    closed_height = item.rect.height
 
-    # Tap on the switch: no popup, and the handler alone writes nothing.
+    # Tap on the switch: nothing expands, and the handler alone writes nothing.
     switch = item.get_right_item_rect(item._rect)
     item._handle_mouse_release(rl.Vector2(switch.x + switch.width / 2, switch.y + switch.height / 2))
-    self.assertEqual(len(self.gui_app._nav_stack), depth)
+    self.assertFalse(item.description_visible)
     self.assertEqual(self.snapshot(), before)
     # The switch's own callback still toggles exactly as before.
     item.action_item.toggle._callback(True)
     self.assertTrue(self.store.get_bool("DriverCamera"))
-    self.assertEqual(len(self.gui_app._nav_stack), depth)
     after_toggle = self.snapshot()
 
-    # Tap on the text: popup opens, nothing is written, inline description stays closed.
+    # Tap on the text: the help opens under the row, no widget is pushed, nothing is written.
     item._handle_mouse_release(rl.Vector2(80, 80))
-    self.assertEqual(len(self.gui_app._nav_stack), depth + 1)
-    dialog = self.gui_app.get_active_widget()
-    self.assertEqual(dialog.entry, HELP["DriverCamera"])
-    self.assertFalse(item.description_visible)
+    self.assertEqual(len(self.gui_app._nav_stack), depth)
+    self.assertTrue(item.description_visible)
+    self.assertGreater(item.rect.height, closed_height)
+    self.assertIn(HELP["DriverCamera"].what, item.description)
+    self.assertNotIn("<h2>", item.description)
     self.render_top()
     self.assertEqual(self.snapshot(), after_toggle)
-    self.assertTrue(self.store.get_bool("DriverCamera"))
 
-  def test_popup_closes_with_button_and_escape_path_and_writes_nothing(self):
+    # Tap again: it folds back up.
+    item._handle_mouse_release(rl.Vector2(80, 80))
+    self.assertFalse(item.description_visible)
+    from openpilot.system.ui.widgets.list_view import ITEM_BASE_HEIGHT
+    self.assertEqual(item.rect.height, ITEM_BASE_HEIGHT)
+    self.assertEqual(self.snapshot(), after_toggle)
+
+  def test_opening_another_row_collapses_the_previous_one_and_leaving_collapses_all(self):
     rl = self.rl
     from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import BogPilotVisualsLayout
     layout = BogPilotVisualsLayout(self.store)
     layout.show_event()
-    item = self.prepare(layout._toggles["Fahrenheit"])
-    before = self.snapshot()
+    first = self.prepare(layout._toggles["DriverCamera"])
+    second = self.prepare(layout._toggles["PedalsOnUI"])
     depth = len(self.gui_app._nav_stack)
-    for closer in ("button", "escape"):
-      item._handle_mouse_release(rl.Vector2(80, 80))
-      dialog = self.gui_app.get_active_widget()
-      self.assertEqual(len(self.gui_app._nav_stack), depth + 1)
-      self.assertFalse(dialog.closed)
-      self.render_top()
-      if closer == "button":
-        dialog._confirm_button._click_callback()
-      else:
-        dialog._cancel_button_callback()
-      self.assertTrue(dialog.closed)
-      self.assertEqual(len(self.gui_app._nav_stack), depth)
-      self.assertIs(self.gui_app.get_active_widget(), self.base)
-    self.assertEqual(self.snapshot(), before)
+    first._handle_mouse_release(rl.Vector2(80, 80))
+    self.assertTrue(first.description_visible)
+    second._handle_mouse_release(rl.Vector2(80, 80))
+    self.assertFalse(first.description_visible)
+    self.assertTrue(second.description_visible)
+    first._handle_mouse_release(rl.Vector2(80, 80))
+    self.assertTrue(first.description_visible)
+    self.assertFalse(second.description_visible)
+    # Leaving the page hides its rows: nothing stays open and nothing was pushed.
+    first.hide_event()
+    self.assertFalse(first.description_visible)
+    self.assertEqual(len(self.gui_app._nav_stack), depth)
+    first._handle_mouse_release(rl.Vector2(80, 80))
+    first.show_event()
+    self.assertFalse(first.description_visible)
+
+  def test_open_help_does_not_hold_the_timeout_return(self):
+    """The old popup was a pushed widget that survived the screen timeout. Expanding help pushes nothing, so the
+    interactive-timeout callback (which returns to the driving view) has no leftover widget to wait behind."""
+    rl = self.rl
+    from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import BogPilotVisualsLayout
+    layout = BogPilotVisualsLayout(self.store)
+    layout.show_event()
+    item = self.prepare(layout._toggles["DriverCamera"])
+    stack = list(self.gui_app._nav_stack)
+    item._handle_mouse_release(rl.Vector2(80, 80))
+    self.assertTrue(item.description_visible)
+    self.assertEqual(list(self.gui_app._nav_stack), stack)
+    layout._scroller.hide_event()
+    self.assertFalse(item.description_visible)
+    self.assertEqual(list(self.gui_app._nav_stack), stack)
 
   def test_row_without_help_keeps_stock_inline_description(self):
     rl = self.rl
@@ -318,42 +350,22 @@ class TestHelpNative(unittest.TestCase):
     self.assertEqual(len(self.gui_app._nav_stack), depth)
     self.assertTrue(item.description_visible)
 
-  # -- popup layout --------------------------------------------------------------------------------------------------
-  def test_every_popup_fits_the_screen_and_long_text_scrolls(self):
-    rl = self.rl
-    from openpilot.selfdrive.ui.bogpilot.toggle_help import HELP, create_help_dialog
-    from openpilot.system.ui.widgets import confirm_dialog as cd
+  # -- inline layout ------------------------------------------------------------------------------------------------
+  def test_every_help_text_lays_out_inline_and_long_text_wraps(self):
+    from openpilot.selfdrive.ui.bogpilot.toggle_help import HELP, help_html
+    from openpilot.system.ui.widgets.html_render import HtmlRenderer, ElementType
+    from openpilot.system.ui.widgets.list_view import ITEM_DESC_FONT_SIZE, ITEM_PADDING
     self.assertEqual((self.gui_app.width, self.gui_app.height), (2160, 1080))
-    dlg_x = dlg_y = cd.RICH_OUTER_MARGIN
-    dlg_w, dlg_h = 2160 - 2 * dlg_x, 1080 - 2 * dlg_y
-    text_w = dlg_w - 2 * cd.MARGIN
-    visible_h = dlg_h - cd.BUTTON_HEIGHT - cd.MARGIN - 2 * cd.TEXT_PADDING
-    self.assertGreater(visible_h, 400)
-    self.assertLessEqual(dlg_y + dlg_h, 1080)
-    tallest, tallest_key = 0, None
+    width = int(1640 - 2 * ITEM_PADDING)
+    renderer = HtmlRenderer(text="", text_size={ElementType.P: ITEM_DESC_FONT_SIZE})
+    renderer.parse_html_content(help_html(HELP["DriverCamera"], heading=False))
+    short = renderer.get_total_height(width)
+    self.assertGreater(short, 0)
     for key, entry in HELP.items():
-      dialog = create_help_dialog(entry)
-      height = dialog._html_renderer.get_total_height(int(text_w))
-      self.assertGreater(height, 0, key)
-      if height > tallest:
-        tallest, tallest_key = height, key
-    # Every popup shows its own start without scrolling and the longest one is taller than the window, so it scrolls.
-    self.assertGreater(tallest, 0)
-    dialog = create_help_dialog(HELP[tallest_key], extra="x " * 400)
-    self.gui_app.push_widget(dialog)
-    self.render_top()
-    self.assertGreater(dialog._html_renderer.get_total_height(int(text_w)), visible_h)
-    button = dialog._confirm_button.rect
-    self.assertGreaterEqual(button.x, 0)
-    self.assertLessEqual(button.x + button.width, 2160)
-    self.assertLessEqual(button.y + button.height, 1080)
-    self.assertGreater(button.y, dlg_y + visible_h - 1, "Close button sits below the scrolling text")
-    self.assertGreaterEqual(button.height, 100, "big enough to tap")
-    panel = dialog._scroller.scroll_panel
-    panel.set_offset(-300)
-    self.render_top()
-    self.assertLess(panel.offset, -100, "long popup text must scroll")
-    dialog._confirm_button_callback()
+      renderer.parse_html_content(help_html(entry, heading=False))
+      self.assertGreater(renderer.get_total_height(width), 0, key)
+    renderer.parse_html_content(help_html(HELP["DriverCamera"], heading=False, extra="word " * 400))
+    self.assertGreater(renderer.get_total_height(width), short + 400, "a long line wraps to more rows instead of being cut")
 
   # -- every real page ---------------------------------------------------------------------------------------------
   def build_pages(self):
@@ -409,10 +421,10 @@ class TestHelpNative(unittest.TestCase):
         before = self.snapshot()
         depth = len(self.gui_app._nav_stack)
         item._handle_mouse_release(self.rl.Vector2(80, 80))
-        self.assertEqual(len(self.gui_app._nav_stack), depth + 1, (name, title))
-        dialog = self.gui_app.get_active_widget()
-        self.render_top()
-        dialog._confirm_button_callback()
+        self.assertEqual(len(self.gui_app._nav_stack), depth, (name, title))
+        self.assertTrue(item.description_visible, (name, title))
+        item._handle_mouse_release(self.rl.Vector2(80, 80))
+        self.assertFalse(item.description_visible, (name, title))
         self.assertEqual(self.snapshot(), before, (name, title))
         opened += 1
     self.assertEqual(uncovered, [], "rows with no help and not in SKIPPED_TITLES")

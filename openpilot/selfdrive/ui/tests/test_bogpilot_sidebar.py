@@ -88,7 +88,8 @@ def test_brand_asset_is_authentic_and_stock_navigation_untouched():
   source = Path(m.__file__).read_text()
   assert 'gui_app.texture("bogpilot/button_home.png")' in source
   assert 'HOME_BTN.width / float(self._home_img.width)' in source
-  assert 'self._flag_img if ui_state.started else self._home_img' in source
+  # onroad shows the BogPilot mark too: the stock comma flag image is never loaded or drawn
+  assert 'button_img = self._home_img' in source and '_flag_img' not in source and 'images/button_flag.png' not in source and 'images/button_home.png' not in source
   assert 'self._on_settings_click()' in source and 'self._on_flag_click()' in source
   asset = Path(m.__file__).parents[2] / 'assets/bogpilot/button_home.png'
   # Exact 568fea old BogPilot theme asset, never a generated replacement.

@@ -1,4 +1,4 @@
-"""Tests for BogPilot stream-5 shipping defaults + visibility."""
+"""Tests for BogPilot shipping defaults + visibility."""
 from __future__ import annotations
 
 import importlib
@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
   sys.path.insert(0, str(ROOT))
-# C3 frogpilot tests live at frogpilot/common/tests -> parents[2]=frogpilot; also try repo root
+# C3 bogpilot tests live at bogpilot/common/tests -> parents[2]=bogpilot; also try repo root
 REPO = Path(__file__).resolve().parents[3] if len(Path(__file__).resolve().parents) > 3 else ROOT
 for p in (ROOT, REPO, REPO / "openpilot", Path(__file__).resolve().parent.parent):
   if str(p) not in sys.path:
@@ -19,7 +19,7 @@ def _load_shipping():
   for mod in (
     "openpilot.common.bogpilot_shipping_defaults",
     "common.bogpilot_shipping_defaults",
-    "frogpilot.common.bogpilot_shipping_defaults",
+    "bogpilot.common.bogpilot_shipping_defaults",
     "bogpilot_shipping_defaults",
   ):
     try:
@@ -107,9 +107,11 @@ def test_file_toggle_defaults():
   assert s.FILE_TOGGLE_DEFAULTS["DeveloperHUD"] is False
   assert s.FILE_TOGGLE_DEFAULTS["SwapSpeedGraph"] is True
   assert s.FILE_TOGGLE_DEFAULTS["HideAccelGraph"] is False
+  assert s.FILE_TOGGLE_DEFAULTS["ShowAccelGraph"] is False
+  assert s.FILE_TOGGLE_DEFAULTS["LowerSpeedLimitsBox"] is False
 
 
 def test_reparent_targets_include_approved_minimal_toggles():
   s = _load_shipping()
-  for key in ("BorderMetrics", "SidebarMetrics", "ShowCPU", "ShowGPU", "ShowMemoryUsage", "SwapSpeedGraph", "HideAccelGraph"):
+  for key in ("BorderMetrics", "SidebarMetrics", "ShowCPU", "ShowGPU", "ShowMemoryUsage"):
     assert key in s.REPARENT_TO_CUSTOM_UI

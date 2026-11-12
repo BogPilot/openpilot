@@ -1,4 +1,4 @@
-"""CSC MAX slot display contract: CurveSpeedController + ShowCSCStatus gate and the plannerd frogpilotPlan report."""
+"""CSC MAX slot display contract: CurveSpeedController + ShowCSCStatus gate and the plannerd bogpilotPlan report."""
 import time
 import unittest
 from types import SimpleNamespace
@@ -30,7 +30,7 @@ def hud_env():
 
 
 def plan(**kw):
-  base = {"cscTraining": False, "cscControllingSpeed": True, "cscSpeed": 12.0, "roadCurvature": 0.02,
+  base = {"cscActive": True, "cscTraining": False, "cscControllingSpeed": True, "cscSpeed": 12.0, "roadCurvature": 0.02,
           "slcOverriddenSpeed": 0.0, "slcSpeedLimit": 0.0, "slcSpeedLimitOffset": 0.0, "speedLimitChanged": False}
   base.update(kw)
   return SimpleNamespace(**base)
@@ -74,7 +74,7 @@ class TestCscStatusToggle(unittest.TestCase):
 
 
 class TestProducerRoundTrip(unittest.TestCase):
-  """Real msgq pub/sub of plannerd's frogpilotPlan into the UI reader (requires cereal + msgq)."""
+  """Real msgq pub/sub of plannerd's bogpilotPlan into the UI reader (requires cereal + msgq)."""
 
   def test_fresh_valid_then_stale(self):
     import openpilot.cereal.messaging as messaging
@@ -87,14 +87,14 @@ class TestProducerRoundTrip(unittest.TestCase):
     cp.openpilotLongitudinalControl = True
     p = LongitudinalPlanner(cp)
     p.curve_speed = Ap1CurveSpeed(cp, 0.05, ToggleStore(True))
-    pm = messaging.PubMaster(['frogpilotPlan'])
-    sm = messaging.SubMaster(['frogpilotPlan'])
+    pm = messaging.PubMaster(['bogpilotPlan'])
+    sm = messaging.SubMaster(['bogpilotPlan'])
     drive_start = time.monotonic()
     time.sleep(0.2)
     status = L.INVALID_CSC
     for i in range(40):
       p.update(SM(msgs(20.0, 30.0, 240.0 + i, road(300.0, 0.02, 150.0))))
-      p.publish_frogpilot_plan(pm)
+      p.publish_bogpilot_plan(pm)
       time.sleep(0.05)
       sm.update(0)
       status = L.read_csc_status(sm, time.monotonic(), drive_start)
@@ -109,9 +109,35 @@ class TestProducerRoundTrip(unittest.TestCase):
     p.curve_speed = Ap1CurveSpeed(cp, 0.05, ToggleStore(False))
     for _ in range(10):
       p.update(SM(msgs(20.0, 30.0, 280.0, road(300.0, 0.02, 150.0))))
-      p.publish_frogpilot_plan(pm)
+      p.publish_bogpilot_plan(pm)
       time.sleep(0.05)
       sm.update(0)
+    self.assertFalse(L.read_csc_status(sm, time.monotonic(), drive_start).valid)
+
+  def test_csc_off_other_plan_features_active_is_invalid(self):
+    """plannerd sets bogpilotPlan.valid for speed limit control, CEM and force stop too; CSC off must still read invalid."""
+    import openpilot.cereal.messaging as messaging
+    from opendbc.car.tesla_ap1.interface import CarInterface
+    from openpilot.selfdrive.controls.lib.longitudinal_planner import LongitudinalPlanner
+    from openpilot.selfdrive.controls.tests.test_ap1_curve_speed_planner import SM, ToggleStore, msgs, road
+    from openpilot.selfdrive.controls.lib.ap1_curve_speed import Ap1CurveSpeed
+
+    cp = CarInterface.get_non_essential_params("TESLA_AP1_MODELS")
+    cp.openpilotLongitudinalControl = True
+    p = LongitudinalPlanner(cp)
+    p.curve_speed = Ap1CurveSpeed(cp, 0.05, ToggleStore(False))
+    pm = messaging.PubMaster(['bogpilotPlan'])
+    sm = messaging.SubMaster(['bogpilotPlan'])
+    drive_start = time.monotonic()
+    time.sleep(0.2)
+    for i in range(20):
+      p.update(SM(msgs(20.0, 30.0, 240.0 + i, road(300.0, 0.02, 150.0))))
+      p.force_stop_result = SimpleNamespace(forcing_stop=True, tracked_model_length=0.0)   # another plan feature keeps the message valid
+      p.publish_bogpilot_plan(pm)
+      time.sleep(0.05)
+      sm.update(0)
+    self.assertTrue(sm.valid['bogpilotPlan'] and sm.alive['bogpilotPlan'])       # message itself is valid
+    self.assertFalse(sm['bogpilotPlan'].cscActive)
     self.assertFalse(L.read_csc_status(sm, time.monotonic(), drive_start).valid)
 
 

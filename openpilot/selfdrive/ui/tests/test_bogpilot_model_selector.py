@@ -351,9 +351,14 @@ class TestLayoutShowEvent(unittest.TestCase):
       self.assertIsNotNone(layout.scroller)
       self.assertIsNotNone(layout._snapshot)
       self.assertTrue(layout._snapshot.only_default)
-      self.assertGreaterEqual(len(layout.scroller._items), 3)
+      self.assertGreaterEqual(len(layout.scroller._items), 2)   # status (with the explanation under it) and the Default row
       shown = [item.title for item in layout.scroller._items]
-      self.assertIn(ONLY_DEFAULT_TEXT, shown)
+      # The explanation is the status row's description (it wraps); as a title it was cut off at the right edge.
+      self.assertNotIn(ONLY_DEFAULT_TEXT, shown)
+      status = layout.scroller._items[0]
+      self.assertIn(ONLY_DEFAULT_TEXT, status.description)
+      self.assertTrue(status.description_visible)
+      self.assertTrue(all(len(title) < 40 for title in shown), shown)
       labels = [getattr(item.action_item, "text", "") for item in layout.scroller._items]
       self.assertNotIn(SELECT_LABEL, labels)
 

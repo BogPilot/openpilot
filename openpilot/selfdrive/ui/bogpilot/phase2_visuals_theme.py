@@ -1,4 +1,4 @@
-"""BogPilot Visuals/theme gap closure (lane visualsTheme).
+"""BogPilot Visuals/theme gap closure.
 
 telemetryAudit found 21 ON-unregistered visuals/theme prefs. This module is the
 lane catalog: which keys get a Visuals menu row with a real 0.11.2 raylib
@@ -31,8 +31,9 @@ NEW_VISUAL_TOGGLES: tuple[tuple[str, str, str], ...] = (
    "Required for Blind Spot Border."),
   ("DynamicPedalsOnUI", "Dynamic Pedals",
    "When Pedals on Screen is on, vary pedal icon strength with measured acceleration. Off hides the pedal overlay."),
-  ("SwapSpeedGraph", "Accel Graph on Top",
-   "Put the acceleration graph above the speed row in the top-left cluster. Display only; file-backed."),
+  ("LowerSpeedLimitsBox", "Lower Speed Limits Box",
+   "Lower speed limits box (if obstructed by rear view mirror). Moves the top-left speed row "
+   "(MAX, speed, and the LIMIT tile) down to the slot below where the accel graph sits. Display only; file-backed."),
   ("Fahrenheit", "Temperature in Fahrenheit",
    "Show sidebar temperature in Fahrenheit instead of Celsius."),
   ("NumericalTemp", "Numerical Temperature",
@@ -49,9 +50,12 @@ NEW_VISUAL_TOGGLES: tuple[tuple[str, str, str], ...] = (
 
 NEW_VISUAL_KEYS = tuple(k for k, _, _ in NEW_VISUAL_TOGGLES)
 
+# Sidebar contents are saved by tapping the sidebar boxes (CPU / GPU, RAM / storage, temperature units), not by menu rows.
+SIDEBAR_TAP_KEYS = ("Fahrenheit", "NumericalTemp", "ShowCPU", "ShowMemoryUsage")
+
 # File-only UI keys (never typed Params). ParamStore already routes these to
 # /data/params_bogpilot; consumers use FileToggles / layout_from_toggles.
-FILE_ONLY_VISUAL_KEYS = frozenset({"SwapSpeedGraph"})
+FILE_ONLY_VISUAL_KEYS = frozenset({"LowerSpeedLimitsBox", "ShowAccelGraph"})
 
 # ---------------------------------------------------------------------------
 # Omissions — ON in preserved prefs, but no honest 0.11.2 raylib consumer yet
@@ -71,13 +75,14 @@ OMITTED: tuple[tuple[str, str], ...] = (
    "0.9.7 Custom Themes parent (colors/icons/sounds/wheel); theme asset loader / Theme Maker not on raylib; "
    "The Bog restoration not authorized."),
   ("DeveloperUI",
-   "Intermediate manage parent only. C3X Adjacent Lead Speed Boxes already have their own Visuals row; "
-   "no standalone Developer HUD/sidebar widgets ported to raylib."),
+   "Intermediate manage parent only. C3X Adjacent Lead Speed Boxes and the Developer HUD / extra sidebar slots "
+   "have their own Visuals rows; the 300 px Developer Sidebar and the radar-track overlays are not ported."),
   ("DeveloperWidgets",
    "Intermediate gate for radard adjacent_lead_tracking formula; HUD AdjacentLeadsUI is independent on C3X; "
    "Radar Tracks / stopping-point overlays not ported."),
   ("DeveloperMetrics",
-   "Intermediate parent for AdjacentPathMetrics / FPS / LeadInfo; those child renders are absent on raylib feae."),
+   "Intermediate parent for AdjacentPathMetrics / FPS / LeadInfo; those child renders are absent on raylib "
+   "(the Developer HUD already shows the lead data)."),
   ("UseSI",
    "0.9.7 SI formatting for developer metrics; no UseSI reader in raylib UI (developer metric overlays absent)."),
 )
@@ -177,7 +182,8 @@ def consumer_snapshot(store: Any, *, longitudinal: bool = True, has_bsm: bool = 
   snap["DynamicPedalsOnUI"] = bool(ped.dynamic)
   snap["BorderMetrics"] = bool(b("BorderMetrics") and b("BlindSpotMetrics") and has_bsm)
   lay = layout_from_toggles(lambda k: bool(store.get_bool(k)))
-  snap["SwapSpeedGraph"] = bool(lay.swap)
+  snap["LowerSpeedLimitsBox"] = bool(lay.lower_speed_box)
+  snap["ShowAccelGraph"] = bool(lay.show_accel)
   lim = limit_policy(store, SimpleNamespace_CP(longitudinal=longitudinal))
   snap["NavigationUI_gate"] = bool(b("NavigationUI"))
   snap["ShowSpeedLimits"] = bool(lim.show_speed_limits)
@@ -200,7 +206,8 @@ class SimpleNamespace_CP:
 def decision_table() -> list[dict[str, str]]:
   rows = []
   for key, title, _desc in NEW_VISUAL_TOGGLES:
-    rows.append({"key": key, "decision": "IMPLEMENT", "title": title, "note": "Visuals row + real consumer"})
+    note = "Saved by tapping the sidebar box (no menu row)" if key in SIDEBAR_TAP_KEYS else "Visuals row + real consumer"
+    rows.append({"key": key, "decision": "IMPLEMENT", "title": title, "note": note})
   for key, reason in OMITTED:
     rows.append({"key": key, "decision": "OMIT", "title": "", "note": reason})
   return rows

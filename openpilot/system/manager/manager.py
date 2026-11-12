@@ -195,6 +195,12 @@ def main() -> None:
   params = Params()
   if params.get_bool("DoUninstall"):
     cloudlog.warning("uninstalling")
+    try:
+      from openpilot.system.bogpilot.boot_logo import restore_stock_boot_logo, restore_stock_boot_bg_png
+      cloudlog.warning(f"boot logo restore: {restore_stock_boot_logo()}")
+      cloudlog.warning(f"boot bg.png restore: {restore_stock_boot_bg_png()}")
+    except Exception:
+      cloudlog.exception("boot logo restore failed")
     HARDWARE.uninstall()
   elif params.get_bool("DoReboot"):
     cloudlog.warning("reboot")

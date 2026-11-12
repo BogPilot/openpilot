@@ -5290,6 +5290,24 @@ public:
 
   inline float getAp1StalkFollowS() const;
 
+  inline bool getPreapLatOnly() const;
+
+  inline bool getPreapPedalDetected() const;
+
+  inline bool getPreapPedalCalibrated() const;
+
+  inline bool getPreapPedalUnavailable() const;
+
+  inline bool getPreapAolLat() const;
+
+  inline bool getPreapPedalNotResponding() const;
+
+  inline  ::uint8_t getPreapPedalFailCause() const;
+
+  inline  ::uint8_t getAp1OverrideSignal() const;
+
+  inline bool getAp1SpeedLimitUnknown() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -5401,6 +5419,33 @@ public:
 
   inline float getAp1StalkFollowS();
   inline void setAp1StalkFollowS(float value);
+
+  inline bool getPreapLatOnly();
+  inline void setPreapLatOnly(bool value);
+
+  inline bool getPreapPedalDetected();
+  inline void setPreapPedalDetected(bool value);
+
+  inline bool getPreapPedalCalibrated();
+  inline void setPreapPedalCalibrated(bool value);
+
+  inline bool getPreapPedalUnavailable();
+  inline void setPreapPedalUnavailable(bool value);
+
+  inline bool getPreapAolLat();
+  inline void setPreapAolLat(bool value);
+
+  inline bool getPreapPedalNotResponding();
+  inline void setPreapPedalNotResponding(bool value);
+
+  inline  ::uint8_t getPreapPedalFailCause();
+  inline void setPreapPedalFailCause( ::uint8_t value);
+
+  inline  ::uint8_t getAp1OverrideSignal();
+  inline void setAp1OverrideSignal( ::uint8_t value);
+
+  inline bool getAp1SpeedLimitUnknown();
+  inline void setAp1SpeedLimitUnknown(bool value);
 
 private:
   ::capnp::_::StructBuilder _builder;
@@ -11569,6 +11614,132 @@ inline float BogPilotCarState::Builder::getAp1StalkFollowS() {
 inline void BogPilotCarState::Builder::setAp1StalkFollowS(float value) {
   _builder.setDataField<float>(
       ::capnp::bounded<6>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getPreapLatOnly() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<165>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getPreapLatOnly() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<165>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setPreapLatOnly(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<165>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getPreapPedalDetected() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<166>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getPreapPedalDetected() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<166>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setPreapPedalDetected(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<166>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getPreapPedalCalibrated() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<167>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getPreapPedalCalibrated() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<167>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setPreapPedalCalibrated(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<167>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getPreapPedalUnavailable() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<168>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getPreapPedalUnavailable() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<168>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setPreapPedalUnavailable(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<168>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getPreapAolLat() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<169>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getPreapAolLat() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<169>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setPreapAolLat(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<169>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getPreapPedalNotResponding() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<170>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getPreapPedalNotResponding() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<170>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setPreapPedalNotResponding(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<170>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint8_t BogPilotCarState::Reader::getPreapPedalFailCause() const {
+  return _reader.getDataField< ::uint8_t>(
+      ::capnp::bounded<22>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint8_t BogPilotCarState::Builder::getPreapPedalFailCause() {
+  return _builder.getDataField< ::uint8_t>(
+      ::capnp::bounded<22>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setPreapPedalFailCause( ::uint8_t value) {
+  _builder.setDataField< ::uint8_t>(
+      ::capnp::bounded<22>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint8_t BogPilotCarState::Reader::getAp1OverrideSignal() const {
+  return _reader.getDataField< ::uint8_t>(
+      ::capnp::bounded<23>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint8_t BogPilotCarState::Builder::getAp1OverrideSignal() {
+  return _builder.getDataField< ::uint8_t>(
+      ::capnp::bounded<23>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAp1OverrideSignal( ::uint8_t value) {
+  _builder.setDataField< ::uint8_t>(
+      ::capnp::bounded<23>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getAp1SpeedLimitUnknown() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<171>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getAp1SpeedLimitUnknown() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<171>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAp1SpeedLimitUnknown(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<171>() * ::capnp::ELEMENTS, value);
 }
 
 }  // namespace

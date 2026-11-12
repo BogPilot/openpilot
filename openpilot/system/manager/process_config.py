@@ -6,6 +6,7 @@ from opendbc.car.structs import car
 from openpilot.common.params import Params
 from openpilot.common.hardware import PC, COMMA_HARDWARE
 from openpilot.system.manager.process import PythonProcess, NativeProcess, DaemonProcess
+from openpilot.system.bogpilot.osm.supervisor import manager_condition as bogpilot_mapd_wanted
 
 WEBCAM = os.getenv("USE_WEBCAM") is not None
 
@@ -92,8 +93,11 @@ procs = [
   PythonProcess("joystickd", "openpilot.tools.joystick.joystickd", or_(joystick, notcar)),
   PythonProcess("selfdrived", "openpilot.selfdrive.selfdrived.selfdrived", only_onroad),
   PythonProcess("card", "openpilot.selfdrive.car.card", only_onroad),
-  # BogPilot: DriveHistory ledger + FrogPilotStats (lane driveStats)
+  # BogPilot: DriveHistory ledger + BogPilotStats
   PythonProcess("bogpilot_trackd", "openpilot.system.bogpilot.drive_tracking", only_onroad),
+  # BogPilot: OSM Map Data (mapd v1.12.0) supervisor. Exists only when the Phase3MapDataEnabled marker is set,
+  # a region is selected and the pinned binary verifies: never on a default install. Runs offroad too (region downloads, as 0.9.7).
+  PythonProcess("bogpilot_mapd", "openpilot.system.bogpilot.osm.supervisor", bogpilot_mapd_wanted),
   PythonProcess("deleter", "openpilot.system.loggerd.deleter", always_run),
   PythonProcess("dmonitoringd", "openpilot.selfdrive.monitoring.dmonitoringd", driverview, enabled=(WEBCAM or not PC)),
   PythonProcess("qcomgpsd", "openpilot.system.qcomgpsd.qcomgpsd", qcomgps, enabled=COMMA_HARDWARE),

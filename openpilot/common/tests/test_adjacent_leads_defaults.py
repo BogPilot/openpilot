@@ -1,4 +1,4 @@
-"""t956u: genuine default ON, persisted user OFF remains authoritative; no fake radar input."""
+"""Genuine default ON, persisted user OFF remains authoritative; no fake radar input."""
 from pathlib import Path
 
 import pytest

@@ -1,8 +1,8 @@
-"""BogPilot 88 mph flame tire tracks (port of frogpilot/ui/qt/onroad/bsm_flame_tracks.h).
+"""BogPilot 88 mph flame tire tracks (port of bogpilot/ui/qt/onroad/bsm_flame_tracks.h).
 
 When the red blind-spot lane fill on a side turns off and that side's adjacent radar lead is faster than 88 mph within
-0.5 s, two burning tire tracks run down that lane for 3 s. Display only. Toggle: /data/params_bogpilot/BSMFlameTracks
-(default on). Needs an adjacent-lane lead source (frogpilotRadarState); without it this never fires.
+BSM_FLAME_WINDOW_MS (2222 ms), two burning tire tracks run down that lane for 3 s. Display only. Toggle: /data/params_bogpilot/BSMFlameTracks
+(default on). Needs an adjacent-lane lead source (bogpilotRadarState); without it this never fires.
 """
 from __future__ import annotations
 import math
@@ -15,7 +15,7 @@ from openpilot.selfdrive.ui.onroad.bogpilot.file_toggles import toggles
 from openpilot.selfdrive.ui.onroad.bogpilot.flame_tracks_logic import (
   DURATION_MS,
   FLAME_HEIGHT_SCALE,
-  GRACE_MS,
+  BSM_FLAME_WINDOW_MS,
   MPH_TO_MS,
   TOGGLE_DEFAULT,
   TOGGLE_KEY,
@@ -29,7 +29,7 @@ from openpilot.selfdrive.ui.onroad.bogpilot.style import C, line, fill_convex
 __all__ = [
   "DURATION_MS",
   "FLAME_HEIGHT_SCALE",
-  "GRACE_MS",
+  "BSM_FLAME_WINDOW_MS",
   "MPH_TO_MS",
   "TOGGLE_DEFAULT",
   "TOGGLE_KEY",

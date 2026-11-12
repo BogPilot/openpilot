@@ -14,17 +14,17 @@ from openpilot.common.swaglog import cloudlog
 from openpilot.system import micd
 from openpilot.common.hardware import HARDWARE
 
-# --- BogPilot alert volumes (stream 7) ---
-# FrogPilot defaults: AlertVolumeControl off -> ambient for all alerts (engage/disengage audible).
+# --- BogPilot alert volumes (alert volumes) ---
+# BogPilot defaults: AlertVolumeControl off -> ambient for all alerts (engage/disengage audible).
 # When a future AP1/defaults stream writes volume params, honor them; never default to mute.
 try:
   from openpilot.selfdrive.ui.bogpilot.alert_volumes import (
-    FROGPILOT_VOLUME_DEFAULTS,
+    BOGPILOT_VOLUME_DEFAULTS,
     VOLUME_PARAM_KEYS,
     resolve_alert_gain,
   )
 except Exception:  # pragma: no cover - keep stock soundd usable without the package
-  FROGPILOT_VOLUME_DEFAULTS = {
+  BOGPILOT_VOLUME_DEFAULTS = {
     "AlertVolumeControl": "0",
     "EngageVolume": "101",
     "DisengageVolume": "101",
@@ -34,7 +34,7 @@ except Exception:  # pragma: no cover - keep stock soundd usable without the pac
     "WarningSoftVolume": "101",
     "WarningImmediateVolume": "101",
   }
-  VOLUME_PARAM_KEYS = tuple(k for k in FROGPILOT_VOLUME_DEFAULTS if k != "AlertVolumeControl")
+  VOLUME_PARAM_KEYS = tuple(k for k in BOGPILOT_VOLUME_DEFAULTS if k != "AlertVolumeControl")
 
   def resolve_alert_gain(*, alert_volume_control, percent, ambient, key=None):
     if not alert_volume_control:
@@ -56,7 +56,7 @@ def _bogpilot_params_dir() -> Path:
   return Path(os.getenv("BOGPILOT_PARAMS_DIR", "/data/params_bogpilot"))
 
 def _bogpilot_read_param(key: str) -> str | None:
-  # Prefer file store so this works before Params keys are registered (stream 6).
+  # Prefer file store so this works before Params keys are registered.
   try:
     return (_bogpilot_params_dir() / key).read_text(encoding="utf-8").strip()
   except OSError:
@@ -188,10 +188,10 @@ class Soundd:
     """
     self._bp_alert_volume_control = _bogpilot_bool(
       _bogpilot_read_param("AlertVolumeControl"),
-      _bogpilot_bool(FROGPILOT_VOLUME_DEFAULTS.get("AlertVolumeControl"), False),
+      _bogpilot_bool(BOGPILOT_VOLUME_DEFAULTS.get("AlertVolumeControl"), False),
     )
     self._bp_volume_percents = {
-      key: max(0, min(101, _bogpilot_int(_bogpilot_read_param(key), int(float(FROGPILOT_VOLUME_DEFAULTS.get(key, "101"))))))
+      key: max(0, min(101, _bogpilot_int(_bogpilot_read_param(key), int(float(BOGPILOT_VOLUME_DEFAULTS.get(key, "101"))))))
       for key in VOLUME_PARAM_KEYS
     }
 
@@ -311,7 +311,7 @@ class Soundd:
 
         self.get_audible_alert(sm)
 
-        # BogPilot: per-alert volumes (FrogPilot defaults — engage/disengage audible)
+        # BogPilot: per-alert volumes (BogPilot defaults — engage/disengage audible)
         if self.current_alert != AudibleAlert.none:
           key = _VOLUME_ALERT_KEYS.get(self.current_alert)
           if key is None:

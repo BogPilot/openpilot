@@ -8,22 +8,22 @@ not skip/pass. Gate reports no parameter/identity values or exception messages.
 
 ## Source and ownership
 
-Base f5928f3b1, isolated port/c3x-rc-startup. Only this new tool, its tests and this
-document are owned by track2. Production manager/reset/backup files unchanged.
-Primary UI contract was read: port/c3x-w3-features at 86ff6d624 (WIP), not the final
+Base f5928f3b1. Only this new tool, its tests and this
+document are new. Production manager/reset/backup files unchanged.
+The UI contract was read from a work-in-progress base, not the final
 candidate. Do not certify this base as the final build. Assemble this tooling onto
 final primary candidate and pass its **full exact HEAD SHA** explicitly.
 
 ## Real-native pending invocation
 
-The primary UI worker holds the VM lock for renders/tests. Do not compete. After
-that owner releases the existing serialized VM lock, the integration operator must
+While another job holds the VM lock, do not compete. After
+it releases the existing serialized VM lock, the operator must
 acquire it using the existing protocol, sync final candidate + matching native
 outputs to an isolated tree, and run inside AGNOS19.9 build environment:
 
 ```
 PYTHONPATH=$PWD python openpilot/tools/bogpilot/rc_startup_gate.py \
-  --sandbox-root /tmp/sandbox/c3x-startup-acceptance \
+  --sandbox-root /path/to/sandbox/c3x-startup-acceptance \
   --expected-commit "$(git rev-parse HEAD)"
 ```
 

@@ -7,9 +7,11 @@ from opendbc.car import DT_CTRL
 from opendbc.car.tesla_ap1.blindspot import Ap1Blindspot, frames_from_vl_all
 from opendbc.car.tesla_ap1.cluster import CLUSTER_ADDRS, COUNTER_SIGNALS, MSG_NAMES
 from opendbc.car.tesla_ap1.hso import ap1_driver_input
+from opendbc.car.tesla_ap1.op_long_set_speed import OpLongSetSpeed
+from opendbc.car.tesla_ap1.cruise_set import cruise_set_scale, cruise_set_scale_fix_enabled
 from opendbc.car.tesla_ap1.stalk_follow import dtr_sample, follow_seconds, parse_stalk_raw
 from opendbc.car.tesla_ap1.phase3_stalk_controls import StalkControls
-from opendbc.car.tesla_ap1.speed_limit import dashboard_speed_limit_ms
+from opendbc.car.tesla_ap1.speed_limit import dashboard_speed_limit_ms, frame_fresh
 from opendbc.car.tesla_ap1.steer_fault import steer_fault_temporary
 from opendbc.car.tesla_ap1.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTTONS, is_ap1_family
 from opendbc.car.interfaces import CarStateBase
@@ -53,6 +55,16 @@ class CarState(CarStateBase):
     # AP1 only. Stock 0x399 blind-spot fields with a per-side hold (blindspot.py).
     self.ap1_bsm = Ap1Blindspot()
     self.stock_ap_active = False
+    # AP1 openpilot long only: openpilot's own cruise set speed (op_long_set_speed.py).
+    op_long = bool(getattr(CP, "openpilotLongitudinalControl", False)) and is_ap1_family(CP.carFingerprint)
+    self.op_long_set = OpLongSetSpeed() if op_long else None
+    # Speed-limit offset for the engage set (limit_ms -> offset_ms). The card supplies it from params
+    # (phase3_speed_control.EngageLimitOffset); None = no offset (tests, replay).
+    self.op_long_offset = None
+    # Standstill tap-from-0 speed (kph). The card supplies it from params (EngageTapFromZero); None = 15 mph default.
+    self.op_long_tap_from_zero = None
+    # DI_cruiseSet DBC factor 0.5 halves the AP1 value (cruise_set.py, BogPilot x2 fix). Default ON, read once.
+    self.cruise_set_scale = cruise_set_scale(cruise_set_scale_fix_enabled())
 
   def update(self, can_parsers) -> structs.CarState:
     cp = can_parsers[Bus.chassis]
@@ -124,9 +136,11 @@ class CarState(CarStateBase):
     # (≈ ego). With pcmCruise, VCruiseHelper copies this into controlsState.vCruise
     # so openpilot's set tracks the stalk set. Display/ego stay on ESP vEgo.
     if speed_units == "KPH":
-      ret.cruiseState.speed = cp.vl["DI_state"]["DI_cruiseSet"] * CV.KPH_TO_MS
+      ret.cruiseState.speed = cp.vl["DI_state"]["DI_cruiseSet"] * self.cruise_set_scale * CV.KPH_TO_MS
     elif speed_units == "MPH":
-      ret.cruiseState.speed = cp.vl["DI_state"]["DI_cruiseSet"] * CV.MPH_TO_MS
+      ret.cruiseState.speed = cp.vl["DI_state"]["DI_cruiseSet"] * self.cruise_set_scale * CV.MPH_TO_MS
+    # openpilot long (AP1 S and X): cruiseState.speed is replaced below, after dashboardSpeedLimit and the
+    # stalk buttons are read (op_long_set_speed.py). Openpilot long off (stock AP) keeps DI_cruiseSet above.
     ret.cruiseState.available = ((cruise_state == "STANDBY") or ret.cruiseState.enabled)
     ret.cruiseState.standstill = False # This needs to be false, since we can resume from stop without sending anything special
 
@@ -210,20 +224,50 @@ class CarState(CarStateBase):
       self.stock_steer_counters = [int(c) for c in steer_ctrs]
 
     # Model S: Mobileye fused (stock 0x399 on cp_cam / bus 2) then GTW UI map/mpp
-    # into FrogPilot dashboardSpeedLimit (m/s). Cluster TX is on bus 0 and
+    # into BogPilot dashboardSpeedLimit (m/s). Cluster TX is on bus 0 and
     # never reaches cp_cam. Freq-0 UI msgs on chassis; missing → 0.
     # Model S: stock Autopilot active (stock 0x399 on bus 2, state 3/4/5). Gates the
     # standstill-experiment standby DAS_control (Tinkla: not while stock AP).
     if ap1_s:
       st = cp_cam.vl.get("AutopilotStatus", {}).get("autopilotStatus", 0)
       self.stock_ap_active = 3 <= int(st or 0) <= 5
-    if ap1_s:
+    # AP1 S and X: Mobileye fused (optional on X) then GTW UI map/mpp into dashboardSpeedLimit.
+    # Cluster substitution, BSM, and regen inputs stay Model S only.
+    if ap1:
       fused = cp_cam.vl.get("AutopilotStatus", {}).get("DAS_fusedSpeedLimit")
       ui_map = cp.vl.get("UI_driverAssistMapData", {}).get("UI_mapSpeedLimit")
       gps = cp.vl.get("UI_gpsVehicleSpeed", {})
       fp_ret.dashboardSpeedLimit = dashboard_speed_limit_ms(
         fused, ui_map, gps.get("UI_mppSpeedLimit"), gps.get("UI_mapSpeedLimitUnits"),
       )
+      # Engage set: only fresh frames (optional messages keep their last value; stale = unknown).
+      fresh_gps = frame_fresh(cp, "UI_gpsVehicleSpeed")
+      engage_limit_ms = dashboard_speed_limit_ms(
+        fused if frame_fresh(cp_cam, "AutopilotStatus") else None,
+        ui_map if frame_fresh(cp, "UI_driverAssistMapData") else None,
+        gps.get("UI_mppSpeedLimit") if fresh_gps else None,
+        gps.get("UI_mapSpeedLimitUnits") if fresh_gps else None,
+      )
+      if not fresh_gps:
+        # Units (UI_mapSpeedLimitUnits, 0x2F8) unknown or stale -> no limit-based engage set; a fused
+        # AutopilotStatus value could be a kph sign read as mph (units_are_metric falls back to MPH).
+        # Model S and Model X. Falls through to vEgo / tap / NO_ENTRY.
+        engage_limit_ms = 0.0
+    else:
+      engage_limit_ms = 0.0
+
+    if self.op_long_set is not None:
+      # openpilot long: openpilot's own set, never DI_cruiseSet (it follows ego speed and is 0 at every stop;
+      # VCruiseHelper reads 0 as unset). Tinkla carstate.py:312-313 / ACC_module.py:154-158 @501c7de for the
+      # latch; BogPilot 0.9.7 SLC limit + offset for the engage set. 0 while not engaged (no DI seed).
+      ButtonType = structs.CarState.ButtonEvent.Type
+      tap = any(be.pressed and be.type in (ButtonType.accelCruise, ButtonType.decelCruise) for be in ret.buttonEvents)
+      tap_zero = self.op_long_tap_from_zero() if self.op_long_tap_from_zero is not None else None
+      ret.cruiseState.speed = self.op_long_set.update(cruise_state, ret.vEgoRaw, ret.standstill,
+                                                      limit_ms=engage_limit_ms,
+                                                      offset_fn=self.op_long_offset, tap=tap,
+                                                      tap_from_zero_kph=tap_zero)
+      fp_ret.ap1SpeedLimitUnknown = self.op_long_set.speed_limit_unknown
 
     if ap1_s:
       # Model S only. Regen-aware stop braking inputs (regen_aware.py).
@@ -233,9 +277,16 @@ class CarState(CarStateBase):
       amb_seen = getattr(cp, "ts_nanos", {}).get("GTW_ESP1", {}).get("GTW_ambientTemperature", 0)
       fp_ret.ap1AmbientTempC = float(amb["GTW_ambientTemperature"]) if amb_seen else float("nan")
 
-    # AP1 state for openpilot-side events and FrogPilot planners (0.9.7 read
+    # AP1 state for openpilot-side events and BogPilot planners (0.9.7 read
     # these off CarState/CarController directly; 0.11 goes through carState).
     fp_ret.spdCtrlLvr = max(0, min(255, int(self.spd_ctrl_lvr)))
+    if ap1:
+      # Continuous UP/DN/RWD levels (button_states, not 10 ms buttonEvents) for the SLC software set and
+      # confirmation (0.9.7 bogpilot_card._apply_ap1_stalk_levels). accelPressed is UP only, RWD is resumePressed.
+      ButtonType = structs.CarState.ButtonEvent.Type
+      fp_ret.accelPressed = bool(self.button_states.get(ButtonType.accelCruise, False))
+      fp_ret.decelPressed = bool(self.button_states.get(ButtonType.decelCruise, False))
+      fp_ret.resumePressed = bool(self.button_states.get(ButtonType.resumeCruise, False))
     fp_ret.ap1HandsOnLevel = max(0, min(255, int(self.hands_on_level or 0)))
     fp_ret.ap1EacInhibited = self.eac_status == "EAC_INHIBITED"
     fp_ret.ap1StalkPullToggle = self.stalk_pull_toggle
@@ -291,7 +342,10 @@ class CarState(CarStateBase):
       # 0x208 outside air temperature for regen_aware.py. Frequency 0 (no canValid effect).
       messages.append(("GTW_ESP1", OPTIONAL))
     elif CP.carFingerprint == CAR.TESLA_AP1_MODELX:
-      # Model X lateral path needs the EPB EAC allow frame. Map, GPS, and ambient stay Model S only.
+      # Model X dashboard SLC uses the same GTW map / mpp frames as Model S.
+      # Ambient (regen) stays Model S only. Frequency 0 so missing frames do not trip canValid.
+      messages.append(("UI_driverAssistMapData", OPTIONAL))
+      messages.append(("UI_gpsVehicleSpeed", OPTIONAL))
       messages.append(("EPB_epasControl", OPTIONAL))
 
     cam_messages = [
@@ -309,7 +363,9 @@ class CarState(CarStateBase):
       # Frequency 0: missing stock frames fall back to the old cadence.
       cam_messages.append(("DAS_steeringControl", OPTIONAL))
     elif CP.carFingerprint == CAR.TESLA_AP1_MODELX:
-      # Model X follows the stock 0x488 counter. Cluster RX stays Model S only.
+      # Model X follows the stock 0x488 counter. Cluster substitution stays Model S only,
+      # but AutopilotStatus is subscribed so DAS_fusedSpeedLimit can fill Dashboard when present.
+      cam_messages.append(("AutopilotStatus", OPTIONAL))
       cam_messages.append(("DAS_steeringControl", OPTIONAL))
 
     return {

@@ -14,6 +14,12 @@ def get_radar_can_parser(CP):
   messages = [('TeslaRadarSguInfo', 10)]
   for i in range(NUM_POINTS):
     messages.extend([(f'RadarPoint{i}_A', 16), (f'RadarPoint{i}_B', 16)])
+  # CANBUS.radar is bus 1. 0x32e / 0x33e on this bus are RadarPoint10_A /
+  # RadarPoint15_B (8 bytes, ~16 Hz). The same IDs on the chassis bus (bus 0)
+  # are 5-byte park-assist frames (front / rear corner ultrasonics at 4 Hz,
+  # 255 = no reading). CANParser skips src != self.bus, and the Pre-AP panda
+  # has disable_forwarding, so those chassis frames never reach this parser.
+  # Never filter by CAN ID alone: that would drop a real radar track.
   return CANParser(DBC[CP.carFingerprint][Bus.radar], messages, CANBUS.radar)
 
 

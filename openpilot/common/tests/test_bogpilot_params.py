@@ -1,6 +1,6 @@
-"""BogPilot params: defaults match the 367e1fe FrogPilot table with two BogPilot standing-rule overrides (HolidayThemes off, TuningLevel Developer).
+"""BogPilot params: defaults match the 367e1fe BogPilot table with two BogPilot standing-rule overrides (HolidayThemes off, TuningLevel Developer).
 
-fixtures/bogpilot_defaults_367e1fe.json is a snapshot of 367e1fe frogpilot_default_params +
+fixtures/bogpilot_defaults_367e1fe.json is a snapshot of 367e1fe bogpilot_default_params +
 misc_tuning_levels (+ params.cc flags, EXCLUDED_KEYS), taken straight from the reference git objects
 by /workspace/agnos/tools/check_defaults_367e1fe.py (expression defaults evaluated with the
 reference's own constants). This test never regenerates it.
@@ -17,18 +17,31 @@ from openpilot.common.params import Params
 
 FIXTURE = json.loads((Path(__file__).parent / "fixtures/bogpilot_defaults_367e1fe.json").read_text(encoding="utf-8"))
 RAW_REF = FIXTURE["defaults"]
-# Product (bogpilot-tesla-c3x): approved stream-5 shipping overlay on top of the 367e1fe snapshot
+# Product (bogpilot-tesla-c3x): approved shipping overlay on top of the 367e1fe snapshot
 # (AOL off, metrics on, TuningLevel intentionally unset 0/0, ...). The fixture itself stays untouched.
 from openpilot.common.bogpilot_shipping_defaults import PARAM_OVERRIDES as SHIPPING
 REF = {k: ([SHIPPING[k][0], SHIPPING[k][1], v[2]] if k in SHIPPING else v) for k, v in RAW_REF.items()}
 # explicit fresh-ON exceptions after the historical shipping snapshot.
 # Preserve the immutable 367e1fe fixture and every other default/level/stock value.
-REQUESTED_ALERT_DEFAULTS = {"GreenLightAlert": ["1", 0, "0"], "LeadDepartingAlert": ["1", 0, "0"]}
+REQUESTED_ALERT_DEFAULTS = {"GreenLightAlert": ["1", 0, "0"], "LeadDepartingAlert": ["1", 0, "0"],
+                            "LoudBlindspotAlert": ["1", 0, "0"], "SpeedLimitChangedAlert": ["1", 0, "0"]}
 REF.update(REQUESTED_ALERT_DEFAULTS)
 # two default-ON rows move from Developer (3) to Minimal (0); default and stock value unchanged.
 REQUESTED_MINIMAL_LEVELS = {"AdjacentLeadsUI": ["1", 0, "0"], "NumericalTemp": ["1", 0, "0"]}
 REF.update(REQUESTED_MINIMAL_LEVELS)
-STOCK_011_KEYS = set(bp.FROGPILOT_STOCK_KEY_DEFAULTS)
+# BogPilot-added key with no 367e1fe row: the cruise engage / disengage chimes, fresh install ON, Minimal level.
+BOGPILOT_ADDED_KEYS = {"CruiseEngageDisengageChimes": ["1", 0, "1"]}
+REF.update(BOGPILOT_ADDED_KEYS)
+# AP1 standstill tap-from-0 speed (mph 5-30, default 15). New in 0.11; not in the 367e1fe snapshot.
+REQUESTED_AP1_TAP_FROM_ZERO = {"AP1TapFromZeroMph": ["15", 1, "15"]}
+REF.update(REQUESTED_AP1_TAP_FROM_ZERO)
+# SLC look-ahead horizon: 5 s default, 0 = off. Fixture stays at the 367e1fe "0".
+REQUESTED_SLC_LOOKAHEAD = {"SLCLookaheadLower": ["5", 2, "0"]}
+REF.update(REQUESTED_SLC_LOOKAHEAD)
+# FPS Display registers OFF (the 367e1fe snapshot had it on); level and stock value unchanged.
+REQUESTED_FPS_OFF = {"FPSCounter": ["0", 3, "0"]}
+REF.update(REQUESTED_FPS_OFF)
+STOCK_011_KEYS = set(bp.BOGPILOT_STOCK_KEY_DEFAULTS)
 
 
 def test_fixture_is_367e1fe():
@@ -40,13 +53,17 @@ def test_fixture_is_367e1fe():
   for key, expected in REQUESTED_MINIMAL_LEVELS.items():
     assert RAW_REF[key] == ["1", 3, "0"]   # the immutable snapshot keeps the 367e1fe level
     assert REF[key] == expected
+  assert RAW_REF["FPSCounter"] == ["1", 3, "0"]
+  assert REF["FPSCounter"] == ["0", 3, "0"]
+  assert RAW_REF["SLCLookaheadLower"] == ["0", 2, "0"]
+  assert REF["SLCLookaheadLower"] == ["5", 2, "0"]
 
 
 @pytest.mark.parametrize("key", sorted(REF))
 def test_default_matches_367e1fe(key):
   default, level, stock = REF[key]
   if key in STOCK_011_KEYS:
-    mine = bp.FROGPILOT_STOCK_KEY_DEFAULTS[key]
+    mine = bp.BOGPILOT_STOCK_KEY_DEFAULTS[key]
   else:
     _flags, _type, d, lvl, s = bp.BOGPILOT_PARAMS[key]
     mine = (d, lvl, s)
@@ -54,7 +71,7 @@ def test_default_matches_367e1fe(key):
 
 
 def test_no_extra_defaults():
-  rows = {k: [d, lvl, s] for k, d, lvl, s in bp.frogpilot_defaults()}
+  rows = {k: [d, lvl, s] for k, d, lvl, s in bp.bogpilot_defaults()}
   assert rows == REF
 
 
@@ -79,7 +96,7 @@ def test_header_in_sync():
 
 
 def test_libparams_has_every_key():
-  """The libparams_c.so in use must be the rebuilt one, or clearAll wipes every FrogPilot param."""
+  """The libparams_c.so in use must be the rebuilt one, or clearAll wipes every BogPilot param."""
   keys = {k.decode() for k in Params().all_keys()}
   missing = sorted(set(bp.BOGPILOT_PARAMS) - keys)
   assert not missing, f"libparams_c.so lacks {len(missing)} BogPilot keys, e.g. {missing[:5]}"
@@ -114,13 +131,27 @@ def test_reset_and_backup(tmp_path):
 
 def test_file_toggle_defaults(monkeypatch, tmp_path):
   monkeypatch.setattr(bt, "BOGPILOT_DIR", tmp_path)
-  # stream 5: SwapSpeedGraph ships ON; stream 8: HideAccelGraph ships OFF
+  # ShowAccelGraph / LowerSpeedLimitsBox ship OFF; SwapSpeedGraph remains a legacy file default ON.
   # telemetryAudit: cloud-only orphans (upload rate / remote stream / HEVC stream) ship OFF (no menus, no uploader).
   on = {"BSMFlameTracks", "ConfidenceBall", "RedesignUI", "SwapSpeedGraph"}
-  off = {"DeveloperHUD", "HideAccelGraph", "OccViz", "LiveYOLO", "OffroadScreensaver",
+  off = {"DeveloperHUD", "HideAccelGraph", "ShowAccelGraph", "LowerSpeedLimitsBox", "OccViz", "LiveYOLO", "OffroadScreensaver",
          "ShowUploadRate", "RemoteUIStream", "HevcStream"}
   for k in on:
     assert bt.read_toggle(k) is True, k
   for k in off:
     assert bt.read_toggle(k) is False, k
   assert bt.read_choice("ConfidenceBallSide") == "left"
+
+
+def test_driving_personality_button_and_profiles_default_on():
+  """On the road no personality button was drawn because OnroadDistanceButton defaulted to 0
+  (QOLVisuals, the parent CustomUI and the three personality profiles were already on)."""
+  from openpilot.common.bogpilot_store import registry_default, registry_level
+  from openpilot.common.bogpilot_shipping_defaults import PARAM_OVERRIDES
+  from openpilot.selfdrive.ui.bogpilot.bogpilot_defaults import DEFAULT_ROWS
+  for key in ("OnroadDistanceButton", "QOLVisuals", "CustomUI", "AggressivePersonalityProfile",
+              "StandardPersonalityProfile", "RelaxedPersonalityProfile"):
+    assert registry_default(key) == "1", key
+  assert PARAM_OVERRIDES["OnroadDistanceButton"] == ("1", 0)
+  assert {r[0]: r[1] for r in DEFAULT_ROWS}["OnroadDistanceButton"] == "1"
+  assert registry_level("OnroadDistanceButton") == 0   # honoured at every tuning level, a fresh install included

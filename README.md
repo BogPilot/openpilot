@@ -131,5 +131,5 @@ Stock openpilot (upstream) uploads driving data to comma by default and offers [
 
 openpilot is open source software. Users of stock openpilot can disable data collection if they wish. BogPilot's no-registration / no-upload trees go further: they do not call comma registration, athena, or the stock uploader.
 
-Lineage: BogPilot is a fork of openpilot (MIT, Comma.ai, Inc.) with FrogPilot lineage and Tesla support. Pre-AP signal reference values may come from an upstream legacy port (data values only). BogPilot is not a comma product and does not use the openpilot trademark as a product name for modified safety builds.
+Lineage: BogPilot is forked from FrogPilot's work (FrogAi and contributors, MIT), which is itself a fork of openpilot (MIT, Comma.ai, Inc.), and adds Tesla support. Thank you to the FrogPilot team for their brilliant work. Pre-AP signal reference values may come from an upstream legacy port (data values only). BogPilot is not a comma product and does not use the openpilot trademark as a product name for modified safety builds.
 </details>

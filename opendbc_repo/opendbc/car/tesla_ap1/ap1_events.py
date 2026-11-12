@@ -16,6 +16,17 @@ from opendbc.car.tesla_ap1.hso import ap1_hso_event_names, ap1_steering_pressed
 
 STEER_OVERRIDE = "steerOverride"
 STEER_TEMP_SILENT = "steerTempUnavailableSilent"
+# Pre-AP lateral-only engagement (double-pull first pull, re-pull demote): the silent long-override event, the same one a gas
+# press raises, so controlsd drops carControl.longActive while cruiseState.enabled stays on. No new event name.
+LONG_OVERRIDE = "gasPressedOverride"
+# Pre-AP: pedal longitudinal is on and the Comma Pedal stream is missing or stale (carState.bogpilot.preapPedalNotResponding).
+PEDAL_NOT_RESPONDING = "pedalNotResponding"
+# Pre-AP: the pedal did not take authority (carState.bogpilot.preapPedalUnavailable) while openpilot is engaged: retry with back-off,
+# the alert detail comes from carState.bogpilot.preapPedalFailCause. Does not disengage.
+PEDAL_RETRYING = "pedalRetrying"
+# AP1 openpilot long: standstill, no dashboard speed limit, no stalk tap set (carState.bogpilot.ap1SpeedLimitUnknown): NO_ENTRY.
+SPEED_LIMIT_UNKNOWN = "ap1SpeedLimitUnknown"
+WRONG_CAR_MODE = "wrongCarMode"
 INHIBIT_ALERT_FRAMES = int(1.0 / DT_CTRL)  # ~1 s at 100 Hz
 
 
@@ -27,6 +38,8 @@ class Ap1Events:
     """names: event names openpilot built so far. Returns the AP1 rewritten list."""
     yielding = bool(bogpilot.ap1DriverYield)
     out = list(names)
+    if bool(getattr(bogpilot, "preapLatOnly", False)) and LONG_OVERRIDE not in out:
+      out.append(LONG_OVERRIDE)
     if yielding:
       out.append(STEER_OVERRIDE)
     out = ap1_hso_event_names(out)
@@ -41,4 +54,17 @@ class Ap1Events:
       self.inhibit_alert_frames = 0
     if self.inhibit_alert_frames >= INHIBIT_ALERT_FRAMES and STEER_TEMP_SILENT not in out:
       out.append(STEER_TEMP_SILENT)
+
+    # Pre-AP: say why when the Comma Pedal goes quiet. It replaces "Cruise Mode Disabled" (cruiseState.available drops with the pedal)
+    # because this is the specific cause; while engaged the event disengages immediately (the panda stops allowing controls about a
+    # second after the stream stops anyway).
+    if bool(getattr(bogpilot, "preapPedalNotResponding", False)):
+      out = [name for name in out if name != WRONG_CAR_MODE]
+      if PEDAL_NOT_RESPONDING not in out:
+        out.append(PEDAL_NOT_RESPONDING)
+    elif bool(enabled) and bool(getattr(bogpilot, "preapPedalUnavailable", False)) and PEDAL_RETRYING not in out:
+      out.append(PEDAL_RETRYING)
+    # AP1 openpilot long: no set speed for a standstill engage (op_long_set_speed.py). NO_ENTRY only, so it never disengages.
+    if bool(getattr(bogpilot, "ap1SpeedLimitUnknown", False)) and SPEED_LIMIT_UNKNOWN not in out:
+      out.append(SPEED_LIMIT_UNKNOWN)
     return out

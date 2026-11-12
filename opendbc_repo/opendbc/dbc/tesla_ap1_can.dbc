@@ -927,3 +927,30 @@ BO_ 529 RCM_status: 8 RCM
  SG_ RCM_statusCounter : 55|4@0+ (1,0) [0|15] "" GTW,OCS,DAS
  SG_ RCM_statusChecksum : 63|8@0+ (1,0) [0|255] "" GTW,OCS,DAS
 
+BO_ 1361 GAS_COMMAND: 6 EON
+ SG_ GAS_COMMAND : 7|16@0+ (0.0507968128,-22.85856576) [0|1] "" INTERCEPTOR
+ SG_ GAS_COMMAND2 : 23|16@0+ (0.1015936256,-22.85856576) [0|1] "" INTERCEPTOR
+ SG_ ENABLE : 39|1@0+ (1,0) [0|1] "" INTERCEPTOR
+ SG_ IDX : 35|4@0+ (1,0) [0|15] "" INTERCEPTOR
+ SG_ CHECKSUM : 47|8@0+ (1,0) [0|3] "" INTERCEPTOR
+
+BO_ 1362 GAS_SENSOR: 6 INTERCEPTOR
+ SG_ INTERCEPTOR_GAS : 7|16@0+ (0.0507968128,-22.85856576) [0|1] "" EON
+ SG_ INTERCEPTOR_GAS2 : 23|16@0+ (0.1015936256,-22.85856576) [0|1] "" EON
+ SG_ STATE : 39|4@0+ (1,0) [0|15] "" EON
+ SG_ IDX : 35|4@0+ (1,0) [0|15] "" EON
+ SG_ CHECKSUM : 47|8@0+ (1,0) [0|3] "" EON
+
+VAL_ 1362 STATE 5 "FAULT_TIMEOUT" 4 "FAULT_STARTUP" 3 "FAULT_SCE" 2 "FAULT_SEND" 1 "FAULT_BAD_CHECKSUM" 0 "NO_FAULT" ;
+# CAN ID clashes (bus 0 vs bus 1). These IDs are intentionally not given BO_
+# definitions here: this DBC is the chassis map (bus 0). Adding a BO_ for a
+# 5-byte park frame at the same ID as the 8-byte radar track would be easy to
+# misread, and no carstate or radar parser subscribes to these park frames.
+# 0x32e (814) on bus 0 is PARK_sensorStatusFront: 5 bytes, 4 Hz, front corner
+# ultrasonic distances in cm (255 = no reading). On bus 1 the same ID is
+# RadarPoint10_A (8 bytes, ~16 Hz) in tesla_radar_bosch_generated.
+# 0x33e (830) on bus 0 is the rear park corners (5 bytes, 4 Hz). On bus 1 it is
+# RadarPoint15_B (8 bytes, ~16 Hz). The radar interface parses bus 1 only; the
+# Pre-AP panda has disable_forwarding. Never apply an ID-only filter.
+CM_ "0x32e (814) on bus 0 is PARK_sensorStatusFront (5 bytes, 4 Hz, front corner ultrasonics in cm, 255 = no reading). On bus 1 the same ID is RadarPoint10_A (8 bytes, ~16 Hz) in tesla_radar_bosch_generated. Never filter by ID alone.";
+CM_ "0x33e (830) on bus 0 is the rear park corners (5 bytes, 4 Hz). On bus 1 the same ID is RadarPoint15_B (8 bytes, ~16 Hz). Radar parsing is bus 1 only; Pre-AP panda disable_forwarding is on.";

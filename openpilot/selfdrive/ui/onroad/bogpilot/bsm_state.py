@@ -3,7 +3,7 @@
 Sources (C3X 0.11.2 schema):
   carState.leftBlindspot / rightBlindspot  car-frame sides (opendbc tesla_ap1 carstate: stock DAS_blindSpotRearLeft/Right,
                                            0x399 bus 2, warning level 1/2, SNA ignored, bad checksum skipped, 1 s hold)
-  frogpilotRadarState.leadLeft / leadRight radard bogpilot_radar (closest moving track between that side's lane lines)
+  bogpilotRadarState.leadLeft / leadRight radard bogpilot_radar (closest moving track between that side's lane lines)
 Freshness: valid, alive, current drive (recv_frame > started_frame) and recv_time no older than MAX_AGE_S.
 RHD never swaps sides: both sources are car-frame left/right.
 """
@@ -36,9 +36,9 @@ def adjacent_leads(sm, started_frame, now=None):
   # Missing, invalid or stale data must fail closed, not produce fake flames.
   now = time.monotonic() if now is None else now
   try:
-    if not (_fresh(sm, "frogpilotRadarState", started_frame, now) and _fresh(sm, "radarState", started_frame, now)):
+    if not (_fresh(sm, "bogpilotRadarState", started_frame, now) and _fresh(sm, "radarState", started_frame, now)):
       return empty
-    radar = sm["frogpilotRadarState"]
+    radar = sm["bogpilotRadarState"]
     result = []
     for lead in (radar.leadLeft, radar.leadRight):
       speed = float(lead.vLead)

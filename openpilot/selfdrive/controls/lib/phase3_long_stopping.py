@@ -18,7 +18,7 @@ WEATHER_RANGES = (
   ("Snow", ((600, 622),)),
   ("LowVisibility", ((701, 762),)),
 )
-# INT safety bounds (review BLOCKER): a saved/legacy value of 0 m/s^2 would hold no brake command at standstill and a
+# Safety bounds: a saved/legacy value of 0 m/s^2 would hold no brake command at standstill and a
 # ~0 rate would ramp braking ~1000x slower than stock. Reads clamp to these; the UI rows use the same limits.
 # Stop Acceleration / Stopping Rate rows are registered with these floors (UI range AND consumer clamp).
 STOP_TUNING_ENABLED = True
@@ -33,9 +33,9 @@ WEATHER_KEYS = ("WeatherPresets", "SetWeatherKey", *(
               "ReduceAcceleration" + suffix, "ReduceLateralAcceleration" + suffix)))
 OWNED_KEYS = (*STOPPING_KEYS, "HumanAcceleration", "QOLLongitudinal", "ForceStops", "IncreasedStoppedDistance",
               "MapGears", "ReverseCruise", *WEATHER_KEYS)
-DELEGATED_KEYS = {"HumanFollowing": "lane7: frogpilot_following.update_follow_values + radar/model-version guards",
-                  "MapAcceleration": "lane4: acceleration profile consumer; map gate supplied here",
-                  "MapDeceleration": "lane4: deceleration profile consumer; map gate supplied here"}
+DELEGATED_KEYS = {"HumanFollowing": "bogpilot_following.update_follow_values + radar/model-version guards",
+                  "MapAcceleration": "acceleration profile consumer; map gate supplied here",
+                  "MapDeceleration": "deceleration profile consumer; map gate supplied here"}
 
 
 def _number(value, fallback):
@@ -141,7 +141,7 @@ def human_accel_limit(max_accel, v_cruise, v_ego, enabled):
   """Historical low-speed taper then cruise-gap ramp, m/s and m/s².
 
   Profile choice, turn/throttle envelope and negative braking authority stay with
-  the stock planner/lane4. Apply only to its positive acceleration ceiling.
+  the stock planner and the map-acceleration consumer. Apply only to its positive acceleration ceiling.
   """
   if not enabled or max_accel <= 0 or not all(math.isfinite(x) for x in (max_accel, v_cruise, v_ego)):
     return max_accel
@@ -365,7 +365,7 @@ class LongStoppingRuntime:
 class ForceStopObserver:
   """Historical disabled-CEM stop_sign_and_light observer; NEVER enables CEM.
 
-  04d560f3e frogpilot_planner.py calls stop_sign_and_light(PLANNER_TIME-2)
+  04d560f3e bogpilot_planner.py calls stop_sign_and_light(PLANNER_TIME-2)
   with curve_detected=False while CEM is off. Its .5s filter/.63 threshold,
   tracking-lead exclusion and traffic-mode suppression are retained here.
   """

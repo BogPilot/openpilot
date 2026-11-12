@@ -201,10 +201,10 @@ static bool steer_angle_cmd_inactive_check(int desired_angle, int max_angle) {
 }
 
 // Safety checks for angle-based steering commands
-bool steer_angle_cmd_checks(int desired_angle, bool steer_control_enabled, const AngleSteeringLimits limits) {
+bool steer_angle_cmd_checks_with_lateral_permission(int desired_angle, bool steer_control_enabled, const AngleSteeringLimits limits, bool lateral_allowed) {
   bool violation = false;
 
-  if (controls_allowed && steer_control_enabled) {
+  if (lateral_allowed && steer_control_enabled) {
     // convert floating point angle rate limits to integers in the scale of the desired angle on CAN,
     // add 1 to not false trigger the violation. also fudge the speed by 1 m/s so rate limits are
     // always slightly above openpilot's in case we read an updated speed in between angle commands
@@ -229,16 +229,21 @@ bool steer_angle_cmd_checks(int desired_angle, bool steer_control_enabled, const
   }
 
   // No angle control allowed when controls are not allowed
-  if (!controls_allowed) {
+  if (!lateral_allowed) {
     violation |= steer_control_enabled;
   }
 
   // reset to current angle if either controls is not allowed or there's a violation
-  if (violation || !controls_allowed) {
+  if (violation || !lateral_allowed) {
     desired_angle_last = SAFETY_CLAMP(angle_meas.values[0], -limits.max_angle, limits.max_angle);
   }
 
   return violation;
+}
+
+// All existing callers retain exactly the original controls_allowed permission.
+bool steer_angle_cmd_checks(int desired_angle, bool steer_control_enabled, const AngleSteeringLimits limits) {
+  return steer_angle_cmd_checks_with_lateral_permission(desired_angle, steer_control_enabled, limits, controls_allowed);
 }
 
 // Safety checks for curvature-based steering commands

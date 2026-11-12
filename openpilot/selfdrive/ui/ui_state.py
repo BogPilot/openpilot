@@ -4,6 +4,7 @@ import threading
 from collections.abc import Callable
 from enum import Enum
 from openpilot.cereal import messaging, log
+from openpilot.cereal.services import SERVICE_LIST
 from opendbc.car.structs import car
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.common.params import Params
@@ -45,8 +46,7 @@ class UIState:
 
   def _initialize(self):
     self.params = Params()
-    self.sm = messaging.SubMaster(
-      [
+    _ui_services = [
         "modelV2",
         "controlsState",
         "onroadEvents",
@@ -69,9 +69,14 @@ class UIState:
         "vehicleParameters",
         "testJoystick",
         "rawAudioData",
-        "frogpilotRadarState",   # BogPilot: adjacent radar leads (radard bogpilot_radar) for adjacent boxes / BSM flames
-      ]
-    )
+        "bogpilotRadarState",   # BogPilot: adjacent radar leads (radard bogpilot_radar) for adjacent boxes / BSM flames
+    ]
+    # Cluster CSC/CEM/speed-limit, traffic-mode, and pedal brake-lights: one shared socket
+    # so ClusterState and TrafficModeReader do not each poll a second or third SubMaster.
+    for _s in ("bogpilotPlan", "bogpilotCarState"):
+      if _s in SERVICE_LIST:
+        _ui_services.append(_s)
+    self.sm = messaging.SubMaster(_ui_services)
 
 
     # UI Status tracking
@@ -371,7 +376,7 @@ class Device:
       self._last_brightness = brightness
 
   def _bp_attention(self):
-    # Review MAJOR 2: with the Screen master OFF this must be a no-op so stock wake behaviour is unchanged.
+    # with the Screen master OFF this must be a no-op so stock wake behaviour is unchanged.
     if not bp_screen_enabled(bp_device_store()):
       return False
     return bool(ui_state.sm["selfdriveState"].alertType) or ui_state.engaged != getattr(self, "_bp_last_engaged", ui_state.engaged)

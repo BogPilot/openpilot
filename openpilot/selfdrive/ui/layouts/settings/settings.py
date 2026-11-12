@@ -17,9 +17,11 @@ from openpilot.system.ui.widgets.network import NetworkUI
 # Constants
 SIDEBAR_WIDTH = 500
 CLOSE_BTN_SIZE = 200
-CLOSE_ICON_SIZE = 70
 NAV_BTN_HEIGHT = 110
 PANEL_MARGIN = 50
+BACK_BTN_WIDTH = 300
+BACK_BTN_HEIGHT = 140
+BACK_FONT_SIZE = 55
 
 # Colors
 SIDEBAR_COLOR = rl.BLACK
@@ -65,7 +67,9 @@ class SettingsLayout(Widget):
     }
 
     self._font_medium = gui_app.font(FontWeight.MEDIUM)
-    self._close_icon = gui_app.texture("icons/close2.png", CLOSE_ICON_SIZE, CLOSE_ICON_SIZE)
+
+    self._close_btn_rect = rl.Rectangle(0, 0, 0, 0)
+    self._back_btn_rect = rl.Rectangle(0, 0, 0, 0)
 
     # Callbacks
     self._close_callback: Callable | None = None
@@ -82,38 +86,39 @@ class SettingsLayout(Widget):
     self._draw_sidebar(sidebar_rect)
     self._draw_current_panel(panel_rect)
 
+  def _bogpilot_can_go_back(self) -> bool:
+    """True while the BogPilot panel is open below its top level: Back then goes up one level instead of closing settings."""
+    if self._current_panel != PanelType.BOGPILOT:
+      return False
+    instance = self._panels[PanelType.BOGPILOT].instance
+    return bool(getattr(instance, "can_go_back", lambda: False)())
+
+  def _draw_back_button(self, rect: rl.Rectangle):
+    pressed = (rl.is_mouse_button_down(rl.MouseButton.MOUSE_BUTTON_LEFT) and
+               rl.check_collision_point_rec(rl.get_mouse_position(), self._back_btn_rect))
+    rl.draw_rectangle_rounded(self._back_btn_rect, 1.0, 20, CLOSE_BTN_PRESSED if pressed else CLOSE_BTN_COLOR)
+    color = rl.WHITE if not pressed else rl.Color(220, 220, 220, 255)
+    text = tr("Back")
+    size = measure_text_cached(self._font_medium, text, BACK_FONT_SIZE)
+    chevron_w, gap = 22, 18   # the font atlas has no arrow glyph: the chevron is drawn
+    x = self._back_btn_rect.x + (self._back_btn_rect.width - (chevron_w + gap + size.x)) / 2
+    cy = self._back_btn_rect.y + self._back_btn_rect.height / 2
+    rl.draw_line_ex(rl.Vector2(x + chevron_w, cy - 20), rl.Vector2(x, cy), 7, color)
+    rl.draw_line_ex(rl.Vector2(x, cy), rl.Vector2(x + chevron_w, cy + 20), 7, color)
+    rl.draw_text_ex(self._font_medium, text, rl.Vector2(x + chevron_w + gap, cy - size.y / 2), BACK_FONT_SIZE, 0, color)
+
   def _draw_sidebar(self, rect: rl.Rectangle):
     rl.draw_rectangle_rec(rect, SIDEBAR_COLOR)
 
-    # Close button
-    close_btn_rect = rl.Rectangle(
-      rect.x + (rect.width - CLOSE_BTN_SIZE) / 2, rect.y + 60, CLOSE_BTN_SIZE, CLOSE_BTN_SIZE
-    )
+    # Top-left item, on every panel as in 0.9.7: "< Back". Inside a BogPilot sub-menu it goes up one level; everywhere
+    # else (including the BogPilot top level) it closes settings.
+    self._back_btn_rect = rl.Rectangle(rect.x + (rect.width - BACK_BTN_WIDTH) / 2, rect.y + 60 + (CLOSE_BTN_SIZE - BACK_BTN_HEIGHT) / 2,
+                                       BACK_BTN_WIDTH, BACK_BTN_HEIGHT)
+    self._close_btn_rect = self._back_btn_rect
+    self._draw_back_button(rect)
+    self._draw_nav_buttons(rect)
 
-    pressed = (rl.is_mouse_button_down(rl.MouseButton.MOUSE_BUTTON_LEFT) and
-               rl.check_collision_point_rec(rl.get_mouse_position(), close_btn_rect))
-    close_color = CLOSE_BTN_PRESSED if pressed else CLOSE_BTN_COLOR
-    rl.draw_rectangle_rounded(close_btn_rect, 1.0, 20, close_color)
-
-    icon_color = rl.Color(255, 255, 255, 255) if not pressed else rl.Color(220, 220, 220, 255)
-    icon_dest = rl.Rectangle(
-      close_btn_rect.x + (close_btn_rect.width - self._close_icon.width) / 2,
-      close_btn_rect.y + (close_btn_rect.height - self._close_icon.height) / 2,
-      self._close_icon.width,
-      self._close_icon.height,
-    )
-    rl.draw_texture_pro(
-      self._close_icon,
-      rl.Rectangle(0, 0, self._close_icon.width, self._close_icon.height),
-      icon_dest,
-      rl.Vector2(0, 0),
-      0,
-      icon_color,
-    )
-
-    # Store close button rect for click detection
-    self._close_btn_rect = close_btn_rect
-
+  def _draw_nav_buttons(self, rect: rl.Rectangle):
     # Navigation buttons
     y = rect.y + 300
     for panel_type, panel_info in self._panels.items():
@@ -146,9 +151,11 @@ class SettingsLayout(Widget):
       panel.instance.render(content_rect)
 
   def _handle_mouse_release(self, mouse_pos: MousePos) -> None:
-    # Check close button
-    if rl.check_collision_point_rec(mouse_pos, self._close_btn_rect):
-      if self._close_callback:
+    # Top-left item: Back one level inside a BogPilot sub-menu, otherwise it closes settings
+    if rl.check_collision_point_rec(mouse_pos, self._back_btn_rect):
+      if self._bogpilot_can_go_back():
+        self._panels[PanelType.BOGPILOT].instance.go_back()
+      elif self._close_callback:
         self._close_callback()
       return
 
@@ -159,6 +166,9 @@ class SettingsLayout(Widget):
         return
 
   def set_current_panel(self, panel_type: PanelType):
+    if panel_type == PanelType.BOGPILOT:
+      # 0.9.7: tapping BogPilot always lands on its top level menu, never on the last sub-menu left open.
+      self._panels[PanelType.BOGPILOT].instance.reset_to_top()
     if panel_type != self._current_panel:
       self._panels[self._current_panel].instance.hide_event()
       self._current_panel = panel_type

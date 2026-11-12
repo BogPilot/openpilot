@@ -55,7 +55,7 @@ backed up, before reset can mutate or clear its request**; a marker failure bloc
 reset. The marker suppresses AP1 profile replay across manager restarts, including
 power loss between successful reset and the next hook. This lifecycle policy marker is deliberately outside w5 setting snapshots;
 it must persist in the live file store and is not restored from archives. No typed Params operation uses it. A reset failure after receipt may leave
-the marker; this intentionally preserves the owner's explicit stock-selection intent.
+the marker; this intentionally preserves the user's explicit stock-selection intent.
 No marker is written on absent/failed backup. Pending or failed reset suppresses
 AP1 for the current initialization even if the optional module is missing.
 
@@ -75,12 +75,12 @@ All BOGPILOT file/backup paths are sandboxed. The tests import **actual** Python
 manager, process classes/config and hooks, but explicitly mock hardware, IPC,
 registration, native Params, schemas and logging. Process.start and subprocess.Popen
 raise if a daemon launch is attempted. No daemon/hardware/registration is started.
-32 pass / 2 skipped on the isolated base: w6 runtime and w8 migration skips are
-explicit missing-peer validations. w7 suite absent. Contract fixture backup/reset
+32 pass / 2 skipped on the isolated base: the runtime and migration skips are
+explicit missing-peer validations. Contract fixture backup/reset
 tests prove orchestration only, NOT durability or peer transaction correctness.
 
 After assembly, use the matching AGNOS 19.9 build VM and acquire its existing
-serialized build lock; never run native checks on the Mac or a device:
+serialized build lock; never run native checks on a desktop or a device:
 
 ```
 PYTHONPATH=$PWD python openpilot/tools/bogpilot/startup_smoke.py \

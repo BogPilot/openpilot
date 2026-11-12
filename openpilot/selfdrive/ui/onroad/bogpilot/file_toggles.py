@@ -2,13 +2,13 @@
 
 These keys belong to /data/params_bogpilot, as on the existing BogPilot UI.
 Missing settings preserve shipping defaults; explicit user OFF values survive.
-BlindSpotPath is a registered FrogPilot setting when the params stream is present.
+BlindSpotPath is a registered BogPilot setting when the params stream is present.
 """
 from pathlib import Path
 import time
 
-DEFAULTS = {"RedesignUI": True, "BSMFlameTracks": True, "SwapSpeedGraph": True,
-            "HideAccelGraph": False, "BlindSpotPath": True}
+DEFAULTS = {"RedesignUI": True, "BSMFlameTracks": True, "ShowAccelGraph": False,
+            "LowerSpeedLimitsBox": False, "BlindSpotPath": True}
 
 
 def registered_value(key):

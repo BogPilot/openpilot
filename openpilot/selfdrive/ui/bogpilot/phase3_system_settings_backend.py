@@ -263,7 +263,7 @@ RANGES = {"DeviceShutdown": (0, 33, 1), "LowVoltageShutdown": (11.8, 12.5, .1),
 class SystemPreferences:
   def __init__(self, store, offroad, capable, stats_backup_dir=None):
     self.store, self.offroad, self.capable = store, offroad, capable
-    # INT (review MAJOR 2): lifetime stats cannot be rebuilt, so RESET needs a durable copy first.
+    # lifetime stats cannot be rebuilt, so RESET needs a durable copy first.
     self.stats_backup_dir = stats_backup_dir
 
   def guard(self):
@@ -281,7 +281,7 @@ class SystemPreferences:
       raise ValueError("Unsafe stats backup directory")
     stamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime())
     for n in range(1000):
-      path = root / f"FrogPilotStats.{stamp}.{n}.json"
+      path = root / f"BogPilotStats.{stamp}.{n}.json"
       try:
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
         break
@@ -319,7 +319,7 @@ class SystemPreferences:
       raise OSError("Preference write verification failed")
 
   def stats(self):
-    raw = self.store.get("FrogPilotStats", "") or "{}"
+    raw = self.store.get("BogPilotStats", "") or "{}"
     if len(raw) > MAX_JSON:
       raise ValueError("Stats exceed display limit")
     value = json.loads(raw)
@@ -329,15 +329,15 @@ class SystemPreferences:
 
   def reset_stats(self):
     self.guard()
-    raw = self.store.raw("FrogPilotStats")
+    raw = self.store.raw("BogPilotStats")
     if raw not in (None, "", "{}"):
       self._backup_stats(raw)  # durable copy first; failure refuses the reset
-    self.store.put("FrogPilotStats", "{}")
-    if self.store.raw("FrogPilotStats") != "{}":
+    self.store.put("BogPilotStats", "{}")
+    if self.store.raw("BogPilotStats") != "{}":
       raise OSError("Stats reset write verification failed")
 
   def export_stats(self, destination_dir):
-    """Write a bounded FrogPilotStats JSON export into an already-scoped directory.
+    """Write a bounded BogPilotStats JSON export into an already-scoped directory.
 
     destination_dir must be an absolute path supplied by the caller/tests; the UI
     never accepts free-form paths. Overwrite refused. No network upload.
@@ -499,7 +499,7 @@ class DurableStore:
   """
   def __init__(self, base, allowed=None):
     self.base = base
-    self.allowed = frozenset(allowed or (SYSTEM_KEYS | {"FrogPilotStats"}))
+    self.allowed = frozenset(allowed or (SYSTEM_KEYS | {"BogPilotStats"}))
 
   def __getattr__(self, name):
     return getattr(self.base, name)

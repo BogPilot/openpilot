@@ -25,20 +25,20 @@ KNOWN_FLAGS = frozenset({"PERSISTENT", "CLEAR_ON_MANAGER_START", "CLEAR_ON_ONROA
                          "BACKUP"})
 VOLUME_KEYS = ("EngageVolume", "DisengageVolume", "RefuseVolume", "PromptVolume", "PromptDistractedVolume",
                "WarningSoftVolume", "WarningImmediateVolume")
-# Approved owner policy (bogpilot-wave2-brief / stream 5/7): typed Params defaults.
+# Approved policy: typed Params defaults.
 APPROVED_PARAM_DEFAULTS = {
   "AlwaysOnLateral": "0",
   "NudgelessLaneChange": "0",
-  "AdjacentLeadsUI": "1",  # t956u; never override saved OFF
+  "AdjacentLeadsUI": "1",  # never override saved OFF
   "ScreenRecorder": "1",
-  "GreenLightAlert": "1",  # t968u; integrate ONLY with live alert consumer
+  "GreenLightAlert": "1",  # integrate ONLY with live alert consumer
   "LeadDepartingAlert": "1",
   "AlertVolumeControl": "0",
   "TuningLevel": "0",
   "TuningLevelConfirmed": "0",
   **dict.fromkeys(VOLUME_KEYS, "101"),
 }
-REQUIRED_FILE_ONLY = frozenset({"RedesignUI", "BSMFlameTracks", "SwapSpeedGraph", "DeveloperHUD", "HideAccelGraph"})
+REQUIRED_FILE_ONLY = frozenset({"RedesignUI", "BSMFlameTracks", "SwapSpeedGraph", "DeveloperHUD", "HideAccelGraph", "ShowAccelGraph", "LowerSpeedLimitsBox"})
 # Keys the CSC / longitudinal toggles depend on (must be typed Params).
 CSC_KEYS = ("CurveSpeedController", "ShowCSCStatus", "CalibratedLateralAcceleration", "CalibrationProgress",
             "DisableOpenpilotLongitudinal", "ExperimentalMode")

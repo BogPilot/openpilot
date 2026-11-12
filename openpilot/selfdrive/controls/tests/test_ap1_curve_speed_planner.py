@@ -60,6 +60,9 @@ def ap1_cp(long=True):
 def planner(cp=None, toggle=True, store=None):
   cp = cp if cp is not None else ap1_cp()
   p = LongitudinalPlanner(cp, init_v=0.0)
+  # CSC tests exercise curve speed alone: keep the (default ON) Speed Limit Controller out of the planner
+  from openpilot.selfdrive.controls.lib.phase3_speed_control import Ap1SpeedControl
+  p.speed_control = Ap1SpeedControl(cp, adopted=False)
   if p.curve_speed.available:
     p.curve_speed = Ap1CurveSpeed(cp, DT_MDL, store if store is not None else ToggleStore(toggle))
   return p
@@ -237,9 +240,9 @@ def test_curvature_sign_convention_and_glyph():
       p.update(SM(msgs(20.0, 30.0, 220.0 + 20.0 * i * DT_MDL, road(300.0, k, 150.0))))
     cs = p.curve_speed
     assert cs.controlling and math.copysign(1.0, cs.road_curvature) == math.copysign(1.0, k)
-    msg = messaging.new_message('frogpilotPlan')
-    cs.fill(msg.frogpilotPlan)
-    slot = L.csc_slot(L.csc_status_from_plan(msg.frogpilotPlan),
+    msg = messaging.new_message('bogpilotPlan')
+    cs.fill(msg.bogpilotPlan)
+    slot = L.csc_slot(L.csc_status_from_plan(msg.bogpilotPlan),
                       L.CscContext(cruise_set=True, set_speed_display=67.0, display_conv=2.23694))
     assert slot.active and slot.left == want_left
 
@@ -329,18 +332,18 @@ def test_learning_disabled_while_toggle_off():
   assert store.puts == [] and not p.curve_speed.training
 
 
-# --- frogpilotPlan report: units, validity, UI slot ---
+# --- bogpilotPlan report: units, validity, UI slot ---
 
-def test_frogpilot_plan_units_and_ui_slot():
+def test_bogpilot_plan_units_and_ui_slot():
   p = planner()
   for i in range(80):
     p.update(SM(msgs(20.0, 30.0, 220.0 + 20.0 * i * DT_MDL, road(300.0, K, 150.0))))
   cs = p.curve_speed
   assert cs.valid and cs.controlling
-  msg = messaging.new_message('frogpilotPlan')
+  msg = messaging.new_message('bogpilotPlan')
   msg.valid = cs.valid
-  cs.fill(msg.frogpilotPlan)
-  plan = msg.frogpilotPlan
+  cs.fill(msg.bogpilotPlan)
+  plan = msg.bogpilotPlan
   assert plan.roadCurvature == pytest.approx(K, rel=1e-5)                 # 1/m; positive = RIGHT curve (model frame)
   assert V_CURVE - 0.01 <= plan.cscSpeed <= 20.0 + 1e-6                   # m/s, ramping from v_ego to the curve speed
   assert plan.vCruise == pytest.approx(min(plan.cscSpeed, 30.0), rel=1e-6)
@@ -361,10 +364,63 @@ class FakePM:
 
 
 @pytest.mark.parametrize("toggle", [True, False])
-def test_publish_frogpilot_plan_valid_flag(toggle):
+def test_publish_bogpilot_plan_valid_flag(toggle):
   p = planner(toggle=toggle)
   p.update(SM(msgs(20.0, 30.0, 280.0, road(300.0, K, 150.0))))
   pm = FakePM()
-  p.publish_frogpilot_plan(pm)
+  p.publish_bogpilot_plan(pm)
   name, msg = pm.sent[0]
-  assert name == 'frogpilotPlan' and msg.valid == toggle
+  assert name == 'bogpilotPlan' and msg.valid == toggle
+
+
+# --- do not release the CSC cap to the SLC mid-curve ---
+# Two logged windows, rebuilt as synthetic inputs. Speeds in the
+# comments are mph; the planner takes m/s.
+
+MPH = 0.44704
+
+
+def test_hold_cap_while_filtered_curvature_drops():
+  """CSC was holding ~14 mph in a tight curve; 6 s later the filtered curvature
+  had already dropped and rc6 released to the 30 mph SLC while the car was still at 14 mph.
+  The cap must stay until the hold expires."""
+  p = planner()
+  # Build a controlling cap on a tight right curve (κ ~ -0.064, v ~ 14 mph).
+  k_tight = -0.064
+  v = 14.0 * MPH
+  slc = 30.0 * MPH
+  for i in range(80):
+    p.update(SM(msgs(v, slc, 200.0 + 20.0 * i * DT_MDL, road(0.0, k_tight, 1e9))))
+  assert p.curve_speed.controlling
+  held = p.curve_speed.target
+  assert held < slc - 1.0
+  # Curvature falls the way the logged filter did (κ ~ -0.012, lat accel ~ 0.46 < 1.3).
+  k_open = -0.012
+  for i in range(int(1.0 / DT_MDL)):
+    p.update(SM(msgs(v, slc, 400.0 + 20.0 * i * DT_MDL, road(0.0, k_open, 1e9))))
+    assert p.curve_speed.controlling, "released to the SLC cap mid-curve"
+    assert p.curve_speed.v_cruise_out == pytest.approx(held, abs=0.2)
+  # After the 2 s hold with no remaining curve, release is allowed.
+  for i in range(int(3.0 / DT_MDL)):
+    p.update(SM(msgs(v, slc, 500.0 + 20.0 * i * DT_MDL, road(0.0, 0.0, 1e9))))
+  assert not p.curve_speed.controlling
+  assert p.curve_speed.v_cruise_out == pytest.approx(slc)
+
+
+def test_hold_cap_on_mid_curve_reengage():
+  """Resume at 10.7 mph; 3 s later the car was engaged in a κ ~ -0.036 corner
+  at 13.8 mph and rc6 left vPlan at the 30 mph SLC (CSC not controlling). Re-engage in
+  the curve must start the cap instead of the SLC."""
+  p = planner()
+  k = -0.036
+  v = 13.8 * MPH
+  slc = 30.0 * MPH
+  # Mid-curve, not engaged (the cancel before resume).
+  p.update(SM(msgs(v, slc, 100.0, road(0.0, k, 1e9), enabled=False)))
+  assert not p.curve_speed.controlling
+  # Re-engage in the same curve.
+  for i in range(20):
+    p.update(SM(msgs(v, slc, 100.0 + 20.0 * i * DT_MDL, road(0.0, k, 1e9), enabled=True)))
+  assert p.curve_speed.controlling
+  assert p.curve_speed.v_cruise_out < slc - 1.0
+

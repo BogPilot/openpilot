@@ -7,6 +7,7 @@ separately in PROPOSED_shared.patch — do not claim working until INT applies t
 """
 from __future__ import annotations
 
+from openpilot.selfdrive.ui.bogpilot.nesting import nest
 from openpilot.selfdrive.ui.bogpilot.phase3_device_controls_runtime import (
   DEVICE_MASTER, SCREEN_MASTER, shutdown_label,
   screen_timeout, screen_brightness, screen_awake, shutdown_time, voltage_cutoff,
@@ -16,7 +17,7 @@ from openpilot.selfdrive.ui.bogpilot.phase3_device_controls_runtime import (
 DEVICE_KEYS = frozenset({
   DEVICE_MASTER, "DeviceShutdown", "LowVoltageShutdown",
   SCREEN_MASTER, "ScreenBrightness", "ScreenBrightnessOnroad",
-  "ScreenTimeout", "ScreenTimeoutOnroad", "StandbyMode",
+  "ScreenTimeout", "ScreenTimeoutOnroad", "StandbyMode", "ScreenRecorder",
 })
 
 RANGES = {
@@ -28,15 +29,10 @@ RANGES = {
   "ScreenTimeoutOnroad": (5, 60, 5),
 }
 
-BOOL_KEYS = frozenset({DEVICE_MASTER, SCREEN_MASTER, "StandbyMode"})
+BOOL_KEYS = frozenset({DEVICE_MASTER, SCREEN_MASTER, "StandbyMode", "ScreenRecorder"})
 
-# Honest non-toggle rows — not shipped as fake working controls.
-UNAVAILABLE = {
-  "Raise Temperature Limits": "Pending approved thermal envelope; stock thermal protections remain unchanged.",
-  "Disable Logging": "Not wired here: needs process_config/manager consent hooks owned by INT; local recording unchanged.",
-  "High-Quality Recording": "Not wired: no current encoder consumer for historical HD bitrate on this build.",
-  "Offroad Screensaver": "Not wired: no raylib screensaver renderer/root hook on this lane; normal screen sleep remains.",
-}
+# Not offered (hidden, no placeholder rows): Disable Logging, High-Quality Recording, Raise Temperature Limits and
+# Offroad Screensaver have no consumer in this build. Their stored values, if any, are left untouched.
 
 DEFAULTS = {
   DEVICE_MASTER: True,
@@ -48,6 +44,7 @@ DEFAULTS = {
   "ScreenTimeout": 30,
   "ScreenTimeoutOnroad": 30,
   "StandbyMode": False,
+  "ScreenRecorder": True,   # the driving-screen record button; lives here, not on Appearance
 }
 
 
@@ -181,9 +178,6 @@ class DeviceControlsMenu:
         {"kind": "number", "key": "LowVoltageShutdown", "title": "Low-Voltage Cutoff",
          "value": float(self.store.raw("LowVoltageShutdown") or DEFAULTS["LowVoltageShutdown"]),
          "requires": DEVICE_MASTER},
-        {"kind": "unavailable", "title": "Disable Logging", "reason": UNAVAILABLE["Disable Logging"]},
-        {"kind": "unavailable", "title": "High-Quality Recording", "reason": UNAVAILABLE["High-Quality Recording"]},
-        {"kind": "unavailable", "title": "Raise Temperature Limits", "reason": UNAVAILABLE["Raise Temperature Limits"]},
       ]
       return rows
     if self.path[-1] == "Screen Settings":
@@ -204,9 +198,10 @@ class DeviceControlsMenu:
          "requires": SCREEN_MASTER},
         {"kind": "toggle", "key": "StandbyMode", "title": "Standby Mode",
          "value": self.store.get_bool("StandbyMode", False), "requires": SCREEN_MASTER},
+        {"kind": "toggle", "key": "ScreenRecorder", "title": "Screen Recorder Button",
+         "value": self.store.get_bool("ScreenRecorder", DEFAULTS["ScreenRecorder"]), "requires": SCREEN_MASTER},
         {"kind": "action", "title": "Screen Recorder", "label": "Start Recording", "action": "start_recording"},
         {"kind": "action", "title": "Screen Recorder", "label": "Stop Recording", "action": "stop_recording"},
-        {"kind": "unavailable", "title": "Offroad Screensaver", "reason": UNAVAILABLE["Offroad Screensaver"]},
       ]
     raise ValueError("Unknown Device Controls page")
 
@@ -374,28 +369,30 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
           items.append(attach_help(button_item(lambda t=title: tr(t), lambda: tr("MANAGE"),
                                                callback=lambda t=title: self.go(t)), "system:" + title))
       elif menu.path[-1] == "Device Settings":
-        items.append(attach_help(toggle_item(lambda: tr("Device Settings"),
-                                             lambda: tr("Master for shutdown timer and low-voltage cutoff. Off keeps stock power protection."),
-                                             menu.store.get_bool(DEVICE_MASTER, DEFAULTS[DEVICE_MASTER]),
-                                             callback=lambda v: self.put(DEVICE_MASTER, v), enabled=self.allowed),
-                                 "system:Device Settings"))
+        master = attach_help(toggle_item(lambda: tr("Device Settings"),
+                                         lambda: tr("Master for shutdown timer and low-voltage cutoff. Off keeps stock power protection."),
+                                         menu.store.get_bool(DEVICE_MASTER, DEFAULTS[DEVICE_MASTER]),
+                                         callback=lambda v: self.put(DEVICE_MASTER, v), enabled=self.allowed),
+                             "system:Device Settings")
+        items.append(master)
         if runtime_hooks:
-          items += [self.number("DeviceShutdown", "Device Shutdown Timer"),
-                    self.number("LowVoltageShutdown", "Low-Voltage Cutoff")]
+          children = [self.number("DeviceShutdown", "Device Shutdown Timer"),
+                      self.number("LowVoltageShutdown", "Low-Voltage Cutoff")]
         else:
-          items += [text_item("Device Shutdown Timer", "Runtime integration pending"),
-                    text_item("Low-Voltage Cutoff", "Runtime integration pending")]
-        for title in ("Disable Logging", "High-Quality Recording", "Raise Temperature Limits"):
-          items.append(text_item(lambda t=title: tr(t), lambda: tr("Unavailable"),
-                                 lambda t=title: tr(UNAVAILABLE[t])))
+          children = [text_item("Device Shutdown Timer", "Runtime integration pending"),
+                      text_item("Low-Voltage Cutoff", "Runtime integration pending")]
+        nest(master, *children)   # shown only while Device Settings is on; the saved values stay
+        items += children
       elif menu.path[-1] == "Screen Settings":
-        items.append(attach_help(toggle_item(lambda: tr("Screen Settings"),
-                                             lambda: tr("Master for brightness, timeout and standby. Off keeps stock display behavior."),
-                                             menu.store.get_bool(SCREEN_MASTER, DEFAULTS[SCREEN_MASTER]),
-                                             callback=lambda v: self.put(SCREEN_MASTER, v), enabled=self.allowed),
-                                 "system:Screen Settings"))
+        master = attach_help(toggle_item(lambda: tr("Screen Settings"),
+                                         lambda: tr("Master for brightness, timeout, standby and the screen recorder button. Off keeps stock display behavior."),
+                                         menu.store.get_bool(SCREEN_MASTER, DEFAULTS[SCREEN_MASTER]),
+                                         callback=lambda v: self.put(SCREEN_MASTER, v), enabled=self.allowed),
+                             "system:Screen Settings")
+        items.append(master)
+        children = []
         if runtime_hooks:
-          items += [
+          children += [
             self.number("ScreenBrightness", "Screen Brightness (Offroad)"),
             self.number("ScreenBrightnessOnroad", "Screen Brightness (Onroad)"),
             self.number("ScreenTimeout", "Screen Timeout (Offroad)"),
@@ -408,7 +405,14 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
         else:
           for title in ("Screen Brightness (Offroad)", "Screen Brightness (Onroad)",
                         "Screen Timeout (Offroad)", "Screen Timeout (Onroad)", "Standby Mode"):
-            items.append(text_item(title, "Runtime integration pending"))
+            children.append(text_item(title, "Runtime integration pending"))
+        children.append(attach_help(toggle_item(lambda: tr("Screen Recorder Button"),
+                                                lambda: tr("Show a button on the driving screen to record the screen."),
+                                                menu.store.get_bool("ScreenRecorder", DEFAULTS["ScreenRecorder"]),
+                                                callback=lambda v: self.put("ScreenRecorder", v), enabled=self.allowed),
+                                    "ScreenRecorder"))
+        nest(master, *children)   # shown only while Screen Settings is on; the saved values stay
+        items += children
         items += [
           attach_help(button_item(lambda: tr("Screen Recorder"), lambda: tr("Start Recording"),
                                   callback=lambda: menu.run_action("start_recording"), enabled=self.allowed),
@@ -416,8 +420,6 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
           attach_help(button_item(lambda: tr("Screen Recorder"), lambda: tr("Stop Recording"),
                                   callback=lambda: menu.run_action("stop_recording"), enabled=self.allowed),
                       "ScreenRecorderControl"),
-          text_item(lambda: tr("Offroad Screensaver"), lambda: tr("Unavailable"),
-                    lambda: tr(UNAVAILABLE["Offroad Screensaver"])),
         ]
       items.append(text_item(lambda: tr("Status"), lambda: tr(menu.status or "Ready; no changes made")))
       return Scroller(items, line_separator=True, spacing=0)

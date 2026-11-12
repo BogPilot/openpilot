@@ -1,4 +1,4 @@
-"""BogPilot screen recorder (t913u): Python/raylib port of daily frogpilot/ui/screenrecorder (bogpilot-tesla 04d560f3e).
+"""BogPilot screen recorder: Python/raylib port of daily bogpilot/ui/screenrecorder (bogpilot-tesla 04d560f3e).
 
 Daily semantics kept: recordings in /data/media/screen_recordings, "<Month>_<dd>_<yyyy>-<hh>-<mm>-<ss><AM|PM>.mp4",
 5-minute segments, refuse to start (or rotate) with < 1 GiB free, a "<file>.lock" beside the file while it is being

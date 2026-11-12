@@ -1,4 +1,4 @@
-"""Stream 7: FrogPilot alert volumes — engage/disengage must not ship muted."""
+"""BogPilot alert volumes — engage/disengage must not ship muted."""
 from __future__ import annotations
 
 import importlib
@@ -17,7 +17,7 @@ for parent in _HERE.parents:
 try:
   from openpilot.selfdrive.ui.bogpilot.alert_volumes import (  # type: ignore
     AP1_VOLUME_PROFILE,
-    FROGPILOT_VOLUME_DEFAULTS,
+    BOGPILOT_VOLUME_DEFAULTS,
     is_muted_engage_disengage,
     resolve_alert_gain,
     values_equal,
@@ -26,7 +26,7 @@ try:
 except ImportError:
   from selfdrive.ui.bogpilot.alert_volumes import (  # type: ignore
     AP1_VOLUME_PROFILE,
-    FROGPILOT_VOLUME_DEFAULTS,
+    BOGPILOT_VOLUME_DEFAULTS,
     is_muted_engage_disengage,
     resolve_alert_gain,
     values_equal,
@@ -34,15 +34,15 @@ except ImportError:
   )
 
 
-def test_frogpilot_defaults_audible():
-  assert FROGPILOT_VOLUME_DEFAULTS["AlertVolumeControl"] == "0"
-  assert FROGPILOT_VOLUME_DEFAULTS["EngageVolume"] == "101"
-  assert FROGPILOT_VOLUME_DEFAULTS["DisengageVolume"] == "101"
-  assert not is_muted_engage_disengage(FROGPILOT_VOLUME_DEFAULTS)
+def test_bogpilot_defaults_audible():
+  assert BOGPILOT_VOLUME_DEFAULTS["AlertVolumeControl"] == "0"
+  assert BOGPILOT_VOLUME_DEFAULTS["EngageVolume"] == "101"
+  assert BOGPILOT_VOLUME_DEFAULTS["DisengageVolume"] == "101"
+  assert not is_muted_engage_disengage(BOGPILOT_VOLUME_DEFAULTS)
 
 
-def test_ap1_profile_matches_frogpilot_not_legacy_mute():
-  assert AP1_VOLUME_PROFILE == FROGPILOT_VOLUME_DEFAULTS
+def test_ap1_profile_matches_bogpilot_not_legacy_mute():
+  assert AP1_VOLUME_PROFILE == BOGPILOT_VOLUME_DEFAULTS
   assert not is_muted_engage_disengage(AP1_VOLUME_PROFILE)
   # Explicitly reject the old AP1 mute shape
   legacy_mute = {

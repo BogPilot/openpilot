@@ -9,13 +9,13 @@ using Car = import "/car.capnp";
 # These structs are guaranteed to remain reserved and empty in mainline
 # cereal, so use these if you want custom events in your fork.
 
-# BogPilot (sys199): the FrogPilot/BogPilot structs below are carried verbatim from
+# BogPilot (sys199): the BogPilot structs below (named FrogPilot* before the rename) are carried verbatim from
 # BogPilot/openpilot@367e1fe (FrogPilot 0.9.7), struct IDs included, so 0.9.7-era logs and tools
 # decode unchanged. Event ordinals @107-@116 map exactly as in 367e1fe (see log.capnp).
-# FrogPilotRadarState took CustomReserved10's ID in 367e1fe, so CustomReserved10 (Event @136)
+# BogPilotRadarState (FrogPilotRadarState in 367e1fe) took CustomReserved10's ID in 367e1fe, so CustomReserved10 (Event @136)
 # gets a fresh ID (capnp id) here; it is still unused.
 
-struct FrogPilotCarControl {
+struct BogPilotCarControl @0x95bd710036ea524c {
   hudControl @0 :HUDControl;
 
   struct HUDControl {
@@ -54,7 +54,7 @@ struct FrogPilotCarControl {
   }
 }
 
-struct FrogPilotCarEvent @0x81c2f05a394cf4af {
+struct BogPilotCarEvent @0x81c2f05a394cf4af {
   name @0 :EventName;
 
   enable @1 :Bool;
@@ -106,7 +106,7 @@ struct FrogPilotCarEvent @0x81c2f05a394cf4af {
   }
 }
 
-struct FrogPilotCarParams @0xf35cc4560bbf6ec2 {
+struct BogPilotCarParams @0xf35cc4560bbf6ec2 {
   canUsePedal @0 :Bool;
   canUseSDSU @1 :Bool;
   fpFlags @2 :UInt32;
@@ -119,7 +119,7 @@ struct FrogPilotCarParams @0xf35cc4560bbf6ec2 {
   }
 }
 
-struct FrogPilotCarState @0xda96579883444c35 {
+struct BogPilotCarStateMsg @0xda96579883444c35 {
   accelPressed @0 :Bool;
   alwaysOnLateralAllowed @1 :Bool;
   alwaysOnLateralEnabled @2 :Bool;
@@ -155,7 +155,7 @@ struct FrogPilotCarState @0xda96579883444c35 {
   }
 }
 
-struct FrogPilotControlsState @0x80ae746ee2596b11 {
+struct BogPilotControlsState @0x80ae746ee2596b11 {
   alertStatus @0 :AlertStatus;
   alertText1 @1 :Text;
   alertText2 @2 :Text;
@@ -175,16 +175,16 @@ struct FrogPilotControlsState @0x80ae746ee2596b11 {
     normal @0;       # low priority alert for user's convenience
     userPrompt @1;   # mid priority alert that might require user intervention
     critical @2;     # high priority alert that needs immediate user intervention
-    frogpilot @3;    # FrogPilot startup alert
+    bogpilot @3;    # BogPilot startup alert
   }
 }
 
-struct FrogPilotDeviceState @0xa5cd762cd951a455 {
+struct BogPilotDeviceState @0xa5cd762cd951a455 {
   freeSpace @0 :Int16;
   usedSpace @1 :Int16;
 }
 
-struct FrogPilotModelDataV2 @0xf98d843bfd7004a3 {
+struct BogPilotModelDataV2 @0xf98d843bfd7004a3 {
   turnDirection @0 :TurnDirection;
 
   enum TurnDirection {
@@ -194,13 +194,13 @@ struct FrogPilotModelDataV2 @0xf98d843bfd7004a3 {
   }
 }
 
-struct FrogPilotNavigation @0xf416ec09499d9d19 {
+struct BogPilotNavigation @0xf416ec09499d9d19 {
   approachingIntersection @0 :Bool;
   approachingTurn @1 :Bool;
   navigationSpeedLimit @2 :Float32;
 }
 
-struct FrogPilotPlan @0xa1680744031fdb2d {
+struct BogPilotPlan @0xa1680744031fdb2d {
   accelerationJerk @0 :Float32;
   accelerationJerkStock @1 :Float32;
   cscControllingSpeed @2 :Bool;
@@ -211,7 +211,7 @@ struct FrogPilotPlan @0xa1680744031fdb2d {
   experimentalMode @7 :Bool;
   forcingStop @8 :Bool;
   forcingStopLength @9 :Float32;
-  frogpilotEvents @10 :List(FrogPilotCarEvent);
+  bogpilotEvents @10 :List(BogPilotCarEvent);
   increasedStoppedDistance @11 :Float32;
   lateralCheck @12 :Bool;
   laneWidthLeft @13 :Float32;
@@ -238,9 +238,10 @@ struct FrogPilotPlan @0xa1680744031fdb2d {
   vCruise @34 :Float32;
   weatherDaytime @35 :Bool;
   weatherId @36 :Int16;
+  cscActive @37 :Bool;
 }
 
-struct FrogPilotRadarState @0xcb9fd56c7057593a {
+struct BogPilotRadarState @0xcb9fd56c7057593a {
   leadLeft @0 :LeadData;
   leadRight @1 :LeadData;
 

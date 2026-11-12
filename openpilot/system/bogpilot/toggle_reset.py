@@ -16,7 +16,7 @@ from collections.abc import Callable
 
 from openpilot.common.bogpilot_params import BOGPILOT_PARAMS
 from openpilot.common.bogpilot_shipping_defaults import PARAM_OVERRIDES
-from openpilot.common.bogpilot_toggles import FILE_ONLY_UI_KEYS, FILE_TOGGLES
+from openpilot.common.bogpilot_toggles import FILE_CHOICES, FILE_ONLY_UI_KEYS, FILE_TOGGLES
 
 REQUEST_KEY = "DoToggleResetStock"
 # Reviewed settings ownership snapshot: additions to the registry are NOT reset
@@ -65,6 +65,7 @@ CEStopLights
 CEStoppedLead
 Compass
 ConditionalExperimental
+CruiseEngageDisengageChimes
 CurveSpeedController
 CustomAlerts
 CustomColors
@@ -106,7 +107,7 @@ ForceMPHDashboard
 ForceStops
 ForceTorqueController
 FPSCounter
-FrogPilotTelemetry
+BogPilotTelemetry
 FrogsGoMoosTweak
 FullMap
 GasRegenCmd
@@ -290,6 +291,8 @@ WheelIcon
 WheelSpeed
 """.split())
 FILE_RESET_KEYS = FILE_ONLY_UI_KEYS | {"OffroadScreensaver", "ConfidenceBall"}
+# Text-valued file choices a reset returns to their default (the confidence ball edge goes back to Left with the ball itself)
+FILE_CHOICE_RESET_KEYS = ("ConfidenceBallSide",)
 # gasAccelStop adoption markers (file-only): a reset must return the consumers to the stock-equivalent un-adopted state,
 # otherwise rewritten registry defaults (Sport accel, Human ON, ...) would go live on a "reset" device.
 ADOPTION_MARKERS = tuple("Phase3LongAccelProfilesEnabled Phase3AdvancedLongEnabled Phase3CEMEnabled Phase3StoppedDistanceEnabled Phase3ForceStopsEnabled Phase3ManualWeatherEnabled Phase3SpeedLimitEnabled Phase3PersonalitiesEnabled Phase3HumanFollowingEnabled Phase3LeadDetectionEnabled Phase3LaneChangeEnabled Phase3HumanLaneChangesEnabled Phase3TurnDesiresEnabled Phase3StopAccelEnabled Phase3StoppingRateEnabled".split())
@@ -312,6 +315,7 @@ def reset_defaults() -> dict[str, str | None]:
     if k in values:
       values[k] = value
   values.update({k: "1" if FILE_TOGGLES[k][0] else "0" for k in sorted(FILE_RESET_KEYS)})
+  values.update({k: FILE_CHOICES[k][0] for k in FILE_CHOICE_RESET_KEYS})
   values["OffroadScreensaver"] = "0"
   values["AlertVolumeControl"] = "0"
   for k in values:
@@ -339,6 +343,7 @@ def shipping_defaults() -> dict[str, str | None]:
     if k in values:
       values[k] = value
   values.update({k: "1" if FILE_TOGGLES[k][0] else "0" for k in sorted(FILE_RESET_KEYS)})
+  values.update({k: FILE_CHOICES[k][0] for k in FILE_CHOICE_RESET_KEYS})
   values["OffroadScreensaver"] = "0"
   values["AlertVolumeControl"] = "0"
   for k in values:

@@ -283,11 +283,12 @@ class ListItem(Widget):
     self.description_visible = description_visible
     self.callback = callback
     self.description_opened_callback: Callable | None = None
-    # BogPilot: when set, tapping the row's text area opens a help popup instead of expanding the inline description.
-    self.help_callback: Callable | None = None
+    # BogPilot: the key of the help text shown as this row's inline description (see bogpilot/toggle_help.py).
     self.help_key: str | None = None
     # BogPilot: Tuning Level gate. When set and it returns False the row is hidden (see bogpilot/tuning_level.py).
     self.level_gate: Callable[[], bool] | None = None
+    # BogPilot: pixels the row is indented under its parent toggle (see bogpilot/nesting.py).
+    self.indent = 0
     self.action_item = action_item
 
     self.set_rect(rl.Rectangle(0, 0, ITEM_BASE_WIDTH, ITEM_BASE_HEIGHT))
@@ -304,11 +305,12 @@ class ListItem(Widget):
     super().show_event()
     self._set_description_visible(False)
 
+  def hide_event(self):
+    super().hide_event()
+    self._set_description_visible(False)
+
   def set_description_opened_callback(self, callback: Callable) -> None:
     self.description_opened_callback = callback
-
-  def set_help_callback(self, callback: Callable | None) -> None:
-    self.help_callback = callback
 
   def set_level_gate(self, gate: Callable[[], bool] | None) -> None:
     self.level_gate = gate
@@ -340,11 +342,6 @@ class ListItem(Widget):
         # Click was on right item, don't toggle description
         return
 
-    if self.help_callback is not None:
-      # Tap on the text area: show the help popup (reads and writes nothing).
-      self.help_callback()
-      return
-
     self._set_description_visible(not self.description_visible)
 
   def _set_description_visible(self, visible: bool):
@@ -374,7 +371,7 @@ class ListItem(Widget):
       self._rect.y >= (self._parent_rect.y + self._parent_rect.height)):
       return
 
-    content_x = self._rect.x + ITEM_PADDING
+    content_x = self._rect.x + ITEM_PADDING + self.indent
     text_x = content_x
 
     # Only draw title and icon for items that have them
@@ -391,10 +388,10 @@ class ListItem(Widget):
 
     # Draw description if visible
     if self.description_visible:
-      content_width = int(self._rect.width - ITEM_PADDING * 2)
+      content_width = int(self._rect.width - ITEM_PADDING * 2 - self.indent)
       description_height = self._html_renderer.get_total_height(content_width)
       description_rect = rl.Rectangle(
-        self._rect.x + ITEM_PADDING,
+        self._rect.x + ITEM_PADDING + self.indent,
         self._rect.y + ITEM_DESC_V_OFFSET,
         content_width,
         description_height
@@ -435,7 +432,7 @@ class ListItem(Widget):
 
     height = float(ITEM_BASE_HEIGHT)
     if self.description_visible:
-      description_height = self._html_renderer.get_total_height(max_width)
+      description_height = self._html_renderer.get_total_height(max_width - self.indent)
       height += description_height - (ITEM_BASE_HEIGHT - ITEM_DESC_V_OFFSET) + ITEM_PADDING
     return height
 
@@ -445,11 +442,11 @@ class ListItem(Widget):
 
     right_width = self.action_item.get_width_hint()
     if right_width == 0:  # Full width action (like DualButtonAction)
-      return rl.Rectangle(item_rect.x + ITEM_PADDING, item_rect.y,
-                          item_rect.width - (ITEM_PADDING * 2), ITEM_BASE_HEIGHT)
+      return rl.Rectangle(item_rect.x + ITEM_PADDING + self.indent, item_rect.y,
+                          item_rect.width - (ITEM_PADDING * 2) - self.indent, ITEM_BASE_HEIGHT)
 
     # Clip width to available space, never overlapping this Item's title
-    content_width = item_rect.width - (ITEM_PADDING * 2)
+    content_width = item_rect.width - (ITEM_PADDING * 2) - self.indent
     title_width = measure_text_cached(self._font, self.title, ITEM_TEXT_FONT_SIZE).x
     right_width = min(content_width - title_width, right_width)
 

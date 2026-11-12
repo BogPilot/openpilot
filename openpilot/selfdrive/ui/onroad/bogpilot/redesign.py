@@ -1,4 +1,4 @@
-"""Port of frogpilot/ui/qt/onroad/bogpilot_redesign.{h,cc}: speed row, personality button, lead lock-on box and labels,
+"""Port of bogpilot/ui/qt/onroad/bogpilot_redesign.{h,cc}: speed row, personality button, lead lock-on box and labels,
 record / no-GPS buttons, LKAS Fault border flash and the small / mid alert banner.
 
 Everything is in widget space (screen minus the 30 px engage border); pass the content rect origin as ox, oy.

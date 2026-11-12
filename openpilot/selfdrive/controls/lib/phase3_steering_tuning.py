@@ -131,7 +131,7 @@ class SteeringTuning:
     return self.values.get("SteerRatio", learned)
 
   def lateral_allowed(self, cs):
-    # 04d560f3 frogpilot_planner.py:97-98. Only suppress, never enable.
+    # 04d560f3 bogpilot_planner.py:97-98. Only suppress, never enable.
     return self.pause_speed <= 0 or cs.vEgo >= self.pause_speed or (self.signal_only and not (cs.leftBlinker or cs.rightBlinker))
 
   def update_torque(self, controller, live, valid):

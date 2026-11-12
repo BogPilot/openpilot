@@ -43,6 +43,8 @@ class Settings:
   experimental_push: bool = True
   pull_hold_s: float = DEFAULT_HOLD_S
   push_hold_s: float = DEFAULT_HOLD_S
+  # AP1TipRoundSet (default ON). Not stored in the JSON: the file-backed preference is shared with toggles.ap1_tip_round_set.
+  tip_round: bool = True
 
 
 def supported(cp):
@@ -58,7 +60,23 @@ class Store:
   def __init__(self, path=CONFIG_PATH):
     self.path = Path(path)
 
+  @property
+  def tip_round_path(self):
+    return self.path.parent / 'AP1TipRoundSet'
+
+  def _tip_round(self):
+    from opendbc.car.tesla_ap1.toggles import ap1_tip_round_set
+    try:
+      stored = self.tip_round_path.read_text(encoding='utf-8', errors='replace') if self.tip_round_path.is_file() else ''
+    except OSError:
+      stored = ''
+    return ap1_tip_round_set(AP1, stored)
+
   def read(self):
+    s = self._read_json()
+    return Settings(**{**asdict(s), 'tip_round': self._tip_round()})
+
+  def _read_json(self):
     try:
       data = json.loads(self.path.read_text())
       if not isinstance(data, dict):
@@ -70,7 +88,7 @@ class Store:
       return Settings(experimental_pull=False, experimental_push=False)
     result = asdict(Settings())
     for key in result:
-      if key not in data:
+      if key == 'tip_round' or key not in data:
         continue
       if key.endswith('_s'):
         try:
@@ -85,13 +103,20 @@ class Store:
     return Settings(**result)
 
   def write(self, key, value):
-    fields = asdict(self.read())
+    fields = asdict(self._read_json())
+    if key == 'tip_round':
+      from opendbc.car.tesla_ap1.toggles import set_ap1_tip_round
+      if type(value) is not bool:
+        raise ValueError('boolean required')
+      set_ap1_tip_round(value, self.tip_round_path)
+      return
     if key not in fields:
       raise KeyError(key)
     if key.endswith('_s'):
       value = hold_seconds(value)
     elif type(value) is not bool:
       raise ValueError('boolean required')
+    fields.pop('tip_round', None)
     fields[key] = value
     self.path.parent.mkdir(parents=True, exist_ok=True)
     # A private uniquely named temporary file; readers see only complete JSON.
@@ -206,13 +231,82 @@ class StalkControls:
     return pull, push
 
 
+def twist_follow_on(cs):
+  """Stalk Controls: twist following defaults on when the store is missing."""
+  settings = getattr(getattr(cs, "stalk_controls", None), "settings", None)
+  if settings is None:
+    return True
+  return bool(getattr(settings, "twist_follow", True))
+
+
+def cem_is_on(params):
+  """CEM is live only when the toggle is on and the panel has been adopted."""
+  try:
+    return bool(params.get_bool("ConditionalExperimental") and params.get_bool("Phase3CEMEnabled"))
+  except Exception:
+    return False
+
+
+def cem_stalk_override(current):
+  """0.9.7 handle_experimental_mode: 0->2, 3+->1, 1 or 2->0."""
+  try:
+    current = int(current)
+  except (TypeError, ValueError):
+    current = 0
+  if current in {1, 2}:
+    return 0
+  if current >= 3:
+    return 1
+  return 2
+
+
+def _param_int(params, key, default=0):
+  try:
+    raw = params.get(key)
+  except Exception:
+    return default
+  if raw is None or raw == "":
+    return default
+  if isinstance(raw, (bytes, bytearray)):
+    raw = raw.decode("utf-8", "replace")
+  try:
+    return int(raw)
+  except (TypeError, ValueError):
+    return default
+
+
+def experimental_hold_unconfirmed(params, cp, cs, started):
+  """True when a completed experimental hold was rejected only because it is unconfirmed."""
+  if not (getattr(cs.bogpilot, "ap1StalkPullToggle", False) or getattr(cs.bogpilot, "ap1StalkFwdToggle", False)):
+    return False
+  if not (started and experimental_supported(cp) and cs.canValid):
+    return False
+  try:
+    return not params.get_bool("ExperimentalModeConfirmed")
+  except Exception:
+    return True
+
+
 def apply_experimental_toggle(params, cp, cs, started):
-  """Actual card-side permission and persistence; never forces longitudinal."""
+  """Actual card-side permission and persistence; never forces longitudinal.
+
+  When Conditional Experimental Mode is on, the hold flips the CEStatus override
+  (0.9.7 handle_experimental_mode) and leaves ExperimentalMode alone.
+  """
+  if not (getattr(cs.bogpilot, "ap1StalkPullToggle", False) or getattr(cs.bogpilot, "ap1StalkFwdToggle", False)):
+    return None
   if not (started and experimental_supported(cp) and cs.canValid
-          and params.get_bool('ExperimentalModeConfirmed')):
+          and params.get_bool("ExperimentalModeConfirmed")):
     return None
-  if not (cs.bogpilot.ap1StalkPullToggle or cs.bogpilot.ap1StalkFwdToggle):
+  if cem_is_on(params):
+    value = cem_stalk_override(_param_int(params, "CEStatus", 0))
+    try:
+      params.put("CEStatus", value, block=True)
+    except TypeError:
+      params.put("CEStatus", value)
+    except Exception:
+      return None
     return None
-  value = not params.get_bool('ExperimentalMode')
-  params.put_bool('ExperimentalMode', value, block=True)
+  value = not params.get_bool("ExperimentalMode")
+  params.put_bool("ExperimentalMode", value, block=True)
   return value

@@ -1,6 +1,6 @@
 """Native-only deterministic current-controller replay, not a vehicle qualification.
 
-Run from lane worktree with primary native dependencies on PYTHONPATH.
+Run with the native dependencies on PYTHONPATH.
 Uses real ParamStore + current LatControlTorque + current VehicleModel.
 """
 import importlib.util
@@ -38,9 +38,9 @@ def _legacy_lateral_settings():
   import subprocess
   import unittest
   try:
-    return subprocess.check_output(['git', 'show', '04d560f3e:frogpilot/ui/qt/offroad/lateral_settings.cc'], text=True, stderr=subprocess.DEVNULL)
+    return subprocess.check_output(['git', 'show', '04d560f3e:bogpilot/ui/qt/offroad/lateral_settings.cc'], text=True, stderr=subprocess.DEVNULL)
   except (subprocess.CalledProcessError, FileNotFoundError):
-    raise unittest.SkipTest("legacy history commit 04d560f3e not available in this checkout; verified on the Mac worktree")
+    raise unittest.SkipTest("legacy history commit 04d560f3e not available in this checkout")
 
 
 class MemoryParams:
@@ -280,7 +280,7 @@ class TestSteeringTuning(unittest.TestCase):
 
 
 
-  # ---- lane steerTuning additions ----
+  # ---- steerTuning additions ----
   def ap1(self):
     from opendbc.car.tesla_ap1.values import CAR
     from opendbc.car.tesla_ap1.interface import CarInterface
@@ -420,10 +420,12 @@ class TestSteeringTuning(unittest.TestCase):
       return make
     for key in ('toggle_item', 'text_item', 'dual_button_item', 'button_item'):
       setattr(factory, key, item(key))
+    gated = ModuleType('openpilot.selfdrive.ui.bogpilot.gated_actions')   # D2: dual rows come from the gated factory
+    gated.gated_dual_button_item = item('dual_button_item')
     scroll = ModuleType('openpilot.system.ui.widgets.scroller_tici')
     scroll.Scroller = lambda items, **kwargs: NS(items=items)
     return {'openpilot.system.ui.widgets': widgets, 'openpilot.system.ui.widgets.list_view': factory,
-            'openpilot.system.ui.widgets.scroller_tici': scroll}
+            'openpilot.selfdrive.ui.bogpilot.gated_actions': gated, 'openpilot.system.ui.widgets.scroller_tici': scroll}
 
   def test_widget_callbacks_to_param_to_real_controller(self):
     from unittest.mock import patch
@@ -465,7 +467,12 @@ class TestSteeringTuning(unittest.TestCase):
         return {x.args[0] for x in rows if x.kind in ('toggle_item', 'text_item') and x.visible()}
       self.assertEqual(shown(), {'Quality of Life', 'Pause Steering Below', 'Turn Signal Only'})
       box['cp'] = self.ap1()
-      self.assertEqual(shown(), {'Advanced Lateral Tuning', 'Actuator Delay', 'Steer Ratio', 'Quality of Life', 'Pause Steering Below', 'Turn Signal Only'})
+      # The value rows appear once their parent toggle is switched on.
+      # (Override Sensitivity is for the legacy Tesla only and needs no parent toggle.)
+      self.assertEqual(shown(), {'Advanced Lateral Tuning', 'Quality of Life', 'Pause Steering Below', 'Turn Signal Only', 'Override Sensitivity'})
+      store.put_bool('AdvancedLateralTune', True)
+      self.assertEqual(shown(), {'Advanced Lateral Tuning', 'Actuator Delay', 'Steer Ratio', 'Quality of Life', 'Pause Steering Below', 'Turn Signal Only',
+                                 'Override Sensitivity'})
       box['cp'] = cp_for('torque', 'ford')
       self.assertEqual(shown(), {'Advanced Lateral Tuning', 'Actuator Delay', 'Steer Ratio', 'Friction', 'Lateral Acceleration',
                                  'Force Auto-Tune On', 'Quality of Life', 'Pause Steering Below', 'Turn Signal Only'})

@@ -1,4 +1,4 @@
-"""Read only already-downloaded M4 CAN recording; never accesses a vehicle."""
+"""Read only an already-downloaded CAN recording; never accesses a vehicle."""
 import json
 import sys
 from pathlib import Path

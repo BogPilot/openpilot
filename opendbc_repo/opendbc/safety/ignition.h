@@ -46,6 +46,20 @@ void ignition_can_hook(const CANPacket_t *msg) {
     prev_counter_tesla = counter;
   }
 
+  // Tesla legacy Model S/X exception (AP1, AP2 and Pre-AP)
+  if (msg_matches(msg, 0x348U, 0U, 8U)) {
+    // 0x348 overlaps with PSA Dyn2_CMM, whose byte 6 is not a rolling counter
+    int counter = msg->data[6] & 0xFU;
+
+    static int prev_counter_tesla_legacy = -1;
+    if ((counter == ((prev_counter_tesla_legacy + 1) % 16)) && (prev_counter_tesla_legacy != -1)) {
+      // GTW_status->GTW_driveRailReq
+      ignition_can = (msg->data[0] & 0x1U) != 0U;
+      ignition_can_cnt = 0U;
+    }
+    prev_counter_tesla_legacy = counter;
+  }
+
   // Mazda exception
   if (msg_matches(msg, 0x9EU, 0U, 8U)) {
     ignition_can = (msg->data[0] >> 5) == 0x6U;

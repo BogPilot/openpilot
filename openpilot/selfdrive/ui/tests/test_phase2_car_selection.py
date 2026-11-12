@@ -72,7 +72,7 @@ class TestPhase2CarSelection(unittest.TestCase):
     self.assertFalse(cs.apply_choice(self.p, cs.AP1_X, offroad=False))
     self.assertIsNone(self.p.get(cs.MODEL_KEY))
     self.assertIn(cs.AP1_X, cs.available_choices())
-    self.assertEqual(cs.available_choices(), (cs.AUTO, cs.AP1_S, cs.AP1_X))
+    self.assertEqual(cs.available_choices(), (cs.AUTO, cs.AP1_S, cs.AP1_X, cs.PREAP_S))
     self.assertEqual(cs.CHOICE_LABELS[cs.AP1_X], "Tesla AP1 Model X")
     self.assertNotIn("unavailable", cs.CHOICE_LABELS[cs.AP1_X].lower())
     desc = cs.CHOICE_DESCRIPTIONS[cs.AP1_X]
@@ -135,3 +135,20 @@ class TestPhase2CarSelection(unittest.TestCase):
 
 if __name__ == "__main__":
   unittest.main()
+
+
+class TestPreapChoice(unittest.TestCase):
+  def setUp(self):
+    self.p = FakeParams()
+
+  def test_preap_choice_writes_the_platform_and_detection_still_wins(self):
+    from opendbc.car.values import PLATFORMS
+    p = self.p
+    self.assertTrue(cs.apply_choice(p, cs.PREAP_S, offroad=True))
+    self.assertEqual(p.get(cs.MODEL_KEY), "TESLA_PREAP_MODELS")
+    self.assertEqual(cs.current_choice(p), cs.PREAP_S)
+    self.assertEqual(cs.selected_fingerprint(p, None, PLATFORMS), ("TESLA_PREAP_MODELS", True))
+    self.assertEqual(cs.selected_fingerprint(p, "TESLA_AP1_MODELS", PLATFORMS), ("TESLA_AP1_MODELS", False))
+    self.assertFalse(cs.apply_choice(p, cs.AUTO, offroad=False))       # offroad only
+    self.assertTrue(cs.apply_choice(p, cs.AUTO, offroad=True))
+    self.assertEqual(cs.current_choice(p), cs.AUTO)

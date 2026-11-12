@@ -515,12 +515,12 @@
    3,
    "0"
   ],
-  "FrogPilotStats": [
+  "BogPilotStats": [
    "",
    0,
    ""
   ],
-  "FrogPilotTelemetry": [
+  "BogPilotTelemetry": [
    "0",
    4,
    "0"
@@ -2183,44 +2183,44 @@
   "ForceTorqueController": [
    "PERSISTENT"
   ],
-  "FrogPilotApiToken": [
+  "BogPilotApiToken": [
    "DONT_LOG",
    "PERSISTENT"
   ],
-  "FrogPilotCarParams": [
+  "BogPilotCarParams": [
    "CLEAR_ON_MANAGER_START",
    "CLEAR_ON_ONROAD_TRANSITION"
   ],
-  "FrogPilotCarParamsPersistent": [
+  "BogPilotCarParamsPersistent": [
    "PERSISTENT"
   ],
-  "FrogPilotDongleId": [
+  "BogPilotDongleId": [
    "DONT_LOG",
    "PERSISTENT"
   ],
-  "FrogPilotDrives": [
+  "BogPilotDrives": [
    "PERSISTENT"
   ],
-  "FrogPilotKilometers": [
+  "BogPilotKilometers": [
    "PERSISTENT"
   ],
-  "FrogPilotMinutes": [
+  "BogPilotMinutes": [
    "PERSISTENT"
   ],
-  "FrogPilotStats": [
+  "BogPilotStats": [
    "DONT_LOG",
    "PERSISTENT"
   ],
-  "FrogPilotTelemetry": [
+  "BogPilotTelemetry": [
    "PERSISTENT"
   ],
-  "FrogPilotToggles": [
+  "BogPilotToggles": [
    "CLEAR_ON_MANAGER_START"
   ],
-  "FrogPilotTogglesUpdated": [
+  "BogPilotTogglesUpdated": [
    "CLEAR_ON_MANAGER_START"
   ],
-  "FrogPilotTuningLevels": [
+  "BogPilotTuningLevels": [
    "CLEAR_ON_MANAGER_START"
   ],
   "FrogsGoMoosTweak": [

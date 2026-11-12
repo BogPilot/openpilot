@@ -1,6 +1,6 @@
 """BogPilot runtime lead/personality adapters. Display only; no Params writes.
 
-Source behavior: BogPilot annotated_camera.cc / frogpilot_buttons.cc. Absolute
+Source behavior: BogPilot annotated_camera.cc / bogpilot_buttons.cc. Absolute
 vLead, NOT ego speed or experimental speed predictions. Geometry is in painter
 coordinates (screen pixels); design constants are used only by personality.
 """

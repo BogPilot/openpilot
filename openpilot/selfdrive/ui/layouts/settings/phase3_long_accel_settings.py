@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 import math
 from openpilot.selfdrive.controls.lib.phase3_long_accel import (
-  configure, PROFILE_ACK, ADVANCED_ACK, CEM_ACK,
+  configure, PROFILE_ACK, ADVANCED_ACK, CEM_ACK, profiles_default_on,
 )
 
 HISTORICAL_DESCRIPTIONS = {'AdvancedLongitudinalTune': '<b>Advanced acceleration and braking control changes</b> to fine-tune how openpilot '
@@ -151,8 +151,18 @@ class SettingsController:
     self.cp, self.can_edit = cp, can_edit
     self.parent, self.title, self.ack, self.keys = GROUPS[group]
 
+  def platform(self):
+    try:
+      return getattr(self.cp, "carFingerprint", None)
+    except Exception:  # LiveCP without CarParams raises AttributeError
+      return None
+
+  def adopted(self):
+    # Profiles are live by default on the legacy Tesla platforms (no ACK needed); other groups and cars need the ACK.
+    return self.store.get_bool(self.ack, False) or (self.ack == PROFILE_ACK and profiles_default_on(self.platform()))
+
   def active(self):
-    return self.store.get_bool(self.ack, False) and self.store.toggle_bool(self.parent)
+    return self.adopted() and self.store.toggle_bool(self.parent)
 
   def parent_on(self, key):
     return self.store.get_float(key) > 0 if key == "CESignalSpeed" else self.store.get_bool(key)
@@ -242,15 +252,17 @@ class SettingsController:
     return f"{value:.{digits}f}" + unit
 
 
-def make_settings(group, store=None, capabilities=Capabilities(), cp=None, can_edit=lambda: True):
+def make_settings(group, store=None, capabilities=Capabilities(), cp=None, can_edit=lambda: True, extra_items=None):
   import pyray as rl
   from openpilot.system.ui.widgets import Widget
   from openpilot.system.ui.widgets.button import Button
-  from openpilot.system.ui.widgets.list_view import ItemAction, ListItem, toggle_item, multiple_button_item, text_item
+  from openpilot.system.ui.widgets.list_view import ItemAction, ListItem, toggle_item, text_item
+  from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_multiple_button_item
   from openpilot.system.ui.widgets.label import gui_label
   from openpilot.system.ui.lib.application import FontWeight
   from openpilot.system.ui.widgets.scroller_tici import Scroller
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
+  from openpilot.selfdrive.ui.bogpilot.nesting import indent_under
   if store is None:
     from openpilot.common.bogpilot_store import ParamStore
     store = ParamStore()
@@ -302,8 +314,9 @@ def make_settings(group, store=None, capabilities=Capabilities(), cp=None, can_e
       attach_help(root, c.parent)
       self.items[c.parent] = root
       items = [root]
-      for row in c.rows():
-        title = ("    " if row.parent or row.key == "CESpeedLead" else "") + row.title
+      rows = c.rows()
+      for row in rows:
+        title = row.title
         if row.key == "LongitudinalActuatorDelay" and cp is not None and cp.longitudinalActuatorDelay:
           title += f" (Default: {cp.longitudinalActuatorDelay:.2f})"
         desc = description(row, capabilities)
@@ -312,8 +325,8 @@ def make_settings(group, store=None, capabilities=Capabilities(), cp=None, can_e
           item = toggle_item(title, desc, store.get_bool(row.key),
                              callback=lambda value, k=row.key: self._write(k, value), enabled=enabled)
         elif row.kind == "choice":
-          item = multiple_button_item(title, desc, list(row.choices), store.get_int(row.key), button_width=140,
-                                      callback=lambda value, k=row.key: self._write(k, value))
+          item = gated_multiple_button_item(title, desc, list(row.choices), store.get_int(row.key), button_width=140,
+                                            callback=lambda value, k=row.key: self._write(k, value))
           item.action_item.set_enabled(enabled)
         else:
           action = NumberAction(c, row.key)
@@ -322,6 +335,15 @@ def make_settings(group, store=None, capabilities=Capabilities(), cp=None, can_e
         attach_help(item, row.key)
         self.items[row.key] = item
         items.append(item)
+      extra = list(extra_items()) if extra_items is not None and c.active() else []
+      items.extend(extra)   # rows another module owns (Longitudinal Tuning: following rows), after this group's own
+      # Every row belongs to the group switch at the top; a row with its own parent (and With Lead under Below) goes one level
+      # deeper. Visibility already follows the saved values (SettingsController.rows), so the helper only indents.
+      indent_under(root, *(self.items[r.key] for r in rows), *extra)
+      for row in rows:
+        parent = row.parent or ("CESpeed" if row.key == "CESpeedLead" else None)
+        if parent in self.items and parent != row.key:
+          indent_under(self.items[parent], self.items[row.key])
       if not c.active():
         items.append(text_item("Saved preferences", "Unchanged", "Enable this section explicitly to adopt its stored settings."))
       self.scroller = Scroller(items, spacing=0, line_separator=True)

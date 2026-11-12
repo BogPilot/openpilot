@@ -1,11 +1,11 @@
-"""BogPilot pedal icons (t913u; design approved by the owner t916s3369 / t917u).
+"""BogPilot pedal icons.
 
-Response (UNCHANGED from daily bogpilot-tesla 04d560f3e FrogPilotAnnotatedCameraWidget::paintPedalIcons):
+Response (UNCHANGED from daily bogpilot-tesla 04d560f3e BogPilotAnnotatedCameraWidget::paintPedalIcons):
   gate     pedals_on_ui = openpilot_longitudinal and CustomUI and PedalsOnUI (367e1fe :877-879, tuning-level rule);
            Dynamic / Static sub-modes; with neither, the overlay is hidden (not drawn at full strength).
   Dynamic  brake = 1 at standstill, else max(0.25, |aEgo|) when aEgo < -0.25, else 0.25;  gas = max(0.25, aEgo)
   Static   brake = 1 if standstill or brakeLights or aEgo < -0.25 else 0.25;               gas = 1 if aEgo > 0.25 else 0.25
-  Signals  carState.aEgo (MEASURED vehicle acceleration, m/s^2), carState.standstill, frogpilotCarState.brakeLights.
+  Signals  carState.aEgo (MEASURED vehicle acceleration, m/s^2), carState.standstill, bogpilotCarState.brakeLights.
            Not pedal position, not commanded accel and no brake force (AP1 has no brake force/pressure signal wired;
            none is invented). Opacities are clamped to [0.25, 1] as Qt's setOpacity did.
 Visual (new, approved mockup): strength k = (opacity - 0.25) / 0.75 in [0, 1]. At k = 0 the pedals are a nearly

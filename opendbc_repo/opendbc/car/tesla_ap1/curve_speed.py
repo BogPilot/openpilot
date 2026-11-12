@@ -1,6 +1,6 @@
 """Tesla curve speed: reach the CSC target by the curve, not in it.
 
-Drive review on both the default model and Firehose: FrogPilot's curve speed
+Drive review on both the default model and Firehose: BogPilot's curve speed
 controller (CSC) lowers its target gradually and the planner only brakes
 gently toward it, so the car arrived at the tightest part of a curve still
 well above the CSC speed (about 0.29 g at 29 mph against a 25 mph target).

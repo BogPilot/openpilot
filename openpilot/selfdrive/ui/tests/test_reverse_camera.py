@@ -116,15 +116,37 @@ def test_registered_param_and_ap1_profile_value():
 
 
 def test_main_py_keeps_stock_alert_overlay_after_reverse_view():
-  """Safety: reverse cabin video must never hide stock visual alerts (audio is soundd, untouched)."""
+  """Safety: reverse cabin video must never hide stock visual alerts (audio is soundd, untouched),
+  except the informational reverseGear/permanent full-screen the camera replaces."""
   source = (Path(__file__).parents[1] / "layouts/main.py").read_text()
   camera = source.index("self._reverse_view.render(self._rect)")
+  skip = source.index("if not is_stock_reverse_gear_screen(ui_state.sm):")
   overlay = source.index("self._layouts[MainState.ONROAD].alert_renderer.render(self._rect)")
-  assert camera < overlay < source.index("return", overlay)
+  assert camera < skip < overlay < source.index("return", overlay)
   # Toggle-off / stock path: reverse early-return must be gated on _reverse_active only
   assert "if self._reverse_active:" in source
   assert "ReverseCameraController" in source
   assert "enabled_from" in source
+  # The skip is only the permanent informational screen, not disable / no-entry.
+  helper = (Path(__file__).parents[1] / "bogpilot/reverse_camera.py").read_text()
+  assert 'STOCK_REVERSE_GEAR_ALERT = "reverseGear/permanent"' in helper
+  assert "USER_DISABLE" in helper and "NO_ENTRY" in helper
+
+
+def _ss(alert_type):
+  return {"selfdriveState": SimpleNamespace(alertType=alert_type)}
+
+
+def test_stock_reverse_gear_screen_is_only_the_permanent_alert():
+  """The camera replaces reverseGear/permanent; disable / no-entry stay visible."""
+  assert rc.is_stock_reverse_gear_screen(_ss("reverseGear/permanent")) is True
+  assert rc.is_stock_reverse_gear_screen(_ss("reverseGear/userDisable")) is False
+  assert rc.is_stock_reverse_gear_screen(_ss("reverseGear/noEntry")) is False
+  assert rc.is_stock_reverse_gear_screen(_ss("stockFcw/warning")) is False
+  assert rc.is_stock_reverse_gear_screen(_ss("commIssue/warning")) is False
+  assert rc.is_stock_reverse_gear_screen(_ss("")) is False
+  assert rc.is_stock_reverse_gear_screen(None) is False
+  assert rc.is_stock_reverse_gear_screen({}) is False
 
 
 def test_reverse_view_does_not_write_driver_view_param_or_steal_manual_preview():

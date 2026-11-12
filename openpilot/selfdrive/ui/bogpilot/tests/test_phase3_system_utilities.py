@@ -296,9 +296,18 @@ class UtilitiesTest(unittest.TestCase):
     self.assertFalse(self.params.get_bool("GreenLightAlert"))
     self.assertTrue(marker.exists())
 
-  def test_pending_explanations_cover_forbidden_rows(self):
-    self.assertIn("flash", b.PENDING["Flash Panda"].lower())
-    self.assertIn("ignition", b.PENDING["Force Drive State"].lower())
+  def test_flash_panda_and_force_drive_state_are_not_offered(self):
+    # Placeholders were hidden: nothing implements them, and this page must never flash or override the drive state.
+    import inspect
+    from openpilot.selfdrive.ui.bogpilot import phase3_system_utilities_ui as ui
+    self.assertFalse(hasattr(b, "PENDING"))
+    src = inspect.getsource(ui)
+    self.assertNotIn("self.unavailable(", src)
+    for needle in ('tr("Flash Panda")', 'tr("Force Drive State")', "FlashPanda", "ForceOnroad", "ForceOffroad", "flash_panda"):
+      self.assertNotIn(needle, src)
+    for action in dir(b.UtilitiesActions):
+      self.assertNotIn("flash", action.lower())
+      self.assertNotIn("force", action.lower())
 
 
 if __name__ == "__main__":

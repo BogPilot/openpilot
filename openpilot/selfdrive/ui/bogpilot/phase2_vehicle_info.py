@@ -3,7 +3,7 @@
 ui_state.CP comes from CarParamsPersistent: never imply current identification.
 No Params writes, controls, VIN, serial, ECU, or firmware reads.
 
-Provenance labels (vehicle lane):
+Provenance labels:
   - no CarParams  -> "not detected"
   - persisted CP  -> "LAST-DETECTED / UNVERIFIED"
   - current=True  -> "CURRENT" (only for a caller with live-session CP)

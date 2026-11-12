@@ -1,17 +1,17 @@
 """Tap-to-explain help for BogPilot settings rows.
 
-Tapping the TEXT area of a settings row opens a scrollable help popup (title, what it does, when to use it,
-safety note, default, range). Tapping the switch / buttons on the right of a row still only does its normal
-job. Opening or closing help never reads or writes a preference.
+Tapping the TEXT area of a settings row expands the help under the row (what it does, when to use it, safety note, default,
+range) and tapping it again collapses it; opening another row collapses the previous one (accordion.py). Tapping the switch /
+buttons on the right of a row still only does its normal job. Opening or closing help never reads or writes a preference.
 
 All help text lives in the HELP table below, keyed by the row's param key (or a stable page-row id), so it is easy to
-edit in one place. Every string goes through tr_noop() and is translated with tr() when the popup is built.
+edit in one place. Every string goes through tr_noop() and is translated with tr() when the row is drawn.
 
 Facts in this table come from the consumers in this tree (planner / controls / opendbc / onroad UI). When a consumer
 changes, update the matching entry; test_bogpilot_toggle_help.py checks coverage, ASCII-only text and defaults.
 
 Text rules (the font atlas has ASCII plus a few symbols only): ASCII text, "m/s^2" and "m/s^3" for units, no angle
-brackets (the popup renderer treats them as tags).
+brackets (the renderer treats them as tags).
 """
 from __future__ import annotations
 
@@ -25,7 +25,6 @@ RANGE_LABEL = tr_noop("Range")
 WHEN_LABEL = tr_noop("When to use it")
 SAFETY_LABEL = tr_noop("Safety")
 RECOMMENDED_LABEL = tr_noop("Recommended")
-CLOSE_LABEL = tr_noop("Close")
 
 # Shared sentences.
 _ADOPT = tr_noop("This section stays off, and openpilot drives stock, until you change a setting here.")
@@ -68,6 +67,26 @@ _add("LeadDepartingAlert", "Lead Departed Alert",
      when="If you tend to miss the car in front moving off.",
      note="Lowest priority; dropped while any stock alert is showing. It uses the Prompt volume.",
      default="On", default_param="LeadDepartingAlert")
+_add("LoudBlindspotAlert", "Loud Car in Blindspot Alert",
+     "When you start a lane change toward a lane where the blind spot sensor sees a car, the \"Car Detected in Blindspot\" alert "
+     "uses the loud warning sound instead of the short prompt sound. The lane change is blocked either way.",
+     when="If the normal prompt sound is easy to miss.",
+     note="Only for cars that report blind spot monitoring, so the row is hidden on other cars. The sound keeps playing while "
+          "the car is detected and uses the Warning Soft volume, which can never go below 25 percent.",
+     default="On", default_param="LoudBlindspotAlert")
+_add("SpeedLimitChangedAlert", "Speed Limit Changed Alert",
+     "Shows \"Speed limit changed\" and plays the prompt sound when the posted limit seen by the Speed Limit Controller changes.",
+     when="If you use the Speed Limit Controller and want to know when its target moves.",
+     note="Needs the Speed Limit Controller, so the row is hidden while that is off. It uses the Prompt volume.",
+     default="On", default_param="SpeedLimitChangedAlert")
+_add("CruiseEngageDisengageChimes", "Cruise Engage and Disengage Chimes",
+     "Plays the stock openpilot engage and disengage chimes (engage.wav and disengage.wav) when cruise turns on or off. "
+     "These are the same sounds 0.9.7 used on the stock enable and disable events. On Pre-AP cars it also chimes when "
+     "longitudinal drops or returns while steering stays on, a change stock openpilot does not sound.",
+     when="Turn this off if the car already chimes on its own, so the two sounds do not play together.",
+     note="Shown only on AP1 and Pre-AP Teslas. It does not change warning or prompt sounds. It does not add a second "
+          "chime on edges that already play the stock engage or disengage sound.",
+     default="On", default_param="CruiseEngageDisengageChimes")
 _add("AlertVolumeControl", "Alert Volume Controller",
      "Lets you set a separate volume for each kind of alert sound. With it off, every alert follows the automatic volume, which "
      "tracks how loud the cabin is. With it on, the rows below set each category: Auto, Muted or a fixed percent.",
@@ -115,7 +134,8 @@ _add("DisableOpenpilotLongitudinal", "Disable openpilot Longitudinal Control",
      "Steering stays with openpilot.",
      when="If you prefer the car's stock cruise behavior.",
      note="Takes effect the next time the car starts, and asks you to confirm before turning on. Features that need openpilot "
-          "longitudinal control, such as the Gas / Brake rows, stop applying. Can only be changed while the car is off.",
+          "longitudinal control, such as the Gas / Brake menu, stop applying and the Gas / Brake pill is hidden. Turn this off here "
+          "and restart the car to bring them back. Can only be changed while the car is off.",
      default="Off", default_param="DisableOpenpilotLongitudinal")
 _add("EnableICIntegration", "Tesla AP1: Dash Cluster Integration",
      "Shows openpilot information on the Tesla instrument cluster. Turning it off stops all cluster messages, so the cluster stays "
@@ -130,6 +150,36 @@ _add("RegenComfortBrake", "Tesla AP1: Earlier, Gentler Regen Stops",
      note="Emergency braking limits and the stopped distance are unchanged, so collision braking still has full authority. "
           "Needs openpilot longitudinal control. Takes effect the next time the planner starts, normally the next drive.",
      default="On")
+_add("TeslaPreApDoublePull", "Pre-AP: Double Pull to Engage Pedal Longitudinal",
+     "Chooses how the cruise stalk engages. On: the first pull starts Always On Lateral steering only (openpilot is not engaged and the "
+     "pedal is never commanded), and a second pull within 400 ms engages openpilot with Comma Pedal longitudinal. A pull or the brake "
+     "while engaged drops back to steering only. Off: a single pull engages steering and pedal longitudinal together.",
+     when="Turn it on if you want to be able to engage steering without the pedal controlling speed.",
+     note="Shown only while Always On Lateral is available. Takes effect immediately. Pre-AP Model S with Comma Pedal longitudinal only. "
+          "Cancel (push the stalk away) still ends everything. " + _OFFROAD,
+     default="On")
+_add("PedalStatus", "Comma Pedal",
+     "Live status of the Comma Pedal. Not detected: the car has not heard the pedal lately (also shown with the car off). Needs "
+     "calibration: the pedal is heard but not calibrated, so pedal longitudinal stays off. Recalibrate: the saved pedal scale is out of "
+     "range, so pedal longitudinal stays off until you calibrate again. Calibrated: detected and calibrated.",
+     when="Check this before relying on pedal longitudinal.",
+     note="Read-only. It refreshes while this page is open.")
+_add("PreApBuild", "Software",
+     "The BogPilot version and the commit this build was made from, for example 0.11.2 (6476431ac). A build with changes that were not committed "
+     "adds \"+ local edits\".",
+     when="Quote it when you report a problem, so it can be matched to the exact code.",
+     note="Read-only. Pre-AP Model S only.")
+_add("PreApPandaFirmware", "Panda Firmware",
+     "The firmware version the panda reported when pandad last started it. \"(out of date)\" means the panda is not running the firmware shipped "
+     "with this build; \"Not reported yet\" means the panda has not answered since this build started.",
+     when="Quote it when you report a problem. Cruise or steering that never arms after a pull can come from a mismatched panda.",
+     note="Read-only. Pre-AP Model S only.")
+_add("PedalCalibrate", "Calibrate Pedal",
+     "Starts the guided calibration: keep your foot off the accelerator and brake pedals, then press the accelerator pedal fully once. The screen shows each step as it "
+     "happens and whether the result was saved or why it failed.",
+     when="Once after installing the pedal, and again if Pre-AP pedal longitudinal feels off or the status says Needs calibration.",
+     note="Put the car in Park with the ignition on. Cancel, the car moving, a 90 second timeout or leaving the screen leave the current "
+          "calibration unchanged. A reading that fails the sanity check is rejected and never saved.")
 _add("CarSelection", "Car Selection",
      "Picks the car openpilot should assume when automatic detection finds no car. Auto is the normal setting. The Tesla AP1 "
      "Model S and Model X entries are fallbacks for bench or bring-up use.",
@@ -148,6 +198,13 @@ _add("twist_follow", "Stalk Twist Following Distance",
      "change engaging, cancelling or the stalk's speed steps.",
      when="If you like to change following distance with the stalk.",
      note="Only for Tesla AP1. " + _OFFROAD,
+     default="On")
+_add("tip_round", "Round Set Speed Tips",
+     "When on, a stalk tip first rounds the set speed to a whole mph (whole km/h with metric units), then steps by 1 or by 5. "
+     "A 14.8 mph set tipped up by 5 goes to 20 instead of 15, and 15.2 tipped down by 5 goes to 10. Off steps from the exact set speed. "
+     "The cluster and the screen only show whole numbers, so the rounded set is what you read.",
+     note="Needs openpilot longitudinal control and applies to the software set only. Does not change engagement, cancel, what a pull "
+          "does. A value saved earlier is kept. " + _OFFROAD,
      default="On")
 _add("experimental_pull", "Long Pull: Experimental Mode",
      "While openpilot is engaged, holding the stalk toward you flips Experimental Mode once. The pull that engages openpilot "
@@ -234,7 +291,8 @@ _add("StoppingDecelRate", "Stopping Rate",
           "clamped. Until you change this row, the stock rate is used. " + _GB,
      default="1.0 m/s^3", range="0.1 to 1.0 m/s^3, in 0.01 steps")
 _add("LongitudinalTune", "Longitudinal Tuning",
-     "Opens the acceleration and deceleration profiles and Human-Like Acceleration. " + _ADOPT,
+     "Opens the acceleration and deceleration profiles, Human-Like Acceleration, Human-Like Following, Human-Like Lane Changes "
+     "and Lead Detection Confidence Threshold. " + _ADOPT,
      note=_GB,
      default="Off")
 _add("AccelerationProfile", "Acceleration Profile",
@@ -252,6 +310,35 @@ _add("HumanAcceleration", "Human-Like Acceleration",
      "Eases the throttle at low set speeds and as you approach the set speed, instead of accelerating at the full limit.",
      note="Only limits acceleration. Braking is not affected. " + _GB,
      default="On", default_param="HumanAcceleration")
+_add("HumanFollowing", "Human-Like Following",
+     "Follows the way a person does: closes the gap behind a lead car that is pulling away, for quicker takeoffs, and adjusts "
+     "the following distance for gentler braking.",
+     note="Needs the Longitudinal Tuning switch on, and takes effect on the next drive. " + _GB,
+     default="On", default_param="HumanFollowing")
+_add("HumanLaneChanges", "Human-Like Lane Changes",
+     "Anticipates and tracks the cars in the next lane during a lane change, using the radar.",
+     note="Needs radar and openpilot longitudinal control, so the row is hidden on a car without radar. It stays off until you "
+          "change this row. " + _GB,
+     default="Off")
+_add("LeadDetectionThreshold", "Lead Detection Confidence Threshold",
+     "The driving model confidence, in percent, a vehicle needs before it counts as the lead car. Lower values detect leads "
+     "sooner but may react to false leads; higher values are more conservative.",
+     note="Takes effect on the next drive. Stock behaviour is 50 percent. " + _GB,
+     default="35 percent", range="25 to 50 percent, in 1 percent steps")
+_add("CustomPersonalities", "Driving Personalities",
+     "Opens the Aggressive, Standard and Relaxed profiles. Each profile sets how many seconds the car follows behind a lead car "
+     "and five smoothness rows for acceleration, braking, safety gap and speed changes. The profile you pick with the distance "
+     "button or the stalk is the one that applies.",
+     when="If the stock following distance or the way the car speeds up and brakes behind a lead car does not suit you.",
+     note="Takes effect on the next drive. Reset to Defaults restores one profile and asks you to confirm. " + _GB,
+     default="Off", default_param="CustomPersonalities")
+_add("SpeedLimitController", "Speed Limit Controller",
+     "Follows the speed limit shown on the car's dashboard: the speed the car drives to follows the limit plus the offset you set "
+     "for that speed band. You choose what it does when no limit is known and after you drive faster than the limit.",
+     when="If you want the set speed to follow the posted limit.",
+     note="Tesla AP1 with openpilot longitudinal control only. Needs a limit from the dashboard; maps and navigation sources are "
+          "not available. Takes effect on the next drive. " + _OFFROAD,
+     default="On", default_param="SpeedLimitController")
 _add("ConditionalExperimental", "Conditional Experimental Mode",
      "Switches Experimental Mode on automatically when the conditions you choose below are met, and back off when they are "
      "not. " + _ADOPT,
@@ -386,7 +473,36 @@ _add("PauseLateralOnSignal", "Turn Signal Only",
      note="Has no effect while Pause Steering Below is 0. " + _ST,
      default="Off", default_param="PauseLateralOnSignal")
 
+_add("OverrideSensitivity", "Override Sensitivity",
+     "How hard you have to push the steering wheel for openpilot to let go and let you steer. 1 needs the hardest push, 5 the lightest, "
+     "and 3 is the standard feel. Steering gives control back as soon as it sees your push, and resumes by itself once you let go.",
+     when="If steering lets go when you only meant to rest your hands (choose a lower number), or if you have to fight the wheel to "
+          "take over (choose a higher number).",
+     note="It cannot be turned off and it only moves the push needed within a safe range. The car's own hands-on detection "
+          "always counts as taking over too. The safety limits on steering do not change. Only for the Tesla Model S and Model X "
+          "with the original Autopilot hardware, and the Pre-AP Model S. " + _OFFROAD + " Applies the next drive.",
+     default="3 (the standard feel)", range="1 to 5")
+_add("OverrideSensitivityPreAp", "Override Sensitivity",
+     "How hard you have to push the steering wheel for openpilot to let go and let you steer. 1 needs the hardest push, 5 the lightest, "
+     "and 3 is the standard feel. If steering lets go for a light push, it comes back by itself shortly after you let go. A firm "
+     "takeover (or the car refusing a steering request) ends the session: release the stalk and pull it again to re-engage. "
+     "On stock cruise, also cancel and pull once more to turn TACC back on. With the pedal, a fresh pull alone is enough. "
+     "A held stalk never re-engages.",
+     when="If steering lets go when you only meant to rest your hands (choose a lower number), or if you have to fight the wheel to "
+          "take over (choose a higher number).",
+     note="It cannot be turned off and it only moves the push needed within a safe range. A light push that only pauses steering comes back by itself. "
+          "A firm takeover or a refused steering request ends the session until you release the stalk and pull it again. The safety limits on steering do not change. "
+          "Only for the Pre-AP Model S. " + _OFFROAD + " Applies the next drive.",
+     default="3 (the standard feel)", range="1 to 5")
+
+
+def override_sensitivity_help_key(car_fingerprint=None):
+  """Pre-AP uses the stalk-reengage help; every other car keeps the existing OverrideSensitivity entry."""
+  from opendbc.car.tesla_ap1.values import is_preap
+  return "OverrideSensitivityPreAp" if is_preap(car_fingerprint) else "OverrideSensitivity"
+
 # ---------------------------------------------------------------- Driving Model
+
 _add("driving_model.status", "Driving Model",
      "Shows which driving model is in use. Only the Default (stock) model ships with BogPilot. Models added later appear on "
      "this page.",
@@ -404,6 +520,21 @@ _add("driving_model.entry", "Installed model",
           "model is used if it fails.")
 
 # ---------------------------------------------------------------- Visuals
+_add("ConfidenceBall", "Confidence Ball",
+     "Shows a small ball on the edge of the driving screen (the left edge by default) whenever the car is on. Its height follows "
+     "how sure the driving model is that it can keep driving without help: high when sure, low when not. While openpilot is "
+     "engaged it is green above 50 percent, orange under 50 percent and red under 20 percent. While openpilot is off it stays "
+     "dark grey, and while you are overriding it is white to grey, so its colour never suggests openpilot is driving; the "
+     "screen border shows whether openpilot is engaged. It hides while a full-screen alert is showing.",
+     when="If you want a glance-able sign of how sure the driving model is, like the comma four's ball.",
+     note="Display only: it never steers, brakes or changes how the car drives. The ball is the model's own prediction that "
+          "you will need to brake or steer soon, not a guarantee. With no model data it sits at the bottom (red only while engaged).",
+     default="On", default_param="ConfidenceBall")
+_add("ConfidenceBallSide", "Confidence Ball Side",
+     "Picks the left or right edge of the driving screen for the confidence ball.",
+     when="Pick Right if something in the car, such as a mirror, hides the left edge.",
+     note="Has no effect while the Confidence Ball is off. Display only.",
+     default="Left")
 _add("AdjacentLeadsUI", "Adjacent Lead Speed Boxes",
      "Shows boxes with the speed of radar-tracked cars in the lanes beside you while openpilot is engaged.",
      note="Needs a car with radar.",
@@ -427,7 +558,7 @@ _add("BSMFlameTracks", "Bog to the Future",
 _add("OnroadDistanceButton", "Driving Personality Button",
      "Shows a button in the driver-side corner that shows and changes the driving personality.",
      note="Needs Quality of Life Visuals and openpilot longitudinal control.",
-     default="Off", default_param="OnroadDistanceButton")
+     default="On", default_param="OnroadDistanceButton")
 _add("PedalsOnUI", "Pedals on Screen",
      "Shows gas and brake pedal icons that light up with the car's acceleration. Shows measured acceleration, not pedal "
      "position or commanded braking.",
@@ -456,23 +587,50 @@ _add("DynamicPedalsOnUI", "Dynamic Pedals",
      "When Pedals on Screen is on, each pedal icon's strength follows the car's measured acceleration: the gas pedal grows with "
      "acceleration, and the brake grows with deceleration and is full at a standstill. Off hides the pedal overlay.",
      default="On", default_param="DynamicPedalsOnUI")
-_add("SwapSpeedGraph", "Accel Graph on Top",
-     "Puts the acceleration graph above the speed row in the top-left corner of the driving screen. Display only.",
-     default="On", default_param="SwapSpeedGraph")
-_add("Fahrenheit", "Temperature in Fahrenheit",
-     "Shows the sidebar temperature in Fahrenheit instead of Celsius.",
-     note="Separate from the Metric Units setting.",
-     default="Off", default_param="Fahrenheit")
-_add("NumericalTemp", "Numerical Temperature",
-     "Shows the sidebar temperature as a number while the car is off, instead of only the GOOD or HIGH label. While driving, the "
-     "sidebar still shows the label.",
-     default="On", default_param="NumericalTemp")
-_add("ShowCPU", "Show CPU in Sidebar",
-     "Shows the CPU usage metric in the sidebar while the car is off.",
-     default="On", default_param="ShowCPU")
-_add("ShowMemoryUsage", "Show Memory in Sidebar",
-     "Shows the memory (RAM) usage metric in the sidebar.",
-     default="On", default_param="ShowMemoryUsage")
+_add("LowerSpeedLimitsBox", "Lower Speed Limits Box",
+     "Lower speed limits box (if obstructed by rear view mirror). Moves the top-left speed row (MAX, speed, and the "
+     "LIMIT tile) down to the slot below where the accel graph sits, so it stays readable under a rear-view mirror. "
+     "Display only.",
+     default="Off", default_param="LowerSpeedLimitsBox")
+_add("ShowAccelGraph", "Show Accel Graph",
+     "Shows the acceleration request graph on the driving screen. It can slow UI draw time, so it is off by default "
+     "and lives under Developer. Display only.",
+     default="Off", default_param="ShowAccelGraph")
+_add("DeveloperHUD", "Developer HUD",
+     "Shows a live data panel at the top right of the driving screen, two columns of ten values: acceleration, distance to the "
+     "lead car, lead speed, speed relative to the lead, desired lateral acceleration, real steering angle, desired steering "
+     "angle, actual lateral acceleration, GPS altitude and memory use. Display only: it never changes how the car drives.",
+     when="Use it while tuning on the road or on the bench. A dash means that value has no live source right now.",
+     note="Colors warn: orange or red for a close or closing lead car, a large steering angle, or high memory use.",
+     default="Off", default_param="DeveloperHUD")
+_add("FPSCounter", "FPS Display",
+     "Shows one line along the bottom of the driving screen: the frames per second the screen is drawing now, the lowest and "
+     "highest for this drive, and the average over the last minute. Display only: it never changes how the car drives.",
+     when="Use it to check that the screen keeps up while you change visual settings.",
+     default="Off")
+_add("DeveloperSidebar", "Developer Sidebar",
+     "Shows a 300 pixel panel on the right of the driving screen while you drive, with up to seven live metrics. The driving view "
+     "gets narrower by the width of the panel. Each tile shows one metric you pick in the Metric rows below the switch: "
+     "acceleration (now and the highest this drive), the steering delay, the steer ratio and stiffness the car has learned, the "
+     "share of the drive spent with steering or the gas and brake engaged, the steering angle and the acceleration command. "
+     "Display only: it never changes how the car drives.",
+     when="Use it while tuning on the road or on the bench.",
+     note="A dash means that value has no live source right now. Engagement shares and the maximum start over with each drive. "
+          "Acceleration is shown in m/s squared. On a car that steers by angle, the torque based metrics are not offered.",
+     default="Off", default_param="DeveloperSidebar")
+for _n in range(1, 8):
+  _add(f"DeveloperSidebarMetric{_n}", f"Developer Sidebar Metric {_n}",
+       "Chooses the metric shown in this tile of the Developer Sidebar, or None to leave the tile out. The tiles you leave out "
+       "close up, and the rest are spaced evenly down the panel.",
+       when="Pick the values you are watching while you tune.",
+       default="Tiles 1 to 7 show acceleration, max acceleration, steering delay, friction, lateral acceleration, steer ratio "
+               "and steer stiffness. Torque based ones are not offered on a car that steers by angle.")
+_add("ShowIP", "Show IP in Sidebar",
+     "Shows the Wi-Fi address of the device in place of the five signal dots in the sidebar. The network type stays below it. "
+     "It reads the address from the device itself and sends nothing over the network.",
+     when="Use it to find the address for an SSH session without opening the Wi-Fi settings.",
+     note="It shows -- when the device has no Wi-Fi address.",
+     default="Off", default_param="ShowIP")
 _add("NavigationUI", "Navigation Widgets",
      "Parent switch for the posted speed limit tile on the driving screen.",
      default="On", default_param="NavigationUI")
@@ -607,12 +765,12 @@ _add("data:Screen Recordings:RENAME", "Rename a Screen Recording",
 
 # Rows that deliberately have NO help popup (they keep the stock inline description, or have nothing to explain).
 SKIPPED: dict[str, str] = {
-  "Reset Steering row buttons (Reset Actuator Delay / Steer Ratio / Friction / Lateral Acceleration)":
+  "Reset Steering row buttons (Reset Actuator Delay / Steer Ratio / Friction / Lateral Acceleration / Override Sensitivity)":
     "action buttons named by the value they reset; the value row above carries the help",
   "-0.01 / +0.01 and -1 / +1 stepper rows": "no text area (the whole row is the buttons)",
   "Weather IncreaseFollowing / ReduceAcceleration / ReduceLateralAcceleration rows": "hidden: no consumer in this build",
   "CENavigation, CENavigationIntersections, CENavigationTurns, CENavigationLead rows": "hidden: no navigation producer in this build",
-  "HumanLaneChanges and TurnDesires": "row items exist but are not registered on any page in this build",
+  "TurnDesires": "row item exists but is not registered on any page in this build",
   "Alert Volume Controller: Storage row": "informational text about the file store; no choice to explain",
   "Vehicle Info rows": "read-only CarParams readouts",
   "Disable Logging, High-Quality Recording, Raise Temperature Limits, Offroad Screensaver, Flash Panda, Force Drive State, "
@@ -620,6 +778,8 @@ SKIPPED: dict[str, str] = {
   "Status rows, Total local data, per-category Storage Use rows, Preview Changes rows, Protected rows, Baseline, "
   "Affected keys": "live readouts, not settings",
   "BACK header rows and the Gas / Brake, Steering and Device 'Back' rows": "navigation",
+  "Lock notes (Locked: needs longitudinal control, Not all rows are shown)":
+    "the row is the explanation: it names what is missing and which setting, if any, unlocks the page",
   "Stock Toggles, Device, Software and Developer pages (stock openpilot)":
     "stock rows already expand their own description when you tap the title; left unchanged",
   "MICI layout": "BogPilot settings pages are TICI layout only in this tree",
@@ -631,15 +791,16 @@ SKIPPED_KEYS: dict[str, str] = {
   "CENavigationIntersections": "hidden: no navigation producer in this build",
   "CENavigationTurns": "hidden: no navigation producer in this build",
   "CENavigationLead": "hidden: no navigation producer in this build",
-  "HumanLaneChanges": "not registered on any page in this build",
   "TurnDesires": "not registered on any page in this build",
 }
 
 # Row titles (text only rows) that deliberately have no help popup. Checked by the native page-walk test.
 SKIPPED_TITLES: frozenset[str] = frozenset({
   "Status", "Back", "BACK", "Storage", "Total local data", "Baseline", "Affected keys",
+  # Lock notes: the row is the explanation.
+  "Locked: needs longitudinal control", "Not all rows are shown",
   # Steering Tuning reset buttons: named by the value they reset; the value row above carries the help.
-  "Reset Actuator Delay", "Reset Steer Ratio", "Reset Friction", "Reset Lateral Acceleration",
+  "Reset Actuator Delay", "Reset Steer Ratio", "Reset Friction", "Reset Lateral Acceleration", "Reset Override Sensitivity",
   # Unavailable placeholders: their inline description already says why they are unavailable.
   "Flash Panda", "Force Drive State", "BogPilot Backups", "Disable Logging", "High-Quality Recording",
   "Raise Temperature Limits", "Offroad Screensaver",
@@ -674,6 +835,8 @@ ALIASES: dict[str, str] = {
   "group:conditional": "ConditionalExperimental",
   "group:profiles": "LongitudinalTune",
   "group:qol": "QOLLongitudinal",
+  "group:personalities": "CustomPersonalities",
+  "group:slc": "SpeedLimitController",
   "qol": "QOLLongitudinal",
   "longitudinal": "LongitudinalTune",
   "weather": "WeatherPresets.page",
@@ -695,10 +858,10 @@ def _clean(text: str) -> str:
   return text.replace("<", "(").replace(">", ")")
 
 
-def help_html(entry: HelpEntry, translate=None, extra: str = "") -> str:
-  """HTML (tags the HtmlRenderer understands) for one popup."""
+def help_html(entry: HelpEntry, translate=None, extra: str = "", heading: bool = True) -> str:
+  """HTML (tags the HtmlRenderer understands) for one help text. `heading=False` drops the title (an inline row shows it)."""
   t = translate if translate is not None else (lambda s: s)
-  parts = ["<h2>" + _clean(t(entry.title)) + "</h2>", "<p>" + _clean(t(entry.what)) + "</p>"]
+  parts = (["<h2>" + _clean(t(entry.title)) + "</h2>"] if heading else []) + ["<p>" + _clean(t(entry.what)) + "</p>"]
   if extra:
     parts.append("<p>" + _clean(extra) + "</p>")
 
@@ -726,55 +889,14 @@ def help_plain(entry: HelpEntry, translate=None) -> str:
 
 
 # ---------------------------------------------------------------------------------------------------------------------
-# Popup + wiring
+# Wiring
 # ---------------------------------------------------------------------------------------------------------------------
-def create_help_dialog(entry: HelpEntry, extra: str = ""):
-  """Scrollable popup with one Close button. Built lazily so this module imports without raylib."""
-  from openpilot.system.ui.lib.multilang import tr
-  from openpilot.system.ui.widgets.confirm_dialog import ConfirmDialog
-  from openpilot.system.ui.widgets.html_render import HtmlRenderer, ElementType
-  from openpilot.system.ui.widgets.scroller_tici import Scroller
-
-  html = help_html(entry, tr, extra)
-
-  class HelpDialog(ConfirmDialog):
-    """ConfirmDialog (rich, single button) with left-aligned text. Close, Enter and Escape all just pop it."""
-    def __init__(self):
-      super().__init__(html, tr(CLOSE_LABEL), cancel_text="", rich=True)
-      self.entry = entry
-      self.html = html
-      self.closed = False
-      self._html_renderer = HtmlRenderer(text=html, text_size={ElementType.P: POPUP_FONT_SIZE})
-      self._scroller = Scroller([self._html_renderer], line_separator=False, spacing=0)
-
-    def _confirm_button_callback(self):
-      self.closed = True
-      super()._confirm_button_callback()
-
-    def _cancel_button_callback(self):
-      self.closed = True
-      super()._cancel_button_callback()
-
-  return HelpDialog()
-
-
 def attach_help_first(item, *keys: str, extra=None):
   """attach_help with fallbacks: the first key that has an entry wins."""
   for key in keys:
     if resolve(key) is not None:
       return attach_help(item, key, extra)
   return item
-
-
-def open_help(key: str, extra: str = ""):
-  """Open the popup for `key`. Reads and writes nothing."""
-  from openpilot.system.ui.lib.application import gui_app
-  entry = resolve(key)
-  if entry is None:
-    return None
-  dialog = create_help_dialog(entry, extra)
-  gui_app.push_widget(dialog)
-  return dialog
 
 
 def _gate(item, key: str):
@@ -786,15 +908,23 @@ def _gate(item, key: str):
     item.set_level_gate(lambda k=key: tuning_level.row_visible(k))
 
 
-def attach_help(item, key: str, extra=None):
-  """Make a ListItem open the help for `key` when its text area is tapped. The switch / buttons are untouched.
+def attach_help(item, key: str, extra=None, key_fn=None):
+  """Make a ListItem's text area an accordion that shows the help for `key` under the row. The switch / buttons are untouched.
 
   extra: optional callable returning live text (for example a model's hash line) shown under the help.
+  key_fn: optional callable returning a help key, re-resolved when the accordion opens (used to swap Pre-AP wording).
   Unknown keys leave the row alone, so a row without an entry keeps the stock inline description.
   """
   _gate(item, key)
-  if resolve(key) is None or not hasattr(item, "set_help_callback"):
+  entry = resolve(key)
+  if entry is None or not hasattr(item, "set_description") or not hasattr(item, "set_description_opened_callback"):
     return item  # unknown key, or a stand-in row that is not a ListItem: leave it alone
-  item.set_help_callback(lambda: open_help(key, extra() if callable(extra) else (extra or "")))
+  from openpilot.selfdrive.ui.bogpilot import accordion
+  from openpilot.system.ui.lib.multilang import tr
+  def _html():
+    live = resolve(key_fn()) if key_fn is not None else entry
+    return help_html(live or entry, tr, extra() if callable(extra) else (extra or ""), heading=False)
+  item.set_description(_html)
+  accordion.attach(item)
   item.help_key = key
   return item

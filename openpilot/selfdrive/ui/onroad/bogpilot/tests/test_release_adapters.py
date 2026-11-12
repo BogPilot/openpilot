@@ -33,7 +33,8 @@ class TestDefaults(unittest.TestCase):
       now[0] = 3
       for key, default in module.DEFAULTS.items():
         self.assertEqual(values.get(key), not default)
-      self.assertFalse(module.DEFAULTS["HideAccelGraph"])
+      self.assertFalse(module.DEFAULTS["ShowAccelGraph"])
+      self.assertFalse(module.DEFAULTS["LowerSpeedLimitsBox"])
 
   def test_registered_setting_wins_over_fallback(self):
     module = load("file_toggles")
@@ -69,28 +70,28 @@ class TestRadarContract(unittest.TestCase):
   def test_valid_and_fresh_only(self):
     self.sm.add()
     self.assertEqual(self.module.adjacent_leads(self.sm, 10), [(True, 40.0), (False, 20.0)])
-    self.sm.valid["frogpilotRadarState"] = False
+    self.sm.valid["bogpilotRadarState"] = False
     self.assertEqual(self.module.adjacent_leads(self.sm, 10), [(False, 0.0)] * 2)
 
   def test_previous_drive_and_dead_topic_rejected(self):
     self.sm.add()
-    self.sm.recv_frame["frogpilotRadarState"] = 10
+    self.sm.recv_frame["bogpilotRadarState"] = 10
     self.assertEqual(self.module.adjacent_leads(self.sm, 10), [(False, 0.0)] * 2)
-    self.sm.recv_frame["frogpilotRadarState"] = 11
+    self.sm.recv_frame["bogpilotRadarState"] = 11
     self.sm.alive["radarState"] = False
     self.assertEqual(self.module.adjacent_leads(self.sm, 10), [(False, 0.0)] * 2)
 
   def test_stale_topic_rejected(self):
     import time
     self.sm.add()
-    self.sm.recv_time["frogpilotRadarState"] = time.monotonic() - 0.6
+    self.sm.recv_time["bogpilotRadarState"] = time.monotonic() - 0.6
     self.assertEqual(self.module.adjacent_leads(self.sm, 10), [(False, 0.0)] * 2)
-    self.sm.recv_time["frogpilotRadarState"] = time.monotonic() - 0.3
+    self.sm.recv_time["bogpilotRadarState"] = time.monotonic() - 0.3
     self.assertEqual(self.module.adjacent_leads(self.sm, 10), [(True, 40.0), (False, 20.0)])
 
   def test_nonfinite_speed_never_triggers(self):
     self.sm.add()
-    self.sm["frogpilotRadarState"].leadLeft.vLead = float("inf")
+    self.sm["bogpilotRadarState"].leadLeft.vLead = float("inf")
     self.assertEqual(self.module.adjacent_leads(self.sm, 10)[0], (False, 0.0))
 
 
@@ -101,9 +102,9 @@ class FakeSM(dict):
     self.recv_time = _FreshTimes()
 
   def add(self):
-    for name in ("radarState", "frogpilotRadarState"):
+    for name in ("radarState", "bogpilotRadarState"):
       self.valid[name], self.alive[name], self.recv_frame[name] = True, True, 11
-    self["frogpilotRadarState"] = SimpleNamespace(leadLeft=SimpleNamespace(status=True, vLead=40),
+    self["bogpilotRadarState"] = SimpleNamespace(leadLeft=SimpleNamespace(status=True, vLead=40),
                                                  leadRight=SimpleNamespace(status=False, vLead=20))
 
 
@@ -133,9 +134,9 @@ def hud_stubs():
       pass
   hidden = SimpleNamespace(visible=False)
   cem = SimpleNamespace(HIDDEN=hidden, read_status=lambda *a, **k: hidden, paint_status=lambda *a, **k: None)  # gas lane CEM badge
-  return {"CEM": cem, "SL": load("speed_limit_display"), "ARC": load("steering_arc"), "PED": load("pedals"), "math": __import__("math"),
+  return {"CEM": cem, "SL": load("speed_limit_display"), "ARC": load("steering_arc"), "PED": load("pedals"), "DEV": load("developer_hud_logic"), "DEVP": SimpleNamespace(paint=lambda *a, **k: None), "FPS": load("fps_counter"), "OVG": load("overlay_gate"), "math": __import__("math"),
           "UI_CONFIG": SimpleNamespace(button_size=192, wheel_icon_size=144), "ExpButton": _Widget, "Widget": _Widget,
-          "cloudlog": SimpleNamespace(exception=lambda *a: None), "REC_CX": 95, "REC_CY": 696, "REC_HIT": 174,
+          "cloudlog": SimpleNamespace(exception=lambda *a: None), "REC_CX": 126, "REC_CY": 696, "REC_HIT": 174,
           "rl": SimpleNamespace(Color=lambda *c: c)}
 
 
@@ -170,8 +171,7 @@ class TestHudAdapter(unittest.TestCase):
       "COLORS": SimpleNamespace(ENGAGED="green", DISENGAGED="grey"),
       "UIStatus": SimpleNamespace(ENGAGED="engaged"), "ui_state": self.state,
       "R": SimpleNamespace(SpeedRowInputs=lambda **kw: kw),
-      "toggles": SimpleNamespace(get=lambda key: self.swap if key == "SwapSpeedGraph" else
-                                 (False if key == "HideAccelGraph" else self.enabled)),
+      "toggles": SimpleNamespace(get=lambda key: False if key in ("ShowAccelGraph", "LowerSpeedLimitsBox") else self.enabled),
       "L": load("cluster_layout"), "time": __import__("time"),
       "AccelGraph": lambda hz=20: SimpleNamespace(paint=lambda r: calls.append("graph"), clear=lambda: None),
       "messaging": None, "SERVICE_LIST": {}, **hud_stubs(),
@@ -207,7 +207,7 @@ class TestHudAdapter(unittest.TestCase):
     f = self.env["speed_row_inputs"]
     self.assertEqual(f(hud)["set_speed"], "100")
     self.assertEqual(f(hud, mici=True)["set_speed"], "62")
-    self.assertTrue(f(hud)["swap"])
+    self.assertFalse(f(hud)["swap"])  # default: speed row at the top
     self.state.is_metric = True
     self.assertEqual(f(hud, mici=True)["set_speed"], "100")
     self.assertEqual(f(hud)["unit"], "km/h")
@@ -280,7 +280,7 @@ class TestModelAdapter(unittest.TestCase):
     self.assertEqual(self.draws, [])
     self.assertIn("reset", self.calls)
     self.sm.valid["modelV2"] = True
-    self.sm.valid["frogpilotRadarState"] = False
+    self.sm.valid["bogpilotRadarState"] = False
     model._draw_lane_lines()
     self.assertEqual(model._flames.inputs, [(True, False, 0), (False, False, 0)])
 

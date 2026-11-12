@@ -20,7 +20,7 @@ MODE_NONE, MODE_BANNER, MODE_NATIVE = "none", "banner", "native"
 
 # Same constants as redesign.alert_banner_rect / bogpilot_redesign.cc alertBannerRect (style.py values)
 WIDE_MIN_W = 1800
-_REC_CX, _REC_HIT, _ALERT_GAP, _ALERT_RIGHT_MARGIN = 20 + 75, 174, 36, 150
+_REC_CX, _REC_HIT, _ALERT_GAP, _ALERT_RIGHT_MARGIN = 126, 174, 36, 150
 _STACK_BOTTOM, _CLUSTER_CY, _CLUSTER_D, _PILL_LABEL_SPACE = 228 + 240, 900, 150, 40
 SMALL_H = 170
 NARROW_MID_H, NARROW_BOTTOM_GAP, NARROW_SIDE = 300, 230, 40

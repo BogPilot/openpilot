@@ -34,6 +34,13 @@ class CAR(Platforms):
     [CarDocs("Tesla Model S (Autopilot 1) 2014-16", "Autopilot", support_type=SupportType.COMMUNITY, support_link="#community")],
     CarSpecs(wheelbase=2.959, steerRatio=15.0),
   )
+  # Pre-AP Model S (no Autopilot ECU, no Mobileye). Same chassis DBC and steering envelope as the AP1 Model S.
+  # Selected by CarModel / ForceFingerprint, or by detect_preap_candidate (Comma Pedal + no Mobileye on bus 2).
+  # Lateral through the Pre-AP safety flag; longitudinal only through the Comma Pedal (see preap/).
+  TESLA_PREAP_MODELS = TeslaAp1PlatformConfig(
+    [CarDocs("Tesla Model S (Pre-Autopilot) 2012-14", "Pre-Autopilot", support_type=SupportType.COMMUNITY, support_link="#community")],
+    CarSpecs(wheelbase=2.959, steerRatio=15.0),
+  )
   # Tinkla mass is 2560 + 136 kg. CarSpecs in 0.11.2 has no mass field.
   # centerToFront is 0.5 * wheelbase via the CarSpecs default centerToFrontRatio.
   TESLA_AP1_MODELX = TeslaAp1PlatformConfig(
@@ -109,6 +116,9 @@ class TeslaAp1SafetyFlags(IntFlag):
   LONG_CONTROL = TeslaSafetyFlags.LONG_CONTROL.value
   AP1 = 8
   STANDSTILL = 16
+  # Pre-AP (opendbc/safety/modes/tesla_preap.h). PREAP selects the Pre-AP hooks; they never run with AP1 (8) set.
+  PREAP = 32
+  PREAP_PEDAL = 64
 
 
 # Chassis-only recognition is insufficient: Pre-AP shares these messages.
@@ -117,13 +127,29 @@ class TeslaAp1SafetyFlags(IntFlag):
 AP1_CHASSIS_SIGNATURE = {0x45: 8, 0x118: 6, 0x370: 8, 0x20A: 8}
 
 
+class ForcedFingerprint(dict):
+  """Live CAN fingerprint of a car whose model was fixed by the user (CarModel with ForceFingerprint, or FINGERPRINT).
+  A fixed model is taken as given and never re-checked against the live bus, as in 0.9.7."""
+
+
 def match_ap1_chassis(fingerprint) -> bool:
-  """AP1 chassis AND stock Mobileye bus-2 signature. Pre-AP chassis alone is insufficient."""
+  """AP1 chassis AND stock Mobileye bus-2 signature (0x2B9, 0x488). Pre-AP chassis alone is insufficient.
+  0x399 (about 2 Hz) is not required: it can arrive after the fingerprint window closes."""
   bus0 = fingerprint.get(CANBUS.chassis, {}) if isinstance(fingerprint, dict) else {}
   camera = fingerprint.get(CANBUS.autopilot_chassis, {}) if isinstance(fingerprint, dict) else {}
-  mobileye = {0x399: 8, 0x2B9: 8, 0x488: 4}
+  mobileye = {0x2B9: 8, 0x488: 4}
   return (all(bus0.get(addr) == length for addr, length in AP1_CHASSIS_SIGNATURE.items()) and
           all(camera.get(addr) == length for addr, length in mobileye.items()))
+
+
+def is_preap(candidate) -> bool:
+  """True for the Pre-AP Model S platform. Accepts a CAR member or its name."""
+  if candidate is None or isinstance(candidate, bool):
+    return False
+  try:
+    return str(candidate) == str(CAR.TESLA_PREAP_MODELS)
+  except Exception:
+    return False
 
 
 _AP1_FAMILY = frozenset((str(CAR.TESLA_AP1_MODELS), str(CAR.TESLA_AP1_MODELX)))

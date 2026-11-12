@@ -8,6 +8,7 @@ import math
 import pyray as rl
 
 from openpilot.system.ui.lib.application import gui_app, FontWeight, FONT_SCALE
+from openpilot.system.ui.lib.shader_polygon import Gradient
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 
 
@@ -43,6 +44,9 @@ ARC_YELLOW = C(255, 200, 0)
 ARC_ORANGE = C(255, 115, 0)
 BADGE_GREEN = C(31, 150, 80)
 TRAFFIC_RED = C(201, 34, 49)
+# Traffic Mode path fill: the stock throttle gradient shape (alpha 0.4 / 0.35 / 0) in TRAFFIC_RED. Built once.
+TRAFFIC_PATH_GRADIENT = Gradient(start=(0.0, 1.0), end=(0.0, 0.0),
+                                 colors=[C(201, 34, 49, 102), C(201, 34, 49, 89), C(201, 34, 49, 0)], stops=[0.0, 0.5, 1.0])
 
 # ---- layout (widget space = content rect) ----
 EDGE = 30
@@ -52,7 +56,17 @@ SPEED_ROW_MIN_RIGHT = 740
 REC_DIAMETER = 124
 REC_HIT = 174
 CLUSTER_LEFT = 20
-REC_CX, REC_CY = CLUSTER_LEFT + 75, 696
+# 30 (stock UI_BORDER) + 192//2 (half of stock DM BTN_SIZE). The personality pill is centred
+# on this x, in screen pixels, from the driver-side edge of the content rect. REC_CX is that
+# value in design space when scale=1; record_center_x() keeps the button over the pill at any scale.
+REC_CX, REC_CY = 126, 696
+
+
+def record_center_x(scale: float, rhd: bool, widget_w: float) -> float:
+  """Design-space x of the record-button centre, aligned with the personality / DM corner."""
+  x = REC_CX / scale if scale else REC_CX
+  return widget_w - x if rhd else x
+
 GRAPH_TOP = 228
 GRAPH_WIDTH = 560
 GRAPH_HEIGHT = 240
@@ -71,7 +85,8 @@ HUD_H = 430
 STACK_BOTTOM = GRAPH_TOP + GRAPH_HEIGHT        # 468 in both orders
 SWAP_GRAPH_TOP = SPEED_ROW_TOP                  # 24
 SWAP_SPEED_ROW_TOP = STACK_BOTTOM - SPEED_ROW_HEIGHT   # 292
-NOGPS_CX, NOGPS_CY = 251, 696
+# Keep the previous 156 px gap between the record and no-GPS centres (was 251 - 95).
+NOGPS_CX, NOGPS_CY = 282, 696
 NOGPS_DEBOUNCE_S = 5.0
 ALERT_GAP = 36
 ALERT_RIGHT_MARGIN = 150
@@ -233,7 +248,9 @@ def panel(r: rl.Rectangle, radius: float, fill: rl.Color = PANEL, stroke: rl.Col
 def fill_circle(cx: float, cy: float, radius: float, color: rl.Color) -> None:
   if color.a == 0 or radius <= 0:
     return
-  rl.draw_circle_sector(rl.Vector2(cx, cy), radius, 0, 360, max(24, int(radius)), color)
+  # draw_circle_v is one GPU circle; the old sector call (0-360, 24+ segments) built a 24-triangle
+  # fan in Python on every cap and polyline join (accel graph: ~400 of these per frame).
+  rl.draw_circle_v(rl.Vector2(cx, cy), radius, color)
 
 
 def stroke_circle(cx: float, cy: float, radius: float, width: float, color: rl.Color) -> None:

@@ -1,6 +1,6 @@
-"""BogPilot: 367e1fe FrogPilot toggle semantics for the system daemons (no UI, no car code).
+"""BogPilot: 367e1fe BogPilot toggle semantics for the system daemons (no UI, no car code).
 
-Every getter follows frogpilot_variables.py @ 367e1fe: a param is honoured only when the user's
+Every getter follows bogpilot_variables.py @ 367e1fe: a param is honoured only when the user's
 tuning level reaches the param's level (bogpilot_params.BOGPILOT_PARAMS column 4); otherwise the
 367e1fe default applies. Unconfirmed tuning level counts as 3 (all params honoured).
 """
@@ -15,9 +15,10 @@ from openpilot.common.version import BOGPILOT_BRANCHES
 VBATT_PAUSE_CHARGING = 11.8  # system/hardware/power_monitoring.py
 LOW_VOLTAGE_MAX = 12.5
 BACKUP_PATH = Path("/cache/on_backup")
-# frogpilot_variables.py: release_branch / vetting_branch (AutomaticUpdates is only user-settable there)
-RELEASE_CHANNELS = frozenset({"FrogPilot", *BOGPILOT_BRANCHES})
-VETTING_CHANNELS = frozenset({"FrogPilot-Vetting"})
+# bogpilot_variables.py: release_branch / vetting_branch (AutomaticUpdates is only user-settable there)
+# "FrogPilot" / "FrogPilot-Vetting" are the pre-rename branch names; devices still tracking them keep their behaviour.
+RELEASE_CHANNELS = frozenset({"BogPilot", "FrogPilot", *BOGPILOT_BRANCHES})
+VETTING_CHANNELS = frozenset({"BogPilot-Vetting", "FrogPilot-Vetting"})
 
 
 def _level(key: str) -> int:
@@ -60,7 +61,7 @@ def get_float(params: Params, key: str) -> float:
 
 
 def lead_detection_probability(params: Params, openpilot_longitudinal: bool = True) -> float:
-  """radard lead prob gate. frogpilot_variables.py: LeadDetectionThreshold / 100 clipped to
+  """radard lead prob gate. bogpilot_variables.py: LeadDetectionThreshold / 100 clipped to
   [0.25, 0.50] when LongitudinalTune is on (openpilot long only) and the level is honoured,
   otherwise the 367e1fe default (35 -> 0.35)."""
   key = "LeadDetectionThreshold"

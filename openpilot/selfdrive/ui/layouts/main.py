@@ -2,16 +2,20 @@ import time
 import pyray as rl
 from enum import IntEnum
 import openpilot.cereal.messaging as messaging
+from openpilot.common.params import Params
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.widgets import Widget
 from openpilot.selfdrive.ui.layouts.sidebar import Sidebar, SIDEBAR_WIDTH
+from openpilot.selfdrive.ui.layouts.developer_sidebar import DeveloperSidebar
+from openpilot.selfdrive.ui.bogpilot.developer_sidebar_logic import split_rect
 from openpilot.selfdrive.ui.layouts.home import HomeLayout
 from openpilot.selfdrive.ui.layouts.settings.settings import SettingsLayout, PanelType
 from openpilot.selfdrive.ui.onroad.augmented_road_view import AugmentedRoadView
 from openpilot.selfdrive.ui.ui_state import device, ui_state
 from openpilot.selfdrive.ui.layouts.onboarding import OnboardingWindow
 from openpilot.selfdrive.ui.body.layouts.onroad import BodyLayout
-from openpilot.selfdrive.ui.bogpilot.reverse_camera import ReverseCameraController, enabled_from, read_gear
+from openpilot.selfdrive.ui.bogpilot.reverse_camera import ReverseCameraController, enabled_from, is_stock_reverse_gear_screen, read_gear
+from openpilot.selfdrive.ui import beta_stalk_bookmark  # BETA-ONLY stalk bookmark, default off
 
 
 class MainState(IntEnum):
@@ -25,8 +29,10 @@ class MainLayout(Widget):
     super().__init__()
 
     self._pm = messaging.PubMaster(['bookmarkButton', 'userBookmark'])
+    self._params = Params()
 
     self._sidebar = Sidebar()
+    self._developer_sidebar = DeveloperSidebar()   # right-hand panel while driving (DeveloperSidebar), display only
     self._current_mode = MainState.HOME
     self._prev_onroad = False
 
@@ -59,6 +65,7 @@ class MainLayout(Widget):
       gui_app.push_widget(self._onboarding_window)
 
   def _render(self, _):
+    beta_stalk_bookmark.tick(self._pm, ui_state)  # BETA-ONLY, default off
     self._handle_onroad_transition()
     self._update_reverse_camera()
     self._render_main_content()
@@ -112,9 +119,9 @@ class MainLayout(Widget):
       return
 
     if ui_state.started:
-      # Don't hide sidebar from interactive timeout
+      # Don't hide sidebar from interactive timeout. Coming onroad (or back from settings) restores the saved choice.
       if self._current_mode != MainState.ONROAD:
-        self._sidebar.set_visible(False)
+        self._sidebar.set_visible(self._saved_sidebar())
       self._set_current_layout(MainState.ONROAD)
     else:
       self._set_current_layout(MainState.HOME)
@@ -139,8 +146,19 @@ class MainLayout(Widget):
       msg = messaging.new_message(service, valid=True)
       self._pm.send(service, msg)
 
+  def _saved_sidebar(self) -> bool:
+    try:
+      return bool(self._params.get_bool("Sidebar"))
+    except Exception:
+      return False
+
   def _on_onroad_clicked(self):
+    # A tap on empty screen space shows or hides the sidebar and remembers it (0.9.7 home.cc:124-129).
     self._sidebar.set_visible(not self._sidebar.is_visible)
+    try:
+      self._params.put_bool("Sidebar", self._sidebar.is_visible)
+    except Exception:
+      pass
 
   def _on_body_changed(self):
     self._layouts[MainState.HOME] = self._home_body_layout if ui_state.is_body else self._home_layout
@@ -150,8 +168,13 @@ class MainLayout(Widget):
     if self._reverse_active:
       # 0.9.7: driver view full screen, sidebar hidden, touches ignored; onroad view resumes on exit
       self._reverse_view.render(self._rect)
-      # Deliberate safety deviation from 0.9.7: retain stock warnings over reverse video.
-      self._layouts[MainState.ONROAD].alert_renderer.render(self._rect)
+      # Keep stock visual alerts over the cabin view (audio is soundd, untouched),
+      # except the informational reverseGear/permanent full-screen "Reverse Gear"
+      # screen the driver camera is meant to replace. 0.9.7 hid the whole onroad
+      # widget (and that screen with it) via showDriverView. USER_DISABLE / NO_ENTRY
+      # reverseGear alerts and all other visual alerts still render.
+      if not is_stock_reverse_gear_screen(ui_state.sm):
+        self._layouts[MainState.ONROAD].alert_renderer.render(self._rect)
       return
 
     # Render sidebar
@@ -159,4 +182,11 @@ class MainLayout(Widget):
       self._sidebar.render(self._sidebar_rect)
 
     content_rect = self._content_rect if self._sidebar.is_visible else self._rect
+    developer_rect = None
+    if self._current_mode == MainState.ONROAD and not ui_state.is_body and self._developer_sidebar.wanted():
+      content, developer = split_rect(content_rect.x, content_rect.y, content_rect.width, content_rect.height, True)
+      if developer is not None:
+        content_rect, developer_rect = rl.Rectangle(*content), rl.Rectangle(*developer)
     self._layouts[self._current_mode].render(content_rect)
+    if developer_rect is not None:
+      self._developer_sidebar.render(developer_rect)

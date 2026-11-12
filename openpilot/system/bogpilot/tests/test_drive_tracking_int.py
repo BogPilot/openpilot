@@ -1,4 +1,4 @@
-"""INT: preservation regressions from review (nonzero legacy store must survive ensure/load)."""
+"""Preservation regressions from review (nonzero legacy store must survive ensure/load)."""
 import json
 import tempfile
 import unittest
@@ -9,7 +9,7 @@ from openpilot.system.bogpilot import drive_tracking as dt
 
 class FakeParams:
   def __init__(self, raw=None):
-    self.d = {} if raw is None else {"FrogPilotStats": raw}
+    self.d = {} if raw is None else {"BogPilotStats": raw}
     self.puts = 0
 
   def get(self, k, *a, **kw):
@@ -27,10 +27,10 @@ class TestPreservation(unittest.TestCase):
     self.hist = Path(self.tmp.name) / "DriveHistory"
 
   def test_legacy_nonzero_store_without_resetstats_keeps_counters(self):
-    legacy = {"Disengages": 7, "Engages": 9, "Overrides": 3, "FrogPilotDrives": 11, "FrogPilotMeters": 1234.5,
-              "FrogPilotSeconds": 600.0, "TotalEvents": 5}
+    legacy = {"Disengages": 7, "Engages": 9, "Overrides": 3, "BogPilotDrives": 11, "BogPilotMeters": 1234.5,
+              "BogPilotSeconds": 600.0, "TotalEvents": 5}
     s = dt.load_stats(json.dumps(legacy))
-    for k in ("Disengages", "Engages", "Overrides", "FrogPilotDrives", "TotalEvents"):
+    for k in ("Disengages", "Engages", "Overrides", "BogPilotDrives", "TotalEvents"):
       self.assertEqual(s[k], legacy[k], k)
     self.assertEqual(s["FrogChirps"], 0)
 
@@ -44,13 +44,13 @@ class TestPreservation(unittest.TestCase):
     self.assertEqual(out["stats"], "preserved")
 
   def test_startup_runs_ensure_stats_stores_so_fresh_install_shows_zeros(self):
-    """INT: manager startup (after_defaults) initialises FrogPilotStats + DriveHistory; trackd is registered."""
+    """Manager startup (after_defaults) initialises BogPilotStats + DriveHistory; trackd is registered."""
     from openpilot.system.manager import bogpilot_startup as bs
     p = FakeParams()
     res = bs.after_defaults(p, file_root=Path(self.tmp.name))
     self.assertFalse([e for e in res.errors if e.startswith("drive-stats")], res.errors)
     self.assertTrue(any(e.startswith("drive-stats:") for e in res.events), res.events)
-    stats = json.loads(p.d["FrogPilotStats"])
+    stats = json.loads(p.d["BogPilotStats"])
     self.assertEqual(set(stats), set(dt.load_stats(None)) - {"_corrupt_source"})
     self.assertTrue(all(v == 0 for v in stats.values() if isinstance(v, (int, float)) and not isinstance(v, bool)), stats)
     self.assertTrue((Path(self.tmp.name) / "DriveHistory").exists())
@@ -62,8 +62,8 @@ class TestPreservation(unittest.TestCase):
     p = FakeParams()
     out = dt.ensure_stats_stores(p, history_path=self.hist)
     self.assertEqual(out["stats"], "created")
-    s = json.loads(p.d["FrogPilotStats"])
-    self.assertEqual((s["FrogPilotDrives"], s["FrogPilotMeters"], s["FrogPilotSeconds"]), (0, 0.0, 0.0))
+    s = json.loads(p.d["BogPilotStats"])
+    self.assertEqual((s["BogPilotDrives"], s["BogPilotMeters"], s["BogPilotSeconds"]), (0, 0.0, 0.0))
 
 
 if __name__ == "__main__":

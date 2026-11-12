@@ -10,6 +10,8 @@ import numpy as np
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.common.realtime import DT_MDL
 
+from openpilot.common.bogpilot_ap1_profile import LEGACY_TESLA_PLATFORMS
+
 PROFILE_ACK = "Phase3LongAccelProfilesEnabled"
 ADVANCED_ACK = "Phase3AdvancedLongEnabled"
 CEM_ACK = "Phase3CEMEnabled"
@@ -54,6 +56,18 @@ def configure(store, key, value):
   raise ValueError(key)
 
 
+def profiles_default_on(platform):
+  """rc5: the Acceleration/Deceleration/Human profile group is adopted without a UI re-select on the legacy Tesla
+  platforms (AP1 Model S, AP1 Model X, Pre-AP Model S), the same default_on policy phase3_following uses (0.9.7: the
+  stored values were always live). Every other car keeps the explicit-ACK rule. The user switches it off with the
+  Longitudinal Tuning toggle (LongitudinalTune=0, also what "Reset to stock" writes); nothing is written here."""
+  return str(platform) in LEGACY_TESLA_PLATFORMS
+
+
+def profiles_adopted(store, platform=None):
+  return profiles_default_on(platform) or bool(store.get_bool(PROFILE_ACK, False))
+
+
 def finite_clip(value, low, high, fallback):
   return float(np.clip(value, low, high)) if math.isfinite(value) else fallback
 
@@ -65,15 +79,15 @@ class Profiles:
   human: bool = False
 
   @classmethod
-  def read(cls, store):
-    if not store.get_bool(PROFILE_ACK, False) or not store.toggle_bool("LongitudinalTune"):
+  def read(cls, store, platform=None):
+    if not profiles_adopted(store, platform) or not store.toggle_bool("LongitudinalTune"):
       return None
     return cls(store.toggle_int("AccelerationProfile"), store.toggle_int("DecelerationProfile"),
                store.toggle_bool("HumanAcceleration"))
 
   def limits(self, v_ego, v_cruise, accel_min, tracking_lead=False, *, eco=False, sport=False,
              map_acceleration=False, map_deceleration=False, force_coast=False, weather_reduction=0.0):
-    """04d560f3e frogpilot_acceleration lookups/precedence. All inputs SI.
+    """04d560f3e bogpilot_acceleration lookups/precedence. All inputs SI.
 
     Lead tracking always restores full braking. Gear/weather flags require real
     publishers; callers must not synthesize them from a vehicle make.
@@ -293,14 +307,18 @@ class LongAccelPort:
     self._published_status = None
 
   def publish_status(self):
-    """Existing registered CEStatus only; no schema field or manual-toggle input.
+    """Existing registered CEStatus only. Manual stalk overrides (1=off, 2=on)
+    are kept; automatic reasons still publish only while experimental is active.
 
     Change-only writes avoid 20Hz persistent Params IO. Never clear another
     writer at startup when this port has not been explicitly adopted.
     """
     if not self.store.get_bool(CEM_ACK, False) and self._published_status is None:
       return
-    status = self.cem.status if self.cem.experimental else 0
+    if self.cem.status in (1, 2):
+      status = int(self.cem.status)
+    else:
+      status = self.cem.status if self.cem.experimental else 0
     if status != self._published_status:
       self.store.put("CEStatus", int(status))
       self._published_status = status
@@ -329,7 +347,7 @@ class LongAccelPort:
     self.model_stopped = self.model_length < 5 * self.model_horizon
     lead = sm["radarState"].leadOne
     self.tracking_lead = self.tracking.update(lead.present, lead.dRel, lead.vRel, x[-1], cs.standstill)
-    self.profiles = Profiles.read(self.store)
+    self.profiles = Profiles.read(self.store, getattr(self.cp, "carFingerprint", None))
     self.conditions = Conditions.read(self.store)
     if self.conditions is None:
       self.cem.reset()
@@ -377,7 +395,27 @@ class LongAccelPort:
                   desired_lane_width=desired_width, **scene_extra,
                   model_length=self.model_length, model_stopped=self.model_stopped,
                   model_t=tuple(t), model_v=tuple(v))
-    return self.cem.update(scene, self.conditions, context.get("override", 0))
+    override = context.get("override", 0)
+    if override not in (1, 2):
+      # 0.9.7 CEM reads CEStatus each tick as the stalk/press override.
+      inv = getattr(self.store, "invalidate", None)
+      if callable(inv):
+        try:
+          inv("CEStatus")
+        except TypeError:
+          inv()
+      getter = getattr(self.store, "get_int", None)
+      if callable(getter):
+        try:
+          stored = getter("CEStatus", 0)
+        except TypeError:
+          stored = getter("CEStatus")
+        try:
+          stored = int(stored)
+        except (TypeError, ValueError):
+          stored = 0
+        override = stored if stored in (1, 2) else 0
+    return self.cem.update(scene, self.conditions, override)
 
   def limits(self, v_ego, v_cruise, accel_min, *, weather_reduction=0.0, eco=False, sport=False,
              map_acceleration=False, map_deceleration=False, force_coast=False):

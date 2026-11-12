@@ -4,7 +4,7 @@ Ported for the 0.11.2 C3X planner from BogPilot's own daily implementation
 (bogpilot-tesla@04d560f3e selfdrive/car/tesla/curve_speed.py, commits c8b9efbf4 and 59830e538,
 BogPilot authored). The math and every number below are unchanged from that source.
 
-Drive review on the daily branch: FrogPilot's curve speed controller (CSC) lowers its target
+Drive review on the daily branch: BogPilot's curve speed controller (CSC) lowers its target
 gradually and the planner only brakes gently toward it, so the car arrived at the tightest part
 of a curve still well above the CSC speed (about 0.29 g at 29 mph against a 25 mph target).
 

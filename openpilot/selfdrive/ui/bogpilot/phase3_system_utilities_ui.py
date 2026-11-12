@@ -1,10 +1,11 @@
 """System Settings > Utilities page (sysUtilities lane).
 
-Parent System Settings page is owned by lane sysData. This module only exposes
+Parent System Settings page is the System Settings data page. This module only exposes
 create_utilities_layout() for the Utilities child. Every destructive action uses
-ConfirmDialog; Flash Panda / Force Drive State stay explanatory unavailable rows.
+ConfirmDialog. Flash Panda and Force Drive State are deliberately not offered here: nothing behind them is
+implemented, and this page never issues a panda flash or an ignition / drive-state override.
 """
-from openpilot.selfdrive.ui.bogpilot.phase3_system_utilities import UtilitiesActions, PENDING
+from openpilot.selfdrive.ui.bogpilot.phase3_system_utilities import UtilitiesActions
 
 
 def create_utilities_layout(*, params=None, store=None, offroad=None, capable=None,
@@ -39,9 +40,6 @@ def create_utilities_layout(*, params=None, store=None, offroad=None, capable=No
 
     def allowed(self):
       return (not self.busy) and bool(offroad()) and bool(capable())
-
-    def unavailable(self, title):
-      return text_item(lambda t=title: tr(t), lambda: tr("Unavailable"), lambda t=title: tr(PENDING[t]))
 
     def attempt(self, callback):
       if not self.allowed():
@@ -86,8 +84,6 @@ def create_utilities_layout(*, params=None, store=None, offroad=None, capable=No
         callback=self.on_debug_mode,
         enabled=self.allowed,
       ), "DebugMode"))
-      items.append(self.unavailable("Flash Panda"))
-      items.append(self.unavailable("Force Drive State"))
       items.append(attach_help(button_item(
         lambda: tr("Reset BogPilot Settings to Defaults"),
         lambda: tr("RESET"),

@@ -16,6 +16,7 @@ from collections.abc import Iterable, Iterator
 from urllib.parse import parse_qs, urlparse
 
 from openpilot.cereal import log as capnp_log
+from openpilot.cereal.services import canonical_service_name
 from openpilot.common.swaglog import cloudlog
 from openpilot.tools.lib.filereader import FileReader
 from openpilot.tools.lib.file_sources import internal_source, openpilotci_source, comma_car_segments_source, Source
@@ -270,6 +271,7 @@ class LogReader:
     return _LogFileReader("", dat=dat)
 
   def filter(self, msg_type: str):
+    msg_type = canonical_service_name(msg_type)  # accepts pre-rename names such as frogpilotPlan
     return (getattr(m, m.which()) for m in filter(lambda m: m.which() == msg_type, self))
 
   def first(self, msg_type: str):

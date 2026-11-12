@@ -18,6 +18,7 @@ import struct
 import subprocess
 
 RELEASE_BASE = "f7db927c728bab57bb1263e05465766a8f28fc9d"
+ION_LOG_MARKER = b"/dev/ion present in container"
 VENDORS = ("msgq_repo", "opendbc_repo", "rednose_repo", "tinygrad_repo")
 GATES = ("startup", "firmware", "package", "controls", "settings", "ui", "recorder", "provenance", "build", "imports")
 MODELS = ("driving_tinygrad.pkl", "dmonitoring_model_tinygrad.pkl", "driving_warp_1344x760_tinygrad.pkl",
@@ -146,6 +147,15 @@ def require(condition, message):
     raise ValueError(message)
 
 
+def ion_artifacts(artifact_root: Path) -> list[dict]:
+  """Artifact check from rc_ion_gate.py (same directory): camerad/encoderd/visionipc_pyx.so must carry the ION VisionBuf."""
+  import importlib.util
+  spec = importlib.util.spec_from_file_location("rc_ion_gate", Path(__file__).with_name("rc_ion_gate.py"))
+  mod = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(mod)
+  return mod.check(artifact_root)
+
+
 def inspect(root: Path, candidate: str, artifact_root: Path | None = None, manifest: dict | None = None,
             evidence_root: Path | None = None, evidence: dict | None = None, release_base: str = RELEASE_BASE) -> dict:
   gate = Gate()
@@ -250,6 +260,15 @@ def inspect(root: Path, candidate: str, artifact_root: Path | None = None, manif
     return {"verified_artifacts": len(seen), "required_native_executables": native}
   gate.check("final_native_artifacts", artifacts)
 
+  def ion():
+    # REQUIRED: msgq SConscript silently builds the shm VisionBuf when /dev/ion is absent on the build host; the comma's camera
+    # driver can only import ION dma-bufs (camerad aborts). The bytes of the three binaries are the proof.
+    require(artifact_root is not None, "ION artifact root absent")
+    results = ion_artifacts(artifact_root)
+    require(bool(results) and all(r["ok"] for r in results), "ION VisionBuf missing from camera stack")
+    return {"files": [{"path": r["path"], "sha256": r["sha256"]} for r in results]}
+  gate.check("ion_visionbuf", ion)
+
   def receipt(name):
     require(evidence is not None and evidence_root is not None, "acceptance evidence absent")
     require(evidence["schema"] == 1 and evidence["candidate_sha"] == candidate, "stale evidence envelope")
@@ -269,6 +288,11 @@ def inspect(root: Path, candidate: str, artifact_root: Path | None = None, manif
           f.seek(max(0, p.stat().st_size - 8192))
           completed |= b"scons: done building targets." in f.read()
       require(completed, "missing full build completion log")
+      # Build-receipt precondition: the build container had /dev/ion (printed by the inner build script).
+      ion_seen = False
+      for record in item["logs"]:
+        ion_seen |= ION_LOG_MARKER in safe_path(evidence_root, record["path"]).read_bytes()
+      require(ion_seen, "build log lacks the /dev/ion present in container line")
     if name == "imports":
       statuses = item["modules"]
       required = modules

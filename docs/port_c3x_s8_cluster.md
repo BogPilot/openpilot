@@ -1,7 +1,7 @@
-# C3X/C4 raylib cluster layout + hide-accel (stream 8)
+# C3X/C4 raylib cluster layout + hide-accel
 
-Base: release-tizi `f7db927c7` (0.11.2 / AGNOS 19.9), on top of stream 4
-(`ec9b1aeb8`) and stream 5 (`6d6ca84f0`) cherry-picks.
+Base: release-tizi `f7db927c7` (0.11.2 / AGNOS 19.9), on top of the onroad
+adapter (`ec9b1aeb8`) and shipping-defaults (`6d6ca84f0`) cherry-picks.
 Source-only; no pyray render, device install or drive test.
 
 ## Layout contract
@@ -23,14 +23,14 @@ of frame rate; cleared on drive start or stale carState. Settings row:
 ## CSC in the MAX slot
 
 `read_csc_status` takes only a fresh (<= 0.5 s), valid, current-drive
-`frogpilotPlan` from an optional SubMaster created only when the service is in
+`bogpilotPlan` from an optional SubMaster created only when the service is in
 SERVICE_LIST. Stock release-tizi never shows CSC. No planner or csc-straight
-import. Dormant until a real `frogpilotPlan` publisher exists.
+import. Dormant until a real `bogpilotPlan` publisher exists.
 
 ## Cherry-pick note
 
-Stream 5's `onroad/bogpilot/file_toggles.py` and `__init__.py` conflicted with
-stream 4. Stream 4's versions are kept (plus HideAccelGraph): the stream-5
+The shipping-defaults `onroad/bogpilot/file_toggles.py` and `__init__.py` conflicted with
+the onroad adapter. The adapter's versions are kept (plus HideAccelGraph): the shipping-defaults
 variant imports a missing `bp_params` and lists the excluded ShowUploadRate.
 
 ## Validation
@@ -40,7 +40,7 @@ python3 -m unittest discover -s openpilot/selfdrive/ui/onroad/bogpilot/tests   #
 python3 -m compileall -q openpilot/selfdrive/ui/onroad/bogpilot
 ```
 
-With Python 3.12 the 17 stream-8 tests pass; stream 4's adapter tests need numpy.
+With Python 3.12 the 17 cluster tests pass; the adapter tests need numpy.
 Rendering is tested with stand-ins, not pyray.
 Full redesign parity beyond the speed capsule and graph (lead lock-on,
 relocated DM, etc.) is still incomplete.

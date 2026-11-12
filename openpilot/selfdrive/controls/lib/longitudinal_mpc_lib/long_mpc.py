@@ -262,7 +262,14 @@ class LongitudinalMpc:
     for i in range(N):
       self.solver.cost_set(i, 'Zl', Zl)
 
-  def set_weights(self, prev_accel_constraint=True, personality=log.LongitudinalPersonality.standard):
+  def set_weights(self, prev_accel_constraint=True, personality=log.LongitudinalPersonality.standard, cost_override=None):
+    if cost_override is not None:
+      # BogPilot phase3 following (04d560f3 long_mpc.set_weights acc mode): (A_CHANGE*acc, DANGER*danger, J_EGO*speed)
+      a_change, danger, speed = cost_override
+      cost_weights = [X_EGO_OBSTACLE_COST, X_EGO_COST, V_EGO_COST, A_EGO_COST, a_change if prev_accel_constraint else 0, speed]
+      constraint_cost_weights = [LIMIT_COST, LIMIT_COST, LIMIT_COST, danger]
+      self.set_cost_weights(cost_weights, constraint_cost_weights)
+      return
     jerk_factor = get_jerk_factor(personality)
     a_change_cost = A_CHANGE_COST if prev_accel_constraint else 0
     cost_weights = [X_EGO_OBSTACLE_COST, X_EGO_COST, V_EGO_COST, A_EGO_COST, jerk_factor * a_change_cost, jerk_factor * J_EGO_COST]

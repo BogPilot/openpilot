@@ -1,12 +1,12 @@
-"""BogPilot: the one shared FrogPilot/BogPilot setting store for 0.11.2 (daemons, car side and UI).
+"""BogPilot: the one shared BogPilot setting store for 0.11.2 (daemons, car side and UI).
 
-Why it exists: the FrogPilot keys live in openpilot/common/bogpilot_params.py and are compiled into
+Why it exists: the BogPilot keys live in openpilot/common/bogpilot_params.py and are compiled into
 libparams_c.so (params_keys_bogpilot.h). A device that still runs an older libparams_c.so raises
 UnknownKeyName for them, and the 0.9.7 device kept them as plain files under /data/params_bogpilot.
 ParamStore hides that: real Params when the key is known, the file store otherwise, and the 367e1fe
 default (BOGPILOT_PARAMS column 2) when the key was never written.
 
-Toggle getters (`toggle_*`) add the 367e1fe tuning-level rule from frogpilot_variables.py: a key above
+Toggle getters (`toggle_*`) add the 367e1fe tuning-level rule from bogpilot_variables.py: a key above
 the user's level reads as its default (level = TuningLevel if TuningLevelConfirmed else 3).
 
 The offroad UI's ui/bogpilot/store.py ParamStore subclasses this one, so every process reads and
@@ -109,7 +109,7 @@ class ParamStore:
   def is_param_key(self, key: str) -> bool:
     """True only for keys present in the compiled Params table.
 
-    Legacy UI file keys (RedesignUI / BSMFlameTracks / SwapSpeedGraph) always
+    Legacy UI file keys (RedesignUI / BSMFlameTracks / ShowAccelGraph / LowerSpeedLimitsBox) always
     return False so they never touch Params. Uses all_keys() when available so
     unknown keys are never read or written.
     """

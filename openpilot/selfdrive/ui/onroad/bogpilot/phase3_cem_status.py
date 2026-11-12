@@ -1,4 +1,4 @@
-"""Native CEM status badge: existing CEStatus key + fresh existing frogpilotPlan.
+"""Native CEM status badge: existing CEStatus key + fresh existing bogpilotPlan.
 
 Display only. Never changes ExperimentalMode, car controls, schemas or defaults.
 CEStatus meanings are the own04d560f3e speed/turn/stop/curve/lead icon categories.
@@ -26,10 +26,10 @@ def read_status(store, sm, now, drive_start, enabled):
     if not (enabled and store.get_bool(CEM_ACK, False) and store.toggle_bool("ConditionalExperimental") and
             store.toggle_bool("ShowCEMStatus")):
       return HIDDEN
-    t = sm.recv_time["frogpilotPlan"]
-    if not (sm.alive["frogpilotPlan"] and sm.valid["frogpilotPlan"] and drive_start <= t <= now and now - t <= .5):
+    t = sm.recv_time["bogpilotPlan"]
+    if not (sm.alive["bogpilotPlan"] and sm.valid["bogpilotPlan"] and drive_start <= t <= now and now - t <= .5):
       return HIDDEN
-    active = bool(sm["frogpilotPlan"].experimentalMode)
+    active = bool(sm["bogpilotPlan"].experimentalMode)
     reason = store.get_int("CEStatus", 0)
     if reason not in NAMES:
       return HIDDEN

@@ -8,13 +8,13 @@ A stored string cannot force preap, ap1_s, ap1_x, or ap2.
 EnableICIntegration gates AP1 instrument-cluster substitution. July
 prebuilt params_pyx.so has no Tesla* keys (same constraint as
 TeslaLongControl / TeslaStalkFollow): putting a new key in
-frogpilot_default_params raises UnknownKeyName at boot. So this toggle
+bogpilot_default_params raises UnknownKeyName at boot. So this toggle
 is file-backed under /data/params_bogpilot/EnableICIntegration, not a
 Params key. Absent file + AP1 fingerprint => on. Explicit 0/false/off
 => off. Non-AP1 => always off.
 
-The Qt vehicle panel (frogpilot/ui/qt/offroad/vehicle_settings.cc) does
-not render frogpilot/ui/layouts/settings/toggle_metadata.py, and the
+The Qt vehicle panel (bogpilot/ui/qt/offroad/vehicle_settings.cc) does
+not render bogpilot/ui/layouts/settings/toggle_metadata.py, and the
 device runs a July prebuilt UI binary, so this toggle is not shown in
 Settings. Change it on device with:
   echo 0 > /data/params_bogpilot/EnableICIntegration   # off
@@ -158,3 +158,32 @@ def disable_openpilot_long(stored: str | bytes | None = None, paths=None) -> boo
       except OSError:
         continue
   return _as_text(stored).lower() in ("1", "true", "on")
+
+
+# AP1 stalk tip rounding (AP1TipRoundSet; BogPilot bogpilot-tesla-ic-discovery f0be1ee66 semantics). File-backed, default ON:
+# /data/params_bogpilot/AP1TipRoundSet. A missing, empty or unreadable file means ON; only an explicit 0/false/off turns it off, so a
+# value saved earlier (either way) is preserved and a fresh install is on. When on, Ap1RaiseHoldoff rounds the software set to a whole
+# display unit (km/h when IsMetric, else mph) before a +-1 / next-5 / prev-5 tip, so a 14.8 mph tip-engage latch + full tip up gives
+# 20, not 15. Settings > Vehicle > Stalk Controls > Round Set Speed Tips writes the same file (offroad only).
+AP1_TIP_ROUND_PATH = IC_INTEGRATION_DIR / "AP1TipRoundSet"
+_ap1_tip_round_path = AP1_TIP_ROUND_PATH
+
+
+def ap1_tip_round_set(fingerprint: str | None, stored: str | bytes | None = None) -> bool:
+  """AP1 only. Off only when the file (or `stored`) says 0/false/off. Missing, empty, unreadable, or any other text = on."""
+  from opendbc.car.tesla_ap1.values import CAR
+  if fingerprint != CAR.TESLA_AP1_MODELS:
+    return False
+  if stored is None:
+    try:
+      stored = _ap1_tip_round_path.read_text(encoding="utf-8", errors="replace") if _ap1_tip_round_path.is_file() else ""
+    except OSError:
+      stored = ""
+  return _as_text(stored).lower() not in ("0", "false", "off")
+
+
+def set_ap1_tip_round(enabled: bool, path: Path | None = None) -> None:
+  """Write the file-backed AP1TipRoundSet preference (the Stalk Controls row)."""
+  target = path if path is not None else _ap1_tip_round_path
+  target.parent.mkdir(parents=True, exist_ok=True)
+  target.write_text("1" if enabled else "0")

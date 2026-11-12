@@ -1,6 +1,6 @@
 """AP1 low-conflict speed-limit raise (no fake stalk, no panda 0x45 loosen).
 
-When FrogPilot's Speed Limit Controller confirms a higher posted limit, lift
+When BogPilot's Speed Limit Controller confirms a higher posted limit, lift
 openpilot's cruise target to limit+offset so longitudinal accelerates into the
 faster zone. DI_cruiseSet still seeds the pcmCruise set; stalk UP/DN injection
 is intentionally not used.
@@ -11,9 +11,9 @@ Engage / tip policy (simplified):
     lower limit) until RWD pull or disengage — same as a tipped set.
   - Pull-toward (RWD / resumeCruise) engage → SLC+offset raise immediately
   - Classify engage from stalk pressed within the last ~0.8 s. Caller must
-    feed continuous stalk *levels* (carstate.button_states via frogpilotCarState
+    feed continuous stalk *levels* (carstate.button_states via bogpilotCarState
     accelPressed / decelPressed / resumePressed), not 10 ms buttonEvents —
-    frogpilot_vcruise samples at 20 Hz and misses short holds (drive26 RWD).
+    bogpilot_vcruise samples at 20 Hz and misses short holds.
   - While engaged, stalk UP/DN only adjust the software set the same way both
     directions (+1 / next-5 up, −1 / next-lower-5 down). Tip base is the current
     software set (sticky latch / tip_ms / raised set). Sticky still wins first
@@ -25,7 +25,7 @@ Engage / tip policy (simplified):
     or disengage; SLC raise must not yank the set back up after a down tip.
     Never follow stale DI_cruiseSet under OP overlay. AP1 buttonEvents are binary
     (UP_1ST/UP_2ND both map to accelCruise), so full vs short tip comes from raw
-    SpdCtrlLvr_Stat (frogpilotCarState.spdCtrlLvr): UP_2ND/DN_2ND (4/8) on the
+    SpdCtrlLvr_Stat (bogpilotCarState.spdCtrlLvr): UP_2ND/DN_2ND (4/8) on the
     rising edge = full tip (next/prev 5); UP_1ST/DN_1ST (16/32) = ±1. A hold past
     TIP_HOLD_S upgrades a ±1 press to next/prev 5 once, as a fallback only.
   - Tips adjust the software set only — they must not send cancel / FWD stalk TX
@@ -38,6 +38,8 @@ so standstill DI set=0 cannot pack ~158 mph / cluster digital set ~90
 
 Not a product. No warranty. The driver remains responsible. Comply with local law.
 """
+
+import math
 
 from opendbc.car.common.conversions import Conversions as CV
 
@@ -73,7 +75,7 @@ def apply_slc_raise_after_min(v_cruise_ms: float, slc_desired_ms: float, slc_tar
                               csc_target_ms: float) -> float:
   """AP1 post-min raise: lift, then re-min with CSC only if CSC is active.
 
-  Used by frogpilot_vcruise after min(targets) so DI_cruiseSet sitting in
+  Used by bogpilot_vcruise after min(targets) so DI_cruiseSet sitting in
   csc_target (CSC inactive) cannot collapse a confirmed SLC raise.
   """
   v = lift_cruise_ms(v_cruise_ms, slc_desired_ms, slc_target_ms, cruising_speed_ms)
@@ -88,7 +90,7 @@ def merge_vcruise_with_slc(v_cruise_ms: float, csc_target_ms: float, slc_desired
                            raise_holdoff: bool = False) -> float:
   """Full AP1 merge order: min(targets) then apply_slc_raise_after_min.
 
-  Mirrors frogpilot_vcruise.py so unit tests cover the DI≥CRUISING_SPEED
+  Mirrors bogpilot_vcruise.py so unit tests cover the DI≥CRUISING_SPEED
   regression (raise must stick at 30 when DI=11.5, limit 25, offset +5).
   When raise_holdoff is True (tip/sticky authority — skip SLC lift), return min only.
   """
@@ -101,20 +103,59 @@ def merge_vcruise_with_slc(v_cruise_ms: float, csc_target_ms: float, slc_desired
     csc_controlling_speed, csc_target_ms)
 
 
-def next_5_ms(speed_ms: float) -> float:
-  """Next multiple of 5 mph above speed_ms (30→35, 36→40); exact multiples go +5."""
-  mph = round(float(speed_ms) * CV.MS_TO_MPH, 4)
-  return float((int(mph // 5.0) + 1) * 5.0) * CV.MPH_TO_MS
+def _speed_units(speed_ms: float, round_whole: bool, is_metric: bool) -> tuple[float, float]:
+  """Set speed in tip units and the factor back to m/s.
+
+  round_whole=False (legacy): mph, rounded to 4 decimals only (float noise).
+  round_whole=True (AP1TipRoundSet): the display unit (km/h when metric, else
+  mph), rounded half-up to a whole number first. The cluster and the comma UI
+  show whole numbers only, so a 14.8 mph tip-engage latch reads as 15 and a +5
+  tip goes to 20 instead of 15.
+  """
+  if not round_whole:
+    return round(float(speed_ms) * CV.MS_TO_MPH, 4), CV.MPH_TO_MS
+  to_unit = CV.MS_TO_KPH if is_metric else CV.MS_TO_MPH
+  to_ms = CV.KPH_TO_MS if is_metric else CV.MPH_TO_MS
+  value = round(float(speed_ms) * to_unit, 4)
+  return float(math.floor(value + 0.5)), to_ms
 
 
-def prev_5_ms(speed_ms: float) -> float:
-  """Next-lower multiple of 5 mph (31→30, 30→25, 36→35); exact multiples go −5."""
-  mph = round(float(speed_ms) * CV.MS_TO_MPH, 4)
-  if mph <= 0.0:
+def next_5_ms(speed_ms: float, round_whole: bool = False, is_metric: bool = False) -> float:
+  """Next multiple of 5 above speed_ms (30→35, 36→40); exact multiples go +5.
+
+  Legacy (round_whole=False): mph, fractional base (14.8→15).
+  round_whole=True: base rounded to a whole display unit first (14.8→15→20,
+  49.6→50→55); steps in km/h when is_metric.
+  """
+  value, to_ms = _speed_units(speed_ms, round_whole, is_metric)
+  return float((int(value // 5.0) + 1) * 5.0) * to_ms
+
+
+def prev_5_ms(speed_ms: float, round_whole: bool = False, is_metric: bool = False) -> float:
+  """Next-lower multiple of 5 (31→30, 30→25, 36→35); exact multiples go −5.
+
+  round_whole=True: base rounded to a whole display unit first (15.2→15→10,
+  49.6→50→45); steps in km/h when is_metric.
+  """
+  value, to_ms = _speed_units(speed_ms, round_whole, is_metric)
+  if value <= 0.0:
     return 0.0
-  if mph % 5.0 == 0.0:
-    return max(mph - 5.0, 0.0) * CV.MPH_TO_MS
-  return float(int(mph // 5.0) * 5.0) * CV.MPH_TO_MS
+  if value % 5.0 == 0.0:
+    return max(value - 5.0, 0.0) * to_ms
+  return float(int(value // 5.0) * 5.0) * to_ms
+
+
+def step_1_ms(speed_ms: float, direction: int, round_whole: bool = False, is_metric: bool = False) -> float:
+  """First-detent tip: ±1 unit from the base.
+
+  Legacy: base ± 1 mph (fractional base kept: 14.8→15.8).
+  round_whole=True: whole display unit first, then ±1 (14.8→15→16; km/h when metric).
+  Caller clamps to TIP_MIN_MS / V_CRUISE_MAX_MS.
+  """
+  if not round_whole:
+    return float(speed_ms) + float(direction) * 1.0 * CV.MPH_TO_MS
+  value, to_ms = _speed_units(speed_ms, round_whole, is_metric)
+  return (value + float(direction)) * to_ms
 
 
 class Ap1RaiseHoldoff:
@@ -140,17 +181,27 @@ class Ap1RaiseHoldoff:
 
   RECENT_S = 0.8  # Tesla clears buttonEvents 80–240 ms before enabled rises
   TIP_STEP_MS = 1.0 * CV.MPH_TO_MS
-  # Lowest software set a down tip can reach. tip_ms == 0 means "no tip", so a
-  # tip to 0 used to drop into SLC tracking (raise to posted+offset). Not tied
-  # to the SLC posted-limit guard (15 mph floor) — tips may go below 15 mph.
+  # Lowest software set a down tip can reach when the base is already at or
+  # above this. A DN tip must never raise the set, so a crawl latch below 1 mph
+  # stays at the latch (still > 0). tip_ms == 0 means "no tip", so a tip to 0
+  # used to drop into SLC tracking (raise to posted+offset). Not tied to the
+  # SLC posted-limit guard (15 mph floor) — tips may go below 15 mph.
   TIP_MIN_MS = 1.0 * CV.MPH_TO_MS
   TIP_HOLD_S = 0.45  # fallback only: hold upgrades ±1 → next/prev 5 once
   V_CRUISE_MAX_MS = 145.0 * CV.KPH_TO_MS
   DT_DEFAULT = 0.05  # model tick; avoid importing realtime here
 
-  def __init__(self):
+  def __init__(self, round_whole: bool = False, is_metric: bool = False):
+    # AP1TipRoundSet (toggle default on for this test branch; the class default
+    # stays off and bogpilot_vcruise sets it): round the tip base to a whole display unit
+    # before ±1 / next-5 / prev-5. Caller may update both attributes.
+    self.round_whole = bool(round_whole)
+    self.is_metric = bool(is_metric)
     self.sticky_vego = False
     self.latched_vego_ms = 0.0
+    # AP1 openpilot long only (Ap1SpeedControl sets it): a stalk tap from 0 sets this instead of latching 0
+    # (0.9.7 latched 0 here, bogpilot_vcruise.py @568fea947). 0 = off, the legacy behavior.
+    self.tap_from_zero_ms = 0.0
     self.tip_ms = 0.0
     self.tip_dir = 0  # +1 tip-up, -1 tip-down, 0 idle
     self._tip_base_ms = 0.0
@@ -172,6 +223,11 @@ class Ap1RaiseHoldoff:
     self._tip_hold_s = 0.0
     self._tip_press_active = False
     self._tip_upgraded = False
+
+  def _dn_set_ms(self, base_ms: float, candidate_ms: float) -> float:
+    """Clamp a decrease: never below TIP_MIN when the base is at or above it,
+    and never raise a latch that is already below TIP_MIN (still > 0)."""
+    return min(float(base_ms), max(float(candidate_ms), self.TIP_MIN_MS))
 
   def update(self, enabled: bool, decel_pressed: bool, up_pressed: bool,
              rwd_pressed: bool, slc_target_ms: float, v_ego_ms: float,
@@ -208,7 +264,7 @@ class Ap1RaiseHoldoff:
     # Posted-limit changes never touch sticky or tip: a stalk-tip engage (sticky)
     # or engaged tip holds through higher AND lower limits until RWD pull or
     # disengage (never auto-raise into a faster zone). slc_target_ms is unused
-    # here; SLC tracking (after a pull) follows limits in frogpilot_vcruise.
+    # here; SLC tracking (after a pull) follows limits in bogpilot_vcruise.
 
     # Engaged tip-up / tip-down / RES: continuous levels from caller (button_states).
     # tip_full (SpdCtrl 4/8) → next-5 / prev-5 on rising edge; else ±1.
@@ -226,11 +282,19 @@ class Ap1RaiseHoldoff:
         self._tip_hold_s = 0.0
         self._tip_press_active = True
         self.tip_dir = 1
-        if tip_full:
-          self.tip_ms = min(next_5_ms(base), self.V_CRUISE_MAX_MS)
+        if self.tap_from_zero_ms > 0.0 and base <= 0.0 and float(v_ego_ms) < 0.1:
+          self.tip_ms = float(self.tap_from_zero_ms)  # standstill tap from 0 (AP1 openpilot long)
+          self._tip_upgraded = True
+        elif base <= 0.0:
+          # Rolling with no existing set: latch exact vEgo (no 5 mph rounding, no tap-from-0).
+          self.tip_ms = max(float(v_ego_ms), 0.0)
+          self._tip_upgraded = True
+        elif tip_full:
+          self.tip_ms = min(next_5_ms(base, round_whole=self.round_whole, is_metric=self.is_metric), self.V_CRUISE_MAX_MS)
           self._tip_upgraded = True
         else:
-          self.tip_ms = min(base + self.TIP_STEP_MS, self.V_CRUISE_MAX_MS)
+          up1 = step_1_ms(base, 1, round_whole=True, is_metric=self.is_metric) if self.round_whole else base + self.TIP_STEP_MS
+          self.tip_ms = min(up1, self.V_CRUISE_MAX_MS)
           self._tip_upgraded = False
       elif dn_edge:
         self.sticky_vego = False
@@ -239,31 +303,38 @@ class Ap1RaiseHoldoff:
         self._tip_hold_s = 0.0
         self._tip_press_active = True
         self.tip_dir = -1
-        if tip_full:
-          self.tip_ms = max(prev_5_ms(base), self.TIP_MIN_MS)
+        if self.tap_from_zero_ms > 0.0 and base <= 0.0 and float(v_ego_ms) < 0.1:
+          self.tip_ms = float(self.tap_from_zero_ms)  # standstill tap from 0 (AP1 openpilot long)
+          self._tip_upgraded = True
+        elif base <= 0.0:
+          self.tip_ms = max(float(v_ego_ms), 0.0)
+          self._tip_upgraded = True
+        elif tip_full:
+          self.tip_ms = self._dn_set_ms(base, prev_5_ms(base, round_whole=self.round_whole, is_metric=self.is_metric))
           self._tip_upgraded = True
         else:
-          self.tip_ms = max(base - self.TIP_STEP_MS, self.TIP_MIN_MS)
+          dn1 = step_1_ms(base, -1, round_whole=True, is_metric=self.is_metric) if self.round_whole else base - self.TIP_STEP_MS
+          self.tip_ms = self._dn_set_ms(base, dn1)
           self._tip_upgraded = False
       if self._tip_press_active and not self._tip_upgraded:
         # Mid-press reach of pos2, or long hold without detent info
         if tip_full:
           if self.tip_dir > 0:
-            nxt = next_5_ms(self._tip_base_ms)
+            nxt = next_5_ms(self._tip_base_ms, round_whole=self.round_whole, is_metric=self.is_metric)
             self.tip_ms = min(max(float(self.tip_ms), nxt), self.V_CRUISE_MAX_MS)
           elif self.tip_dir < 0:
-            self.tip_ms = max(prev_5_ms(self._tip_base_ms), self.TIP_MIN_MS)
+            self.tip_ms = self._dn_set_ms(self._tip_base_ms, prev_5_ms(self._tip_base_ms, round_whole=self.round_whole, is_metric=self.is_metric))
           self._tip_upgraded = True
         elif self.tip_dir > 0 and up_pressed:
           self._tip_hold_s += dt
           if self._tip_hold_s >= self.TIP_HOLD_S:
-            nxt = next_5_ms(self._tip_base_ms)
+            nxt = next_5_ms(self._tip_base_ms, round_whole=self.round_whole, is_metric=self.is_metric)
             self.tip_ms = min(max(float(self.tip_ms), nxt), self.V_CRUISE_MAX_MS)
             self._tip_upgraded = True
         elif self.tip_dir < 0 and decel_pressed:
           self._tip_hold_s += dt
           if self._tip_hold_s >= self.TIP_HOLD_S:
-            self.tip_ms = max(prev_5_ms(self._tip_base_ms), self.TIP_MIN_MS)
+            self.tip_ms = self._dn_set_ms(self._tip_base_ms, prev_5_ms(self._tip_base_ms, round_whole=self.round_whole, is_metric=self.is_metric))
             self._tip_upgraded = True
       # Release ends hold timing (tip_ms latched value remains until clear)
       if self.tip_dir > 0 and not up_pressed:
@@ -286,6 +357,9 @@ class Ap1RaiseHoldoff:
       if kind in ("up", "dn"):
         self.sticky_vego = True
         self.latched_vego_ms = max(float(v_ego_ms), 0.0)
+        if self.tap_from_zero_ms > 0.0 and self.latched_vego_ms < 0.1:
+          # AP1 openpilot long: a tap engage at a standstill sets 15 mph, not a sticky 0 (0.9.7 latched vEgo 0).
+          self.latched_vego_ms = float(self.tap_from_zero_ms)
         self._clear_tip()
       elif kind == "rwd":
         self.sticky_vego = False
@@ -303,14 +377,16 @@ class Ap1RaiseHoldoff:
     # Tip or sticky blocks SLC raise; RWD pull clears tip so raise may re-latch.
     allow_raise = (not self.sticky_vego) and (float(self.tip_ms) <= 0.0)
     sticky = self.latched_vego_ms if self.sticky_vego else None
+    if self.tap_from_zero_ms > 0.0 and sticky is not None and sticky <= 0.0:
+      sticky = None  # AP1 openpilot long: a sticky 0 is no set
     return allow_raise, sticky
 
 
 class Ap1SlcLimitGuard:
   """AP1 posted-limit sanity filter for SLC (drive 2a seg 5: 45→5 mph blip ~1.4 s).
 
-  Applied in frogpilot_vcruise to the SLC target/offset it uses and publishes
-  (frogpilotPlan.slcSpeedLimit[+Offset]), so SLC tracking after a pull, pull
+  Applied in bogpilot_vcruise to the SLC target/offset it uses and publishes
+  (bogpilotPlan.slcSpeedLimit[+Offset]), so SLC tracking after a pull, pull
   engage (controlsd initialize_v_cruise) and the speed-limit sign all see it.
   Tip-engage / engaged-tip holds ignore limits anyway.
 
@@ -384,8 +460,8 @@ class Ap1SlcLimitGuard:
 def ap1_cruise_ms(v_cruise_ms: float, sticky_vego_ms: float | None, tip_ms: float,
                   allow_raise: bool, slc_desired_ms: float | None, slc_target_ms: float,
                   cruising_speed_ms: float, csc_controlling_speed: bool,
-                  csc_target_ms: float) -> float:
-  """AP1 set authority after Ap1RaiseHoldoff.update (used by frogpilot_vcruise).
+                  csc_target_ms: float, sticky_zero_is_none: bool = False) -> float:
+  """AP1 set authority after Ap1RaiseHoldoff.update (used by bogpilot_vcruise).
 
   Sticky (stalk-tip engage) and tipped set are the driver's set: they hold
   through posted-limit changes in BOTH directions until RWD pull / disengage.
@@ -393,6 +469,8 @@ def ap1_cruise_ms(v_cruise_ms: float, sticky_vego_ms: float | None, tip_ms: floa
   SLC tracking (after a pull, allow_raise) keeps the post-min value (follows
   lower limits) and lifts to SLC+offset on higher limits.
   """
+  if sticky_zero_is_none and sticky_vego_ms is not None and float(sticky_vego_ms) <= 0.0:
+    sticky_vego_ms = None  # AP1 openpilot long: a sticky 0 (0.9.7 standstill tap engage) is no set
   if sticky_vego_ms is not None:
     v = float(sticky_vego_ms)
     if csc_controlling_speed:
@@ -410,16 +488,16 @@ def ap1_cruise_ms(v_cruise_ms: float, sticky_vego_ms: float | None, tip_ms: floa
   return v_cruise_ms
 
 
-def cluster_display_kph(v_cruise_cluster_kph: float, frogpilot_v_cruise_ms: float) -> float:
+def cluster_display_kph(v_cruise_cluster_kph: float, bogpilot_v_cruise_ms: float) -> float:
   """Comma / HUD set digit follows the SLC-raised planner cruise when higher.
 
   Never lowers the displayed set for curve-speed slowdowns — only lifts when
-  frogpilotPlan.vCruise is above the DI-seeded cluster set.
+  bogpilotPlan.vCruise is above the DI-seeded cluster set.
 
   When pcmCruise standstill zeros DI set, VCruiseHelper publishes UNSET (255).
-  Prefer the frogpilot plan digit over the sentinel so comma does not show ~158.
+  Prefer the bogpilot plan digit over the sentinel so comma does not show ~158.
   """
-  fp_kph = float(frogpilot_v_cruise_ms) * CV.MS_TO_KPH
+  fp_kph = float(bogpilot_v_cruise_ms) * CV.MS_TO_KPH
   cluster = float(v_cruise_cluster_kph)
   if cluster >= V_CRUISE_UNSET_KPH - 0.5:
     return fp_kph if fp_kph > 0.0 else cluster

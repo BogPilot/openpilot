@@ -20,9 +20,9 @@ def read_option(params, key, default=""):
 
 
 def apply_ap1_volume_defaults(CP, params, store=None, profile=None):
-  """Use stream 7's audible AP1 profile, only for settings never stored.
+  """Use the audible AP1 alert-volume profile, only for settings never stored.
 
-  Existing user choices belong to the settings/migration owner (stream 5).
+  Existing user choices belong to the settings/migration owner (shipping defaults).
   No legacy mute profile is copied into vehicle/runtime code.
   """
   if CP.carFingerprint != AP1:

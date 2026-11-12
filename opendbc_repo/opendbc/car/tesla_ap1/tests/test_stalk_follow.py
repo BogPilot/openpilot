@@ -1,6 +1,6 @@
 from opendbc.car.tesla_ap1.stalk_follow import SNA, detent_edges, dtr_sample, map_stalk_follow, parse_stalk_raw
 
-# Stock FrogPilot defaults. Traffic is the cruising TRAFFIC_FOLLOW value (1.00s),
+# Stock BogPilot defaults. Traffic is the cruising TRAFFIC_FOLLOW value (1.00s),
 # not the 0.50s standstill end of that curve. Intermediates are midpoints.
 EXPECTED = (
   (0, 1, "traffic", True, 1.0),

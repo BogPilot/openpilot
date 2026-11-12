@@ -9,11 +9,12 @@ from openpilot.cereal import log
 from opendbc.car.structs import car
 
 from openpilot.common.params import Params
+from openpilot.common.traffic_mode_hold import TrafficModeHold
 from openpilot.common.realtime import config_realtime_process, Priority, Ratekeeper
 from openpilot.common.swaglog import cloudlog, ForwardingHandler
 
 from opendbc.car import DT_CTRL, structs
-from opendbc.car.tesla_ap1.phase3_stalk_controls import apply_experimental_toggle, experimental_supported
+from opendbc.car.tesla_ap1.phase3_stalk_controls import apply_experimental_toggle, twist_follow_on, experimental_supported
 from opendbc.car.can_definitions import CanData, CanRecvCallable, CanSendCallable
 from opendbc.car.carlog import carlog
 from opendbc.car.fw_versions import ObdCallback
@@ -22,7 +23,7 @@ from opendbc.car.interfaces import CarInterfaceBase, RadarInterfaceBase
 from openpilot.selfdrive.pandad import can_capnp_to_list, can_list_to_can_capnp
 from openpilot.selfdrive.car.cruise import VCruiseHelper
 from openpilot.selfdrive.car.ap1_runtime import apply_ap1_volume_defaults
-from openpilot.selfdrive.car.bogpilot_card import frogpilot_car_state_msg
+from openpilot.selfdrive.car.bogpilot_card import bogpilot_car_state_msg
 
 REPLAY = "REPLAY" in os.environ
 
@@ -68,8 +69,8 @@ class Car:
 
   def __init__(self, CI=None, RI=None) -> None:
     self.can_sock = messaging.sub_sock('can', timeout=20)
-    self.sm = messaging.SubMaster(['pandaStates', 'carControl', 'onroadEvents', 'deviceState'])
-    self.pm = messaging.PubMaster(['sendcan', 'carState', 'carParams', 'carOutput', 'radarTracks', 'frogpilotCarState'])
+    self.sm = messaging.SubMaster(['pandaStates', 'carControl', 'onroadEvents', 'deviceState', 'bogpilotPlan'])
+    self.pm = messaging.PubMaster(['sendcan', 'carState', 'carParams', 'carOutput', 'radarTracks', 'bogpilotCarState'])
 
     self.can_rcv_cum_timeout_counter = 0
 
@@ -118,8 +119,11 @@ class Car:
       self.RI = RI
 
     apply_ap1_volume_defaults(self.CP, self.params)
+    if self.CP.carFingerprint == "TESLA_PREAP_MODELS":
+      from openpilot.selfdrive.car import preap_aol
+      preap_aol.install(self.CP)   # Pre-AP double pull rides AOL only while the AOL lane says it may; nothing is enabled here
     self.ap1_model = None
-    if self.CP.brand == "tesla_ap1" and self.CI.CC is not None:
+    if self.CP.brand == "tesla_ap1" and self.CP.carFingerprint != "TESLA_PREAP_MODELS" and self.CI.CC is not None:
       self.ap1_model = messaging.SubMaster(["modelV2"])
       self.CI.CC.model_v2_provider = lambda: self.ap1_model["modelV2"] if self.ap1_model.all_checks() else None
 
@@ -168,6 +172,30 @@ class Car:
 
     self.is_metric = self.params.get_bool("IsMetric")
     self.experimental_mode = self.params.get_bool("ExperimentalMode")
+    self.ap1_cluster_lift = bool(self.CP.brand == "tesla_ap1" and self.CP.carFingerprint != "TESLA_PREAP_MODELS" and self.CP.openpilotLongitudinalControl)
+    # Pre-AP with pedal (pcmCruise=False): 0.9.7 SetSpeedLimit engage set from a fresh posted limit.
+    self.preap_engage_set_limit = None
+    if self.CP.brand == "tesla_ap1" and self.CP.carFingerprint == "TESLA_PREAP_MODELS" and not self.CP.pcmCruise:
+      from openpilot.selfdrive.controls.lib.phase3_speed_control import PreapEngageSetLimit
+      self.preap_engage_set_limit = PreapEngageSetLimit(self.CP)
+    self._cluster_floor = None
+    if self.ap1_cluster_lift:
+      from openpilot.selfdrive.controls.lib.phase3_speed_control import EngageClusterFloor
+      self._cluster_floor = EngageClusterFloor()
+      from openpilot.selfdrive.controls.lib.phase3_speed_control import CurveDisplayHold
+      self._curve_hold = CurveDisplayHold()
+    if getattr(self.CI.CS, "op_long_set", None) is not None:
+      # AP1 openpilot long: speed-limit offset for the engage set, from params (not bogpilotPlan: no loop).
+      from openpilot.selfdrive.controls.lib.phase3_speed_control import EngageLimitOffset, EngageTapFromZero
+      self.CI.CS.op_long_offset = EngageLimitOffset(self.CP)
+      self.CI.CS.op_long_tap_from_zero = EngageTapFromZero()
+    self.ap1_personality_sync = None
+    self.traffic_mode_hold = TrafficModeHold()
+    if self.CP.brand == "tesla_ap1" and self.CP.carFingerprint == "TESLA_AP1_MODELS":
+      from openpilot.selfdrive.controls.lib.phase3_following import Ap1PersonalitySync, personality_adopted
+      # stock-equivalent default: stalk detents only write LongitudinalPersonality after the user adopted Driving Personalities
+      if personality_adopted():
+        self.ap1_personality_sync = Ap1PersonalitySync(self.params)
 
     # card is driven by can recv, expected at 100Hz
     self.rk = Ratekeeper(100, print_delay_threshold=None)
@@ -185,14 +213,27 @@ class Car:
     self.sm.update(0)
     started = bool(self.sm.valid["deviceState"] and self.sm.alive["deviceState"] and self.sm["deviceState"].started)
     if hasattr(self.CI.CS, "stalk_controls_allowed"):
-      self.CI.CS.stalk_controls_allowed = (started and experimental_supported(self.CP)
-                                        and self.params.get_bool("ExperimentalModeConfirmed"))
+      # Arm detection without ExperimentalModeConfirmed so a completed hold can
+      # still raise the "confirm in Settings" alert; apply_experimental_toggle keeps the gate.
+      self.CI.CS.stalk_controls_allowed = started and experimental_supported(self.CP)
     # Update carState from CAN. Physical buttons/cancel remain untouched.
     CS = self.CI.update(can_list)
 
     mode = apply_experimental_toggle(self.params, self.CP, CS, started)
     if mode is not None:
       self.experimental_mode = mode
+
+    stalk_traffic = None
+    if self.ap1_personality_sync is not None and twist_follow_on(self.CI.CS):
+      # 04d560f3 bogpilot_card._apply_ap1_stalk: stalk detents 3/5/7 drive LongitudinalPersonality (read-back sync)
+      # Stalk Twist Following Distance off: the wheel must not write the personality icon/param either.
+      try:
+        stalk_traffic = self.ap1_personality_sync.update(getattr(self.CI.CS, "stalk_follow", None))
+      except Exception:
+        cloudlog.exception("card: AP1 personality sync failed")
+    self.traffic_mode_hold.apply_stalk(stalk_traffic)
+    CS.bogpilot.trafficModeEnabled = self.traffic_mode_hold.update_button(
+      self.params.get_bool("OnroadDistanceButtonPressed"), time.monotonic())
 
     # Update radar tracks from CAN
     RD: structs.RadarDataT | None = self.RI.update(can_list)
@@ -209,11 +250,36 @@ class Car:
     self.v_cruise_helper.update_v_cruise(CS, self.sm['carControl'].enabled, self.is_metric)
     if self.sm['carControl'].enabled and not self.CC_prev.enabled:
       # Use CarState w/ buttons from the step selfdrived enables on
-      self.v_cruise_helper.initialize_v_cruise(self.CS_prev, self.experimental_mode)
+      set_limit_kph = 0.0
+      if self.preap_engage_set_limit is not None:
+        set_limit_kph = self.preap_engage_set_limit.kph(self.CS_prev, getattr(self.CI.CS, "engage_limit_ms", 0.0))
+      self.v_cruise_helper.initialize_v_cruise(self.CS_prev, self.experimental_mode, set_limit_kph)
 
     # TODO: mirror the carState.cruiseState struct?
     CS.vCruise = float(self.v_cruise_helper.v_cruise_kph)
     CS.vCruiseCluster = float(self.v_cruise_helper.v_cruise_cluster_kph)
+    if self.ap1_cluster_lift:
+      # AP1 SLC / software stalk set: cluster + hudControl.setSpeed follow the planner set when it is higher
+      # (0.9.7 controlsd cluster_display_kph). Floor at vEgo from enable until the plan has caught up so the
+      # Tesla IC never flashes the DI_cruiseSet seed (8-10 mph / ~vEgo/2). Stalk reads are unchanged.
+      from openpilot.selfdrive.controls.lib.phase3_speed_control import cluster_set_kph
+      fresh = bool(self.sm.alive['bogpilotPlan'] and self.sm.valid['bogpilotPlan'])
+      plan = self.sm['bogpilotPlan'] if fresh else None
+      plan_v = float(getattr(plan, "vCruise", 0.0) or 0.0) if plan is not None else 0.0
+      enabled = bool(self.sm['carControl'].enabled)
+      # AP1 openpilot long: the cluster base is openpilot's engage set. Floor the IC at it (and vEgo) from the enable
+      # edge until the plan reaches it or the driver tips, then show the plan set as is (down tips and SLC drops too).
+      op_long = getattr(self.CI.CS, "op_long_set", None) is not None
+      tip = op_long and any(be.type in (car.CarState.ButtonEvent.Type.accelCruise, car.CarState.ButtonEvent.Type.decelCruise)
+                            for be in CS.buttonEvents)
+      engage_floor = bool(self._cluster_floor is not None and
+                          self._cluster_floor.update(enabled, fresh, plan_v, float(CS.vEgo),
+                                                     floor_ms=float(CS.cruiseState.speed) if op_long else 0.0, tip=tip))
+      plan_v_disp = self._curve_hold.update(enabled, plan)   # pre-curve-cap set while CSC controls the speed
+      if fresh or engage_floor:
+        CS.vCruiseCluster = float(cluster_set_kph(CS.vCruiseCluster, plan, fresh,
+                                                  v_ego_ms=float(CS.vEgo), engage_floor=engage_floor,
+                                                  plan_v_ms=plan_v_disp, follow_plan=op_long))
 
     return CS, RD
 
@@ -241,7 +307,7 @@ class Car:
     cs_send.carState.cumLagMs = -self.rk.remaining * 1000.
     self.pm.send('carState', cs_send)
 
-    self.pm.send("frogpilotCarState", frogpilot_car_state_msg(CS))
+    self.pm.send("bogpilotCarState", bogpilot_car_state_msg(CS))
 
     if RD is not None:
       tracks_msg = messaging.new_message('radarTracks')

@@ -9,7 +9,7 @@ from openpilot.common.bogpilot_onroad_toggles import onroad_toggles, toggles_sig
 
 
 class FileOnlyParams:
-  """A Params that knows no FrogPilot key (an old libparams_c.so): everything lands in the file store."""
+  """A Params that knows no BogPilot key (an old libparams_c.so): everything lands in the file store."""
   def check_key(self, key):
     raise KeyError(key)
 
@@ -63,10 +63,10 @@ def test_common_ap1_profile_wraps_a_bare_params(store, tmp_path):
   bogpilot_store.write_text("CarModel", prof.AP1_CAR_MODEL)
   written = prof.apply_ap1_defaults_once(BareParams(), bogpilot_dir=tmp_path / "markers")
   assert written, "profile should apply to an AP1 device through the file store"
-  # stream 7: the AP1 profile must never re-mute engage/disengage (FrogPilot defaults 0 / 101 stay)
+  # the AP1 profile must never re-mute engage/disengage (BogPilot defaults 0 / 101 stay)
   assert store.get_int("EngageVolume") == 101 and store.get_int("DisengageVolume") == 101
   assert store.get_bool("AlertVolumeControl") is False
-  # stream 5: TuningLevel stays unset, AOL stays off
+  # TuningLevel stays unset, AOL stays off
   assert "TuningLevel" not in written and "TuningLevelConfirmed" not in written
   assert store.get_bool("AlwaysOnLateral") is False
   assert prof.apply_ap1_defaults_once(BareParams(), bogpilot_dir=tmp_path / "markers") == []
@@ -95,7 +95,7 @@ def test_onroad_toggles_formulas(store):
   assert t.speed_limit_priority1 == "Navigation" and not t.speed_limit_priority_highest
 
   store.put_bool("DeveloperUI", True)
-  # stream 5/6 shipping default DeveloperWidgets=0 gates AdjacentLeadsUI (367e1fe formula)
+  # shipping default DeveloperWidgets=0 gates AdjacentLeadsUI (367e1fe formula)
   assert onroad_toggles(store, _cp()).adjacent_lead_tracking is False
   store.put_bool("DeveloperWidgets", True)
   assert onroad_toggles(store, _cp()).adjacent_lead_tracking is True

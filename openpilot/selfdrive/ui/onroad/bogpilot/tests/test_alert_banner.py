@@ -94,7 +94,7 @@ class TestGeometry(unittest.TestCase):
     self.assertEqual(L._CLUSTER_CY, v["CLUSTER_CY"])
     self.assertEqual(L._CLUSTER_D, v["CLUSTER_D"])
     self.assertEqual(L._PILL_LABEL_SPACE, v["PILL_LABEL_SPACE"])
-    self.assertEqual(L._REC_CX, v["CLUSTER_LEFT"] + 75)
+    self.assertEqual(L._REC_CX, v["REC_CX"])
     self.assertEqual(L._STACK_BOTTOM, v["GRAPH_TOP"] + v["GRAPH_HEIGHT"])
 
   def test_wide_banner_between_stack_and_cluster(self):

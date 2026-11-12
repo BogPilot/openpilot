@@ -20,26 +20,28 @@ BOGPILOT_DIR = Path(os.environ.get("BOGPILOT_PARAMS_DIR", "/data/params_bogpilot
 CAR_DEPENDENT = None
 
 # key: (default, description)
-# Legacy UI keys that stream 4 keeps file-backed only (never Params get/put).
-FILE_ONLY_UI_KEYS = frozenset({"RedesignUI", "BSMFlameTracks", "SwapSpeedGraph", "HideAccelGraph", "DeveloperHUD"})
+# Legacy UI keys that the onroad UI keeps file-backed only (never Params get/put).
+FILE_ONLY_UI_KEYS = frozenset({"RedesignUI", "BSMFlameTracks", "SwapSpeedGraph", "HideAccelGraph", "DeveloperHUD", "ShowAccelGraph", "LowerSpeedLimitsBox"})
 
 FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
   # UI (default on)
-  # Reserved, default OFF (owner policy 2026-11-07: normal screen-sleep timer wins). bogpilot-tesla-c3x ships no
+  # Reserved, default OFF (default OFF: the normal screen-sleep timer wins). bogpilot-tesla-c3x ships no
   # screensaver and no settings row; nothing reads this key.
   "OffroadScreensaver": (False, "Reserved offroad screensaver setting (default OFF, no C3X implementation)"),
   "BSMFlameTracks": (True, "'Bog to the Future' flame tracks behind >88 mph blind-spot passers"),
   "ConfidenceBall": (True, "Model confidence ball on the onroad edge"),
   "RedesignUI": (True, "BogPilot onroad redesign"),
-  # Telemetry-removal orphans (telemetryAudit): no uploader/athena/webrtc/hevc_streamd
+  # Telemetry-removal orphans: no uploader/athena/webrtc/hevc_streamd
   # processes remain on feae. Defaults OFF; do NOT register menus. Preserve any existing
   # owner file values if present; only the missing-file default changes.
   "ShowUploadRate": (False, "REMOVED/unsupported: onroad upload-rate readout (no uploader)"),
   "RemoteUIStream": (False, "REMOVED/unsupported: remote UI stream server (no webrtc/stream)"),
   # UI (default off)
   "DeveloperHUD": (False, "Developer HUD"),
-  "SwapSpeedGraph": (True, "Accel graph on top, speed row below it"),
-  "HideAccelGraph": (False, "Hide the accel graph; the speed row stays in the lower slot"),
+  "SwapSpeedGraph": (True, "Legacy file key; layout is now LowerSpeedLimitsBox + ShowAccelGraph"),
+  "HideAccelGraph": (False, "Legacy file key; replaced by ShowAccelGraph (default off)"),
+  "ShowAccelGraph": (False, "Show the acceleration graph on the driving screen (can slow UI draw time)"),
+  "LowerSpeedLimitsBox": (False, "Lower the top-left speed limits box if a rear-view mirror covers the top"),
   # Reserved, default OFF. Not features yet; the names are pinned so nothing ships them on.
   "OccViz": (False, "Occupancy visualisation (reserved, default OFF)"),
   "LiveYOLO": (False, "Live YOLO object overlay (reserved, default OFF)"),
@@ -143,6 +145,64 @@ def migrate_screensaver_default_off(directory: Path | None = None) -> bool:
       tmp.write_text("0")
       os.replace(tmp, path)
       changed = True
+    marker.write_text("1\n")
+  except OSError:
+    pass  # a migration must never block startup
+  return changed
+
+
+ACCEL_GRAPH_MIGRATION_MARKER = "AccelGraphDefaultOff1"
+
+
+def _file_truth(directory: Path, key: str) -> bool | None:
+  """ON/OFF from an existing file, or None when the file is missing or unreadable."""
+  try:
+    text = (directory / key).read_text(encoding="utf-8", errors="replace")[:64].strip().lower()
+  except OSError:
+    return None
+  if text in _ON:
+    return True
+  if text in _OFF:
+    return False
+  return None
+
+
+def migrate_ui_layout_defaults(directory: Path | None = None) -> bool:
+  """One-shot: adopt the new onroad layout defaults without overwriting a real user choice.
+
+  Rule (flag for review): a missing file or a file whose value equals the old shipping default is treated
+  as "never customized" and takes the new default. A value that differs from the old default is left alone,
+  and any already-written new-key file is never overwritten.
+
+  Old defaults were HideAccelGraph=OFF (graph shown) and the speed row in the lower slot (because
+  SwapSpeedGraph shipped ON). New defaults are ShowAccelGraph=OFF and LowerSpeedLimitsBox=OFF (speed row
+  at the top). The one custom combo we preserve is HideAccelGraph=ON: that user already hid the graph and
+  the old hide path forced the speed row into the lower slot, so we write LowerSpeedLimitsBox=ON.
+
+  Fresh installs write nothing (the new defaults apply to missing files). Returns True if a file was written.
+  """
+  directory = Path(directory) if directory is not None else BOGPILOT_DIR
+  marker = directory / ACCEL_GRAPH_MIGRATION_MARKER
+  if marker.exists():
+    return False
+  changed = False
+  try:
+    directory.mkdir(parents=True, exist_ok=True)
+    hide = _file_truth(directory, "HideAccelGraph")
+    show_exists = (directory / "ShowAccelGraph").exists()
+    lower_exists = (directory / "LowerSpeedLimitsBox").exists()
+    # Only the custom hide-graph value (old default was off) is preserved, including its lower capsule.
+    if hide is True:
+      if not show_exists:
+        tmp = directory / ".ShowAccelGraph.tmp"
+        tmp.write_text("0")
+        os.replace(tmp, directory / "ShowAccelGraph")
+        changed = True
+      if not lower_exists:
+        tmp = directory / ".LowerSpeedLimitsBox.tmp"
+        tmp.write_text("1")
+        os.replace(tmp, directory / "LowerSpeedLimitsBox")
+        changed = True
     marker.write_text("1\n")
   except OSError:
     pass  # a migration must never block startup

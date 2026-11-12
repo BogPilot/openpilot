@@ -23,8 +23,11 @@ CONFIRMED_KEY = "TuningLevelConfirmed"
 
 # Rows that are not in BOGPILOT_PARAMS (file-only UI keys). Everything else comes from the shared registry.
 UI_ROW_LEVELS: dict[str, int] = {
-  "BSMFlameTracks": STANDARD,   # "Bog to the Future": cosmetic, needs the blind-spot lane fill (Standard)
-  "SwapSpeedGraph": ADVANCED,   # layout preference for the driving screen
+  "ConfidenceBall": MINIMAL,     # 0.9.7: top of the Visuals page, shown at every tuning level
+  "ConfidenceBallSide": MINIMAL,
+  "BSMFlameTracks": MINIMAL,    # "Bog to the Future": unique to this fork, so it shows at every level
+  "LowerSpeedLimitsBox": MINIMAL,  # everyday layout option when a rear-view mirror covers the top
+  "ShowAccelGraph": DEVELOPER,     # can slow UI draw time; lives with the other Developer overlays
 }
 
 _CACHE_S = 0.5

@@ -45,7 +45,7 @@ This does not make the car safe to drive.
 
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 
@@ -483,6 +483,7 @@ class ClusterController:
     self.prev_enabled = False
     self.disengaged_ns = None
     self.last_lanes = None
+    self.last_set_mph = None   # last nonzero openpilot set packed on DAS_accSpeedLimit this engagement
 
   def mode(self, enabled, now_nanos):
     if enabled:
@@ -512,6 +513,15 @@ class ClusterController:
       self.disengaged_ns = None
       return []
     mode = self.mode(h.enabled, now_nanos)
+    if mode == "engaged":
+      # While enabled, keep our last nonzero set on the IC digit when the set is momentarily missing (None or 0,
+      # e.g. an unset vCruise at a standstill engage) instead of falling back to the stock DAS_accSpeedLimit.
+      if h.cruise_set_mph is not None and h.cruise_set_mph > 0:
+        self.last_set_mph = float(h.cruise_set_mph)
+      elif self.last_set_mph is not None:
+        h = replace(h, cruise_set_mph=self.last_set_mph)
+    else:
+      self.last_set_mph = None
     if mode is None:
       return []
 

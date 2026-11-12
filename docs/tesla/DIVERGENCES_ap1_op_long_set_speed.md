@@ -1,0 +1,147 @@
+# Divergence: AP1 cruise set speed under openpilot longitudinal
+
+Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can be folded into `DIVERGENCES.md`.
+
+### AP1: cruiseState.speed is openpilot's own set under openpilot long (Tinkla style)
+- Platforms: every AP1 car with openpilot longitudinal on: Model S and Model X AP1 (`is_ap1_family`, `values.py:158-159`;
+  Model X has openpilot long off by default in `interface.py`, and gets this latch when it is on). AP1 S and X with
+  openpilot long off (stock AP), Pre-AP (own CarState) and the panda are unchanged.
+- Reference behavior:
+  - Tinkla/BogGyver `501c7de` (openpilot-long branch): `cruiseState.speed = acc_speed_kph`, openpilot's own set
+    (`selfdrive/car/tesla/carstate.py:312-313`), taken from vEgoRaw when cruise engages (`ACC_module.py:154-158`) and
+    clipped to 0-170 kph (`ACC_module.py:231-232`). Its stock-AP branch reads `DI_cruiseSet` (`carstate.py:302-305`).
+  - BogPilot 0.9.7 (`568fea947`): `cruiseState.speed = DI_cruiseSet` in both modes (`carstate.py:213-219`).
+  - NAP `e99f4dc75`: no AP1 set-speed path (Pre-AP only).
+- Our behavior: with openpilot long, while `DI_cruiseState` is engaged (2 ENABLED, 3 STANDSTILL, 4 OVERRIDE, 6 PRE_FAULT,
+  7 PRE_CANCEL; 6/7 included because they are in the same set that drives `cruiseState.enabled`), `cruiseState.speed` is
+  openpilot's own set, latched on the engage edge (`opendbc/car/tesla_ap1/op_long_set_speed.py`), in this order:
+  1. a known `dashboardSpeedLimit` plus the speed-limit offset (`Offset1..7` toggles and bands, `offset_for` in
+     `phase3_speed_control.py`, passed in by the card from params as `EngageLimitOffset`), as BogPilot 0.9.7 SLC
+     (`speed_limit_controller.py`) sets the limit plus offset; this also applies at a standstill;
+  2. moving with no limit: vEgoRaw, floored at openpilot `V_CRUISE_MIN` (8 kph);
+  3. standstill with no limit after a stalk UP or DN tap: the AP1TapFromZeroMph setting (default 15 mph, whole mph
+     5-30). The planner's tip path uses the same value (`slc_raise.Ap1RaiseHoldoff.tap_from_zero_ms`; a sticky 0
+     counts as no sticky, AP1 openpilot long only);
+  4. standstill, no limit, no tap: nothing is latched, `bogpilot.ap1SpeedLimitUnknown` is set and the new event
+     `ap1SpeedLimitUnknown` (NO_ENTRY, "BogPilot not Engaged" / "Speed Limit Unknown", same form as
+     `pedalNotResponding`) refuses the engage. 0 is published while refused; openpilot is not enabled.
+  The set is clamped to 8-170 kph and held through later stops, including `DI_cruiseSet` 0, until cruise disengages,
+  so the car resumes to the set after a lead pulls away. Not engaged under openpilot long: 0 (unset), never the raw
+  `DI_cruiseSet` (about half of ego), so the engage edge steps straight to the set with no DI seed. Later limit changes
+  stay in the planner SLC; later stalk tips stay in the planner tip path. Without openpilot long, `DI_cruiseSet` as before.
+  On the mici layout `NoEntryAlert` swaps its two lines (`events.py`), so the top line there is "Speed Limit Unknown".
+- Why: under openpilot long on AP1, `DI_cruiseSet` follows about half of ego speed and reads 0 at every stop.
+  `VCruiseHelper` turns 0 into `V_CRUISE_UNSET`, the planner resets every cycle, `aTarget` stays below 0.1 and
+  `shouldStop` stays latched after the lead pulls away, until the driver presses the gas.
+- Inputs are CAN (`DI_cruiseState`, `ESP_vehicleSpeed`, the dashboard limit, stalk buttons) and the params offset; the set never reads `cruiseState.speed`, `carState.vCruise`,
+  `bogpilotPlan` or `hudControl`, so there is no feedback loop.
+- The car can speed back up to the engage speed after slowing when no sticky, tip or SLC set is active in the planner
+  (as Tinkla's set does). Before this change that base followed `DI_cruiseSet`.
+- Diverges from 0.9.7 (which reads `DI_cruiseSet`); matches Tinkla's openpilot-long latch. Differences from Tinkla:
+  Tinkla latches vEgo and only engages above its minimum cruise speed; we prefer limit plus offset (0.9.7 SLC), allow a
+  standstill engage with a limit or a 15 mph tap, and refuse it with NO_ENTRY otherwise. No stalk adjustment in CarState.
+- Safety-relevant: longitudinal planning only. No panda, CAN TX, DBC or 0x45 change; engage and disengage still follow
+  `DI_cruiseState`; `DAS_setSpeed` (`max(v + 3a, 0)`) is unchanged.
+- Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_ap1_op_long_set_speed.py`, `test_ap1_tap_from_zero.py`.
+- Credits: Tinkla/BogGyver (openpilot-long set speed); BogPilot 0.9.7 (SLC limit plus offset, stalk tips); comma.ai openpilot (`VCruiseHelper`, `V_CRUISE_MIN`).
+
+### AP1: the 15 mph standstill tap must be fresh
+- Our behavior: a stalk UP/DN tap (the `buttonEvents` pressed edge from `STW_ACTN_RQ`) counts for the 15 mph standstill
+  set only if it is pressed while cruise is engaged with nothing latched, or at most `TAP_WINDOW_S` = 0.8 s before the
+  engage edge. An older tap (for example at a red light before the engage) is dropped, and a tap is used once, so a
+  disengage and re-engage at a standstill needs a fresh tap or a known limit (else NO_ENTRY).
+- Window source: BogPilot 0.9.7 `slc_raise.py:183` `RECENT_S = 0.8` (`568fea947`), the same stalk-to-enable window its
+  engage classifier uses ("Tesla clears buttonEvents 80-240 ms before enabled rises"). Tinkla has no standstill tap set.
+- Why: a stale tap could latch 15 mph on a later standstill engage and drive off with no fresh driver request.
+- Tests: `test_stale_tap_at_red_light_does_not_latch_later_standstill_engage`, `test_tap_inside_window_before_edge_counts`,
+  `test_tap_from_zero_sets_24_14_kph_and_clears_no_entry` (`test_ap1_op_long_set_speed.py`).
+- Credits: BogPilot 0.9.7 (stalk window).
+
+### AP1: a stale speed limit is unknown for the engage set
+- Our behavior: for the engage-set limit only, each limit source (`AutopilotStatus` fused, `UI_driverAssistMapData`,
+  `UI_gpsVehicleSpeed` mpp and units) counts only if its frame arrived within `LIMIT_MAX_AGE_S` = 3.0 s
+  (`speed_limit.frame_fresh`, parser `ts_nanos` against the parser's last update time, `_last_update_nanos`, so a
+  silent bus does not keep a stale limit looking fresh). A stale limit is unknown: a
+  standstill engage gets NO_ENTRY `ap1SpeedLimitUnknown` (unless a fresh tap), a moving engage takes the vEgo latch.
+  `dashboardSpeedLimit` (display and planner SLC) is unchanged.
+- Why: these messages are optional (frequency 0), so the parser keeps their last value forever and a limit from an
+  earlier road could set the engage speed or drive off from a standstill.
+- Threshold: no reference has one (Tinkla `501c7de` and BogPilot 0.9.7 `568fea947` parse these frames with no age check),
+  so this is our choice: 3x the slowest measured period in AP1 captures (`UI_gpsVehicleSpeed` 1.0 s;
+  `UI_driverAssistMapData`, `AutopilotStatus` 0.5 s; worst gap 1.01 s).
+- Tests: `test_stale_limit_standstill_engage_is_no_entry`, `test_stale_limit_moving_engage_falls_through_to_vego`,
+  `test_limit_inside_age_gate_still_latches` (`test_ap1_op_long_set_speed.py`).
+- Credits: Tinkla/BogGyver and BogPilot 0.9.7 (limit sources).
+
+### AP1: no limit-based engage set while the limit units are unknown
+- Signal: `UI_mapSpeedLimitUnits` (`UI_gpsVehicleSpeed`, 0x2F8, bit 46, 0 MPH / 1 KPH). It is a real signal: 0x2F8
+  (8 bytes) is in Tinkla's AP1 Model X fingerprint (`modelx_fingerprint_data.py`, Tinkla `values.py`), and Tinkla
+  `501c7de` `carstate.py:319-320, 532` parses it for every model. Our Model S and Model X parsers already subscribe
+  to it (optional). No new signal.
+- Our behavior: on Model S and Model X, when that frame is missing or older than `LIMIT_MAX_AGE_S`, the engage set
+  ignores every limit source (a fused 0x399 value could be a kph sign read as mph, because `units_are_metric` falls
+  back to MPH) and falls through to the vEgo latch, a fresh tap, or NO_ENTRY. With a fresh units frame, the limit is
+  converted with the reported units. `dashboardSpeedLimit` is unchanged.
+- Tests: `test_model_x_units_unknown_does_not_latch_metric_like_limit`, `test_model_x_units_known_metric_latches_kph`,
+  `test_model_s_units_unknown_or_stale_does_not_latch_metric_like_limit`, `test_model_s_units_known_metric_latches_kph`
+  (`test_ap1_op_long_set_speed.py`).
+- Credits: Tinkla/BogGyver (units signal and Model X fingerprint).
+
+### AP1: the standstill tap-from-0 speed is a user setting
+- Our behavior: `AP1TapFromZeroMph` is a BogPilot param (INT, default 15, whole mph 5-30). It is read live (1 s cache,
+  same as the engage-limit offset) and used as the standstill tap-from-0 latch when there is no fresh speed limit.
+  Missing, non-integer, or out-of-range values fall back to 15 (not clamped to 5 or 30). The Gas / Brake page shows
+  the row ("Standstill Tap Speed") for AP1; when the UI is metric the value also shows the km/h equivalent. A rolling
+  no-limit engage or tap still latches exact vEgo and does not use this setting.
+- Why: 0.9.7 used a fixed 15 mph (and at a standstill its vEgo latch was 0). This 0.11 addition keeps that default
+  and lets the driver pick 5-30 mph.
+- Tests: `test_tap_from_zero_is_15_mph_exactly`, `test_tap_from_zero_setting_default_edges_live_and_display`
+  (`test_ap1_op_long_set_speed.py`).
+- Credits: BogPilot 0.9.7 (fixed 15 mph tap-from-0 starting point).
+
+### AP1: a rolling engage with no fresh limit latches exact vEgo (including below 8 kph)
+- Our behavior: with no fresh limit, a moving (not `standstill`) engage or tap latches the exact current vEgoRaw,
+  including below 8 kph. There is no clamp-up to 8 kph and no 5 mph rounding. Only a tap from a true standstill
+  uses the tap-from-0 speed (default 15 mph). True standstill is the existing CarState signal
+  (`carstate.py`: `ret.standstill = (ret.vEgo < 0.1)` m/s). If the latched vEgo would round to 0 (0.1 kph or the
+  0.4 mph 0x389 grid) or the car is at standstill, the standstill rules apply: fresh limit, fresh tap, or NO_ENTRY,
+  so the set is never 0/UNSET while enabled. A rolling vEgo latch is only capped at 170 kph; limit and standstill-tap
+  sets stay clamped to 8-170 kph. Engaging while rolling to a stop with no lead and no fresh limit also latches the
+  exact vEgo (for example 1 kph), so the car keeps crawling at that set instead of stopping until the driver brakes
+  or taps. That crawl is intended; there is no extra guard that forces a stop.
+- Downstream (not changed here): AP1 uses `pcmCruise` (default True; `VCruiseHelper` copies `cruiseState.speed` and
+  only turns a literal 0 into `V_CRUISE_UNSET`). `cluster.py:519-524` keeps the last nonzero IC set; `cruise_set_mph`
+  only rejects non-positive / UNSET values. A 2 kph latch therefore publishes 2 kph on `cruiseState.speed` and
+  `vCruise`. The IC 0x389 digit is that speed in mph on the 0.4 mph grid (about 1.2 mph). `card.py` cluster floor and
+  `cluster_set_kph` do not clamp a small set back up to 8 kph. `cruise.py:111` `V_CRUISE_MIN` applies only on the
+  non-pcmCruise button path, which AP1 openpilot long does not use.
+- Why: product decision, restoring Tinkla's vEgo latch (`ACC_module.py:154-158` @501c7de) without the 8 kph openpilot
+  floor on this rolling path. Replaces the previous "clamp-up to 8 kph, kept" note (`cc5c5c0bb`).
+- Tests: `test_moving_no_limit_vego_latch_no_event`, `test_rolling_engage_no_limit_latches_exact_vego` (0.5, 2, and
+  7.9 kph) (`test_ap1_op_long_set_speed.py`).
+- Credits: Tinkla/BogGyver (vEgo latch).
+
+### AP1: stalk set-speed tips (deep 5 mph, shallow ±1, rolling exact vEgo)
+- Our behavior, already in `slc_raise.Ap1RaiseHoldoff` (0.9.7 `bogpilot_vcruise` / `slc_raise`): while moving with an
+  existing openpilot set, a deep tip (SpdCtrlLvr 4/8, or a 0.45 s hold) goes to the next or previous multiple of 5 mph
+  (`next_5_ms` / `prev_5_ms`); a shallow tip (16/32) is ±1 mph (`step_1_ms`). A rolling tap or engage with no existing
+  set latches exact vEgo (no 5 mph rounding). Only a true standstill tap uses the tap-from-0 setting. True standstill
+  matches CarState (`vEgo < 0.1` m/s). A DN tip must never raise the set: decrease paths use
+  `min(base, max(candidate, TIP_MIN_MS))` (`slc_raise.Ap1RaiseHoldoff._dn_set_ms`), so a crawl latch below the 1 mph
+  floor (for example 0.5 kph) stays at that latch and stays above 0, rather than being lifted to 1 mph. A normal DN
+  from 37 mph is still 35 (deep) or 36 (shallow).
+- Tests: `test_ap1_stalk_set_rules.py` (including `test_dn_tip_from_crawl_latch_does_not_raise` and
+  `test_normal_dn_from_37_goes_to_35_or_36`), `test_engaged_tips_plus_minus_one_and_next5` (`test_phase3_speed_control.py`).
+- Credits: BogPilot 0.9.7 slc_raise / bogpilot_vcruise (deep vs shallow tips and the vEgo latch).
+
+### AP1: two cruise ceilings (145 kph vs 170 kph)
+- `OpLongSetSpeed` (the engage/latch published as `cruiseState.speed`, copied to `vCruise` on the `pcmCruise` path)
+  caps a rolling vEgo latch at 170 kph and clamps a limit or standstill-tap set to 8-170 kph (`SET_MAX_KPH` in
+  `op_long_set_speed.py`, Tinkla `ACC_module.py:231-232`).
+- Stalk tip-up paths in `slc_raise.Ap1RaiseHoldoff` cap at `V_CRUISE_MAX_MS` (145 kph, openpilot `V_CRUISE_MAX`).
+- The planner speed that longitudinal control follows (`Ap1SpeedControl.v_cruise_out` in `phase3_speed_control.py`)
+  is always re-capped at 145 kph, so a 170 kph latch still commands at most 145 kph. That 145 kph planner cap is
+  authoritative for the driven set and for tips.
+- The IC 0x389 pack (`cruise_set_mph` in `slc_raise.py`) also rejects a value above about 145 kph
+  (`V_CRUISE_MAX_MPH + 0.5`), so a latch above that does not update the digital set.
+- No code change in this note; it records the existing behaviour.

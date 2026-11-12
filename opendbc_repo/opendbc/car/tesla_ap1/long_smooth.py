@@ -150,6 +150,20 @@ AP1_BRAKE_HARD_ACCEL = -2.0
 # [0, AP1_GAS_HANDOFF_MAX] (never a brake seed; never above the panda max of
 # +2.0), and only used at or above AP1_SLEW_MIN_SPEED.
 AP1_GAS_HANDOFF_MAX = 2.0
+# The post-rc3 rising cap (0.10 m/s^2, then 1 m/s^3) overwrote that seed: the first DAS accelMax after a
+# gas-handoff engage was 0.0 then 0.10, and lifting off at +1 m/s^2 made the DI regen (logged:
+# 0.7-1.9 mph dip, aEgo -0.8 to -1.4, motor -80 to -110 Nm). 0.9.7
+# (04d560f3 / 026cfb31) has the seed and no such cap — first active frame continues from measured aEgo and
+# slews down to a lower plan with the drive-release S-curve. Match that.
+#
+# rc5 also showed LongEngageGate holding longActive false for a few hundred ms after enable, and the
+# driver often easing off during that gap. Two extra rules so the seed is still there when long starts:
+# latch whenever the pedal is down (not only when enabled, so a press before CC.enabled counts), keep the
+# peak aEgo over AP1_GAS_SEED_WINDOW of the press (a tapering lift must not replace +1.1 with 0), and do
+# not clear the seed on inactive frames. An unused seed expires after AP1_GAS_SEED_HOLD. A longActive
+# rising edge with no stored seed still starts from current aEgo (clipped the same way).
+AP1_GAS_SEED_WINDOW = 0.5
+AP1_GAS_SEED_HOLD = 2.0
 # m/s^3. DAS_jerkMax below AP1_SLEW_MIN_SPEED (stock DAS sends about 1.2 at
 # standstill). DAS_jerkMin stays at AP1_FULL_JERK_LIMIT there.
 AP1_LAUNCH_JERK_MAX = 1.5
@@ -195,7 +209,10 @@ class Ap1AccelSmoother:
     self.min_speed = min_speed
     self.last = None
     self.release_j = 0.0  # current drive-release jerk (m/s^3), 0 when not releasing
-    self.gas_seed = None  # latched aEgo from the last gas-neutral frame
+    self.gas_seed = None  # peak aEgo during a recent gas press, held across inactive
+    self._gas_hist = []     # [age, accel] samples of the current press
+    self._gas_pressing = False
+    self._seed_age = 0.0    # time the frozen seed has been unused
     self.was_active = False
     self.engage_hold = None   # standstill engage hold level, or None
     self.engage_used = False
@@ -206,6 +223,9 @@ class Ap1AccelSmoother:
     self.last = None
     self.release_j = 0.0
     self.gas_seed = None
+    self._gas_hist = []
+    self._gas_pressing = False
+    self._seed_age = 0.0
     self.was_active = False
     self.engage_hold = None
     self.engage_used = False
@@ -213,14 +233,19 @@ class Ap1AccelSmoother:
     self.prev_target = None
 
   def update(self, target, active, v_ego, gas_neutral=False, urgent=False, dt=DT_CTRL, fcw=False,
-             a_ego=None):
+             a_ego=None, gas_pressed=None):
     """urgent: FCW or LongControl stopping. A falling request passes through.
 
     Below AP1_SLEW_MIN_SPEED (including standstill) the request passes through
     unchanged, so the standstill hold sends StopAccel as planned.
+
+    gas_pressed defaults to gas_neutral. Pass the raw pedal bit so a press
+    before CC.enabled still latches a seed for the later longActive edge.
     """
+    if gas_pressed is None:
+      gas_pressed = gas_neutral
     target = float(target)
-    out = self._update(target, active, v_ego, gas_neutral, urgent, dt, fcw, a_ego)
+    out = self._update(target, active, v_ego, gas_neutral, urgent, dt, fcw, a_ego, gas_pressed)
     now_active = active and not gas_neutral
     self.active_frames = self.active_frames + 1 if (now_active and self.was_active) else (1 if now_active else 0)
     # The first engaged carControl still carries the previous longControlState
@@ -247,18 +272,36 @@ class Ap1AccelSmoother:
     self.prev_target = target if active else None
     return out
 
-  def _update(self, target, active, v_ego, gas_neutral, urgent, dt, fcw, a_ego):
+  def _latch_gas_seed(self, a_ego, v_ego, dt, active, gas_pressed):
+    """Peak-hold the driver's accel while the pedal is down; keep it across inactive."""
+    if gas_pressed and a_ego is not None and v_ego >= self.min_speed:
+      a = min(max(float(a_ego), 0.0), AP1_GAS_HANDOFF_MAX)
+      if self._gas_pressing:
+        for h in self._gas_hist:
+          h[0] += dt
+        self._gas_hist.append([0.0, a])
+        self._gas_hist = [h for h in self._gas_hist if h[0] <= AP1_GAS_SEED_WINDOW]
+      else:
+        self._gas_hist = [[0.0, a]]
+        self._gas_pressing = True
+      self.gas_seed = max(h[1] for h in self._gas_hist)
+      self._seed_age = 0.0
+      return
+    self._gas_pressing = False
+    if self.gas_seed is not None and not active:
+      self._seed_age += dt
+      if self._seed_age > AP1_GAS_SEED_HOLD:
+        self.gas_seed = None
+        self._gas_hist = []
+
+  def _update(self, target, active, v_ego, gas_neutral, urgent, dt, fcw, a_ego, gas_pressed):
+    self._latch_gas_seed(a_ego, v_ego, dt, active, gas_pressed)
     if gas_neutral:
       self.last = 0.0
       self.release_j = 0.0
-      if a_ego is not None and v_ego >= self.min_speed:
-        self.gas_seed = min(max(float(a_ego), 0.0), AP1_GAS_HANDOFF_MAX)
-      else:
-        self.gas_seed = None
       return 0.0
     if not active:
       self.last = None
-      self.gas_seed = None
       return target
     if self.gas_seed is not None:
       # First active frame after a driver gas press: continue from the car's
@@ -267,6 +310,12 @@ class Ap1AccelSmoother:
       if v_ego >= self.min_speed and not fcw:
         self.last = self.gas_seed
       self.gas_seed = None
+      self._gas_hist = []
+      self._seed_age = 0.0
+    # Engage with no stored seed: same clip of current aEgo so a cold engage
+    # on throttle does not snap the request to the plan (often 0).
+    if self.last is None and v_ego >= self.min_speed and not fcw and a_ego is not None:
+      self.last = min(max(float(a_ego), 0.0), AP1_GAS_HANDOFF_MAX)
     if self.last is None or v_ego < self.min_speed:
       self.last = target
       return target

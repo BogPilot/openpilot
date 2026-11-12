@@ -94,7 +94,7 @@ class TestSharedPatchStatic(unittest.TestCase):
     self.assertEqual([(g[0], g[1], [p.key for p in g[2]]) for g in groups], [('driving', 'Driving Controls', ['steering_tuning'])])
     for omitted in ('SteerKP', 'ForceTorqueController', 'NNFF', 'NNFFLite', 'TurnDesires', 'AlwaysOnLateral'):
       self.assertNotIn(omitted, ACTIVE_CONTROLS)
-    # INT: one combined "driving" tuple (steering page registered via aliased names)
+    # one combined "driving" tuple (steering page registered via aliased names)
     self.assertIn('"driving": (', NAV)
     self.assertIn('Page(STEER_KEY, STEER_TITLE, create_steering_tuning_layout, STEER_CONTROLS)', NAV)
     self.assertEqual(NAV.count('"driving":'), 1)  # one combined tuple

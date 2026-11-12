@@ -56,13 +56,22 @@ class BuildGateTests(unittest.TestCase):
     p.chmod(0o755)
     self.manifest = {"schema": 1, "candidate_sha": self.sha, "agnos_version": "19.9", "architecture": "aarch64",
                      "artifacts": [{"path": "bin/fixture", "sha256": M.digest(p), "size": 64, "mode": "0755", "format": "elf-aarch64"}]}
+    for rel in ("openpilot/system/camerad/camerad", "openpilot/system/loggerd/encoderd", "msgq_repo/msgq/visionipc/visionipc_pyx.so"):
+      q = self.art / rel
+      q.parent.mkdir(parents=True, exist_ok=True)
+      q.write_bytes(self.ion_elf())
     log = self.logs / "fixture.log"
-    log.write_text("RC_SOURCE_SHA=" + self.sha + "\nSYNTHETIC evidence; not an actual native build or import run\nscons: done building targets.\n")
+    log.write_text("RC_SOURCE_SHA=" + self.sha + "\n/dev/ion present in container: synthetic\nSYNTHETIC evidence; not an actual native build or import run\nscons: done building targets.\n")
     receipt = {"status": "pass", "candidate_sha": self.sha, "logs": [{"path": "fixture.log", "sha256": M.digest(log)}]}
     self.evidence = {"schema": 1, "candidate_sha": self.sha, "gates": {n: copy.deepcopy(receipt) for n in M.GATES},
                      "primary_ui": {"status": "ready", "candidate_sha": self.sha, "feature_tip": self.sha}}
     self.evidence["gates"]["build"].update(kind="full_scons", targets=[], exit_code=0, environment="agnos:19.9-build/aarch64")
     self.evidence["gates"]["imports"].update(modules={"openpilot.fixture": "pass"}, daemons_started=False)
+
+  @staticmethod
+  def ion_elf(dev_ion=True, symbol=True, shm=False):
+    return (b"\x7fELF\x02\x01" + b"\0" * 58 + (b"/dev/ion\0" if dev_ion else b"") + (b"_Z6ion_fdv\0" if symbol else b"")
+            + (b"msgq_visionbuf\0" if shm else b""))
 
   def git(self, *args):
     return subprocess.check_output(["git", "-C", str(self.source), *args], stderr=subprocess.PIPE, text=True).strip()
@@ -82,6 +91,36 @@ class BuildGateTests(unittest.TestCase):
     self.assertFalse(r["device_boot_validated"])
     self.assertFalse(r["road_validated"])
     self.assertEqual(r["native_plan"]["build"], ["scons", "-j4"])
+
+  ION_FILES = ("openpilot/system/camerad/camerad", "openpilot/system/loggerd/encoderd", "msgq_repo/msgq/visionipc/visionipc_pyx.so")
+
+  def test_ion_gate_passes_with_the_three_markers(self):
+    r = self.run_gate()
+    self.assertEqual(next(c for c in r["checks"] if c["name"] == "ion_visionbuf")["status"], "pass")
+
+  def test_ion_gate_blocks_without_dev_ion_symbol_or_with_shm_visionbuf_or_missing_file(self):
+    for rel in self.ION_FILES:
+      for kwargs in ({"dev_ion": False}, {"symbol": False}, {"shm": True}):
+        (self.art / rel).write_bytes(self.ion_elf(**kwargs))
+        self.blocked("ion_visionbuf")
+        (self.art / rel).write_bytes(self.ion_elf())
+      (self.art / rel).unlink()
+      self.blocked("ion_visionbuf")
+      (self.art / rel).write_bytes(self.ion_elf())
+    self.assertTrue(self.run_gate()["candidate_ready"])
+
+  def test_ion_gate_blocks_a_non_elf_and_a_missing_artifact_root(self):
+    (self.art / self.ION_FILES[0]).write_bytes(b"#!/bin/sh\n/dev/ion\0_Z6ion_fdv")
+    self.blocked("ion_visionbuf")
+    r = M.inspect(self.source, self.sha, release_base=self.sha)
+    self.assertEqual(next(c for c in r["checks"] if c["name"] == "ion_visionbuf")["status"], "blocked")
+
+  def test_build_receipt_requires_the_dev_ion_log_line(self):
+    p = self.logs / "fixture.log"
+    p.write_text("RC_SOURCE_SHA=" + self.sha + "\nscons: done building targets.\n")
+    for item in self.evidence["gates"].values():
+      item["logs"][0]["sha256"] = M.digest(p)
+    self.blocked("gate_build")
 
   def test_missing_gate(self):
     del self.evidence["gates"]["controls"]

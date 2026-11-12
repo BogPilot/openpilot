@@ -39,7 +39,7 @@ def build_data_layout(*, params=None, store=None, offroad=None, capable=None, sh
   store = store if store is not None else ParamStore(params)
   offroad = offroad or ui_state.is_offroad
   capable = capable or (lambda: not PC and HARDWARE.get_device_type() in {"tici", "tizi", "mici"})
-  store = DurableStore(store, set(FEATURE_SPECS) | {"FrogPilotStats", "DebugMode", "LocalLoggingDisableConsent", "HighQualityRecordingConsent"})
+  store = DurableStore(store, set(FEATURE_SPECS) | {"BogPilotStats", "DebugMode", "LocalLoggingDisableConsent", "HighQualityRecordingConsent"})
   prefs = SystemPreferences(store, offroad, capable, stats_backup_dir="/data/bogpilot_stats_backups")
   data = LocalData(offroad, capable, recording=lambda: recorder().recording)
 

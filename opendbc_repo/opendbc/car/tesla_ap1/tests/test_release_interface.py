@@ -32,7 +32,7 @@ def test_no_preap_actuation_from_chassis_or_fixed_name_alone():
     assert str(cp.safetyConfigs[0].safetyModel) == "noOutput"
 
 
-def test_ap1_uses_stream2_safety_contract_and_stock_pcm_stalk():
+def test_ap1_uses_release_safety_contract_and_stock_pcm_stalk():
   cp = params()
   assert cp.brand == "tesla_ap1" and not cp.dashcamOnly
   assert cp.openpilotLongitudinalControl and cp.pcmCruise
@@ -47,11 +47,11 @@ def test_ap1_parsers_initialize_without_data():
   assert ci.CS is not None and ci.CC is not None
 
 
-def test_carstate_roundtrip_requires_stream6_schema():
+def test_carstate_roundtrip_requires_bogpilot_schema():
   if "bogpilot" not in structs.CarState.schema.fields:
     if os.environ.get("BOGPILOT_REQUIRE_SCHEMA"):
-      pytest.fail("stream 6: CarState.bogpilot/BogPilotCarState is missing")
-    pytest.skip("integration dependency: stream 6 CarState.bogpilot/BogPilotCarState")
+      pytest.fail("CarState.bogpilot/BogPilotCarState is missing")
+    pytest.skip("integration dependency: CarState.bogpilot/BogPilotCarState")
   ci = CarInterface(params())
   cs = ci.update([])
   assert not cs.canValid
@@ -100,14 +100,20 @@ def test_selfdrived_owns_gas_disengagement_and_brake_is_never_suppressed():
                    any(isinstance(child, ast.Attribute) and child.attr == "pedalPressed"
                        for statement in node.body if isinstance(statement, ast.Expr) for child in ast.walk(statement)))
   expression = compile(ast.Expression(predicate), str(source), "eval")
+  # the brake clause is the helper selfdrive/selfdrived/preap_brake.py: same rule for every car, except a
+  # Pre-AP brake press that the car side reports as lateral-only (carState.bogpilot.preapLatOnly)
+  from openpilot.selfdrive.selfdrived.preap_brake import brake_disengages
+  glob = {"brake_disengages": brake_disengages}
   previous = NS(gasPressed=False, brakePressed=False, regenBraking=False)
-  cs = NS(gasPressed=True, brakePressed=False, regenBraking=False, standstill=False)
+  cs = NS(gasPressed=True, brakePressed=False, regenBraking=False, standstill=False, bogpilot=NS(preapLatOnly=False))
   owner = NS(CS_prev=previous, disengage_on_accelerator=True)
-  assert eval(expression, {}, {"self":owner, "CS":cs})
+  assert eval(expression, glob, {"self":owner, "CS":cs})
   owner.disengage_on_accelerator = False
-  assert not eval(expression, {}, {"self":owner, "CS":cs})
+  assert not eval(expression, glob, {"self":owner, "CS":cs})
   cs.brakePressed = True
-  assert eval(expression, {}, {"self":owner, "CS":cs})
+  assert eval(expression, glob, {"self":owner, "CS":cs})
+  cs.bogpilot.preapLatOnly = True       # only a Pre-AP lateral-only brake press is exempt
+  assert not eval(expression, glob, {"self":owner, "CS":cs})
 
 
 def test_crc_matches_standard_check_vector():

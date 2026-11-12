@@ -32,6 +32,17 @@ class TeslaCAN:
     values["DAS_steeringControlChecksum"] = self.checksum(0x488, data[:3])
     return self.packer.make_can_msg("DAS_steeringControl", CANBUS.chassis, values)
 
+  def create_epas_control(self, counter, mode=1):
+    """EPB_epasControl 0x214 (Pre-AP only): EACAllow 1 = allow, 0 = off. Same byte-sum checksum as 0x488."""
+    values = {
+      "EPB_epasEACAllow": mode,
+      "EPB_epasControlCounter": counter,
+      "EPB_epasControlChecksum": 0,
+    }
+    data = self.packer.make_can_msg("EPB_epasControl", CANBUS.chassis, values)[1]
+    values["EPB_epasControlChecksum"] = self.checksum(0x214, data[:2])
+    return self.packer.make_can_msg("EPB_epasControl", CANBUS.chassis, values)
+
   def create_action_request(self, msg_stw_actn_req, cancel, bus, counter):
     # We copy this whole message when spamming cancel
     values = {s: msg_stw_actn_req[s] for s in [

@@ -1,6 +1,6 @@
-"""BogPilot: the onroad toggles the publishers need, computed as 367e1fe frogpilot_variables.py did.
+"""BogPilot: the onroad toggles the publishers need, computed as 367e1fe bogpilot_variables.py did.
 
-Only the subset used by radard (adjacent leads), plannerd (frogpilotPlan: speed limit, follow distance,
+Only the subset used by radard (adjacent leads), plannerd (bogpilotPlan: speed limit, follow distance,
 lane widths) and soundd. Every formula below names its 367e1fe source line in a comment; the tuning-level
 rule (a key above the user's level reads as its default) comes from ParamStore.toggle_*.
 """
@@ -13,17 +13,21 @@ import numpy as np
 CV_MPH_TO_MS = 0.44704
 CV_KPH_TO_MS = 1 / 3.6
 CV_FOOT_TO_METER = 0.3048
-MAX_T_FOLLOW = 3.0  # frogpilot_variables.py
-THRESHOLD = 0.63    # frogpilot_variables.py: requires the condition to be true for ~1 second
+MAX_T_FOLLOW = 3.0  # bogpilot_variables.py
+THRESHOLD = 0.63    # bogpilot_variables.py: requires the condition to be true for ~1 second
 AP1_FINGERPRINT = "TESLA_AP1_MODELS"
+SLC_PLATFORMS = frozenset({"TESLA_AP1_MODELS", "TESLA_AP1_MODELX", "TESLA_PREAP_MODELS"})
+LOOKAHEAD_HORIZON_DEFAULT = 5
+LOOKAHEAD_HORIZON_MAX = 15
 
-# keys whose change means "toggles updated" (frogpilotPlan.togglesUpdated)
+
+# keys whose change means "toggles updated" (bogpilotPlan.togglesUpdated)
 WATCHED_KEYS = (
   "TuningLevel", "TuningLevelConfirmed", "IsMetric", "DebugMode", "DisableOpenpilotLongitudinal",
   "DeveloperUI", "DeveloperWidgets", "AdjacentLeadsUI", "LongitudinalTune", "HumanLaneChanges",
   "NavigationUI", "ShowSpeedLimits", "SpeedLimitController", "ShowSLCOffset", "SLCFallback", "SLCOverride",
   "SLCConfirmation", "SLCConfirmationHigher", "SLCConfirmationLower", "SLCPriority1", "SLCPriority2",
-  "SLCPriority3", "SLCLookaheadHigher", "SLCLookaheadLower", "Offset1", "Offset2", "Offset3", "Offset4",
+  "SLCPriority3", "SLCLookaheadHigher", "SLCLookaheadLower", "SetSpeedLimit", "Offset1", "Offset2", "Offset3", "Offset4",
   "Offset5", "Offset6", "Offset7", "CustomPersonalities", "AggressivePersonalityProfile", "AggressiveFollow",
   "StandardPersonalityProfile", "StandardFollow", "RelaxedPersonalityProfile", "RelaxedFollow",
   "AlertVolumeControl", "EngageVolume", "DisengageVolume", "RefuseVolume", "PromptVolume",
@@ -59,6 +63,9 @@ def onroad_toggles(store, CP=None) -> SimpleNamespace:
   fingerprint = str(getattr(CP, "carFingerprint", "") or "")
   t.car_model = fingerprint
   t.is_ap1 = fingerprint == AP1_FINGERPRINT
+  t.is_ap1_x = fingerprint == "TESLA_AP1_MODELX"
+  t.is_preap = fingerprint == "TESLA_PREAP_MODELS"
+  t.slc_platform = fingerprint in SLC_PLATFORMS
   t.has_radar = not bool(getattr(CP, "radarUnavailable", True))                    # :735
   t.has_bsm = bool(getattr(CP, "enableBsm", False))
   t.openpilot_longitudinal = bool(getattr(CP, "openpilotLongitudinalControl", False)) and not b("DisableOpenpilotLongitudinal")  # :744
@@ -83,7 +90,7 @@ def onroad_toggles(store, CP=None) -> SimpleNamespace:
   longitudinal_tuning = t.openpilot_longitudinal and b("LongitudinalTune")
   t.human_lane_changes = longitudinal_tuning and t.has_radar and b("HumanLaneChanges")
 
-  # :874 / :875 / :889 / :974-975 lane widths (frogpilot_planner.py check_lane_width)
+  # :874 / :875 / :889 / :974-975 lane widths (bogpilot_planner.py check_lane_width)
   custom_ui = b("CustomUI")
   t.adjacent_paths = custom_ui and b("AdjacentPath")
   t.blind_spot_path = t.has_bsm and ((custom_ui and b("BlindSpotPath")) or t.debug_mode)
@@ -110,14 +117,30 @@ def onroad_toggles(store, CP=None) -> SimpleNamespace:
   gated_int = lambda k: store.get_int(k) if slc and store.honoured(k, level) else store.toggle_int(k, -1)  # noqa: E731
   gated_str = lambda k: store.get(k) if slc and store.honoured(k, level) else store.toggle_str(k, -1)  # noqa: E731
   gated_bool = lambda gate, k: gate and (store.get_bool(k) if store.honoured(k, level) else store.toggle_bool(k, -1))  # noqa: E731
+  # Higher is read so saved values stay intact, but the consumer never uses it to raise early.
   t.map_speed_lookahead_higher = gated_int("SLCLookaheadHigher")
-  t.map_speed_lookahead_lower = gated_int("SLCLookaheadLower")
+  raw_lower = gated_int("SLCLookaheadLower")
+  try:
+    lower = int(round(float(raw_lower)))
+  except (TypeError, ValueError):
+    lower = LOOKAHEAD_HORIZON_DEFAULT
+  if lower < 0:
+    lower = 0
+  if lower > LOOKAHEAD_HORIZON_MAX:
+    lower = LOOKAHEAD_HORIZON_MAX
+  t.map_speed_lookahead_lower = lower
   t.show_speed_limit_offset = gated_bool(slc, "ShowSLCOffset") or t.debug_mode
+  t.set_speed_limit = gated_bool(slc, "SetSpeedLimit")                             # :1143
   fallback = gated_int("SLCFallback")
   t.slc_fallback_experimental_mode = fallback == 1
   t.slc_fallback_previous_speed_limit = fallback == 2
   t.slc_fallback_set_speed = fallback == 0
-  t.slc_mapbox_filler = False  # BogPilot: no Mapbox filler on 0.11.2 yet
+  # 0.9.7 bogpilot_variables.py:1137: (show_speed_limits or SLC) and a Mapbox key exists and SLCMapboxFiller
+  # (default True). The key itself is never copied into the toggles; the filler reads it from the store.
+  has_mapbox_key = bool(store.get("MapboxSecretKey", ""))
+  t.slc_mapbox_filler = bool((t.show_speed_limits or t.speed_limit_controller) and has_mapbox_key and
+                             (store.get_bool("SLCMapboxFiller") if store.honoured("SLCMapboxFiller", level)
+                              else store.toggle_bool("SLCMapboxFiller", -1)))
   t.speed_limit_confirmation = gated_bool(slc, "SLCConfirmation")
   t.speed_limit_confirmation_higher = gated_bool(t.speed_limit_confirmation, "SLCConfirmationHigher")
   t.speed_limit_confirmation_lower = gated_bool(t.speed_limit_confirmation, "SLCConfirmationLower")

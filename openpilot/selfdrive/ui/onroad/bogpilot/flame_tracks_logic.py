@@ -1,6 +1,6 @@
 """BogPilot 88 mph flame tire tracks — trigger logic (no UI deps).
 
-Port of frogpilot/ui/qt/onroad/bsm_flame_tracks.h FlameTrigger / constants.
+Port of bogpilot/ui/qt/onroad/bsm_flame_tracks.h FlameTrigger / constants.
 Paint lives in flame_tracks.py. Kept separate so host-side unit tests do not need pyray.
 """
 from __future__ import annotations
@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 MPH_TO_MS = 0.44704
 TRIGGER_SPEED_MS = 88.0 * MPH_TO_MS  # 39.3392 m/s; strictly faster than this
 DURATION_MS = 3000
-GRACE_MS = 500
+BSM_FLAME_WINDOW_MS = 2222  # lead may cross 88 mph up to this long after the fill turns off
 # Flame tongue height. 1.0 = original tall; 0.55 = classic low tongues (fc276dd43 / 047561a56).
 FLAME_HEIGHT_SCALE = 0.55
 TOGGLE_KEY = "BSMFlameTracks"
@@ -44,7 +44,7 @@ class FlameTrigger:
         self.side[i] = _Side()
         continue
       if s.red_was and not inp.red_fill_shown:
-        s.arm_until_ms = now_ms + GRACE_MS
+        s.arm_until_ms = now_ms + BSM_FLAME_WINDOW_MS
       if inp.red_fill_shown:
         s.arm_until_ms = -1
       s.red_was = inp.red_fill_shown

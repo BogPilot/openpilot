@@ -2,11 +2,11 @@
 
 Wires BogPilot's daily CSC (bogpilot_csc.py: target from road geometry + the learned cornering limit)
 and the AP1 look-ahead curve brake (ap1_curve_brake.py) into LongitudinalPlanner, and fills the
-frogpilotPlan CSC fields the cluster's CSC MAX slot reads.
+bogpilotPlan CSC fields the cluster's CSC MAX slot reads.
 
 Authority (can only slow the car down, only for curves):
   * the CSC target only ever lowers the cruise speed: v_cruise_out = min(csc_target, v_cruise)
-    (daily frogpilot_vcruise merge); the driver's set speed is never raised
+    (daily bogpilot_vcruise merge); the driver's set speed is never raised
   * the curve brake is an extra min() candidate (<= 0, -1.2 m/s^2 floor, jerk limited); the lead MPC,
     cruise and Experimental (e2e) candidates are untouched, so lead following is never weakened
   * the existing reactive turn limit in get_cruise_accel and the ACCEL_MIN/MAX clip stay as they are
@@ -14,7 +14,7 @@ Authority (can only slow the car down, only for curves):
 Active only for TESLA_AP1_MODELS with openpilot longitudinal and CurveSpeedController on (367e1fe
 tuning-level rule via ParamStore). Everything fails closed: stock ACC, other cars, toggle off, a
 stale / invalid modelV2 or carState, short or non-finite model arrays, or a non-finite speed leave
-the cruise speed alone, release the curve brake and publish frogpilotPlan.valid = False so the UI
+the cruise speed alone, release the curve brake and publish bogpilotPlan.valid = False so the UI
 blanks. ShowCSCStatus is display only and is read by the UI, never here.
 
 Units: speeds m/s, road curvature 1/m (signed, daily sign convention), accelerations m/s^2.
@@ -27,13 +27,17 @@ from openpilot.cereal import log
 
 from openpilot.common.realtime import DT_MDL
 from openpilot.selfdrive.modeld.constants import ModelConstants
+from openpilot.selfdrive.controls.lib.ap1_curve_arbitration import ModelClock
 from openpilot.selfdrive.controls.lib.ap1_curve_brake import TESLA_CSC_MAX_LAT_ACCEL, ap1_curve_brake_for
 from openpilot.selfdrive.controls.lib.bogpilot_csc import (CRUISING_SPEED, MINIMUM_LATERAL_ACCELERATION, CurveSpeedController,
-                                                           TrackingLead, calculate_road_curvature, road_curvature_detected)
+                                                           CurveDetector, RoadCurvatureFilter, TrackingLead)
 
 AP1 = "TESLA_AP1_MODELS"
 TOGGLE = "CurveSpeedController"
 TOGGLE_CACHE_S = 1.0
+# Keep the last CSC cap this long after the curve is no longer detected / in-curve,
+# so vCruise does not snap back to the SLC cap mid-curve.
+CSC_HOLD_S = 2.0
 
 
 def _service_ok(sm, name) -> bool:
@@ -80,14 +84,18 @@ class Ap1CurveSpeed:
     self.store = store if self.available else None
     self.csc = CurveSpeedController(self.store, TESLA_CSC_MAX_LAT_ACCEL) if self.available else None
     self.tracking_lead = TrackingLead(dt)
+    self.curvature_filter = RoadCurvatureFilter()
+    self.detector = CurveDetector()
+    self.clock = ModelClock(dt)   # elapsed model time between updates (asynchronous publication)
 
     self.enabled_toggle = False
-    self.valid = False            # frogpilotPlan.valid: CSC is available, on and has fresh inputs
-    self.controlling = False      # frogpilotPlan.cscControllingSpeed
-    self.training = False         # frogpilotPlan.cscTraining
-    self.target = 0.0             # frogpilotPlan.cscSpeed (m/s)
-    self.road_curvature = 0.0     # frogpilotPlan.roadCurvature (1/m)
-    self.v_cruise_out = 0.0       # frogpilotPlan.vCruise (m/s), after the CSC cap
+    self.valid = False            # bogpilotPlan.valid: CSC is available, on and has fresh inputs
+    self.controlling = False      # bogpilotPlan.cscControllingSpeed
+    self._hold_s = 0.0            # seconds since the curve last looked active, while still holding the cap
+    self.training = False         # bogpilotPlan.cscTraining
+    self.target = 0.0             # bogpilotPlan.cscSpeed (m/s)
+    self.road_curvature = 0.0     # bogpilotPlan.roadCurvature (1/m)
+    self.v_cruise_out = 0.0       # bogpilotPlan.vCruise (m/s), after the CSC cap
     self.a_brake = 0.0            # curve brake request (<= 0, m/s^2)
 
   def _toggle_on(self) -> bool:
@@ -97,6 +105,8 @@ class Ap1CurveSpeed:
       return False
 
   def _inactive(self, v_cruise, reset_state):
+    self.curvature_filter.reset()
+    self.detector.reset()
     if self.csc is not None:
       self.csc.target_set = False
       if self.csc.training_timer > 0:
@@ -104,6 +114,7 @@ class Ap1CurveSpeed:
       self.csc.enable_training = False
     self.valid = False
     self.controlling = False
+    self._hold_s = 0.0
     self.training = False
     self.target = v_cruise
     self.road_curvature = 0.0
@@ -124,6 +135,7 @@ class Ap1CurveSpeed:
     if not self.available:
       return self._inactive(v_cruise, reset_state)
 
+    dt_s = self.clock.step(sm)
     self.enabled_toggle = self._toggle_on()
     path = model_path(sm['modelV2']) if _service_ok(sm, 'modelV2') else None
     fresh = path is not None and _service_ok(sm, 'carState') and math.isfinite(v_ego) and math.isfinite(v_cruise)
@@ -141,25 +153,49 @@ class Ap1CurveSpeed:
     blinker = bool(CS.leftBlinker or CS.rightBlinker or lane_change)
     v_ego = max(float(v_ego), 0.0)
 
-    self.road_curvature, time_to_curve = calculate_road_curvature(yaw, v, yaw_t)
-    detected = road_curvature_detected(self.road_curvature, v_ego, blinker)
+    self.road_curvature, time_to_curve = self.curvature_filter.update(yaw, v, yaw_t, dt_s)
+    # limiting: the curve speed (learned cornering limit, Tesla cap applied) is already below the car's speed
+    limiting = (math.isfinite(self.road_curvature) and self.road_curvature != 0.0 and
+                (self.csc.effective_lateral_acceleration() / abs(self.road_curvature)) ** 0.5 < v_ego)
+    detected = self.detector.update(self.road_curvature, v_ego, blinker, limiting, dt_s)
 
     lead = sm['radarState'].leadOne
     present = bool(lead.present)
     tracking_lead = self.tracking_lead.update(present, float(lead.dRel), float(lead.vRel), x[-1], bool(CS.standstill))
 
     enabled = bool(sm['selfdriveState'].enabled)
-    if v_ego > CRUISING_SPEED and enabled and detected and not reset_state:
-      self.csc.update_target(v_ego, self.road_curvature, time_to_curve)
+    try:
+      meas_curv = float(sm['controlsState'].curvature)
+    except (KeyError, AttributeError, TypeError):
+      meas_curv = float('nan')
+    lateral_acceleration = v_ego ** 2 * meas_curv if math.isfinite(meas_curv) else float('nan')
+    driving_in_curve = math.isfinite(lateral_acceleration) and abs(lateral_acceleration) >= MINIMUM_LATERAL_ACCELERATION
+    # Blinker still suspends CSC (existing behaviour). Otherwise keep or start the cap while the
+    # curve is active, and hold the last target for CSC_HOLD_S after it goes quiet so the plan
+    # never jumps back to the SLC cap mid-curve.
+    in_curve = (not blinker) and (detected or driving_in_curve or limiting)
+    keep = enabled and (not reset_state) and (v_ego > CRUISING_SPEED) and (not blinker) and (
+        detected or in_curve or (self.controlling and self._hold_s < CSC_HOLD_S))
+    if keep:
+      if detected or limiting or (in_curve and not self.controlling):
+        previous = self.target if self.controlling else None
+        self.csc.update_target(v_ego, self.road_curvature, time_to_curve, v_cruise, dt_s)
+        # Already capping: do not raise as filtered curvature drops mid-curve.
+        if previous is not None and self.csc.target > previous:
+          self.csc.target = previous
+        self.target = self.csc.target
+      if in_curve or detected:
+        self._hold_s = 0.0
+      else:
+        self._hold_s += dt_s
       self.controlling = True
-      self.target = self.csc.target
     else:
-      curvature = float(sm['controlsState'].curvature)
-      lateral_acceleration = v_ego ** 2 * curvature if math.isfinite(curvature) else float('nan')
-      driving_in_curve = math.isfinite(lateral_acceleration) and abs(lateral_acceleration) >= MINIMUM_LATERAL_ACCELERATION
+      if not (enabled and not reset_state):
+        self.detector.reset()   # not engaged / state reset: the next curve is a fresh activation
       self.csc.log_data(v_ego, tracking_lead, bool(sm['carControl'].longActive), driving_in_curve, blinker,
                         lateral_acceleration, self.road_curvature)
       self.controlling = False
+      self._hold_s = 0.0
       self.csc.target_set = False
       self.target = v_cruise
     self.training = bool(self.csc.enable_training)
@@ -176,7 +212,9 @@ class Ap1CurveSpeed:
     return self.v_cruise_out
 
   def fill(self, plan) -> None:
-    """frogpilotPlan CSC fields (m/s, 1/m). The caller sets msg.valid = self.valid."""
+    """bogpilotPlan CSC fields (m/s, 1/m). cscActive is the CSC-specific validity (CSC available, on, fresh inputs).
+    The message valid bit also covers speed limit control, CEM and force stop, so readers must use cscActive."""
+    plan.cscActive = bool(self.valid)
     plan.cscControllingSpeed = bool(self.controlling)
     plan.cscSpeed = float(self.target) if math.isfinite(self.target) else 0.0
     plan.cscTraining = bool(self.training)

@@ -1,6 +1,6 @@
 """Actual raylib action callbacks -> real ParamStore -> native planner/LongControl.
 
-Run only in native M4/AGNOS display context (Xvfb is sufficient). No on-road data.
+Run only in native AGNOS display context (Xvfb is sufficient). No on-road data.
 """
 from pathlib import Path
 from types import SimpleNamespace as NS
@@ -214,12 +214,12 @@ def test_real_cem_ui_callback_to_native_e2e_status_publisher_and_hud(store):
   assert p.output_a_target <= -2 and p.long_accel.cem.status == 4
   class PM:
     plan = None
-    def send(self, service, message): self.plan = message.frogpilotPlan
+    def send(self, service, message): self.plan = message.bogpilotPlan
   pm = PM()
-  p.publish_frogpilot_plan(pm)
+  p.publish_bogpilot_plan(pm)
   assert store.get_int('CEStatus') == 4
-  report = SM({'frogpilotPlan': pm.plan})
-  report.recv_time = {'frogpilotPlan': 99.9}
+  report = SM({'bogpilotPlan': pm.plan})
+  report.recv_time = {'bogpilotPlan': 99.9}
   view = read_status(store, report, 100, 90, True)
   assert view.visible and view.active and view.text == 'CEM: Speed'
   if not os.environ.get("PHASE3_CALLBACK_ONLY"):
@@ -236,7 +236,7 @@ def test_real_cem_ui_callback_to_native_e2e_status_publisher_and_hud(store):
   assert p.long_accel.cem.experimental  # widget switch is display-only
   toggle(panel, 'ConditionalExperimental')
   p.update(SM(msgs(10, 20, e2e_accel=-2)))
-  p.publish_frogpilot_plan(pm)
+  p.publish_bogpilot_plan(pm)
   assert store.get_int('CEStatus') == 0 and p.output_a_target > -2
 
 

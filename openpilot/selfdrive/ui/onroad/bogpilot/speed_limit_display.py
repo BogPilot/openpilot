@@ -1,21 +1,21 @@
-"""BogPilot speed row LIMIT tile and SLC offset badge (t913u), daily bogpilot-tesla semantics on real C3X sources.
+"""BogPilot speed row LIMIT tile and SLC offset badge, daily bogpilot-tesla semantics on real C3X sources.
 
 Pure Python (no pyray, cereal or Params at import) so it is testable headless.
 
 Daily 04d560f3e (annotated_camera.cc updateState / drawRedesignHud):
   shown     = (show_speed_limits || speed_limit_controller) and (not hide_speed_limit or plan.speedLimitChanged)
               MUTCD tile, or a Vienna roundel with UseVienna
-  number    = the POSTED limit (frogpilotPlan.slcSpeedLimit); an SLC override shows the overridden speed at 25 % opacity
-  badge     = frogpilotPlan.slcSpeedLimitOffset as a separate green "+N" badge, hidden when 0
+  number    = the POSTED limit (bogpilotPlan.slcSpeedLimit); an SLC override shows the overridden speed at 25 % opacity
+  badge     = bogpilotPlan.slcSpeedLimitOffset as a separate green "+N" badge, hidden when 0
   set speed = engaged and a limit: colour white -> orange -> red at limit + 5 / 15 / 25 (display units); not set: grey
-Daily FrogPilot only publishes a non-zero offset when the Speed Limit Controller actually drives the cruise target
-(frogpilot_vcruise.py: show-only mode publishes offset 0).
+Daily BogPilot only publishes a non-zero offset when the Speed Limit Controller actually drives the cruise target
+(bogpilot_vcruise.py: show-only mode publishes offset 0).
 
 C3X sources (verified, no invented values):
-  posted limit  frogpilotCarState.dashboardSpeedLimit, m/s, 0 = none. AP1 opendbc tesla_ap1/speed_limit.py:
+  posted limit  bogpilotCarState.dashboardSpeedLimit, m/s, 0 = none. AP1 opendbc tesla_ap1/speed_limit.py:
                 DAS_fusedSpeedLimit (bus 2) -> UI_mapSpeedLimit enum -> UI_mppSpeedLimit, units UI_mapSpeedLimitUnits.
                 Must be valid, alive, from the current drive and at most LIMIT_STALE_S old.
-  SLC fields    frogpilotPlan.slcSpeedLimit / slcSpeedLimitOffset / slcOverriddenSpeed / speedLimitChanged, from the
+  SLC fields    bogpilotPlan.slcSpeedLimit / slcSpeedLimitOffset / slcOverriddenSpeed / speedLimitChanged, from the
                 validated plan reader (cluster_layout.read_csc_status). C3X has NO Speed Limit Controller yet, so they
                 are 0 and the badge stays hidden; they are honoured as soon as a real SLC publishes them.
 """
@@ -25,7 +25,7 @@ from dataclasses import dataclass
 import math
 import time
 
-LIMIT_STALE_S = 0.5          # frogpilotCarState publishes at 100 Hz
+LIMIT_STALE_S = 0.5          # bogpilotCarState publishes at 100 Hz
 MIN_LIMIT_MS = 1.0           # speed_limit_controller.update_limits: limits below 1 m/s are "no limit"
 MAX_LIMIT_MS = 100.0         # sanity bound (360 km/h); anything above is treated as invalid, not displayed
 NO_LIMIT = "–"
@@ -53,7 +53,7 @@ CLOSED_POLICY = LimitPolicy()
 
 
 def policy_from_store(store, CP=None) -> LimitPolicy:
-  """367e1fe frogpilot_variables.py :773 / :1056 / :1057 / :1127 / :1132 through the shared onroad_toggles."""
+  """367e1fe bogpilot_variables.py :773 / :1056 / :1057 / :1127 / :1132 through the shared onroad_toggles."""
   from openpilot.common.bogpilot_onroad_toggles import onroad_toggles
   t = onroad_toggles(store, CP)
   level = t.tuning_level
@@ -87,8 +87,8 @@ class LimitPolicyReader:
 
 
 def read_dashboard_limit(sm, now: float, drive_start: float) -> float | None:
-  """frogpilotCarState.dashboardSpeedLimit in m/s; 0.0 = valid "no limit"; None = absent, stale, invalid or bogus."""
-  name = "frogpilotCarState"
+  """bogpilotCarState.dashboardSpeedLimit in m/s; 0.0 = valid "no limit"; None = absent, stale, invalid or bogus."""
+  name = "bogpilotCarState"
   try:
     if sm is None or name not in sm.data:
       return None
@@ -120,7 +120,7 @@ class SpeedLimitView:
   offset: str = ""
   limit_opacity: float = 1.0
   color_limit: float = 0.0       # display units; the limit the set-speed colour compares against (0 = none)
-  source: str = "none"           # "slc" (real frogpilotPlan SLC), "dashboard" (frogpilotCarState), "none"
+  source: str = "none"           # "slc" (real bogpilotPlan SLC), "dashboard" (bogpilotCarState), "none"
 
   def fields(self) -> dict:
     """Keyword arguments for redesign.SpeedRowInputs."""
@@ -134,7 +134,7 @@ HIDDEN = SpeedLimitView()
 def speed_limit_view(policy: LimitPolicy, dashboard_ms: float | None, plan, display_conv: float) -> SpeedLimitView:
   """`plan` is a cluster_layout.CscStatus (valid=False when absent/stale). `display_conv` m/s -> display units."""
   if not policy.slc_limits or not math.isfinite(display_conv) or display_conv <= 0:
-    return HIDDEN   # daily falls back to the navigation limit here; C3X has no navigation source
+    return HIDDEN   # earlier-build falls back to the navigation limit here; C3X has no navigation source
   plan_ok = bool(getattr(plan, "valid", False))
   changed = plan_ok and bool(plan.speed_limit_changed)
   if policy.hide_speed_limit and not changed:

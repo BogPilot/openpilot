@@ -1,7 +1,7 @@
 """Deterministic producer/replay tests, with real current schema and source alerts.
 
 The final test executes current Alert/AlertManager source classes with actual
-capnp enums, isolated from unavailable Mac msgq binaries. No mock alert classes.
+capnp enums, isolated from unavailable msgq binaries. No mock alert classes.
 This is not a process/socket/audio-device or raylib-render test.
 """
 import ast
@@ -512,6 +512,15 @@ class TestPhase2Alerts(unittest.TestCase):
       self.assertIsNone(m.create_optional_alert_runtime())
     finally:
       m.Phase2AlertRuntime = real
+
+
+class TestCruiseChimeRow(unittest.TestCase):
+  def test_page_keys(self):
+    from openpilot.selfdrive.ui.bogpilot import phase2_alerts as m
+    self.assertEqual(m.CRUISE_CHIME_KEY, "CruiseEngageDisengageChimes")
+    self.assertNotIn(m.CRUISE_CHIME_KEY, m.ACTIVE_ALERT_KEYS)
+    self.assertEqual(m.ALERT_PAGE_KEYS, (*m.ACTIVE_ALERT_KEYS, m.CRUISE_CHIME_KEY))
+    self.assertTrue(m.CRUISE_CHIME_ROW[0] == m.CRUISE_CHIME_KEY)
 
 
 if __name__ == "__main__":

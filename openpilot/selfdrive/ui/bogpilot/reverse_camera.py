@@ -1,18 +1,38 @@
 """Driver camera while in reverse (raylib port of bogpilot-tesla 0.9.7, 04d560f3).
 
-0.9.7 behaviour (frogpilot_ui.cc:93, home.cc:80-86, window.cc:140):
+0.9.7 behaviour (bogpilot_ui.cc:93, home.cc:80-86, window.cc:140):
   enabled = QOLVisuals and DriverCamera; while started and gear == reverse a counter grows each UI frame;
   at >= UI_FREQ/2 (0.5 s) the driver camera view replaces the onroad view, the sidebar is hidden and touches
   are ignored; leaving reverse returns to the onroad view immediately.
 Port notes: time-based 0.5 s hold instead of a frame count; a stale/invalid carState counts as "not reverse"
 (timer resets) so a frozen gear cannot hold the view. No params, processes, recording or uploads are touched:
 onroad the cabin stream already runs (camerad/dmonitoringmodeld are started-or-driverview processes).
-Safety: layouts/main.py draws the stock onroad alert_renderer ON TOP of the reverse cabin view; soundd is
-unaffected (still started via driverview when onroad). Toggle off (DriverCamera or QOLVisuals) => stock onroad.
+Safety: layouts/main.py draws the stock onroad alert_renderer ON TOP of the reverse cabin view, except the
+informational reverseGear/permanent full-screen "Reverse Gear" screen the driver camera is meant to replace;
+soundd is unaffected (still started via driverview when onroad). USER_DISABLE / NO_ENTRY reverseGear alerts
+and all other visual alerts still overlay. Toggle off (DriverCamera or QOLVisuals) => stock onroad.
 """
 from __future__ import annotations
 
 import time
+
+
+STOCK_REVERSE_GEAR_ALERT = "reverseGear/permanent"
+
+
+def is_stock_reverse_gear_screen(sm) -> bool:
+  """True for the stock informational full-screen Reverse Gear alert.
+
+  EventName.reverseGear / ET.PERMANENT is VisualAlert.none, AudibleAlert.none,
+  Priority.LOWEST, AlertSize.full (text "Reverse\\nGear", or compact "Reverse").
+  That is the stock screen the driver-camera view replaces. USER_DISABLE and
+  NO_ENTRY variants (immediate disable / no-entry) stay visible.
+  """
+  try:
+    return sm["selfdriveState"].alertType == STOCK_REVERSE_GEAR_ALERT
+  except Exception:
+    return False
+
 
 HOLD_S = 0.5             # 0.9.7: driver_camera_timer >= UI_FREQ / 2
 STALE_S = 0.5            # carState older than this is ignored

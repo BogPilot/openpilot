@@ -123,7 +123,7 @@ class NativeConsumerTests(unittest.TestCase):
       result = controller.update(True, cs, 0, True, (-.7, 1.))
       self.assertGreaterEqual(result, -.7)
     self.assertEqual(result, -.7)
-  def test_human_settings_delegate_once_to_lane4_adoption(self):
+  def test_human_settings_delegate_once_to_map_acceleration_adoption(self):
     ui = StoppingSettingsModel(self.store, self.cp, StoppingCapabilities(human_acceleration=True), lambda: True)
     self.assertTrue(ui.change("longitudinal", "LongitudinalTune", True))
     self.assertTrue(ui.change("longitudinal", "HumanAcceleration", True))
@@ -142,7 +142,7 @@ class NativeConsumerTests(unittest.TestCase):
     self.adv.can_edit = lambda: True
     self.assertFalse(self.adv.change("StopAccel", -3))
     self.adv.change("AdvancedLongitudinalTune", True)
-    self.assertTrue(self.adv.nudge("StopAccel", -1))  # t1003u: row registered
+    self.assertTrue(self.adv.nudge("StopAccel", -1))  # row registered
   def test_manual_weather_ui_to_effective_distance_no_network(self):
     self.store.put_bool("IsMetric", True)
     self.ui.change("qol", "IncreasedStoppedDistance", value=2)

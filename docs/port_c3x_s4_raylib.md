@@ -1,4 +1,4 @@
-# Release-tizi raylib onroad adapter (stream 4)
+# Release-tizi raylib onroad adapter
 
 Base: release-tizi/release-mici `f7db927c7` (0.11.2, AGNOS 19.9).
 This is source-only work, not a prebuilt, device install or validated release.
@@ -20,7 +20,7 @@ This is source-only work, not a prebuilt, device install or validated release.
   ON. No params migration, fresh-install tuning-level choice or car/safety edits.
 - No upload-rate, HEVC, streaming or telemetry dependencies are included.
 
-## Settings contract (streams 5/6)
+## Settings contract 
 
 `RedesignUI`, `BSMFlameTracks`, `SwapSpeedGraph` remain legacy file-backed booleans
 under `/data/params_bogpilot`. Reads are throttled to once per two seconds.
@@ -28,7 +28,7 @@ under `/data/params_bogpilot`. Reads are throttled to once per two seconds.
 file fallback, otherwise ON. Unknown Params keys are never read or written.
 No installer needs to create files merely to get the shipping defaults.
 
-## Layout contract (stream 8)
+## Layout contract 
 
 `bogpilot_hud.draw_cluster(hud, rect, mici=False)` is the composition point.
 It supplies a 2160x1080 design coordinate system fitted to each viewport. The
@@ -36,30 +36,29 @@ It supplies a 2160x1080 design coordinate system fitted to each viewport. The
 `redesign.SpeedRowInputs`, `paint_speed_row`, `speed_row_geometry`,
 `accel_graph_rect`, `max_slot_rect` and `style.py` are the existing 19.9 helpers.
 
-Stream 8 owns adding the accel graph, hide-accel behavior while retaining the
+The cluster layout module owns adding the accel graph, hide-accel behavior while retaining the
 lower capsule, and wiring validated CSC status into the existing MAX-slot
 fields. Those are not falsely represented as complete in this patch. This
 patch does not import a custom planner or invent CSC status from stock fields.
 Lead lock-on, relocated DM, and other full daily-driver redesign details also
 remain future parity work; this is the narrow speed-capsule/BSM adapter.
 
-## Required adjacent-radar contract (stream 6 / integration blocker)
+## Required adjacent-radar contract (integration blocker)
 
 The flame burn retains the prior behavior: red BSM fill turning off, a fresh
 adjacent lead faster than 88 mph during a 500ms grace window, then a 3s burn.
 It never uses the comma's ego speed as a substitute for adjacent lead speed.
 
-Stock release-tizi does not publish/subscribe `frogpilotRadarState`. Thus BSM
+Stock release-tizi does not publish/subscribe `bogpilotRadarState`. Thus BSM
 red paths work with stock data, but flames **cannot fire on stock messages**.
 The optional consumer requires a subscribed, alive, valid, current-drive
-`frogpilotRadarState` with `leadLeft`/`leadRight.status` and `vLead` in m/s, plus
-fresh `radarState`. Missing/stale/invalid data fails closed. Streams responsible
-for messages and radar must supply the real producer/subscription before
-flames can be called integrated. No schema or producer is added by this stream.
+`bogpilotRadarState` with `leadLeft`/`leadRight.status` and `vLead` in m/s, plus
+fresh `radarState`. Missing/stale/invalid data fails closed. The messages and radar code must supply the real producer/subscription before
+flames can be called integrated. No schema or producer is added here.
 
 ## Validation
 
-On the development host:
+Run:
 
 ```sh
 python3 -m unittest discover -s openpilot/selfdrive/ui/onroad/bogpilot/tests -v

@@ -19,7 +19,7 @@ class FakeParams:
 
 
 def stats(drives=3, meters=1609.344, seconds=7200):
-  return json.dumps(dict(FrogPilotDrives=drives, FrogPilotMeters=meters, FrogPilotSeconds=seconds))
+  return json.dumps(dict(BogPilotDrives=drives, BogPilotMeters=meters, BogPilotSeconds=seconds))
 
 
 @pytest.mark.parametrize("metric,expected", [(False, 1), (True, 1)])
@@ -34,7 +34,7 @@ def test_missing_is_not_fabricated_zero(raw):
   assert not row.available and row.drives is None
 
 
-@pytest.mark.parametrize("raw", ["{}", "[]", "broken", "null", '{"FrogPilotDrives":1}', stats(-1), stats(True), stats(1.5), stats(meters=float("nan")), stats(seconds=-1), stats(meters="100")])
+@pytest.mark.parametrize("raw", ["{}", "[]", "broken", "null", '{"BogPilotDrives":1}', stats(-1), stats(True), stats(1.5), stats(meters=float("nan")), stats(seconds=-1), stats(meters="100")])
 def test_invalid_is_honestly_unavailable(raw):
   assert not cumulative_row(raw, False).available
 
@@ -81,16 +81,16 @@ def test_dst_and_local_day_read_only(tmp_path):
   history = tmp_path / "DriveHistory"
   raw = '{"2026-11-01":{"routes":2,"meters":2000,"seconds":3600}}'
   history.write_text(raw)
-  p = FakeParams({"FrogPilotStats": stats(), "Timezone": "America/New_York", "IsMetric": True})
+  p = FakeParams({"BogPilotStats": stats(), "Timezone": "America/New_York", "IsMetric": True})
   # UTC Nov8 is still Nov7 locally, so Nov1 remains in the seven-day window.
   rows = read_rows(p, history_path=history, timezone_path=tmp_path / "missing", now=datetime(2026, 11, 8, 2, tzinfo=UTC))
   assert rows[0] == rows[2] and rows[1].drives == 2
   assert history.read_text() == raw
-  assert p.values["FrogPilotStats"] == stats()
+  assert p.values["BogPilotStats"] == stats()
 
 
 def test_missing_ledger_unavailable(tmp_path):
-  rows = read_rows(FakeParams({"FrogPilotStats": stats()}), history_path=tmp_path / "missing")
+  rows = read_rows(FakeParams({"BogPilotStats": stats()}), history_path=tmp_path / "missing")
   assert rows[0].available and not rows[1].available
 
 
@@ -127,7 +127,7 @@ def test_widget_draws_original_rows_and_honest_absence():
     obj._render(rl.Rectangle(0, 0, 765, 865))
     texts = [call.args[1] for call in label.call_args_list]
     assert all(title in texts for title in ["ALL TIME (ON DEVICE)", "PAST WEEK (ON DEVICE)", "BOGPILOT"])
-    assert texts.count("–") == 9  # EN DASH: EM DASH is not in the font atlas (driveStats) and "0" not in texts
+    assert texts.count("–") == 9  # EN DASH: EM DASH is not in the font atlas and "0" not in texts
     for call in label.call_args_list:
       rect = call.args[0]
       assert rect.x >= 0 and rect.y >= 0 and rect.x + rect.width <= 765 and rect.y + rect.height <= 865

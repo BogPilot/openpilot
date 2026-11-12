@@ -214,7 +214,7 @@ class TestReset(unittest.TestCase):
 
   def test_actual_backup_receipt_integration_when_peer_installed(self):
     if not importlib.util.find_spec("openpilot.system.bogpilot.settings_backup"):
-      self.skipTest("w5 module absent on isolated branch; combined harness can install read-only peer")
+      self.skipTest("settings_backup module absent on this branch")
     from openpilot.system.bogpilot.settings_backup import backup_settings, read_snapshot
     import base64
     native = Path(self.tmp.name) / "native"

@@ -20,7 +20,11 @@ from openpilot.selfdrive.car.car_events import CarEvents
 from openpilot.selfdrive.locationd.helpers import PoseCalibrator, Pose
 from openpilot.selfdrive.selfdrived.events import Events, ET
 from openpilot.selfdrive.selfdrived.helpers import ExcessiveActuationCheck
+from openpilot.selfdrive.selfdrived.preap_arm import PreapArmWatch
+from openpilot.selfdrive.selfdrived.preap_brake import brake_disengages, panda_controls_dropped_on_purpose
 from openpilot.selfdrive.ui.bogpilot.phase2_alerts import create_optional_alert_runtime, dispatch_optional_alerts
+from openpilot.selfdrive.ui.bogpilot.phase2_driver_alerts import create_driver_alert_runtime, dispatch_driver_alerts
+from openpilot.selfdrive.selfdrived.cruise_chimes import CruiseChimeRuntime, dispatch_long_only_chime
 from openpilot.selfdrive.selfdrived.state import StateMachine
 from openpilot.selfdrive.selfdrived.alertmanager import AlertManager, set_offroad_alert
 
@@ -35,6 +39,19 @@ LONGITUDINAL_PERSONALITY_MAP = {v: k for k, v in log.LongitudinalPersonality.sch
 
 ThermalStatus = log.DeviceState.ThermalStatus
 State = log.SelfdriveState.OpenpilotState
+
+
+def steer_saturated_alert_allowed(lac_active, recent_steer_pressed, not_car, undershooting, turning, saturated):
+  """True when the 'Turn Exceeds Steering Limit' warning should fire.
+
+  Same gate as BogPilot 0.9.7 controlsd: lateral control active, no steering press in the
+  last 2 s, not a notCar, and an undershooting turn while saturated. There is no openpilot
+  state gate, so the warning still fires while overriding with the accelerator only.
+  """
+  if not lac_active or recent_steer_pressed or not_car:
+    return False
+  return bool(undershooting and turning and saturated)
+
 PandaType = log.PandaState.PandaType
 LaneChangeState = log.LaneChangeState
 LaneChangeDirection = log.LaneChangeDirection
@@ -46,10 +63,25 @@ MonitoringPolicy = log.DriverMonitoringState.MonitoringPolicy
 
 IGNORED_SAFETY_MODES = (SafetyModel.silent, SafetyModel.noOutput)
 # BogPilot: local-only helper daemons whose failure must never raise processNotRunning (no-entry / disengage).
-NON_ESSENTIAL_PROCESSES = frozenset({"bogpilot_trackd"})
+NON_ESSENTIAL_PROCESSES = frozenset({"bogpilot_trackd", "bogpilot_mapd"})
+# Tesla AP1 (0.9.7): GPS is optional. The manager never restarts a crashed process, so a qcomgpsd that exits (modem setup
+# retries exhausted, malformed report) would hold processNotRunning, and with it no-entry / disengage, for the whole drive.
+# GPS consumers (Speed Limit Controller, maps) keep using gpsLocation while the daemon runs and fall back when it does not.
+AP1_OPTIONAL_PROCESSES = frozenset({"qcomgpsd"})
+
+
+def ignored_processes(CP):
+  return NON_ESSENTIAL_PROCESSES | AP1_OPTIONAL_PROCESSES if CP.brand == "tesla_ap1" else NON_ESSENTIAL_PROCESSES
 
 
 class SelfdriveD:
+  # BogPilot optional driver alerts: absent means stock behaviour (also for partially built instances).
+  bogpilot_driver_alerts = None
+  bogpilot_blindspot_blocked = False
+  bogpilot_startup_pending = False
+  bogpilot_not_running = False
+  bogpilot_no_lane = None
+
   def __init__(self, CP=None):
     self.params = Params()
 
@@ -64,6 +96,7 @@ class SelfdriveD:
       self.CP = CP
 
     self.car_events = CarEvents(self.CP)
+    self.preap_arm = PreapArmWatch(self.CP)
 
     self.pose_calibrator = PoseCalibrator()
     self.calibrated_pose: Pose | None = None
@@ -116,6 +149,17 @@ class SelfdriveD:
     self.CS_prev = car.CarState.new_message()
     self.AM = AlertManager()
     self.bogpilot_alerts = create_optional_alert_runtime()
+    self.bogpilot_driver_alerts = create_driver_alert_runtime(self.CP)
+    self.bogpilot_blindspot_blocked = False
+    self.bogpilot_startup_pending = False
+    self.bogpilot_not_running = False
+    self.bogpilot_no_lane = None
+    try:
+      from openpilot.system.bogpilot.crash_log import clear_error_log
+      clear_error_log()
+    except Exception:
+      pass
+    self.cruise_chimes = CruiseChimeRuntime()
     self.events = Events()
 
     self.initialized = False
@@ -192,9 +236,13 @@ class SelfdriveD:
       self.events.add(EventName.longitudinalManeuver)
       self.startup_event = None
 
-    # Add startup event
+    # Add startup event. Recognized-car startup / startupMaster uses the saved
+    # StartupMessageTop / StartupMessageBottom text; other startup events stay stock.
     if self.startup_event is not None:
-      self.events.add(self.startup_event)
+      if self.startup_event in (EventName.startup, EventName.startupMaster):
+        self.bogpilot_startup_pending = True
+      else:
+        self.events.add(self.startup_event)
       self.startup_event = None
 
     # Don't add any more events if not initialized
@@ -252,8 +300,9 @@ class SelfdriveD:
           self.events.add(EventName.pcmEnable)
 
       # Disable on rising edge of accelerator or brake. Also disable on brake when speed > 0
+      # (Pre-AP,: not on a brake press that only drops longitudinal, see preap_brake.py)
       if (CS.gasPressed and not self.CS_prev.gasPressed and self.disengage_on_accelerator) or \
-        (CS.brakePressed and (not self.CS_prev.brakePressed or not CS.standstill)) or \
+        brake_disengages(CS, self.CS_prev) or \
         (CS.regenBraking and (not self.CS_prev.regenBraking or not CS.standstill)):
         self.events.add(EventName.pedalPressed)
 
@@ -313,19 +362,36 @@ class SelfdriveD:
     # ******************************************************************************************
 
     # Handle lane change
+    self.bogpilot_blindspot_blocked = False
+    self.bogpilot_no_lane = None
     if self.sm['modelV2'].meta.laneChangeState == LaneChangeState.preLaneChange:
       direction = self.sm['modelV2'].meta.laneChangeDirection
       if (CS.leftBlindspot and direction == LaneChangeDirection.left) or \
          (CS.rightBlindspot and direction == LaneChangeDirection.right):
-        self.events.add(EventName.laneChangeBlocked)
+        self.bogpilot_blindspot_blocked = True
+        # BogPilot: the loud alert replaces the quiet stock one while its saved toggle is ON (0.9.7 laneChangeBlockedLoud).
+        if self.bogpilot_driver_alerts is None or not self.bogpilot_driver_alerts.loud_blindspot_enabled():
+          self.events.add(EventName.laneChangeBlocked)
       else:
-        if direction == LaneChangeDirection.left:
-          self.events.add(EventName.preLaneChangeLeft)
-        else:
-          self.events.add(EventName.preLaneChangeRight)
+        # Narrower than LaneDetectionWidth: show No lane available instead of the
+        # stock pre-lane-change cue, matching 0.9.7 controlsd.
+        no_lane, width = False, 0.
+        if self.bogpilot_driver_alerts is not None:
+          no_lane, width = self.bogpilot_driver_alerts.no_lane_available(CS, self.sm, direction)
+        self.bogpilot_no_lane = (True, width, direction == LaneChangeDirection.left) if no_lane else None
+        if not no_lane:
+          if direction == LaneChangeDirection.left:
+            self.events.add(EventName.preLaneChangeLeft)
+          else:
+            self.events.add(EventName.preLaneChangeRight)
     elif self.sm['modelV2'].meta.laneChangeState in (LaneChangeState.laneChangeStarting,
                                                     LaneChangeState.laneChangeFinishing):
       self.events.add(EventName.laneChange)
+
+    # A panda that is deliberately not armed while openpilot stays engaged (Pre-AP brake press, steering latch) is not "didn't arm".
+    if self.preap_arm.update(self.enabled, self.sm['pandaStates'], IGNORED_SAFETY_MODES,
+                             dropped_on_purpose=panda_controls_dropped_on_purpose(CS)):
+      self.events.add(EventName.preapNotArmed)
 
     for i, pandaState in enumerate(self.sm['pandaStates']):
       # All pandas must match the list of safetyConfigs, and if outside this list, must be silent or noOutput
@@ -352,11 +418,12 @@ class SelfdriveD:
       self.events.add(EventName.bigModelFailed)
 
     not_running = {p.name for p in self.sm['managerState'].processes
-                   if not p.running and p.shouldBeRunning and p.name not in NON_ESSENTIAL_PROCESSES}
+                   if not p.running and p.shouldBeRunning and p.name not in ignored_processes(self.CP)}
     if self.sm.recv_frame['managerState'] and len(not_running):
       if not_running != self.not_running_prev:
         cloudlog.event("process_not_running", not_running=not_running, error=True)
       self.not_running_prev = not_running
+    self.bogpilot_not_running = bool(self.sm.recv_frame['managerState'] and not_running)
     if self.sm.recv_frame['managerState'] and not_running:
       self.events.add(EventName.processNotRunning)
     else:
@@ -437,7 +504,8 @@ class SelfdriveD:
       undershooting = abs(desired_lateral_accel) / abs(1e-3 + actual_lateral_accel) > 1.2
       turning = abs(desired_lateral_accel) > 1.0
       # TODO: lac.saturated includes speed and other checks, should be pulled out
-      if undershooting and turning and lac.saturated:
+      if steer_saturated_alert_allowed(lac.active, recent_steer_pressed, self.CP.notCar,
+                                       undershooting, turning, lac.saturated):
         self.events.add(EventName.steerSaturated)
 
     # Check for FCW
@@ -466,6 +534,13 @@ class SelfdriveD:
         self.personality = (self.personality - 1) % 3
         self.params.put('LongitudinalPersonality', self.personality)
         self.events.add(EventName.personalityChanged)
+
+    # AP1 long pull/push: keep the confirmed-mode gate, but say why a hold did nothing.
+    if self.CP.brand == "tesla_ap1":
+      from opendbc.car.tesla_ap1.phase3_stalk_controls import experimental_hold_unconfirmed
+      started = bool(self.sm.valid["deviceState"] and self.sm.alive["deviceState"] and self.sm["deviceState"].started)
+      if experimental_hold_unconfirmed(self.params, self.CP, CS, started):
+        self.events.add(EventName.experimentalModeUnconfirmed)
 
   def data_sample(self):
     _car_state = messaging.recv_one(self.car_state_sock)
@@ -507,8 +582,13 @@ class SelfdriveD:
     if not self.enabled:
       self.mismatch_counter = 0
 
-    # All pandas not in silent mode must have controlsAllowed when openpilot is enabled
-    if self.enabled and any(not ps.controlsAllowed for ps in self.sm['pandaStates']
+    # All pandas not in silent mode must have controlsAllowed when openpilot is enabled.
+    # Pre-AP lateral-only after a brake press: the panda dropped controls_allowed on purpose (that is what
+    # blocks the pedal) and keeps steering on its own permission, so it is not a mismatch. Every other way the panda drops controls resets
+    # the car-side latch (hands on, EPAS refusing, cancel, gear, door), which ends this exemption on the same step.
+    if panda_controls_dropped_on_purpose(CS):
+      self.mismatch_counter = 0
+    elif self.enabled and any(not ps.controlsAllowed for ps in self.sm['pandaStates']
            if ps.safetyModel not in IGNORED_SAFETY_MODES):
       self.mismatch_counter += 1
 
@@ -528,6 +608,15 @@ class SelfdriveD:
     if self.bogpilot_alerts is not None:
       if not dispatch_optional_alerts(self.bogpilot_alerts, self.AM, self.sm.frame, CS, self.sm, time.monotonic()):
         self.bogpilot_alerts = None
+    if self.bogpilot_driver_alerts is not None:
+      startup = self.bogpilot_startup_pending
+      self.bogpilot_startup_pending = False
+      if not dispatch_driver_alerts(self.bogpilot_driver_alerts, self.AM, self.sm.frame, CS, time.monotonic(),
+                                    ET.WARNING in self.state_machine.current_alert_types, self.is_metric,
+                                    self.bogpilot_blindspot_blocked, not_running=self.bogpilot_not_running,
+                                    startup=startup, no_lane=self.bogpilot_no_lane):
+        self.bogpilot_driver_alerts = None
+    dispatch_long_only_chime(getattr(self, "cruise_chimes", None), self.AM, self.events, self.CP, CS, self.sm.frame)
     self.AM.process_alerts(self.sm.frame, clear_event_types)
 
   def publish_selfdriveState(self, CS):

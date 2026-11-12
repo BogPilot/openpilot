@@ -210,16 +210,17 @@ def create_driving_model_layout(controller=None):
       items = []
       self._open_desc = []
       if snap.only_default:
-        # Status, one explanation, and the Default row. No buttons and no empty sections.
-        items.append(attach_help(text_item(snap.status, ""), "driving_model.status"))
-        items.append(attach_help(text_item(ONLY_DEFAULT_TEXT, ""), "driving_model.status"))
+        # Status with the one explanation under it (a description wraps; a title would be cut off), and the Default row.
+        # No buttons and no empty sections.
+        status = text_item(snap.status, "", ONLY_DEFAULT_TEXT)
+        attach_help(status, "driving_model.status", extra=lambda: ONLY_DEFAULT_TEXT)
+        items.append(status)
+        self._open_desc.append(status)
         for row in snap.rows:
           item = text_item(row.title, "", row.detail or None)
           attach_help(item, "driving_model.default" if row.id == STOCK_ID else "driving_model.entry",
                       extra=lambda r=row: r.detail)
           items.append(item)
-          if row.detail:
-            self._open_desc.append(item)
       else:
         status = text_item(snap.status, "", snap.notice or None)
         attach_help(status, "driving_model.status", extra=lambda: snap.notice)
@@ -241,8 +242,6 @@ def create_driving_model_layout(controller=None):
           attach_help(item, "driving_model.default" if row.id == STOCK_ID else "driving_model.entry",
                       extra=lambda r=row: r.detail)
           items.append(item)
-          if row.active and desc:
-            self._open_desc.append(item)
       self.scroller = Scroller(items, line_separator=True, spacing=0)
 
     def _reveal(self):

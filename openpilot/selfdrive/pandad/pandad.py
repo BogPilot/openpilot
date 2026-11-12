@@ -11,14 +11,36 @@ from openpilot.common.hardware import HARDWARE
 from openpilot.common.swaglog import cloudlog
 
 
+def record_panda_firmware(text: str) -> None:
+  """Write what pandad found to the file-backed Pre-AP param the Vehicle screen shows. Never raises (a read-only /data must not stop pandad)."""
+  try:
+    from opendbc.car.tesla_ap1.preap import params as preap_params
+    preap_params.set_str(preap_params.PreApParamKeys.PANDA_FIRMWARE, text)
+  except Exception:
+    cloudlog.exception("pandad.record_panda_firmware_failed")
+
+
+def panda_firmware_text(version, bootstub: bool = False, up_to_date: bool = True) -> str:
+  """The firmware version as shown to the driver: the version string, plus a note when the panda is not running the shipped app."""
+  text = version.decode("utf-8", "replace") if isinstance(version, (bytes, bytearray)) else str(version)
+  text = text.strip() or "unknown"
+  if bootstub:
+    return text + " (bootloader only)"
+  if not up_to_date:
+    return text + " (out of date)"
+  return text
+
+
 def panda_ready() -> bool:
   """Is the panda up and running the firmware we ship?"""
   try:
     # a healthy panda answers on SPI within ~200ms of reset
     if not Panda.wait_for_panda(None, timeout=1):
       cloudlog.warning("no panda found")
+      record_panda_firmware("Not found")
       return False
     with Panda(cli=False) as p:
+      record_panda_firmware(panda_firmware_text(p.get_version(), bootstub=bool(p.bootstub), up_to_date=bool(p.bootstub) or p.up_to_date()))
       if p.bootstub:
         cloudlog.warning(f"panda stuck in bootstub, version {p.get_version()}")
         return False

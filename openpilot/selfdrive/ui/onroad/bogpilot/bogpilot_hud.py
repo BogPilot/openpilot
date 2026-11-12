@@ -1,8 +1,8 @@
 """Release-tizi redesign adapter, retaining the upstream HUD state and controls.
 
-Stream 8 owns the cluster composition below: speed capsule, accel graph (SwapSpeedGraph order), HideAccelGraph
-(graph hidden, capsule kept in the lower slot) and the CSC MAX slot from a validated planner report only
-(plannerd's frogpilotPlan, AP1 CSC). The slot also needs CurveSpeedController and ShowCSCStatus on. There are
+The cluster layout owns the cluster composition below: speed capsule, optional accel graph (ShowAccelGraph, off by
+default), LowerSpeedLimitsBox (capsule in the lower slot when the rear-view mirror covers the top) and the CSC MAX slot from a validated planner report only
+(plannerd's bogpilotPlan, AP1 CSC). The slot also needs CurveSpeedController and ShowCSCStatus on. There are
 deliberately no uploads, streaming, custom planner imports or unknown Params deps.
 """
 import math
@@ -20,7 +20,11 @@ from openpilot.selfdrive.ui.onroad.bogpilot import speed_limit_display as SL
 from openpilot.selfdrive.ui.onroad.bogpilot import steering_arc as ARC
 from openpilot.selfdrive.ui.onroad.bogpilot import phase3_cem_status as CEM
 from openpilot.selfdrive.ui.onroad.bogpilot import pedals as PED
-from openpilot.selfdrive.ui.onroad.bogpilot.style import REC_CX, REC_CY, REC_HIT
+from openpilot.selfdrive.ui.onroad.bogpilot import developer_hud_logic as DEV
+from openpilot.selfdrive.ui.onroad.bogpilot import developer_hud as DEVP
+from openpilot.selfdrive.ui.onroad.bogpilot import fps_counter as FPS
+from openpilot.selfdrive.ui.onroad.bogpilot import overlay_gate as OVG
+from openpilot.selfdrive.ui.onroad.bogpilot.style import REC_CY, REC_HIT, record_center_x
 from openpilot.selfdrive.ui.onroad.exp_button import ExpButton
 from openpilot.system.ui.widgets import Widget
 from openpilot.selfdrive.ui.onroad.bogpilot.file_toggles import toggles
@@ -88,7 +92,7 @@ def speed_row_inputs(hud, mici=False, layout=None, slot=None):
             max_color=color, swap=layout.redesign_swap)
   limit = getattr(hud, "bp_limit", SL.HIDDEN)
   if not mici:
-    # t913u LIMIT tile / SLC offset badge and the daily set-speed colour (compact mici layout keeps the stock row)
+    # LIMIT tile / SLC offset badge and the daily set-speed colour (compact mici layout keeps the stock row)
     kw.update(limit.fields())
     rgba = SL.set_speed_rgba(bool(hud.is_cruise_set), ui_state.status == UIStatus.ENGAGED, speed, limit.color_limit)
     kw["set_speed_color"] = rl.Color(*rgba)
@@ -109,7 +113,7 @@ def draw_cluster(hud, rect, mici=False):
     R.paint_speed_row(speed_row_inputs(hud, mici, layout, csc_slot(hud, mici)), 0, 0)
     graph = getattr(hud, "bp_graph", None)
     if graph is not None and layout.graph_visible:
-      # HideAccelGraph: graph skipped, capsule already moved to the lower slot via layout.redesign_swap.
+      # ShowAccelGraph off: graph skipped. Capsule slot follows layout.redesign_swap (LowerSpeedLimitsBox).
       graph.paint(R.accel_graph_rect(layout.swap))
   finally:
     rl.rl_pop_matrix()
@@ -136,15 +140,26 @@ class ClusterState:
     self.bp_csc = L.INVALID_CSC
     self.bp_cem = CEM.HIDDEN
     from openpilot.common.bogpilot_store import ParamStore
-    self._bp_cem_store = ParamStore(cache_ttl=.1)
+    self._bp_cem_store = ParamStore(cache_ttl=2.0)
     self._bp_graph_t = -1.0
     self._bp_started = None
     self._bp_drive_start = 0.0
-    # Stream-6 optional contract: subscribe only when the service exists (never on stock release-tizi).
-    services = [s for s in ("frogpilotPlan", "frogpilotCarState") if s in SERVICE_LIST]
+    # Optional contract: subscribe only when the service exists (never on stock release-tizi).
+    # Reuse ui_state.sm when it already owns these topics so we do not poll a second socket.
+    have = set(getattr(getattr(ui_state, "sm", None), "data", {}) or [])
+    services = [s for s in ("bogpilotPlan", "bogpilotCarState") if s in SERVICE_LIST and s not in have]
     self._bp_plan_sm = messaging.SubMaster(services) if services else None
     self.bp_limit = SL.HIDDEN
     self._bp_limit_policy = SL.LimitPolicyReader(cp_fn=lambda: ui_state.CP)
+
+  def _plan_sm(self):
+    """bogpilotPlan / bogpilotCarState: prefer the shared UI SubMaster, else the fallback socket."""
+    if self._bp_plan_sm is not None:
+      return self._bp_plan_sm
+    sm = getattr(ui_state, "sm", None)
+    if sm is not None and any(s in getattr(sm, "data", {}) for s in ("bogpilotPlan", "bogpilotCarState")):
+      return sm
+    return None
 
   def _bp_update(self):
     self.bp_cem = CEM.HIDDEN
@@ -162,18 +177,21 @@ class ClusterState:
       self.bp_csc = L.INVALID_CSC
       self.bp_limit = SL.HIDDEN
       return
-    if now - self._bp_graph_t >= 1.0 / GRAPH_HZ and sm.alive["carControl"] and sm.valid["carControl"]:
-      self._bp_graph_t = now
-      self.bp_graph.push(float(sm["carControl"].actuators.accel), float(sm["carState"].aEgo))
-    if self._bp_plan_sm is not None:
-      self._bp_plan_sm.update(0)
-      self.bp_csc = L.read_csc_status(self._bp_plan_sm, now, self._bp_drive_start)
+    if cluster_layout().graph_visible:
+      if now - self._bp_graph_t >= 1.0 / GRAPH_HZ and sm.alive["carControl"] and sm.valid["carControl"]:
+        self._bp_graph_t = now
+        self.bp_graph.push(float(sm["carControl"].actuators.accel), float(sm["carState"].aEgo))
+    psm = self._plan_sm()
+    if psm is not None:
+      if psm is self._bp_plan_sm:
+        psm.update(0)
+      self.bp_csc = L.read_csc_status(psm, now, self._bp_drive_start)
       try:  # display-only badge must never break the onroad HUD
-        self.bp_cem = CEM.read_status(self._bp_cem_store, self._bp_plan_sm, now, self._bp_drive_start,
+        self.bp_cem = CEM.read_status(self._bp_cem_store, psm, now, self._bp_drive_start,
                                       bool(_fresh(sm, "selfdriveState") and sm["selfdriveState"].enabled))
       except Exception:
         self.bp_cem = CEM.HIDDEN
-    dashboard = SL.read_dashboard_limit(self._bp_plan_sm, now, self._bp_drive_start)
+    dashboard = SL.read_dashboard_limit(psm, now, self._bp_drive_start)
     self.bp_limit = SL.speed_limit_view(self._bp_limit_policy.get(), dashboard, self.bp_csc,
                                         MS_TO_KPH if ui_state.is_metric else MS_TO_MPH)
 
@@ -188,6 +206,11 @@ def _fresh(sm, name) -> bool:
 class ArcTapButton(ExpButton):
   """Daily redesign: the steering arc (+ its surroundings) is the Experimental Mode button. Same toggle rules as the
   stock ExpButton (ExperimentalModeConfirmed and longitudinal control); paints nothing, the arc shows the state."""
+
+  @property
+  def enabled(self) -> bool:
+    # ExpButton is disabled (hidden and inert); the arc's tap target must keep working.
+    return True
 
   def set_rect(self, rect) -> None:
     Widget.set_rect(self, rect)
@@ -275,11 +298,28 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
     self.bp_extra_keepouts: list = []  # screen rects of the arc tap area, pedals and record button (lead labels avoid)
     self.bp_rhd = False
     self._bp_started_arc = None
+    self._bp_dev_policy = DEV.DeveloperHudPolicy()
+    self.bp_dev_cells = None          # Developer HUD cells (DeveloperHUD on and live car data), or None when hidden
+    self._bp_fps_gate = OVG.OverlayGate("FPSCounter", stored_only=True)
+    self._bp_fps = FPS.FpsTracker()
+    self._bp_fps_drive = None
 
   def _update_state(self):
     super()._update_state()
     self._bp_update()
     self._bp_update_features()
+    self._bp_update_developer()
+
+  def _bp_update_developer(self):
+    self.bp_dev_cells = None
+    try:
+      if self._bp_dev_policy.get():
+        inputs = DEV.inputs_from_messages(ui_state.sm, ui_state.started_frame, ui_state.is_metric, ui_state.CP)
+        if inputs is not None:
+          self.bp_dev_cells = DEV.cells(inputs)
+    except Exception:  # display-only panel must never break the onroad HUD
+      cloudlog.exception("developer HUD inputs failed")
+      self.bp_dev_cells = None
 
   def _bp_update_features(self):
     sm = ui_state.sm
@@ -308,18 +348,18 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
         cloudlog.exception("steering arc inputs failed; stock Experimental Mode button kept until the next drive")
         self.bp_arc_live = False
         self.bp_arc_failed = True
-    # pedals: daily response on measured carState.aEgo / standstill and frogpilotCarState.brakeLights
+    # pedals: daily response on measured carState.aEgo / standstill and bogpilotCarState.brakeLights
     self.bp_pedals = None
     pol, _rec = self._bp_extras.get(bool(getattr(ui_state, "has_longitudinal_control", False)))
     if pol.show:
       cs = sm["carState"]
       lights = False
-      psm = self._bp_plan_sm
+      psm = self._plan_sm()
       try:
-        if psm is not None and "frogpilotCarState" in psm.data and psm.valid["frogpilotCarState"] and \
-           psm.alive["frogpilotCarState"] and now - psm.recv_time["frogpilotCarState"] <= SL.LIMIT_STALE_S and \
-           psm.recv_time["frogpilotCarState"] >= self._bp_drive_start:
-          lights = bool(psm["frogpilotCarState"].brakeLights)
+        if psm is not None and "bogpilotCarState" in getattr(psm, "data", psm) and psm.valid["bogpilotCarState"] and \
+           psm.alive["bogpilotCarState"] and now - psm.recv_time["bogpilotCarState"] <= SL.LIMIT_STALE_S and \
+           psm.recv_time["bogpilotCarState"] >= self._bp_drive_start:
+          lights = bool(psm["bogpilotCarState"].brakeLights)
       except (KeyError, AttributeError, TypeError):
         lights = False
       self.bp_pedals = PED.daily_opacity(pol, float(cs.aEgo), bool(cs.standstill), lights)
@@ -353,7 +393,38 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
         self._exp_button.render(rl.Rectangle(button_x, rect.y + 30, UI_CONFIG_BUTTON, UI_CONFIG_BUTTON))
     if redesign and wide:
       self._bp_render_extras(rect)
+    if wide:
+      self._bp_render_developer(rect, redesign and self.bp_arc_live and not self.bp_arc_failed)
+      self._bp_render_fps(rect)
     draw_cem_status(self, rect)
+
+  def _bp_render_developer(self, rect, arc_layout):
+    """Developer HUD, top right. With the redesign arc the corner is free; with the stock Experimental Mode button in
+    that corner the panel sits under it. Display only (no tap), and a paint failure only drops the panel."""
+    if self.bp_dev_cells is None:
+      return
+    try:
+      top = 30 if arc_layout else 30 + UI_CONFIG_BUTTON + 18
+      x, y, w, h = DEV.panel_rect(rect.width, rect.height, 30, top)
+      DEVP.paint(self.bp_dev_cells, (rect.x + x, rect.y + y, w, h))
+      self.bp_extra_keepouts.append(rl.Rectangle(rect.x + x, rect.y + y, w, h))
+    except Exception:
+      cloudlog.exception("developer HUD paint failed")
+      self.bp_dev_cells = None
+
+  def _bp_render_fps(self, rect):
+    """FPS counter along the bottom edge (FPSCounter). Display only; min and max restart with each drive."""
+    try:
+      if not self._bp_fps_gate.get():
+        self._bp_fps_drive = None
+        return
+      if self._bp_fps_drive != ui_state.started_frame:
+        self._bp_fps_drive = ui_state.started_frame
+        self._bp_fps.reset()
+      self._bp_fps.frame(time.monotonic())
+      FPS.paint(self._bp_fps.text(), rect)
+    except Exception:
+      cloudlog.exception("FPS counter failed")
 
   def _bp_render_extras(self, rect):
     scale = min(1.0, rect.width / 2160.0, rect.height / 1080.0)
@@ -374,7 +445,7 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
         self.bp_pedals = None
     _pol, rec = self._bp_extras.get(bool(getattr(ui_state, "has_longitudinal_control", False)))
     if rec:
-      cx = widget_w - REC_CX if self.bp_rhd else REC_CX
+      cx = record_center_x(scale, self.bp_rhd, widget_w)
       hit = rl.Rectangle(rect.x + (cx - REC_HIT / 2) * scale, rect.y + (REC_CY - REC_HIT / 2) * scale, REC_HIT * scale,
                          REC_HIT * scale)
       try:

@@ -21,11 +21,14 @@ def pkt(addr, dat, bus=0):
   return libsafety_py.make_CANPacket(addr, bus, bytes(dat))
 
 
-def epas_status(angle_deg):
+def epas_status(angle_deg, eac_status=1, eac_error=0):
+  # Default EAC_AVAILABLE, no error: the panda drops ANGLE frames while the EPAS is INHIBITED/FAULT/SNA or in error.
   raw = int(round(angle_deg * 10)) + 8192
   dat = bytearray(8)
+  dat[2] = (eac_error & 0x0F) << 4
   dat[4] = (raw >> 8) & 0x3F
   dat[5] = raw & 0xFF
+  dat[6] = (eac_status & 0x07) << 5
   return pkt(0x370, dat)
 
 

@@ -1,4 +1,4 @@
-"""Stream 8 headless contract: stack order, HideAccelGraph keeps the lower capsule, CSC MAX slot fail-closed."""
+"""Headless contract: stack order, ShowAccelGraph off and LowerSpeedLimitsBox placement, CSC MAX slot fail-closed."""
 import ast
 import importlib.util
 import math
@@ -23,46 +23,49 @@ L = load("cluster_layout")
 
 class TestLayout(unittest.TestCase):
   def test_defaults(self):
-    self.assertTrue(L.DEFAULTS["SwapSpeedGraph"])
-    self.assertFalse(L.DEFAULTS["HideAccelGraph"])
+    self.assertFalse(L.DEFAULTS["ShowAccelGraph"])
+    self.assertFalse(L.DEFAULTS["LowerSpeedLimitsBox"])
     d = L.ClusterLayout()
-    self.assertTrue(d.swap and d.graph_visible and d.capsule_lower)
+    self.assertFalse(d.show_accel or d.graph_visible or d.capsule_lower)
+    self.assertEqual(d.capsule_top, L.SPEED_ROW_TOP)
+    self.assertIsNone(d.graph_rect())
 
-  def test_swap_on_graph_above_capsule_same_footprint(self):
-    d = L.ClusterLayout(swap=True)
+  def test_lower_box_with_graph_puts_graph_on_top(self):
+    d = L.ClusterLayout(show_accel=True, lower_speed_box=True)
     x, y, w, h = d.graph_rect()
     self.assertEqual(y, L.SPEED_ROW_TOP)
     self.assertLess(y + h, d.capsule_top)
     self.assertEqual(d.capsule_top + L.SPEED_ROW_HEIGHT, L.STACK_BOTTOM)
+    self.assertTrue(d.swap and d.redesign_swap)
 
-  def test_swap_off_legacy(self):
-    d = L.ClusterLayout(swap=False)
+  def test_graph_below_when_speed_stays_on_top(self):
+    d = L.ClusterLayout(show_accel=True, lower_speed_box=False)
     self.assertEqual(d.capsule_top, L.SPEED_ROW_TOP)
     self.assertEqual(d.graph_rect()[1], L.GRAPH_TOP)
     self.assertFalse(d.redesign_swap)
 
-  def test_hide_accel_keeps_lower_capsule(self):
-    for swap in (True, False):
-      d = L.ClusterLayout(swap=swap, hide_accel=True)
-      self.assertFalse(d.graph_visible)
-      self.assertIsNone(d.graph_rect())
-      self.assertEqual(d.capsule_top, L.SWAP_SPEED_ROW_TOP)
-      self.assertTrue(d.redesign_swap)
-      self.assertEqual(d.keepouts(), [d.capsule_band()])
+  def test_lower_box_without_graph(self):
+    d = L.ClusterLayout(show_accel=False, lower_speed_box=True)
+    self.assertFalse(d.graph_visible)
+    self.assertIsNone(d.graph_rect())
+    self.assertEqual(d.capsule_top, L.SWAP_SPEED_ROW_TOP)
+    self.assertTrue(d.redesign_swap)
+    self.assertEqual(d.keepouts(), [d.capsule_band()])
 
   def test_map_suppresses_graph_only(self):
-    d = L.ClusterLayout(graph_suppressed=True)
+    d = L.ClusterLayout(show_accel=True, graph_suppressed=True)
     self.assertFalse(d.graph_visible)
-    self.assertEqual(d.capsule_top, L.SWAP_SPEED_ROW_TOP)
+    self.assertEqual(d.capsule_top, L.SPEED_ROW_TOP)  # default: capsule stays at the top
 
-  def test_metadata_minimal(self):
-    for key in ("SwapSpeedGraph", "HideAccelGraph"):
-      self.assertEqual(L.TOGGLE_METADATA[key]["tuning_level"], 0)
+  def test_metadata_levels(self):
+    self.assertEqual(L.TOGGLE_METADATA["ShowAccelGraph"]["tuning_level"], 3)
+    self.assertEqual(L.TOGGLE_METADATA["LowerSpeedLimitsBox"]["tuning_level"], 0)
+    for key in ("ShowAccelGraph", "LowerSpeedLimitsBox"):
       self.assertEqual(L.TOGGLE_METADATA[key]["default"], L.DEFAULTS[key])
 
 
 def plan(**kw):
-  base = dict(cscTraining=False, cscControllingSpeed=True, cscSpeed=20.0, roadCurvature=-0.01,
+  base = dict(cscActive=True, cscTraining=False, cscControllingSpeed=True, cscSpeed=20.0, roadCurvature=-0.01,
               slcOverriddenSpeed=0.0, slcSpeedLimit=0.0, slcSpeedLimitOffset=0.0, speedLimitChanged=False)
   base.update(kw)
   return SimpleNamespace(**base)
@@ -70,10 +73,10 @@ def plan(**kw):
 
 class FakeSM:
   def __init__(self, msg=None, alive=True, valid=True, t=10.0):
-    self.data = {} if msg is None else {"frogpilotPlan": msg}
-    self.alive = {"frogpilotPlan": alive}
-    self.valid = {"frogpilotPlan": valid}
-    self.recv_time = {"frogpilotPlan": t}
+    self.data = {} if msg is None else {"bogpilotPlan": msg}
+    self.alive = {"bogpilotPlan": alive}
+    self.valid = {"bogpilotPlan": valid}
+    self.recv_time = {"bogpilotPlan": t}
 
   def __getitem__(self, k):
     return self.data[k]
@@ -114,6 +117,9 @@ class TestCsc(unittest.TestCase):
     self.assertFalse(L.csc_slot(L.INVALID_CSC, self.ctx).active)
     self.assertFalse(L.csc_status_from_plan(plan(cscSpeed=math.nan)).valid)
     self.assertFalse(L.csc_status_from_plan(SimpleNamespace(cscTraining=True)).valid)   # missing fields
+    noflag = plan(); del noflag.cscActive
+    self.assertFalse(L.csc_status_from_plan(noflag).valid)                         # missing cscActive fails closed
+    self.assertFalse(L.csc_status_from_plan(plan(cscActive=False)).valid)          # CSC off, other plan features on
     for ctx in (L.CscContext(cruise_set=False, set_speed_display=65), L.CscContext(redesign=False, cruise_set=True),
                 L.CscContext(cruise_set=True, show_status=False), L.CscContext(cruise_set=True, map_open=True),
                 L.CscContext(cruise_set=True, static_left_signal=True)):
@@ -170,29 +176,34 @@ def hud_env(calls, toggles):
 
 
 class TestHudComposition(unittest.TestCase):
-  def run_draw(self, swap, hide):
+  def run_draw(self, show_accel, lower):
     calls = []
-    env = hud_env(calls, {"RedesignUI": True, "SwapSpeedGraph": swap, "HideAccelGraph": hide})
+    env = hud_env(calls, {"RedesignUI": True, "ShowAccelGraph": show_accel, "LowerSpeedLimitsBox": lower})
     hud = env["BogPilotHudRenderer"]()
     env["draw_cluster"](hud, SimpleNamespace(x=0, y=0, width=2160, height=1080))
     return calls
 
-  def test_default_paints_row_and_graph_on_top(self):
-    calls = self.run_draw(True, False)
-    self.assertTrue(calls[0][1]["swap"])
-    self.assertEqual(calls[1], ("graph", ("graph_rect", True)))
+  def test_default_paints_row_at_top_without_graph(self):
+    calls = self.run_draw(False, False)
+    self.assertEqual(len(calls), 1)
+    self.assertEqual(calls[0][0], "row")
+    self.assertFalse(calls[0][1]["swap"])
     self.assertFalse(calls[0][1]["csc_active"])   # stock: no planner -> no CSC
 
-  def test_hide_accel_keeps_lower_capsule(self):
-    for swap in (True, False):
-      calls = self.run_draw(swap, True)
-      self.assertEqual(len(calls), 1)
-      self.assertEqual(calls[0][0], "row")
-      self.assertTrue(calls[0][1]["swap"])        # lower slot
+  def test_show_accel_and_lower_box_paints_graph_on_top(self):
+    calls = self.run_draw(True, True)
+    self.assertTrue(calls[0][1]["swap"])
+    self.assertEqual(calls[1], ("graph", ("graph_rect", True)))
+
+  def test_lower_box_without_graph_keeps_lower_capsule(self):
+    calls = self.run_draw(False, True)
+    self.assertEqual(len(calls), 1)
+    self.assertEqual(calls[0][0], "row")
+    self.assertTrue(calls[0][1]["swap"])        # lower slot
 
   def test_graph_samples_rate_limited_and_fail_closed(self):
     calls = []
-    env = hud_env(calls, {"RedesignUI": True, "SwapSpeedGraph": True, "HideAccelGraph": False})
+    env = hud_env(calls, {"RedesignUI": True, "ShowAccelGraph": True, "LowerSpeedLimitsBox": False})
     class SM(dict):
       pass
     sm = SM(carControl=SimpleNamespace(actuators=SimpleNamespace(accel=0.5)), carState=SimpleNamespace(aEgo=0.4))

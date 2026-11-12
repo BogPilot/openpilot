@@ -12,7 +12,7 @@ import time
 
 @dataclass(frozen=True)
 class AdjacentTarget:
-  """frogpilotRadarState.leadLeft / leadRight (radard bogpilot_radar: closest moving radar track between that side's
+  """bogpilotRadarState.leadLeft / leadRight (radard bogpilot_radar: closest moving radar track between that side's
   lane lines, excluding the leadOne/leadTwo track ids). Daily annotated_camera.cc drawLead(adjacent=true)."""
   side: int            # 0 = left (car frame), 1 = right; independent of RHD
   box: object
@@ -110,19 +110,19 @@ class LeadLockOn:
     return self.target
 
   def _adjacent(self, renderer, sm, now, started_frame, ego, local, metric):
-    """Fail closed per side: frogpilotRadarState must be valid/alive/current-drive/<=0.5 s (same rule as radarState)."""
+    """Fail closed per side: bogpilotRadarState must be valid/alive/current-drive/<=0.5 s (same rule as radarState)."""
     out = []
     try:
-      if not self._service_ok(sm, "frogpilotRadarState", now, started_frame, 0.5) or not _finite(ego) or ego < 0:
+      if not self._service_ok(sm, "bogpilotRadarState", now, started_frame, 0.5) or not _finite(ego) or ego < 0:
         return out
-      frs = sm["frogpilotRadarState"]
+      frs = sm["bogpilotRadarState"]
       for side, lead in enumerate((frs.leadLeft, frs.leadRight)):
         if not lead.status:
           continue
         d, y, v = float(lead.dRel), float(lead.yRel), float(lead.vLead)
         if not _finite(d, y, v) or d <= 0:
           continue
-        # daily drawLead: box sized by d_rel + |yRel| for adjacent leads, projected at the lead's own (dRel, -yRel)
+        # earlier-build drawLead: box sized by d_rel + |yRel| for adjacent leads, projected at the lead's own (dRel, -yRel)
         box = self._project_box(renderer, d, y, d + abs(y), local)
         if box is None:
           continue

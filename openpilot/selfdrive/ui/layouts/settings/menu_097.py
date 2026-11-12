@@ -18,6 +18,7 @@ from openpilot.system.ui.lib.multilang import tr_noop
 
 ICON_DIR = "bogpilot"
 HOME_TITLE = tr_noop("BogPilot")
+LOCKED_WHILE_DRIVING = tr_noop("Locked while the car is on")
 DEVELOPER_WARNING = tr_noop(
   "WARNING: Developer shows every setting, including ones that change how the car drives and that are not for everyday use. "
   "Use them at your own risk, and only if you know what a setting does.")
@@ -29,6 +30,7 @@ class Pill:
   label: str            # pill text, upper case as in 0.9.7
   title: str            # header of the page or page list it opens
   pages: tuple[Page, ...]
+  visible: Callable[[], bool] | None = None   # None: always (subject to the Tuning Level); else the pill follows the car
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,13 @@ class Section:
 
 def _all_pages(sections):
   return [(s, p, pg) for s in sections for p in s.pills for pg in p.pages]
+
+
+def _pill_shown(pill: Pill) -> bool:
+  try:
+    return bool(pill.visible())
+  except Exception:
+    return True
 
 
 def validate(sections) -> None:
@@ -77,6 +86,8 @@ class MenuNavigation:
   # ---- what the chosen Tuning Level shows
   def pages_of(self, pill: Pill, level: int | None = None):
     lvl = self._level() if level is None else level
+    if pill.visible is not None and not _pill_shown(pill):
+      return ()
     return tuple(p for p in pill.pages if tl.page_level(p.controls) <= lvl)
 
   def pills_of(self, section: Section, level: int | None = None):
@@ -118,7 +129,12 @@ class MenuNavigation:
         self._cache[()] = self._home_factory()
       elif len(self.path) == 2:
         page = next(p for p in self.pill(self.path[0]).pages if p.key == self.path[1])
-        self._cache[self.path] = page.factory()
+        widget = page.factory()
+        # A page that wants to send the user to another page (a "go to the setting" button) is handed this navigation.
+        hook = getattr(widget, "set_navigator", None)
+        if callable(hook):
+          hook(self)
+        self._cache[self.path] = widget
       else:
         self._cache[self.path] = self._menu_factory(self.entries(), lambda k, pill=self.path[0]: self.open_page(pill, k))
     return self._cache[self.path]
@@ -146,6 +162,12 @@ class MenuNavigation:
       raise KeyError(key)
     self._move((key, pages[0].key) if len(pages) == 1 else (key,))
 
+  def can_open(self, pill_key: str, page_key: str) -> bool:
+    try:
+      return page_key in {p.key for p in self.pages_of(self.pill(pill_key))}
+    except KeyError:
+      return False
+
   def open_page(self, pill_key: str, page_key: str) -> None:
     if page_key not in {p.key for p in self.pages_of(self.pill(pill_key))}:
       raise KeyError(page_key)
@@ -162,6 +184,22 @@ class MenuNavigation:
     else:
       self._move(())
     return True
+
+  @property
+  def at_top(self) -> bool:
+    return not self.path
+
+  def reset(self) -> None:
+    """Return to the top level from anywhere (0.9.7: tapping the BogPilot tab, or leaving the panel, closes every open
+    sub-panel). Pages with their own inner pages are walked back to their first page so they reopen there too."""
+    for path, widget in list(self._cache.items()):
+      inner_back = getattr(widget, "navigation_back", None)
+      if len(path) == 2 and callable(inner_back):
+        for _ in range(8):
+          if not inner_back():
+            break
+    if self.path:
+      self._move(())
 
   def show_event(self) -> None:
     if not self.visible:
@@ -186,13 +224,18 @@ def build_menu(sections, store=None, can_edit: Callable[[], bool] | None = None,
   from openpilot.system.ui.widgets import Widget
   from openpilot.system.ui.widgets.confirm_dialog import alert_dialog
   from openpilot.system.ui.widgets.list_view import (BUTTON_HEIGHT, ICON_SIZE, ITEM_PADDING, ITEM_TEXT_COLOR, ITEM_TEXT_FONT_SIZE,
-                                                     RIGHT_ITEM_PADDING, ItemAction, ListItem, button_item, text_item)
+                                                     ITEM_TEXT_VALUE_COLOR, RIGHT_ITEM_PADDING, ItemAction, ListItem, button_item,
+                                                     text_item)
   from openpilot.system.ui.widgets.scroller_tici import Scroller
 
   ROW_HEIGHT = 140
   PILL_FONT = 40
   PILL_PAD = 38
   PILL_MIN = 170
+  SUBTITLE_FONT = 36
+  SUBTITLE_GAP = 4
+  SUBTITLE_MIN = 26
+  SUBTITLE_ROOM_GAP = 24
   GREEN = rl.Color(51, 171, 76, 255)
   GRAY = rl.Color(57, 57, 57, 255)
   PRESSED = rl.Color(74, 74, 74, 255)
@@ -252,6 +295,16 @@ def build_menu(sections, store=None, can_edit: Callable[[], bool] | None = None,
       r = super().get_right_item_rect(item_rect)
       return rl.Rectangle(r.x, r.y, r.width, ROW_HEIGHT)
 
+    subtitle: Callable[[], str] | None = None   # small grey line under the title; empty text draws nothing
+
+    def get_item_height(self, font, max_width):
+      if not self.is_visible:
+        return 0
+      height = float(ROW_HEIGHT)
+      if self.description_visible:
+        height += self._html_renderer.get_total_height(max_width) + ITEM_PADDING
+      return height
+
     def _render(self, _):
       if not self.is_visible:
         return
@@ -262,7 +315,23 @@ def build_menu(sections, store=None, can_edit: Callable[[], bool] | None = None,
         rl.draw_texture_ex(self._icon_texture, rl.Vector2(x, self._rect.y + (ROW_HEIGHT - self._icon_texture.height) / 2), 0.0, 1.0, rl.WHITE)
         x += ICON_SIZE + ITEM_PADDING
       size = measure_text_cached(self._font, self.title, ITEM_TEXT_FONT_SIZE)
-      rl.draw_text_ex(self._font, self.title, rl.Vector2(x, self._rect.y + (ROW_HEIGHT - size.y) // 2), ITEM_TEXT_FONT_SIZE, 0, ITEM_TEXT_COLOR)
+      note = self.subtitle() if self.subtitle is not None else ""
+      if note:
+        # Fit the note between the title and the pills on the right (it shrinks a little rather than run under them).
+        room = self.get_right_item_rect(self._rect).x - x - SUBTITLE_ROOM_GAP
+        font_size = SUBTITLE_FONT
+        while font_size > SUBTITLE_MIN and measure_text_cached(self._font, note, font_size).x > room:
+          font_size -= 2
+        note_size = measure_text_cached(self._font, note, font_size)
+        top = self._rect.y + (ROW_HEIGHT - (size.y + SUBTITLE_GAP + note_size.y)) // 2
+        rl.draw_text_ex(self._font, self.title, rl.Vector2(x, top), ITEM_TEXT_FONT_SIZE, 0, ITEM_TEXT_COLOR)
+        rl.draw_text_ex(self._font, note, rl.Vector2(x, top + size.y + SUBTITLE_GAP), font_size, 0, ITEM_TEXT_VALUE_COLOR)
+      else:
+        rl.draw_text_ex(self._font, self.title, rl.Vector2(x, self._rect.y + (ROW_HEIGHT - size.y) // 2), ITEM_TEXT_FONT_SIZE, 0, ITEM_TEXT_COLOR)
+      if self.description_visible:
+        content_width = int(self._rect.width - ITEM_PADDING * 2)
+        self._html_renderer.render(rl.Rectangle(self._rect.x + ITEM_PADDING, self._rect.y + ROW_HEIGHT, content_width,
+                                                self._html_renderer.get_total_height(content_width)))
       if self.action_item:
         right = self.get_right_item_rect(self._rect)
         right.y = self._rect.y
@@ -280,8 +349,9 @@ def build_menu(sections, store=None, can_edit: Callable[[], bool] | None = None,
       self._store = store
       self._show_warning = show_warning or (lambda text: gui_app.push_widget(alert_dialog(tr(text))))
       self.navigation = MenuNavigation(sections, self._build_home, self._build_page_list, level=self.level)
-      self._header = button_item(lambda: tr(self.navigation.title), lambda: tr("BACK"),
-                                 callback=self.navigation.back, enabled=lambda: bool(self.navigation.path))
+      # Title only: Back is the top-left item of the settings sidebar (see SettingsLayout), as in 0.9.7.
+      # While the car is on every setting is locked; say so next to the title, where the user is looking.
+      self._header = text_item(lambda: tr(self.navigation.title), lambda: "" if self._can_edit() else tr(LOCKED_WHILE_DRIVING))
 
     # ---- Tuning Level control
     def level(self) -> int:
@@ -304,8 +374,11 @@ def build_menu(sections, store=None, can_edit: Callable[[], bool] | None = None,
       nav = self.navigation
       segmented = PillsAction(lambda: [(i, n) for i, n in enumerate(tl.LEVEL_NAMES)], self.choose_level,
                               selected=self.level, enabled=self._can_edit)
-      items = [attach_help(MenuRow(lambda: tr("Tuning Level"), icon_path("menu_tuning.png"), action_item=segmented),
-                           "menu.tuning_level")]
+      tuning = attach_help(MenuRow(lambda: tr("Tuning Level"), icon_path("menu_tuning.png"), action_item=segmented),
+                           "menu.tuning_level")
+      # The home page has no header: while the car is on every setting is locked, so say so under the first row.
+      tuning.subtitle = lambda: "" if self._can_edit() else tr(LOCKED_WHILE_DRIVING)
+      items = [tuning]
       for section in nav.sections:
         pills = PillsAction(lambda s=section: [(p.key, p.label) for p in nav.pills_of(s)], self._open_pill)
         row = MenuRow(lambda s=section: tr(s.title), icon_path(section.icon), action_item=pills)
@@ -326,6 +399,16 @@ def build_menu(sections, store=None, can_edit: Callable[[], bool] | None = None,
         items = [text_item(lambda: tr("No active features available"), "")]
       return Scroller(items, line_separator=True, spacing=0)
 
+    # ---- Back / top level (driven by the settings sidebar)
+    def can_go_back(self) -> bool:
+      return not self.navigation.at_top
+
+    def go_back(self) -> bool:
+      return self.navigation.back()
+
+    def reset_to_top(self) -> None:
+      self.navigation.reset()
+
     # ---- lifecycle
     def show_event(self):
       super().show_event()
@@ -336,6 +419,8 @@ def build_menu(sections, store=None, can_edit: Callable[[], bool] | None = None,
       self.navigation.hide_event()
       self._header.hide_event()
       super().hide_event()
+      # 0.9.7 closes every open sub-panel when the BogPilot panel is left: it always reopens at the top level.
+      self.navigation.reset()
 
     def _render(self, rect):
       if not self.navigation.path:

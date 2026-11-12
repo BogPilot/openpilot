@@ -13,7 +13,7 @@ def _stub_raylib_ui():
   """op-test-py312 has no pyray; stub enough for BogPilotVisualsLayout import."""
   import sys
   import types
-  # INT: never pollute sys.modules when the real raylib UI stack imports (native env).
+  # never pollute sys.modules when the real raylib UI stack imports (native env).
   try:
     import pyray  # noqa: F401
     import openpilot.system.ui.widgets.list_view  # noqa: F401
@@ -58,7 +58,18 @@ def _stub_raylib_ui():
       it.action_item._callback = callback
       it.action_item.toggle = it.action_item
       return it
+    class FakeButtonItem(FakeItem):
+      def __init__(self):
+        super().__init__()
+        self.level_gate = None
+        self._visible = True
+      def set_visible(self, v): self._visible = v
+      @property
+      def is_visible(self): return self._visible() if callable(self._visible) else self._visible
+    def button_item(title, button_text, description=None, callback=None, enabled=True):
+      return FakeButtonItem()
     m.toggle_item = toggle_item
+    m.button_item = button_item
     sys.modules[name := "openpilot.system.ui.widgets.list_view"] = m
   if "openpilot.system.ui.widgets.scroller_tici" not in sys.modules:
     m = types.ModuleType("openpilot.system.ui.widgets.scroller_tici")
@@ -136,17 +147,20 @@ class TestCatalog(unittest.TestCase):
 
   def test_visuals_menu_includes_new_and_existing(self):
     from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import VISUAL_KEYS, EXISTING_VISUAL_KEYS
-    from openpilot.selfdrive.ui.bogpilot.phase2_visuals_theme import NEW_VISUAL_KEYS
+    from openpilot.selfdrive.ui.bogpilot.phase2_visuals_theme import NEW_VISUAL_KEYS, SIDEBAR_TAP_KEYS
     self.assertEqual(EXISTING_VISUAL_KEYS, (
       "AdjacentLeadsUI", "BlindSpotPath", "BlindSpotMetrics", "OnroadDistanceButton",
-      "PedalsOnUI", "ScreenRecorder", "DriverCamera",
+      "PedalsOnUI", "DriverCamera",
     ))
     for k in EXISTING_VISUAL_KEYS:
       self.assertIn(k, VISUAL_KEYS)
     for k in NEW_VISUAL_KEYS:
-      self.assertIn(k, VISUAL_KEYS)
-    # plus "Bog to the Future" (BSMFlameTracks), the one row with no entry in the theme audit
-    self.assertEqual(len(VISUAL_KEYS), len(EXISTING_VISUAL_KEYS) + len(NEW_VISUAL_KEYS) + 1)
+      # the sidebar contents are saved by tapping the sidebar boxes, so those keys have no menu row
+      self.assertEqual(k in VISUAL_KEYS, k not in SIDEBAR_TAP_KEYS, k)
+    # plus "Bog to the Future" (BSMFlameTracks), the one row with no entry in the theme audit, plus the Confidence Ball (first row)
+    from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import DEVELOPER_KEYS
+    self.assertEqual(len(VISUAL_KEYS), len(EXISTING_VISUAL_KEYS) + len(NEW_VISUAL_KEYS) - len(SIDEBAR_TAP_KEYS) + 2 + len(DEVELOPER_KEYS))
+    self.assertEqual(VISUAL_KEYS[0], "ConfidenceBall")
     self.assertIn("BSMFlameTracks", VISUAL_KEYS)
 
 
@@ -190,6 +204,27 @@ class TestSidebarPolicy(unittest.TestCase):
 
 
 class TestUIStoreConsumer(unittest.TestCase):
+  _opened_window = False
+
+  @classmethod
+  def setUpClass(cls):
+    # BogPilotVisualsLayout needs gui_app fonts, which only exist while a window is open. Earlier test modules no longer leave
+    # their window open, so open one here when running headless and none is open (and close it again in tearDownClass).
+    import pyray as rl
+    from openpilot.system.ui.lib.application import gui_app
+    if os.getenv("RAYLIB_BACKEND") == "headless" and not rl.is_window_ready():
+      gui_app.init_window("visuals theme")
+      cls._opened_window = True
+
+  @classmethod
+  def tearDownClass(cls):
+    if cls._opened_window:
+      import pyray as rl
+      from openpilot.system.ui.lib.application import gui_app
+      if rl.is_window_ready():
+        gui_app.close()
+      cls._opened_window = False
+
   def setUp(self):
     from openpilot.common.bogpilot_store import ParamStore
     self.tmp = tempfile.mkdtemp(prefix="vis_theme_")
@@ -259,19 +294,24 @@ class TestUIStoreConsumer(unittest.TestCase):
     self.assertFalse(snap["BorderMetrics"])
     self.assertFalse(snap["ShowSpeedLimits"])
 
-  def test_swap_speed_graph_file_consumer(self):
+  def test_layout_toggles_file_consumer(self):
     from openpilot.selfdrive.ui.onroad.bogpilot.cluster_layout import layout_from_toggles
     from openpilot.selfdrive.ui.onroad.bogpilot.file_toggles import FileToggles
     lay = self.make()
-    lay._write("SwapSpeedGraph", False)
-    # read_param=None stub avoids importing Params/zmq in op-test-py312
+    # missing files keep the new defaults: graph off, speed row at the top
+    ft0 = FileToggles(path=self.tmp, clock=lambda: 0.0, read_param=lambda k: None)
+    d0 = layout_from_toggles(ft0.get)
+    self.assertFalse(d0.show_accel)
+    self.assertFalse(d0.lower_speed_box)
+    self.assertFalse(d0.swap)
+    lay._write("LowerSpeedLimitsBox", True)
+    lay._write("ShowAccelGraph", True)
     ft = FileToggles(path=self.tmp, clock=lambda: 0.0, read_param=lambda k: None)
-    self.assertFalse(ft.get("SwapSpeedGraph"))
-    self.assertFalse(layout_from_toggles(ft.get).swap)
-    lay._write("SwapSpeedGraph", True)
+    d = layout_from_toggles(ft.get)
+    self.assertTrue(d.show_accel and d.lower_speed_box and d.swap)
+    lay._write("LowerSpeedLimitsBox", False)
     ft2 = FileToggles(path=self.tmp, clock=lambda: 0.0, read_param=lambda k: None)
-    self.assertTrue(ft2.get("SwapSpeedGraph"))
-    self.assertTrue(layout_from_toggles(ft2.get).swap)
+    self.assertFalse(layout_from_toggles(ft2.get).lower_speed_box)
 
   def test_sidebar_prefs_consumers(self):
     from openpilot.selfdrive.ui.bogpilot.sidebar_metrics import device_readings, metric_visibility_from_params
@@ -298,9 +338,8 @@ class TestUIStoreConsumer(unittest.TestCase):
     self.typed["ShowCPU"] = "0"
     lay = self.make()
     self.assertFalse(lay._read("QOLVisuals"))
-    self.assertFalse(lay._read("ShowCPU"))
     self.assertEqual(self.typed["QOLVisuals"], "0")
-    self.assertEqual(self.typed["ShowCPU"], "0")
+    self.assertEqual(self.typed["ShowCPU"], "0")   # a saved sidebar choice is left alone too
 
 
 class TestBsmBorderStillGated(unittest.TestCase):

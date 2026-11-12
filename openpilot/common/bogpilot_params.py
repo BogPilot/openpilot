@@ -1,29 +1,29 @@
-"""BogPilot / FrogPilot params registry for openpilot 0.11.x (AGNOS 19.9).
+"""BogPilot params registry for openpilot 0.11.x (AGNOS 19.9).
 
-Single source of truth for every Params key that FrogPilot and BogPilot add on top of stock
+Single source of truth for every Params key that BogPilot adds on top of stock
 openpilot. Ported from BogPilot/openpilot@367e1fe (common/params.cc key list and
-frogpilot/common/frogpilot_variables.py frogpilot_default_params / misc_tuning_levels).
+bogpilot/common/bogpilot_variables.py bogpilot_default_params / misc_tuning_levels).
 
-BogPilot policy overrides on top of the 367e1fe FrogPilot table:
-  HolidayThemes default "0" (off); TuningLevel default "0" + Confirmed "0" (fresh-install unset; stream 5).
-Border/Sidebar metrics + SwapSpeedGraph at Minimal (stream 5); Model UI widths stay Advanced.
-Unconfirmed TuningLevel still reads as 3 at runtime via ParamStore.tuning_level(); AP1 profile no longer locks TuningLevel (stream 5).
+BogPilot policy overrides on top of the 367e1fe BogPilot table:
+  HolidayThemes default "0" (off); TuningLevel default "0" + Confirmed "0" (fresh-install unset).
+Border/Sidebar metrics + LowerSpeedLimitsBox at Minimal (shipping defaults); Model UI widths stay Advanced.
+Unconfirmed TuningLevel still reads as 3 at runtime via ParamStore.tuning_level(); AP1 profile no longer locks TuningLevel (shipping defaults).
 
 Each entry is  key: (flags, type, default, tuning_level, stock_default)
   flags          ParamKeyFlag names joined with "|" (same as the 0.9.7 reference)
   type           ParamKeyType name. BOOL = only ever used as a switch, INT/FLOAT = numeric,
                  BYTES = capnp blobs, STRING = everything else (incl. json text, so the
-                 FrogPilot json.loads(params.get(...)) call sites keep working)
-  default        exact 367e1fe default (frogpilot_default_params); None = not in that list.
-                 "" is kept as "" (FrogPilot's "unset") and gets no C++ default
-  tuning_level   FrogPilot tuning level (0 minimal .. 3 developer) or None
-  stock_default  value FrogPilot uses when the toggle's tuning level is hidden, or None
+                 BogPilot json.loads(params.get(...)) call sites keep working)
+  default        exact 367e1fe default (bogpilot_default_params); None = not in that list.
+                 "" is kept as "" (BogPilot's "unset") and gets no C++ default
+  tuning_level   BogPilot tuning level (0 minimal .. 3 developer) or None
+  stock_default  value BogPilot uses when the toggle's tuning level is hidden, or None
 
 openpilot/common/params_keys_bogpilot.h is generated from this table:
   python3 -m openpilot.common.bogpilot_params --write-header
 and openpilot/common/tests/test_bogpilot_params.py fails if the two drift apart.
 
-Policy pins (do not change without the owner's OK):
+Policy pins (do not change without a deliberate decision):
   * top speed (V_CRUISE_MAX) and the Tesla stalk-pull hold are car/controls constants, not params
   * OccViz and live YOLO are not params; they are BogPilot file toggles reserved default OFF
     (see openpilot/common/bogpilot_toggles.py)
@@ -32,9 +32,10 @@ Policy pins (do not change without the owner's OK):
 import os
 import sys
 
-# DeveloperHUD stays file-only under /data/params_bogpilot (stream 4/5); not registered here.
-# Volume keys (stream 7): AlertVolumeControl=0, *Volume=101 FrogPilot defaults — never AP1 mute (0).
+# DeveloperHUD stays file-only under /data/params_bogpilot (onroad UI); not registered here.
+# Volume keys (alert volumes): AlertVolumeControl=0, *Volume=101 BogPilot defaults — never AP1 mute (0).
 BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] = {
+  "AP1TapFromZeroMph": ("PERSISTENT", "INT", "15", 1, "15"),
   "AccelerationPath": ("PERSISTENT", "BOOL", "1", 2, "0"),
   "AccelerationProfile": ("PERSISTENT", "INT", "2", 0, "0"),
   "AdjacentLeadsUI": ("PERSISTENT", "BOOL", "1", 0, "0"),
@@ -96,6 +97,7 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "ColorToDownload": ("CLEAR_ON_MANAGER_START", "STRING", None, None, None),
   "Compass": ("PERSISTENT", "BOOL", "0", 1, "0"),
   "ConditionalExperimental": ("PERSISTENT", "BOOL", "1", 1, "0"),
+  "CruiseEngageDisengageChimes": ("PERSISTENT", "BOOL", "1", 0, "1"),
   "CurvatureData": ("PERSISTENT|DONT_LOG", "STRING", "", 2, ""),
   "CurveSpeedController": ("PERSISTENT", "BOOL", "1", 1, "0"),
   "CustomAlerts": ("PERSISTENT", "BOOL", "0", 0, "0"),
@@ -156,19 +158,19 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "ForceOnroad": ("CLEAR_ON_MANAGER_START", "BOOL", None, None, None),
   "ForceStops": ("PERSISTENT", "BOOL", "0", 2, "0"),
   "ForceTorqueController": ("PERSISTENT", "BOOL", "0", 3, "0"),
-  "FPSCounter": ("PERSISTENT", "BOOL", "1", 3, "0"),
-  "FrogPilotApiToken": ("PERSISTENT|DONT_LOG", "STRING", None, None, None),
-  "FrogPilotCarParams": ("CLEAR_ON_MANAGER_START|CLEAR_ON_ONROAD_TRANSITION", "BYTES", None, None, None),
-  "FrogPilotCarParamsPersistent": ("PERSISTENT", "BYTES", None, None, None),
-  "FrogPilotDongleId": ("PERSISTENT|DONT_LOG", "STRING", None, None, None),
-  "FrogPilotDrives": ("PERSISTENT", "INT", None, None, None),
-  "FrogPilotKilometers": ("PERSISTENT", "FLOAT", None, None, None),
-  "FrogPilotMinutes": ("PERSISTENT", "FLOAT", None, None, None),
-  "FrogPilotStats": ("PERSISTENT|DONT_LOG", "STRING", "", 0, ""),
-  "FrogPilotTelemetry": ("PERSISTENT", "STRING", "0", 4, "0"),
-  "FrogPilotToggles": ("CLEAR_ON_MANAGER_START", "STRING", None, None, None),
-  "FrogPilotTogglesUpdated": ("CLEAR_ON_MANAGER_START", "BOOL", None, None, None),
-  "FrogPilotTuningLevels": ("CLEAR_ON_MANAGER_START", "STRING", None, None, None),
+  "FPSCounter": ("PERSISTENT", "BOOL", "0", 3, "0"),
+  "BogPilotApiToken": ("PERSISTENT|DONT_LOG", "STRING", None, None, None),
+  "BogPilotCarParams": ("CLEAR_ON_MANAGER_START|CLEAR_ON_ONROAD_TRANSITION", "BYTES", None, None, None),
+  "BogPilotCarParamsPersistent": ("PERSISTENT", "BYTES", None, None, None),
+  "BogPilotDongleId": ("PERSISTENT|DONT_LOG", "STRING", None, None, None),
+  "BogPilotDrives": ("PERSISTENT", "INT", None, None, None),
+  "BogPilotKilometers": ("PERSISTENT", "FLOAT", None, None, None),
+  "BogPilotMinutes": ("PERSISTENT", "FLOAT", None, None, None),
+  "BogPilotStats": ("PERSISTENT|DONT_LOG", "STRING", "", 0, ""),
+  "BogPilotTelemetry": ("PERSISTENT", "STRING", "0", 4, "0"),
+  "BogPilotToggles": ("CLEAR_ON_MANAGER_START", "STRING", None, None, None),
+  "BogPilotTogglesUpdated": ("CLEAR_ON_MANAGER_START", "BOOL", None, None, None),
+  "BogPilotTuningLevels": ("CLEAR_ON_MANAGER_START", "STRING", None, None, None),
   "FrogsGoMoosTweak": ("PERSISTENT", "BOOL", "1", 2, "0"),
   "FullMap": ("PERSISTENT", "BOOL", "0", 2, "0"),
   "GasRegenCmd": ("PERSISTENT", "STRING", "1", 2, "0"),
@@ -224,7 +226,7 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "LongitudinalActuatorDelayStock": ("PERSISTENT", "FLOAT", "", 3, ""),
   "LongitudinalTune": ("PERSISTENT", "BOOL", "1", 0, "0"),
   "LongPitch": ("PERSISTENT", "BOOL", "1", 2, "0"),
-  "LoudBlindspotAlert": ("PERSISTENT", "BOOL", "0", 0, "0"),
+  "LoudBlindspotAlert": ("PERSISTENT", "BOOL", "1", 0, "0"),
   "LowVoltageShutdown": ("PERSISTENT", "FLOAT", "11.8", 3, "11.8"),
   "ManualUpdateInitiated": ("CLEAR_ON_MANAGER_START", "BOOL", None, None, None),
   "MapAcceleration": ("PERSISTENT", "BOOL", "0", 1, "0"),
@@ -280,7 +282,7 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "Offset6": ("PERSISTENT", "INT", "10", 0, "0"),
   "Offset7": ("PERSISTENT", "INT", "10", 0, "0"),
   "OneLaneChange": ("PERSISTENT", "BOOL", "1", 2, "0"),
-  "OnroadDistanceButton": ("PERSISTENT", "BOOL", "0", 0, "0"),
+  "OnroadDistanceButton": ("PERSISTENT", "BOOL", "1", 0, "0"),
   "OnroadDistanceButtonPressed": ("CLEAR_ON_MANAGER_START", "BOOL", None, None, None),
   "openpilotMinutes": ("PERSISTENT", "INT", "0", 0, "0"),
   "OSMDownloadBounds": ("PERSISTENT", "STRING", None, None, None),
@@ -361,7 +363,7 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "SLCConfirmationLower": ("PERSISTENT", "BOOL", "0", 0, "0"),
   "SLCFallback": ("PERSISTENT", "INT", "2", 1, "0"),
   "SLCLookaheadHigher": ("PERSISTENT", "INT", "0", 2, "0"),
-  "SLCLookaheadLower": ("PERSISTENT", "INT", "0", 2, "0"),
+  "SLCLookaheadLower": ("PERSISTENT", "INT", "5", 2, "0"),
   "SLCMapboxFiller": ("PERSISTENT", "BOOL", "1", 1, "0"),
   "SLCOverride": ("PERSISTENT", "INT", "1", 1, "0"),
   "SLCPriority": ("PERSISTENT", "STRING", "", 2, ""),
@@ -371,7 +373,7 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "SNGHack": ("PERSISTENT", "BOOL", "1", 2, "0"),
   "SoundToDownload": ("CLEAR_ON_MANAGER_START", "STRING", None, None, None),
   "SpeedLimitAccepted": ("CLEAR_ON_MANAGER_START", "BOOL", None, None, None),
-  "SpeedLimitChangedAlert": ("PERSISTENT", "BOOL", "0", 0, "0"),
+  "SpeedLimitChangedAlert": ("PERSISTENT", "BOOL", "1", 0, "0"),
   "SpeedLimitController": ("PERSISTENT", "BOOL", "1", 0, "0"),
   "SpeedLimitFiller": ("PERSISTENT", "BOOL", "0", 0, "0"),
   "SpeedLimits": ("PERSISTENT|DONT_LOG", "STRING", None, None, None),
@@ -420,7 +422,7 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "ToyotaDoors": ("PERSISTENT", "BOOL", "1", 0, "0"),
   "ToyotaDSUBypass": ("PERSISTENT", "BOOL", "0", 2, "0"),
   "TrainingVersion": ("PERSISTENT", "STRING", None, None, None),
-  "TuningLevel": ("PERSISTENT", "INT", "0", 0, "0"),  # BogPilot/stream5: fresh-install unset (Confirmed=0)
+  "TuningLevel": ("PERSISTENT", "INT", "0", 0, "0"),  # fresh-install unset (Confirmed=0)
   "TuningLevelConfirmed": ("PERSISTENT", "STRING", "0", 0, "0"),
   "TurnDesires": ("PERSISTENT", "BOOL", "0", 2, "0"),
   "UnlimitedLength": ("PERSISTENT", "BOOL", "1", 2, "0"),
@@ -448,9 +450,9 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "WheelToDownload": ("CLEAR_ON_MANAGER_START", "STRING", None, None, None),
 }
 
-# FrogPilot defaults for keys that already exist in stock openpilot. Stock keeps its own
-# flags/type/default in params_keys.h; FrogPilot's tuning machinery still needs these rows.
-FROGPILOT_STOCK_KEY_DEFAULTS: dict[str, tuple[str, int, str]] = {
+# BogPilot defaults for keys that already exist in stock openpilot. Stock keeps its own
+# flags/type/default in params_keys.h; BogPilot's tuning machinery still needs these rows.
+BOGPILOT_STOCK_KEY_DEFAULTS: dict[str, tuple[str, int, str]] = {
   "AlwaysOnDM": ("0", 0, "0"),
   "CarParamsPersistent": ("", 0, ""),
   "ExperimentalModeConfirmed": ("0", 0, "0"),
@@ -468,7 +470,7 @@ FROGPILOT_STOCK_KEY_DEFAULTS: dict[str, tuple[str, int, str]] = {
 }
 
 
-# 367e1fe frogpilot_variables.EXCLUDED_KEYS: never touched by DoToggleReset / DoToggleResetStock
+# 367e1fe bogpilot_variables.EXCLUDED_KEYS: never touched by DoToggleReset / DoToggleResetStock
 EXCLUDED_KEYS = frozenset({
   "AvailableModels", "AvailableModelNames", "CalibratedLateralAcceleration", "CalibrationProgress", "CarParamsPersistent",
   "CurvatureData", "ExperimentalLongitudinalEnabled", "KonikMinutes", "MapBoxRequests", "ModelDrivesAndScores", "ModelVersions",
@@ -476,10 +478,10 @@ EXCLUDED_KEYS = frozenset({
 })
 
 
-def frogpilot_defaults() -> list[tuple[str, str, int, str]]:
-  """(key, default, tuning_level, stock_default) rows, like FrogPilot's frogpilot_default_params."""
+def bogpilot_defaults() -> list[tuple[str, str, int, str]]:
+  """(key, default, tuning_level, stock_default) rows, like BogPilot's bogpilot_default_params."""
   rows = [(k, v[2], v[3], v[4]) for k, v in BOGPILOT_PARAMS.items() if v[3] is not None]
-  rows += [(k, v[0], v[1], v[2]) for k, v in FROGPILOT_STOCK_KEY_DEFAULTS.items()]
+  rows += [(k, v[0], v[1], v[2]) for k, v in BOGPILOT_STOCK_KEY_DEFAULTS.items()]
   return rows
 
 
@@ -490,11 +492,11 @@ def _cpp_escape(s: str) -> str:
 def render_header() -> str:
   lines = [
     "// Generated by openpilot/common/bogpilot_params.py --write-header. Do not edit by hand.",
-    "// FrogPilot / BogPilot params keys, included inside the keys table in params_keys.h.",
+    "// BogPilot params keys, included inside the keys table in params_keys.h.",
   ]
   for key, (flags, typ, default, _lvl, _stock) in BOGPILOT_PARAMS.items():
     fl = " | ".join(flags.split("|"))
-    # "" means "unset" in FrogPilot; no C++ default, so manager_init leaves it to the FrogPilot
+    # "" means "unset" in BogPilot; no C++ default, so manager_init leaves it to the BogPilot
     # defaults pass (system/manager/bogpilot_init.py), which writes the exact 367e1fe value.
     if not default:
       lines.append(f'    {{"{key}", {{{fl}, {typ}}}}},')

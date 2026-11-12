@@ -1,6 +1,6 @@
 """Observational port of own 0.9.7 stop/lead alerts; never controls the car.
 
-Source: 04d560f3 frogpilot_events.py, frogpilot_planner.py and
+Source: 04d560f3 bogpilot_events.py, bogpilot_planner.py and
 conditional_experimental_mode.py. Green means model-predicted release, NOT
 traffic-light recognition. Current model position/velocity support that source.
 """
@@ -13,8 +13,13 @@ ACTIVE_ALERT_ROWS = (
   ("LeadDepartingAlert", "Lead Departed Alert", "Alert when the tracked lead moves more than 1 m from its stopped distance at over 1 m/s while your car remains stopped."),
 )
 ACTIVE_ALERT_KEYS = tuple(row[0] for row in ACTIVE_ALERT_ROWS)
+CRUISE_CHIME_KEY = "CruiseEngageDisengageChimes"
+CRUISE_CHIME_ROW = (CRUISE_CHIME_KEY, "Cruise Engage and Disengage Chimes",
+                    "Play the openpilot engage and disengage chimes when cruise turns on or off. Turn this off if the car already chimes on its own.")
+ALERT_PAGE_KEYS = (*ACTIVE_ALERT_KEYS, CRUISE_CHIME_KEY)
 FRESH_DEFAULTS = dict.fromkeys(ACTIVE_ALERT_KEYS, True)
-OMITTED_ALERT_KEYS = ("GoatScream", "LoudBlindspotAlert", "SpeedLimitChangedAlert")
+# LoudBlindspotAlert and SpeedLimitChangedAlert live in phase2_driver_alerts.py (fresh install ON, a saved choice wins).
+OMITTED_ALERT_KEYS = ("GoatScream",)
 # INT must keep these out of AP1 profile writes so saved OFF survives marker cycles.
 AP1_NEVER_WRITE_KEYS = ACTIVE_ALERT_KEYS
 # Audio contract (no schema change): AudibleAlert.prompt -> warning.wav once via PromptVolume.
@@ -259,9 +264,24 @@ def create_alerts_layout(store=None):
   from openpilot.system.ui.widgets.scroller_tici import Scroller
   from openpilot.system.ui.lib.multilang import tr
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
+  from openpilot.selfdrive.ui.bogpilot.phase2_driver_alerts import DRIVER_ALERT_ROWS, read_enabled as read_driver_enabled
   if store is None:
     from openpilot.common.bogpilot_store import ParamStore
     store = ParamStore()
+
+  DRIVER_ALERT_ROWS_KEYS = tuple(row[0] for row in DRIVER_ALERT_ROWS)
+
+  def driver_row_visible(key):
+    """0.9.7 capability gates: the loud alert needs a car that reports blind spot monitoring, the speed limit alert
+    needs the Speed Limit Controller. Anything unknown hides the row (no dormant switch)."""
+    try:
+      if key == "LoudBlindspotAlert":
+        from openpilot.selfdrive.ui.onroad.bogpilot.bsm_state import has_bsm
+        from openpilot.selfdrive.ui.ui_state import ui_state
+        return has_bsm(ui_state.CP)
+      return store.get_bool("SpeedLimitController")
+    except Exception:
+      return False
 
   class BogPilotAlertsLayout(Widget):
     def __init__(self):
@@ -271,6 +291,18 @@ def create_alerts_layout(store=None):
         self.items[key] = toggle_item(lambda t=title: tr(t), lambda d=description: tr(d), read_enabled(store, key),
                                       callback=lambda state, k=key: self.write(k, state))
         attach_help(self.items[key], key)
+      for key, title, description in DRIVER_ALERT_ROWS:
+        self.items[key] = toggle_item(lambda t=title: tr(t), lambda d=description: tr(d), read_driver_enabled(store, key),
+                                      callback=lambda state, k=key: self.write(k, state))
+        self.items[key].set_visible(lambda k=key: driver_row_visible(k))
+        attach_help(self.items[key], key)
+      key, title, description = CRUISE_CHIME_ROW
+      self.items[key] = toggle_item(lambda t=title: tr(t), lambda d=description: tr(d),
+                                    store.get_bool(key, default=True),
+                                    callback=lambda state, k=key: self.write(k, state))
+      from openpilot.selfdrive.selfdrived.cruise_chimes import tesla_ap1_visible
+      self.items[key].set_visible(tesla_ap1_visible)
+      attach_help(self.items[key], key)
       self.scroller = Scroller(list(self.items.values()), line_separator=True, spacing=0)
 
     def write(self, key, state):
@@ -281,7 +313,7 @@ def create_alerts_layout(store=None):
       super().show_event()
       self.scroller.show_event()
       for key, item in self.items.items():
-        item.action_item.set_state(read_enabled(store, key))
+        item.action_item.set_state(read_driver_enabled(store, key) if key in DRIVER_ALERT_ROWS_KEYS else read_enabled(store, key))
 
     def _render(self, rect):
       self.scroller.render(rect)

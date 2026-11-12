@@ -1,0 +1,146 @@
+# Legacy Tesla (0.11.x): divergences from the reference forks
+
+References: BogPilot 0.9.7 (`bogpilot-tesla`, `04d560f3e`), Tinkla / BogGyver openpilot (`501c7de91b59`) and
+NotAutopilot (NAP, `e99f4dc75088`). Each entry records where this tree behaves differently from them and why.
+Recorded disagreements only where the cited files were read. No speculation.
+
+## Driver alerts: steerSaturated ("Turn Exceeds Steering Limit")
+- Platforms: all (generic selfdrived).
+- Reference behavior: BogPilot 0.9.7 `selfdrive/controls/controlsd.py` raises the alert when lateral control is active,
+  there was no steering press in the last 2 s, the car is not a notCar, and the turn is undershooting while saturated.
+  There is no openpilot-state gate. Tinkla `selfdrive/controls/controlsd.py` also has no override gate.
+  NAP: no Python producer of this alert.
+- Our behavior: the same gate as BogPilot 0.9.7 (`steer_saturated_alert_allowed` in
+  `openpilot/selfdrive/selfdrived/selfdrived.py`). The alert still fires during an accelerator-only override.
+- Why: not a divergence. Limit steer-saturated suppression to driver steering input, as 0.9.7 does.
+- Safety-relevant: yes; matches the stricter reference posture.
+- Tests: `openpilot/selfdrive/selfdrived/tests/test_steer_saturated_override.py`.
+- Credits: BogPilot 0.9.7; Tinkla/BogGyver.
+
+## Longitudinal: Experimental Mode with a known speed limit
+- Platforms: all with openpilot longitudinal.
+- Reference behavior: BogPilot 0.9.7 `selfdrive/controls/controlsd.py`: with CEM or the speed-limit fallback set to
+  Experimental, the planner's flag replaces the driver's Experimental toggle.
+- Our behavior: `EXPERIMENTAL_POLICY = "or"` (`openpilot/selfdrive/controls/lib/phase3_speed_control.py`): a known speed
+  limit never turns off the driver's Experimental toggle. "replace" stays selectable.
+- Why: keep the driver's explicit Experimental choice when a speed limit is known.
+- Safety-relevant: low. No panda limit, gas/brake edge or controls_allowed change.
+- Tests: `openpilot/selfdrive/controls/tests/test_phase3_speed_control.py`, `test_phase3_speed_control_wiring.py`.
+- Credits: BogPilot 0.9.7.
+
+## Curve speed control: hold the cap through the curve
+- Platforms: AP1 (`openpilot/selfdrive/controls/lib/ap1_curve_speed.py`).
+- Reference behavior: BogPilot 0.9.7 curve speed controller (FrogPilot lineage).
+- Our behavior: the curve cap is held for `CSC_HOLD_S` after the curve is no longer detected, is not raised while
+  already capping, and starts on a re-engage inside a curve. Output never exceeds the driver's set speed.
+- Why: keep the curve cap until the curve ends instead of returning to the speed-limit target mid-curve.
+- Safety-relevant: yes, more conservative (only lowers or holds speed longer). Blinker suspension unchanged.
+- Tests: `openpilot/selfdrive/controls/tests/test_ap1_curve_speed_planner.py`.
+- Credits: BogPilot 0.9.7.
+
+## Onroad UI: stock lead chevron with RedesignUI
+- Platforms: all (onroad UI only; not the Tesla instrument cluster).
+- Reference behavior: BogPilot 0.9.7 draws the lead chevron unless the user turns on `HideLeadMarker`.
+- Our behavior: with RedesignUI on, the stock chevron is not drawn; the lock-on box is the lead indicator
+  (`openpilot/selfdrive/ui/onroad/bogpilot/hud_compose.py`).
+- Why: avoid a duplicate or stale chevron under the lock-on box.
+- Safety-relevant: minor. Not a warning; stock warnings are not hidden.
+- Tests: `openpilot/selfdrive/ui/onroad/bogpilot/tests/test_hud_compose.py`.
+- Credits: BogPilot 0.9.7.
+
+## Panda safety (Pre-AP): stalk message 0x45 (STW_ACTN_RQ) is cancel-only on TX
+- Platforms: Pre-AP Model S (`TESLA_FLAG_PREAP` on SAFETY_TESLA, `opendbc_repo/opendbc/safety/modes/tesla_preap.h`).
+- Reference behavior: NAP (opendbc `cc39c7fa252e`) `opendbc/safety/modes/tesla_preap.h` whitelists 0x45 on bus 0
+  (line 589) and `tesla_preap_tx_hook` (lines 458-550) has no 0x45 content check, so any lever value can be sent.
+  BogPilot `bogpilot-na-preap` (`568fea947`) `panda/board/safety/safety_tesla_preap.h` is the same: whitelisted
+  (line 80) with no 0x45 check in `tesla_preap_tx_hook` (lines 431-493). Tinkla / BogGyver (panda `f7751e4cf54d`)
+  `board/safety/safety_tesla.h` whitelists 0x45 for Pre-AP (line 169); its cancel-only check (lines 1113-1121) is
+  commented out and applied only with AP hardware.
+- Our behavior: `tesla_preap_tx_hook` rejects any 0x45 frame whose lever field (`data[0] & 0x3F`) is not 1 (cancel)
+  (lines 219-224), and 0x45 is whitelisted on bus 0 only (line 261). Engage stays a driver stalk pull read on RX.
+- Why: openpilot never needs to send anything but cancel on the stalk message, so the panda blocks the rest.
+- Safety-relevant: yes; stricter than all three references. Keep it.
+- Tests: `opendbc_repo/opendbc/safety/tests/test_tesla_preap.py` (`test_stalk_is_cancel_only`).
+- Credits: BogPilot `bogpilot-na-preap`; Tinkla/BogGyver; NAP.
+
+## Onroad UI: confidence ball on the big (C3X) driving screen (D-CB1)
+- Platforms: all (onroad UI only; not the Tesla instrument cluster).
+- Reference behavior: stock 0.11.2 has the ball only on the comma four UI (`selfdrive/ui/mici/onroad/confidence_ball.py`);
+  the big UI `selfdrive/ui/onroad/augmented_road_view.py` has none. BogPilot 0.9.7 adds it to the C3X Qt screen
+  (`frogpilot/ui/qt/onroad/confidence_ball.h`, `selfdrive/ui/qt/onroad/onroad_home.cc`).
+- Our behavior: the stock file `openpilot/selfdrive/ui/onroad/augmented_road_view.py` draws the ball after the status
+  border, then the alert in a deferred tail (`HudComposer.begin_frame` / `render_tail` in
+  `openpilot/selfdrive/ui/onroad/bogpilot/hud_compose.py`). Both scissor pairs and the blind-spot border pairs end in
+  `finally`. A full-screen alert keeps the previous order and the ball is not drawn.
+- Why: give the C3X the 0.9.7 confidence ball without changing what the alert covers.
+- Safety-relevant: display only; the alert is still the last thing drawn and is drawn even when an earlier renderer raises.
+- Tests: `openpilot/selfdrive/ui/onroad/bogpilot/tests/test_confidence_ball.py`.
+- Credits: comma.ai openpilot (MIT) for the original ball; BogPilot 0.9.7 for the C3X port.
+
+## Onroad UI: confidence ball drawn under alerts (D-CB2)
+- Reference behavior: BogPilot 0.9.7 raises the ball widget above `OnroadAlerts` (`onroad_home.cc`, `confidence_ball.h`
+  `raise()`), so it can cover the edge of a full-screen alert.
+- Our behavior: every alert paints over the ball, and the ball is hidden while a full-screen alert is showing.
+- Why: IC/onroad changes must never hide stock alerts. Stricter than the reference.
+- Safety-relevant: yes; stricter.
+- Tests: `test_confidence_ball.py` (view order, full-alert order).
+- Credits: BogPilot 0.9.7.
+
+## Settings: confidence ball rows (D-CB3)
+- Reference behavior: BogPilot 0.9.7 has one Off / Left / Right control (`frogpilot/ui/qt/offroad/visual_settings.cc`).
+- Our behavior: two rows at the top of Appearance, "Confidence Ball" (on/off, default on) and "Confidence Ball Side"
+  (Left / Right, default Left), same files `/data/params_bogpilot/ConfidenceBall` and `ConfidenceBallSide`;
+  reset returns the side to Left.
+- Why: raylib list items have no three-way row.
+- Safety-relevant: no.
+- Tests: `test_confidence_ball.py`, `openpilot/selfdrive/ui/tests/test_bogpilot_nesting.py`.
+- Credits: BogPilot 0.9.7.
+
+## Onroad UI: confidence ball edge switch (D-CB4)
+- Reference behavior: BogPilot 0.9.7 moves the ball to the other edge while the map panel covers its side.
+- Our behavior: 0.11.2 has no map panel here; the ball moves to the other edge while a blind-spot flame track burns on
+  its side, and hides if both sides burn.
+- Why: never paint over a flame track.
+- Safety-relevant: no.
+- Tests: `test_confidence_ball.py`.
+- Credits: BogPilot 0.9.7.
+
+## Onroad UI: confidence ball always shown, engaged palette only while engaged (D-CB6)
+- Reference behavior: stock (`mici/onroad/confidence_ball.py`) and BogPilot 0.9.7 (`confidence_ball.h`) drive the ball to
+  -0.5 while disengaged, so it slides out below the screen; 0.9.7 keeps the widget visible but the ball is off screen.
+  0.9.7 uses the engaged palette for every status except disengaged / override.
+- Our behavior: shown in every state while the toggle is on; the height always follows the model. The engaged palette
+  (green / orange / red) is used only while ENGAGED. OVERRIDE uses the stock white-to-grey ball and DISENGAGED the stock
+  dark ball, so the colour never reads as openpilot active; engagement is shown by the border. Missing model data:
+  bottom position, stock red only while engaged.
+- Why: owner request (always visible), with the colour rule required by the safety review.
+- Safety-relevant: display only; no control path reads it.
+- Tests: `test_confidence_ball.py` (always shown, never engaged palette when not engaged).
+- Credits: comma.ai openpilot (MIT); BogPilot 0.9.7.
+
+## Settings: gated list_view actions (D2)
+- Platforms: all (settings UI only).
+- Reference behavior: stock v0.11.2 dual- and multiple-button list actions stay enabled and accept taps even when the row is locked.
+- Our behavior: UI gated actions subclass the stock dual- and multiple-button actions. Stock `list_view.py` is unchanged. Locked rows are dimmed and ignore taps. The SLC and weather choice rows re-read the stored value. Unlocked rows behave as stock. Locked writes are still refused onroad by the existing editor checks.
+- Why: locked BogPilot settings rows should look and act locked, without changing the stock list widget.
+- Safety-relevant: no. UI only; no control or panda path.
+- Tests: `openpilot/selfdrive/ui/tests/test_bogpilot_gated_actions.py`.
+- Credits: stock v0.11.2; the rc7 locked-row audit. Full write-up: `docs/tesla/UI_GATED_ACTIONS.md`.
+
+## Cluster / DBC: AP1 AutopilotStatus (0x399) bits 27-36 follow BogPilot, not Tinkla
+- Platforms: AP1 and pre-AP (legacy `tesla_ap1_can.dbc` `AutopilotStatus`, address 921 / 0x399, DLC 8).
+- Reference behavior: BogPilot bogpilot-tesla `04d560f3` and na-preap `568fea947` `tesla_can.dbc:669` `AutopilotStatus` are byte-identical to this tree's `tesla_ap1_can.dbc:669` (every start|len@endian, sign, scale, and signal name; packing at `:670-695`). In bits 27-36 that layout is `DAS_summonFwdLeashReached` 28|1, `DAS_summonRvsLeashReached` 29|1, `DAS_sideCollisionAvoid` 30|2, `DAS_sideCollisionWarning` 32|2, `DAS_sideCollisionInhibit` 34|1, `DAS_csaState` 35|2 (all Intel `@1+`). Tinkla opendbc `9c0b6fe3` `tesla_can.dbc:649` uses the same address under the name `DAS_status`, but bits 27-36 differ (`DAS_lssState` 29|3, shifted side-collision, and no `DAS_csaState` at 35|2).
+- Our behavior: the port follows the BogPilot / na-preap `AutopilotStatus` packing, not the Tinkla mid-frame packing, and not Model 3/Y `DAS_status` at 0x39b.
+- Why: keep the legacy 0x399 cluster status layout that matches both BogPilot revisions.
+- Safety-relevant: yes; cluster status, side-collision, and CSA bits.
+- Tests: see `can_rc8_noxnor_names.md` (layout compared at the cited DBC lines).
+- Credits: BogPilot bogpilot-tesla `04d560f3`; na-preap `568fea947`; Tinkla compared at opendbc `9c0b6fe3`.
+
+## Gas press: level block, no panda edge drop
+Panda safety does not end the session when the accelerator is pressed. While the pedal is pressed, longitudinal commands are blocked (longitudinal allowed = controls allowed and gas not pressed). Steering control continues, and controls come back without a new engage once the pedal is released. Ending the session on a gas press is a host-side option, the disengage-on-accelerator setting, which is off by default.
+Pre-AP: the pedal-interceptor enable (0x551) is rejected while gas is pressed. AP1: accel requests (0x2b9) are blocked while gas is pressed.
+Reference: matches NotAutopilot (NAP) and current upstream panda safety, where the gas-edge drop was removed (commaai/opendbc #2232). One legacy reference fork drops controls on a gas edge in its panda, but only when the disengage-on-accelerator setting is on, and its host also disengages in that case. Panda-side enforcement differs; the outcome the driver sees is the same. That fork is not used as the reference for this behavior, by project decision.
+Tests: TX blocking while gas is pressed is covered for pre-AP and AP1. Asserting that controls stay allowed after a gas press is covered for pre-AP and AP1.
+
+## Pre-AP stock cruise: host gas-pressed threshold
+On pre-AP cars using stock cruise (no pedal interceptor), the host treats the accelerator as pressed only above 2% pedal position (DI_pedalPos raw > 5), so pedal-position noise doesn't cause sticky overrides. Reference: NotAutopilot (NAP) preap carstate, PEDAL_DI_PRESSED = 2. Panda safety is unchanged: any nonzero pedal reading still blocks longitudinal commands. AP1 and the pedal-interceptor path are unchanged.

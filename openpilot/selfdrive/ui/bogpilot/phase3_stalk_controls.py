@@ -8,6 +8,7 @@ TITLES = {
   'twist_follow': 'Stalk Twist Following Distance',
   'experimental_pull': 'Long Pull: Experimental Mode',
   'experimental_push': 'Long Push: Experimental Mode',
+  'tip_round': 'Round Set Speed Tips',
 }
 DESCRIPTIONS = {
   'twist_follow': 'Use the AP1 distance-stalk twist detent for following time. Off uses the normal driving profile. '
@@ -16,6 +17,8 @@ DESCRIPTIONS = {
                        'The engagement pull itself never flips modes. Stock resume/set-speed behavior is unchanged.',
   'experimental_push': 'While already disengaged, hold the stalk away to flip Experimental Mode once. '
                        'A push that begins engaged still cancels immediately and never flips modes on that hold.',
+  'tip_round': 'Round the set speed to a whole mph (km/h with metric units) before each stalk tip. A 14.8 mph set tipped up by five '
+               'goes to 20, not 15. Off tips from the exact set. Does not change engagement, cancel, or what a pull does.',
 }
 
 
@@ -48,7 +51,8 @@ def create_stalk_controls_layout(store=None):
   from openpilot.selfdrive.ui.ui_state import ui_state
   from openpilot.system.ui.lib.multilang import tr
   from openpilot.system.ui.widgets import Widget
-  from openpilot.system.ui.widgets.list_view import ListItem, DualButtonAction, toggle_item, text_item
+  from openpilot.system.ui.widgets.list_view import ListItem, toggle_item, text_item
+  from openpilot.selfdrive.ui.bogpilot.gated_actions import GatedDualButtonAction
   from openpilot.system.ui.widgets.scroller_tici import Scroller
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
 
@@ -62,9 +66,9 @@ def create_stalk_controls_layout(store=None):
                                      enabled=lambda k=key: self.model.enabled(k)) for key in TITLES}
       self.delays = {}
       for key, label in [('pull_hold_s', 'Experimental Pull Hold'), ('push_hold_s', 'Experimental Push Hold')]:
-        action = DualButtonAction('−0.01 s', '+0.01 s',
-                                  lambda k=key: self.step(k, -1), lambda k=key: self.step(k, 1),
-                                  enabled=lambda k=key: self.model.enabled(k))
+        action = GatedDualButtonAction('−0.01 s', '+0.01 s',
+                                       lambda k=key: self.step(k, -1), lambda k=key: self.step(k, 1),
+                                       enabled=lambda k=key: self.model.enabled(k))
         self.delays[key] = ListItem(title=lambda k=key, l=label: f'{tr(l)}: {getattr(self.settings, k):.2f} s',
                                    description=tr('1.10–5.00 seconds, in 0.01-second steps. Default 1.23 seconds. '
                                                   'Only Experimental Mode timing changes; normal engagement and cancel stay fixed.'),
@@ -73,7 +77,11 @@ def create_stalk_controls_layout(store=None):
                             tr('Pre-AP double-pull is not supported by this build. No engagement timing is adjustable here.'))
       for key, item in {**self.toggles, **self.delays, 'standard_engage_cancel_fixed': self.note}.items():
         attach_help(item, key)
-      self.scroller = Scroller([self.toggles['twist_follow'], self.toggles['experimental_pull'], self.delays['pull_hold_s'],
+      # An empty or short page says why (no car / wrong car / longitudinal control off) instead of showing nothing.
+      from openpilot.selfdrive.ui.bogpilot import menu_locks
+      note = menu_locks.cached(lambda: menu_locks.page_note(ui_state.CP, "stalk_controls", menu_locks.effective_disable_toggle()))
+      self.note_row = menu_locks.note_row(note, "Not all rows are shown")
+      self.scroller = Scroller([self.note_row, self.toggles['twist_follow'], self.toggles['tip_round'], self.toggles['experimental_pull'], self.delays['pull_hold_s'],
                                 self.toggles['experimental_push'], self.delays['push_hold_s'], self.note],
                                line_separator=True, spacing=0)
 

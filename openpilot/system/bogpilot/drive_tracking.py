@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""BogPilot drive stats producer: DriveHistory ledger + FrogPilotStats counters.
+"""BogPilot drive stats producer: DriveHistory ledger + BogPilotStats counters.
 
-Port of frogpilot_tracking @ 367e1fe / bogpilot_trackd from the AGNOS 19.9 drive-stats
+Port of bogpilot_tracking @ 367e1fe / bogpilot_trackd from the AGNOS 19.9 drive-stats
 lane, adapted for feae (stock-default, no AOL runtime, no model switcher).
 
 Fresh install:
-  - FrogPilotStats gets valid zero counters so the home card shows 0, not unavailable/'?'.
+  - BogPilotStats gets valid zero counters so the home card shows 0, not unavailable/'?'.
   - DriveHistory is created as {}.
 Existing valid history/counters are never overwritten with zeros.
 Corrupt stores are copied to a timestamped .corrupt backup before recovery.
@@ -23,6 +23,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from openpilot.common import bogpilot_toggles as _bt
+from openpilot.system.bogpilot.legacy_migration import translate_stats_keys
 
 DT_MDL = 0.05
 DRIVE_HISTORY_DAYS = 14
@@ -36,9 +37,9 @@ DISABLED, OVERRIDING = "disabled", "overriding"
 ACTIVE_STATES = ("enabled", "softDisabling", "overriding")
 
 ZERO_COUNTERS = {
-  "FrogPilotDrives": 0,
-  "FrogPilotMeters": 0.0,
-  "FrogPilotSeconds": 0.0,
+  "BogPilotDrives": 0,
+  "BogPilotMeters": 0.0,
+  "BogPilotSeconds": 0.0,
 }
 
 
@@ -203,6 +204,7 @@ def load_stats(raw) -> dict:
     stats = {}
     corrupt = True
 
+  stats = translate_stats_keys(stats)  # counters saved before the rename (FrogPilotDrives/Meters/Seconds)
   stats.setdefault("AOLTime", stats.get("TotalAOLTime", 0))
   stats.setdefault("LateralTime", stats.get("TotalLateralTime", 0))
   stats.setdefault("LongitudinalTime", stats.get("TotalLongitudinalTime", 0))
@@ -210,9 +212,9 @@ def load_stats(raw) -> dict:
   stats = {
     key: ({k: v for k, v in value.items() if k.lower() != "unknown"} if isinstance(value, dict) else value)
     for key, value in stats.items()
-    if key.lower() != "unknown"  # INT: never drop saved keys (review MAJOR 3a)
+    if key.lower() != "unknown"  # never drop saved keys
   }
-  # INT (review MAJOR 3b): missing counters become zero; existing counters are never overwritten.
+  # missing counters become zero; existing counters are never overwritten.
   for _k in ("Disengages", "Engages", "FrogChirps", "FrogSqueaks", "Overrides"):
     stats.setdefault(_k, 0)
   stats.setdefault("ResetStats", True)
@@ -225,7 +227,7 @@ def load_stats(raw) -> dict:
     else:
       # coerce valid numbers; leave bad values for the next save after setdefault-like repair
       try:
-        if key == "FrogPilotDrives":
+        if key == "BogPilotDrives":
           stats[key] = int(stats[key])
           if stats[key] < 0:
             stats[key] = 0
@@ -250,7 +252,7 @@ def ensure_stats_stores(params, *, history_path: Path | None = None) -> dict:
 
   raw = None
   try:
-    raw = params.get("FrogPilotStats")
+    raw = params.get("BogPilotStats")
   except Exception:
     raw = None
 
@@ -262,9 +264,9 @@ def ensure_stats_stores(params, *, history_path: Path | None = None) -> dict:
       # Params file path when available
       get_path = getattr(params, "get_param_path", None)
       if callable(get_path):
-        p = Path(get_path("FrogPilotStats"))
+        p = Path(get_path("BogPilotStats"))
         if p.exists():
-          _backup_corrupt(p, "FrogPilotStats JSON corrupt on ensure")
+          _backup_corrupt(p, "BogPilotStats JSON corrupt on ensure")
     except Exception:
       pass
 
@@ -272,7 +274,7 @@ def ensure_stats_stores(params, *, history_path: Path | None = None) -> dict:
   # Always persist after ensure so a fresh missing key becomes valid zero JSON.
   raw_out = {k: v for k, v in stats.items() if not k.startswith("_")}
   text = json.dumps(raw_out)
-  # INT (review MAJOR 3c): rewrite only when the store is missing/corrupt/lacks a required key.
+  # rewrite only when the store is missing/corrupt/lacks a required key.
   unchanged = False
   if not corrupt and raw not in (None, "", b""):
     try:
@@ -282,9 +284,9 @@ def ensure_stats_stores(params, *, history_path: Path | None = None) -> dict:
       unchanged = False
   if not unchanged:
     try:
-      params.put("FrogPilotStats", text, block=True)
+      params.put("BogPilotStats", text, block=True)
     except TypeError:
-      params.put("FrogPilotStats", text)
+      params.put("BogPilotStats", text)
 
   return {"history": history_status, "stats": "recovered" if corrupt else ("created" if raw in (None, "", b"") else "preserved")}
 
@@ -296,7 +298,7 @@ class DriveTracker:
     if initialize_stores:
       ensure_stats_stores(params, history_path=history_path)
 
-    self.stats = load_stats(params.get("FrogPilotStats"))
+    self.stats = load_stats(params.get("BogPilotStats"))
     self.stats.pop("_corrupt_source", None)
     self._save(block=True)
 
@@ -319,9 +321,9 @@ class DriveTracker:
       payload.setdefault(key, zero)
     raw = json.dumps(payload)
     try:
-      self.params.put("FrogPilotStats", raw, block=block)
+      self.params.put("BogPilotStats", raw, block=block)
     except TypeError:
-      self.params.put("FrogPilotStats", raw)
+      self.params.put("BogPilotStats", raw)
 
   def update(self, now, time_validated, car_state, selfdrive_state, car_control, aol_enabled=False):
     # aol_enabled accepted for API compat but AOL core is out of runtime; ignore unless caller passes True.
@@ -357,7 +359,7 @@ class DriveTracker:
     if selfdrive_state.experimentalMode:
       _add(s, "ExperimentalModeTime", DT_MDL)
 
-    _add(s, "FrogPilotMeters", distance)
+    _add(s, "BogPilotMeters", distance)
     self.history_meters += distance
 
     if car_control.latActive:
@@ -385,7 +387,7 @@ class DriveTracker:
     s = self.stats
     if time_validated and now.month != s.get("Month"):
       s.update({"CurrentMonthsMeters": 0, "Month": now.month})
-    _add(s, "FrogPilotSeconds", self.tracked_time)
+    _add(s, "BogPilotSeconds", self.tracked_time)
     _add(s, "EngagedSeconds", self.engaged_time)
     _add(s.setdefault("ModelTimes", {}), MODEL_NAME, self.tracked_time)
     _add(s, "TrackedTime", self.tracked_time)
@@ -407,7 +409,7 @@ class DriveTracker:
     self.engaged_time = 0.0
 
     if new_drive:
-      _add(s, "FrogPilotDrives", 1)
+      _add(s, "BogPilotDrives", 1)
       self.drive_added = True
     self._save()
 
@@ -425,7 +427,7 @@ def main():
 
     params = Params()
     tracker = DriveTracker(params)
-    # AOL / frogpilotCarState intentionally omitted (AOL blocked on stock-default build).
+    # AOL / bogpilotCarState intentionally omitted (AOL blocked on stock-default build).
     services = ["modelV2", "carState", "selfdriveState", "carControl"]
     sm = messaging.SubMaster(services, poll="modelV2")
   except Exception:

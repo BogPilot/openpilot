@@ -115,7 +115,9 @@ def test_profile_real_repeated_boot_preserves_choices(monkeypatch, tmp_path):
   assert (tmp_path / "AP1DefaultsApplied").exists()
   assert p.values["EngageVolume"] == 53
   original = dict(p.values)
-  assert lifecycle.after_defaults(p, file_root=tmp_path).events[-1:] == ["ap1:0"]
+  second = lifecycle.after_defaults(p, file_root=tmp_path)
+  assert "ap1:0" in second.events
+  assert "legacy-slc:0" in second.events  # AP1 Model S is ignored by the legacy-SLC hook
   assert p.values == original
   assert p.values["AlwaysOnLateral"] in (False, "0")
   assert "TuningLevel" not in p.values and "TuningLevelConfirmed" not in p.values
@@ -124,12 +126,13 @@ def test_profile_real_repeated_boot_preserves_choices(monkeypatch, tmp_path):
 def test_profile_non_ap1_no_writes(tmp_path):
   p = MemoryParams()
   result = lifecycle.after_defaults(p, file_root=tmp_path)
-  assert result.events[-1:] == ["ap1:0"]
+  assert "ap1:0" in result.events
+  assert "legacy-slc:0" in result.events  # no CarModel, so the hook writes nothing
   # Device/Screen defaults are the shipped 0.9.7 table, so startup writes nothing for them
-  assert {k: v for k, v in p.values.items() if k != "FrogPilotStats"} == {}   # drive-stats initialises FrogPilotStats
+  assert {k: v for k, v in p.values.items() if k != "BogPilotStats"} == {}   # drive-stats initialises BogPilotStats
   # Only the assembled w8 one-shot screensaver default-off migration marker may exist; no AP1 profile writes.
   written = {path.name for path in tmp_path.iterdir()}
-  assert written <= {"ScreensaverDefaultOff1", "DriveHistory"}   # DriveHistory: drive-stats store init
+  assert written <= {"ScreensaverDefaultOff1", "AccelGraphDefaultOff1", "DriveHistory"}   # DriveHistory: drive-stats store init; AccelGraphDefaultOff1: one-shot UI layout migration marker
   assert ("screensaver:migrated" in result.events) == ("ScreensaverDefaultOff1" in written)
 
 
@@ -145,14 +148,14 @@ def test_profile_optional_storage_unavailable(tmp_path):
 
 def test_policy_and_sounds():
   from openpilot.common.bogpilot_shipping_defaults import PARAM_OVERRIDES, AP1_PARAM_REMOVE
-  from openpilot.common.bogpilot_alert_volumes import FROGPILOT_VOLUME_DEFAULTS, resolve_alert_gain
+  from openpilot.common.bogpilot_alert_volumes import BOGPILOT_VOLUME_DEFAULTS, resolve_alert_gain
   from openpilot.common.bogpilot_toggles import FILE_ONLY_UI_KEYS
   assert PARAM_OVERRIDES["AlwaysOnLateral"][0] == "0"
   assert PARAM_OVERRIDES["NudgelessLaneChange"][0] == "0"
   assert {"TuningLevel", "TuningLevelConfirmed"} <= AP1_PARAM_REMOVE
   assert {"RedesignUI", "BSMFlameTracks", "SwapSpeedGraph", "DeveloperHUD", "HideAccelGraph"} <= FILE_ONLY_UI_KEYS
-  assert FROGPILOT_VOLUME_DEFAULTS["AlertVolumeControl"] == "0"
-  for key, value in FROGPILOT_VOLUME_DEFAULTS.items():
+  assert BOGPILOT_VOLUME_DEFAULTS["AlertVolumeControl"] == "0"
+  for key, value in BOGPILOT_VOLUME_DEFAULTS.items():
     if key != "AlertVolumeControl":
       assert value == "101"
       assert resolve_alert_gain(alert_volume_control=True, percent=101, ambient=0.7, key=key) == 0.7
@@ -283,7 +286,7 @@ def test_failed_backup_has_no_intent_marker_or_profile_replay(tmp_path):
   lifecycle.after_defaults(p, file_root=tmp_path, startup=result)
   assert not (tmp_path / "AP1StockReset1").exists()
   assert not (tmp_path / "AP1DefaultsApplied").exists()
-  assert {k: v for k, v in p.values.items() if k != "FrogPilotStats"} == {"CarModel": "TESLA_AP1_MODELS", "DoToggleResetStock": True}
+  assert {k: v for k, v in p.values.items() if k != "BogPilotStats"} == {"CarModel": "TESLA_AP1_MODELS", "DoToggleResetStock": True}
 
 
 def test_backup_adapter_rejects_truthy_failure(monkeypatch, tmp_path):

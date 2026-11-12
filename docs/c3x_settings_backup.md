@@ -21,7 +21,7 @@ Params writes, migration, automatic restore, pruning or network behavior.
 
 ## Daily behavior verified, not transplanted blindly
 
-The existing daily `frogpilot/common/frogpilot_functions.py:backup_toggles`
+The existing daily `bogpilot/common/bogpilot_functions.py:backup_toggles`
 mirrors default-table values into `/data/params_backup` and `/cache/params`, then
 creates dated archives under `/data/toggle_backups` (nominal five-backup cleanup).
 Boot invokes it in a background thread after valid time; the process also calls

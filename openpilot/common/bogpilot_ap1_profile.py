@@ -18,7 +18,7 @@ BogPilot sees Model S (at boot, or offroad when settings close), it applies the
 maintainer's recommended toggles below, once:
 
   - a Params key is written only if its current value still equals the
-    frogpilot_default_params table default, so anything the owner already
+    bogpilot_default_params table default, so anything the owner already
     changed stays put
   - a /data/params_bogpilot file toggle is written only if the file is absent
   - then /data/params_bogpilot/AP1DefaultsApplied is written so it never runs
@@ -41,8 +41,8 @@ Offset params are stored in the device's display unit.
 Theme: every theme menu (Color Scheme, Distance Button, Icon Pack, Sound Pack,
 Steering Wheel, Turn Signal) is set to the BogPilot theme, whose colors, icons,
 sounds and wheel are copies of the stock openpilot files
-(frogpilot/assets/bogpilot_theme). Colors and wheel still look exactly stock
-through the stand-in in frogpilot_variables.resolve_bogpilot_theme. A separate
+(bogpilot/assets/bogpilot_theme). Colors and wheel still look exactly stock
+through the stand-in in bogpilot_variables.resolve_bogpilot_theme. A separate
 one-time step (marker AP1ThemeBogPilot2) also moves values that only pick the
 stock look ("stock", or "none" for turn signals) to BogPilot, because those
 render the same. It runs once per device even where the main profile already
@@ -79,7 +79,7 @@ TUNING_LEVEL_KEYS = ("TuningLevel", "TuningLevelConfirmed")
 NEVER_PROFILE_KEYS = frozenset({
   # secrets and accounts
   "GithubSshKeys", "GithubUsername", "MapboxPublicKey", "MapboxSecretKey", "AMapKey1", "AMapKey2",
-  "WeatherToken", "SecOCKey", "SecOCKeys", "KonikDongleId", "DiscordUsername", "GsmApn", "FrogPilotStats",
+  "WeatherToken", "SecOCKey", "SecOCKeys", "KonikDongleId", "DiscordUsername", "GsmApn", "BogPilotStats",
   # personal places and recordings
   "FavoriteDestinations", "MapsSelected", "SearchInput", "RecordFront",
   # vehicle selection (the trigger itself, never written by the profile)
@@ -98,9 +98,10 @@ NEVER_PROFILE_KEYS = frozenset({
   "IsMetric", "Fahrenheit", "UseSI",
   # driving model: a fresh device won't have the maintainer's model downloaded
   "Model",
-  # BogPilot Alerts: independent Green Light / Lead Departed defaults ON; saved OFF must survive
-  # AP1 profile / DoToggleReset marker cycles. Never reintroduce these as profile writes.
-  "GreenLightAlert", "LeadDepartingAlert",
+  # BogPilot Alerts: independent Green Light / Lead Departed / Loud Blindspot / Speed Limit Changed defaults ON;
+  # saved OFF must survive AP1 profile / DoToggleReset marker cycles. Never reintroduce these as profile writes.
+  "GreenLightAlert", "LeadDepartingAlert", "LoudBlindspotAlert", "SpeedLimitChangedAlert",
+  "CruiseEngageDisengageChimes",
 })
 
 # Keys deliberately listed even though the value equals the table default, so the
@@ -157,8 +158,8 @@ AP1_PARAM_PROFILE: dict[str, str] = {
   "SLCOverride": "2",                    # SLC override after driving faster: Max Set Speed
   "SLCPriority1": "Dashboard",           # SLC source 1: Dashboard (BogPilot feeds AP1 cluster limits here)
   "SLCPriority3": "Navigation",          # SLC source 3: Navigation
-  "SLCLookaheadHigher": "1.000000",      # look 1 s ahead for a higher upcoming limit
-  "SLCLookaheadLower": "1.000000",       # look 1 s ahead for a lower upcoming limit
+  "SLCLookaheadHigher": "0",             # unused: look-ahead never raises the set speed early
+  "SLCLookaheadLower": "5",              # horizon for early slowdown toward a lower upcoming limit (0 = off; default 5 s)
   # Offset1..Offset7 come from AP1_SPEED_OFFSETS_MPH (unit-aware), not from this table.
 
   # --- Lateral ---
@@ -190,17 +191,18 @@ AP1_PARAM_PROFILE: dict[str, str] = {
   "CustomSignals": BOGPILOT_THEME,       # Turn Signal (BogPilot has no frames, same as "None")
 
   # --- Alerts / sounds ---
-  # Alert volumes are NOT part of this profile (stream 7): AP1 keeps the FrogPilot defaults
+  # Alert volumes are NOT part of this profile (alert volumes): AP1 keeps the BogPilot defaults
   # (AlertVolumeControl 0, every volume 101) from openpilot/common/bogpilot_alert_volumes.py. The legacy
   # 367e1fe engage/disengage mute is intentionally dropped and must never be re-applied.
   # CustomAlerts master gate intentionally omitted: GreenLightAlert / LeadDepartingAlert are
   # independent, fresh-ON, and listed in NEVER_PROFILE_KEYS so saved OFF cannot be clobbered.
-  # GoatScream / LoudBlindspot / SpeedLimitChanged stay omitted from runtime and menus.
+  # GoatScream stays omitted from runtime and menus. LoudBlindspotAlert / SpeedLimitChangedAlert are real rows
+  # (fresh-ON like Green Light) and are never written by this profile either.
 
   # --- System ---
   "PreferredSchedule": "1",              # OSM map update schedule: Weekly (default Monthly)
-  # FrogPilot telemetry, stats uploads and device registration are removed from BogPilot entirely, so
-  # FrogPilotTelemetry is no longer part of the profile (its table default is now 0 and the toggle is hidden).
+  # BogPilot telemetry, stats uploads and device registration are removed from BogPilot entirely, so
+  # BogPilotTelemetry is no longer part of the profile (its table default is now 0 and the toggle is hidden).
 }
 
 # Recommended /data/params_bogpilot file toggles (written only when the file is absent).
@@ -232,8 +234,8 @@ def values_equal(a, b) -> bool:
 
 
 def _default_table() -> dict[str, str]:
-  from openpilot.common.bogpilot_params import frogpilot_defaults
-  return {key: value for key, value, _level, _stock in frogpilot_defaults()}
+  from openpilot.common.bogpilot_params import bogpilot_defaults
+  return {key: value for key, value, _level, _stock in bogpilot_defaults()}
 
 
 def _persistent_fingerprint(params) -> str | None:
@@ -264,14 +266,14 @@ def speed_offsets_for_units(metric: bool) -> dict[str, str]:
   return out
 
 
-# Keys the one-time profile must never write (alert volumes: stream 7, no re-mute).
+# Keys the one-time profile must never write (alert volumes: no re-mute).
 _NEVER_PROFILE_VOLUME_KEYS = ("AlertVolumeControl", "EngageVolume", "DisengageVolume", "RefuseVolume", "PromptVolume",
                               "PromptDistractedVolume", "WarningSoftVolume", "WarningImmediateVolume")
 
 
 def _profile_for_units(params) -> dict[str, str]:
   from openpilot.common.bogpilot_shipping_defaults import patch_ap1_param_profile
-  # stream 5 shipping overlay: drops TuningLevel/TuningLevelConfirmed (left unset), AOL off, metrics on
+  # shipping overlay: drops TuningLevel/TuningLevelConfirmed (left unset), AOL off, metrics on
   profile = patch_ap1_param_profile(dict(AP1_PARAM_PROFILE))
   profile.update(speed_offsets_for_units(_is_metric(params)))
   for key in _NEVER_PROFILE_VOLUME_KEYS:
@@ -315,7 +317,8 @@ def theme_marker_path(bogpilot_dir: Path | None = None) -> Path:
 def clear_ap1_defaults_marker(bogpilot_dir: Path | None = None) -> None:
   """Called on DoToggleReset so the next run re-applies the AP1 profile."""
   directory = Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR)
-  for path in (marker_path(bogpilot_dir), theme_marker_path(bogpilot_dir), *(directory / n for n in OLD_THEME_MARKER_NAMES)):
+  for path in (marker_path(bogpilot_dir), theme_marker_path(bogpilot_dir), legacy_slc_marker_path(bogpilot_dir),
+               legacy_tesla_long_marker_path(bogpilot_dir), *(directory / n for n in OLD_THEME_MARKER_NAMES)):
     try:
       path.unlink(missing_ok=True)
     except Exception:
@@ -348,7 +351,7 @@ def apply_ap1_defaults_once(params=None, bogpilot_dir: Path | None = None, defau
     if params is None:
       params = StoreParams()
     elif not hasattr(params, "invalidate"):
-      # a bare Params (manager boot hook): FrogPilot keys an old libparams_c.so does not know yet
+      # a bare Params (manager boot hook): BogPilot keys an old libparams_c.so does not know yet
       # must still land in the file store instead of raising UnknownKeyName
       params = StoreParams(_shared_store(params))
     directory = Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR)
@@ -398,6 +401,199 @@ def _apply_profile(params, directory: Path, default_table: dict | None) -> list[
       path.write_text(value)
       written.append(key)
   return written
+
+
+# Pre-AP Model S and AP1 Model X get the SLC source / look-ahead defaults, not the full AP1 S profile.
+LEGACY_SLC_PLATFORMS = frozenset({"TESLA_AP1_MODELX", "TESLA_PREAP_MODELS"})
+LEGACY_SLC_MARKER_NAME = "LegacySlcDefaultsApplied"
+LEGACY_SLC_PROFILE: dict[str, str] = {
+  "SLCPriority1": "Dashboard",
+  "SLCPriority2": "Map Data",
+  "SLCPriority3": "Navigation",
+  "SLCLookaheadLower": "5",
+  "SLCLookaheadHigher": "0",
+}
+
+
+def _legacy_slc_fingerprint(params) -> str | None:
+  try:
+    model = _text(params.get("CarModel"))
+    if model:
+      return str(model)
+  except Exception:
+    pass
+  return _persistent_fingerprint(params)
+
+
+def is_legacy_slc_platform(params) -> bool:
+  """AP1 Model X or Pre-AP Model S. Never the AP1 Model S (that uses the S profile)."""
+  return _legacy_slc_fingerprint(params) in LEGACY_SLC_PLATFORMS
+
+
+def legacy_slc_marker_path(bogpilot_dir: Path | None = None) -> Path:
+  return Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR) / LEGACY_SLC_MARKER_NAME
+
+
+def apply_legacy_slc_defaults_once(params=None, bogpilot_dir: Path | None = None,
+                                   default_table: dict | None = None, refresh: bool = True) -> list[str]:
+  """One-shot SLC priority / look-ahead defaults for Pre-AP and AP1 X. Saved values are preserved.
+
+  Never raises. AP1 Model S is ignored here (apply_ap1_defaults_once owns those keys).
+  """
+  try:
+    if params is None:
+      params = StoreParams()
+    elif not hasattr(params, "invalidate"):
+      params = StoreParams(_shared_store(params))
+    directory = Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR)
+    marker = legacy_slc_marker_path(directory)
+    if not is_legacy_slc_platform(params) or is_ap1(params) or marker.exists():
+      return []
+    table = default_table if default_table is not None else _default_table()
+    written = []
+    for key, value in LEGACY_SLC_PROFILE.items():
+      if key not in table:
+        continue
+      current = params.get(key)
+      if current is None or values_equal(current, table[key]):
+        params.put(key, value)
+        written.append(key)
+    directory.mkdir(parents=True, exist_ok=True)
+    marker.write_text("1\n")
+    if written and refresh:
+      try:
+        params.invalidate()
+      except Exception:
+        pass
+    return written
+  except Exception:
+    return []
+
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Legacy Tesla long-tune defaults (rc5): the stored 0.9.7 Gas/Brake profiles and driving personalities.
+#
+# Platforms: the three tesla_ap1 platforms (AP1 Model S, AP1 Model X, Pre-AP Model S). AP2 is not a platform in this
+# tree (values.py), so it receives nothing. Values are exactly what the 0.9.7 device stored (initData.params of the
+# logged 0.9.7 drive and the bench device, read-only) and what the 0.9.7 source (026cfb31 = 04d560f3e,
+# frogpilot_acceleration.py / frogpilot_following.py, byte-identical in both) turns into limits:
+#   Acceleration Sport (max 3.0/2.5/2.0/1.5/1.0/0.8/0.6 m/s^2 at 0/5/10/15/20/25/40 m/s), Deceleration Eco+ (ACCEL_MIN/4 =
+#   -0.875 m/s^2), Human-Like Acceleration on, Human Following on, Custom Personalities on with Aggressive 1.25 s / Standard
+#   1.45 s / Relaxed 2.0 s follow time and jerk factors Aggressive 50/50/100/50/50 and Standard, Relaxed 100 (acceleration,
+#   deceleration, danger, speed, speed decrease; stored in percent).
+#
+# Migration rule (never overwrites a custom setting; applied once per device, marker below, DoToggleReset clears it):
+#   1. only on a legacy Tesla platform (CarModel, else the persistent fingerprint); unknown platform = retry next boot
+#   2. a group is skipped as a whole when its adoption file (Phase3LongAccelProfilesEnabled / Phase3PersonalitiesEnabled /
+#      Phase3HumanFollowingEnabled) is set: the owner already used the new panel, their values are theirs
+#   3. a key is written only if it is unset/empty, or its stored value still equals the registry default (the same
+#      "still default" rule as the AP1 profile). Anything else is a user value and stays
+#   4. AP1 Model S with the AP1DefaultsApplied marker: that profile already rewrote every still-default value once, so a
+#      value that is back at the registry default now was chosen by the owner after it: only unset keys are written
+#   5. "Reset to stock" (AP1StockReset1) suppresses it (bogpilot_startup), and LongitudinalTune=0 keeps the planner off
+#   Known limit (Pre-AP / Model X): an owner who explicitly picked the registry default itself (for example Eco
+#   deceleration) cannot be told apart from an untouched device and is moved to Eco+; the one-shot never repeats.
+# The marker records what was written and what was kept, for audit and for a manual undo.
+LEGACY_TESLA_PLATFORMS = frozenset({"TESLA_AP1_MODELS", "TESLA_AP1_MODELX", "TESLA_PREAP_MODELS"})
+LEGACY_TESLA_LONG_MARKER_NAME = "LegacyTeslaLongDefaultsApplied1"
+_ACK_PROFILES, _ACK_PERSONALITIES, _ACK_HUMAN_FOLLOWING = (
+  "Phase3LongAccelProfilesEnabled", "Phase3PersonalitiesEnabled", "Phase3HumanFollowingEnabled")
+LEGACY_TESLA_LONG_PROFILE: dict[str, dict[str, str]] = {
+  _ACK_PROFILES: {
+    "LongitudinalTune": "1",
+    "AccelerationProfile": "2",      # Sport
+    "DecelerationProfile": "2",      # Eco+
+    "HumanAcceleration": "1",
+  },
+  _ACK_PERSONALITIES: {
+    "CustomPersonalities": "1",
+    "AggressivePersonalityProfile": "1", "StandardPersonalityProfile": "1", "RelaxedPersonalityProfile": "1",
+    "AggressiveFollow": "1.25", "StandardFollow": "1.45", "RelaxedFollow": "2.0",
+    "AggressiveJerkAcceleration": "50", "AggressiveJerkDeceleration": "50", "AggressiveJerkDanger": "100",
+    "AggressiveJerkSpeed": "50", "AggressiveJerkSpeedDecrease": "50",
+    "StandardJerkAcceleration": "100", "StandardJerkDeceleration": "100", "StandardJerkDanger": "100",
+    "StandardJerkSpeed": "100", "StandardJerkSpeedDecrease": "100",
+    "RelaxedJerkAcceleration": "100", "RelaxedJerkDeceleration": "100", "RelaxedJerkDanger": "100",
+    "RelaxedJerkSpeed": "100", "RelaxedJerkSpeedDecrease": "100",
+  },
+  _ACK_HUMAN_FOLLOWING: {"HumanFollowing": "1"},
+}
+
+
+def legacy_tesla_long_marker_path(bogpilot_dir: Path | None = None) -> Path:
+  return Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR) / LEGACY_TESLA_LONG_MARKER_NAME
+
+
+def is_legacy_tesla_platform(params) -> bool:
+  """AP1 Model S, AP1 Model X or Pre-AP Model S (the tesla_ap1 platforms)."""
+  return _legacy_slc_fingerprint(params) in LEGACY_TESLA_PLATFORMS
+
+
+def _adopted_by_owner(params, directory: Path, ack: str) -> bool:
+  """True when the adoption file of a group is set (the owner used the new panel for that group)."""
+  on = ("1", "true", "on")
+  try:
+    value = _text(params.get(ack))
+    if value is not None and value.strip().lower() in on:
+      return True
+  except Exception:
+    pass
+  try:
+    return (directory / ack).read_text().strip().lower() in on
+  except OSError:
+    return False
+
+
+def _unset(value) -> bool:
+  return value is None or str(_text(value)).strip() == ""
+
+
+def apply_legacy_tesla_long_defaults_once(params=None, bogpilot_dir: Path | None = None, default_table: dict | None = None,
+                                          refresh: bool = True) -> list[str]:
+  """Apply the legacy Tesla long-tune profile once (rules above). Returns the keys written. Never raises."""
+  try:
+    import json
+    if params is None:
+      params = StoreParams()
+    elif not hasattr(params, "invalidate"):
+      params = StoreParams(_shared_store(params))
+    directory = Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR)
+    marker = legacy_tesla_long_marker_path(directory)
+    if marker.exists() or not is_legacy_tesla_platform(params):
+      return []
+    table = default_table if default_table is not None else _default_table()
+    ap1_profile_ran = is_ap1(params) and marker_path(directory).exists()
+    written: list[str] = []
+    audit: dict = {"written": {}, "kept": {}, "skipped_groups": []}
+    for ack, profile in LEGACY_TESLA_LONG_PROFILE.items():
+      if _adopted_by_owner(params, directory, ack):
+        audit["skipped_groups"].append(ack)
+        continue
+      for key, value in profile.items():
+        if key not in table or key in NEVER_PROFILE_KEYS:
+          continue
+        current = params.get(key)
+        if _unset(current):
+          still_default = True
+        else:
+          still_default = values_equal(current, table[key]) and not ap1_profile_ran
+        if still_default and not values_equal(current, value):
+          params.put(key, value)
+          written.append(key)
+          audit["written"][key] = [None if _unset(current) else _text(current), value]
+        elif not values_equal(current, value):
+          audit["kept"][key] = _text(current)
+    directory.mkdir(parents=True, exist_ok=True)
+    marker.write_text(json.dumps(audit, sort_keys=True) + "\n")
+    if written and refresh:
+      try:
+        params.invalidate()
+      except Exception:
+        pass
+    return written
+  except Exception:
+    return []
 
 
 def _shared_store(params=None):

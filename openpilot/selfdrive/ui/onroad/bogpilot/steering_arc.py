@@ -1,4 +1,4 @@
-"""BogPilot steering arc (t913u): pyray port of daily frogpilot/ui/qt/onroad/steering_arc.{h,cc} (bogpilot-tesla 04d560f3e).
+"""BogPilot steering arc: pyray port of daily bogpilot/ui/qt/onroad/steering_arc.{h,cc} (bogpilot-tesla 04d560f3e).
 
 The daily arc is itself a QPainter port of upstream openpilot selfdrive/ui/mici/onroad/torque_bar.py (MIT); this port
 reuses that file's arc_bar_pts and the shared shader_polygon.draw_polygon. BogPilot changes kept from daily: arc "B"
@@ -34,9 +34,9 @@ HUMAN_ANGLE_SPEED_LO, HUMAN_ANGLE_SPEED_HI = 5.0, 9.0
 SOURCE_HYSTERESIS_FRAMES = 6
 LOCK_DEG = 430.0
 GRAVITY = 9.81
-FILTER_K = (0.05 / 0.1) / (1.0 + 0.05 / 0.1)   # daily FirstOrderFilter(rc 0.1 s, dt 1/20 s), applied at 20 Hz
+FILTER_K = (0.05 / 0.1) / (1.0 + 0.05 / 0.1)   # earlier-build FirstOrderFilter(rc 0.1 s, dt 1/20 s), applied at 20 Hz
 UPDATE_HZ = 20.0
-VIEW_W, VIEW_H = 2100.0, 1020.0                # daily widget (screen minus border) == C3X content rect
+VIEW_W, VIEW_H = 2100.0, 1020.0                # earlier-build widget (screen minus border) == C3X content rect
 TAP_HALF_W = 280.0
 
 WHITE = (255, 255, 255)

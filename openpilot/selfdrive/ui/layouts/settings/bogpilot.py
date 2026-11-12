@@ -60,7 +60,7 @@ STALK_CONTROLS = ("twist_follow", "experimental_pull", "pull_hold_s",
 
 
 def working_pages():
-  from openpilot.selfdrive.ui.bogpilot.phase2_alerts import ACTIVE_ALERT_KEYS, create_alerts_layout
+  from openpilot.selfdrive.ui.bogpilot.phase2_alerts import ALERT_PAGE_KEYS, create_alerts_layout
   from openpilot.selfdrive.ui.bogpilot.phase2_sounds import VOLUME_KEYS, create_volume_layout
   from openpilot.selfdrive.ui.bogpilot.phase2_vehicle import TITLES, create_vehicle_settings_layout
   from openpilot.selfdrive.ui.bogpilot.phase2_car_selection import create_car_selection_layout
@@ -71,7 +71,7 @@ def working_pages():
   from openpilot.selfdrive.ui.bogpilot import bogpilot_model_selector as model_selector
   return {
     "alerts_sounds": (Page("volume", "Alert Volume Controller", create_volume_layout, ("AlertVolumeControl", *VOLUME_KEYS)),
-                      Page("alerts", "BogPilot Alerts", create_alerts_layout, tuple(ACTIVE_ALERT_KEYS))),
+                      Page("alerts", "BogPilot Alerts", create_alerts_layout, tuple(ALERT_PAGE_KEYS))),
     # Driving Controls: ONE tuple (Gas/Brake + Steering Tuning). Gas/Brake, Steering Tuning, Lane Changes, Driving Model.
     "driving": (Page(gas_brake.PAGE_KEY, gas_brake.PAGE_TITLE, gas_brake.create_gas_brake_layout, gas_brake.CONTROLS),
                 Page(STEER_KEY, STEER_TITLE, create_steering_tuning_layout, STEER_CONTROLS),
@@ -112,6 +112,7 @@ def menu_sections():
   from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import APPEARANCE_KEYS, NAVIGATION_KEYS
   from openpilot.selfdrive.ui.layouts.settings.menu_097 import Pill, Section
   from openpilot.system.ui.lib.multilang import tr_noop
+  from openpilot.selfdrive.ui.bogpilot import phase3_gas_brake as gas_brake
   pages = working_pages()
   by_key = {page.key: page for group in pages.values() for page in group}
 
@@ -125,7 +126,7 @@ def menu_sections():
             "menu.alerts_sounds"),
     Section("driving", tr_noop("Driving Controls"), "menu_driving.png",
             (Pill("driving_model", tr_noop("DRIVING MODEL"), tr_noop("Driving Model"), (model,)),
-             Pill("gas_brake", tr_noop("GAS / BRAKE"), tr_noop("Gas / Brake"), (gas,)),
+             Pill("gas_brake", tr_noop("GAS / BRAKE"), tr_noop("Gas / Brake"), (gas,), visible=gas_brake.pill_visible),
              Pill("steering", tr_noop("STEERING"), tr_noop("Steering"), (steer, lanes))),
             "menu.driving"),
     Section("navigation", tr_noop("Navigation"), "menu_navigation.png",
@@ -154,6 +155,16 @@ class BogPilotLayout(Widget):
     super().__init__()
     from openpilot.selfdrive.ui.layouts.settings.menu_097 import build_menu
     self.content = build_menu(menu_sections())
+
+  # ---- Back and top level, driven by the settings sidebar (0.9.7: the top-left item is Back)
+  def can_go_back(self) -> bool:
+    return self.content.can_go_back()
+
+  def go_back(self) -> bool:
+    return self.content.go_back()
+
+  def reset_to_top(self) -> None:
+    self.content.reset_to_top()
 
   def show_event(self):
     super().show_event()

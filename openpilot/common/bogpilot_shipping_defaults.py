@@ -1,4 +1,4 @@
-"""BogPilot shipping defaults + settings visibility (stream 5).
+"""BogPilot shipping defaults + settings visibility (shipping defaults).
 
 Locked 2026-11-06 for bogpilot-tesla-c3 / bogpilot-tesla-c3x:
   - Border Metrics at Minimal, default ON (BSM side red via BlindSpotMetrics)
@@ -7,15 +7,19 @@ Locked 2026-11-06 for bogpilot-tesla-c3 / bogpilot-tesla-c3x:
   - NudgelessLaneChange OFF; Always On Lateral OFF (toggle available)
   - Fresh-install Tuning Level intentionally unset (TuningLevel=0, Confirmed=0)
   - Model UI widths remain Advanced
-  - SwapSpeedGraph file default ON (hide-accel owned by stream 8; must stay Minimal-visible)
+  - ShowAccelGraph file default OFF (Developer row; can slow UI draw time)
+  - LowerSpeedLimitsBox file default OFF (Minimal Appearance row; speed row at the top)
+  - SwapSpeedGraph / HideAccelGraph are legacy file keys (no menu rows)
 
 Preserves existing user choices: AP1 profile still only writes when a Params value equals
-the table default, and file toggles only when the file is absent.
+the table default, and file toggles only when the file is absent. The layout-defaults
+migration overwrites a saved file only when its value equals the old shipping default.
 """
 from __future__ import annotations
 
 PARAM_OVERRIDES: dict[str, tuple[str, int]] = {
   'BorderMetrics': ('1', 0),
+  'OnroadDistanceButton': ('1', 0),  # the driving-personality button is on by default
   'BlindSpotMetrics': ('1', 0),
   'ShowSteering': ('0', 0),
   'SignalMetrics': ('0', 0),
@@ -48,6 +52,8 @@ FILE_TOGGLE_DEFAULTS: dict[str, bool] = {
   'DeveloperHUD': False,
   'SwapSpeedGraph': True,
   'HideAccelGraph': False,
+  'ShowAccelGraph': False,
+  'LowerSpeedLimitsBox': False,
   'BSMFlameTracks': True,
   'OffroadScreensaver': False,
   'ConfidenceBall': True,
@@ -59,8 +65,6 @@ REPARENT_TO_CUSTOM_UI: frozenset[str] = frozenset({
   'ShowCPU',
   'ShowGPU',
   'ShowMemoryUsage',
-  'SwapSpeedGraph',
-  'HideAccelGraph',
 })
 
 AP1_PARAM_REMOVE: frozenset[str] = frozenset(['TuningLevel', 'TuningLevelConfirmed'])
