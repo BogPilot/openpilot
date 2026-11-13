@@ -23,7 +23,8 @@ static bool tesla_ap1_epas_refusing = false;
 // Last EPAS_sysStatus (0x370) was AVAILABLE or ACTIVE with EAC_ERROR_TMP_FAULT (4). Like codes 3 and 6, the EPAS
 // keeps code 4 latched until it is commanded again, so an ANGLE frame is the only thing that clears it.
 static bool tesla_ap1_epas_tmp_fault_ready = false;
-// Last EPB_epasControl (0x214, bus 0, 10 Hz) said EPB_epasEACAllow == 1, and when it arrived.
+// Last EPB_epasControl (0x214, bus 0, 10 Hz) said EPB_epasEACAllow == 1, and when it arrived. Watched through
+// rx_all, not an RX check: a missing or stale 0x214 never touches controls_allowed, it only keeps code 4 blocked.
 static bool tesla_ap1_epb_eac_allow = false;
 static uint32_t tesla_ap1_epb_eac_allow_ts = 0U;
 
@@ -134,17 +135,20 @@ static void tesla_ap1_rx_hook(const CANPacket_t *msg) {
     }
   }
 
-  // EPB_epasControl (0x214) bus 0: EPB_epasEACAllow, bits 2:0 of byte 0 (1 = EAC allowed)
-  if (msg_matches(msg, 0x214U, 0U, 3U)) {
-    tesla_ap1_epb_eac_allow = ((msg->data[0] & 0x07U) == 1U);
-    tesla_ap1_epb_eac_allow_ts = microsecond_timer_get();
-  }
-
   // Stock AEB from DAS_control on bus 2
   if (msg_matches(msg, 0x2b9U, 2U)) {
     if (tesla_ap1_longitudinal) {
       tesla_ap1_stock_aeb = ((msg->data[2] & 0x03U) == 1U);
     }
+  }
+}
+
+// Every received message (rx_all). EPB_epasControl (0x214) bus 0: EPB_epasEACAllow, bits 2:0 of byte 0
+// (1 = EAC allowed). Only the TMP_FAULT exception in tesla_ap1_tx_hook reads it.
+static void tesla_ap1_rx_all_hook(const CANPacket_t *msg) {
+  if (msg_matches(msg, 0x214U, 0U, 3U)) {
+    tesla_ap1_epb_eac_allow = ((msg->data[0] & 0x07U) == 1U);
+    tesla_ap1_epb_eac_allow_ts = microsecond_timer_get();
   }
 }
 
@@ -331,9 +335,6 @@ static safety_config tesla_ap1_init_config(uint16_t param) {
     {.msg = {{0x20a, 0, 8, 50U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},  // BrakeMessage
     {.msg = {{0x368, 0, 8, 10U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},  // DI_state
     {.msg = {{0x318, 0, 8, 10U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},  // GTW_carState
-    // EPB_epasControl: read only for the TMP_FAULT exception in tesla_ap1_tx_hook. The RX hook only sees listed
-    // messages, so it is listed here; like every entry above, a missing 0x214 (10 Hz) removes controls_allowed.
-    {.msg = {{0x214, 0, 3, 10U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},  // EPB_epasControl
   };
 
   return BUILD_SAFETY_CFG(tesla_ap1_rx_checks, TESLA_AP1_TX_MSGS);

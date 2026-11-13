@@ -4,7 +4,8 @@
 Like HANDS_ON (3) and HIGH_ANGLE_REQ (6), the EPAS keeps code 4 in EPAS_eacErrorCode until it is commanded again.
 The panda lets an active steering frame through with code 4 only while the same EPAS_sysStatus (0x370) frame says
 AVAILABLE or ACTIVE and the last EPB_epasControl (0x214, bus 0) said EPB_epasEACAllow == 1 less than 250 ms ago.
-Every other gate is unchanged: controls_allowed, the rate table, all other codes and statuses. Raw-wire tests.
+0x214 is watched through the rx_all hook, not an RX check: a missing or stale 0x214 never changes controls_allowed,
+engagement or RX-check validity; it only keeps code 4 blocked. Every other gate is unchanged. Raw-wire tests.
 """
 import itertools
 import unittest
@@ -236,16 +237,64 @@ class TestTeslaAp1EpasTmpFault(unittest.TestCase):
     for f in frames:
       self.assertTrue(l.safety_rx_hook(f))
 
-  def test_epb_is_an_rx_check(self):
-    # 0x214 is RX-checked like the other AP1 chassis frames: missing for more than 1 s removes controls_allowed
-    for with_epb in (True, False):
+  def run_chassis(self, seconds, with_epb, start_s=0.0):
+    # 10 Hz frames of every AP1 RX check (and 0x214 if asked), safety_tick once per second
+    for k in range(int(round(seconds * 10))):
+      now = T0 + int((start_s + (k + 1) * 0.1) * 1e6)
+      l.set_timer(now)
+      self.feed_chassis(with_epb)
+      if (k + 1) % 10 == 0:
+        l.safety_tick()
+        self.assertTrue(l.get_controls_allowed(), (seconds, with_epb, k))
+        self.assertTrue(l.safety_config_valid(), (seconds, with_epb, k))
+
+  def test_0x214_is_not_an_rx_check(self):
+    # absent for any duration: engagement, controls_allowed and RX-check validity behave as before (no 0x214 check)
+    for seconds in (0.5, 1.5, 5.0, 60.0):
       self.init()
-      for k in range(1, 31):
-        l.set_timer(T0 + k * 100000)
-        self.feed_chassis(with_epb)
+      self.run_chassis(seconds, with_epb=False)
       l.safety_tick()
-      self.assertEqual(l.get_controls_allowed(), with_epb, with_epb)
-      self.assertEqual(l.safety_config_valid(), with_epb, with_epb)
+      self.assertTrue(l.get_controls_allowed(), seconds)
+      self.assertTrue(l.safety_config_valid(), seconds)
+      # code 4 stays blocked, codes 0/3/6 unchanged
+      self.wheel(0.0, AVAILABLE, TMP_FAULT)
+      self.assertFalse(self.tx(0), seconds)
+      for error in OK_ERRORS:
+        self.wheel(0.0, ACTIVE, error)
+        self.assertTrue(self.tx(0), (seconds, error))
+
+  def test_0x214_never_seen_engage_works(self):
+    self.init(engage=False)
+    self.assertFalse(l.get_controls_allowed())
+    self.assertTrue(l.safety_rx_hook(di_state(2)))
+    self.assertTrue(l.get_controls_allowed(), "engage needs no 0x214")
+    for status in READY:
+      self.wheel(0.0, status, TMP_FAULT)
+      self.assertFalse(self.tx(0), status)
+      for error in OK_ERRORS:
+        self.wheel(0.0, status, error)
+        self.assertTrue(self.tx(0), (status, error))
+
+  def test_0x214_seen_then_lost_keeps_controls(self):
+    self.init()
+    self.run_chassis(1.0, with_epb=True)
+    self.wheel(0.0, AVAILABLE, TMP_FAULT)
+    self.assertTrue(self.tx(0), "fresh EPB allow")
+    self.run_chassis(5.0, with_epb=False, start_s=1.0)   # asserts controls_allowed and validity every second
+    self.wheel(0.0, AVAILABLE, TMP_FAULT)
+    self.assertFalse(self.tx(0), "stale EPB allow")
+    self.assertTrue(l.get_controls_allowed())
+    self.wheel(0.0, AVAILABLE, IDLE)
+    self.assertTrue(self.tx(0))
+
+  def test_0x214_stale_blocks_only_code_4(self):
+    self.init()
+    self.set_epb((1, 10 * EPB_TIMEOUT_US))
+    self.wheel(0.0, ACTIVE, TMP_FAULT)
+    self.assertFalse(self.tx(0))
+    self.wheel(0.0, ACTIVE, HANDS_ON)
+    self.assertTrue(self.tx(0))
+    self.assertTrue(l.get_controls_allowed())
 
   def test_model_3y_path_is_not_changed(self):
     for param in (0, 1):

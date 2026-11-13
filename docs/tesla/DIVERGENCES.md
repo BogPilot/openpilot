@@ -222,11 +222,18 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Our behavior: `opendbc/safety/modes/tesla_ap1.h` drops an active 0x488 frame (type 1 or 2) while the last 0x370
   says INHIBITED, FAULT or SNA, or carries an error other than IDLE, HANDS_ON (3) or HIGH_ANGLE_REQ (6). One
   exception: EAC_ERROR_TMP_FAULT (4) is let through while the same 0x370 frame says AVAILABLE or ACTIVE and the last
-  EPB_epasControl (0x214, bus 0) said EPB_epasEACAllow = 1 less than 250 ms ago. 0x214 is an AP1 RX check (10 Hz).
-  controls_allowed, the angle rate table and every other check still apply.
+  EPB_epasControl (0x214, bus 0) said EPB_epasEACAllow = 1 less than 250 ms ago. controls_allowed, the angle rate
+  table and every other check still apply.
+- 0x214 is not an RX check. The panda only runs a mode's RX hook for messages in its RX-check list, and every entry
+  in that list is required. So `safety.h` gets the optional `rx_all` hook from NAP (`opendbc/safety/safety.h`
+  `safety_rx_hook`, `declarations.h` `safety_hooks.rx_all`) and BogPilot 0.9.7 (`panda/board/safety.h`): it is called
+  for every received message, before the whitelist. It is NULL in every mode except Tesla, where only AP1 uses it to
+  keep the last EPB_epasEACAllow value and its time. A missing or stale 0x214 never touches controls_allowed or the
+  RX-check health; it only keeps code 4 blocked, as before this change. 0x214 has no checksum or counter, so the
+  frame is used as received.
 - Why: the EPAS keeps codes 3, 4 and 6 latched until it is commanded again. Blocking code 4 for good turned one
   transient EPAS fault into a lateral lockout for the rest of the drive. Every other code stays blocked, and
   INHIBITED/FAULT/SNA always block.
 - Safety-relevant: yes. Stricter than BogPilot 0.9.7, Tinkla and NAP for every error and status value.
 - Tests: `opendbc/safety/tests/test_tesla_ap1_epas_refusal.py`, `opendbc/safety/tests/test_tesla_ap1_epas_tmp_fault.py`.
-- Credits: BogPilot 0.9.7; Tinkla/BogGyver; NAP.
+- Credits: BogPilot 0.9.7; Tinkla/BogGyver; NAP (the `rx_all` hook).
