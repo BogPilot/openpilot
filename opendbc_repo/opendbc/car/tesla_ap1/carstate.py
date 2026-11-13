@@ -17,7 +17,8 @@ from opendbc.car.tesla_ap1.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTT
 from opendbc.car.interfaces import CarStateBase
 from opendbc.can import CANDefine, CANParser
 
-# 100 Hz frames a published stalk level outlives the release: 6 x 10 ms > one 50 ms planner tick (DT_MDL) plus jitter.
+# Minimum published stalk level width in 100 Hz frames: 6 x 10 ms > one 50 ms planner tick (DT_MDL) plus jitter.
+# A press shorter than this is stretched to it; a longer press is published exactly as long as it is held.
 STALK_LEVEL_HOLD_FRAMES = 6
 
 # 0.9.7 frequency 0 (never marks the message missing) is NaN in the 0.11 parser.
@@ -27,9 +28,12 @@ class CarState(CarStateBase):
   def __init__(self, CP):
     super().__init__(CP)
     self.button_states = {button.event_type: False for button in BUTTONS}
-    # Published stalk levels (bogpilot.accelPressed / decelPressed / resumePressed) stay high this many 100 Hz frames
-    # after release, so the 20 Hz planner (DT_MDL 50 ms) cannot miss a short tap or pull. buttonEvents are untouched.
+    # Published stalk levels (bogpilot.accelPressed / decelPressed / resumePressed) stay high at least
+    # STALK_LEVEL_HOLD_FRAMES from the press, so the 20 Hz planner (DT_MDL 50 ms) cannot miss a short tap or pull,
+    # and drop at the release of a longer press (no tail, so the planner's hold time is the driver's). buttonEvents
+    # are untouched.
     self.stalk_level_hold = {}
+    self.stalk_level_prev = {}
     self.can_define = CANDefine(DBC[CP.carFingerprint][Bus.chassis])
 
     # Needed by carcontroller
@@ -291,7 +295,8 @@ class CarState(CarStateBase):
     if ap1:
       # Continuous UP/DN/RWD levels (button_states, not 10 ms buttonEvents) for the SLC software set and
       # confirmation (0.9.7 bogpilot_card._apply_ap1_stalk_levels). accelPressed is UP only, RWD is resumePressed.
-      # Each level is held STALK_LEVEL_HOLD_FRAMES after release (>= one planner tick); a cancel (FWD) drops them all.
+      # Each level is at least STALK_LEVEL_HOLD_FRAMES wide (>= one planner tick) and ends at the release of a longer
+      # press; a cancel (FWD) drops them all.
       ButtonType = structs.CarState.ButtonEvent.Type
       levels = self._held_stalk_levels(ButtonType)
       fp_ret.accelPressed = levels[ButtonType.accelCruise]
@@ -308,12 +313,20 @@ class CarState(CarStateBase):
     return ret
 
   def _held_stalk_levels(self, ButtonType) -> dict:
-    """Continuous UP/DN/RWD levels from button_states, each stretched to at least one 20 Hz planner tick."""
+    """Continuous UP/DN/RWD levels from button_states, each at least STALK_LEVEL_HOLD_FRAMES wide from the press.
+
+    The minimum width counts from the press edge, not from the release: a press longer than it ends at its release,
+    so the planner's measured hold (Ap1RaiseHoldoff TIP_HOLD_S) and the shown set follow the stalk with no 50 ms tail.
+    """
     cancel = bool(self.button_states.get(ButtonType.cancel, False))
     out = {}
     for bt in (ButtonType.accelCruise, ButtonType.decelCruise, ButtonType.resumeCruise):
       pressed = bool(self.button_states.get(bt, False))
-      left = STALK_LEVEL_HOLD_FRAMES if pressed else max(int(self.stalk_level_hold.get(bt, 0)) - 1, 0)
+      if pressed and not self.stalk_level_prev.get(bt, False):
+        left = STALK_LEVEL_HOLD_FRAMES   # press edge: this frame starts the minimum width
+      else:
+        left = max(int(self.stalk_level_hold.get(bt, 0)) - 1, 0)
+      self.stalk_level_prev[bt] = pressed
       if cancel:
         left = 0
         pressed = False

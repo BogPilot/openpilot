@@ -177,8 +177,9 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
     The IC set follows the plan set outside the engage floor (`cluster_set_kph`, `follow_plan`).
   - A longitudinal re-activation in the same cruise session (gas override longer than `LongEngageGate.DROP_S`)
     restores the driver's latched or tipped set instead of handing the set to SLC; after a pull it still follows SLC.
-  - Published stalk levels (`bogpilot.accelPressed/decelPressed/resumePressed`) are held 6 CAN frames (60 ms) after
-    release so the 20 Hz planner cannot miss a short press; a cancel (FWD) clears them. `buttonEvents` are unchanged.
+  - Published stalk levels (`bogpilot.accelPressed/decelPressed/resumePressed`) are at least 6 CAN frames (60 ms) wide
+    from the press so the 20 Hz planner cannot miss a short press, and a longer press ends at its release (no tail);
+    a cancel (FWD) clears them. `buttonEvents` are unchanged. See "stalk level minimum width" below.
 - Why: classifying on the longitudinal edge let a tap made with the gas held fall outside the 0.8 s window once
   longActive rose on release, and the fallback chose SLC; the limit-first car set also gave limit plus offset for a
   rolling tap. Both made a tap follow SLC instead of latching the current speed.
@@ -239,3 +240,21 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
 - Tests: `test_rolling_tap_then_stop_within_window_keeps_tap_set`, `..._keeps_tap_set_on_can`,
   `test_rolling_tap_then_stop_within_window_car_and_planner_agree`, `test_rolling_tap_then_stop_after_window_is_unchanged`,
   `test_rolling_tap_then_pull_at_the_stop_uses_limit_plus_offset` (`test_ap1_op_long_set_speed.py`).
+
+### AP1: stalk level minimum width counts from the press, not the release
+- Our behavior (`carstate.py` `_held_stalk_levels`): a published stalk level is at least `STALK_LEVEL_HOLD_FRAMES` (6 x
+  10 ms) wide from the press edge, so a one-frame press still spans a 50 ms planner tick, and a press longer than that is
+  published exactly as long as it is held. Before this every press was extended 50 ms past its release, so the planner's
+  measured hold was 50 ms longer than the driver's and the shown set (tip, hold upgrade) changed up to 50 ms late
+  relative to the stalk. The planner's hold upgrade (`Ap1RaiseHoldoff.TIP_HOLD_S` 0.45 s, a ±1 tip becomes next/prev 5)
+  now also counts nine 50 ms ticks as 0.45 s (float slack `TIP_HOLD_EPS_S`); before, nine ticks summed to just under
+  0.45 s and the stretched level supplied the missing tick. Net: the upgrade follows a 0.45 s physical hold, a 0.40 s
+  hold stays a ±1 tip.
+- Reference behavior: BogPilot 0.9.7 `frogpilot/controls/frogpilot_card.py` `_apply_ap1_stalk_levels` (`04d560f3e`)
+  publishes `button_states` as they are, with no stretch; the minimum width exists here so a one-frame press cannot fall
+  between two 20 Hz planner samples.
+- Safety-relevant: stalk-level timing only; cancel still clears every level at once; no panda, CAN TX, DBC or cereal change.
+- Tests: `test_held_stalk_level_ends_at_the_release_of_a_longer_press`,
+  `test_held_stalk_level_short_press_is_stretched_to_the_minimum_width`, `test_planner_hold_upgrade_follows_the_physical_hold`,
+  `test_short_tap_between_planner_ticks_classified`, `test_cancel_drops_held_stalk_levels` (`test_ap1_op_long_set_speed.py`).
+

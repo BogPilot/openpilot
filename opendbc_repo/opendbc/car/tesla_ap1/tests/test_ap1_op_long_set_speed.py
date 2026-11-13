@@ -895,3 +895,46 @@ def test_rolling_tap_then_stop_within_window_keeps_tap_set_on_can(lever):
     assert ret.cruiseState.speed == pytest.approx(10.0 * CV.KPH_TO_MS, abs=0.05)
     assert not ret.bogpilot.ap1SpeedLimitUnknown
 
+
+def _held_levels(lever, press_frames, after_frames=12):
+  """Published stalk levels for one press held press_frames 100 Hz frames, then released."""
+  car = Car()
+  car.step(STANDBY, 0, 50.0)
+  rets = [car.step(STANDBY, 0, 50.0, lever=lever) for _ in range(press_frames)]
+  rets += [car.step(STANDBY, 0, 50.0) for _ in range(after_frames)]
+  field = {UP: "accelPressed", UP_1ST: "accelPressed", DN: "decelPressed", DN_1ST: "decelPressed",
+           RWD: "resumePressed"}[lever]
+  return [bool(getattr(r.bogpilot, field)) for r in rets]
+
+
+@pytest.mark.parametrize("lever", [UP, DN, UP_1ST, DN_1ST, RWD])
+@pytest.mark.parametrize("press_frames", [6, 10, 40, 45])
+def test_held_stalk_level_ends_at_the_release_of_a_longer_press(lever, press_frames):
+  """A press at least the minimum width (6 frames) is published exactly as long as it is held: no 50 ms tail."""
+  levels = _held_levels(lever, press_frames)
+  assert all(levels[:press_frames]) and not any(levels[press_frames:]), levels
+
+
+@pytest.mark.parametrize("lever", [UP, DN, RWD])
+@pytest.mark.parametrize("press_frames", [1, 2, 5])
+def test_held_stalk_level_short_press_is_stretched_to_the_minimum_width(lever, press_frames):
+  levels = _held_levels(lever, press_frames)
+  assert all(levels[:6]) and not any(levels[6:]), levels
+
+
+@pytest.mark.parametrize("phase", range(5))
+@pytest.mark.parametrize("press_frames,want_mph", [(40, 51), (45, 55)])
+def test_planner_hold_upgrade_follows_the_physical_hold(phase, press_frames, want_mph):
+  """A shallow UP held 0.40 s stays a +1 tip; held 0.45 s (TIP_HOLD_S) it upgrades to next 5. The planner samples the
+  published level at 20 Hz (every 5th frame, any phase)."""
+  levels = _held_levels(UP_1ST, press_frames, after_frames=20)
+  samples = ([False] * phase + levels)[::5]
+  hold = Ap1RaiseHoldoff()
+  base = 50 * CV.MPH_TO_MS
+  for _ in range(3):
+    hold.update(True, False, False, False, base, 20.0, current_set_ms=base, cruise_on=True)
+  hold._clear_tip()
+  for up in samples:
+    hold.update(True, False, up, False, base, 20.0, current_set_ms=base, cruise_on=True)
+  assert hold.tip_ms == pytest.approx(want_mph * CV.MPH_TO_MS, abs=1e-3)
+
