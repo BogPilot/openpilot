@@ -184,7 +184,8 @@ def reset(ed, keys):
 @pytest.mark.parametrize("metric", [False, True])
 def test_ap1x_section_reset_returns_the_ap1_slc_values(metric):
   ed, store = editor(AP1X, metric, **SAVED)
-  assert ss.slc_reset_profile(store) == legacy_slc_profile_for_units(store)
+  # the legacy SLC profile, plus Conditional Experimental Mode off (every legacy Tesla)
+  assert ss.slc_reset_profile(store) == {**legacy_slc_profile_for_units(store), "ConditionalExperimental": "0"}
   reset(ed, OFFSETS)
   assert [int(store.vals[k]) for k in OFFSETS] == offsets(metric)
   reset(ed, MAIN)
@@ -200,7 +201,8 @@ def test_ap1x_section_reset_returns_the_ap1_slc_values(metric):
 @pytest.mark.parametrize("metric", [False, True])
 def test_preap_section_reset_returns_the_legacy_profile(metric):
   ed, store = editor(PREAP, metric, **SAVED)
-  assert ss.slc_reset_profile(store) == legacy_slc_profile_for_units(store)
+  # the legacy SLC profile, plus Conditional Experimental Mode off (every legacy Tesla)
+  assert ss.slc_reset_profile(store) == {**legacy_slc_profile_for_units(store), "ConditionalExperimental": "0"}
   reset(ed, OFFSETS)
   assert [int(store.vals[k]) for k in OFFSETS] == offsets(metric)
   reset(ed, MAIN)

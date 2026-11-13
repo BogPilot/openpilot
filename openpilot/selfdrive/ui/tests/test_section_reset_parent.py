@@ -372,12 +372,12 @@ def test_ap1_s_relaxed_follow_reset_writes_the_profile_value(profile_store):
 
 
 @pytest.mark.parametrize("car, expect_ce", [
-  ("TESLA_AP1_MODELX", True),
-  ("TESLA_PREAP_MODELS", True),
-  ("TESLA_MODEL_3", True),
+  ("TESLA_AP1_MODELX", False),     # every legacy Tesla resets Conditional Experimental Mode off
+  ("TESLA_PREAP_MODELS", False),
+  ("TESLA_MODEL_3", True),         # other cars keep the shipped switch
   (None, True),
 ])
-def test_non_ap1_s_cem_reset_keeps_the_shipped_switch(profile_store, car, expect_ce):
+def test_non_ap1_s_cem_reset_switch_by_car_type(profile_store, car, expect_ce):
   from openpilot.selfdrive.ui.layouts.settings.phase3_long_accel_settings import SettingsController
   _set_car(profile_store, car)
   assert not is_ap1(profile_store)
@@ -390,7 +390,7 @@ def test_non_ap1_s_cem_reset_keeps_the_shipped_switch(profile_store, car, expect
   assert profile_store.get_bool("ConditionalExperimental") is expect_ce
 
 
-def test_ap1_x_slc_values_are_unchanged_and_ce_stays_shipped(profile_store):
+def test_ap1_x_slc_values_are_unchanged_and_ce_resets_off(profile_store):
   from openpilot.selfdrive.ui.layouts.settings.phase3_long_accel_settings import SettingsController
   _set_car(profile_store, "TESLA_AP1_MODELX")
   assert is_ap1x_slc_platform(profile_store) and not is_ap1(profile_store)
@@ -401,11 +401,12 @@ def test_ap1_x_slc_values_are_unchanged_and_ce_stays_shipped(profile_store):
                                                  "SLCPriority2": "Map Data", "SLCPriority3": "Navigation",
                                                  "SLCLookaheadLower": "5"}
   assert ed.store.vals["ShowSLCOffset"] == "0"
-  # CE section reset still ships on
+  # CE section reset: off on every legacy Tesla, and no other CE key comes from the AP1 profile on the X
   c = SettingsController("conditional", profile_store, cp=stop_cp())
-  assert c.change("ConditionalExperimental", False)
+  assert c.change("ConditionalExperimental", True) and c.change("CECurves", False)
   table = _group_table(c)
-  assert table == {"ConditionalExperimental": True}
+  assert list(table)[-1] == "ConditionalExperimental" and table["ConditionalExperimental"] is False
+  assert table["CECurves"] is False, "shipped default, not the AP1 Model S profile's 1"
   sd.reset_section(table, c.reset_write)
   profile_store.invalidate()
-  assert profile_store.get_bool("ConditionalExperimental")
+  assert not profile_store.get_bool("ConditionalExperimental") and not profile_store.get_bool("CECurves")

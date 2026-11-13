@@ -280,6 +280,34 @@ class UtilitiesTest(unittest.TestCase):
     self.assertIn("dir", cleared)
     self.assertTrue((self.backup_root / "receipt.json").exists())
 
+  def _reset_with_car(self, car):
+    act = self.actions()
+
+    def fake_backup(params, *, file_root, backup_root, reason):
+      (Path(backup_root) / "receipt.json").write_text("{}")
+      return BackupReceipt()
+
+    if car is not None:
+      self.params.values["CarModel"] = car
+      self.params.known.add("CarModel")
+    self.params.values["ConditionalExperimental"] = True
+    self.params.known.add("ConditionalExperimental")
+    import openpilot.system.bogpilot.settings_backup as sb
+    with patch.object(sb, "backup_settings", fake_backup):
+      act.reset_bogpilot_defaults()
+    return self.params.values.get("ConditionalExperimental")
+
+  def test_reset_bogpilot_defaults_turns_cem_off_on_every_legacy_tesla(self):
+    for car in ("TESLA_AP1_MODELS", "TESLA_AP1_MODELX", "TESLA_PREAP_MODELS"):
+      with self.subTest(car=car):
+        self.assertFalse(self._reset_with_car(car), car)
+
+  def test_reset_bogpilot_defaults_keeps_cem_shipped_on_other_cars(self):
+    for car in ("TESLA_MODEL_3", None):
+      with self.subTest(car=car):
+        self.params.values.pop("CarModel", None)
+        self.assertTrue(self._reset_with_car(car), car)
+
   def test_reset_bogpilot_defaults_refuses_without_backup(self):
     act = self.actions()
     self.params.values["GreenLightAlert"] = False  # would become ON on a successful shipping reset

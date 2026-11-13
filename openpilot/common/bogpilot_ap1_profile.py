@@ -318,7 +318,8 @@ def clear_ap1_defaults_marker(bogpilot_dir: Path | None = None) -> None:
   """Called on DoToggleReset so the next run re-applies the AP1 profile."""
   directory = Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR)
   for path in (marker_path(bogpilot_dir), theme_marker_path(bogpilot_dir), legacy_slc_marker_path(bogpilot_dir),
-               legacy_tesla_long_marker_path(bogpilot_dir), *(directory / n for n in OLD_THEME_MARKER_NAMES)):
+               legacy_tesla_long_marker_path(bogpilot_dir), legacy_tesla_ce_marker_path(bogpilot_dir),
+               *(directory / n for n in OLD_THEME_MARKER_NAMES)):
     try:
       path.unlink(missing_ok=True)
     except Exception:
@@ -628,6 +629,68 @@ def apply_legacy_tesla_long_defaults_once(params=None, bogpilot_dir: Path | None
           audit["kept"][key] = _text(current)
     directory.mkdir(parents=True, exist_ok=True)
     marker.write_text(json.dumps(audit, sort_keys=True) + "\n")
+    if written and refresh:
+      try:
+        params.invalidate()
+      except Exception:
+        pass
+    return written
+  except Exception:
+    return []
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Conditional Experimental Mode off on every legacy Tesla (AP1 Model S, AP1 Model X, Pre-AP Model S).
+#
+# Conditional Experimental Mode does not work on these cars yet, so it ships off on them: as the default (one-time
+# write below), after a section reset (the car-type reset tables in phase3_speed_control_settings.py) and after
+# "Reset BogPilot Settings to Defaults" (phase3_system_utilities.py writes it with the shipped table, and clearing the
+# marker makes the next start apply it again). AP2 is not a platform in this tree, so it receives nothing.
+# The AP1 Model S profile already sets it (AP1_PARAM_PROFILE); this covers the X and Pre-AP and an S whose profile
+# never ran. Migration rule, same as the long-tune defaults above: written only while the key is unset or still at its
+# registry default ("1"); on an AP1 Model S whose AP1 profile already ran, only an unset key is written, because a
+# value back at the default was then chosen after the profile. Never raises.
+LEGACY_TESLA_CE_OFF: dict[str, str] = {"ConditionalExperimental": "0"}
+LEGACY_TESLA_CE_MARKER_NAME = "LegacyTeslaCEOffApplied"
+
+
+def legacy_tesla_ce_marker_path(bogpilot_dir: Path | None = None) -> Path:
+  return Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR) / LEGACY_TESLA_CE_MARKER_NAME
+
+
+def legacy_tesla_ce_off_values(params) -> dict[str, str]:
+  """{key: stored text} every legacy Tesla resets to for Conditional Experimental Mode; {} on any other car."""
+  try:
+    return dict(LEGACY_TESLA_CE_OFF) if is_legacy_tesla_platform(params) else {}
+  except Exception:
+    return {}
+
+
+def apply_legacy_tesla_ce_off_once(params=None, bogpilot_dir: Path | None = None, default_table: dict | None = None,
+                                   refresh: bool = True) -> list[str]:
+  """Write LEGACY_TESLA_CE_OFF once per device on a legacy Tesla (rule above). Returns the keys written."""
+  try:
+    if params is None:
+      params = StoreParams()
+    elif not hasattr(params, "invalidate"):
+      params = StoreParams(_shared_store(params))
+    directory = Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR)
+    marker = legacy_tesla_ce_marker_path(directory)
+    if marker.exists() or not is_legacy_tesla_platform(params):
+      return []
+    table = default_table if default_table is not None else _default_table()
+    ap1_profile_ran = is_ap1(params) and marker_path(directory).exists()
+    written: list[str] = []
+    for key, value in LEGACY_TESLA_CE_OFF.items():
+      if key not in table:
+        continue
+      current = params.get(key)
+      still_default = _unset(current) or (values_equal(current, table[key]) and not ap1_profile_ran)
+      if still_default and not values_equal(current, value):
+        params.put(key, value)
+        written.append(key)
+    directory.mkdir(parents=True, exist_ok=True)
+    marker.write_text("1\n")
     if written and refresh:
       try:
         params.invalidate()

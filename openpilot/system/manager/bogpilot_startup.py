@@ -194,4 +194,10 @@ def after_defaults(params, *, file_root: Path | None = None, startup: StartupRes
     result.events.append(f"legacy-tesla-long:{len(changed)}")
   except Exception as exc:
     result.errors.append(f"legacy-tesla-long: {type(exc).__name__}")
+  try:
+    from openpilot.common.bogpilot_ap1_profile import apply_legacy_tesla_ce_off_once
+    changed = apply_legacy_tesla_ce_off_once(params, bogpilot_dir=directory)
+    result.events.append(f"legacy-tesla-ce-off:{len(changed)}")
+  except Exception as exc:
+    result.errors.append(f"legacy-tesla-ce-off: {type(exc).__name__}")
   return result

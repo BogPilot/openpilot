@@ -222,8 +222,9 @@ def _preap_model_s(store) -> bool:
 
 
 def _legacy_slc_values(store) -> dict[str, str]:
-  from openpilot.common.bogpilot_ap1_profile import legacy_slc_profile_for_units
-  return legacy_slc_profile_for_units(store)
+  """Pre-AP and AP1 Model X: the legacy SLC profile, plus Conditional Experimental Mode off (every legacy Tesla)."""
+  from openpilot.common.bogpilot_ap1_profile import legacy_slc_profile_for_units, legacy_tesla_ce_off_values
+  return {**legacy_slc_profile_for_units(store), **legacy_tesla_ce_off_values(store)}
 
 
 def _ap1_model_x(store) -> bool:
@@ -252,7 +253,8 @@ def slc_reset_profile_entry(store):
 def slc_reset_profile(store) -> dict[str, str] | None:
   """{key: stored text} of the current car's reset profile, or None when the car uses the general table.
 
-  AP1 Model S: the whole AP1 profile (unit-aware). Pre-AP and AP1 Model X: the legacy SLC profile only."""
+  AP1 Model S: the whole AP1 profile (unit-aware). Pre-AP and AP1 Model X: the legacy SLC profile and
+  Conditional Experimental Mode off."""
   entry = slc_reset_profile_entry(store)
   return None if entry is None else dict(entry[2](store))
 

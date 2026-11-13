@@ -295,6 +295,15 @@ class UtilitiesActions:
             self.params.put(k, value, block=True)
         else:
           self._atomic_file(directory / k, None if text is None else text.encode())
+      # Every legacy Tesla: Conditional Experimental Mode off now, not only after the next start
+      # (bogpilot_ap1_profile.LEGACY_TESLA_CE_OFF; the cleared marker re-applies it at boot as well).
+      from openpilot.common.bogpilot_ap1_profile import legacy_tesla_ce_off_values
+      for k, text in legacy_tesla_ce_off_values(self.params).items():
+        self.guard()
+        if k in typed:
+          self.params.put(k, self.params.cpp2python(k, text.encode()), block=True)
+        elif k in values:
+          self._atomic_file(directory / k, text.encode())
       clear_ap1_defaults_marker(directory)
     except Exception:
       # Best-effort rollback; caller sees failure rather than a half-applied state.
