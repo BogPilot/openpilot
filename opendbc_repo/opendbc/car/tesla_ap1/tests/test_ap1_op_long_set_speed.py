@@ -822,3 +822,76 @@ def test_nonfinite_tap_from_stop_setting_uses_the_default(bad):
   out, _ols = _latch(0.0, True, 0.0, tap_zero=bad, tap=True)
   assert out == pytest.approx(TAP_FROM_ZERO_KPH * CV.KPH_TO_MS, abs=1e-6)
 
+
+def _rolling_tap_then_stop(stop_frames, tap_mph=3.0, limit_ms=LIMIT_45_MS, engaged_state="ENABLED"):
+  """A tap at tap_mph while rolling with a known limit, stop_frames at a full stop with cruise off, then the engage edge
+  at the stop. -> (car-side sets over 20 engaged frames, the OpLongSetSpeed)."""
+  ols = OpLongSetSpeed()
+  offset_fn = lambda _limit: OFFSET_5_MS
+  ols.update("STANDBY", tap_mph * CV.MPH_TO_MS, False, limit_ms=limit_ms, offset_fn=offset_fn, tap=True)
+  for _ in range(stop_frames):
+    ols.update("STANDBY", 0.0, True, limit_ms=limit_ms, offset_fn=offset_fn)
+  sets = [ols.update(engaged_state, 0.0, True, limit_ms=limit_ms, offset_fn=offset_fn) for _ in range(20)]
+  return sets, ols
+
+
+@pytest.mark.parametrize("engaged_state", ["ENABLED", "STANDSTILL"])
+@pytest.mark.parametrize("stop_frames", [1, 20, int(TAP_WINDOW_S / 0.01) - 2])
+def test_rolling_tap_then_stop_within_window_keeps_tap_set(stop_frames, engaged_state):
+  """A tap while rolling (3 mph, 45 mph limit known), then a stop inside the 0.8 s window, then the engage at the
+  stop: the car-side set keeps the tap's vEgo latch, never limit + offset (50 mph)."""
+  sets, ols = _rolling_tap_then_stop(stop_frames, engaged_state=engaged_state)
+  for v in sets:
+    assert v == pytest.approx(3.0 * CV.MPH_TO_MS, abs=1e-6)
+    assert v < (45 + 5) * CV.MPH_TO_MS - 1.0
+  assert not ols.speed_limit_unknown
+
+
+def test_rolling_tap_then_stop_within_window_car_and_planner_agree():
+  """The planner (Ap1RaiseHoldoff + ap1_cruise_ms) classifies the same engage as a tap and latches the vEgo at the
+  tap; the car-side cruiseState.speed now gives the same set."""
+  sets, _ols = _rolling_tap_then_stop(20)
+  car_ms = sets[0]
+  slc_ms = LIMIT_45_MS + OFFSET_5_MS
+  hold = Ap1RaiseHoldoff()
+  hold.tap_from_zero_ms = TAP_FROM_ZERO_KPH * CV.KPH_TO_MS
+  hold.update(False, False, True, False, slc_ms, 3.0 * CV.MPH_TO_MS, cruise_on=False)   # UP tap while rolling
+  for _ in range(4):   # 0.2 s at the stop (planner ticks)
+    hold.update(False, False, False, False, slc_ms, 0.0, cruise_on=False)
+  hold.update(False, False, False, False, slc_ms, 0.0, current_set_ms=car_ms, cruise_on=True)   # cruise edge
+  allow, sticky = hold.update(True, False, False, False, slc_ms, 0.0, current_set_ms=car_ms, cruise_on=True)
+  plan_ms = ap1_cruise_ms(car_ms, sticky, hold.tip_ms, allow, slc_ms, LIMIT_45_MS, 0.0, False, 0.0,
+                          sticky_zero_is_none=True)
+  assert car_ms == pytest.approx(3.0 * CV.MPH_TO_MS, abs=1e-6)
+  assert plan_ms == pytest.approx(car_ms, abs=1e-6)
+
+
+def test_rolling_tap_then_stop_after_window_is_unchanged():
+  """Past the 0.8 s window the tap is stale: the standstill rule with a known limit and no stalk (limit + offset)."""
+  sets, _ols = _rolling_tap_then_stop(int(TAP_WINDOW_S / 0.01) + 5)
+  assert sets[0] == pytest.approx((45 + 5) * CV.MPH_TO_MS, abs=1e-3)
+
+
+def test_rolling_tap_then_pull_at_the_stop_uses_limit_plus_offset():
+  """The most recent press decides: a pull after the rolling tap still engages SLC at limit + offset."""
+  ols = OpLongSetSpeed()
+  offset_fn = lambda _limit: OFFSET_5_MS
+  ols.update("STANDBY", 3.0 * CV.MPH_TO_MS, False, limit_ms=LIMIT_45_MS, offset_fn=offset_fn, tap=True)
+  ols.update("STANDBY", 0.0, True, limit_ms=LIMIT_45_MS, offset_fn=offset_fn, pull=True)
+  out = ols.update("ENABLED", 0.0, True, limit_ms=LIMIT_45_MS, offset_fn=offset_fn)
+  assert out == pytest.approx((45 + 5) * CV.MPH_TO_MS, abs=1e-3)
+
+
+@pytest.mark.parametrize("lever", [UP, DN, UP_1ST, DN_1ST])
+def test_rolling_tap_then_stop_within_window_keeps_tap_set_on_can(lever):
+  """The same through CarState: a tap at 10 kph with a 65 mph map limit, a stop, the engage at the stop."""
+  car = Car(offset_ms=5 * CV.MPH_TO_MS)
+  _roll(car, STANDBY, 10.0)
+  car.step(STANDBY, 0, 10.0, map_limit=MAP_65, lever=lever)
+  for _ in range(20):
+    car.step(STANDBY, 0, 0.0, map_limit=MAP_65)
+  rets = [car.step(STANDSTILL, 0, 0.0, map_limit=MAP_65) for _ in range(10)]
+  for ret in rets:
+    assert ret.cruiseState.speed == pytest.approx(10.0 * CV.KPH_TO_MS, abs=0.05)
+    assert not ret.bogpilot.ap1SpeedLimitUnknown
+

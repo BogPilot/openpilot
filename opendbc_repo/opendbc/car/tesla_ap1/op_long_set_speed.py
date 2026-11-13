@@ -20,6 +20,8 @@ Fresh = pressed while engaged with nothing latched, or at most TAP_WINDOW_S befo
 Standstill (a tap never takes SLC here either; only a pull does):
 3. A fresh stalk UP/DN tap as the most recent press: the tap-from-stop speed (AP1TapFromZeroMph, default 15 mph,
    24.14016 kph), even with a known limit. The planner's tap from 0 gives the same set (slc_raise tap_from_zero_ms).
+   A tap made while still rolling, then a stop inside the window: the exact vEgo at the tap, the same latch the
+   planner takes for that tap (slc_raise engage_vego_ms), never limit plus offset.
 4. A known limit (a fresh pull, or no stalk seen): limit plus offset.
 5. A fresh tap with no limit (e.g. a pull after the tap): the tap-from-stop speed. An older tap (e.g. at a red
    light before the engage) is dropped, and a tap is used once.
@@ -141,6 +143,7 @@ class OpLongSetSpeed:
     self.tap_age_s = 0.0   # time since that tap
     self.stalk_kind = None   # fresh engage stalk action: "tap" (UP/DN) or "pull" (resumeCruise); None = none seen
     self.stalk_age_s = 0.0   # time since that press
+    self.tap_vego_kph = 0.0  # vEgoRaw at the latest tap made while rolling (0 = none, or the tap was at a standstill)
     self.speed_limit_unknown = False
 
   def update(self, cruise_state, v_ego_raw_ms: float, standstill: bool, limit_ms: float = 0.0,
@@ -173,6 +176,7 @@ class OpLongSetSpeed:
       self.stalk_kind, self.stalk_age_s = "pull", 0.0
     elif tap:
       self.stalk_kind, self.stalk_age_s = "tap", 0.0
+      self.tap_vego_kph = v_kph if not use_standstill else 0.0
     if not use_standstill:
       self.tap_kph = 0.0   # rolling: a tap-from-0 does not apply; the exact vEgo latch does
     elif tap and self.set_kph <= 0.0:
@@ -199,6 +203,10 @@ class OpLongSetSpeed:
       elif self.stalk_kind == "tap" and self.tap_kph > 0.0:
         # Standstill tap: the tap-from-stop speed even with a known limit; only a pull engages SLC.
         self.set_kph = _clamp_kph(self.tap_kph)
+      elif self.stalk_kind == "tap" and self.tap_vego_kph > 0.0 and not _would_publish_zero(self.tap_vego_kph):
+        # Tapped while rolling, stopped inside the window: the vEgo latch of that tap (the planner latches the same
+        # vEgo for this engage), never limit plus offset.
+        self.set_kph = _clamp_max_kph(self.tap_vego_kph)
       elif limit_set_kph > 0.0:
         self.set_kph = limit_set_kph
       elif self.tap_kph > 0.0:
@@ -206,6 +214,7 @@ class OpLongSetSpeed:
       if self.set_kph > 0.0:
         self.tap_kph = 0.0   # used (or overridden by the limit / vEgo latch): never reused on a re-engage
         self.stalk_kind = None
+        self.tap_vego_kph = 0.0
     self.speed_limit_unknown = bool(refused_nonfinite or
                                     (use_standstill and self.set_kph <= 0.0 and limit_ms <= 0.0 and self.tap_kph <= 0.0))
     if not engaged:

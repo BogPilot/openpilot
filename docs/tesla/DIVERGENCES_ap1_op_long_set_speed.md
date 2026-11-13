@@ -225,3 +225,17 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
   Neither checks finiteness; this is stricter.
 - Safety-relevant: set-speed choice only; only removes sets that were not finite or came from a non-finite input.
 - Tests: `test_nonfinite_*` (`test_ap1_op_long_set_speed.py`).
+
+### AP1: a rolling tap followed by a stop inside the window keeps the tap's vEgo latch
+- Our behavior (`op_long_set_speed.py`): a stalk UP/DN tap made while rolling, then a full stop and the engage edge
+  within `TAP_WINDOW_S` (0.8 s) of the tap, latches the exact vEgoRaw at the tap (kept below 8 kph, capped at 170 kph),
+  not limit plus offset. Before this the rolling tap cleared the standstill tap state, so the standstill engage fell to
+  "known limit: limit plus offset" (a 3 mph tap with a 45 mph limit gave a 50 mph car-side set, shown on the cluster),
+  while the planner classified the same engage as a tap and latched 3 mph. A later pull still wins (limit plus offset);
+  past the window the tap is stale and the standstill rules are unchanged.
+- Reference behavior: BogPilot 0.9.7 `slc_raise.py` (`04d560f3e`): a tap inside `RECENT_S` before the engage latches the
+  vEgo at the tap (sticky); our planner keeps that (`Ap1RaiseHoldoff.engage_vego_ms`). Tinkla latches vEgo at the engage.
+- Safety-relevant: set-speed choice only; the set is lower than or equal to the old one in the reported case.
+- Tests: `test_rolling_tap_then_stop_within_window_keeps_tap_set`, `..._keeps_tap_set_on_can`,
+  `test_rolling_tap_then_stop_within_window_car_and_planner_agree`, `test_rolling_tap_then_stop_after_window_is_unchanged`,
+  `test_rolling_tap_then_pull_at_the_stop_uses_limit_plus_offset` (`test_ap1_op_long_set_speed.py`).
