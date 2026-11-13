@@ -3,6 +3,7 @@
 DI_cruiseState values from tesla_ap1_can.dbc VAL_ 872: 1 STANDBY, 2 ENABLED, 3 STANDSTILL, 4 OVERRIDE, 6 PRE_FAULT,
 7 PRE_CANCEL. SpdCtrlLvr_Stat 4 = UP (accelCruise), 8 = DN (decelCruise) (values.py BUTTONS).
 """
+import math
 from types import SimpleNamespace
 
 import pytest
@@ -12,7 +13,7 @@ from opendbc.car import Bus
 from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.tesla_ap1.ap1_events import Ap1Events, SPEED_LIMIT_UNKNOWN
 from opendbc.car.tesla_ap1.carstate import CarState
-from opendbc.car.tesla_ap1.op_long_set_speed import (TAP_FROM_ZERO_KPH, TAP_WINDOW_S,
+from opendbc.car.tesla_ap1.op_long_set_speed import (TAP_FROM_ZERO_KPH, TAP_WINDOW_S, OpLongSetSpeed,
      format_tap_from_zero_display, parse_tap_from_zero_mph, tap_from_zero_kph_from_param)
 from opendbc.car.tesla_ap1.slc_raise import Ap1RaiseHoldoff, ap1_cruise_ms
 from opendbc.car.tesla_ap1.speed_limit import LIMIT_MAX_AGE_S, frame_fresh, ui_map_speed_limit_ms
@@ -753,4 +754,71 @@ def test_cancel_drops_held_stalk_levels():
   car.step(STANDBY, 0, 50.0, lever=UP)
   ret = car.step(STANDBY, 0, 50.0, lever=CANCEL)
   assert not ret.bogpilot.accelPressed and not ret.bogpilot.decelPressed and not ret.bogpilot.resumePressed
+
+
+NONFINITE = [float("inf"), float("-inf"), float("nan")]
+LIMIT_45_MS = 45 * CV.MPH_TO_MS
+OFFSET_5_MS = 5 * CV.MPH_TO_MS
+
+
+def _latch(v_ms, standstill, limit_ms, offset=OFFSET_5_MS, tap_zero=None, **press):
+  """A press with cruise off, then the engage edge. -> (set m/s on the edge, the OpLongSetSpeed)."""
+  ols = OpLongSetSpeed()
+  offset_fn = (lambda _limit: offset) if offset is not None else None
+  ols.update("STANDBY", v_ms, standstill, limit_ms=limit_ms, offset_fn=offset_fn, tap_from_zero_kph=tap_zero, **press)
+  out = ols.update("ENABLED", v_ms, standstill, limit_ms=limit_ms, offset_fn=offset_fn, tap_from_zero_kph=tap_zero)
+  return out, ols
+
+
+@pytest.mark.parametrize("bad", NONFINITE)
+def test_nonfinite_limit_is_an_unknown_limit(bad):
+  # Rolling pull: no usable limit -> exact vEgo latch (as a pull with no known limit).
+  out, ols = _latch(20.0, False, bad, pull=True)
+  assert math.isfinite(out) and out == pytest.approx(20.0, abs=1e-6)
+  assert not ols.speed_limit_unknown
+  # Standstill, no tap: refused (NO_ENTRY ap1SpeedLimitUnknown), nothing latched.
+  out, ols = _latch(0.0, True, bad, pull=True)
+  assert out == 0.0 and ols.set_kph == 0.0 and ols.speed_limit_unknown
+  # Standstill tap: the tap-from-stop speed.
+  out, ols = _latch(0.0, True, bad, tap=True)
+  assert out == pytest.approx(TAP_FROM_ZERO_KPH * CV.KPH_TO_MS, abs=1e-6)
+
+
+@pytest.mark.parametrize("bad", NONFINITE)
+def test_nonfinite_offset_makes_the_limit_unknown(bad):
+  out, ols = _latch(20.0, False, LIMIT_45_MS, offset=bad, pull=True)
+  assert math.isfinite(out) and out == pytest.approx(20.0, abs=1e-6)
+  out, ols = _latch(0.0, True, LIMIT_45_MS, offset=bad, pull=True)
+  assert out == 0.0 and ols.set_kph == 0.0 and ols.speed_limit_unknown
+  out, ols = _latch(0.0, True, LIMIT_45_MS, offset=bad)
+  assert out == 0.0 and ols.speed_limit_unknown
+  out, ols = _latch(0.0, True, LIMIT_45_MS, offset=bad, tap=True)
+  assert out == pytest.approx(TAP_FROM_ZERO_KPH * CV.KPH_TO_MS, abs=1e-6)
+
+
+@pytest.mark.parametrize("bad", NONFINITE)
+@pytest.mark.parametrize("press", [{"pull": True}, {"tap": True}, {}])
+@pytest.mark.parametrize("standstill", [False, True])
+def test_nonfinite_vego_never_latches_and_refuses(bad, press, standstill):
+  out, ols = _latch(bad, standstill, LIMIT_45_MS, **press)
+  assert out == 0.0 and ols.set_kph == 0.0
+  assert ols.speed_limit_unknown   # refused like an unknown limit, never a 0 / placeholder set while enabled
+  # The next frame with a finite speed latches as usual (rolling: vEgo; nothing held from the bad frame).
+  nxt = ols.update("ENABLED", 20.0, False, limit_ms=LIMIT_45_MS, offset_fn=lambda _l: OFFSET_5_MS)
+  assert math.isfinite(nxt) and nxt > 0.0 and not ols.speed_limit_unknown
+
+
+@pytest.mark.parametrize("bad", NONFINITE)
+def test_nonfinite_vego_after_the_latch_keeps_the_set(bad):
+  out, ols = _latch(20.0, False, LIMIT_45_MS, pull=True)
+  want = (45 + 5) * CV.MPH_TO_MS
+  assert out == pytest.approx(want, abs=1e-3)
+  held = ols.update("ENABLED", bad, False, limit_ms=bad, offset_fn=lambda _l: bad)
+  assert held == pytest.approx(want, abs=1e-3) and not ols.speed_limit_unknown
+
+
+@pytest.mark.parametrize("bad", NONFINITE)
+def test_nonfinite_tap_from_stop_setting_uses_the_default(bad):
+  out, _ols = _latch(0.0, True, 0.0, tap_zero=bad, tap=True)
+  assert out == pytest.approx(TAP_FROM_ZERO_KPH * CV.KPH_TO_MS, abs=1e-6)
 

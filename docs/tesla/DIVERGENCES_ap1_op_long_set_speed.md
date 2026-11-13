@@ -212,3 +212,16 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
 - Safety-relevant: planner set speed only, and only lower or equal to before. No panda, CAN TX, DBC or cereal change.
 - Tests: `TestMaxSetSpeedGasOverride` and `test_override_manual_and_set_speed` (`test_phase3_speed_control.py`).
 - Credits: BogPilot 0.9.7 (SLC override rule).
+
+### AP1: non-finite engage inputs never become a set
+- Our behavior (`op_long_set_speed.py`): a non-finite (inf / NaN) dashboard limit, or a limit whose offset or limit plus
+  offset is not finite, is an unknown limit (rolling pull: exact vEgo latch; standstill: a fresh tap's tap-from-stop
+  speed or NO_ENTRY `ap1SpeedLimitUnknown`). A non-finite vEgoRaw latches nothing on that frame and the engage is refused
+  through the same `ap1SpeedLimitUnknown` NO_ENTRY (no 0 or placeholder set while enabled); the next finite frame
+  latches as usual, and a set already latched is held. A non-finite tap-from-stop setting is the 15 mph default, as
+  `parse_tap_from_zero_mph` treats an invalid value. Before this, +inf gave a 170 kph set, a NaN offset gave a NaN set and
+  a non-finite vEgoRaw raised.
+- Reference behavior: Tinkla `ACC_module.py:231-232` (`501c7de`) clips the set; BogPilot 0.9.7 has no car-layer set.
+  Neither checks finiteness; this is stricter.
+- Safety-relevant: set-speed choice only; only removes sets that were not finite or came from a non-finite input.
+- Tests: `test_nonfinite_*` (`test_ap1_op_long_set_speed.py`).

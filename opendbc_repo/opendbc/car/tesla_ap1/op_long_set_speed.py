@@ -42,6 +42,7 @@ values.py:158-159). With openpilot long off, DI_cruiseSet is published unchanged
 Inputs: DI_cruiseState, ESP_vehicleSpeed, dashboardSpeedLimit, stalk buttons and the card-supplied
 offset. Never cruiseState.speed, carState.vCruise / vCruiseCluster, bogpilotPlan or hudControl.
 """
+import math
 from collections.abc import Callable
 
 from opendbc.car import DT_CTRL
@@ -113,6 +114,15 @@ def _clamp_max_kph(kph: float) -> float:
   return min(float(kph), SET_MAX_KPH)
 
 
+def _limit_plus_offset_kph(limit_ms: float, offset_fn: Callable[[float], float] | None) -> float:
+  """Limit plus offset in kph, clamped to 8-170. 0 (treated as an unknown limit) when the offset or the sum is not finite."""
+  offset_ms = float(offset_fn(limit_ms)) if offset_fn is not None else 0.0
+  total_ms = limit_ms + offset_ms
+  if not math.isfinite(offset_ms) or not math.isfinite(total_ms):
+    return 0.0
+  return _clamp_kph(total_ms * CV.MS_TO_KPH)
+
+
 def _would_publish_zero(kph: float) -> bool:
   """True when a rolling vEgo latch would be 0 on the dash/planner (never 0/UNSET while enabled)."""
   if kph <= 0.0 or round(float(kph), 1) == 0.0:
@@ -140,13 +150,23 @@ class OpLongSetSpeed:
 
     tap: an UP/DN (accelCruise / decelCruise) press edge this frame. pull: a resumeCruise (SpdCtrlLvr_Stat 2) press edge.
     """
-    v_kph = max(float(v_ego_raw_ms), 0.0) * CV.MS_TO_KPH
+    # Non-finite inputs never become a set: a non-finite limit (or limit plus offset) is an unknown limit, a non-finite
+    # vEgoRaw latches nothing (the engage is refused like an unknown limit at a standstill), a non-finite tap-from-stop
+    # setting is the default (as parse_tap_from_zero_mph treats an invalid value).
+    v_raw = float(v_ego_raw_ms)
+    v_ok = math.isfinite(v_raw)
+    v_kph = max(v_raw, 0.0) * CV.MS_TO_KPH if v_ok else 0.0
     tap_zero_kph = TAP_FROM_ZERO_KPH if tap_from_zero_kph is None else float(tap_from_zero_kph)
-    limit_ms = float(limit_ms) if limit_ms and limit_ms > 0.0 else 0.0
+    if not math.isfinite(tap_zero_kph):
+      tap_zero_kph = TAP_FROM_ZERO_KPH
+    limit_ms = float(limit_ms) if limit_ms else 0.0
+    if not math.isfinite(limit_ms) or limit_ms <= 0.0:
+      limit_ms = 0.0
     engaged = cruise_state in ENGAGED_STATES
     # True standstill is CarState.standstill (carstate.py: ret.standstill = ret.vEgo < 0.1 m/s).
     # A rolling vEgo that would publish as 0 also follows the standstill rules.
-    use_standstill = bool(standstill) or _would_publish_zero(v_kph)
+    use_standstill = bool(standstill) or (v_ok and _would_publish_zero(v_kph))
+    refused_nonfinite = engaged and self.set_kph <= 0.0 and not v_ok
     self.tap_age_s += DT_CTRL
     self.stalk_age_s += DT_CTRL
     if pull:
@@ -165,25 +185,29 @@ class OpLongSetSpeed:
       if self.stalk_age_s > TAP_WINDOW_S + 1e-6:
         self.stalk_kind = None   # stale: too long before any engage edge
     elif self.set_kph <= 0.0:
-      if not use_standstill:
+      limit_set_kph = _limit_plus_offset_kph(limit_ms, offset_fn) if limit_ms > 0.0 else 0.0
+      if limit_set_kph <= 0.0:
+        limit_ms = 0.0   # limit plus offset not finite: an unknown limit
+      if not v_ok:
+        pass   # vEgoRaw not finite: no latch from it (refused below, speed_limit_unknown)
+      elif not use_standstill:
         # Rolling: only a fresh pull takes the limit; a tap or no stalk latches the current speed.
-        if self.stalk_kind == "pull" and limit_ms > 0.0:
-          offset_ms = float(offset_fn(limit_ms)) if offset_fn is not None else 0.0
-          self.set_kph = _clamp_kph((limit_ms + offset_ms) * CV.MS_TO_KPH)
+        if self.stalk_kind == "pull" and limit_set_kph > 0.0:
+          self.set_kph = limit_set_kph
         else:
           self.set_kph = _clamp_max_kph(v_kph)
       elif self.stalk_kind == "tap" and self.tap_kph > 0.0:
         # Standstill tap: the tap-from-stop speed even with a known limit; only a pull engages SLC.
         self.set_kph = _clamp_kph(self.tap_kph)
-      elif limit_ms > 0.0:
-        offset_ms = float(offset_fn(limit_ms)) if offset_fn is not None else 0.0
-        self.set_kph = _clamp_kph((limit_ms + offset_ms) * CV.MS_TO_KPH)
+      elif limit_set_kph > 0.0:
+        self.set_kph = limit_set_kph
       elif self.tap_kph > 0.0:
         self.set_kph = _clamp_kph(self.tap_kph)
       if self.set_kph > 0.0:
         self.tap_kph = 0.0   # used (or overridden by the limit / vEgo latch): never reused on a re-engage
         self.stalk_kind = None
-    self.speed_limit_unknown = bool(use_standstill and self.set_kph <= 0.0 and limit_ms <= 0.0 and self.tap_kph <= 0.0)
+    self.speed_limit_unknown = bool(refused_nonfinite or
+                                    (use_standstill and self.set_kph <= 0.0 and limit_ms <= 0.0 and self.tap_kph <= 0.0))
     if not engaged:
       return 0.0
     if self.set_kph <= 0.0:
