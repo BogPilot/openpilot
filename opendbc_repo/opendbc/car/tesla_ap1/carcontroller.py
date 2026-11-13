@@ -17,7 +17,7 @@ from opendbc.car.tesla_ap1.cluster import (
   CLUSTER_BUS, ClusterController, HudInputs, path_from_model_v2,
 )
 from opendbc.car.tesla_ap1.engage_ramp import Ap1EngageSteerRamp
-from opendbc.car.tesla_ap1.epas_gate import EAC_BLOCKING_STATUS, EpasGate
+from opendbc.car.tesla_ap1.epas_gate import EAC_BLOCKING_STATUS, EpasGate, EpasTmpFaultRecovery
 from opendbc.car.tesla_ap1.ic_lanes import IcLanes
 from opendbc.car.tesla_ap1.hso import AP1_HANDS_ON_LEVEL, Ap1DriverYield, ap1_lat_active, ap1_steering_pressed
 from opendbc.car.tesla_ap1.override import DriverOverrideDetector, read_sensitivity_level
@@ -62,6 +62,8 @@ class CarController(CarControllerBase):
     self.ap1_override = DriverOverrideDetector(read_sensitivity_level())   # Override Sensitivity, read once per drive
     self.ap1_cmd_deg = None
     self.ap1_epas_gate = EpasGate()
+    # Latched EAC_ERROR_TMP_FAULT: bounded measured-wheel ANGLE request while engaged (epas_gate.py).
+    self.ap1_tmp_fault = EpasTmpFaultRecovery()
     self.ap1_prev_lat_session = False
     # Structural AP1 (Model S and Model X): engage blend from the measured wheel.
     self.ap1_steer_ramp = Ap1EngageSteerRamp() if is_ap1_family(CP.carFingerprint) else None
@@ -89,6 +91,7 @@ class CarController(CarControllerBase):
     soft_start = False
     driver_yield = False
     epas_yield = False
+    tmp_fault_probe = False
     lat_session = None
     # AP1 lateral session: engaged, or Always On Lateral steering while not engaged. controlsd only
     # sets latActive without enabled when bogpilotCarState.alwaysOnLateralEnabled is true, so with
@@ -108,6 +111,15 @@ class CarController(CarControllerBase):
       # this frame. Both the end of that block and a new latActive start the measured-angle soft-start.
       lat_session = bool(CC.latActive)
       epas_yield = self.ap1_epas_gate.update(lat_session, CS.eac_status, CS.steer_warning, bool(CS.eac_fault))
+      # Engaged only (CC.enabled, not Always On Lateral). No 0x214 frame yet (None) never starts a request.
+      was_probe, probe_n = self.ap1_tmp_fault.active, self.ap1_tmp_fault.probes
+      tmp_fault_probe = self.ap1_tmp_fault.update(bool(CC.enabled), lat_session, CS.eac_status, CS.steer_warning,
+                                                  CS.hands_on_level, getattr(CS, "epb_eac_allow", None),
+                                                  bool(CS.eac_fault), driver_yield)
+      if tmp_fault_probe and not was_probe:
+        carlog.warning(f"tesla ap1 epas code 4: measured-angle request {self.ap1_tmp_fault.probes}")
+      elif was_probe and not tmp_fault_probe:
+        carlog.warning(f"tesla ap1 epas code 4: request {probe_n} ended {self.ap1_tmp_fault.last_result}")
       if self.ap1_yield.resumed or self.ap1_epas_gate.resumed or (lat_session and not self.ap1_prev_lat_session):
         # Resume from the measured wheel through the engage soft-start.
         self.ap1_engage_frame = self.frame
@@ -129,7 +141,8 @@ class CarController(CarControllerBase):
       hands_pause = CS.hands_on_level >= AP1_HANDS_ON_LEVEL or driver_yield or epas_blocked
       held = ap1_hold_measured_angle(True, steer_session, bool(CS.eac_fault), hands_pause,
                                      CS.eac_status, CS.steer_warning, soft_start,
-                                     lat_session=lat_session, epas_blocked=epas_blocked)
+                                     lat_session=lat_session, epas_blocked=epas_blocked,
+                                     tmp_fault_probe=tmp_fault_probe)
       path_active = (steer_session and lat_active and not hands_on_fault and not hands_pause and
                      not bool(CS.eac_fault) and not held)
       requested_angle = self.ap1_steer_ramp.update(path_active, CS.out.steeringAngleDeg, actuators.steeringAngleDeg)
@@ -176,6 +189,7 @@ class CarController(CarControllerBase):
       soft_start=soft_start,
       driver_yield=driver_yield,
       epas_yield=epas_yield,
+      tmp_fault_probe=tmp_fault_probe,
       lat_session=lat_session if ap1 else None,
       # AP1: neutral DAS_control while the driver presses the accelerator.
       gas_pressed=bool(getattr(CS.out, "gasPressed", False)) if ap1 else False,

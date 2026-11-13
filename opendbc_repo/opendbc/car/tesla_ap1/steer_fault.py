@@ -19,6 +19,11 @@ _BENIGN = ("EAC_ERROR_IDLE", "EAC_ERROR_HANDS_ON")
 _AP1_NOT_WARNING = ("EAC_ERROR_IDLE", "EAC_ERROR_HIGH_ANGLE_REQ", "EAC_ERROR_HANDS_ON")
 # Latched names that should be commanded as ANGLE once hands are below 2.
 AP1_LATCHED_ANGLE_ERRORS = ("EAC_ERROR_HIGH_ANGLE_REQ", "EAC_ERROR_HANDS_ON")
+# AP1: EAC_ERROR_TMP_FAULT (4) stays a temporary fault here, so latActive stays false while it is set.
+# The EPAS keeps it latched while AVAILABLE and clears it only when a new EAC session is commanded
+# (pre-AP 0.9.7-era capture: AVAILABLE + code 4 from boot, EAC_ACTIVE + IDLE on the first ANGLE frame).
+# epas_gate.EpasTmpFaultRecovery sends that bounded measured-wheel request; nothing else does.
+AP1_RECOVERABLE_TMP_FAULT = "EAC_ERROR_TMP_FAULT"
 
 
 def steer_fault_temporary(steer_warning, ap1):

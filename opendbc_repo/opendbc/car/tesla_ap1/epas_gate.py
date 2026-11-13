@@ -76,3 +76,114 @@ class EpasGate:
         self.clean_frames = 0
         self.resumed = True
     return self.blocked
+
+
+# ---- AP1 EAC_ERROR_TMP_FAULT (4) recovery ---------------------------------------------------------
+#
+# The EPAS latches code 4 the same way it latches HANDS_ON (3) and HIGH_ANGLE_REQ (6): it stays in
+# EPAS_eacErrorCode while the EPAS is AVAILABLE and clears only when a new EAC session is commanded.
+# Code 4 is a temporary fault (steer_fault.py), so latActive stays false, nothing sends ANGLE and the
+# latch never clears: lateral is lost until a car power cycle. Tinkla (BogGyver 501c7de
+# carcontroller.py:86-106) and BogPilot 0.9.7 (actuator_plan.py ap1_hold_measured_angle) kept sending
+# ANGLE at the measured wheel while engaged, which is what clears a latched code.
+#
+# Divergence (stricter than both references): one short measured-wheel ANGLE request, only while
+# openpilot is engaged, the EPAS is AVAILABLE with code 4, hands are below 2, the driver is not
+# overriding, there is no EAC_FAULT and EPB_epasEACAllow is 1. At most ERR4_MAX_PROBES per engagement,
+# ERR4_PROBE_FRAMES long, ERR4_WAIT_FRAMES apart. Any refusing status, a hands level of 2+, a driver
+# override, EPB allow != 1, EAC_FAULT or any other error code ends the request on that frame.
+# A clear (error IDLE) hands over to the normal path: steerFaultTemporary drops, latActive returns and
+# the controller restarts from the measured wheel through the engage soft-start.
+
+ERR4_PROBE_FRAMES = 30    # 0.3 s at 100 Hz
+ERR4_WAIT_FRAMES = 200    # 2 s at 100 Hz
+ERR4_MAX_PROBES = 3       # per engagement
+EAC_AVAILABLE = "EAC_AVAILABLE"
+EAC_TMP_FAULT = "EAC_ERROR_TMP_FAULT"
+EAC_IDLE = "EAC_ERROR_IDLE"
+# While a request is running the EPAS may go ACTIVE before it drops the code.
+_PROBE_STATUS = (EAC_AVAILABLE, EAC_ACTIVE)
+_PROBE_ERRORS = (EAC_TMP_FAULT, EAC_IDLE)
+
+R_IDLE, R_PROBE, R_WAIT, R_DONE = "idle", "probe", "wait", "done"
+
+
+class EpasTmpFaultRecovery:
+  """Bounded measured-wheel ANGLE request for a latched EAC_ERROR_TMP_FAULT. One update per control step."""
+
+  def __init__(self):
+    self.reset()
+
+  def reset(self):
+    self.state = R_IDLE
+    self.probes = 0
+    self.frames = 0
+    self.cleared = False
+    self.last_result = None   # "cleared", "timeout" or "abort:<reason>" for the last request
+
+  @property
+  def active(self):
+    return self.state == R_PROBE
+
+  @staticmethod
+  def abort_reason(eac_status, steer_warning, hands_on_level, epb_eac_allow, eac_fault, driver_yield):
+    """Why a request may not run this frame. None when it may."""
+    if eac_fault or eac_status == "EAC_FAULT":
+      return "eac_fault"
+    if epb_eac_allow != 1:
+      return "epb_allow"
+    if eac_status not in _PROBE_STATUS:
+      return "status"
+    if hands_on_level is None or hands_on_level >= 2:
+      return "hands"
+    if driver_yield:
+      return "override"
+    if steer_warning not in _PROBE_ERRORS:
+      return "error_code"
+    return None
+
+  def _end(self, result):
+    self.last_result = result
+    self.frames = 0
+    self.state = R_DONE if self.probes >= ERR4_MAX_PROBES else R_WAIT
+
+  def update(self, engaged, lat_session, eac_status, steer_warning, hands_on_level, epb_eac_allow,
+             eac_fault=False, driver_yield=False):
+    """True on the frames that must carry an ANGLE request at the measured wheel."""
+    if not engaged:
+      was_probe = self.state == R_PROBE
+      self.reset()
+      if was_probe:
+        self.last_result = "abort:disengaged"
+      return False
+    reason = self.abort_reason(eac_status, steer_warning, hands_on_level, epb_eac_allow, eac_fault, driver_yield)
+    if self.state == R_PROBE:
+      if reason is not None:
+        self._end("abort:" + reason)
+        return False
+      if steer_warning == EAC_IDLE:
+        self.cleared = True
+      self.frames += 1
+      # After a clear, hold until latActive is back (the next soft-start takes over), never past the window.
+      if self.frames >= ERR4_PROBE_FRAMES or (self.cleared and lat_session):
+        self._end("cleared" if self.cleared else "timeout")
+        if self.cleared:
+          self.state = R_IDLE if self.probes < ERR4_MAX_PROBES else R_DONE
+        return False
+      return True
+    if self.state == R_WAIT:
+      self.frames += 1
+      if self.frames < ERR4_WAIT_FRAMES:
+        return False
+      self.state = R_IDLE
+      self.frames = 0
+    if self.state == R_DONE:
+      return False
+    # R_IDLE: start only on a latched code 4 with an AVAILABLE EPAS and latActive held off by it.
+    if reason is None and not lat_session and eac_status == EAC_AVAILABLE and steer_warning == EAC_TMP_FAULT:
+      self.state = R_PROBE
+      self.probes += 1
+      self.frames = 1
+      self.cleared = False
+      return True
+    return False

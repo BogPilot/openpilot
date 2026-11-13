@@ -199,7 +199,8 @@ def _ap1_limited_angle(requested_angle_deg, last_angle_deg, measured_angle_deg, 
 
 
 def ap1_hold_measured_angle(chassis_das_only, enabled, eac_fault, hands_pause,
-                           eac_status, epas_error, soft_start, lat_session=None, epas_blocked=False):
+                           eac_status, epas_error, soft_start, lat_session=None, epas_blocked=False,
+                           tmp_fault_probe=False):
   """True when AP1 must command ANGLE at the measured wheel, not the planner.
 
   EPAS on route 0000000e stayed EAC_INHIBITED with code 6 while openpilot kept
@@ -209,7 +210,14 @@ def ap1_hold_measured_angle(chassis_das_only, enabled, eac_fault, hands_pause,
   EPAS is not refusing (epas_blocked): the hold is an ANGLE frame, and ANGLE is
   never sent for a session that is not active or to an EPAS that is INHIBITED
   or in error. None for lat_session means `enabled`.
+
+  tmp_fault_probe (epas_gate.EpasTmpFaultRecovery): the one exception to the lat_session rule. A latched
+  EAC_ERROR_TMP_FAULT keeps latActive false and clears only on a new ANGLE request, so the recovery
+  asks for a short measured-wheel hold while engaged with an AVAILABLE EPAS. Hands pause, EAC_FAULT and
+  a refusing EPAS still win.
   """
+  if tmp_fault_probe and chassis_das_only and enabled and not eac_fault and not hands_pause and not epas_blocked:
+    return True
   if lat_session is None:
     lat_session = enabled
   if not chassis_das_only or not enabled or not lat_session or epas_blocked or eac_fault or hands_pause:
@@ -231,7 +239,8 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
                         acc_state, das_counters, pcm_cancel, chassis_das_only=False,
                         epas_error=None, eac_fault=False, hands_on_level=0,
                         eac_status=None, soft_start=False, driver_yield=False, gas_pressed=False,
-                        steer_tick=None, standby=False, steer_session=None, lat_session=None, epas_yield=False):
+                        steer_tick=None, standby=False, steer_session=None, lat_session=None, epas_yield=False,
+                        tmp_fault_probe=False):
   """Same steering branches CarController.update had before this function existed.
 
   Disengaged lateral: no steering frame. Sending type-NONE 0x488 while
@@ -275,7 +284,7 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
   # ANGLE frame, including the measured hold. None (default) keeps `steer_enabled`.
   hold_measured = ap1_hold_measured_angle(
     chassis_das_only, steer_enabled, eac_fault, hands_pause, eac_status, epas_error, soft_start,
-    lat_session=lat_session, epas_blocked=epas_blocked)
+    lat_session=lat_session, epas_blocked=epas_blocked, tmp_fault_probe=tmp_fault_probe)
   if chassis_das_only and eac_fault:
     lkas_enabled = False
 
@@ -286,7 +295,7 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
 
   if steer_send:
     if hold_measured:
-      # Measured ANGLE: EPAS inhibit recovery, latched 6/3, or engage soft-start.
+      # Measured ANGLE: EPAS inhibit recovery, latched 6/3, a latched code 4 request, or engage soft-start.
       apply_angle = _ap1_limited_angle(measured_angle_deg, last_angle_deg, measured_angle_deg, v_ego)
       apply_angle_last = apply_angle
       steer = SteerCommand(apply_angle, True, steer_counter)
