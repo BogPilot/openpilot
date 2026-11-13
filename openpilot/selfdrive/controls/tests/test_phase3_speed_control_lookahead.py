@@ -137,7 +137,7 @@ class TestLookaheadConsumer(unittest.TestCase):
   def test_early_slow_is_a_ceiling_not_a_posted_swap(self):
     d55 = sc.adapt_distance_m(55 * MPH, 45 * MPH)
     ctl, sm = ctl_with_map(65 * MPH, 45 * MPH, d55, horizon=10)
-    out = run(ctl, sm, 65 * MPH, 65 * MPH, limit=65 * MPH)
+    out = run(ctl, sm, 65 * MPH, 65 * MPH, limit=65 * MPH, rwd=True)  # pull engage: SLC mode (a no-stalk engage latches vEgo)
     self.assertAlmostEqual(ctl.slc.target, 65 * MPH, places=4)          # posted stays Dashboard
     self.assertEqual(ctl.slc.source, "Dashboard")
     self.assertAlmostEqual(out, 55 * MPH, places=2)
@@ -184,7 +184,7 @@ class TestLookaheadConsumer(unittest.TestCase):
     # Mid-approach the ceiling is 55; once Dashboard shows 45 the posted limit takes over.
     d55 = sc.adapt_distance_m(55 * MPH, 45 * MPH)
     ctl, sm = ctl_with_map(65 * MPH, 45 * MPH, d55, horizon=10)
-    out = run(ctl, sm, 65 * MPH, 65 * MPH, limit=65 * MPH)
+    out = run(ctl, sm, 65 * MPH, 65 * MPH, limit=65 * MPH, rwd=True)  # pull engage: SLC mode (a no-stalk engage latches vEgo)
     self.assertAlmostEqual(out, 55 * MPH, places=2)
     # 65->45 is a sudden drop, so Ap1SlcLimitGuard holds the posted target for CONFIRM_S (2 s).
     out2 = run(ctl, sm, 65 * MPH, 65 * MPH, limit=45 * MPH, n=int(2.1 / DT) + 1)
@@ -211,7 +211,7 @@ class TestPreApAndXConsumer(unittest.TestCase):
     t = sc_onroad(store, cp)
     ctl = sc.Ap1SpeedControl(cp, store=store, toggles_fn=lambda: t, clock=lambda: 0.0, adopted=True)
     sm = Sm()
-    out = run(ctl, sm, 30.0, 20.0, limit=45 * MPH)
+    out = run(ctl, sm, 30.0, 20.0, limit=45 * MPH, rwd=True)  # pull engage: SLC mode (a no-stalk engage latches vEgo)
     self.assertTrue(ctl.ap1)
     self.assertAlmostEqual(out, 45 * MPH, places=4)
     self.assertEqual(ctl.slc.source, "Dashboard")
@@ -223,7 +223,7 @@ class TestPreApAndXConsumer(unittest.TestCase):
     t = sc_onroad(store, cp)
     ctl = sc.Ap1SpeedControl(cp, store=store, toggles_fn=lambda: t, clock=lambda: 0.0, adopted=True)
     sm = Sm()
-    out = run(ctl, sm, 30.0, 20.0, limit=45 * MPH)
+    out = run(ctl, sm, 30.0, 20.0, limit=45 * MPH, rwd=True)  # pull engage: SLC mode (a no-stalk engage latches vEgo)
     self.assertTrue(ctl.ap1)
     self.assertAlmostEqual(out, 45 * MPH, places=4)
 

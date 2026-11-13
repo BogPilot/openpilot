@@ -5,6 +5,7 @@ Double-pull mode (pre-AP style): first pull = lateral only (cruise on, longActiv
 The hand-over must follow the pull that engages longitudinal; a lateral-only pull never touches the set speed.
 """
 import unittest
+from types import SimpleNamespace
 
 from openpilot.selfdrive.controls.lib import phase3_speed_control as sc
 from openpilot.selfdrive.controls.tests.test_phase3_speed_control import DT, MPH, Sm, make, run, toggles
@@ -97,7 +98,8 @@ class TestSinglePullMode(unittest.TestCase):
 
   def test_gas_held_engage_never_passes_the_half_di_seed(self):
     """Gas held through the engage: longActive stays 0 for seconds. The lat-only pass-through is floored at vEgo
-    while cruise is on (was the ~vEgo/2 DI_cruiseSet), then hands to SLC on release. A set above vEgo passes as is."""
+    while cruise is on (was the ~vEgo/2 DI_cruiseSet). No stalk was seen at the cruise edge, so on release the set latches
+    vEgo from that edge (never SLC, never below vEgo). A set above vEgo passes as is."""
     v_ego, slc = 24 * MPH, 35 * MPH
     ctl, sm = make(), Sm()
     held = [run(ctl, sm, 12 * MPH, v_ego, limit=slc, cruise=True, long_active=False, gas=True) for _ in range(frames(2.0))]
@@ -105,7 +107,8 @@ class TestSinglePullMode(unittest.TestCase):
     above = [run(ctl, sm, 40 * MPH, v_ego, limit=slc, cruise=True, long_active=False, gas=True) for _ in range(frames(0.2))]
     self.assertTrue(all(abs(o - 40 * MPH) < 1e-6 for o in above), above)
     out = [run(ctl, sm, 12 * MPH, v_ego, limit=slc, cruise=True, long_active=True) for _ in range(frames(0.5))]
-    self.assertTrue(all(o >= v_ego - 1e-6 for o in out), out)
+    self.assertTrue(all(o >= v_ego - 1e-6 for o in out), out)        # never the ~vEgo/2 DI seed
+    self.assertTrue(all(abs(o - v_ego) < 1e-6 for o in out), out)    # no stalk seen: vEgo latch, not SLC
 
 
 class TestDoublePullMode(unittest.TestCase):
@@ -193,6 +196,146 @@ class TestDoublePullMode(unittest.TestCase):
     out = lat_only(ctl, sm, 0.5, 50 * MPH)                         # 0.5 s dip (override alert)
     self.assertAlmostEqual(out[-1], held, places=3)
     self.assertAlmostEqual(long_on(ctl, sm, 0.3, 50 * MPH)[-1], held, places=3)
+
+
+def gas_engage(ctl, sm, limit, v_tap, v_release, hold_s=2.0, **press):
+  """Stalk pressed with the gas held at v_tap, cruise on lat-only while accelerating, long rises on release."""
+  for _ in range(frames(0.1)):
+    run(ctl, sm, V_CRUISE, v_tap, limit=limit, cruise=False, long_active=False, gas=True, **press)
+  n = frames(hold_s)
+  for i in range(n):
+    v = v_tap + (v_release - v_tap) * i / n   # cruise edge at v_tap, then accelerating
+    run(ctl, sm, V_CRUISE, v, limit=limit, cruise=True, long_active=False, gas=True)
+  return [run(ctl, sm, V_CRUISE, v_release, limit=limit, cruise=True, long_active=True) for _ in range(frames(0.5))]
+
+
+class TestEngageStalkAction(unittest.TestCase):
+  """The stalk action is classified on the cruise edge and remembered until longActive rises."""
+
+  def test_gas_held_tap_engage_stays_sticky(self):
+    for press in ({"up": True}, {"dn": True}):
+      ctl, sm = make(), Sm()
+      out = gas_engage(ctl, sm, 50 * MPH, 20.0, 26.0, **press)     # release 2 s (> 0.8 s window) after the tap
+      self.assertTrue(all(abs(o - 20.0) < 1e-6 for o in out), (press, out))   # vEgo at the tap, not at release
+      self.assertTrue(ctl.holdoff.sticky_vego)
+      self.assertAlmostEqual(long_on(ctl, sm, 0.5, 65 * MPH)[-1], 20.0, places=4)   # higher limit never raises it
+
+  def test_gas_held_pull_follows_slc(self):
+    ctl, sm = make(), Sm()
+    out = gas_engage(ctl, sm, 50 * MPH, 20.0, 26.0, rwd=True)
+    self.assertAlmostEqual(out[-1], 55 * MPH, places=3)
+    self.assertFalse(ctl.holdoff.sticky_vego)
+
+  def test_cancel_before_release_clears_remembered_action(self):
+    ctl, sm = make(), Sm()
+    for _ in range(frames(0.1)):
+      run(ctl, sm, V_CRUISE, 20.0, limit=50 * MPH, cruise=False, long_active=False, gas=True, rwd=True)
+    lat_only(ctl, sm, 0.5, 50 * MPH, gas=True)
+    self.assertEqual(ctl.holdoff.engage_kind, "pull")
+    off(ctl, sm, 1.0, 50 * MPH)                                     # cancel / brake: cruise drops
+    self.assertIsNone(ctl.holdoff.engage_kind)
+    out = long_on(ctl, sm, 0.5, 50 * MPH)                           # re-engage with no stalk seen
+    self.assertAlmostEqual(out[-1], V_EGO, places=4)                # the old pull is not reused: vEgo, not SLC
+
+  def test_openpilot_disengage_clears_remembered_action(self):
+    ctl, sm = make(), Sm()
+    off(ctl, sm, 0.1, 50 * MPH, rwd=True)
+    lat_only(ctl, sm, 0.3, 50 * MPH)
+    run(ctl, sm, V_CRUISE, V_EGO, limit=50 * MPH, cruise=True, long_active=False, enabled=False)
+    self.assertIsNone(ctl.holdoff.engage_kind)
+
+  def test_unclassified_engage_latches_vego(self):
+    ctl, sm = make(), Sm()
+    out = gas_engage(ctl, sm, 50 * MPH, 20.0, 26.0)
+    self.assertTrue(all(abs(o - 20.0) < 1e-6 for o in out), out)   # vEgo at the cruise edge
+    self.assertEqual(ctl.holdoff.engage_kind, "none")
+
+  def test_lat_only_tap_after_pull_overrides_it(self):
+    ctl, sm = make(), Sm()
+    off(ctl, sm, 0.1, 50 * MPH, rwd=True)
+    lat_only(ctl, sm, 1.0, 50 * MPH)
+    lat_only(ctl, sm, 0.1, 50 * MPH, dn=True)
+    out = long_on(ctl, sm, 0.5, 50 * MPH)
+    self.assertAlmostEqual(out[-1], V_EGO, places=4)
+
+  def test_gas_override_longer_than_drop_window_keeps_the_tap_latch(self):
+    """A gas override past LongEngageGate.DROP_S used to drop the tap latch and hand the set to SLC."""
+    ctl, sm = make(), Sm()
+    off(ctl, sm, 0.1, 50 * MPH, up=True)
+    self.assertAlmostEqual(long_on(ctl, sm, 0.5, 50 * MPH)[-1], V_EGO, places=4)
+    for _ in range(frames(2.0)):
+      run(ctl, sm, V_CRUISE, 27.0, limit=50 * MPH, cruise=True, long_active=False, gas=True)
+    out = [run(ctl, sm, V_CRUISE, 27.0, limit=50 * MPH, cruise=True, long_active=True) for _ in range(frames(0.5))]
+    self.assertTrue(all(abs(o - V_EGO) < 1e-6 for o in out), out)
+
+  def test_gas_override_longer_than_drop_window_keeps_a_tipped_set(self):
+    ctl, sm = make(), Sm()
+    off(ctl, sm, 0.1, 50 * MPH, rwd=True)
+    long_on(ctl, sm, 0.5, 50 * MPH)
+    run(ctl, sm, V_CRUISE, V_EGO, dn=True, spd=8, limit=50 * MPH, cruise=True, long_active=True)
+    held = long_on(ctl, sm, 0.3, 50 * MPH)[-1]
+    self.assertAlmostEqual(held, prev_5_ms(55 * MPH), places=3)
+    lat_only(ctl, sm, 2.0, 50 * MPH, gas=True)
+    self.assertAlmostEqual(long_on(ctl, sm, 0.5, 50 * MPH)[-1], held, places=3)
+
+  def test_gas_override_after_pull_still_follows_slc(self):
+    ctl, sm = make(), Sm()
+    off(ctl, sm, 0.1, 50 * MPH, rwd=True)
+    long_on(ctl, sm, 0.5, 50 * MPH)
+    lat_only(ctl, sm, 2.0, 50 * MPH, gas=True)
+    self.assertAlmostEqual(long_on(ctl, sm, 0.5, 50 * MPH)[-1], 55 * MPH, places=3)
+
+
+class TestEngagedSlcTapLatch(unittest.TestCase):
+  """Engaged in SLC (after a pull): a tap leaves SLC and latches until the next pull (e.g. a school zone)."""
+
+  def slc_then_down_to(self, ctl, sm, limit, target_mph):
+    off(ctl, sm, 0.1, limit, rwd=True)
+    out = long_on(ctl, sm, 0.5, limit)
+    while out[-1] > target_mph * MPH + 1e-3:
+      run(ctl, sm, V_CRUISE, V_EGO, dn=True, spd=8, limit=limit, cruise=True, long_active=True)
+      out = long_on(ctl, sm, 0.1, limit)
+    return out[-1]
+
+  def test_engaged_slc_tap_switches_to_latch(self):
+    ctl, sm = make(), Sm()
+    off(ctl, sm, 0.1, 25 * MPH, rwd=True)
+    self.assertAlmostEqual(long_on(ctl, sm, 0.5, 25 * MPH)[-1], 30 * MPH, places=3)   # SLC: 25 + 5
+    run(ctl, sm, V_CRUISE, V_EGO, dn=True, spd=32, limit=25 * MPH, cruise=True, long_active=True)
+    out = long_on(ctl, sm, 0.3, 25 * MPH)[-1]
+    self.assertAlmostEqual(out, 29 * MPH, places=3)               # existing tip rule: DN_1ST = -1 from the current set
+    self.assertGreater(ctl.holdoff.tip_ms, 0.0)
+    self.assertEqual(ctl.holdoff.engage_kind, "tap")
+    self.assertAlmostEqual(self.slc_then_down_to(make(), Sm(), 25 * MPH, 15), 15 * MPH, places=3)  # DN_2ND steps 30-25-20-15
+
+  def test_latched_limit_increase_never_raises_set(self):
+    ctl, sm = make(), Sm()
+    self.assertAlmostEqual(self.slc_then_down_to(ctl, sm, 25 * MPH, 15), 15 * MPH, places=3)
+    for limit in (25 * MPH, 35 * MPH, 45 * MPH):                  # pass the 25 sign and beyond
+      out = long_on(ctl, sm, 3.0, limit)
+      self.assertTrue(all(abs(o - 15 * MPH) < 1e-3 for o in out), (limit, out[-3:]))
+
+  def test_latched_limit_decrease_does_not_move_set(self):
+    """Current behavior kept: a latched set also holds through a lower limit (only Curve Speed Control may lower it
+    temporarily). The driver lowers it with a tap."""
+    ctl, sm = make(), Sm()
+    self.assertAlmostEqual(self.slc_then_down_to(ctl, sm, 45 * MPH, 40), 40 * MPH, places=3)
+    out = long_on(ctl, sm, 3.0, 30 * MPH)
+    self.assertTrue(all(abs(o - 40 * MPH) < 1e-3 for o in out), out[-3:])
+
+  def test_pull_after_latch_returns_to_slc_limit_plus_offset(self):
+    ctl, sm = make(), Sm()
+    self.slc_then_down_to(ctl, sm, 25 * MPH, 15)
+    long_on(ctl, sm, 1.0, 35 * MPH)
+    out = run(ctl, sm, V_CRUISE, V_EGO, rwd=True, limit=35 * MPH, cruise=True, long_active=True)
+    self.assertAlmostEqual(out, 40 * MPH, places=3)               # 35 + 5
+    self.assertAlmostEqual(long_on(ctl, sm, 0.5, 45 * MPH)[-1], 50 * MPH, places=3)   # SLC tracking again
+
+  def test_dash_set_follows_the_latched_set(self):
+    """AP1 openpilot long shows the plan set as is outside the engage floor (cluster_set_kph follow_plan)."""
+    plan = SimpleNamespace(vCruise=15 * MPH)
+    kph = sc.cluster_set_kph(30 * MPH * sc.MS_TO_KPH, plan, True, follow_plan=True)
+    self.assertAlmostEqual(kph, 15 * MPH * sc.MS_TO_KPH, places=3)
 
 
 class TestGate(unittest.TestCase):

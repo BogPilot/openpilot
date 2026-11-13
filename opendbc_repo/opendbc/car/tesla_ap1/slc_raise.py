@@ -10,7 +10,13 @@ Engage / tip policy (simplified):
     changes in BOTH directions (no auto-raise into a faster zone, no cap by a
     lower limit) until RWD pull or disengage — same as a tipped set.
   - Pull-toward (RWD / resumeCruise) engage → SLC+offset raise immediately
-  - Classify engage from stalk pressed within the last ~0.8 s. Caller must
+  - Classify engage from stalk pressed within the last ~0.8 s of the CRUISE
+    engage edge (cruiseState.enabled rising, BogPilot 0.9.7
+    frogpilot_vcruise.py:119 @04d560f3e), remember it (updated by newer presses)
+    until openpilot longitudinal is active, and apply it then. A tap (or an
+    engage with no stalk seen) latches vEgo as of the tap / engage edge; only a
+    pull hands the set to SLC. There is no SLC fallback for an unclassified
+    rolling engage. Caller must
     feed continuous stalk *levels* (carstate.button_states via bogpilotCarState
     accelPressed / decelPressed / resumePressed), not 10 ms buttonEvents —
     bogpilot_vcruise samples at 20 Hz and misses short holds.
@@ -165,7 +171,16 @@ class Ap1RaiseHoldoff:
     UP/DN engage → sticky vEgo (no SLC raise; holds through limit changes in
       both directions until RWD pull or disengage)
     RWD (pull-toward) engage → allow raise to SLC+offset immediately
-    Engage classified from stalk pressed within RECENT_S (not same-frame only)
+    Engage classified from stalk pressed within RECENT_S of the cruise engage
+      edge (cruise_on rising; == enabled when the caller passes no cruise_on),
+      remembered as engage_kind until the longitudinal (enabled) edge and
+      updated by newer presses while cruise is on. Taps and unclassified rolling
+      engages latch vEgo from the tap / cruise edge (never SLC); an unclassified
+      standstill engage keeps the standstill rule (car-layer set / NO_ENTRY).
+      A longitudinal re-rise in the same cruise session (gas override longer
+      than LongEngageGate.DROP_S) restores the driver's latched set; only a
+      pull returns to SLC. Cleared when cruise turns off (cancel, brake, any
+      disengage) or by forget_engage().
     Caller must pass continuous stalk levels (button_states), not edge-only events
       (UP/DN/RWD via accelPressed/decelPressed/resumePressed)
     Engaged UP/DN → tip (±1 SpdCtrl 16/32 / next-5 SpdCtrl 4/8 on the rising
@@ -215,6 +230,20 @@ class Ap1RaiseHoldoff:
     self._last_up_t = -1e9
     self._last_dn_t = -1e9
     self._last_rwd_t = -1e9
+    # Engage stalk action for the current cruise session: "tap", "pull", "none" (no stalk seen at the cruise edge)
+    # or None (cruise off). Set on the cruise edge, updated by newer presses, applied on the longitudinal edge.
+    self.engage_kind = None
+    self.engage_vego_ms = 0.0     # vEgo as of the tap / cruise-engage edge that set engage_kind
+    self._tap_vego_ms = 0.0       # vEgo on the latest UP/DN press edge
+    self._session_set_ms = 0.0    # driver latch (sticky / tip) last seen while long was engaged this cruise session
+    self._prev_cruise = False
+    self._prev_rwd = False
+
+  def forget_engage(self):
+    """Drop the remembered engage action (cruise off, cancel, brake, any disengage)."""
+    self.engage_kind = None
+    self.engage_vego_ms = 0.0
+    self._session_set_ms = 0.0
 
   def _clear_tip(self):
     self.tip_ms = 0.0
@@ -232,8 +261,12 @@ class Ap1RaiseHoldoff:
   def update(self, enabled: bool, decel_pressed: bool, up_pressed: bool,
              rwd_pressed: bool, slc_target_ms: float, v_ego_ms: float,
              current_set_ms: float = 0.0, dt: float | None = None,
-             tip_full: bool = False):
+             tip_full: bool = False, cruise_on: bool | None = None):
     """Update state.
+
+    enabled: openpilot longitudinal is ours (the hand-over edge).
+    cruise_on: cruiseState.enabled (the engage edge the stalk action is classified on). None = same as enabled
+    (single-edge callers and the 0.9.7 shape).
 
     tip_full: True when SpdCtrl is UP_2ND (4) or DN_2ND (8) — next-5 on rising
     edge (and mid-press upgrade). False → ±1 on edge; hold ≥ TIP_HOLD_S upgrades.
@@ -259,6 +292,11 @@ class Ap1RaiseHoldoff:
     recent_rwd = (self._t - self._last_rwd_t) <= self.RECENT_S
     up_edge = bool(up_pressed) and not self._prev_up
     dn_edge = bool(decel_pressed) and not self._prev_dn
+    rwd_edge = bool(rwd_pressed) and not self._prev_rwd
+    cruise = enabled if cruise_on is None else bool(cruise_on)
+    cruise_rising = cruise and not self._prev_cruise
+    if up_edge or dn_edge:
+      self._tap_vego_ms = max(float(v_ego_ms), 0.0)
 
     tip_full = bool(tip_full)
     # Posted-limit changes never touch sticky or tip: a stalk-tip engage (sticky)
@@ -344,8 +382,12 @@ class Ap1RaiseHoldoff:
         self._tip_press_active = False
         self._tip_hold_s = 0.0
 
-    if rising:
-      # Prefer the most recent stalk in the recent window (UP/DN sticky vs RWD raise)
+    # Engage stalk action: classified on the CRUISE edge (0.9.7 frogpilot_vcruise.py:119 @04d560f3e), not on the
+    # longitudinal edge. With the gas held longActive can rise seconds after the stalk, past RECENT_S.
+    if not cruise:
+      self.forget_engage()
+    elif cruise_rising:
+      # Prefer the most recent stalk in the recent window (UP/DN tap vs RWD pull)
       candidates = []
       if recent_up:
         candidates.append(("up", self._last_up_t))
@@ -354,23 +396,57 @@ class Ap1RaiseHoldoff:
       if recent_rwd:
         candidates.append(("rwd", self._last_rwd_t))
       kind = max(candidates, key=lambda c: c[1])[0] if candidates else None
-      if kind in ("up", "dn"):
-        self.sticky_vego = True
-        self.latched_vego_ms = max(float(v_ego_ms), 0.0)
-        if self.tap_from_zero_ms > 0.0 and self.latched_vego_ms < 0.1:
-          # AP1 openpilot long: a tap engage at a standstill sets 15 mph, not a sticky 0 (0.9.7 latched vEgo 0).
-          self.latched_vego_ms = float(self.tap_from_zero_ms)
-        self._clear_tip()
-      elif kind == "rwd":
+      self._session_set_ms = 0.0
+      if kind == "rwd":
+        self.engage_kind, self.engage_vego_ms = "pull", max(float(v_ego_ms), 0.0)
+      elif kind in ("up", "dn"):
+        self.engage_kind, self.engage_vego_ms = "tap", float(self._tap_vego_ms)   # vEgo at the tap
+      else:
+        self.engage_kind, self.engage_vego_ms = "none", max(float(v_ego_ms), 0.0)  # vEgo at the engage edge
+    elif rwd_edge:
+      # A newer pull while cruise is on (lat-only second pull, or a re-pull while engaged) -> SLC.
+      self.engage_kind, self._session_set_ms = "pull", 0.0
+    elif (up_edge or dn_edge) and not enabled:
+      # A newer tap while cruise is on but long is not ours (lat-only / gas held): latch vEgo at this tap.
+      self.engage_kind, self.engage_vego_ms, self._session_set_ms = "tap", max(float(v_ego_ms), 0.0), 0.0
+    elif (up_edge or dn_edge) and enabled:
+      self.engage_kind = "tap"   # engaged tip: leaves SLC; the tipped set is remembered below
+
+    if rising:
+      kind = self.engage_kind
+      if kind == "pull":
         self.sticky_vego = False
         self._clear_tip()
-      # else: no recent stalk → default allow_raise (legacy)
+      else:
+        latched = self._session_set_ms if self._session_set_ms > 0.0 else max(float(self.engage_vego_ms), 0.0)
+        if kind != "tap" and latched < 0.1:
+          # Unclassified engage at a standstill: no vEgo-0 latch. The standstill rule is unchanged
+          # (op_long_set_speed: limit+offset, a fresh tap's 15 mph, or NO_ENTRY ap1SpeedLimitUnknown).
+          self.sticky_vego = False
+        else:
+          self.sticky_vego = True
+          self.latched_vego_ms = latched
+          if self.tap_from_zero_ms > 0.0 and self.latched_vego_ms < 0.1:
+            # AP1 openpilot long: a tap engage at a standstill sets 15 mph, not a sticky 0 (0.9.7 latched vEgo 0).
+            self.latched_vego_ms = float(self.tap_from_zero_ms)
+        self._clear_tip()
+
+    if enabled and cruise:
+      # Remember the driver's latch so a long re-rise in this cruise session (gas override > DROP_S) restores it.
+      if self.sticky_vego and float(self.latched_vego_ms) > 0.0:
+        self._session_set_ms = float(self.latched_vego_ms)
+      elif float(self.tip_ms) > 0.0:
+        self._session_set_ms = float(self.tip_ms)
+      else:
+        self._session_set_ms = 0.0   # SLC tracking (pull): nothing to restore
 
     if not enabled:
       self.sticky_vego = False
       self._clear_tip()
 
     self._prev_enabled = enabled
+    self._prev_cruise = cruise
+    self._prev_rwd = bool(rwd_pressed)
     self._prev_up = bool(up_pressed)
     self._prev_dn = bool(decel_pressed)
 

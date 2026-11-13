@@ -502,7 +502,9 @@ class LongEngageGate:
   Single-pull mode: the one pull engages lat + long, so cruiseState.enabled and carControl.longActive rise together (0.9.7).
   Double-pull mode (pre-AP style: first pull lateral only, second pull lat + long): the first pull raises cruiseState.enabled
   but longActive stays False, so nothing is handed over and the set speed is untouched; the second pull raises longActive and
-  is then the engage pull Ap1RaiseHoldoff classifies (rising edge + stalk within 0.8 s).
+  is then the engage pull. Ap1RaiseHoldoff classifies the stalk action on the cruise edge (cruise_on rising + stalk within
+  0.8 s, BogPilot 0.9.7 frogpilot_vcruise.py:119), remembers it (newer presses win) and applies it when this gate reports
+  engaged, so a gas-held tap whose longActive rises seconds later still latches vEgo and never falls back to SLC.
   A pull while long is engaged keeps the 0.9.7 rule (clears tip + sticky, SLC re-latches). A longActive dip shorter than DROP_S
   (brief overrideLongitudinal alerts) does not drop a tip; a longer one is a lateral-only state again.
   longActive lags cruiseState.enabled by a tick or two on a normal engage: those ticks pass the set through (no cap, no raise);
@@ -572,6 +574,7 @@ class Ap1SpeedControl:
     self.guard = Ap1SlcLimitGuard()
     self.engage = LongEngageGate()
     self._tip_override_active = False
+    self._sd_enabled_prev = False
     self._reset_outputs()
 
   def _new_holdoff(self):
@@ -693,12 +696,16 @@ class Ap1SpeedControl:
     self.active = True
 
     cruise_on = bool(CS.cruiseState.enabled)
+    if self._sd_enabled_prev and not enabled:
+      self.holdoff.forget_engage()   # openpilot disengaged: never carry the engage stalk action across it
+    self._sd_enabled_prev = enabled
     engaged, lat_only = self.engage.update(cruise_on, long_active, dt)
     if lat_only:
       # cruise on but openpilot longitudinal never engaged (double-pull mode, first pull): lateral only. No hand-over, no cap, no
       # raise, no tip: the set speed is not ours. Limits above keep updating (display, Previous Limit bookkeeping).
-      # Stalk levels still feed the holdoff (disengaged update) so the long-engage pull that follows is classified as an RWD engage.
-      self.holdoff.update(False, dn, up, rwd, float(self.slc_target), float(v_ego), dt=dt)
+      # Stalk levels still feed the holdoff (long-disengaged update). The cruise edge classifies the engage stalk action and a
+      # newer press updates it, so the long edge that follows (second pull, or gas release) applies it.
+      self.holdoff.update(False, dn, up, rwd, float(self.slc_target), float(v_ego), dt=dt, cruise_on=cruise_on)
       self._tip_override_active = False
       self.slc.overridden_speed = 0.0
       self.slc.override_slc = False
@@ -755,7 +762,7 @@ class Ap1SpeedControl:
         set_hint = max(set_hint, float(slc_desired))
     spd = int(_finite(bp.spdCtrlLvr))
     allow_raise, sticky = hold.update(engaged and cruise_on, dn, up, rwd, float(self.slc_target), float(v_ego),
-                                      current_set_ms=set_hint, dt=dt, tip_full=spd in (4, 8))
+                                      current_set_ms=set_hint, dt=dt, tip_full=spd in (4, 8), cruise_on=cruise_on)
     tip_ms, tip_dir = float(hold.tip_ms), int(hold.tip_dir)
     if tip_ms > 0:
       # Max Set Speed gas override returns to the software tip set.

@@ -156,9 +156,19 @@ class TestAp1Stalk(unittest.TestCase):
     self.assertAlmostEqual(out, 50 * MPH, places=4)              # 45 + Offset4 5 mph; DI seed 10 m/s ignored
     self.assertAlmostEqual(run(ctl, sm, 10.0, 20.0, limit=35 * MPH), 40 * MPH, places=4)  # follows a normal drop
 
-  def test_no_stalk_engage_same_as_pull(self):
+  def test_unclassified_engage_latches_vego(self):
+    """No stalk seen at the engage edge: latch vEgo (never SLC), held through higher and lower limits."""
     ctl, sm = make(), Sm()
-    self.assertAlmostEqual(self.engage(ctl, sm, 20.0, 45 * MPH), 50 * MPH, places=4)
+    self.assertAlmostEqual(self.engage(ctl, sm, 20.0, 45 * MPH), 20.0, places=4)
+    self.assertTrue(ctl.holdoff.sticky_vego)
+    self.assertAlmostEqual(run(ctl, sm, 10.0, 20.0, limit=60 * MPH, n=10), 20.0, places=4)
+    self.assertAlmostEqual(run(ctl, sm, 10.0, 20.0, limit=25 * MPH, n=10), 20.0, places=4)
+    self.assertAlmostEqual(run(ctl, sm, 10.0, 20.0, limit=45 * MPH, rwd=True), 50 * MPH, places=4)  # pull -> SLC
+
+  def test_pull_engage_follows_slc(self):
+    ctl, sm = make(), Sm()
+    self.assertAlmostEqual(self.engage(ctl, sm, 20.0, 45 * MPH, rwd=True), 50 * MPH, places=4)
+    self.assertAlmostEqual(run(ctl, sm, 10.0, 20.0, limit=55 * MPH, n=3), 65 * MPH, places=4)    # follows a raise (55 + 10 band)
 
   def test_tip_engage_is_sticky_through_limit_changes(self):
     ctl, sm = make(), Sm()
@@ -454,7 +464,7 @@ class TestAdoptionAndDefaults(unittest.TestCase):
     sm = Sm()
     self.assertEqual(run(ctl, sm, 30.0, 20.0, limit=45 * MPH), 30.0)
     sc.configure(store, "SLCOverride", 2)                  # any panel write adopts the group (default SLC "1")
-    out = run(ctl, sm, 30.0, 20.0, limit=45 * MPH)
+    out = run(ctl, sm, 30.0, 20.0, limit=45 * MPH, rwd=True)  # pull engage: SLC mode (a no-stalk engage latches vEgo)
     self.assertAlmostEqual(out, 53 * MPH, places=4)        # 45 + saved Offset4 = 8 mph
     sc.configure(store, "SpeedLimitController", False)     # user turns SLC off: adopted but off -> passthrough
     self.assertEqual(run(ctl, sm, 30.0, 20.0, limit=45 * MPH), 30.0)
@@ -535,7 +545,7 @@ class TestDefaultOnActivation(unittest.TestCase):
   def test_fresh_install_follows_a_lower_limit_without_any_panel_use(self):
     store = FakeStore(Offset4="8", SLCPriority1="Dashboard")
     ctl = sc.Ap1SpeedControl(CP_AP1, store=store, clock=self.ticking())
-    out = run(ctl, Sm(), 30.0, 20.0, limit=45 * MPH)
+    out = run(ctl, Sm(), 30.0, 20.0, limit=45 * MPH, rwd=True)  # pull engage: SLC mode (a no-stalk engage latches vEgo)
     self.assertAlmostEqual(out, 53 * MPH, places=4)
     self.assertEqual({k for k, _ in store.puts}, {"PreviousSpeedLimit"})   # 0.9.7 bookkeeping only; no saved pref is rewritten
 
