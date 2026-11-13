@@ -23,13 +23,22 @@ def _tree(tmp_path, recovery=True, rule=True):
 
 
 def test_this_tree_passes_with_its_measured_panda_identity():
-  """Real measurement: the identity panda/build_identity.py computes for this checkout."""
-  import importlib.util
-  spec = importlib.util.spec_from_file_location("build_identity", ROOT / "panda/build_identity.py")
-  bi = importlib.util.module_from_spec(spec)
-  spec.loader.exec_module(bi)
-  ident = bi.digest(bi.inventory(ROOT))[:8]
+  """Real measurement of this tree's panda identity.
+
+  A built or packaged tree carries .panda-source.json from a clean checkout and its on-disk files differ on purpose
+  (build outputs added, the debug signing cert left out), so there the manifest identity is the one to check.
+  On a clean checkout without a manifest, the identity panda/build_identity.py computes from the files is used.
+  """
   assert m.recovery_present(ROOT)
+  if (ROOT / ".panda-source.json").is_file():
+    ident = m.identity_from_manifest(ROOT)
+    assert ident == m.ERR4_PANDA_IDENTITY, ident
+  else:
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("build_identity", ROOT / "panda/build_identity.py")
+    bi = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bi)
+    ident = bi.digest(bi.inventory(ROOT))[:8]
   assert m.check(ROOT, ident).startswith("PASS"), ident
 
 
