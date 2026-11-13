@@ -184,3 +184,12 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Safety-relevant: no; settings defaults only. Car code and panda are unchanged.
 - Tests: `openpilot/selfdrive/ui/tests/test_slc_legacy_profile.py`, `openpilot/selfdrive/ui/tests/test_slc_ap1_section_reset.py`.
 - Credits: BogPilot bogpilot-tesla `367e1fe` (AP1 Model S profile SLC values).
+
+## "Offset Set Speed by:" row hidden on every car
+- Platforms: all car types.
+- Reference behavior: BogPilot bogpilot-tesla `367e1fe` lists the Set Speed offset (`SetSpeedOffset`) as a numeric row for cars without stock cruise control and with openpilot longitudinal.
+- Our behavior: the row is never shown, on any car type. Nothing in this tree reads `SetSpeedOffset` while driving (controls, planner, car controller, longitudinal and speed limit code), so changing it did nothing; the speed limit offsets (Offset1-7) set the offset instead. The setting itself and its default (0) are kept, so saved values, backups and resets are unchanged and nothing is migrated.
+- Why: a setting that does nothing should not be offered.
+- Safety-relevant: no; settings UI only.
+- Tests: `openpilot/selfdrive/ui/tests/test_set_speed_offset_hidden.py`.
+- Credits: BogPilot bogpilot-tesla `367e1fe` (the original row).

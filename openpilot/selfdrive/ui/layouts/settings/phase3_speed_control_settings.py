@@ -102,7 +102,9 @@ _SET_SPEED_LIMIT = (
 # Rows shown only on cars whose CarParams match (row key -> reason it is hidden elsewhere).
 CAR_GATED = {"SetSpeedLimit": _SET_SPEED_LIMIT}
 OMITTED = {
-  "CustomCruise": _NO_AP1, "CustomCruiseLong": _NO_AP1, "SetSpeedOffset": _NO_AP1,
+  "CustomCruise": _NO_AP1, "CustomCruiseLong": _NO_AP1,
+  "SetSpeedOffset": "hidden on every car type: nothing in this tree reads it while driving; the speed limit offsets "
+                    "(Offset1-7) set the offset. The key and its default stay as they are.",
   "ReverseCruise": "Toyota-only PCM long-press semantics (0.9.7 isToyota); not reverse gear",
   "MapGears": "GM / HKG CAN-FD / Toyota only (0.9.7 visibility); not Tesla",
   "ForceMPHDashboard": "Toyota-only dashboard unit consumer; AP1 units come from the car (tesla_ap1/speed_limit.py)",
