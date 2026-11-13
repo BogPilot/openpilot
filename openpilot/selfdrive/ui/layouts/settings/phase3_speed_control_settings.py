@@ -191,19 +191,21 @@ BY_KEY = {r[0]: r for r in ROWS}
 APPLIES = "Applies next drive (the planner reads these settings once per drive)."
 
 
-# ---- SLC reset profile by car type ----
-# A car type listed here gets its SLC section resets (and the row hints) from that profile instead of the general
-# table (the registry defaults). Each entry: (car type, detector(store) -> bool, values(store) -> {key: stored text}).
-# Today only the AP1 Model S maps, to the one-time AP1 Model S profile (openpilot/common/bogpilot_ap1_profile.py,
-# ported from BogPilot 367e1fe selfdrive/car/tesla/ap1_defaults.py), read through the profile's own
-# _profile_for_units() so nothing is copied here: Offset1-7 from AP1_SPEED_OFFSETS_MPH (converted and rounded to km/h
-# on a metric device, as the profile writes them), SLCOverride, SLCPriority1 / SLCPriority3, SLCLookaheadLower and
-# ShowSLCOffset. Its detector is the profile's own is_ap1() (CarModel or CarParamsPersistent TESLA_AP1_MODELS). A key
-# the profile does not list keeps its registry default (SLCPriority2 "Map Data").
+# ---- Reset profile by car type ----
+# A car type listed here gets its section resets (and the SLC row hints) from that profile instead of the general
+# table (the registry / shipped defaults). Each entry: (car type, detector(store) -> bool, values(store) -> {key: stored text}).
+# The AP1 Model S maps to the one-time AP1 Model S profile (openpilot/common/bogpilot_ap1_profile.py, ported from
+# BogPilot 367e1fe selfdrive/car/tesla/ap1_defaults.py), read through the profile's own _profile_for_units() so
+# nothing is copied here. That table is the whole profile, unit-aware (Offset1-7 from AP1_SPEED_OFFSETS_MPH, converted
+# and rounded to km/h on a metric device, as the profile writes them, plus every other profile key). Its detector is
+# the profile's own is_ap1() (CarModel or CarParamsPersistent TESLA_AP1_MODELS), which is not broadened. A key the
+# profile does not list keeps its shipped or registry default (SLCPriority2 "Map Data"). The SLC panel applies the
+# keys it owns; other section resets apply the keys they own, including the section switch when the profile sets one.
 # Pre-AP Model S maps to the one-time legacy SLC profile (legacy_slc_profile_for_units in the same file): its
 # SLCPriority1-3 (Dashboard / Map Data / Navigation) and look-ahead, plus the AP1 profile's Offset1-7 and SLCOverride.
-# AP1 Model X maps to the same legacy SLC profile, which gives the X the AP1 Model S profile's SLC settings only.
-# Every other car is not listed and keeps the general table; another car type is one more entry.
+# AP1 Model X maps to the same legacy SLC profile, which gives the X the AP1 Model S profile's SLC settings only
+# (no other AP1 profile key). Every other car is not listed and keeps the general table; another car type is one more
+# entry.
 def _ap1_model_s(store) -> bool:
   from openpilot.common.bogpilot_ap1_profile import is_ap1
   return bool(is_ap1(store))
@@ -248,7 +250,9 @@ def slc_reset_profile_entry(store):
 
 
 def slc_reset_profile(store) -> dict[str, str] | None:
-  """{key: stored text} of the current car's SLC reset profile, or None when the car uses the general table."""
+  """{key: stored text} of the current car's reset profile, or None when the car uses the general table.
+
+  AP1 Model S: the whole AP1 profile (unit-aware). Pre-AP and AP1 Model X: the legacy SLC profile only."""
   entry = slc_reset_profile_entry(store)
   return None if entry is None else dict(entry[2](store))
 
@@ -386,8 +390,10 @@ class SlcEditor:
   def section_defaults(self, keys):
     """Reset table for one whole section (step_defaults.whole_section): its value rows back to the defaults above, its
     toggle and choice rows and the Speed Limit Controller switch itself back to the shipped defaults, and then this
-    car's SLC reset profile on top (SLC_RESET_PROFILES). Only keys that can be edited right now (offroad, row shown for
-    this car, Tuning Level and parent) are listed; anything locked is left alone. The switch is written last."""
+    car's reset profile on top (SLC_RESET_PROFILES). The switch takes the profile value when the profile sets one;
+    this car's profile does not set Speed Limit Controller, so the switch stays at the shipped default. Only keys that
+    can be edited right now (offroad, row shown for this car, Tuning Level and parent) are listed; anything locked is
+    left alone. The switch is written last."""
     from openpilot.selfdrive.ui.bogpilot.step_defaults import whole_section
     keys = tuple(k for k in keys if k in BY_KEY)
     values = {k: self.default(k) for k in keys if self.default(k) is not None and self.can_edit(k)}

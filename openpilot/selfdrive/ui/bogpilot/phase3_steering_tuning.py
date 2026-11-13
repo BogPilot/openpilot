@@ -272,7 +272,10 @@ def make_layout(cp, store, offroad):
         from openpilot.selfdrive.ui.bogpilot.step_defaults import whole_section
 
         def table():
-          return whole_section(e.section_defaults(keys), toggles, parent=parent, can_edit=e.can_edit)
+          from openpilot.selfdrive.ui.bogpilot.step_defaults import car_type_overrides
+          ov_keys = (parent,) + tuple(keys) + tuple(toggles)
+          return whole_section(e.section_defaults(keys), toggles, parent=parent, can_edit=e.can_edit,
+                               overrides=car_type_overrides(e.store, ov_keys))
 
         def write_any(k, value):
           if isinstance(value, bool):   # a toggle row or the switch: the same guarded write as its toggle

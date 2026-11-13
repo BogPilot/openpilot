@@ -333,19 +333,22 @@ def make_settings(group, store=None, capabilities=Capabilities(), cp=None, can_e
 
     def _section_table(self, reset_keys):
       """The whole group (step_defaults.whole_section): its number rows back to their existing defaults
-      (section_defaults), its toggle and choice rows and the group switch itself back to their shipped defaults, the
-      switch last. Only rows shown right now, and only while the group can be edited."""
-      from openpilot.selfdrive.ui.bogpilot.step_defaults import whole_section
+      (section_defaults), its toggle and choice rows and the group switch itself back to their shipped defaults, then
+      this car's reset profile on top (the switch takes the profile value when the profile sets one). Only rows shown
+      right now, and only while the group can be edited."""
+      from openpilot.selfdrive.ui.bogpilot.step_defaults import car_type_overrides, whole_section
       c = self.controller
       if not bool(can_edit()) or not c.long_available():
         return {}
       rows = c.rows()
       shown = {r.key for r in rows}
+      keys = (c.parent,) + tuple(r.key for r in rows)
       return whole_section(c.section_defaults(reset_keys),
                            toggles=tuple(r.key for r in rows if r.kind == "toggle"),
                            choices=tuple(r.key for r in rows if r.kind == "choice"),
                            parent=c.parent, sub_parents=SUB_PARENTS,
-                           can_edit=lambda k: k == c.parent or k in shown)
+                           can_edit=lambda k: k == c.parent or k in shown,
+                           overrides=car_type_overrides(store, keys))
 
     def _build(self):
       c = self.controller

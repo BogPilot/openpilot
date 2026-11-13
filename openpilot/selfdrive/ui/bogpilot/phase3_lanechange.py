@@ -182,9 +182,13 @@ class LaneChangeLayout:
 
           def defaults():
             # The whole section: its value rows back to their existing defaults, its toggle rows and its own switch
-            # back to their shipped defaults (switch last).
+            # back to their shipped defaults, then this car's reset profile on top (switch last; the switch takes the
+            # profile value when the profile sets one).
+            from openpilot.selfdrive.ui.bogpilot.step_defaults import car_type_overrides
+            ov_keys = [parent_key, *(k for k in keys if k in by_key), *(k for k in toggles if k in by_key)]
             return whole_section({k: STEP_DEFAULTS[k] for k in keys if k in by_key},
-                                 tuple(k for k in toggles if k in by_key), parent=parent_key)
+                                 tuple(k for k in toggles if k in by_key), parent=parent_key,
+                                 overrides=car_type_overrides(self.store, ov_keys))
 
           def write(key, value):
             if not self._editable():

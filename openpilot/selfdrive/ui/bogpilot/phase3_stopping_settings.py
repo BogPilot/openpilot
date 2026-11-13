@@ -128,8 +128,9 @@ class StoppingSettingsModel:
 
   def section_defaults(self, page):
     """Reset table for one whole page (step_defaults.whole_section): each number row on it now that has a default,
-    with that default, plus its toggle rows and the page's own switch at their shipped defaults. Nothing else."""
-    from openpilot.selfdrive.ui.bogpilot.step_defaults import whole_section
+    with that default, plus its toggle rows and the page's own switch at their shipped defaults, then this car's
+    reset profile on top (the switch takes the profile value when the profile sets one). Nothing else."""
+    from openpilot.selfdrive.ui.bogpilot.step_defaults import car_type_overrides, whole_section
     if not self.can_edit():
       return {}
     values = {}
@@ -141,7 +142,10 @@ class StoppingSettingsModel:
     if page not in self.DEFAULT_PAGES:
       return values
     toggles = tuple(r.key for r in rows if r.kind == "toggle")
-    return whole_section(values, toggles, parent=self.PAGE_PARENTS.get(page), sub_parents=("WeatherPresets",))
+    parent = self.PAGE_PARENTS.get(page)
+    ov_keys = ((parent,) if parent else ()) + tuple(values) + toggles
+    return whole_section(values, toggles, parent=parent, sub_parents=("WeatherPresets",),
+                         overrides=car_type_overrides(self.store, ov_keys))
 
   def reset_write(self, page, key, value):
     """Section-reset writer: the same guarded change() as the -/+ buttons; a refused write raises (the row reports it)."""

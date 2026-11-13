@@ -167,7 +167,8 @@ class FollowingEditor:
     """The existing default a value row shows as "default: X", or None when there is none to show.
 
     Following Distance uses the table already in this file (`_P_FOLLOW_DEFAULT`: Aggressive 1.25, Standard 1.45,
-    Relaxed 1.75) and the same numbers in bogpilot_defaults.py (AggressiveFollow, StandardFollow, RelaxedFollow).
+    Relaxed 1.75) and the same numbers in bogpilot_defaults.py (AggressiveFollow, StandardFollow, RelaxedFollow),
+    unless this car's reset profile sets the key (AP1 Model S: RelaxedFollow 2.0 s from the AP1 profile).
     Jerk rows and Lead Detection use store.default(key), the same source value() already falls back to:
     Aggressive jerks 50 except Danger 100; Standard/Relaxed jerks 100 (bogpilot_defaults.py); Lead Detection 35.
     A missing or non-finite catalog entry is not a default: no hint and no reset for that key.
@@ -176,7 +177,9 @@ class FollowingEditor:
     if row is None or row.kind != "value":
       return None
     try:
-      v = float(self.store.default(key))
+      from openpilot.selfdrive.ui.bogpilot.step_defaults import car_type_reset_values
+      text = car_type_reset_values(self.store).get(key)
+      v = float(text) if text is not None else float(self.store.default(key))
     except (TypeError, ValueError, KeyError, AttributeError):
       return None
     return v if math.isfinite(v) else None
@@ -354,8 +357,10 @@ def build_items(editor, store, CP, section=None, confirm=None, request_confirm=N
     from openpilot.selfdrive.ui.bogpilot.step_defaults import whole_section
 
     def table(keys=keys, parent=parent):
+      from openpilot.selfdrive.ui.bogpilot.step_defaults import car_type_overrides
+      ov_keys = list(keys) + ([parent] if parent_in_section and parent is not None else [])
       return whole_section(editor.section_defaults(keys), parent=parent if parent_in_section else None,
-                           can_edit=editor.can_edit)
+                           can_edit=editor.can_edit, overrides=car_type_overrides(editor.store, ov_keys))
     item = reset_section_item(table,
                               lambda k, default: must(editor.write(k, default), k),
                               title=lambda: tr(RESET_SECTION_TITLE),

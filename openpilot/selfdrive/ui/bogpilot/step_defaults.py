@@ -4,7 +4,8 @@
 * `differs_from_default` decides when the value is highlighted (stored value is not the default).
 * `reset_section` writes a section's own keys back to their existing defaults, and nothing else.
 * `whole_section` builds a section's reset table: its value rows as the panel already resets them, plus its toggle
-  and choice rows and its own parent switch at their shipped BogPilot defaults (`shipped_default`).
+  and choice rows and its own parent switch at their shipped BogPilot defaults (`shipped_default`), then any car-type
+  overrides (including the section switch when the profile sets one).
 
 Callers pass the defaults from where the panel already reads them (for example the Alert Volume defaults in
 alert_volumes.BOGPILOT_VOLUME_DEFAULTS); nothing here defines a default or a param.
@@ -87,6 +88,38 @@ def shipped_choice(key: str) -> int | None:
     return None
 
 
+def typed_override(text: str) -> Any:
+  """Stored profile text as a whole_section value: bool for "0"/"1", int or float for numbers, otherwise text."""
+  if text in ("0", "1"):
+    return text == "1"
+  try:
+    number = float(text)
+  except (TypeError, ValueError):
+    return text
+  if "." not in text and "e" not in text.lower():
+    return int(number)
+  return number
+
+
+def car_type_reset_values(store) -> dict[str, str]:
+  """{key: stored text} of the current car's reset profile, or {} when the car uses the general table.
+
+  AP1 Model S: the whole AP1 profile, unit-aware (openpilot/common/bogpilot_ap1_profile.py). Pre-AP and AP1 Model X:
+  the legacy SLC profile only. Read through the car-type table; nothing is copied here."""
+  try:
+    from openpilot.selfdrive.ui.layouts.settings.phase3_speed_control_settings import slc_reset_profile
+    profile = slc_reset_profile(store)
+  except Exception:
+    return {}
+  return {} if not profile else dict(profile)
+
+
+def car_type_overrides(store, keys) -> dict[str, Any]:
+  """Typed car-type profile values for keys that the current car's reset profile sets. {} on the general table."""
+  profile = car_type_reset_values(store)
+  return {k: typed_override(profile[k]) for k in keys if k in profile}
+
+
 def whole_section(values: Mapping[str, Any], toggles=(), choices=(), parent: str | None = None, sub_parents=(),
                   can_edit: Callable[[str], bool] | None = None, overrides: Mapping[str, Any] | None = None) -> dict:
   """Reset table for a whole section, in write order.
@@ -94,7 +127,9 @@ def whole_section(values: Mapping[str, Any], toggles=(), choices=(), parent: str
   values: the section's value rows with the defaults the panel already uses (kept as they are). toggles / choices:
   the section's other rows, reset to their shipped defaults (a row without one is left alone). parent: the section's
   own on/off switch, also back to its shipped default. overrides: per-car-type values that replace the shipped ones
-  (the SLC reset profiles). Only keys `can_edit` allows right now are listed.
+  after the section defaults are built, including the section's own switch when the profile sets one (a precedence
+  change from the earlier rule that the switch always kept the shipped default). Only keys `can_edit` allows right
+  now are listed.
   Order: sub-parent switches that turn on, then the rows, then sub-parent switches that turn off, and the section's own
   parent last, so no row is refused because a switch above it was turned off first."""
   can = can_edit if can_edit is not None else (lambda _k: True)
@@ -115,16 +150,18 @@ def whole_section(values: Mapping[str, Any], toggles=(), choices=(), parent: str
     else:
       rows[k] = v
   out = {**first, **rows, **last}
-  for k, v in (overrides or {}).items():
+  ov = dict(overrides or {})
+  for k, v in ov.items():
     if k != parent and (k in out or can(k)):
       out[k] = v
   if parent is not None and can(parent):
-    v = shipped_toggle(parent)
+    # Profile value when the car-type table sets this switch; otherwise the shipped default.
+    v = ov[parent] if parent in ov else shipped_toggle(parent)
     if v is not None:
       out.pop(parent, None)
       out[parent] = v
   return out
 
 
-__all__ = ["HINT_PREFIX", "default_hint", "differs_from_default", "reset_section", "shipped_choice", "shipped_default",
-           "shipped_toggle", "whole_section"]
+__all__ = ["HINT_PREFIX", "car_type_overrides", "car_type_reset_values", "default_hint", "differs_from_default",
+           "reset_section", "shipped_choice", "shipped_default", "shipped_toggle", "typed_override", "whole_section"]
