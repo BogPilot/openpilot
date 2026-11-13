@@ -84,7 +84,7 @@ class TestEditor(unittest.TestCase):
     self.assertEqual(run(ctl, sm, 30.0, 20.0, limit=45 * MPH), 30.0)         # fresh install: stock
     self.assertTrue(ed.write("SpeedLimitController", True))
     self.assertTrue(ed.on("SpeedLimitController"))
-    out = run(ctl, sm, 30.0, 20.0, limit=45 * MPH)
+    out = run(ctl, sm, 30.0, 20.0, limit=45 * MPH, rwd=True)
     self.assertAlmostEqual(out, 50 * MPH, places=4)                           # 45 + default Offset4 5 mph
     self.assertTrue(ed.write("Offset4", 9))
     self.assertAlmostEqual(run(ctl, sm, 30.0, 20.0, limit=45 * MPH), 54 * MPH, places=4)
@@ -193,7 +193,7 @@ class TestEditor(unittest.TestCase):
     render()
     self.assertIn("SLCFallback", layout.choices)                                # nested rows appear after adoption
     ctl, sm = self.consumer(store), Sm()
-    self.assertAlmostEqual(run(ctl, sm, 30.0, 20.0, limit=45 * MPH), 50 * MPH, places=4)
+    self.assertAlmostEqual(run(ctl, sm, 30.0, 20.0, limit=45 * MPH, rwd=True), 50 * MPH, places=4)
     sub = ss.make_layout(CP_AP1, store, lambda: True, section="SLCOffsets")
     sub.show_event()
     rl.begin_drawing()
