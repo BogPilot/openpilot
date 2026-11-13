@@ -232,8 +232,11 @@ def make_layout(cp, store, offroad):
         return item
 
       def toggle(key, title, description):
+        # Section switches (Advanced Lateral Tuning, Quality of Life) carry their 0.9.7 icon; rows inside do not.
+        from openpilot.selfdrive.ui.bogpilot.section_icons import STEERING_SECTIONS, resolve_icon
         item = toggle_item(title, description, store.get_bool(key),
-                           callback=lambda value, k=key: e.write(k, value), enabled=lambda k=key: e.can_edit(k))
+                           callback=lambda value, k=key: e.write(k, value), enabled=lambda k=key: e.can_edit(k),
+                           icon=resolve_icon(key) if key in STEERING_SECTIONS else None)
         self.toggles[key] = item
         attach_help(item, key)
         return add(item, key)

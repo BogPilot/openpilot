@@ -3,7 +3,7 @@ import os
 import pyray as rl
 from collections.abc import Callable
 from abc import ABC
-from openpilot.system.ui.lib.application import gui_app, FontWeight, MousePos, TextAlignment, TextAlignmentVertical
+from openpilot.system.ui.lib.application import ASSETS_DIR, gui_app, FontWeight, MousePos, TextAlignment, TextAlignmentVertical
 from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.widgets import Widget
@@ -376,9 +376,11 @@ class ListItem(Widget):
 
     # Only draw title and icon for items that have them
     if self.title:
-      # Draw icon if present
+      # Draw icon if present (loaded on first draw; a file that will not load draws nothing)
       if self.icon:
-        rl.draw_texture_ex(self._icon_texture, rl.Vector2(content_x, self._rect.y + (ITEM_BASE_HEIGHT - self._icon_texture.height) / 2), 0.0, 1.0, rl.WHITE)
+        texture = self._get_icon_texture()
+        if texture is not None:
+          rl.draw_texture_ex(texture, rl.Vector2(content_x, self._rect.y + (ITEM_BASE_HEIGHT - texture.height) / 2), 0.0, 1.0, rl.WHITE)
         text_x += ICON_SIZE + ITEM_PADDING
 
       # Draw main text
@@ -408,8 +410,27 @@ class ListItem(Widget):
           self.callback()
 
   def set_icon(self, icon: str | None):
-    self.icon = icon
-    self._icon_texture = gui_app.texture(os.path.join("icons", self.icon), ICON_SIZE, ICON_SIZE) if self.icon else None
+    # A missing or unreadable icon file means no icon (never an error); the texture is loaded on first draw.
+    try:
+      if icon and not ASSETS_DIR.joinpath("icons", icon).is_file():
+        icon = None
+    except Exception:
+      icon = None
+    self.icon = icon or None
+    self._icon_texture = None
+    self._icon_failed = False
+
+  def _get_icon_texture(self):
+    if self.icon and self._icon_texture is None and not self._icon_failed:
+      try:
+        texture = gui_app.texture(os.path.join("icons", self.icon), ICON_SIZE, ICON_SIZE)
+        if texture is not None and getattr(texture, "id", 1) != 0:
+          self._icon_texture = texture
+        else:
+          self._icon_failed = True
+      except Exception:
+        self._icon_failed = True
+    return self._icon_texture
 
   def set_description(self, description: str | Callable[[], str] | None):
     self._description = description
@@ -445,9 +466,11 @@ class ListItem(Widget):
       return rl.Rectangle(item_rect.x + ITEM_PADDING + self.indent, item_rect.y,
                           item_rect.width - (ITEM_PADDING * 2) - self.indent, ITEM_BASE_HEIGHT)
 
-    # Clip width to available space, never overlapping this Item's title
+    # Clip width to available space, never overlapping this Item's title (or its icon, drawn before the title)
     content_width = item_rect.width - (ITEM_PADDING * 2) - self.indent
     title_width = measure_text_cached(self._font, self.title, ITEM_TEXT_FONT_SIZE).x
+    if self.icon and self.title:
+      title_width += ICON_SIZE + ITEM_PADDING
     right_width = min(content_width - title_width, right_width)
 
     right_x = item_rect.x + item_rect.width - right_width
@@ -467,9 +490,9 @@ def toggle_item(title: str | Callable[[], str], description: str | Callable[[], 
 
 
 def button_item(title: str | Callable[[], str], button_text: str | Callable[[], str], description: str | Callable[[], str] | None = None,
-                callback: Callable | None = None, enabled: bool | Callable[[], bool] = True) -> ListItem:
+                callback: Callable | None = None, enabled: bool | Callable[[], bool] = True, icon: str | None = None) -> ListItem:
   action = ButtonAction(text=button_text, enabled=enabled)
-  return ListItem(title=title, description=description, action_item=action, callback=callback)
+  return ListItem(title=title, description=description, action_item=action, callback=callback, icon=icon)
 
 
 def text_item(title: str | Callable[[], str], value: str | Callable[[], str], description: str | Callable[[], str] | None = None,

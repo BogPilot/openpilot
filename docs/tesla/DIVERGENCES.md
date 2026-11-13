@@ -202,3 +202,12 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Safety-relevant: no; settings UI only. Every write goes through the same guarded path as the row's own control (offroad only, refused writes reported).
 - Tests: `openpilot/selfdrive/ui/tests/test_section_reset_parent.py` and the panel section-reset tests (sounds, steering, lane changes, following, speed limit controller).
 - Credits: BogPilot (the section reset rows).
+
+## Section icons on the Gas / Brake and Steering pages, as in 0.9.7
+- Platforms: all car types.
+- Reference behavior: BogPilot 0.9.7 shows an icon on each section row of the longitudinal and lateral settings (`frogpilot/ui/qt/offroad/longitudinal_settings.cc`, `lateral_settings.cc`), from `frogpilot/assets/toggle_icons`.
+- Our behavior: the same icons, copied unchanged (same bytes, same file names) into `openpilot/selfdrive/assets/icons/bogpilot/`, on the section rows only: Gas / Brake MANAGE rows (Advanced Longitudinal Tuning, Conditional Experimental Mode, Driving Personalities, Longitudinal Tuning, Quality of Life, Speed Limit Controller), the Lane Changes OPEN row under Steering, and the Advanced Lateral Tuning and Quality of Life switches on the Steering Tuning page. Rows inside a section get no icon. The 0.9.7 icons for Curve Speed Controller, Always On Lateral and Lateral Tuning are mapped but have no row in this tree yet. `button_item` and the switch + MANAGE row take an `icon`; the row keeps the icon's width free when it places its button, and a missing or unreadable icon file shows no icon instead of failing. The existing menu icons are unchanged.
+- Why: match the 0.9.7 settings look.
+- Safety-relevant: no; settings UI only.
+- Tests: `openpilot/selfdrive/ui/tests/test_section_icons.py`, `openpilot/selfdrive/ui/tests/test_bogpilot_menu_097.py` (section icon tests).
+- Credits: BogPilot 0.9.7 (the icons and their mapping).

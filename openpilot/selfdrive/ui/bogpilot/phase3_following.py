@@ -245,9 +245,9 @@ def _human_lane_change_item(store, CP, runtime_integrated, offroad):
     return None
 
 
-def _manage_toggle_item(title, desc, state, toggle_callback, toggle_enabled, manage_callback, manage_enabled):
+def _manage_toggle_item(title, desc, state, toggle_callback, toggle_enabled, manage_callback, manage_enabled, icon=None):
   """One row with the switch AND the MANAGE button, like the 0.9.7 manage-control widget:
-  MANAGE is enabled only while the switch is on."""
+  MANAGE is enabled only while the switch is on. icon: optional section icon (path under selfdrive/assets/icons)."""
   import pyray as rl
   from openpilot.system.ui.widgets.button import Button, ButtonStyle
   from openpilot.system.ui.widgets.list_view import (BUTTON_BORDER_RADIUS, BUTTON_FONT_SIZE, BUTTON_FONT_WEIGHT, BUTTON_HEIGHT,
@@ -288,7 +288,7 @@ def _manage_toggle_item(title, desc, state, toggle_callback, toggle_enabled, man
       self.manage.render(rl.Rectangle(x - gap - BUTTON_WIDTH, rect.y + (rect.height - BUTTON_HEIGHT) / 2, BUTTON_WIDTH, BUTTON_HEIGHT))
       return False
 
-  return ListItem(title=title, description=desc, action_item=ManageToggleAction())
+  return ListItem(title=title, description=desc, action_item=ManageToggleAction(), icon=icon)
 
 
 def build_items(editor, store, CP, section=None, confirm=None, request_confirm=None, lead_items=(),

@@ -312,7 +312,9 @@ def build_menu(sections, store=None, can_edit: Callable[[], bool] | None = None,
         return
       x = self._rect.x + ITEM_PADDING
       if self.icon:
-        rl.draw_texture_ex(self._icon_texture, rl.Vector2(x, self._rect.y + (ROW_HEIGHT - self._icon_texture.height) / 2), 0.0, 1.0, rl.WHITE)
+        texture = self._get_icon_texture()   # loaded on first draw; none if the file will not load
+        if texture is not None:
+          rl.draw_texture_ex(texture, rl.Vector2(x, self._rect.y + (ROW_HEIGHT - texture.height) / 2), 0.0, 1.0, rl.WHITE)
         x += ICON_SIZE + ITEM_PADDING
       size = measure_text_cached(self._font, self.title, ITEM_TEXT_FONT_SIZE)
       note = self.subtitle() if self.subtitle is not None else ""
@@ -393,7 +395,10 @@ def build_menu(sections, store=None, can_edit: Callable[[], bool] | None = None,
       self.navigation.open_pill(key)
 
     def _build_page_list(self, entries, open_page):
-      items = [button_item(lambda title=title: tr(title), lambda: tr("OPEN"), callback=lambda key=key: open_page(key))
+      from openpilot.selfdrive.ui.bogpilot.section_icons import PAGE_SECTIONS, resolve_icon
+      # A page that stands for a 0.9.7 section row (Lane Changes under STEERING) gets that section's icon.
+      items = [button_item(lambda title=title: tr(title), lambda: tr("OPEN"), callback=lambda key=key: open_page(key),
+                           icon=resolve_icon(PAGE_SECTIONS.get(key, "")))
                for key, title in entries]
       if not items:
         items = [text_item(lambda: tr("No active features available"), "")]

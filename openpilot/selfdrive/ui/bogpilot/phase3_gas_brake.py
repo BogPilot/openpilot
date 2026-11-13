@@ -221,6 +221,7 @@ def create_gas_brake_layout(store=None, cp_source=None, can_edit=None):
     def _build_root(self):
       # Locked: say why and which setting (if any) unlocks it. The rows below stay greyed; nothing here enables them.
       from openpilot.selfdrive.ui.bogpilot.phase3_following import FollowingEditor, _manage_toggle_item
+      from openpilot.selfdrive.ui.bogpilot.section_icons import GAS_BRAKE_SECTIONS, resolve_icon
       self.lock.refresh()
       items = [self._lock_row, self._jump_row]
       editor = FollowingEditor(self.cp, self.store, self.can_edit)
@@ -231,12 +232,15 @@ def create_gas_brake_layout(store=None, cp_source=None, can_edit=None):
                                      lambda v: editor.write(mounts.PERSONALITIES_KEY, bool(v)),
                                      lambda: editor.can_edit(mounts.PERSONALITIES_KEY),
                                      lambda: self.open_panel("personalities"),
-                                     lambda: editor.on(mounts.PERSONALITIES_KEY))
+                                     lambda: editor.on(mounts.PERSONALITIES_KEY),
+                                     icon=resolve_icon(GAS_BRAKE_SECTIONS[key]))
           item.action_item.set_enabled(lambda: self.cp.openpilotLongitudinalControl)
           items.append(attach_help(item, "group:" + key))
         else:
+          # 0.9.7 section icon on the MANAGE row (section_icons.GAS_BRAKE_SECTIONS); none on the rows inside.
           items.append(attach_help(button_item(title, "MANAGE", desc, callback=lambda k=key: self.open_panel(k),
-                                              enabled=lambda: self.cp.openpilotLongitudinalControl), "group:" + key))
+                                              enabled=lambda: self.cp.openpilotLongitudinalControl,
+                                              icon=resolve_icon(GAS_BRAKE_SECTIONS.get(key, ""))), "group:" + key))
       # Same no-car rule as the AP1-only Speed Limit Controller entry above (root_entries: mounts.slc_supported(cp) is not
       # False): with no CarParams yet the rows show greyed, hidden only on a known non-AP1 car. Gated button per D2.
       # One value row [-] [value] [+] (was a text row plus a button row) and its own section reset row: same two rows,

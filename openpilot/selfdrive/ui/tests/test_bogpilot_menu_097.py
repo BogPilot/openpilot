@@ -7,6 +7,7 @@ Tuning Level control, help on every row. Set MENU_SHOTS=/dir to also write the s
 import os
 import tempfile
 import unittest
+from pathlib import Path
 
 EXPECTED_ROWS = (
   ("alerts_sounds", "Alerts and Sounds", ("MANAGE",)),
@@ -664,6 +665,119 @@ class TestMenuNative(NativeCase):
     row = self.home_rows()[0]
     row._handle_mouse_release(self.rl.Vector2(row._rect.x + 200, row._rect.y + 60))
     self.draw(shot="menu097_help_tuning_level.png")
+
+  # ---- 0.9.7 section icons on the Gas / Brake and Steering pages (section rows only)
+  GAS_BRAKE_ICON_ROWS = {
+    "Advanced Longitudinal Tuning": "AdvancedLongitudinalTune", "Conditional Experimental Mode": "ConditionalExperimental",
+    "Driving Personalities": "CustomPersonalities", "Longitudinal Tuning": "LongitudinalTune",
+    "Quality of Life": "QOLLongitudinal", "Speed Limit Controller": "SpeedLimitController",
+  }
+
+  def page_rows(self):
+    w = self.menu.navigation.current
+    for _ in range(8):
+      if w.__class__.__name__ == "GasBrakeLayout":
+        w = w.root
+      elif hasattr(w, "_items"):
+        return list(w._items)
+      elif getattr(w, "_current", None) is not None:
+        w = w._current
+      elif hasattr(w, "scroller"):
+        w = w.scroller
+      else:
+        break
+    self.fail(f"no rows in {w!r}")
+
+  def test_section_icons_on_section_rows_only(self):
+    from openpilot.selfdrive.ui.bogpilot.section_icons import resolve_icon
+    nav = self.menu.navigation
+    self.save_level(3)
+    nav.open_pill("gas_brake")
+    self.draw()
+    rows = self.page_rows()
+    titled = {r.title: r for r in rows if getattr(r, "title", "")}
+    shown = {t: k for t, k in self.GAS_BRAKE_ICON_ROWS.items() if t in titled}
+    self.assertEqual(set(shown), set(self.GAS_BRAKE_ICON_ROWS) & set(titled))
+    self.assertGreaterEqual(len(shown), 5, sorted(titled))
+    for title, key in shown.items():
+      self.assertIsNotNone(resolve_icon(key))
+      self.assertEqual(titled[title].icon, resolve_icon(key), title)
+    for r in rows:
+      if getattr(r, "title", "") not in self.GAS_BRAKE_ICON_ROWS:
+        self.assertIsNone(r.icon, getattr(r, "title", ""))       # lock / jump / value / reset rows: no icon
+    while nav.path:
+      nav.back()
+    nav.open_pill("steering")
+    self.draw()
+    rows = {r.title: r for r in self.page_rows()}
+    self.assertEqual(rows["Lane Changes"].icon, resolve_icon("LaneChanges"))
+    self.assertIsNotNone(rows["Lane Changes"].icon)
+    self.assertIsNone(rows["Steering Tuning"].icon)              # not a 0.9.7 section row
+    nav.open_page("steering", "steering_tuning")
+    self.draw()
+    for r in self.page_rows():
+      key = {"Advanced Lateral Tuning": "AdvancedLateralTune", "Quality of Life": "QOLLateral"}.get(getattr(r, "title", ""))
+      if key is not None:
+        self.assertEqual(r.icon, resolve_icon(key))
+        self.assertIsNotNone(r.icon)
+      else:
+        self.assertIsNone(r.icon, getattr(r, "title", ""))      # rows inside a section: no icon
+    while nav.path:
+      nav.back()
+    nav.open_page("steering", "lane_changes")
+    self.draw()
+    self.assertTrue(all(r.icon is None for r in self.page_rows()))   # the icon sits on the OPEN row, not inside
+
+  def test_right_item_rect_reserves_the_icon_width(self):
+    from openpilot.selfdrive.ui.bogpilot.section_icons import resolve_icon
+    from openpilot.system.ui.widgets.list_view import ICON_SIZE, ITEM_PADDING, button_item
+    title = "Advanced Longitudinal Tuning " * 3                   # long enough that the button is clipped
+    plain = button_item(title, "MANAGE")
+    with_icon = button_item(title, "MANAGE", icon=resolve_icon("AdvancedLongitudinalTune"))
+    self.assertIsNotNone(with_icon.icon)
+    rect = self.rl.Rectangle(0, 0, 1560, 170)
+    a, b = plain.get_right_item_rect(rect), with_icon.get_right_item_rect(rect)
+    self.assertAlmostEqual(a.width - b.width, ICON_SIZE + ITEM_PADDING)
+    self.assertAlmostEqual(b.x - a.x, ICON_SIZE + ITEM_PADDING)
+    short = button_item("Lane Changes", "OPEN", icon=resolve_icon("LaneChanges"))
+    self.assertEqual(short.get_right_item_rect(rect).width, button_item("Lane Changes", "OPEN").get_right_item_rect(rect).width)
+
+  def test_a_missing_or_unloadable_icon_draws_none_and_never_raises(self):
+    from unittest import mock
+    from openpilot.system.ui.widgets.list_view import button_item
+    from openpilot.selfdrive.ui.bogpilot import section_icons as si
+    with tempfile.TemporaryDirectory() as d, mock.patch.object(si, "ICON_DIR", Path(d)):
+      self.assertIsNone(si.resolve_icon("LaneChanges"))           # file missing
+      (Path(d) / "icon_lane.png").write_bytes(b"not a png")
+      self.assertIsNone(si.resolve_icon("LaneChanges"))           # not a PNG
+    missing = button_item("Lane Changes", "OPEN", icon="bogpilot/no_such_icon.png")
+    self.assertIsNone(missing.icon)
+    broken = button_item("Lane Changes", "OPEN", icon=si.resolve_icon("LaneChanges"))
+    self.assertIsNotNone(broken.icon)
+    rect = self.rl.Rectangle(550, 25, 1560, 170)
+    with mock.patch.object(self.gui_app, "texture", side_effect=RuntimeError("unreadable")):
+      for item in (missing, broken):
+        item.set_parent_rect(rect)
+        self.rl.begin_drawing()
+        try:
+          item.render(rect)                                       # draws no icon, raises nothing
+        finally:
+          self.rl.end_drawing()
+    self.assertIsNone(broken._icon_texture)
+
+  def test_section_icon_screenshots(self):
+    if not self.shots:
+      self.skipTest("MENU_SHOTS not set")
+    nav = self.menu.navigation
+    self.save_level(3)
+    nav.open_pill("gas_brake")
+    self.draw(shot="settings_icons_gas_brake.png")
+    while nav.path:
+      nav.back()
+    nav.open_pill("steering")
+    self.draw(shot="settings_icons_steering.png")
+    nav.open_page("steering", "steering_tuning")
+    self.draw(shot="settings_icons_steering_tuning.png")
 
 
 if __name__ == "__main__":
