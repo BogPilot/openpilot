@@ -5,8 +5,8 @@ import pytest
 from openpilot.common.bogpilot_ap1_profile import (
   AP1_CAR_MODEL, AP1_PARAM_PROFILE, AP1_SLC_KEYS, AP1_SPEED_OFFSETS_MPH, LEGACY_SLC_PROFILE, MPH_TO_KPH,
   _profile_for_units, ap1_slc_profile_for_units,
-  apply_legacy_slc_defaults_once, clear_ap1_defaults_marker, is_ap1, is_legacy_slc_platform, legacy_slc_marker_path,
-  legacy_slc_profile_for_units,
+  OLD_LEGACY_SLC_MARKER_NAMES, apply_legacy_slc_defaults_once, clear_ap1_defaults_marker, is_ap1, is_legacy_slc_platform,
+  legacy_slc_marker_path, legacy_slc_profile_for_units,
 )
 from openpilot.common.bogpilot_params import BOGPILOT_PARAMS
 from openpilot.selfdrive.controls.tests.test_phase3_speed_control import CP_AP1, FakeStore
@@ -213,3 +213,53 @@ def test_preap_section_reset_returns_the_legacy_profile(metric):
   assert ed.profile_reset_rows(("ShowSLCOffset",)) == () and reset(ed, ("ShowSLCOffset",)) == {"ShowSLCOffset": True}
   assert (store.vals["ShowSLCOffset"], store.vals["SLCFallback"]) == ("1", "0")
   assert "SLCLookaheadHigher" not in store.vals
+
+
+def _earlier_build_device(tmp_path, car, metric):
+  """A device that ran an earlier build: the earlier marker is present (it was offered the sources / look-ahead only),
+  everything else is still at the table defaults."""
+  for name in OLD_LEGACY_SLC_MARKER_NAMES:
+    (tmp_path / name).write_text("1\n")
+  return fresh(car, metric)
+
+
+@pytest.mark.parametrize("car", LEGACY_CARS)
+@pytest.mark.parametrize("metric", [False, True])
+def test_earlier_build_device_gets_the_added_speed_settings_once(tmp_path, car, metric):
+  p = _earlier_build_device(tmp_path, car, metric)
+  before = dict(p.vals)
+  written = apply_legacy_slc_defaults_once(p, bogpilot_dir=tmp_path, refresh=False)
+  added = {k: v for k, v in expected(car, metric).items() if k not in LEGACY_SLC_PROFILE}
+  assert set(written) == set(added)
+  for k, v in added.items():
+    assert float(p.get(k)) == float(v) if k in OFFSETS else p.get(k) == v
+  for k in LEGACY_SLC_PROFILE:                             # offered once already by the earlier build: kept as they are
+    assert p.get(k) == before[k]
+  assert legacy_slc_marker_path(tmp_path).exists()
+  # Second run is a no-op.
+  p.put("Offset1", "9")
+  assert apply_legacy_slc_defaults_once(p, bogpilot_dir=tmp_path, refresh=False) == []
+  assert p.get("Offset1") == "9"
+
+
+def test_earlier_build_device_keeps_saved_speed_values(tmp_path):
+  p = _earlier_build_device(tmp_path, PREAP, False)
+  p.put("Offset1", "3")
+  p.put("SLCOverride", "0")
+  apply_legacy_slc_defaults_once(p, bogpilot_dir=tmp_path, refresh=False)
+  assert (p.get("Offset1"), p.get("SLCOverride")) == ("3", "0")
+  assert float(p.get("Offset2")) == 5.0 and float(p.get("Offset5")) == 7.0
+
+
+@pytest.mark.parametrize("car", LEGACY_CARS)
+def test_toggle_reset_clears_the_earlier_build_marker_too(tmp_path, car):
+  p = _earlier_build_device(tmp_path, car, False)
+  apply_legacy_slc_defaults_once(p, bogpilot_dir=tmp_path, refresh=False)
+  clear_ap1_defaults_marker(tmp_path)
+  assert not legacy_slc_marker_path(tmp_path).exists()
+  assert not any((tmp_path / name).exists() for name in OLD_LEGACY_SLC_MARKER_NAMES)
+  p2 = fresh(car, False)
+  apply_legacy_slc_defaults_once(p2, bogpilot_dir=tmp_path, refresh=False)
+  for k, v in expected(car, False).items():               # full profile again, sources included
+    assert float(p2.get(k)) == float(v) if k in OFFSETS else p2.get(k) == v
+

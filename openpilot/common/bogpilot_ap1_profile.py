@@ -319,7 +319,7 @@ def clear_ap1_defaults_marker(bogpilot_dir: Path | None = None) -> None:
   directory = Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR)
   for path in (marker_path(bogpilot_dir), theme_marker_path(bogpilot_dir), legacy_slc_marker_path(bogpilot_dir),
                legacy_tesla_long_marker_path(bogpilot_dir), legacy_tesla_ce_marker_path(bogpilot_dir),
-               *(directory / n for n in OLD_THEME_MARKER_NAMES)):
+               *(directory / n for n in OLD_THEME_MARKER_NAMES), *(directory / n for n in OLD_LEGACY_SLC_MARKER_NAMES)):
     try:
       path.unlink(missing_ok=True)
     except Exception:
@@ -406,7 +406,11 @@ def _apply_profile(params, directory: Path, default_table: dict | None) -> list[
 
 # Pre-AP Model S and AP1 Model X get the SLC source / look-ahead defaults, not the full AP1 S profile.
 LEGACY_SLC_PLATFORMS = frozenset({"TESLA_AP1_MODELX", "TESLA_PREAP_MODELS"})
-LEGACY_SLC_MARKER_NAME = "LegacySlcDefaultsApplied"
+# Marker 2: written once the full legacy SLC profile below (including the speed / Override keys) was offered.
+LEGACY_SLC_MARKER_NAME = "LegacySlcDefaultsApplied2"
+# Earlier builds wrote this marker after offering LEGACY_SLC_PROFILE only (sources and look-ahead). A device that has it
+# but not marker 2 is offered only the keys added since, with the same still-at-default rule.
+OLD_LEGACY_SLC_MARKER_NAMES = ("LegacySlcDefaultsApplied",)
 LEGACY_SLC_PROFILE: dict[str, str] = {
   "SLCPriority1": "Dashboard",
   "SLCPriority2": "Map Data",
@@ -480,6 +484,10 @@ def apply_legacy_slc_defaults_once(params=None, bogpilot_dir: Path | None = None
   """One-shot SLC defaults for Pre-AP and AP1 X (legacy_slc_profile_for_units). Saved values are preserved: only a
   key still at its table default (for an offset on a metric device, also the UI's km/h conversion of it) is written.
 
+  A device from an earlier build (OLD_LEGACY_SLC_MARKER_NAMES present, marker 2 absent) already had LEGACY_SLC_PROFILE
+  offered once: it is offered only the keys added since (Offset1-7, SLCOverride, and on the X ShowSLCOffset), so a
+  source / look-ahead value set back to the table default after that first run is kept.
+
   Never raises. AP1 Model S is ignored here (apply_ap1_defaults_once owns those keys).
   """
   try:
@@ -493,8 +501,11 @@ def apply_legacy_slc_defaults_once(params=None, bogpilot_dir: Path | None = None
       return []
     table = default_table if default_table is not None else _default_table()
     metric = _is_metric(params)
+    profile = legacy_slc_profile_for_units(params)
+    if any((directory / name).exists() for name in OLD_LEGACY_SLC_MARKER_NAMES):
+      profile = {key: value for key, value in profile.items() if key not in LEGACY_SLC_PROFILE}
     written = []
-    for key, value in legacy_slc_profile_for_units(params).items():
+    for key, value in profile.items():
       if key not in table:
         continue
       current = params.get(key)

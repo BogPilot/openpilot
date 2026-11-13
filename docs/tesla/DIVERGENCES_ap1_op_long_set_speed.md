@@ -177,8 +177,9 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
     The IC set follows the plan set outside the engage floor (`cluster_set_kph`, `follow_plan`).
   - A longitudinal re-activation in the same cruise session (gas override longer than `LongEngageGate.DROP_S`)
     restores the driver's latched or tipped set instead of handing the set to SLC; after a pull it still follows SLC.
-  - Published stalk levels (`bogpilot.accelPressed/decelPressed/resumePressed`) are held 6 CAN frames (60 ms) after
-    release so the 20 Hz planner cannot miss a short press; a cancel (FWD) clears them. `buttonEvents` are unchanged.
+  - Published stalk levels (`bogpilot.accelPressed/decelPressed/resumePressed`) are at least 6 CAN frames (60 ms) wide
+    from the press so the 20 Hz planner cannot miss a short press, and a longer press ends at its release (no tail);
+    a cancel (FWD) clears them. `buttonEvents` are unchanged. See "stalk level minimum width" below.
 - Why: classifying on the longitudinal edge let a tap made with the gas held fall outside the 0.8 s window once
   longActive rose on release, and the fallback chose SLC; the limit-first car set also gave limit plus offset for a
   rolling tap. Both made a tap follow SLC instead of latching the current speed.
@@ -195,3 +196,84 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
   `test_standstill_tap_with_known_limit_car_and_planner_agree_on_tap_from_stop_speed`.
 - Credits: BogPilot 0.9.7 (cruise-edge classification, tap/pull policy); Tinkla/BogGyver (current-speed latch at engage);
   NAP (Pre-AP pull / double-pull engagement).
+
+### AP1: Max Set Speed gas override returns to the driver's set, else the current limit plus offset
+- Platforms: AP1 Model S and Model X with openpilot longitudinal (`Ap1SpeedControl._ap1_op_long`). Pre-AP keeps 0.9.7.
+- Reference behavior: BogPilot 0.9.7 `frogpilot/controls/lib/speed_limit_controller.py:344-356` (`568fea947`): with
+  SLCOverride 2 ("Max Set Speed") a gas press above limit plus offset sets `overridden_speed = v_cruise + v_cruise_diff`,
+  and the override holds after the release while that value is above limit plus offset. In 0.9.7 `v_cruise` is the
+  driver's cruise set.
+- Our behavior: under AP1 openpilot long `v_cruise` is the car-layer engage latch (`op_long_set_speed.py`), which after a
+  pull is the engage-time limit plus offset and is never refreshed on a limit change. So Max Set Speed uses the set the
+  driver chose instead (`Ap1RaiseHoldoff.driver_set_ms`: the sticky tap / vEgo latch or an engaged tip, or the last one
+  seen while longitudinal was ours); with none (pull engage, SLC tracking) it uses the current limit plus offset, so the
+  override ends at the release. Example: pull at 45 + 5 (set 50), the limit drops to 35 (SLC 40), gas to 45, release:
+  40, not 50. A tap latch or a tipped set is still restored after the gas.
+- Why: the old rule raised the set back to an earlier zone's limit plus offset with no driver set action.
+- Safety-relevant: planner set speed only, and only lower or equal to before. No panda, CAN TX, DBC or cereal change.
+- Tests: `TestMaxSetSpeedGasOverride` and `test_override_manual_and_set_speed` (`test_phase3_speed_control.py`).
+- Credits: BogPilot 0.9.7 (SLC override rule).
+
+### AP1: non-finite engage inputs never become a set
+- Our behavior (`op_long_set_speed.py`): a non-finite (inf / NaN) dashboard limit, or a limit whose offset or limit plus
+  offset is not finite, is an unknown limit (rolling pull: exact vEgo latch; standstill: a fresh tap's tap-from-stop
+  speed or NO_ENTRY `ap1SpeedLimitUnknown`). A non-finite vEgoRaw latches nothing on that frame and the engage is refused
+  through the same `ap1SpeedLimitUnknown` NO_ENTRY (no 0 or placeholder set while enabled); the next finite frame
+  latches as usual, and a set already latched is held. A non-finite tap-from-stop setting is the 15 mph default, as
+  `parse_tap_from_zero_mph` treats an invalid value. Before this, +inf gave a 170 kph set, a NaN offset gave a NaN set and
+  a non-finite vEgoRaw raised.
+- Reference behavior: Tinkla `ACC_module.py:231-232` (`501c7de`) clips the set; BogPilot 0.9.7 has no car-layer set.
+  Neither checks finiteness; this is stricter.
+- Safety-relevant: set-speed choice only; only removes sets that were not finite or came from a non-finite input.
+- Tests: `test_nonfinite_*` (`test_ap1_op_long_set_speed.py`).
+
+### AP1: a rolling tap followed by a stop inside the window keeps the tap's vEgo latch
+- Our behavior (`op_long_set_speed.py`): a stalk UP/DN tap made while rolling, then a full stop and the engage edge
+  within `TAP_WINDOW_S` (0.8 s) of the tap, latches the exact vEgoRaw at the tap (kept below 8 kph, capped at 170 kph),
+  not limit plus offset. Before this the rolling tap cleared the standstill tap state, so the standstill engage fell to
+  "known limit: limit plus offset" (a 3 mph tap with a 45 mph limit gave a 50 mph car-side set, shown on the cluster),
+  while the planner classified the same engage as a tap and latched 3 mph. A later pull still wins (limit plus offset);
+  past the window the tap is stale and the standstill rules are unchanged.
+- Reference behavior: BogPilot 0.9.7 `slc_raise.py` (`04d560f3e`): a tap inside `RECENT_S` before the engage latches the
+  vEgo at the tap (sticky); our planner keeps that (`Ap1RaiseHoldoff.engage_vego_ms`). Tinkla latches vEgo at the engage.
+- Safety-relevant: set-speed choice only; the set is lower than or equal to the old one in the reported case.
+- Tests: `test_rolling_tap_then_stop_within_window_keeps_tap_set`, `..._keeps_tap_set_on_can`,
+  `test_rolling_tap_then_stop_within_window_car_and_planner_agree`, `test_rolling_tap_then_stop_after_window_is_unchanged`,
+  `test_rolling_tap_then_pull_at_the_stop_uses_limit_plus_offset` (`test_ap1_op_long_set_speed.py`).
+
+### AP1: stalk level minimum width counts from the press, not the release
+- Our behavior (`carstate.py` `_held_stalk_levels`): a published stalk level is at least `STALK_LEVEL_HOLD_FRAMES` (6 x
+  10 ms) wide from the press edge, so a one-frame press still spans a 50 ms planner tick, and a press longer than that is
+  published exactly as long as it is held. Before this every press was extended 50 ms past its release, so the planner's
+  measured hold was 50 ms longer than the driver's and the shown set (tip, hold upgrade) changed up to 50 ms late
+  relative to the stalk. The planner's hold upgrade (`Ap1RaiseHoldoff.TIP_HOLD_S` 0.45 s, a ±1 tip becomes next/prev 5)
+  now also counts nine 50 ms ticks as 0.45 s (float slack `TIP_HOLD_EPS_S`); before, nine ticks summed to just under
+  0.45 s and the stretched level supplied the missing tick. Net: the upgrade follows a 0.45 s physical hold, a 0.40 s
+  hold stays a ±1 tip.
+- Reference behavior: BogPilot 0.9.7 `frogpilot/controls/frogpilot_card.py` `_apply_ap1_stalk_levels` (`04d560f3e`)
+  publishes `button_states` as they are, with no stretch; the minimum width exists here so a one-frame press cannot fall
+  between two 20 Hz planner samples.
+- Safety-relevant: stalk-level timing only; cancel still clears every level at once; no panda, CAN TX, DBC or cereal change.
+- Tests: `test_held_stalk_level_ends_at_the_release_of_a_longer_press`,
+  `test_held_stalk_level_short_press_is_stretched_to_the_minimum_width`, `test_planner_hold_upgrade_follows_the_physical_hold`,
+  `test_short_tap_between_planner_ticks_classified`, `test_cancel_drops_held_stalk_levels` (`test_ap1_op_long_set_speed.py`).
+
+
+### AP1: a pull with SpeedLimitController off still engages at the dashboard limit (no offset)
+- Our behavior (current, pinned by tests, not changed): the car-layer engage set (`op_long_set_speed.py`, rules 1 and 4)
+  does not read the SpeedLimitController toggle. With SLC off, `EngageLimitOffset` gives offset 0 (`offset_for` is 0
+  with SLC off), so a rolling pull with a fresh known limit, or a standstill pull / no-stalk engage with one, latches the
+  bare dashboard limit; the planner is a pass-through with SLC off, so that limit stays the set for the engagement and no
+  longer follows later limits. With no limit: rolling vEgo, standstill NO_ENTRY `ap1SpeedLimitUnknown`, as with SLC on.
+- Reference behavior: BogPilot 0.9.7 sets the speed to the limit only through SLC: `toggle.set_speed_limit` requires
+  `toggle.speed_limit_controller` (`frogpilot/common/frogpilot_variables.py:1143`, `568fea947`), and with SLC off the
+  0.9.7 AP1 set is `DI_cruiseSet`. Tinkla/BogGyver (`501c7de`) latches vEgo at the engage (`ACC_module.py:154-158`) and
+  has no standstill engage. NAP has no AP1 path.
+- Why it is kept for now: the set is the posted limit with no offset, never above it, and is only taken on a driver
+  pull. Gating it on the SLC toggle is not a contained change: at a standstill the limit rule is what lets a pull engage
+  at all, so the gate would turn every standstill pull with SLC off and no tap into a NO_ENTRY `ap1SpeedLimitUnknown`
+  refusal (an alert that names the limit while the limit feature is off), and the car layer would need the SLC toggle
+  passed in from the card. That is a behavior change in its own right, not a clear bug fix.
+- Possible gate (not implemented): with SLC off, a rolling pull latches exact vEgo (Tinkla); a standstill pull uses a
+  fresh tap's tap-from-stop speed or is refused.
+- Tests: `TestEngageSetWithSlcOff` (`test_phase3_speed_control.py`).

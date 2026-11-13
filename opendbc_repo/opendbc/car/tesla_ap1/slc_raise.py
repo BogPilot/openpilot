@@ -203,6 +203,8 @@ class Ap1RaiseHoldoff:
   # SLC posted-limit guard (15 mph floor) — tips may go below 15 mph.
   TIP_MIN_MS = 1.0 * CV.MPH_TO_MS
   TIP_HOLD_S = 0.45  # fallback only: hold upgrades ±1 → next/prev 5 once
+  # Float slack: nine 50 ms ticks sum to 0.44999999999999996, which must count as 0.45 s.
+  TIP_HOLD_EPS_S = 1e-6
   V_CRUISE_MAX_MS = 145.0 * CV.KPH_TO_MS
   DT_DEFAULT = 0.05  # model tick; avoid importing realtime here
 
@@ -238,6 +240,19 @@ class Ap1RaiseHoldoff:
     self._session_set_ms = 0.0    # driver latch (sticky / tip) last seen while long was engaged this cruise session
     self._prev_cruise = False
     self._prev_rwd = False
+
+  @property
+  def driver_set_ms(self) -> float:
+    """The set the driver chose this cruise session, in m/s; 0 when there is none (pull engage, SLC tracking).
+
+    A sticky tap / vEgo latch or an engaged tip; while longitudinal is briefly not ours (gas override) the last one
+    seen while it was ours. Used as the Max Set Speed source under AP1 openpilot long.
+    """
+    if self.sticky_vego and float(self.latched_vego_ms) > 0.0:
+      return float(self.latched_vego_ms)
+    if float(self.tip_ms) > 0.0:
+      return float(self.tip_ms)
+    return max(float(self._session_set_ms), 0.0)
 
   def forget_engage(self):
     """Drop the remembered engage action (cruise off, cancel, brake, any disengage)."""
@@ -365,13 +380,13 @@ class Ap1RaiseHoldoff:
           self._tip_upgraded = True
         elif self.tip_dir > 0 and up_pressed:
           self._tip_hold_s += dt
-          if self._tip_hold_s >= self.TIP_HOLD_S:
+          if self._tip_hold_s >= self.TIP_HOLD_S - self.TIP_HOLD_EPS_S:
             nxt = next_5_ms(self._tip_base_ms, round_whole=self.round_whole, is_metric=self.is_metric)
             self.tip_ms = min(max(float(self.tip_ms), nxt), self.V_CRUISE_MAX_MS)
             self._tip_upgraded = True
         elif self.tip_dir < 0 and decel_pressed:
           self._tip_hold_s += dt
-          if self._tip_hold_s >= self.TIP_HOLD_S:
+          if self._tip_hold_s >= self.TIP_HOLD_S - self.TIP_HOLD_EPS_S:
             self.tip_ms = self._dn_set_ms(self._tip_base_ms, prev_5_ms(self._tip_base_ms, round_whole=self.round_whole, is_metric=self.is_metric))
             self._tip_upgraded = True
       # Release ends hold timing (tip_ms latched value remains until clear)

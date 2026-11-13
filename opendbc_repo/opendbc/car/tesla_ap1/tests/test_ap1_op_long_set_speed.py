@@ -3,6 +3,7 @@
 DI_cruiseState values from tesla_ap1_can.dbc VAL_ 872: 1 STANDBY, 2 ENABLED, 3 STANDSTILL, 4 OVERRIDE, 6 PRE_FAULT,
 7 PRE_CANCEL. SpdCtrlLvr_Stat 4 = UP (accelCruise), 8 = DN (decelCruise) (values.py BUTTONS).
 """
+import math
 from types import SimpleNamespace
 
 import pytest
@@ -12,7 +13,7 @@ from opendbc.car import Bus
 from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.tesla_ap1.ap1_events import Ap1Events, SPEED_LIMIT_UNKNOWN
 from opendbc.car.tesla_ap1.carstate import CarState
-from opendbc.car.tesla_ap1.op_long_set_speed import (TAP_FROM_ZERO_KPH, TAP_WINDOW_S,
+from opendbc.car.tesla_ap1.op_long_set_speed import (TAP_FROM_ZERO_KPH, TAP_WINDOW_S, OpLongSetSpeed,
      format_tap_from_zero_display, parse_tap_from_zero_mph, tap_from_zero_kph_from_param)
 from opendbc.car.tesla_ap1.slc_raise import Ap1RaiseHoldoff, ap1_cruise_ms
 from opendbc.car.tesla_ap1.speed_limit import LIMIT_MAX_AGE_S, frame_fresh, ui_map_speed_limit_ms
@@ -753,4 +754,187 @@ def test_cancel_drops_held_stalk_levels():
   car.step(STANDBY, 0, 50.0, lever=UP)
   ret = car.step(STANDBY, 0, 50.0, lever=CANCEL)
   assert not ret.bogpilot.accelPressed and not ret.bogpilot.decelPressed and not ret.bogpilot.resumePressed
+
+
+NONFINITE = [float("inf"), float("-inf"), float("nan")]
+LIMIT_45_MS = 45 * CV.MPH_TO_MS
+OFFSET_5_MS = 5 * CV.MPH_TO_MS
+
+
+def _latch(v_ms, standstill, limit_ms, offset=OFFSET_5_MS, tap_zero=None, **press):
+  """A press with cruise off, then the engage edge. -> (set m/s on the edge, the OpLongSetSpeed)."""
+  ols = OpLongSetSpeed()
+  offset_fn = (lambda _limit: offset) if offset is not None else None
+  ols.update("STANDBY", v_ms, standstill, limit_ms=limit_ms, offset_fn=offset_fn, tap_from_zero_kph=tap_zero, **press)
+  out = ols.update("ENABLED", v_ms, standstill, limit_ms=limit_ms, offset_fn=offset_fn, tap_from_zero_kph=tap_zero)
+  return out, ols
+
+
+@pytest.mark.parametrize("bad", NONFINITE)
+def test_nonfinite_limit_is_an_unknown_limit(bad):
+  # Rolling pull: no usable limit -> exact vEgo latch (as a pull with no known limit).
+  out, ols = _latch(20.0, False, bad, pull=True)
+  assert math.isfinite(out) and out == pytest.approx(20.0, abs=1e-6)
+  assert not ols.speed_limit_unknown
+  # Standstill, no tap: refused (NO_ENTRY ap1SpeedLimitUnknown), nothing latched.
+  out, ols = _latch(0.0, True, bad, pull=True)
+  assert out == 0.0 and ols.set_kph == 0.0 and ols.speed_limit_unknown
+  # Standstill tap: the tap-from-stop speed.
+  out, ols = _latch(0.0, True, bad, tap=True)
+  assert out == pytest.approx(TAP_FROM_ZERO_KPH * CV.KPH_TO_MS, abs=1e-6)
+
+
+@pytest.mark.parametrize("bad", NONFINITE)
+def test_nonfinite_offset_makes_the_limit_unknown(bad):
+  out, ols = _latch(20.0, False, LIMIT_45_MS, offset=bad, pull=True)
+  assert math.isfinite(out) and out == pytest.approx(20.0, abs=1e-6)
+  out, ols = _latch(0.0, True, LIMIT_45_MS, offset=bad, pull=True)
+  assert out == 0.0 and ols.set_kph == 0.0 and ols.speed_limit_unknown
+  out, ols = _latch(0.0, True, LIMIT_45_MS, offset=bad)
+  assert out == 0.0 and ols.speed_limit_unknown
+  out, ols = _latch(0.0, True, LIMIT_45_MS, offset=bad, tap=True)
+  assert out == pytest.approx(TAP_FROM_ZERO_KPH * CV.KPH_TO_MS, abs=1e-6)
+
+
+@pytest.mark.parametrize("bad", NONFINITE)
+@pytest.mark.parametrize("press", [{"pull": True}, {"tap": True}, {}])
+@pytest.mark.parametrize("standstill", [False, True])
+def test_nonfinite_vego_never_latches_and_refuses(bad, press, standstill):
+  out, ols = _latch(bad, standstill, LIMIT_45_MS, **press)
+  assert out == 0.0 and ols.set_kph == 0.0
+  assert ols.speed_limit_unknown   # refused like an unknown limit, never a 0 / placeholder set while enabled
+  # The next frame with a finite speed latches as usual (rolling: vEgo; nothing held from the bad frame).
+  nxt = ols.update("ENABLED", 20.0, False, limit_ms=LIMIT_45_MS, offset_fn=lambda _l: OFFSET_5_MS)
+  assert math.isfinite(nxt) and nxt > 0.0 and not ols.speed_limit_unknown
+
+
+@pytest.mark.parametrize("bad", NONFINITE)
+def test_nonfinite_vego_after_the_latch_keeps_the_set(bad):
+  out, ols = _latch(20.0, False, LIMIT_45_MS, pull=True)
+  want = (45 + 5) * CV.MPH_TO_MS
+  assert out == pytest.approx(want, abs=1e-3)
+  held = ols.update("ENABLED", bad, False, limit_ms=bad, offset_fn=lambda _l: bad)
+  assert held == pytest.approx(want, abs=1e-3) and not ols.speed_limit_unknown
+
+
+@pytest.mark.parametrize("bad", NONFINITE)
+def test_nonfinite_tap_from_stop_setting_uses_the_default(bad):
+  out, _ols = _latch(0.0, True, 0.0, tap_zero=bad, tap=True)
+  assert out == pytest.approx(TAP_FROM_ZERO_KPH * CV.KPH_TO_MS, abs=1e-6)
+
+
+def _rolling_tap_then_stop(stop_frames, tap_mph=3.0, limit_ms=LIMIT_45_MS, engaged_state="ENABLED"):
+  """A tap at tap_mph while rolling with a known limit, stop_frames at a full stop with cruise off, then the engage edge
+  at the stop. -> (car-side sets over 20 engaged frames, the OpLongSetSpeed)."""
+  ols = OpLongSetSpeed()
+  offset_fn = lambda _limit: OFFSET_5_MS
+  ols.update("STANDBY", tap_mph * CV.MPH_TO_MS, False, limit_ms=limit_ms, offset_fn=offset_fn, tap=True)
+  for _ in range(stop_frames):
+    ols.update("STANDBY", 0.0, True, limit_ms=limit_ms, offset_fn=offset_fn)
+  sets = [ols.update(engaged_state, 0.0, True, limit_ms=limit_ms, offset_fn=offset_fn) for _ in range(20)]
+  return sets, ols
+
+
+@pytest.mark.parametrize("engaged_state", ["ENABLED", "STANDSTILL"])
+@pytest.mark.parametrize("stop_frames", [1, 20, int(TAP_WINDOW_S / 0.01) - 2])
+def test_rolling_tap_then_stop_within_window_keeps_tap_set(stop_frames, engaged_state):
+  """A tap while rolling (3 mph, 45 mph limit known), then a stop inside the 0.8 s window, then the engage at the
+  stop: the car-side set keeps the tap's vEgo latch, never limit + offset (50 mph)."""
+  sets, ols = _rolling_tap_then_stop(stop_frames, engaged_state=engaged_state)
+  for v in sets:
+    assert v == pytest.approx(3.0 * CV.MPH_TO_MS, abs=1e-6)
+    assert v < (45 + 5) * CV.MPH_TO_MS - 1.0
+  assert not ols.speed_limit_unknown
+
+
+def test_rolling_tap_then_stop_within_window_car_and_planner_agree():
+  """The planner (Ap1RaiseHoldoff + ap1_cruise_ms) classifies the same engage as a tap and latches the vEgo at the
+  tap; the car-side cruiseState.speed now gives the same set."""
+  sets, _ols = _rolling_tap_then_stop(20)
+  car_ms = sets[0]
+  slc_ms = LIMIT_45_MS + OFFSET_5_MS
+  hold = Ap1RaiseHoldoff()
+  hold.tap_from_zero_ms = TAP_FROM_ZERO_KPH * CV.KPH_TO_MS
+  hold.update(False, False, True, False, slc_ms, 3.0 * CV.MPH_TO_MS, cruise_on=False)   # UP tap while rolling
+  for _ in range(4):   # 0.2 s at the stop (planner ticks)
+    hold.update(False, False, False, False, slc_ms, 0.0, cruise_on=False)
+  hold.update(False, False, False, False, slc_ms, 0.0, current_set_ms=car_ms, cruise_on=True)   # cruise edge
+  allow, sticky = hold.update(True, False, False, False, slc_ms, 0.0, current_set_ms=car_ms, cruise_on=True)
+  plan_ms = ap1_cruise_ms(car_ms, sticky, hold.tip_ms, allow, slc_ms, LIMIT_45_MS, 0.0, False, 0.0,
+                          sticky_zero_is_none=True)
+  assert car_ms == pytest.approx(3.0 * CV.MPH_TO_MS, abs=1e-6)
+  assert plan_ms == pytest.approx(car_ms, abs=1e-6)
+
+
+def test_rolling_tap_then_stop_after_window_is_unchanged():
+  """Past the 0.8 s window the tap is stale: the standstill rule with a known limit and no stalk (limit + offset)."""
+  sets, _ols = _rolling_tap_then_stop(int(TAP_WINDOW_S / 0.01) + 5)
+  assert sets[0] == pytest.approx((45 + 5) * CV.MPH_TO_MS, abs=1e-3)
+
+
+def test_rolling_tap_then_pull_at_the_stop_uses_limit_plus_offset():
+  """The most recent press decides: a pull after the rolling tap still engages SLC at limit + offset."""
+  ols = OpLongSetSpeed()
+  offset_fn = lambda _limit: OFFSET_5_MS
+  ols.update("STANDBY", 3.0 * CV.MPH_TO_MS, False, limit_ms=LIMIT_45_MS, offset_fn=offset_fn, tap=True)
+  ols.update("STANDBY", 0.0, True, limit_ms=LIMIT_45_MS, offset_fn=offset_fn, pull=True)
+  out = ols.update("ENABLED", 0.0, True, limit_ms=LIMIT_45_MS, offset_fn=offset_fn)
+  assert out == pytest.approx((45 + 5) * CV.MPH_TO_MS, abs=1e-3)
+
+
+@pytest.mark.parametrize("lever", [UP, DN, UP_1ST, DN_1ST])
+def test_rolling_tap_then_stop_within_window_keeps_tap_set_on_can(lever):
+  """The same through CarState: a tap at 10 kph with a 65 mph map limit, a stop, the engage at the stop."""
+  car = Car(offset_ms=5 * CV.MPH_TO_MS)
+  _roll(car, STANDBY, 10.0)
+  car.step(STANDBY, 0, 10.0, map_limit=MAP_65, lever=lever)
+  for _ in range(20):
+    car.step(STANDBY, 0, 0.0, map_limit=MAP_65)
+  rets = [car.step(STANDSTILL, 0, 0.0, map_limit=MAP_65) for _ in range(10)]
+  for ret in rets:
+    assert ret.cruiseState.speed == pytest.approx(10.0 * CV.KPH_TO_MS, abs=0.05)
+    assert not ret.bogpilot.ap1SpeedLimitUnknown
+
+
+def _held_levels(lever, press_frames, after_frames=12):
+  """Published stalk levels for one press held press_frames 100 Hz frames, then released."""
+  car = Car()
+  car.step(STANDBY, 0, 50.0)
+  rets = [car.step(STANDBY, 0, 50.0, lever=lever) for _ in range(press_frames)]
+  rets += [car.step(STANDBY, 0, 50.0) for _ in range(after_frames)]
+  field = {UP: "accelPressed", UP_1ST: "accelPressed", DN: "decelPressed", DN_1ST: "decelPressed",
+           RWD: "resumePressed"}[lever]
+  return [bool(getattr(r.bogpilot, field)) for r in rets]
+
+
+@pytest.mark.parametrize("lever", [UP, DN, UP_1ST, DN_1ST, RWD])
+@pytest.mark.parametrize("press_frames", [6, 10, 40, 45])
+def test_held_stalk_level_ends_at_the_release_of_a_longer_press(lever, press_frames):
+  """A press at least the minimum width (6 frames) is published exactly as long as it is held: no 50 ms tail."""
+  levels = _held_levels(lever, press_frames)
+  assert all(levels[:press_frames]) and not any(levels[press_frames:]), levels
+
+
+@pytest.mark.parametrize("lever", [UP, DN, RWD])
+@pytest.mark.parametrize("press_frames", [1, 2, 5])
+def test_held_stalk_level_short_press_is_stretched_to_the_minimum_width(lever, press_frames):
+  levels = _held_levels(lever, press_frames)
+  assert all(levels[:6]) and not any(levels[6:]), levels
+
+
+@pytest.mark.parametrize("phase", range(5))
+@pytest.mark.parametrize("press_frames,want_mph", [(40, 51), (45, 55)])
+def test_planner_hold_upgrade_follows_the_physical_hold(phase, press_frames, want_mph):
+  """A shallow UP held 0.40 s stays a +1 tip; held 0.45 s (TIP_HOLD_S) it upgrades to next 5. The planner samples the
+  published level at 20 Hz (every 5th frame, any phase)."""
+  levels = _held_levels(UP_1ST, press_frames, after_frames=20)
+  samples = ([False] * phase + levels)[::5]
+  hold = Ap1RaiseHoldoff()
+  base = 50 * CV.MPH_TO_MS
+  for _ in range(3):
+    hold.update(True, False, False, False, base, 20.0, current_set_ms=base, cruise_on=True)
+  hold._clear_tip()
+  for up in samples:
+    hold.update(True, False, up, False, base, 20.0, current_set_ms=base, cruise_on=True)
+  assert hold.tip_ms == pytest.approx(want_mph * CV.MPH_TO_MS, abs=1e-3)
 

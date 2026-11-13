@@ -287,7 +287,15 @@ class TestSlcSettings(unittest.TestCase):
     run(ctl2, sm2, 30.0, 20.0, limit=35 * MPH, rwd=True, cruise=False)
     run(ctl2, sm2, 30.0, 20.0, limit=35 * MPH, cruise=True)
     run(ctl2, sm2, 30.0, 25.0, limit=35 * MPH, gas=True)
-    self.assertAlmostEqual(ctl2.slc.overridden_speed, 30.0)
+    # AP1 openpilot long, pull engage: no driver-chosen set, so Max Set Speed is the current limit + offset (35 + 5),
+    # not carState.vCruise (the car-layer engage latch).
+    self.assertAlmostEqual(ctl2.slc.overridden_speed, 40 * MPH, places=4)
+    preap = NS(carFingerprint="TESLA_PREAP_MODELS", openpilotLongitudinalControl=True, radarUnavailable=False, enableBsm=False)
+    ctl4, sm4 = make(toggles(SLCOverride="2"), cp=preap), Sm()
+    run(ctl4, sm4, 30.0, 20.0, limit=35 * MPH, rwd=True, cruise=False)
+    run(ctl4, sm4, 30.0, 20.0, limit=35 * MPH, cruise=True)
+    run(ctl4, sm4, 30.0, 25.0, limit=35 * MPH, gas=True)
+    self.assertAlmostEqual(ctl4.slc.overridden_speed, 30.0)   # Pre-AP: v_cruise is the driver's captured set (0.9.7)
     ctl3, sm3 = make(toggles(SLCOverride="0")), Sm()
     run(ctl3, sm3, 30.0, 25.0, limit=35 * MPH, gas=True)
     self.assertEqual(ctl3.slc.overridden_speed, 0.0)
@@ -667,3 +675,93 @@ class TestPlannerClusterUnlifted(unittest.TestCase):
     ctl = make(cp=NS(carFingerprint="TESLA_PREAP_MODELS", openpilotLongitudinalControl=True))
     self.assertFalse(ctl._cluster_lifted)
     self.assertTrue(make()._cluster_lifted)
+
+
+class TestMaxSetSpeedGasOverride(unittest.TestCase):
+  """SLCOverride 2 (Max Set Speed) under AP1 openpilot long. carState.vCruise there is the car-layer engage latch,
+  which after a pull is the engage-time limit + offset. The gas release returns to a set the driver chose (tap latch
+  or tip), else to the current limit + offset."""
+
+  def _engage(self, ctl, sm, v_ego, limit_mph, v_set, **press):
+    run(ctl, sm, 0.0, v_ego, limit=limit_mph * MPH, cruise=False, **press)
+    run(ctl, sm, 0.0, v_ego, limit=limit_mph * MPH, cruise=False)
+    return run(ctl, sm, v_set, v_ego, limit=limit_mph * MPH, cruise=True)
+
+  def _gas_then_release(self, ctl, sm, v_set, limit_mph, gas_mph, long_active_on_gas, gas_s=0.2, release_s=2.0):
+    for _ in range(int(gas_s / DT)):
+      run(ctl, sm, v_set, gas_mph * MPH, limit=limit_mph * MPH, gas=True, long_active=long_active_on_gas)
+    return [run(ctl, sm, v_set, gas_mph * MPH, limit=limit_mph * MPH) for _ in range(int(release_s / DT))]
+
+  def test_pull_then_lower_limit_gas_release_returns_to_current_limit_plus_offset(self):
+    for long_active_on_gas in (False, True):
+      with self.subTest(long_active_on_gas=long_active_on_gas):
+        ctl, sm = make(toggles(SLCOverride="2")), Sm()
+        v_set = 50 * MPH   # car-layer set after the pull: 45 + 5, held until disengage
+        self.assertAlmostEqual(self._engage(ctl, sm, 45 * MPH, 45, v_set, rwd=True), 50 * MPH, places=4)
+        out = [run(ctl, sm, v_set, 40 * MPH, limit=35 * MPH) for _ in range(int(3.0 / DT))]
+        self.assertAlmostEqual(out[-1], 40 * MPH, places=4)
+        after = self._gas_then_release(ctl, sm, v_set, 35, 45, long_active_on_gas)
+        self.assertAlmostEqual(after[-1], 40 * MPH, places=4)
+        self.assertTrue(all(x <= 40 * MPH + 1e-6 for x in after), msg=f"rose above 40 mph: {max(after) / MPH:.2f}")
+        self.assertFalse(ctl.slc.override_slc)
+
+  def test_tap_engage_latch_is_still_restored_after_gas(self):
+    ctl, sm = make(toggles(SLCOverride="2")), Sm()
+    v_set = 50 * MPH   # rolling tap at 50 mph in a 45 zone: the car latches vEgo
+    self.assertAlmostEqual(self._engage(ctl, sm, 50 * MPH, 45, v_set, up=True, spd=16), 50 * MPH, places=4)
+    out = [run(ctl, sm, v_set, 50 * MPH, limit=35 * MPH) for _ in range(int(3.0 / DT))]
+    self.assertAlmostEqual(out[-1], 50 * MPH, places=4)
+    for long_active_on_gas in (False, True):
+      after = self._gas_then_release(ctl, sm, v_set, 35, 55, long_active_on_gas)
+      self.assertAlmostEqual(after[-1], 50 * MPH, places=4)
+    # A gas override longer than the longitudinal drop window also comes back to the tap latch.
+    after = self._gas_then_release(ctl, sm, v_set, 35, 55, False, gas_s=1.5)
+    self.assertAlmostEqual(after[-1], 50 * MPH, places=4)
+
+  def test_tipped_set_is_still_restored_after_gas(self):
+    ctl, sm = make(toggles(SLCOverride="2")), Sm()
+    v_set = 50 * MPH
+    self._engage(ctl, sm, 45 * MPH, 45, v_set, rwd=True)
+    run(ctl, sm, v_set, 45 * MPH, limit=45 * MPH, up=True, spd=16)
+    tipped = run(ctl, sm, v_set, 45 * MPH, limit=45 * MPH)
+    self.assertAlmostEqual(tipped, 51 * MPH, places=3)
+    out = [run(ctl, sm, v_set, 45 * MPH, limit=35 * MPH) for _ in range(int(3.0 / DT))]
+    self.assertAlmostEqual(out[-1], 51 * MPH, places=3)
+    for long_active_on_gas in (False, True):
+      after = self._gas_then_release(ctl, sm, v_set, 35, 55, long_active_on_gas)
+      self.assertAlmostEqual(after[-1], 51 * MPH, places=3)
+
+
+class TestEngageSetWithSlcOff(unittest.TestCase):
+  """Pins the current car-layer engage set with SpeedLimitController off (documented divergence in
+  DIVERGENCES_ap1_op_long_set_speed.md): a pull with a known dashboard limit still latches that limit, with no offset
+  (offset_for is 0 with SLC off), and the planner passes the car-side set through unchanged."""
+
+  def _pull(self, slc, v_ms, standstill, limit_ms):
+    from opendbc.car.tesla_ap1.op_long_set_speed import OpLongSetSpeed
+    off = sc.EngageLimitOffset(CP_AP1, toggles_fn=lambda: toggles(SpeedLimitController=slc), clock=lambda: 0.0)
+    ols = OpLongSetSpeed()
+    ols.update("STANDBY", v_ms, standstill, limit_ms=limit_ms, offset_fn=off, pull=True)
+    return ols.update("ENABLED", v_ms, standstill, limit_ms=limit_ms, offset_fn=off), ols
+
+  def test_pull_with_slc_off_latches_the_dashboard_limit_without_offset(self):
+    for standstill, v_ms in ((False, 20.0), (True, 0.0)):
+      out, ols = self._pull("0", v_ms, standstill, 45 * MPH)
+      self.assertAlmostEqual(out, 45 * MPH, places=4, msg=f"standstill={standstill}")
+      self.assertFalse(ols.speed_limit_unknown)
+      on, _ = self._pull("1", v_ms, standstill, 45 * MPH)
+      self.assertAlmostEqual(on, 50 * MPH, places=4)   # SLC on: limit + Offset4 (5 mph)
+
+  def test_pull_with_slc_off_and_no_limit_is_unchanged(self):
+    out, _ = self._pull("0", 20.0, False, 0.0)
+    self.assertAlmostEqual(out, 20.0, places=4)        # rolling: exact vEgo
+    out, ols = self._pull("0", 0.0, True, 0.0)
+    self.assertEqual(out, 0.0)                         # standstill: refused (NO_ENTRY ap1SpeedLimitUnknown)
+    self.assertTrue(ols.speed_limit_unknown)
+
+  def test_planner_passes_the_car_side_set_through_with_slc_off(self):
+    ctl, sm = make(toggles(SpeedLimitController="0")), Sm()
+    run(ctl, sm, 0.0, 20.0, limit=45 * MPH, rwd=True, cruise=False)
+    outs = [run(ctl, sm, 45 * MPH, 20.0, limit=lim * MPH) for lim in (45, 35, 25, 55)]
+    self.assertTrue(all(abs(o - 45 * MPH) < 1e-6 for o in outs), outs)
+
