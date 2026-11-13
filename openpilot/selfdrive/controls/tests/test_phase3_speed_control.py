@@ -565,29 +565,38 @@ if __name__ == "__main__":
   unittest.main()
 
 
-class TestCurveDisplayHold(unittest.TestCase):
-  """IC set through a curve: the CSC-capped plan (40 -> 37 -> 40, 30 -> 18.8 -> 30) must not show as a set change."""
+class TestClusterShowsCurveSpeed(unittest.TestCase):
+  """IC set through a curve: the CSC-capped plan set shows as is, down and back up (BogPilot 0.9.7), no hold."""
 
   def plan(self, v_mph, csc):
-    from types import SimpleNamespace
-    return SimpleNamespace(vCruise=v_mph * MPH, cscControllingSpeed=csc)
+    return NS(vCruise=v_mph * MPH, cscControllingSpeed=csc)
 
-  def test_curve_cap_is_not_shown_then_real_changes_are(self):
-    hold = sc.CurveDisplayHold()
-    def kph(p):
-      return sc.cluster_set_kph(0.0, p, True, plan_v_ms=hold.update(True, p)) / 3.6 / MPH
-    self.assertAlmostEqual(kph(self.plan(30, False)), 30, places=3)
-    for v in (20.3, 18.8, 18.8, 25.0):
-      self.assertAlmostEqual(kph(self.plan(v, True)), 30, places=3)     # CSC controls: pre-curve set shown
-    self.assertAlmostEqual(kph(self.plan(30, False)), 30, places=3)
-    self.assertAlmostEqual(kph(self.plan(25, False)), 25, places=3)     # DN tip / SLC drop (no CSC) still shows
+  def op_long_mph(self, p, latch_mph):
+    # AP1 openpilot long after the engage floor released: card.py passes no plan_v_ms.
+    return sc.cluster_set_kph(latch_mph * MPH * 3.6, p, True, v_ego_ms=latch_mph * MPH, follow_plan=True) / 3.6 / MPH
 
-  def test_cleared_on_disengage_and_no_plan(self):
-    hold = sc.CurveDisplayHold()
-    hold.update(True, self.plan(40, False))
-    hold.update(False, self.plan(40, False))
-    self.assertAlmostEqual(hold.update(True, self.plan(37, True)), 37 * MPH, places=4)  # nothing pre-curve this engagement
-    self.assertIsNone(hold.update(True, None))
+  def test_digit_tracks_the_csc_target_through_a_corner(self):
+    seq = [(30, False), (29.4, True), (28.2, True), (26.9, True), (25.4, True), (25.0, True), (27.5, True), (30, False)]
+    for v, csc in seq:
+      self.assertAlmostEqual(self.op_long_mph(self.plan(v, csc), 30), v, places=3)
+
+  def test_short_and_shallow_caps_are_shown_too(self):
+    for v, csc in [(40, False), (37, True), (40, False), (49.2, True), (50, False)]:
+      self.assertAlmostEqual(self.op_long_mph(self.plan(v, csc), 40), v, places=3)
+
+  def test_lift_only_over_the_car_cruise_set_like_0_9_7(self):
+    # Without the openpilot-long latch the base is the car's cruise set (0.9.7 carstate DI_cruiseSet) and the IC shows
+    # max(base, plan) (0.9.7 cluster_display_kph): a capped plan above the DI set shows, the DI set is the floor.
+    p = self.plan(25.4, True)
+    self.assertAlmostEqual(sc.cluster_set_kph(13 * MPH * 3.6, p, True) / 3.6 / MPH, 25.4, places=3)
+    self.assertAlmostEqual(sc.cluster_set_kph(27 * MPH * 3.6, p, True) / 3.6 / MPH, 27, places=3)
+
+  def test_no_curve_hold_in_the_card(self):
+    import pathlib
+    src = (pathlib.Path(sc.__file__).parents[2] / "car" / "card.py").read_text()
+    self.assertNotIn("CurveDisplayHold", src)
+    self.assertNotIn("plan_v_ms=", src)
+    self.assertFalse(hasattr(sc, "CurveDisplayHold"))
 
 
 class TestOpLongClusterFollowsPlan(unittest.TestCase):
@@ -623,7 +632,7 @@ class TestOpLongClusterFollowsPlan(unittest.TestCase):
 
 
 class TestPlannerClusterUnlifted(unittest.TestCase):
-  """The card lifts carState.vCruiseCluster for the IC (engage floor, curve hold, plan follow). On AP1 S/X with
+  """The card lifts carState.vCruiseCluster for the IC (engage floor, plan follow). On AP1 S/X with
   openpilot long the planner must see the unlifted value, so the display hold never feeds the SLC override."""
 
   def _override_args(self, vcc, limit=35 * MPH, v_cruise=30.0, gas=True):

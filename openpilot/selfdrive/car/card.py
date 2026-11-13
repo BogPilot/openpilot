@@ -183,8 +183,6 @@ class Car:
     if self.ap1_cluster_lift:
       from openpilot.selfdrive.controls.lib.phase3_speed_control import EngageClusterFloor
       self._cluster_floor = EngageClusterFloor()
-      from openpilot.selfdrive.controls.lib.phase3_speed_control import CurveDisplayHold
-      self._curve_hold = CurveDisplayHold()
     if getattr(self.CI.CS, "op_long_set", None) is not None:
       # AP1 openpilot long: speed-limit offset for the engage set, from params (not bogpilotPlan: no loop).
       from openpilot.selfdrive.controls.lib.phase3_speed_control import EngageLimitOffset, EngageTapFromZero, warm_engage_helpers
@@ -294,11 +292,10 @@ class Car:
       engage_floor = bool(self._cluster_floor is not None and
                           self._cluster_floor.update(enabled, fresh, plan_v, float(CS.vEgo),
                                                      floor_ms=float(CS.cruiseState.speed) if op_long else 0.0, tip=tip))
-      plan_v_disp = self._curve_hold.update(enabled, plan)   # pre-curve-cap set while CSC controls the speed
       if fresh or engage_floor:
         CS.vCruiseCluster = float(cluster_set_kph(CS.vCruiseCluster, plan, fresh,
                                                   v_ego_ms=float(CS.vEgo), engage_floor=engage_floor,
-                                                  plan_v_ms=plan_v_disp, follow_plan=op_long))
+                                                  follow_plan=op_long))
 
     return CS, RD
 

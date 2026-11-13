@@ -123,7 +123,7 @@ AP1_CLUSTER_LIFT_FPS = ("TESLA_AP1_MODELS", "TESLA_AP1_MODELX")   # card.py ap1_
 def unlifted_cluster_kph(CS) -> float:
   """carState.vCruiseCluster before the AP1 display lift (card.py, VCruiseHelper pcmCruise branch, cruise.py).
 
-  The card lifts vCruiseCluster for the IC (engage floor, curve hold, plan follow). The planner reads the value
+  The card lifts vCruiseCluster for the IC (engage floor, plan follow). The planner reads the value
   VCruiseHelper had, rebuilt here from cruiseState, so the display lift never feeds back into the SLC override.
   """
   cruise = getattr(CS, "cruiseState", None)
@@ -956,31 +956,6 @@ class EngageClusterFloor:
     return self.active
 
 
-class CurveDisplayHold:
-  """IC set digit through a curve: the planner set before the curve-speed cap took over.
-
-  bogpilotPlan.vCruise is published after the curve-speed (CSC) cap, and cluster_display_kph lifts the
-  IC whenever the plan is above the cluster base, so a curve slowdown showed on the IC as a set change
-  (40 -> 37 -> 40). While plan.cscControllingSpeed is set, the last plan set from before the cap is used
-  for the display instead. The planner target itself is unchanged. Cleared on disengage.
-  """
-
-  def __init__(self):
-    self.pre_curve_ms = None
-
-  def update(self, enabled: bool, plan) -> float | None:
-    if not enabled:
-      self.pre_curve_ms = None
-    if plan is None:
-      return None
-    v = _finite(plan.vCruise, -1.0)
-    if enabled and bool(getattr(plan, "cscControllingSpeed", False)) and self.pre_curve_ms is not None:
-      return self.pre_curve_ms
-    if enabled and 0.0 < v <= V_CRUISE_MAX_MS + 1e-3:
-      self.pre_curve_ms = v
-    return v
-
-
 def cluster_set_kph(v_cruise_cluster_kph: float, plan, plan_fresh: bool,
                     v_ego_ms: float | None = None, engage_floor: bool = False,
                     plan_v_ms: float | None = None, follow_plan: bool = False) -> float:
@@ -992,10 +967,12 @@ def cluster_set_kph(v_cruise_cluster_kph: float, plan, plan_fresh: bool,
   appeared. An empty source is "active, no name yet", not "do not lift".
 
   engage_floor: the displayed set is at least vEgo (see EngageClusterFloor).
-  plan_v_ms: the plan set to display instead of plan.vCruise (CurveDisplayHold), when given.
+  plan_v_ms: the plan set to display instead of plan.vCruise, when given.
   follow_plan: AP1 openpilot long. The cluster base is then openpilot's engage set (op_long_set_speed), not the
   low DI seed, so lifting with max(base, plan) would hide every down tip or SLC drop below the engage set.
-  Outside the engage floor, a fresh plan set is shown as is.
+  Outside the engage floor, a fresh plan set is shown as is, including the curve-speed (CSC) cap: plan.vCruise is
+  published after that cap, so the IC digit follows the curve target down and back up, as the DI-based base did in
+  0.9.7 (DI_cruiseSet followed the CSC-reduced DAS_setSpeed). No hold or smoothing.
   """
   from opendbc.car.tesla_ap1.slc_raise import cluster_display_kph
   cluster = float(v_cruise_cluster_kph)

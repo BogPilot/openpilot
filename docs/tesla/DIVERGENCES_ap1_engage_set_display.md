@@ -44,20 +44,24 @@ The IC set digit is `DAS_accSpeedLimit` on 0x389 (`cluster.py`), from `hudContro
 - Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_ap1_cluster_dbc.py` (`test_controller_keeps_last_nonzero_set_while_enabled`).
 - Credits: BogPilot 0.9.7 (IC set overlay); Tinkla/BogGyver (IC integration).
 
-### AP1: the IC set does not follow the curve-speed cap
+### AP1: the IC set follows the curve-speed cap (as in 0.9.7)
 - Platforms: AP1 Model S/X with openpilot long (`card.py` `ap1_cluster_lift`; not Pre-AP).
-- Reference behavior: BogPilot 0.9.7 (`568fea947`) `cluster_display_kph` is meant to never lower the displayed set for
-  curve-speed slowdowns; 0.9.7 lifted the IC from the plan set. Tinkla/BogGyver `501c7de`: own set. NAP: no AP1 path.
-- Our behavior: while `bogpilotPlan.cscControllingSpeed` is set, the IC lift (`cluster_set_kph`) uses the last plan set
-  from before the curve cap (`CurveDisplayHold`, `phase3_speed_control.py`) instead of the capped `bogpilotPlan.vCruise`.
-  Without the curve cap, the plan set shows as before (tips and SLC changes). Cleared on disengage.
-- Why: confirmed on logs with no stalk, gas or SLC input: the plan set equaled `cscSpeed` with `cscControllingSpeed` on
-  for the whole drift (40 -> 38.9 -> 37.0 and 30 -> 20.3 -> 18.8 mph), and the IC set followed it one tick later.
-  The capped plan passed through because the cluster base under openpilot long sat below it.
-- Limits: a stalk tip during a curve shows when the curve cap releases. The planner target is unchanged.
-- Safety-relevant: no. Display only.
-- Tests: `openpilot/selfdrive/controls/tests/test_phase3_speed_control.py` (`TestCurveDisplayHold`).
-- Credits: BogPilot 0.9.7 (`cluster_display_kph`, curve speed control).
+- Reference behavior: BogPilot 0.9.7 (`026cfb314`) took the cluster base from the car's cruise set
+  (`selfdrive/car/tesla/carstate.py`: `cruiseState.speed` = `DI_cruiseSet`) and lifted it to the plan set when higher
+  (`controlsd.py` `cluster_display_kph`, `slc_raise.py`). The plan set is published after the curve-speed cap and
+  `DI_cruiseSet` follows the CSC-reduced `DAS_setSpeed`, so the IC digit dropped through corners and came back after.
+  There is no curve hold in 0.9.7. Tinkla/BogGyver `501c7de`: own set. NAP: no AP1 path.
+- Our behavior: the IC lift (`cluster_set_kph`) uses `bogpilotPlan.vCruise` as published, after the curve-speed cap,
+  so the digit follows the curve target down and back up. No hold or smoothing. Under openpilot long the cluster base is
+  openpilot's engage set rather than `DI_cruiseSet`, so the plan set is shown as is (entry below) instead of lifted over
+  the base; the curve drop itself matches 0.9.7.
+- Replaces an earlier display-only hold that kept the pre-curve set on the IC while the curve-speed cap controlled the
+  speed. That hold hid the curve target, which 0.9.7 showed.
+- Limits: from the enable edge until the plan reaches the engage set, `EngageClusterFloor` still floors the IC (entry
+  above), so a curve inside that window shows once the floor releases.
+- Safety-relevant: no. Display only; the planner target, CAN control frames and panda are unchanged.
+- Tests: `openpilot/selfdrive/controls/tests/test_phase3_speed_control.py` (`TestClusterShowsCurveSpeed`).
+- Credits: BogPilot 0.9.7 (`cluster_display_kph`, curve speed control, cruise-set cluster base).
 
 ### AP1: under openpilot long the IC shows the plan set, floored at the engage set only until the plan reaches it
 - Platforms: AP1 Model S/X with openpilot long (`card.py` `ap1_cluster_lift`; not Pre-AP).
@@ -67,7 +71,7 @@ The IC set digit is `DAS_accSpeedLimit` on 0x389 (`cluster.py`), from `hudContro
 - Our behavior: with the openpilot-long engage set (`op_long_set_speed.py`) the cluster base is that set, so the max
   hid every down tip and SLC drop below it (replay: a DN tip to 20 showed the 30 engage set). Now, from the enable edge,
   `EngageClusterFloor` holds the IC at max(vEgo, engage set) until the plan reaches it or the driver tips the stalk, then
-  `cluster_set_kph(follow_plan=True)` shows the fresh plan set as is (with the curve hold above). Stock AP and Pre-AP
+  `cluster_set_kph(follow_plan=True)` shows the fresh plan set as is, curve-speed cap included. Stock AP and Pre-AP
   keep the max lift.
 - Safety-relevant: no. Display only.
 - Tests: `openpilot/selfdrive/controls/tests/test_phase3_speed_control.py` (`TestOpLongClusterFollowsPlan`).
@@ -75,7 +79,7 @@ The IC set digit is `DAS_accSpeedLimit` on 0x389 (`cluster.py`), from `hudContro
 
 ### AP1: the planner reads the unlifted cluster set (display lift is display-only)
 - Our behavior: on AP1 Model S/X with openpilot long (the cars where the card lifts `carState.vCruiseCluster` for the
-  IC: engage floor, curve hold, plan follow), `Ap1SpeedControl.update` builds `v_cruise_cluster` / `v_cruise_diff` for
+  IC: engage floor, plan follow), `Ap1SpeedControl.update` builds `v_cruise_cluster` / `v_cruise_diff` for
   the SLC override (`update_override`) from `unlifted_cluster_kph(carState)`: the value `VCruiseHelper` had before the
   lift (pcmCruise branch: `cruiseState.speedCluster`, 0 -> `speed`; UNSET 255 / -1 as in `cruise.py`). Other cars,
   including Pre-AP, keep `carState.vCruiseCluster`. No schema change.
