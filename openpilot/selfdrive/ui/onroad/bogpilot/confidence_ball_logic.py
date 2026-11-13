@@ -13,9 +13,11 @@ Deliberate differences (docs/tesla/DIVERGENCES.md, onroad confidence ball):
     (mici confidence_ball.py:38-39, 0.9.7 confidence_ball.h:181-182). Here the filter always follows the model, and starts at
     0 (bottom), so the ball is on screen in every state while the toggle is on.
   * Colours: the engaged palette (teal/green, yellow/orange, red) is used ONLY while the status is ENGAGED (the stock
-    mici rule, confidence_ball.py:57). OVERRIDE uses the stock muted white-to-grey ball (mici :68-70, 0.9.7 :120-121);
-    DISENGAGED and anything else use the stock dark ball (mici :72-74, 0.9.7 :123). Engagement itself is shown by the
-    border only. Missing model data reads as confidence 0: bottom position; red only while engaged (stock / 0.9.7).
+    mici rule, confidence_ball.py:57). OVERRIDE uses the stock muted white-to-grey ball (mici :68-70, 0.9.7 :120-121).
+    DISENGAGED is NOT the stock dark ball (mici :72-74, 0.9.7 :123): it is one flat colour that follows confidence,
+    slate grey SLATE (112,128,144) at confidence 1 fading smoothly to WHITE (255,255,255) at confidence 0
+    (disengaged_color). Any other status keeps the stock dark ball. Engagement itself is shown by the border only.
+    Missing model data reads as confidence 0: bottom position; red while engaged, white while disengaged.
 
 Settings (files under /data/params_bogpilot, written by the Appearance rows through the BogPilot store):
   ConfidenceBall      "0"/"false"/"off" hides the ball; anything else, or no file, shows it (0.9.7 default: ON)
@@ -42,6 +44,13 @@ ORANGE = ((255, 200, 0, 255), (255, 115, 0, 255))
 RED = ((255, 0, 21, 255), (255, 0, 89, 255))
 OVERRIDE = ((255, 255, 255, 255), (82, 82, 82, 255))
 DARK = ((50, 50, 50, 255), (13, 13, 13, 255))
+# DISENGAGED ball (not stock, DIVERGENCES.md): CSS / X11 named colour "SlateGray" at high confidence, white at low.
+# Slate is a blue grey, the same family as the disengaged border BORDER_COLORS[DISENGAGED] (18, 40, 57) in
+# augmented_road_view.py, but 87 to 94 levels lighter per channel so the ball still stands out on that border.
+# No slate constant exists elsewhere in the tree; the nearest stock grey, hud_renderer COLORS.DISENGAGED (145, 155, 149),
+# is green-grey and lighter, which would leave less room between the two ends.
+SLATE = (112, 128, 144, 255)
+WHITE = (255, 255, 255, 255)
 ENGAGED_PALETTE = (GREEN, ORANGE, RED)   # never used unless the status is ENGAGED
 
 
@@ -74,6 +83,13 @@ def engaged_status(status_name: str) -> bool:
   return status_name == "ENGAGED"
 
 
+def disengaged_color(x: float):
+  """Flat DISENGAGED ball colour: WHITE at confidence <= 0, SLATE at confidence >= 1, a straight per-channel blend in
+  between (each channel only moves one way as confidence rises)."""
+  f = min(1.0, max(0.0, float(x)))
+  return lerp_color(WHITE, SLATE, f)
+
+
 def ball_colors(status_name: str, x: float):
   if engaged_status(status_name):
     if x > 0.5:
@@ -83,6 +99,9 @@ def ball_colors(status_name: str, x: float):
     return RED
   if status_name == "OVERRIDE":
     return OVERRIDE
+  if status_name == "DISENGAGED":
+    c = disengaged_color(x)
+    return (c, c)              # flat: top == bottom
   return DARK
 
 

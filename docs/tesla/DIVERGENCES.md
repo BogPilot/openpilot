@@ -110,12 +110,31 @@ Recorded disagreements only where the cited files were read. No speculation.
   -0.5 while disengaged, so it slides out below the screen; 0.9.7 keeps the widget visible but the ball is off screen.
   0.9.7 uses the engaged palette for every status except disengaged / override.
 - Our behavior: shown in every state while the toggle is on; the height always follows the model. The engaged palette
-  (green / orange / red) is used only while ENGAGED. OVERRIDE uses the stock white-to-grey ball and DISENGAGED the stock
-  dark ball, so the colour never reads as openpilot active; engagement is shown by the border. Missing model data:
-  bottom position, stock red only while engaged.
+  (green / orange / red) is used only while ENGAGED. OVERRIDE uses the stock white-to-grey ball and DISENGAGED a
+  slate-to-white ball (D-CB7), so the colour never reads as openpilot active; engagement is shown by the border. Missing
+  model data: bottom position, stock red while engaged, white while disengaged.
 - Why: owner request (always visible), with the colour rule required by the safety review.
 - Safety-relevant: display only; no control path reads it.
 - Tests: `test_confidence_ball.py` (always shown, never engaged palette when not engaged).
+- Credits: comma.ai openpilot (MIT); BogPilot 0.9.7.
+
+## Onroad UI: disengaged confidence ball goes from slate grey to white (D-CB7)
+- Reference behavior: stock (`mici/onroad/confidence_ball.py:72-74`) and BogPilot 0.9.7 (`confidence_ball.h:123`) draw
+  the disengaged ball in one fixed dark gradient, (50,50,50) to (13,13,13), whatever the confidence; only its height moves.
+- Our behavior: the DISENGAGED ball is one flat colour that follows the smoothed confidence x: slate grey (112,128,144)
+  at x >= 1, white (255,255,255) at x <= 0, and a straight per-channel blend in between, rounded per channel
+  (`confidence_ball_logic.disengaged_color`). Each channel only gets darker as confidence rises. ENGAGED (green / orange /
+  red) and OVERRIDE colours are unchanged; any other status keeps the stock dark ball.
+- Why these values: slate grey is the standard named colour "SlateGray". It is a blue grey, the same family as the
+  disengaged border `BORDER_COLORS[DISENGAGED]` (18,40,57) in `augmented_road_view.py`, and much lighter, so the ball
+  still stands out on the border. No slate constant exists in the tree; the nearest stock grey, `COLORS.DISENGAGED`
+  (145,155,149) in `hud_renderer.py`, is a lighter green grey and would leave less room between the two ends. White at low
+  confidence makes the low end the brightest and easiest to notice. Flat (no vertical gradient), so the colour reads as
+  one value.
+- Why: requested UI change (confidence readable while disengaged); display only.
+- Safety-relevant: display only; no control path reads it. Neither end is in the engaged palette.
+- Tests: `test_confidence_ball.py` (TestDisengagedSlateToWhite: slate at high, white at low, monotonic, engaged colours
+  unchanged; the native pixel test checks the drawn colour).
 - Credits: comma.ai openpilot (MIT); BogPilot 0.9.7.
 
 ## Settings: gated list_view actions (D2)

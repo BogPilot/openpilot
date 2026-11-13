@@ -3,7 +3,8 @@
 A small ball rides up and down a 60 px strip at the left edge (default) or right edge of the onroad view, covering the
 status border and the camera margin. Its height comes from the driving model's own disengage predictions and its
 colour from the UI status (see confidence_ball_logic for the exact math and colour rules). It is shown in every state
-while the toggle is on: engaged (stock colours), override (stock muted grey), disengaged (stock dark).
+while the toggle is on: engaged (stock colours), override (stock muted grey), disengaged (flat slate grey at high
+confidence fading to white at low, confidence_ball_logic.disengaged_color).
 
 Settings (Appearance page, through the BogPilot store; default ON, left edge, as in 0.9.7):
   /data/params_bogpilot/ConfidenceBall      off hides it
