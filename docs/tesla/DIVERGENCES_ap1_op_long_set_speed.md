@@ -15,7 +15,8 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
 - Our behavior: with openpilot long, while `DI_cruiseState` is engaged (2 ENABLED, 3 STANDSTILL, 4 OVERRIDE, 6 PRE_FAULT,
   7 PRE_CANCEL; 6/7 included because they are in the same set that drives `cruiseState.enabled`), `cruiseState.speed` is
   openpilot's own set, latched on the engage edge (`opendbc/car/tesla_ap1/op_long_set_speed.py`), in this order:
-  1. a known `dashboardSpeedLimit` plus the speed-limit offset (`Offset1..7` toggles and bands, `offset_for` in
+  1. (rolling engage: only after a stalk pull, see "the stalk action that engages decides the set" below)
+     a known `dashboardSpeedLimit` plus the speed-limit offset (`Offset1..7` toggles and bands, `offset_for` in
      `phase3_speed_control.py`, passed in by the card from params as `EngageLimitOffset`), as BogPilot 0.9.7 SLC
      (`speed_limit_controller.py`) sets the limit plus offset; this also applies at a standstill;
   2. moving with no limit: vEgoRaw, floored at openpilot `V_CRUISE_MIN` (8 kph);
@@ -145,3 +146,44 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
 - The IC 0x389 pack (`cruise_set_mph` in `slc_raise.py`) also rejects a value above about 145 kph
   (`V_CRUISE_MAX_MPH + 0.5`), so a latch above that does not update the digital set.
 - No code change in this note; it records the existing behaviour.
+
+### AP1: the stalk action that engages decides the set (tap latches the current speed, only a pull follows SLC)
+- Platforms: AP1 Model S and Model X with openpilot longitudinal (car layer `op_long_set_speed.py`, planner
+  `slc_raise.Ap1RaiseHoldoff` through `phase3_speed_control.Ap1SpeedControl`). Pre-AP keeps its own engagement
+  (NAP-style double pull); a Pre-AP tap still neither engages nor adds speed control. No panda change.
+- Reference behavior:
+  - BogPilot 0.9.7 (`04d560f3e`): the planner classifies the engage on the `cruiseState.enabled` rising edge
+    (`frogpilot_vcruise.py:119`) from the stalk level seen within 0.8 s (`slc_raise.py`, `RECENT_S`): UP/DN -> sticky
+    vEgo, pull -> SLC limit plus offset. The car set is `DI_cruiseSet`; there is no limit-first car layer.
+  - Tinkla/BogGyver `501c7de`: the openpilot-long set is vEgo when cruise engages (`ACC_module.py:154-158`).
+- Our behavior:
+  - Car layer: on a rolling engage edge the set is limit plus offset only after a fresh stalk pull (resumeCruise,
+    `SpdCtrlLvr_Stat` 2); a fresh UP/DN tap, a pull with no known limit, or no stalk seen latches exact vEgoRaw.
+    The most recent fresh press wins (same 0.8 s window). Standstill rules, the 15 mph tap-from-0 and the NO_ENTRY
+    `ap1SpeedLimitUnknown` refusal are unchanged.
+  - Planner: the stalk action is classified on the cruise engage edge (`cruise_on` rising), remembered as
+    `engage_kind` while cruise stays on, updated by newer presses (a lat-only second pull or tap), and applied when
+    openpilot longitudinal becomes active. A tap latches vEgo as of the tap; an engage with no stalk seen latches vEgo
+    as of the cruise edge; only a pull hands the set to SLC. There is no SLC fallback for an unclassified rolling engage.
+    An unclassified engage at a standstill latches nothing (the car-layer standstill rule applies). It is cleared when
+    cruise turns off (cancel, brake, any disengage) and when openpilot disengages.
+  - Engaged in SLC tracking, an UP/DN tap leaves SLC and latches the tipped set (existing tip rule: shallow detent
+    +/-1, deep detent next/previous 5, based on the current set). Later posted-limit changes in either direction do not
+    move it (only Curve Speed Control may lower it temporarily); the next pull returns to SLC at limit plus offset.
+    The IC set follows the plan set outside the engage floor (`cluster_set_kph`, `follow_plan`).
+  - A longitudinal re-activation in the same cruise session (gas override longer than `LongEngageGate.DROP_S`)
+    restores the driver's latched or tipped set instead of handing the set to SLC; after a pull it still follows SLC.
+  - Published stalk levels (`bogpilot.accelPressed/decelPressed/resumePressed`) are held 6 CAN frames (60 ms) after
+    release so the 20 Hz planner cannot miss a short press; a cancel (FWD) clears them. `buttonEvents` are unchanged.
+- Why: classifying on the longitudinal edge let a tap made with the gas held fall outside the 0.8 s window once
+  longActive rose on release, and the fallback chose SLC; the limit-first car set also gave limit plus offset for a
+  rolling tap. Both made a tap follow SLC instead of latching the current speed.
+- Diverges from 0.9.7 in two ways: an unclassified rolling engage latches vEgo (0.9.7 fell back to SLC), and a
+  longitudinal re-activation in the same cruise session keeps the driver's set. Uses only existing signals
+  (`SpdCtrlLvr_Stat` via `BUTTONS`, `cruiseState.enabled`, `carControl.longActive`, `selfdriveState.enabled`).
+- Safety-relevant: set-speed choice only. No panda, CAN TX, DBC or cereal change; engage, disengage, NO_ENTRY,
+  stale-tap and standstill rules are unchanged.
+- Tests: `test_ap1_op_long_set_speed.py`, `test_phase3_speed_control.py`, `test_phase3_speed_control_pull_modes.py`,
+  `test_phase3_speed_control_lookahead.py`, `test_preap_set_speed_limit.py`, `test_preap_tap_never_slc.py`.
+- Credits: BogPilot 0.9.7 (cruise-edge classification, tap/pull policy); Tinkla/BogGyver (current-speed latch at engage);
+  NAP (Pre-AP pull / double-pull engagement).
