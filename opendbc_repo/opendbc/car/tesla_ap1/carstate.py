@@ -11,7 +11,7 @@ from opendbc.car.tesla_ap1.op_long_set_speed import OpLongSetSpeed
 from opendbc.car.tesla_ap1.cruise_set import cruise_set_scale, cruise_set_scale_fix_enabled
 from opendbc.car.tesla_ap1.stalk_follow import dtr_sample, follow_seconds, parse_stalk_raw
 from opendbc.car.tesla_ap1.phase3_stalk_controls import StalkControls
-from opendbc.car.tesla_ap1.speed_limit import dashboard_speed_limit_ms, frame_fresh
+from opendbc.car.tesla_ap1.speed_limit import LIMIT_MAX_AGE_S, dashboard_speed_limit_ms, frame_fresh
 from opendbc.car.tesla_ap1.steer_fault import steer_fault_temporary
 from opendbc.car.tesla_ap1.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTTONS, is_ap1_family
 from opendbc.car.interfaces import CarStateBase
@@ -67,6 +67,12 @@ class CarState(CarStateBase):
     # AP1 only. Stock 0x399 blind-spot fields with a per-side hold (blindspot.py).
     self.ap1_bsm = Ap1Blindspot()
     self.stock_ap_active = False
+    # AP1 only. Last UI_baseMapSpeedLimitMPS (0x238 mux 3, m/s) and the parser time it was seen (0 = never this
+    # drive). The dashboard limit guard reads it as unknown when 0 or older than LIMIT_MAX_AGE_S (speed_limit.py).
+    self.base_map_ms = 0.0
+    self.base_map_nanos = 0
+    # AP1 only. The dashboard limit published last step, held when the guard ignores a map-only rise.
+    self.dash_hold_ms = 0.0
     # AP1 openpilot long only: openpilot's own cruise set speed (op_long_set_speed.py).
     op_long = bool(getattr(CP, "openpilotLongitudinalControl", False)) and is_ap1_family(CP.carFingerprint)
     self.op_long_set = OpLongSetSpeed() if op_long else None
@@ -252,9 +258,14 @@ class CarState(CarStateBase):
       fused = cp_cam.vl.get("AutopilotStatus", {}).get("DAS_fusedSpeedLimit")
       ui_map = cp.vl.get("UI_driverAssistMapData", {}).get("UI_mapSpeedLimit")
       gps = cp.vl.get("UI_gpsVehicleSpeed", {})
+      # Base-map guard inputs (speed_limit.py). The camera-only limit shares the fused frame; stale = no camera
+      # limit. The base map is only passed once the car has sent it this drive: a car that never sends 0x238 mux 3
+      # keeps the previous result instead of having every map-only limit ignored.
+      guard = self.base_map_guard_args(cp, cp_cam)
       fp_ret.dashboardSpeedLimit = dashboard_speed_limit_ms(
-        fused, ui_map, gps.get("UI_mppSpeedLimit"), gps.get("UI_mapSpeedLimitUnits"),
+        fused, ui_map, gps.get("UI_mppSpeedLimit"), gps.get("UI_mapSpeedLimitUnits"), **guard,
       )
+      self.dash_hold_ms = fp_ret.dashboardSpeedLimit
       # Engage set: only fresh frames (optional messages keep their last value; stale = unknown).
       fresh_gps = frame_fresh(cp, "UI_gpsVehicleSpeed")
       engage_limit_ms = dashboard_speed_limit_ms(
@@ -262,6 +273,7 @@ class CarState(CarStateBase):
         ui_map if frame_fresh(cp, "UI_driverAssistMapData") else None,
         gps.get("UI_mppSpeedLimit") if fresh_gps else None,
         gps.get("UI_mapSpeedLimitUnits") if fresh_gps else None,
+        **guard,
       )
       if not fresh_gps:
         # Units (UI_mapSpeedLimitUnits, 0x2F8) unknown or stale -> no limit-based engage set; a fused
@@ -339,6 +351,28 @@ class CarState(CarStateBase):
       out[bt] = pressed or left > 0
     return out
 
+  def base_map_guard_args(self, cp, cp_cam):
+    """Optional dashboard_speed_limit_ms args for the base-map guard. {} until a 0x238 mux 3 frame is seen.
+
+    The parser decodes every signal of a multiplexed frame, so UI_baseMapSpeedLimitMPS is only taken from frames
+    whose UI_roadSign is 3 (vl_all keeps one entry per frame in order).
+    """
+    sign = cp.vl_all.get("UI_driverAssistRoadSign", {})
+    for mux, value in zip(sign.get("UI_roadSign", []), sign.get("UI_baseMapSpeedLimitMPS", []), strict=False):
+      if int(mux) == 3:
+        self.base_map_ms = float(value)
+        self.base_map_nanos = int(getattr(cp, "_last_update_nanos", 0) or 0)
+    if self.base_map_nanos <= 0:
+      return {}
+    now = int(getattr(cp, "_last_update_nanos", 0) or 0)
+    fresh = (now - self.base_map_nanos) <= LIMIT_MAX_AGE_S * 1e9
+    vision = cp_cam.vl.get("AutopilotStatus", {}).get("DAS_visionOnlySpeedLimit")
+    return {
+      "vision_phys": vision if frame_fresh(cp_cam, "AutopilotStatus") else None,
+      "base_map_ms": self.base_map_ms if fresh else None,
+      "hold_ms": self.dash_hold_ms,
+    }
+
   @staticmethod
   def new_cluster_frames(cp_cam):
     """Stock AutopilotStatus / DAS_status2 / DAS_lanes received this step.
@@ -379,6 +413,8 @@ class CarState(CarStateBase):
       # car without them does not trip canValid (same pattern as cluster RX).
       messages.append(("UI_driverAssistMapData", OPTIONAL))
       messages.append(("UI_gpsVehicleSpeed", OPTIONAL))
+      # GTW base-map limit (0x238 mux 3) for the dashboard limit guard. Frequency 0, same reason.
+      messages.append(("UI_driverAssistRoadSign", OPTIONAL))
       # EPB EAC allow (0x214) for the EPB revoke fault. Frequency 0, same reason.
       messages.append(("EPB_epasControl", OPTIONAL))
       # 0x208 outside air temperature for regen_aware.py. Frequency 0 (no canValid effect).
@@ -388,6 +424,7 @@ class CarState(CarStateBase):
       # Ambient (regen) stays Model S only. Frequency 0 so missing frames do not trip canValid.
       messages.append(("UI_driverAssistMapData", OPTIONAL))
       messages.append(("UI_gpsVehicleSpeed", OPTIONAL))
+      messages.append(("UI_driverAssistRoadSign", OPTIONAL))
       messages.append(("EPB_epasControl", OPTIONAL))
 
     cam_messages = [
