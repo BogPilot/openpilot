@@ -15,7 +15,6 @@ from openpilot.selfdrive.ui.ui_state import device, ui_state
 from openpilot.selfdrive.ui.layouts.onboarding import OnboardingWindow
 from openpilot.selfdrive.ui.body.layouts.onroad import BodyLayout
 from openpilot.selfdrive.ui.bogpilot.reverse_camera import ReverseCameraController, enabled_from, is_stock_reverse_gear_screen, read_gear
-from openpilot.selfdrive.ui import beta_stalk_bookmark  # BETA-ONLY stalk bookmark, default off
 
 
 class MainState(IntEnum):
@@ -65,7 +64,6 @@ class MainLayout(Widget):
       gui_app.push_widget(self._onboarding_window)
 
   def _render(self, _):
-    beta_stalk_bookmark.tick(self._pm, ui_state)  # BETA-ONLY, default off
     self._handle_onroad_transition()
     self._update_reverse_camera()
     self._render_main_content()

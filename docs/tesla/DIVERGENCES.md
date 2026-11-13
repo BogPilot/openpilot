@@ -146,3 +146,10 @@ Tests: TX blocking while gas is pressed is covered for pre-AP and AP1. Asserting
 
 ## Pre-AP stock cruise: host gas-pressed threshold
 On pre-AP cars using stock cruise (no pedal interceptor), the host treats the accelerator as pressed only above 2% pedal position (DI_pedalPos raw > 5), so pedal-position noise doesn't cause sticky overrides. Reference: NotAutopilot (NAP) preap carstate, PEDAL_DI_PRESSED = 2. Panda safety is unchanged: any nonzero pedal reading still blocks longitudinal commands. AP1 and the pedal-interceptor path are unchanged.
+
+## Removed: beta stalk bookmark (BETA-ONLY)
+The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detector (UI module `beta_stalk_bookmark`, file flag `/data/params_bogpilot/BetaStalkBookmark`, default off, AP1 Model S only) is removed. It had no parity source: BogPilot 0.9.7, Tinkla/BogGyver and NAP have no stalk bookmark, and FWD on 0x45 is cancel only in all three, which is again the only behavior here.
+- Why: it was a beta-testing aid only; removed to keep the code simple. It also never ran on the device, because it checked carParams only on the first frame, before carParams arrives.
+- Kept: the on-screen bookmark (`bookmarkButton` + `userBookmark`) and `carState.bogpilot.spdCtrlLvr` (used by phase3_speed_control) with its bus-0 isolation test.
+- Safety-relevant: no; the module was UI-side and observe-only (no CAN TX, no panda, no car code).
+- History: last present at 06f7f9135 (docs/tesla/DIVERGENCES_beta_stalk_bookmark.md and its tests).

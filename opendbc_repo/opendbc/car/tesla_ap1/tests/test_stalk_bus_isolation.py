@@ -1,4 +1,4 @@
-"""R8 (beta stalk bookmark): 0x45 STW_ACTN_RQ bus isolation for the parser that feeds carState.bogpilot.spdCtrlLvr.
+"""0x45 STW_ACTN_RQ bus isolation for the parser that feeds carState.bogpilot.spdCtrlLvr (read by phase3_speed_control).
 
 spdCtrlLvr is read from can_parsers[Bus.chassis].vl["STW_ACTN_RQ"]["SpdCtrlLvr_Stat"] (tesla_ap1/carstate.py:171,
 preap/carstate.py:166-167). That parser is bound to CANBUS.chassis = 0 and skips any other src (opendbc/can/parser.py
