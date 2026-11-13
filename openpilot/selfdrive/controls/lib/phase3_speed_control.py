@@ -889,6 +889,28 @@ class EngageTapFromZero:
     return float(self()) * KPH_TO_MS
 
 
+def warm_engage_helpers(offset_fn=None, tap_fn=None) -> None:
+  """Card start: run the engage-set helpers once while offroad, so their lazy imports, the ParamStore
+  and the first param reads happen here instead of on the first engage frame inside card's 100 Hz loop.
+
+  Without this the first engage after boot stalled card for ~145 ms (saved rlogs, bf6f and rc8), the next
+  carOutput was invalid and selfdrived raised commIssue; the second press then engaged. Failure-tolerant:
+  any error is swallowed so a param read problem can never block card start (the helpers already fall
+  back to 0 offset / 15 mph on their own).
+  """
+  for fn in (offset_fn, tap_fn):
+    if fn is None:
+      continue
+    try:
+      warm = getattr(fn, "_toggles", None)
+      if callable(warm):
+        warm()
+      else:
+        fn()
+    except Exception:
+      pass
+
+
 class EngageClusterFloor:
   """Hold the Tesla IC set digit at least at vEgo from the moment openpilot enables
   until bogpilotPlan.vCruise has reached vEgo (sticky latch or SLC raise).

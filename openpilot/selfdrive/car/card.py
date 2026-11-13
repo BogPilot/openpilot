@@ -187,9 +187,11 @@ class Car:
       self._curve_hold = CurveDisplayHold()
     if getattr(self.CI.CS, "op_long_set", None) is not None:
       # AP1 openpilot long: speed-limit offset for the engage set, from params (not bogpilotPlan: no loop).
-      from openpilot.selfdrive.controls.lib.phase3_speed_control import EngageLimitOffset, EngageTapFromZero
+      from openpilot.selfdrive.controls.lib.phase3_speed_control import EngageLimitOffset, EngageTapFromZero, warm_engage_helpers
       self.CI.CS.op_long_offset = EngageLimitOffset(self.CP)
       self.CI.CS.op_long_tap_from_zero = EngageTapFromZero()
+      # Warm now (offroad) so the first engage does not pay lazy imports + param reads inside the loop.
+      warm_engage_helpers(self.CI.CS.op_long_offset, self.CI.CS.op_long_tap_from_zero)
     self.ap1_personality_sync = None
     self.traffic_mode_hold = TrafficModeHold()
     if self.CP.brand == "tesla_ap1" and self.CP.carFingerprint == "TESLA_AP1_MODELS":
