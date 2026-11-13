@@ -13,6 +13,7 @@ phase3_speed_control docstring). Parent integrator: make_layout(CP, ParamStore()
 from __future__ import annotations
 
 import math
+import time
 
 from openpilot.selfdrive.controls.lib.phase3_speed_control import (
   LOOKAHEAD_HORIZON_DEFAULT, LOOKAHEAD_HORIZON_MAX, LOOKAHEAD_HORIZON_MIN,
@@ -188,6 +189,48 @@ BY_KEY = {r[0]: r for r in ROWS}
 APPLIES = "Applies next drive (the planner reads these settings once per drive)."
 
 
+# ---- SLC reset profile by car type ----
+# A car type listed here gets its SLC section resets (and the row hints) from that profile instead of the general
+# table (the registry defaults). Each entry: (car type, detector(store) -> bool, values(store) -> {key: stored text}).
+# Today only the AP1 Model S maps, to the one-time AP1 Model S profile (openpilot/common/bogpilot_ap1_profile.py,
+# ported from BogPilot 367e1fe selfdrive/car/tesla/ap1_defaults.py), read through the profile's own
+# _profile_for_units() so nothing is copied here: Offset1-7 from AP1_SPEED_OFFSETS_MPH (converted and rounded to km/h
+# on a metric device, as the profile writes them), SLCOverride, SLCPriority1 / SLCPriority3, SLCLookaheadLower and
+# ShowSLCOffset. Its detector is the profile's own is_ap1() (CarModel or CarParamsPersistent TESLA_AP1_MODELS). A key
+# the profile does not list keeps its registry default (SLCPriority2 "Map Data"). AP1 Model X, Pre-AP and every other
+# car are not listed and keep the general table; giving another car type a profile is one more entry here.
+def _ap1_model_s(store) -> bool:
+  from openpilot.common.bogpilot_ap1_profile import is_ap1
+  return bool(is_ap1(store))
+
+
+def _ap1_profile_values(store) -> dict[str, str]:
+  from openpilot.common.bogpilot_ap1_profile import _profile_for_units
+  return _profile_for_units(store)
+
+
+SLC_RESET_PROFILES: tuple[tuple, ...] = (
+  ("TESLA_AP1_MODELS", _ap1_model_s, _ap1_profile_values),
+)
+
+
+def slc_reset_profile_entry(store):
+  """The SLC_RESET_PROFILES entry for the current car, or None (general table)."""
+  for entry in SLC_RESET_PROFILES:
+    try:
+      if entry[1](store):
+        return entry
+    except Exception:
+      continue
+  return None
+
+
+def slc_reset_profile(store) -> dict[str, str] | None:
+  """{key: stored text} of the current car's SLC reset profile, or None when the car uses the general table."""
+  entry = slc_reset_profile_entry(store)
+  return None if entry is None else dict(entry[2](store))
+
+
 class SlcEditor:
   def __init__(self, CP, store, offroad):
     self.CP, self.store, self.offroad = CP, store, offroad
@@ -257,6 +300,20 @@ class SlcEditor:
   def seconds_text(self, value):
     return "Off" if value == 0 else f"{value} seconds"
 
+  def reset_profile_values(self):
+    """{row key: stored text} of this car's SLC reset profile (see SLC_RESET_PROFILES); {} for the general table."""
+    try:
+      # car detection may parse CarParamsPersistent; the rows ask every frame, so keep the answer for 1 s
+      model, now = self.store.get("CarModel"), time.monotonic()
+      cached = getattr(self, "_profile_cache", None)
+      if cached is None or cached[0] != model or now - cached[1] > 1.0:
+        cached = self._profile_cache = (model, now, slc_reset_profile_entry(self.store))
+      if cached[2] is None:
+        return {}
+      return {k: v for k, v in cached[2][2](self.store).items() if k in BY_KEY}
+    except Exception:
+      return {}
+
   # ---- defaults for the value rows: exactly what this panel shows while the key is unsaved (no new number) ----
   # The store returns the registry default for an unsaved key (openpilot/common/bogpilot_params.py), and the readers
   # above parse it. So the default of a row is that same parse of the registry default:
@@ -268,11 +325,14 @@ class SlcEditor:
   # Known mismatch, left as is (held until after the menus): the UI catalog bogpilot_defaults.py:278 lists
   # SLCLookaheadLower as "0"; the panel shows 5 when unsaved, and the hint and reset follow the panel.
   def default(self, key):
-    """The value this row shows while its key is unsaved, or None when the key has no default (never invented)."""
+    """The value this row shows while its key is unsaved, or None when the key has no default (never invented).
+    On a car with an SLC reset profile (AP1 Model S) a row the profile writes defaults to that profile value."""
     from openpilot.common.bogpilot_store import registry_default
     if key not in BY_KEY:
       return None
-    text = registry_default(key)
+    text = self.reset_profile_values().get(key)
+    if text is None:
+      text = registry_default(key)
     if text in (None, ""):
       return None
     kind = BY_KEY[key][1]
@@ -304,8 +364,27 @@ class SlcEditor:
 
   def section_defaults(self, keys):
     """Reset table for one section: each of its keys that has a default and can be edited right now (offroad, row
-    shown for this car, Tuning Level and parent), with that default. Anything locked right now is left alone."""
-    return {k: self.default(k) for k in keys if self.default(k) is not None and self.can_edit(k)}
+    shown for this car, Tuning Level and parent), with that default. Anything locked right now is left alone.
+    With an SLC reset profile, a toggle or choice row the profile writes (ShowSLCOffset, SLCOverride) is reset too."""
+    table = {k: self.default(k) for k in keys if self.default(k) is not None and self.can_edit(k)}
+    prof = self.reset_profile_values()
+    for k in keys:
+      if k in table or k not in prof or not self.can_edit(k):
+        continue
+      kind = BY_KEY[k][1]
+      try:
+        if kind == "toggle":
+          table[k] = prof[k] == "1"
+        elif kind == "choice":
+          table[k] = int(float(prof[k]))
+      except (TypeError, ValueError):
+        pass
+    return table
+
+  def profile_reset_rows(self, keys):
+    """Toggle / choice row keys among keys that this car's SLC reset profile writes (empty with the general table)."""
+    prof = self.reset_profile_values()
+    return tuple(k for k in keys if k in prof and BY_KEY[k][1] in ("toggle", "choice"))
 
   def reset_write(self, key, value):
     """Section-reset writer: the same guarded write as the -/+ buttons; a refused write raises (the row reports it)."""
@@ -428,12 +507,16 @@ def make_layout(CP, store, offroad, section=None, open_section=None):
           values.append((k, item))
           items.append(item)
       self.reset = None
-      if values:
+      # With an SLC reset profile (AP1 Model S): the section's toggle / choice rows the profile writes reset with it.
+      shown_keys = tuple(r[0] for r in (visible_rows(store, section, CP) if self.editor.available() else []))
+      prof_rows = tuple((k, self.toggles.get(k) or self.choices.get(k)) for k in e.profile_reset_rows(shown_keys))
+      prof_rows = tuple((k, i) for k, i in prof_rows if i is not None)
+      if values or prof_rows:
         # One reset row for the section, right after its value rows: asks first, then writes only those keys back to
         # the defaults above (SlcEditor.default). Locked whenever none of them can be edited; shown only while one of
         # its rows is shown, and behind the Speed Limit Controller's own Tuning Level.
-        keys = tuple(k for k, _ in values)
-        rows_of_reset = tuple(i for _, i in values)
+        keys = tuple(k for k, _ in values) + tuple(k for k, _ in prof_rows)
+        rows_of_reset = tuple(i for _, i in values) + tuple(i for _, i in prof_rows)
         self.reset = reset_section_item(lambda: self.editor.section_defaults(keys), self.editor.reset_write,
                                         title=lambda: tr(RESET_SECTION_TITLE),
                                         enabled=lambda: any(self.editor.can_edit(k) for k in keys),
