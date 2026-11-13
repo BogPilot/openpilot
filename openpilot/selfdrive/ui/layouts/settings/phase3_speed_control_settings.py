@@ -318,12 +318,11 @@ class SlcEditor:
   # The store returns the registry default for an unsaved key (openpilot/common/bogpilot_params.py), and the readers
   # above parse it. So the default of a row is that same parse of the registry default:
   #   Offset1-4 "5", Offset5-7 "10"            bogpilot_params.py:277-283 (UI catalog bogpilot_defaults.py:198-204)
-  #   SLCLookaheadLower "5"                     bogpilot_params.py:366, = LOOKAHEAD_HORIZON_DEFAULT (phase3_speed_control.py:64)
+  #   SLCLookaheadLower "5"                     bogpilot_params.py:366 (UI catalog bogpilot_defaults.py:278),
+  #                                             = LOOKAHEAD_HORIZON_DEFAULT (phase3_speed_control.py:64)
   #   SLCPriority1/2/3 Navigation / Map Data / Dashboard   bogpilot_params.py:370-372 (bogpilot_defaults.py:281-283);
   #     priority() shows them as they are because each is one of its row's options ("Dashboard" / "None" above is only
   #     for a stored value that is not an option).
-  # Known mismatch, left as is (held until after the menus): the UI catalog bogpilot_defaults.py:278 lists
-  # SLCLookaheadLower as "0"; the panel shows 5 when unsaved, and the hint and reset follow the panel.
   def default(self, key):
     """The value this row shows while its key is unsaved, or None when the key has no default (never invented).
     On a car with an SLC reset profile (AP1 Model S) a row the profile writes defaults to that profile value."""

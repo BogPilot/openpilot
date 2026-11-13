@@ -275,7 +275,7 @@ DEFAULT_ROWS: tuple[tuple[str, str, int, str], ...] = (
   ('SLCConfirmationLower', '0', 0, '0'),
   ('SLCFallback', '2', 1, '0'),
   ('SLCLookaheadHigher', '0', 2, '0'),
-  ('SLCLookaheadLower', '0', 2, '0'),
+  ('SLCLookaheadLower', '5', 2, '0'),
   ('SLCMapboxFiller', '1', 1, '0'),
   ('SLCOverride', '1', 1, '0'),
   ('SLCPriority1', 'Navigation', 2, 'Navigation'),
