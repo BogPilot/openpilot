@@ -212,3 +212,46 @@ class TestSettingsRow(unittest.TestCase):
     self.assertIn("initialize_v_cruise returned early", r)
     self.assertNotIn("bogpilot_variables ignored it", r)
     self.assertNotIn("SetSpeedLimit", ss.OMITTED)
+
+class TestPreApTapNeverSlc(unittest.TestCase):
+  """Planner side of the pre-AP engage: a tap (disengaged or steering-only) never hands the set to SLC. Only the
+  pull that engages speed control (the double pull's second pull) does; that path is unchanged."""
+
+  def _ctl(self):
+    from openpilot.selfdrive.controls.tests.test_phase3_speed_control import Sm, make
+    return make(cp=CP_PREAP), Sm()
+
+  def _run(self, ctl, sm, n, **kw):
+    from openpilot.selfdrive.controls.tests.test_phase3_speed_control import run
+    return [run(ctl, sm, 20.0, 20.0, limit=45 * MPH, **kw) for _ in range(n)]
+
+  def test_disengaged_tap_does_not_touch_the_set(self):
+    """Disengaged, a tap never raises the planner value above the no-stalk value (unused while disengaged; a DN press
+    there also withholds the SLC limit, existing SLC confirmation behavior) and leaves no latch or engage action."""
+    ctl0, sm0 = self._ctl()
+    base = self._run(ctl0, sm0, 45, cruise=False, long_active=False)
+    for press in ({"up": True}, {"dn": True}):
+      ctl, sm = self._ctl()
+      out = self._run(ctl, sm, 5, cruise=False, long_active=False, **press) + self._run(ctl, sm, 40, cruise=False, long_active=False)
+      self.assertTrue(all(o <= b + 1e-9 for o, b in zip(out, base, strict=True)), press)
+      self.assertFalse(ctl.holdoff.sticky_vego)
+      self.assertEqual(ctl.holdoff.tip_ms, 0.0)
+      self.assertIsNone(ctl.holdoff.engage_kind)
+
+  def test_steering_only_tap_never_engages_slc(self):
+    for press in ({"up": True}, {"dn": True}):
+      ctl, sm = self._ctl()
+      self._run(ctl, sm, 2, cruise=False, long_active=False, rwd=True)   # first pull: steering only
+      out = self._run(ctl, sm, 20, cruise=True, long_active=False)
+      out += self._run(ctl, sm, 2, cruise=True, long_active=False, **press)
+      out += self._run(ctl, sm, 60, cruise=True, long_active=False)
+      self.assertTrue(all(o == 20.0 for o in out), press)                 # pass-through: never limit + offset
+      self.assertFalse(ctl.holdoff.sticky_vego)
+      self.assertEqual(ctl.holdoff.tip_ms, 0.0)
+
+  def test_second_pull_still_hands_to_slc(self):
+    ctl, sm = self._ctl()
+    self._run(ctl, sm, 2, cruise=False, long_active=False, rwd=True)
+    self._run(ctl, sm, 4, cruise=True, long_active=False)
+    out = self._run(ctl, sm, 10, cruise=True, long_active=True, rwd=True)
+    self.assertGreater(out[-1], 45 * MPH)                                  # limit + offset
