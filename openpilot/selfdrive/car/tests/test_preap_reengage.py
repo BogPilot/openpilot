@@ -180,6 +180,7 @@ def test_stock_cruise_pending_pull_never_delays_a_disengage(cause, epas):
   assert not s.d.panda.controls_allowed and s.d.panda.need_fresh_pull
   assert not cs.cruiseState.enabled and cs.blockPcmEnable and cs.bogpilot.preapFsmMode == int(Mode.LOCKOUT)
   assert ("steerUnavailable" if cause == "fault" else "steerDisengage") in names
+  assert "pcmDisable" in names, "cruiseState drops with the FSM on the drop frame (NAP preap/carstate.py:139), so pcmDisable fires too"
   # the rest of the window (and well past it) never brings it back without a fresh pull
   s.d.epas(0, EAC_ACTIVE, 0)
   for _ in range(60):
@@ -188,7 +189,7 @@ def test_stock_cruise_pending_pull_never_delays_a_disengage(cause, epas):
   # TACC cancelled: still off
   tacc(s, False)
   names, cs = s.step(stalk=CANCEL)
-  assert not cs.cruiseState.enabled and s.sm.state == State.disabled
+  assert not cs.cruiseState.enabled and s.sm.state == State.disabled and "pcmDisable" in names
 
 
 @pytest.mark.parametrize("cause,epas", DROPS, ids=[c for c, _ in DROPS])
