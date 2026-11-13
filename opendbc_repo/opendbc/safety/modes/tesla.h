@@ -371,6 +371,13 @@ static void tesla_rx_hook(const CANPacket_t *msg) {
   }
 }
 
+// Every received message, before the RX-check whitelist. AP1 only; other platforms ignore it.
+static void tesla_rx_all_hook(const CANPacket_t *msg) {
+  if (tesla_ap1) {
+    tesla_ap1_rx_all_hook(msg);
+  }
+}
+
 static bool tesla_tx_hook(const CANPacket_t *msg) {
   bool tx;
   if (tesla_ap1) {
@@ -418,4 +425,5 @@ const safety_hooks tesla_hooks = {
   .get_checksum = tesla_get_checksum,
   .compute_checksum = tesla_compute_checksum,
   .get_quality_flag_valid = tesla_get_quality_flag_valid,
+  .rx_all = tesla_rx_all_hook,
 };
