@@ -17,11 +17,13 @@ Rolling (not standstill):
    never wins over a rolling tap. If that vEgo would publish as 0, the standstill rules below apply instead.
 Fresh = pressed while engaged with nothing latched, or at most TAP_WINDOW_S before the engage edge (BogPilot
 0.9.7 slc_raise RECENT_S); the most recent of tap / pull wins, and a press is used once.
-Standstill (unchanged):
-3. A known limit: limit plus offset.
-4. A fresh stalk UP/DN tap: 15 mph (24.14016 kph). An older tap (e.g. at a red light before the engage)
-   is dropped, and a tap is used once.
-5. No limit, no tap: nothing latched. speed_limit_unknown is raised so selfdrived refuses
+Standstill (a tap never takes SLC here either; only a pull does):
+3. A fresh stalk UP/DN tap as the most recent press: the tap-from-stop speed (AP1TapFromZeroMph, default 15 mph,
+   24.14016 kph), even with a known limit. The planner's tap from 0 gives the same set (slc_raise tap_from_zero_ms).
+4. A known limit (a fresh pull, or no stalk seen): limit plus offset.
+5. A fresh tap with no limit (e.g. a pull after the tap): the tap-from-stop speed. An older tap (e.g. at a red
+   light before the engage) is dropped, and a tap is used once.
+6. No limit, no tap: nothing latched. speed_limit_unknown is raised so selfdrived refuses
    the engage (NO_ENTRY ap1SpeedLimitUnknown). 0 (unset) is published meanwhile: openpilot is not
    enabled, so no set reaches the planner, the HUD or 0x389 (no 8 kph / 5 mph placeholder).
 Once latched, a limit or standstill-tap set is clamped to 8-170 kph (Tinkla ACC_module.py:231-232); a
@@ -170,6 +172,9 @@ class OpLongSetSpeed:
           self.set_kph = _clamp_kph((limit_ms + offset_ms) * CV.MS_TO_KPH)
         else:
           self.set_kph = _clamp_max_kph(v_kph)
+      elif self.stalk_kind == "tap" and self.tap_kph > 0.0:
+        # Standstill tap: the tap-from-stop speed even with a known limit; only a pull engages SLC.
+        self.set_kph = _clamp_kph(self.tap_kph)
       elif limit_ms > 0.0:
         offset_ms = float(offset_fn(limit_ms)) if offset_fn is not None else 0.0
         self.set_kph = _clamp_kph((limit_ms + offset_ms) * CV.MS_TO_KPH)

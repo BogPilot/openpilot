@@ -14,6 +14,7 @@ from opendbc.car.tesla_ap1.ap1_events import Ap1Events, SPEED_LIMIT_UNKNOWN
 from opendbc.car.tesla_ap1.carstate import CarState
 from opendbc.car.tesla_ap1.op_long_set_speed import (TAP_FROM_ZERO_KPH, TAP_WINDOW_S,
      format_tap_from_zero_display, parse_tap_from_zero_mph, tap_from_zero_kph_from_param)
+from opendbc.car.tesla_ap1.slc_raise import Ap1RaiseHoldoff, ap1_cruise_ms
 from opendbc.car.tesla_ap1.speed_limit import LIMIT_MAX_AGE_S, frame_fresh, ui_map_speed_limit_ms
 from opendbc.car.tesla_ap1.values import CAR
 
@@ -656,13 +657,79 @@ def test_most_recent_stalk_action_decides_the_rolling_engage(first, last, want_l
   assert ret.cruiseState.speed == pytest.approx(want, abs=1e-3)
 
 
-def test_standstill_tap_with_limit_keeps_the_standstill_rule():
-  """Standstill rules are unchanged: a known limit still gives limit + offset at a standstill engage."""
+@pytest.mark.parametrize("cruise_state", [ENABLED, STANDSTILL])
+@pytest.mark.parametrize("lever", [UP, DN, UP_1ST, DN_1ST])
+def test_standstill_tap_with_known_limit_latches_tap_from_stop_speed(lever, cruise_state):
+  """From a full stop a tap never takes SLC: the tap-from-stop speed (15 mph default) even with a known limit."""
   offset = 5 * CV.MPH_TO_MS
   car = Car(offset_ms=offset)
+  car.step(STANDBY, 0, 0.0, map_limit=MAP_65, lever=lever)
+  rets = [car.step(cruise_state, 0, 0.0, map_limit=MAP_65) for _ in range(20)]
+  for ret in rets:
+    assert ret.cruiseState.speed == pytest.approx(TAP_FROM_ZERO_KPH * CV.KPH_TO_MS, abs=1e-6)
+    assert not ret.bogpilot.ap1SpeedLimitUnknown and SPEED_LIMIT_UNKNOWN not in _events(ret)
+  # Tap during an engage that is already on at the stop (nothing latched yet): the same.
+  car = Car(offset_ms=offset)
+  car.step(STANDBY, 0, 0.0, map_limit=MAP_65)
+  ret = car.step(cruise_state, 0, 0.0, map_limit=MAP_65, lever=lever)
+  assert ret.cruiseState.speed == pytest.approx(TAP_FROM_ZERO_KPH * CV.KPH_TO_MS, abs=1e-6)
+
+
+def test_standstill_tap_uses_the_tap_from_stop_setting_with_known_limit():
+  """The AP1TapFromZeroMph setting (here 20 mph), not limit + offset, for a standstill tap with a known limit."""
+  car = Car(offset_ms=5 * CV.MPH_TO_MS)
+  car.state.op_long_tap_from_zero = lambda: 20 * CV.MPH_TO_KPH
   car.step(STANDBY, 0, 0.0, map_limit=MAP_65, lever=UP)
   ret = car.step(STANDSTILL, 0, 0.0, map_limit=MAP_65)
-  assert ret.cruiseState.speed == pytest.approx(ui_map_speed_limit_ms(MAP_65, False) + offset, abs=1e-3)
+  assert ret.cruiseState.speed == pytest.approx(20 * CV.MPH_TO_MS, abs=1e-6)
+
+
+@pytest.mark.parametrize("cruise_state", [ENABLED, STANDSTILL])
+def test_standstill_pull_with_known_limit_uses_limit_plus_offset(cruise_state):
+  """From a full stop only a pull engages SLC: limit + offset, as before."""
+  offset = 5 * CV.MPH_TO_MS
+  limit = ui_map_speed_limit_ms(MAP_65, False)
+  car = Car(offset_ms=offset)
+  car.step(STANDBY, 0, 0.0, map_limit=MAP_65, lever=RWD)
+  ret = car.step(cruise_state, 0, 0.0, map_limit=MAP_65)
+  assert ret.cruiseState.speed == pytest.approx(limit + offset, abs=1e-3)
+  # Tap then pull inside the window: the most recent press (the pull) wins.
+  car = Car(offset_ms=offset)
+  car.step(STANDBY, 0, 0.0, map_limit=MAP_65, lever=UP)
+  car.step(STANDBY, 0, 0.0, map_limit=MAP_65)
+  car.step(STANDBY, 0, 0.0, map_limit=MAP_65, lever=RWD)
+  ret = car.step(cruise_state, 0, 0.0, map_limit=MAP_65)
+  assert ret.cruiseState.speed == pytest.approx(limit + offset, abs=1e-3)
+  # Pull then tap: the tap wins, tap-from-stop speed.
+  car = Car(offset_ms=offset)
+  car.step(STANDBY, 0, 0.0, map_limit=MAP_65, lever=RWD)
+  car.step(STANDBY, 0, 0.0, map_limit=MAP_65)
+  car.step(STANDBY, 0, 0.0, map_limit=MAP_65, lever=DN)
+  ret = car.step(cruise_state, 0, 0.0, map_limit=MAP_65)
+  assert ret.cruiseState.speed == pytest.approx(TAP_FROM_ZERO_KPH * CV.KPH_TO_MS, abs=1e-6)
+
+
+def test_standstill_tap_with_known_limit_car_and_planner_agree_on_tap_from_stop_speed():
+  """Car layer (cruiseState.speed) and planner (Ap1RaiseHoldoff + ap1_cruise_ms) both give 15 mph after a tap
+  from a full stop with a 65 mph limit known, never limit + offset."""
+  offset = 5 * CV.MPH_TO_MS
+  limit = ui_map_speed_limit_ms(MAP_65, False)
+  tap_ms = TAP_FROM_ZERO_KPH * CV.KPH_TO_MS
+  car = Car(offset_ms=offset)
+  car.step(STANDBY, 0, 0.0, map_limit=MAP_65, lever=UP)
+  car_ms = car.step(STANDSTILL, 0, 0.0, map_limit=MAP_65).cruiseState.speed
+
+  hold = Ap1RaiseHoldoff()
+  hold.tap_from_zero_ms = tap_ms
+  slc_ms = limit + offset
+  hold.update(False, False, True, False, slc_ms, 0.0, cruise_on=False)                 # UP tap at the stop
+  hold.update(False, False, False, False, slc_ms, 0.0, current_set_ms=car_ms, cruise_on=True)   # cruise edge
+  allow, sticky = hold.update(True, False, False, False, slc_ms, 0.0, current_set_ms=car_ms, cruise_on=True)
+  plan_ms = ap1_cruise_ms(car_ms, sticky, hold.tip_ms, allow, slc_ms, slc_ms, 0.0, False, 0.0,
+                          sticky_zero_is_none=True)
+  assert car_ms == pytest.approx(tap_ms, abs=1e-6)
+  assert plan_ms == pytest.approx(tap_ms, abs=1e-6)
+  assert not allow
 
 
 @pytest.mark.parametrize("lever", [UP, DN, RWD])

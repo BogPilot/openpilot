@@ -18,9 +18,11 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
   1. (rolling engage: only after a stalk pull, see "the stalk action that engages decides the set" below)
      a known `dashboardSpeedLimit` plus the speed-limit offset (`Offset1..7` toggles and bands, `offset_for` in
      `phase3_speed_control.py`, passed in by the card from params as `EngageLimitOffset`), as BogPilot 0.9.7 SLC
-     (`speed_limit_controller.py`) sets the limit plus offset; this also applies at a standstill;
+     (`speed_limit_controller.py`) sets the limit plus offset; at a standstill this applies after a fresh pull or
+     with no stalk seen, never after a fresh tap (see 3);
   2. moving with no limit: vEgoRaw, floored at openpilot `V_CRUISE_MIN` (8 kph);
-  3. standstill with no limit after a stalk UP or DN tap: the AP1TapFromZeroMph setting (default 15 mph, whole mph
+  3. standstill after a fresh stalk UP or DN tap (the most recent press), with or without a known limit: the
+     AP1TapFromZeroMph setting (default 15 mph, whole mph
      5-30). The planner's tip path uses the same value (`slc_raise.Ap1RaiseHoldoff.tap_from_zero_ms`; a sticky 0
      counts as no sticky, AP1 openpilot long only);
   4. standstill, no limit, no tap: nothing is latched, `bogpilot.ap1SpeedLimitUnknown` is set and the new event
@@ -159,8 +161,10 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
 - Our behavior:
   - Car layer: on a rolling engage edge the set is limit plus offset only after a fresh stalk pull (resumeCruise,
     `SpdCtrlLvr_Stat` 2); a fresh UP/DN tap, a pull with no known limit, or no stalk seen latches exact vEgoRaw.
-    The most recent fresh press wins (same 0.8 s window). Standstill rules, the 15 mph tap-from-0 and the NO_ENTRY
-    `ap1SpeedLimitUnknown` refusal are unchanged.
+    The most recent fresh press wins (same 0.8 s window). At a standstill a fresh tap gives the tap-from-stop speed
+    (AP1TapFromZeroMph, default 15 mph) even with a known limit, matching the planner's tap from 0; a fresh pull (or
+    no stalk seen) with a known limit gives limit plus offset as before. A pull after a tap with no limit still gives
+    the tap-from-stop speed, and the NO_ENTRY `ap1SpeedLimitUnknown` refusal is unchanged.
   - Planner: the stalk action is classified on the cruise engage edge (`cruise_on` rising), remembered as
     `engage_kind` while cruise stays on, updated by newer presses (a lat-only second pull or tap), and applied when
     openpilot longitudinal becomes active. A tap latches vEgo as of the tap; an engage with no stalk seen latches vEgo
@@ -178,12 +182,16 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
 - Why: classifying on the longitudinal edge let a tap made with the gas held fall outside the 0.8 s window once
   longActive rose on release, and the fallback chose SLC; the limit-first car set also gave limit plus offset for a
   rolling tap. Both made a tap follow SLC instead of latching the current speed.
-- Diverges from 0.9.7 in two ways: an unclassified rolling engage latches vEgo (0.9.7 fell back to SLC), and a
+- Diverges from 0.9.7 in three ways: a standstill tap with a known limit gives the tap-from-stop speed (0.9.7 had no
+  standstill tap set and no car-layer set); an unclassified rolling engage latches vEgo (0.9.7 fell back to SLC), and a
   longitudinal re-activation in the same cruise session keeps the driver's set. Uses only existing signals
   (`SpdCtrlLvr_Stat` via `BUTTONS`, `cruiseState.enabled`, `carControl.longActive`, `selfdriveState.enabled`).
-- Safety-relevant: set-speed choice only. No panda, CAN TX, DBC or cereal change; engage, disengage, NO_ENTRY,
-  stale-tap and standstill rules are unchanged.
+- Safety-relevant: set-speed choice only. No panda, CAN TX, DBC or cereal change; engage, disengage, NO_ENTRY and
+  stale-tap rules are unchanged; the standstill set after a tap with a known limit drops from limit plus offset to the
+  tap-from-stop speed.
 - Tests: `test_ap1_op_long_set_speed.py`, `test_phase3_speed_control.py`, `test_phase3_speed_control_pull_modes.py`,
-  `test_phase3_speed_control_lookahead.py`, `test_preap_set_speed_limit.py`, `test_preap_tap_never_slc.py`.
+  `test_phase3_speed_control_lookahead.py`, `test_preap_set_speed_limit.py`, `test_preap_tap_never_slc.py`; standstill:
+  `test_standstill_tap_with_known_limit_latches_tap_from_stop_speed`, `test_standstill_pull_with_known_limit_uses_limit_plus_offset`,
+  `test_standstill_tap_with_known_limit_car_and_planner_agree_on_tap_from_stop_speed`.
 - Credits: BogPilot 0.9.7 (cruise-edge classification, tap/pull policy); Tinkla/BogGyver (current-speed latch at engage);
   NAP (Pre-AP pull / double-pull engagement).
