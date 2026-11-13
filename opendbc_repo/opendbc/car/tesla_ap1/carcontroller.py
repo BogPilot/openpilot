@@ -111,7 +111,8 @@ class CarController(CarControllerBase):
       # this frame. Both the end of that block and a new latActive start the measured-angle soft-start.
       lat_session = bool(CC.latActive)
       epas_yield = self.ap1_epas_gate.update(lat_session, CS.eac_status, CS.steer_warning, bool(CS.eac_fault))
-      # Engaged only (CC.enabled, not Always On Lateral). No 0x214 frame yet (None) never starts a request.
+      # Latched code 4 recovery: every rule is in epas_gate.EpasTmpFaultRecovery. Engaged only (CC.enabled,
+      # not Always On Lateral); 0x214 not seen (None) is allowed, a seen EPB allow must be 1.
       was_probe, probe_n = self.ap1_tmp_fault.active, self.ap1_tmp_fault.probes
       tmp_fault_probe = self.ap1_tmp_fault.update(bool(CC.enabled), lat_session, CS.eac_status, CS.steer_warning,
                                                   CS.hands_on_level, getattr(CS, "epb_eac_allow", None),

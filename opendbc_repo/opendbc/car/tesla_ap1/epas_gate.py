@@ -87,17 +87,32 @@ class EpasGate:
 # carcontroller.py:86-106) and BogPilot 0.9.7 (actuator_plan.py ap1_hold_measured_angle) kept sending
 # ANGLE at the measured wheel while engaged, which is what clears a latched code.
 #
-# Divergence (stricter than both references): one short measured-wheel ANGLE request, only while
-# openpilot is engaged, the EPAS is AVAILABLE with code 4, hands are below 2, the driver is not
-# overriding, there is no EAC_FAULT and EPB_epasEACAllow is 1. At most ERR4_MAX_PROBES per engagement,
-# ERR4_PROBE_FRAMES long, ERR4_WAIT_FRAMES apart. Any refusing status, a hands level of 2+, a driver
-# override, EPB allow != 1, EAC_FAULT or any other error code ends the request on that frame.
+# Divergence (stricter than both references). All of the recovery rules live in this class; the panda
+# (tesla_ap1.h) only allows ANGLE with code 4 while the EPAS is AVAILABLE or ACTIVE (and EPB allow is 1
+# when 0x214 is seen). It does not limit retries, so every limit below is enforced here:
+#  1. Onset: a code 4 that appears while the EPAS is ACTIVE still drops lateral on that frame, as before
+#     (steer_fault.py makes it a temporary fault, EpasGate blocks it, the panda refuses it while INHIBITED).
+#     Nothing here runs while latActive is on.
+#  2. Start: only from EAC_AVAILABLE with a latched code 4, while openpilot is engaged and latActive is off,
+#     and only after that state has held for ERR4_SETTLE_FRAMES in a row (see the value below).
+#  3. Each request: ANGLE at the measured wheel only (actuator_plan hold, existing rate limit and clip),
+#     at most ERR4_PROBE_FRAMES (0.3 s).
+#  4. Spacing and cap: ERR4_WAIT_FRAMES (2 s) after each request, then the settle again; at most
+#     ERR4_MAX_PROBES (3) per engagement. A new engagement starts the count from zero.
+#  5. Abort on the frame it is seen: INHIBITED / FAULT / SNA, EAC_FAULT, hands level 2+, a driver override,
+#     EPB_epasEACAllow other than 1, or any error code other than 4 and IDLE.
+#  6. EPB: 0x214 is optional on this car, as everywhere else in this port (carstate keeps None until a
+#     frame is seen). None means not seen and does not block; a seen value must be 1.
 # A clear (error IDLE) hands over to the normal path: steerFaultTemporary drops, latActive returns and
 # the controller restarts from the measured wheel through the engage soft-start.
 
 ERR4_PROBE_FRAMES = 30    # 0.3 s at 100 Hz
 ERR4_WAIT_FRAMES = 200    # 2 s at 100 Hz
 ERR4_MAX_PROBES = 3       # per engagement
+# 0.5 s at 100 Hz. In the recorded event the EPAS went ACTIVE/4 -> INHIBITED/4 (39 ms) -> AVAILABLE/4
+# (118 ms after the onset). 0x370 comes at 25 Hz, so 50 frames is about 12 EPAS samples in a row that
+# all report AVAILABLE + code 4: past that transient, and short next to the 2 s spacing.
+ERR4_SETTLE_FRAMES = 50
 EAC_AVAILABLE = "EAC_AVAILABLE"
 EAC_TMP_FAULT = "EAC_ERROR_TMP_FAULT"
 EAC_IDLE = "EAC_ERROR_IDLE"
@@ -119,6 +134,7 @@ class EpasTmpFaultRecovery:
     self.probes = 0
     self.frames = 0
     self.cleared = False
+    self.settle = 0
     self.last_result = None   # "cleared", "timeout" or "abort:<reason>" for the last request
 
   @property
@@ -130,7 +146,7 @@ class EpasTmpFaultRecovery:
     """Why a request may not run this frame. None when it may."""
     if eac_fault or eac_status == "EAC_FAULT":
       return "eac_fault"
-    if epb_eac_allow != 1:
+    if epb_eac_allow is not None and epb_eac_allow != 1:   # 0x214 optional: None = not seen
       return "epb_allow"
     if eac_status not in _PROBE_STATUS:
       return "status"
@@ -177,10 +193,16 @@ class EpasTmpFaultRecovery:
         return False
       self.state = R_IDLE
       self.frames = 0
+      self.settle = 0
     if self.state == R_DONE:
       return False
-    # R_IDLE: start only on a latched code 4 with an AVAILABLE EPAS and latActive held off by it.
+    # R_IDLE: start only on a latched code 4 with an AVAILABLE EPAS and latActive held off by it, held for the settle.
     if reason is None and not lat_session and eac_status == EAC_AVAILABLE and steer_warning == EAC_TMP_FAULT:
+      self.settle += 1
+    else:
+      self.settle = 0
+    if self.settle >= ERR4_SETTLE_FRAMES:
+      self.settle = 0
       self.state = R_PROBE
       self.probes += 1
       self.frames = 1

@@ -13,7 +13,8 @@ import pytest
 from opendbc.car import structs
 from opendbc.car.tesla_ap1 import epas_gate
 from opendbc.car.tesla_ap1.actuator_plan import build_actuator_plan
-from opendbc.car.tesla_ap1.epas_gate import (ERR4_MAX_PROBES, ERR4_PROBE_FRAMES, ERR4_WAIT_FRAMES, EpasTmpFaultRecovery)
+from opendbc.car.tesla_ap1.epas_gate import (ERR4_MAX_PROBES, ERR4_PROBE_FRAMES, ERR4_SETTLE_FRAMES, ERR4_WAIT_FRAMES,
+                                            EpasTmpFaultRecovery)
 from opendbc.car.tesla_ap1.steer_fault import AP1_RECOVERABLE_TMP_FAULT, steer_fault_temporary
 from opendbc.car.tesla_ap1.tests import ap1_epas_tmp_fault_window as W
 from opendbc.car.tesla_ap1.tests.ap1_harness import make_controller
@@ -31,6 +32,13 @@ def run(rec, n, engaged=True, lat=False, status=AV, err=E4, hands=0, epb=1, faul
   return [rec.update(engaged, lat, status, err, hands, epb, fault, yield_) for _ in range(n)]
 
 
+def started(rec, **kw):
+  """Run the settle; the request starts on its last frame."""
+  out = run(rec, ERR4_SETTLE_FRAMES, **kw)
+  assert out == [False] * (ERR4_SETTLE_FRAMES - 1) + [True], "no request before the settle"
+  return rec
+
+
 # ---- state machine ---------------------------------------------------------------------------------
 
 def test_code4_stays_a_temporary_fault_so_lateral_is_not_resumed_blindly():
@@ -43,10 +51,12 @@ def test_three_bounded_requests_per_engagement_then_none():
   out = run(rec, 3 * (ERR4_PROBE_FRAMES + ERR4_WAIT_FRAMES) + 1000)
   on = np.flatnonzero(out)
   runs = np.split(on, np.flatnonzero(np.diff(on) > 1) + 1)
-  assert len(runs) == ERR4_MAX_PROBES == 3
+  assert len(runs) == ERR4_MAX_PROBES == 3, "the cap of 3 per engagement"
+  assert runs[0][0] == ERR4_SETTLE_FRAMES - 1, "first request only after the settle"
   assert all(len(r) <= ERR4_PROBE_FRAMES <= 30 for r in runs), "<= 0.3 s each at 100 Hz"
   gaps = [b[0] - a[-1] - 1 for a, b in zip(runs, runs[1:])]
-  assert all(g >= ERR4_WAIT_FRAMES >= 200 for g in gaps), "2 s wait between requests"
+  assert all(g >= ERR4_WAIT_FRAMES >= 200 for g in gaps), "2 s spacing between requests"
+  assert all(abs(g - (ERR4_WAIT_FRAMES + ERR4_SETTLE_FRAMES)) <= 1 for g in gaps), ("2 s wait, then the settle again", gaps)
   assert rec.state == epas_gate.R_DONE and rec.last_result == "timeout"
 
 
@@ -55,13 +65,14 @@ def test_a_new_engagement_resets_the_count():
   run(rec, 3 * (ERR4_PROBE_FRAMES + ERR4_WAIT_FRAMES) + 10)
   assert not any(run(rec, 500))
   run(rec, 1, engaged=False)
-  assert run(rec, 1) == [True] and rec.probes == 1
+  started(rec)
+  assert rec.probes == 1
   assert run(rec, 1, engaged=False) == [False] and rec.last_result == "abort:disengaged" and rec.probes == 0
 
 
 @pytest.mark.parametrize("kw,reason", [(dict(status=INH), "status"), (dict(status="EAC_FAULT"), "eac_fault"),
                                        (dict(status="EAC_SNA"), "status"), (dict(fault=True), "eac_fault"),
-                                       (dict(epb=0), "epb_allow"), (dict(epb=None), "epb_allow"),
+                                       (dict(epb=0), "epb_allow"), (dict(epb=2), "epb_allow"),
                                        (dict(hands=2), "hands"), (dict(hands=3), "hands"), (dict(yield_=True), "override"),
                                        (dict(err="EAC_ERROR_HANDS_ON"), "error_code"),
                                        (dict(err="EAC_ERROR_HIGH_ANGLE_RATE_SAFETY"), "error_code"),
@@ -69,9 +80,24 @@ def test_a_new_engagement_resets_the_count():
 def test_any_abort_condition_ends_the_request_on_that_frame_and_never_starts_one(kw, reason):
   rec = EpasTmpFaultRecovery()
   assert not any(run(rec, 50, **kw)), "never starts"
-  rec = EpasTmpFaultRecovery()
+  rec = started(EpasTmpFaultRecovery())
   assert run(rec, 5) == [True] * 5
   assert run(rec, 1, **kw) == [False] and rec.last_result == "abort:" + reason and rec.state == epas_gate.R_WAIT
+
+
+def test_settle_restarts_on_any_frame_that_is_not_available_code4():
+  rec = EpasTmpFaultRecovery()
+  assert not any(run(rec, ERR4_SETTLE_FRAMES - 1))
+  assert run(rec, 1, status=INH) == [False], "one INHIBITED sample restarts the settle"
+  started(rec)
+
+
+def test_0x214_absent_keeps_epb_optional():
+  """No EPB frame seen (carstate keeps None): the request runs as it would with allow 1; a seen 0 still blocks."""
+  rec = started(EpasTmpFaultRecovery(), epb=None)
+  assert run(rec, 5, epb=None) == [True] * 5
+  assert EpasTmpFaultRecovery.abort_reason(AV, E4, 0, None, False, False) is None
+  assert EpasTmpFaultRecovery.abort_reason(AV, E4, 0, 0, False, False) == "epb_allow"
 
 
 def test_starts_only_on_available_code4_while_latactive_is_off_and_engaged():
@@ -82,18 +108,19 @@ def test_starts_only_on_available_code4_while_latactive_is_off_and_engaged():
 
 
 def test_a_clear_holds_until_latactive_returns_then_frees_the_slot():
-  rec = EpasTmpFaultRecovery()
-  assert run(rec, 3) == [True] * 3
+  rec = started(EpasTmpFaultRecovery())
+  assert run(rec, 2) == [True] * 2
   assert run(rec, 4, status=ACT, err=IDLE) == [True] * 4, "EPAS took the request; keep the measured hold"
   assert run(rec, 1, status=ACT, err=IDLE, lat=True) == [False] and rec.last_result == "cleared"
   assert rec.state == epas_gate.R_IDLE and rec.probes == 1
   assert not any(run(rec, 50, status=ACT, err=IDLE, lat=True))
-  assert run(rec, 1) == [True] and rec.probes == 2, "a later code 4 in the same engagement gets the next request at once"
+  started(rec)
+  assert rec.probes == 2, "a later code 4 in the same engagement gets the next request after the settle"
 
 
 def test_a_clear_without_latactive_still_ends_at_the_window():
-  rec = EpasTmpFaultRecovery()
-  out = run(rec, 1) + run(rec, 100, status=ACT, err=IDLE)
+  rec = started(EpasTmpFaultRecovery())
+  out = run(rec, 100, status=ACT, err=IDLE)
   assert sum(out) <= ERR4_PROBE_FRAMES and rec.last_result == "cleared"
 
 
@@ -204,6 +231,7 @@ def test_replay_closed_loop_clear_hands_back_through_the_soft_start():
   ctl = make_controller(long=False, fingerprint=S)
   types = []
   status, err, lat = AV, E4, False
+  t_clear, first_lat = 10_000, None
   for t in range(400):
     o = SimpleNamespace(steeringAngleDeg=4.0, steeringTorque=0.0, steeringRateDeg=0.0, vEgo=8.0, gasPressed=False,
                         standstill=False, gearShifter=structs.CarState.GearShifter.drive)
@@ -219,12 +247,43 @@ def test_replay_closed_loop_clear_hands_back_through_the_soft_start():
       addr, dat = (f.address, f.dat) if hasattr(f, "address") else (f[0], f[1])
       if addr == 0x488:
         types.append((t, dat[2] >> 6, -(((dat[0] & 0x7F) << 8 | dat[1]) - 16384) * 0.1))
-    if any(ty == 1 for _t, ty, _a in types) and err == E4 and t > 4:
-      status, err = ACT, IDLE          # EPAS took the session
-    if err == IDLE and t > 10:
+    if any(ty == 1 for _t, ty, _a in types) and err == E4:
+      status, err = ACT, IDLE          # EPAS took the session on the first request frame
+      t_clear = t
+    if err == IDLE and t > t_clear + 6:
       lat = True                       # steerFaultTemporary dropped, controlsd gives latActive back
+      first_lat = first_lat if first_lat is not None else t
+  assert not any(ty == 1 for t, ty, _a in types if t < ERR4_SETTLE_FRAMES - 1), "nothing before the settle"
   assert ctl.ap1_tmp_fault.last_result == "cleared" and ctl.ap1_tmp_fault.probes == 1
-  first_lat = 11
   soft = [a for t, ty, a in types if first_lat < t < first_lat + 25 and ty == 1]
   assert soft and all(abs(a - 4.0) < 0.2 for a in soft), "measured-wheel soft-start after the hand-back"
   assert any(ty == 1 and a < 4.0 for t, ty, a in types if t > first_lat + 40), "then the planner angle, rate limited"
+
+
+@pytest.mark.parametrize("platform", [S, X])
+def test_code4_onset_while_active_drops_lateral_on_that_frame(platform):
+  """Engaged and steering (ACTIVE/IDLE, latActive on). Code 4 appears while ACTIVE: no more ANGLE from that frame,
+  and no recovery request while the EPAS stays ACTIVE or INHIBITED with it."""
+  ctl = make_controller(long=False, fingerprint=platform)
+  sent = []
+  for t in range(400):
+    onset = t >= 200
+    status = ACT if t < 210 else (INH if t < 220 else ACT)   # ACTIVE/4 onset, INHIBITED/4, then ACTIVE/4 again
+    err = E4 if onset else IDLE
+    o = SimpleNamespace(steeringAngleDeg=2.0, steeringTorque=0.0, steeringRateDeg=0.0, vEgo=8.0, gasPressed=False,
+                        standstill=False, gearShifter=structs.CarState.GearShifter.drive)
+    cs = SimpleNamespace(out=o, steer_warning=err, hands_on_level=0, eac_fault=False, eac_status=status, epb_eac_allow=1,
+                         acc_state=4, das_control_counters=deque(), msg_stw_actn_req={}, cluster_stock={},
+                         stock_steer_counters=[(t // 2) % 16] if t % 2 == 0 else [], stock_ap_active=False)
+    CC = structs.CarControl()
+    CC.enabled = True
+    CC.latActive = t <= 200            # controlsd sees steerFaultTemporary one frame later
+    CC.actuators.steeringAngleDeg = -5.0
+    _o, can = ctl.update(CC.as_reader(), cs, t * 10_000_000)
+    for f in can:
+      addr, dat = (f.address, f.dat) if hasattr(f, "address") else (f[0], f[1])
+      if addr == 0x488:
+        sent.append((t, dat[2] >> 6))
+  assert any(ty == 1 for t, ty in sent if t < 200)
+  assert not any(ty == 1 for t, ty in sent if t >= 200), "dropped on the onset frame, no request while not AVAILABLE"
+  assert ctl.ap1_tmp_fault.probes == 0
