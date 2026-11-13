@@ -45,6 +45,10 @@ def unblock_stdout() -> None:
     os._exit(exit_status)
 
 def save_bootlog():
+  # BogPilot: NoLogging ON records nothing, so no bootlog either (0.9.7 still wrote one; see DIVERGENCES).
+  from openpilot.system.manager.nologging import no_logging
+  if no_logging(Params()):
+    return
   # copy current params
   tmp = tempfile.mkdtemp()
   params_dirname = pathlib.Path(Params().get_param_path()).name

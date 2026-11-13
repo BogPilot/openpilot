@@ -17,7 +17,7 @@ from openpilot.selfdrive.ui.bogpilot.phase3_device_controls_runtime import (
 DEVICE_KEYS = frozenset({
   DEVICE_MASTER, "DeviceShutdown", "LowVoltageShutdown",
   SCREEN_MASTER, "ScreenBrightness", "ScreenBrightnessOnroad",
-  "ScreenTimeout", "ScreenTimeoutOnroad", "StandbyMode", "ScreenRecorder",
+  "ScreenTimeout", "ScreenTimeoutOnroad", "StandbyMode", "ScreenRecorder", "NoLogging",
 })
 
 RANGES = {
@@ -29,10 +29,65 @@ RANGES = {
   "ScreenTimeoutOnroad": (5, 60, 5),
 }
 
-BOOL_KEYS = frozenset({DEVICE_MASTER, SCREEN_MASTER, "StandbyMode", "ScreenRecorder"})
+BOOL_KEYS = frozenset({DEVICE_MASTER, SCREEN_MASTER, "StandbyMode", "ScreenRecorder", "NoLogging"})
 
-# Not offered (hidden, no placeholder rows): Disable Logging, High-Quality Recording, Raise Temperature Limits and
-# Offroad Screensaver have no consumer in this build. Their stored values, if any, are left untouched.
+# Disable Logging (NoLogging) sits under Device Settings as in 0.9.7 (tuning level 2, needs Device Settings on):
+# process_config gates logging on it (system/manager/nologging.no_logging: no loggerd, encoderd, proclogd, journald,
+# logmessaged) and the manager skips the bootlog.
+# Not offered (hidden, no placeholder rows): High-Quality Recording, Raise Temperature Limits and Offroad
+# Screensaver have no consumer in this build. Their stored values, if any, are left untouched.
+
+NO_LOGGING_DESC = ("<b>WARNING: This will prevent your drives from being recorded and all data will be unobtainable!</b>"
+                   "<br><br><b>Prevent the device from saving driving data.</b>")
+
+
+NO_LOGGING_TITLE = "Disable Logging"
+
+
+def no_logging_confirm_html(translate=lambda s: s) -> str:
+  """0.9.7 ParamControl::toggleClicked body: the row title over its description (toggles.py ExperimentalMode layout)."""
+  return f"<h1>{translate(NO_LOGGING_TITLE)}</h1><br><p>{translate(NO_LOGGING_DESC)}</p>"
+
+
+class NoLoggingSwitch:
+  """Disable Logging switch, as 0.9.7 device_settings.cc:168 setConfirmation(true, false): turning it ON asks every
+  time (Enable / Cancel; nothing remembered), turning it OFF saves at once. Cancel leaves it OFF.
+
+  ask(html, done) shows the dialog and calls done(True) on Enable, done(False) on Cancel.
+  save(value) -> bool writes NoLogging; reset() puts the switch back to OFF.
+  """
+
+  def __init__(self, ask, save, reset):
+    self.ask, self.save, self.reset = ask, save, reset
+
+  def toggled(self, state: bool) -> None:
+    if not state:
+      self.save(False)
+      return
+
+    def done(confirmed: bool):
+      if not (confirmed and self.save(True)):
+        self.reset()
+    self.ask(no_logging_confirm_html(), done)
+
+
+def _tuning_level(store) -> int:
+  """ParamStore.tuning_level rules for any store: the confirmed level, else Developer (3)."""
+  try:
+    if hasattr(store, "tuning_level"):
+      return int(store.tuning_level())
+    if store.get_bool("TuningLevelConfirmed", False):
+      return int(float(store.get("TuningLevel", "0") or 0))
+  except (TypeError, ValueError):
+    pass
+  return 3
+
+
+def level_ok(store, key) -> bool:
+  """The row's registry tuning level (bogpilot_params) is at or below the level in force."""
+  from openpilot.common.bogpilot_store import registry_level
+  need = registry_level(key)
+  return need is None or _tuning_level(store) >= need
 
 DEFAULTS = {
   DEVICE_MASTER: True,
@@ -44,6 +99,7 @@ DEFAULTS = {
   "ScreenTimeout": 30,
   "ScreenTimeoutOnroad": 30,
   "StandbyMode": False,
+  "NoLogging": False,       # default OFF: the device records as stock
   "ScreenRecorder": True,   # the driving-screen record button; lives here, not on Appearance
 }
 
@@ -175,6 +231,11 @@ class DeviceControlsMenu:
          "value": int(float(self.store.raw("DeviceShutdown") or DEFAULTS["DeviceShutdown"])),
          "label": shutdown_label(int(float(self.store.raw("DeviceShutdown") or DEFAULTS["DeviceShutdown"]))),
          "requires": DEVICE_MASTER},
+      ]
+      if level_ok(self.store, "NoLogging"):
+        rows.append({"kind": "toggle", "key": "NoLogging", "title": "Disable Logging",
+                     "value": self.store.get_bool("NoLogging", DEFAULTS["NoLogging"]), "requires": DEVICE_MASTER})
+      rows += [
         {"kind": "number", "key": "LowVoltageShutdown", "title": "Low-Voltage Cutoff",
          "value": float(self.store.raw("LowVoltageShutdown") or DEFAULTS["LowVoltageShutdown"]),
          "requires": DEVICE_MASTER},
@@ -204,6 +265,11 @@ class DeviceControlsMenu:
         {"kind": "action", "title": "Screen Recorder", "label": "Stop", "action": "stop_recording"},
       ]
     raise ValueError("Unknown Device Controls page")
+
+  def visible_rows(self):
+    """rows() minus the children whose parent switch is off (the UI nests them under it)."""
+    return [r for r in self.rows()
+            if not r.get("requires") or self.store.get_bool(r["requires"], DEFAULTS.get(r["requires"], False))]
 
   def active_keys(self):
     return [r["key"] for r in self.rows() if r.get("kind") in ("toggle", "number")]
@@ -259,6 +325,7 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
   from openpilot.system.ui.widgets.option_dialog import MultiOptionDialog
   from openpilot.system.ui.widgets import DialogResult
+  from openpilot.system.ui.widgets.confirm_dialog import ConfirmDialog
   from openpilot.system.ui.widgets.scroller_tici import Scroller
 
   params = Params()
@@ -370,16 +437,33 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
                                                callback=lambda t=title: self.go(t)), "system:" + title))
       elif menu.path[-1] == "Device Settings":
         master = attach_help(toggle_item(lambda: tr("Device Settings"),
-                                         lambda: tr("Master for shutdown timer and low-voltage cutoff. Off keeps stock power protection."),
+                                         lambda: tr("Master for shutdown timer, Disable Logging and low-voltage cutoff. Off keeps stock power protection."),
                                          menu.store.get_bool(DEVICE_MASTER, DEFAULTS[DEVICE_MASTER]),
                                          callback=lambda v: self.put(DEVICE_MASTER, v), enabled=self.allowed),
                              "system:Device Settings")
         items.append(master)
+        # Disable Logging needs no runtime hook (process_config reads it); attach_help adds its level-2 gate.
+        # ON asks first (0.9.7 device_settings.cc:168 setConfirmation(true, false)); OFF saves at once.
+        def ask(_html, done):
+          dlg = ConfirmDialog(no_logging_confirm_html(tr), tr("Enable"), rich=True,
+                              callback=lambda r: done(r == DialogResult.CONFIRM))
+          gui_app.push_widget(dlg)
+
+        def save(value):
+          ok = menu.set("NoLogging", value)
+          self._dirty = True
+          return ok
+
+        no_logging = attach_help(toggle_item(lambda: tr(NO_LOGGING_TITLE), lambda: tr(NO_LOGGING_DESC),
+                                             menu.store.get_bool("NoLogging", DEFAULTS["NoLogging"]),
+                                             callback=lambda v: switch.toggled(v), enabled=self.allowed),
+                                 "NoLogging")
+        switch = NoLoggingSwitch(ask, save, lambda: no_logging.action_item.set_state(False))
         if runtime_hooks:
-          children = [self.number("DeviceShutdown", "Device Shutdown Timer"),
+          children = [self.number("DeviceShutdown", "Device Shutdown Timer"), no_logging,
                       self.number("LowVoltageShutdown", "Low-Voltage Cutoff")]
         else:
-          children = [text_item("Device Shutdown Timer", "Runtime integration pending"),
+          children = [text_item("Device Shutdown Timer", "Runtime integration pending"), no_logging,
                       text_item("Low-Voltage Cutoff", "Runtime integration pending")]
         nest(master, *children)   # shown only while Device Settings is on; the saved values stay
         items += children

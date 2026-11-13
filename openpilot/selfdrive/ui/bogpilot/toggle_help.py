@@ -653,6 +653,11 @@ _add("DeviceShutdown", "Device Shutdown Timer",
      "How long the device stays on after the car is turned off before it powers down.",
      note="Never longer than the stock 30 hours. Needs Device Settings on. Applies at the next power check. " + _OFFROAD,
      default="30 hours (stock)", range="5 minutes, 15 / 30 / 45 minutes, then 1 to 30 hours")
+_add("NoLogging", "Disable Logging",
+     "Stops the device recording drives: no rlog / qlog, no camera video and no boot log. Recorded data cannot be recovered later.",
+     note="Needs Device Settings on and Tuning Level Advanced or higher; otherwise logging runs as stock. "
+          "Applies from the next drive. " + _OFFROAD,
+     default="Off (drives are recorded)")
 _add("LowVoltageShutdown", "Low-Voltage Cutoff",
      "The car battery voltage below which the device shuts down to protect the battery. Higher shuts down earlier.",
      note="Never lower than the stock 11.8 V. Needs Device Settings on. " + _OFFROAD,
@@ -777,7 +782,7 @@ SKIPPED: dict[str, str] = {
   "TurnDesires": "row item exists but is not registered on any page in this build",
   "Alert Volume Controller: Storage row": "informational text about the file store; no choice to explain",
   "Vehicle Info rows": "read-only CarParams readouts",
-  "Disable Logging, High-Quality Recording, Raise Temperature Limits, Offroad Screensaver, Flash Panda, Force Drive State, "
+  "High-Quality Recording, Raise Temperature Limits, Offroad Screensaver, Flash Panda, Force Drive State, "
   "BogPilot Backups": "unavailable placeholders; their inline description already says why they are unavailable",
   "Status rows, Total local data, per-category Storage Use rows, Preview Changes rows, Protected rows, Baseline, "
   "Affected keys": "live readouts, not settings",
@@ -806,7 +811,7 @@ SKIPPED_TITLES: frozenset[str] = frozenset({
   # Steering Tuning reset buttons: named by the value they reset; the value row above carries the help.
   "Reset Actuator Delay", "Reset Steer Ratio", "Reset Friction", "Reset Lateral Acceleration", "Reset Override Sensitivity",
   # Unavailable placeholders: their inline description already says why they are unavailable.
-  "Flash Panda", "Force Drive State", "BogPilot Backups", "Disable Logging", "High-Quality Recording",
+  "Flash Panda", "Force Drive State", "BogPilot Backups", "High-Quality Recording",
   "Raise Temperature Limits", "Offroad Screensaver",
 })
 

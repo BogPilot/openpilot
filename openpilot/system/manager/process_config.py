@@ -7,6 +7,7 @@ from openpilot.common.params import Params
 from openpilot.common.hardware import PC, COMMA_HARDWARE
 from openpilot.system.manager.process import PythonProcess, NativeProcess, DaemonProcess
 from openpilot.system.bogpilot.osm.supervisor import manager_condition as bogpilot_mapd_wanted
+from openpilot.system.manager.nologging import no_logging
 
 WEBCAM = os.getenv("USE_WEBCAM") is not None
 
@@ -22,6 +23,15 @@ def iscar(started: bool, params: Params, CP: car.CarParams) -> bool:
 def logging(started: bool, params: Params, CP: car.CarParams) -> bool:
   run = (not CP.notCar) or not params.get_bool("DisableLogging")
   return started and run
+
+# BogPilot: NoLogging gate, as BogPilot 0.9.7 allow_logging (process_config.py:50-51, :73-75, :80-82 @568fea947).
+# NoLogging ON (under DeviceManagement): no loggerd (rlog/qlog), no encoderd (fcamera/ecamera/dcamera/qcamera),
+# no proclogd/journald/logmessaged (procLog/androidLog/swaglog). Default OFF: every predicate is unchanged.
+def logging_allowed(started: bool, params: Params, CP: car.CarParams) -> bool:
+  return not no_logging(params)
+
+def allow_logging(started: bool, params: Params, CP: car.CarParams) -> bool:
+  return logging_allowed(started, params, CP) and logging(started, params, CP)
 
 def ublox_available() -> bool:
   return os.path.exists('/dev/ttyHS0') and not os.path.exists('/persist/comma/use-quectel-gps')
@@ -67,14 +77,14 @@ def and_(*fns):
 
 procs = [
 
-  NativeProcess("loggerd", "openpilot/system/loggerd", ["./loggerd"], logging),
-  NativeProcess("encoderd", "openpilot/system/loggerd", ["./encoderd"], only_onroad),
-  PythonProcess("logmessaged", "openpilot.system.logmessaged", always_run),
+  NativeProcess("loggerd", "openpilot/system/loggerd", ["./loggerd"], allow_logging),
+  NativeProcess("encoderd", "openpilot/system/loggerd", ["./encoderd"], and_(only_onroad, logging_allowed)),
+  PythonProcess("logmessaged", "openpilot.system.logmessaged", and_(always_run, logging_allowed)),
 
   NativeProcess("camerad", "openpilot/system/camerad", ["./camerad"], driverview, enabled=not WEBCAM),
   PythonProcess("webcamerad", "openpilot.system.camerad.webcam.camerad", driverview, enabled=WEBCAM),
-  PythonProcess("proclogd", "openpilot.system.proclogd", only_onroad, enabled=platform.system() != "Darwin"),
-  PythonProcess("journald", "openpilot.system.journald", only_onroad, platform.system() != "Darwin"),
+  PythonProcess("proclogd", "openpilot.system.proclogd", and_(only_onroad, logging_allowed), enabled=platform.system() != "Darwin"),
+  PythonProcess("journald", "openpilot.system.journald", and_(only_onroad, logging_allowed), platform.system() != "Darwin"),
   PythonProcess("micd", "openpilot.system.micd", iscar),
   PythonProcess("timed", "openpilot.system.timed", always_run, enabled=not PC),
 
