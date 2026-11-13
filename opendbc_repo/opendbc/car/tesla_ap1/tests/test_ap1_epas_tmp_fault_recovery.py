@@ -13,8 +13,8 @@ import pytest
 from opendbc.car import structs
 from opendbc.car.tesla_ap1 import epas_gate
 from opendbc.car.tesla_ap1.actuator_plan import build_actuator_plan
-from opendbc.car.tesla_ap1.epas_gate import (ERR4_MAX_PROBES, ERR4_PROBE_FRAMES, ERR4_SETTLE_FRAMES, ERR4_WAIT_FRAMES,
-                                            EpasTmpFaultRecovery)
+from opendbc.car.tesla_ap1.epas_gate import (ERR4_EPB_FRESH_FRAMES, ERR4_MAX_PROBES, ERR4_PROBE_FRAMES, ERR4_SETTLE_FRAMES,
+                                            ERR4_WAIT_FRAMES, MIN_ERR4_PROBE_SPEED, EpasTmpFaultRecovery)
 from opendbc.car.tesla_ap1.steer_fault import AP1_RECOVERABLE_TMP_FAULT, steer_fault_temporary
 from opendbc.car.tesla_ap1.tests import ap1_epas_tmp_fault_window as W
 from opendbc.car.tesla_ap1.tests.ap1_harness import make_controller
@@ -28,8 +28,8 @@ STATUS = {0: INH, 1: AV, 2: ACT, 3: "EAC_FAULT", 4: "EAC_SNA"}
 ERROR = {0: IDLE, 3: "EAC_ERROR_HANDS_ON", 4: E4, 6: "EAC_ERROR_HIGH_ANGLE_REQ"}
 
 
-def run(rec, n, engaged=True, lat=False, status=AV, err=E4, hands=0, epb=1, fault=False, yield_=False):
-  return [rec.update(engaged, lat, status, err, hands, epb, fault, yield_) for _ in range(n)]
+def run(rec, n, engaged=True, lat=False, status=AV, err=E4, hands=0, epb=1, fault=False, yield_=False, v=10.0):
+  return [rec.update(engaged, lat, status, err, hands, epb, fault, yield_, v_ego=v) for _ in range(n)]
 
 
 def started(rec, **kw):
@@ -92,12 +92,76 @@ def test_settle_restarts_on_any_frame_that_is_not_available_code4():
   started(rec)
 
 
-def test_0x214_absent_keeps_epb_optional():
-  """No EPB frame seen (carstate keeps None): the request runs as it would with allow 1; a seen 0 still blocks."""
-  rec = started(EpasTmpFaultRecovery(), epb=None)
-  assert run(rec, 5, epb=None) == [True] * 5
-  assert EpasTmpFaultRecovery.abort_reason(AV, E4, 0, None, False, False) is None
-  assert EpasTmpFaultRecovery.abort_reason(AV, E4, 0, 0, False, False) == "epb_allow"
+def test_0x214_missing_or_stale_means_no_request_as_before():
+  """The panda allows code 4 only with a recent EPB allow of 1, so a missing or stale 0x214 (None) gets no request:
+  the car behaves as before this recovery. A seen 0 blocks too."""
+  rec = EpasTmpFaultRecovery()
+  assert not any(run(rec, 1000, epb=None)), "no 0x214: never a request"
+  assert EpasTmpFaultRecovery.abort_reason(AV, E4, 0, None, False, False, 10.0) == "epb_allow"
+  assert EpasTmpFaultRecovery.abort_reason(AV, E4, 0, 0, False, False, 10.0) == "epb_allow"
+  assert EpasTmpFaultRecovery.abort_reason(AV, E4, 0, 1, False, False, 10.0) is None
+  rec = started(EpasTmpFaultRecovery())
+  assert run(rec, 1, epb=None) == [False] and rec.last_result == "abort:epb_allow", "0x214 goes stale mid-request"
+
+
+def _cs(v=10.0, epb=1, epb_age=0, status=AV, err=E4):
+  o = SimpleNamespace(steeringAngleDeg=4.0, steeringTorque=0.0, steeringRateDeg=0.0, vEgo=v, gasPressed=False,
+                      standstill=v < 0.01, gearShifter=structs.CarState.GearShifter.drive)
+  return SimpleNamespace(out=o, steer_warning=err, hands_on_level=0, eac_fault=False, eac_status=status, epb_eac_allow=epb,
+                         epb_eac_allow_age=epb_age, acc_state=4, das_control_counters=deque(), msg_stw_actn_req={},
+                         cluster_stock={}, stock_steer_counters=[], stock_ap_active=False)
+
+
+def _drive_controller(frames, **cs_kw):
+  """CarController on an engaged AP1 S with latActive off; returns the frames with a tmp-fault request."""
+  ctl = make_controller(S)
+  on = []
+  for t in range(frames):
+    CC = structs.CarControl()
+    CC.enabled = True
+    CC.latActive = False
+    ctl.update(CC.as_reader(), _cs(**cs_kw), t * 10_000_000)
+    on.append(ctl.ap1_tmp_fault.active)
+  return on
+
+
+def test_controller_uses_the_epb_age_from_carstate():
+  assert any(_drive_controller(ERR4_SETTLE_FRAMES + 5, epb_age=ERR4_EPB_FRESH_FRAMES)), "a 0x214 sample within 200 ms"
+  assert not any(_drive_controller(ERR4_SETTLE_FRAMES + 5, epb_age=ERR4_EPB_FRESH_FRAMES + 1)), "stale 0x214"
+  assert not any(_drive_controller(ERR4_SETTLE_FRAMES + 5, epb_age=None)), "0x214 never seen"
+
+
+# ---- speed gate -----------------------------------------------------------------------------------
+
+def test_min_probe_speed_is_about_5_mph():
+  assert MIN_ERR4_PROBE_SPEED == 2.2
+
+
+def test_no_request_during_a_creep_from_a_stop():
+  """Replay case: engaged, AVAILABLE + code 4, EPB allow 1, creeping at 0.24 m/s. No request (it used to start one)."""
+  rec = EpasTmpFaultRecovery()
+  assert not any(run(rec, 1000, v=0.24))
+  assert EpasTmpFaultRecovery.abort_reason(AV, E4, 0, 1, False, False, 0.24) == "speed"
+  assert not any(_drive_controller(ERR4_SETTLE_FRAMES + 50, v=0.24)), "same through the CarController"
+
+
+@pytest.mark.parametrize("v", [0.0, -0.01, MIN_ERR4_PROBE_SPEED - 0.01, float("nan"), None])
+def test_no_request_at_a_standstill_or_below_the_speed_gate(v):
+  rec = EpasTmpFaultRecovery()
+  assert not any(run(rec, 1000, v=v))
+
+
+def test_speed_gate_lets_a_request_start_at_the_threshold():
+  started(EpasTmpFaultRecovery(), v=MIN_ERR4_PROBE_SPEED)
+
+
+def test_running_request_ends_the_moment_speed_drops_below_the_gate():
+  rec = started(EpasTmpFaultRecovery())
+  assert run(rec, 3) == [True] * 3
+  assert run(rec, 1, v=MIN_ERR4_PROBE_SPEED - 0.1) == [False], "ends on that frame"
+  assert rec.last_result == "abort:speed" and rec.probes == 1
+  on = _drive_controller(ERR4_SETTLE_FRAMES + 3)
+  assert on[-1], "controller request running at 10 m/s"
 
 
 def test_starts_only_on_available_code4_while_latactive_is_off_and_engaged():
@@ -172,7 +236,7 @@ def _replay(platform, disable_recovery=False, monkeypatch=None):
     o = SimpleNamespace(steeringAngleDeg=r["wheel_deg"], steeringTorque=0.0, steeringRateDeg=0.0, vEgo=r["v_ego"],
                         gasPressed=bool(r["gas"]), standstill=False, gearShifter=structs.CarState.GearShifter.drive)
     cs = SimpleNamespace(out=o, steer_warning=ERROR[r["eac_error"]], hands_on_level=r["hands"], eac_fault=False,
-                         eac_status=STATUS[r["eac_status"]], epb_eac_allow=r["epb_allow"], acc_state=4,
+                         eac_status=STATUS[r["eac_status"]], epb_eac_allow=r["epb_allow"], epb_eac_allow_age=0, acc_state=4,
                          das_control_counters=deque(), msg_stw_actn_req={}, cluster_stock={},
                          stock_steer_counters=[(t // 2) % 16] if t % 2 == 0 else [], stock_ap_active=False)
     CC = structs.CarControl()
@@ -235,7 +299,7 @@ def test_replay_closed_loop_clear_hands_back_through_the_soft_start():
   for t in range(400):
     o = SimpleNamespace(steeringAngleDeg=4.0, steeringTorque=0.0, steeringRateDeg=0.0, vEgo=8.0, gasPressed=False,
                         standstill=False, gearShifter=structs.CarState.GearShifter.drive)
-    cs = SimpleNamespace(out=o, steer_warning=err, hands_on_level=0, eac_fault=False, eac_status=status, epb_eac_allow=1, acc_state=4,
+    cs = SimpleNamespace(out=o, steer_warning=err, hands_on_level=0, eac_fault=False, eac_status=status, epb_eac_allow=1, epb_eac_allow_age=0, acc_state=4,
                          das_control_counters=deque(), msg_stw_actn_req={}, cluster_stock={},
                          stock_steer_counters=[(t // 2) % 16] if t % 2 == 0 else [], stock_ap_active=False)
     CC = structs.CarControl()
@@ -272,7 +336,7 @@ def test_code4_onset_while_active_drops_lateral_on_that_frame(platform):
     err = E4 if onset else IDLE
     o = SimpleNamespace(steeringAngleDeg=2.0, steeringTorque=0.0, steeringRateDeg=0.0, vEgo=8.0, gasPressed=False,
                         standstill=False, gearShifter=structs.CarState.GearShifter.drive)
-    cs = SimpleNamespace(out=o, steer_warning=err, hands_on_level=0, eac_fault=False, eac_status=status, epb_eac_allow=1,
+    cs = SimpleNamespace(out=o, steer_warning=err, hands_on_level=0, eac_fault=False, eac_status=status, epb_eac_allow=1, epb_eac_allow_age=0,
                          acc_state=4, das_control_counters=deque(), msg_stw_actn_req={}, cluster_stock={},
                          stock_steer_counters=[(t // 2) % 16] if t % 2 == 0 else [], stock_ap_active=False)
     CC = structs.CarControl()

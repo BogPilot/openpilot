@@ -23,6 +23,7 @@ Pre-AP has no AP ECU and its EPAS status flaps outside an engaged session, so
 it builds the gate with arm_on_active: nothing blocks until the EPAS has
 reported EAC_ACTIVE in this lateral session.
 """
+import math
 from opendbc.car.tesla_ap1.override import SIGNAL_EPAS, SIGNAL_NONE
 
 EAC_ACTIVE = "EAC_ACTIVE"
@@ -88,8 +89,10 @@ class EpasGate:
 # ANGLE at the measured wheel while engaged, which is what clears a latched code.
 #
 # Divergence (stricter than both references). All of the recovery rules live in this class; the panda
-# (tesla_ap1.h) only allows ANGLE with code 4 while the EPAS is AVAILABLE or ACTIVE (and EPB allow is 1
-# when 0x214 is seen). It does not limit retries, so every limit below is enforced here:
+# (tesla_ap1.h) only allows ANGLE with code 4 while the EPAS is AVAILABLE or ACTIVE and EPB_epasEACAllow (0x214)
+# was 1 within the last 250 ms. It does not limit retries, so every limit below is enforced here. This code needs
+# that panda rule: a panda without it drops these frames, and after 100 ms without an accepted ANGLE frame it
+# forwards the stock DAS 0x488 again, so the two must ship together (a package-time check enforces it).
 #  1. Onset: a code 4 that appears while the EPAS is ACTIVE still drops lateral on that frame, as before
 #     (steer_fault.py makes it a temporary fault, EpasGate blocks it, the panda refuses it while INHIBITED).
 #     Nothing here runs while latActive is on.
@@ -100,9 +103,12 @@ class EpasGate:
 #  4. Spacing and cap: ERR4_WAIT_FRAMES (2 s) after each request, then the settle again; at most
 #     ERR4_MAX_PROBES (3) per engagement. A new engagement starts the count from zero.
 #  5. Abort on the frame it is seen: INHIBITED / FAULT / SNA, EAC_FAULT, hands level 2+, a driver override,
-#     EPB_epasEACAllow other than 1, or any error code other than 4 and IDLE.
-#  6. EPB: 0x214 is optional on this car, as everywhere else in this port (carstate keeps None until a
-#     frame is seen). None means not seen and does not block; a seen value must be 1.
+#     EPB_epasEACAllow other than 1, any error code other than 4 and IDLE, or vEgo below MIN_ERR4_PROBE_SPEED.
+#  6. EPB: a request needs a 0x214 sample with EPB_epasEACAllow 1 no older than ERR4_EPB_FRESH_FRAMES, as the
+#     panda does. A car without 0x214 (or with a stale one) gets no request, so it behaves as before this
+#     recovery. Everywhere else in this port 0x214 stays optional.
+#  7. Speed: no request at a standstill or below MIN_ERR4_PROBE_SPEED; a running request ends the moment vEgo
+#     drops below it.
 # A clear (error IDLE) hands over to the normal path: steerFaultTemporary drops, latActive returns and
 # the controller restarts from the measured wheel through the engage soft-start.
 
@@ -113,6 +119,13 @@ ERR4_MAX_PROBES = 3       # per engagement
 # (118 ms after the onset). 0x370 comes at 25 Hz, so 50 frames is about 12 EPAS samples in a row that
 # all report AVAILABLE + code 4: past that transient, and short next to the 2 s spacing.
 ERR4_SETTLE_FRAMES = 50
+# EPB_epasEACAllow (0x214, 10 Hz) must be 1 and no older than this. The panda allows code 4 only with an EPB
+# allow of 1 received in the last 250 ms (tesla_ap1.h); 200 ms keeps the car side inside that window.
+ERR4_EPB_FRESH_FRAMES = 20
+# Lowest vEgo (m/s, about 5 mph) for a code 4 request. A replay of the recorded drive showed a request
+# starting during a creep from a stop at 0.24 m/s, below controlsd's 0.3 m/s lateral floor (minSteerSpeed is 0
+# here, so that floor did not apply to this path). No measured-wheel request at a standstill or a creep.
+MIN_ERR4_PROBE_SPEED = 2.2
 EAC_AVAILABLE = "EAC_AVAILABLE"
 EAC_TMP_FAULT = "EAC_ERROR_TMP_FAULT"
 EAC_IDLE = "EAC_ERROR_IDLE"
@@ -142,12 +155,18 @@ class EpasTmpFaultRecovery:
     return self.state == R_PROBE
 
   @staticmethod
-  def abort_reason(eac_status, steer_warning, hands_on_level, epb_eac_allow, eac_fault, driver_yield):
-    """Why a request may not run this frame. None when it may."""
+  def abort_reason(eac_status, steer_warning, hands_on_level, epb_eac_allow, eac_fault, driver_yield, v_ego=None):
+    """Why a request may not run this frame. None when it may.
+
+    epb_eac_allow: the last EPB_epasEACAllow, or None when 0x214 is missing or older than ERR4_EPB_FRESH_FRAMES.
+    v_ego: m/s; None (unknown) blocks.
+    """
     if eac_fault or eac_status == "EAC_FAULT":
       return "eac_fault"
-    if epb_eac_allow is not None and epb_eac_allow != 1:   # 0x214 optional: None = not seen
+    if epb_eac_allow != 1:
       return "epb_allow"
+    if v_ego is None or not math.isfinite(v_ego) or v_ego < MIN_ERR4_PROBE_SPEED:
+      return "speed"
     if eac_status not in _PROBE_STATUS:
       return "status"
     if hands_on_level is None or hands_on_level >= 2:
@@ -164,7 +183,7 @@ class EpasTmpFaultRecovery:
     self.state = R_DONE if self.probes >= ERR4_MAX_PROBES else R_WAIT
 
   def update(self, engaged, lat_session, eac_status, steer_warning, hands_on_level, epb_eac_allow,
-             eac_fault=False, driver_yield=False):
+             eac_fault=False, driver_yield=False, v_ego=None):
     """True on the frames that must carry an ANGLE request at the measured wheel."""
     if not engaged:
       was_probe = self.state == R_PROBE
@@ -172,7 +191,7 @@ class EpasTmpFaultRecovery:
       if was_probe:
         self.last_result = "abort:disengaged"
       return False
-    reason = self.abort_reason(eac_status, steer_warning, hands_on_level, epb_eac_allow, eac_fault, driver_yield)
+    reason = self.abort_reason(eac_status, steer_warning, hands_on_level, epb_eac_allow, eac_fault, driver_yield, v_ego)
     if self.state == R_PROBE:
       if reason is not None:
         self._end("abort:" + reason)

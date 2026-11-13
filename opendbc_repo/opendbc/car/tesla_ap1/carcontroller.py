@@ -17,7 +17,7 @@ from opendbc.car.tesla_ap1.cluster import (
   CLUSTER_BUS, ClusterController, HudInputs, path_from_model_v2,
 )
 from opendbc.car.tesla_ap1.engage_ramp import Ap1EngageSteerRamp
-from opendbc.car.tesla_ap1.epas_gate import EAC_BLOCKING_STATUS, EpasGate, EpasTmpFaultRecovery
+from opendbc.car.tesla_ap1.epas_gate import EAC_BLOCKING_STATUS, ERR4_EPB_FRESH_FRAMES, EpasGate, EpasTmpFaultRecovery
 from opendbc.car.tesla_ap1.ic_lanes import IcLanes
 from opendbc.car.tesla_ap1.hso import AP1_HANDS_ON_LEVEL, Ap1DriverYield, ap1_lat_active, ap1_steering_pressed
 from opendbc.car.tesla_ap1.override import DriverOverrideDetector, read_sensitivity_level
@@ -112,11 +112,13 @@ class CarController(CarControllerBase):
       lat_session = bool(CC.latActive)
       epas_yield = self.ap1_epas_gate.update(lat_session, CS.eac_status, CS.steer_warning, bool(CS.eac_fault))
       # Latched code 4 recovery: every rule is in epas_gate.EpasTmpFaultRecovery. Engaged only (CC.enabled,
-      # not Always On Lateral); 0x214 not seen (None) is allowed, a seen EPB allow must be 1.
+      # not Always On Lateral). Like the panda it needs a recent 0x214: missing or stale is passed as None.
       was_probe, probe_n = self.ap1_tmp_fault.active, self.ap1_tmp_fault.probes
+      epb_age = getattr(CS, "epb_eac_allow_age", None)
+      epb_fresh = epb_age is not None and epb_age <= ERR4_EPB_FRESH_FRAMES
       tmp_fault_probe = self.ap1_tmp_fault.update(bool(CC.enabled), lat_session, CS.eac_status, CS.steer_warning,
-                                                  CS.hands_on_level, getattr(CS, "epb_eac_allow", None),
-                                                  bool(CS.eac_fault), driver_yield)
+                                                  CS.hands_on_level, getattr(CS, "epb_eac_allow", None) if epb_fresh else None,
+                                                  bool(CS.eac_fault), driver_yield, v_ego=float(CS.out.vEgo))
       if tmp_fault_probe and not was_probe:
         carlog.warning(f"tesla ap1 epas code 4: measured-angle request {self.ap1_tmp_fault.probes}")
       elif was_probe and not tmp_fault_probe:

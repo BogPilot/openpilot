@@ -62,6 +62,8 @@ class CarState(CarStateBase):
     # (vl defaults to 0 before that, which would read as revoked).
     self.epb_eac_allow = None
     self.epb_eac_revoked = False
+    # AP1 only. Control steps since the last 0x214 sample (None = never seen). The code 4 recovery needs a recent one.
+    self.epb_eac_allow_age = None
     # AP1 only. Stock 0x399 blind-spot fields with a per-side hold (blindspot.py).
     self.ap1_bsm = Ap1Blindspot()
     self.stock_ap_active = False
@@ -126,6 +128,9 @@ class CarState(CarStateBase):
       epb = cp.vl_all.get("EPB_epasControl", {}).get("EPB_epasEACAllow", [])
       if len(epb):
         self.epb_eac_allow = int(epb[-1])
+        self.epb_eac_allow_age = 0
+      elif self.epb_eac_allow_age is not None:
+        self.epb_eac_allow_age += 1
       self.epb_eac_revoked = self.epb_eac_allow == 0
       ret.steerFaultPermanent = ret.steerFaultPermanent or self.epb_eac_revoked
     # AP1: idle, code 6, and latched HANDS_ON (3) are not temporary faults.
