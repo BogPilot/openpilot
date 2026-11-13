@@ -373,7 +373,6 @@ def test_quality_of_life_stopped_distance_is_one_value_row_with_a_default_and_a_
   assert row.action_item.highlighted
   (reset,) = [i for i in rows() if i.title == RESET_SECTION_TITLE]
   assert titled("Quality of Life").indent == 0 and row.indent == INDENT and reset.indent == INDENT
-  force = store.raw("ForceStops")
   flag[0] = False                                               # onroad: locked, nothing asked or written
   reset.callback()
   assert asked == [] and store.get_float("IncreasedStoppedDistance") == 1
@@ -381,7 +380,8 @@ def test_quality_of_life_stopped_distance_is_one_value_row_with_a_default_and_a_
   reset.callback()
   store.invalidate()
   assert len(asked) == 1 and store.get_float("IncreasedStoppedDistance") == 0
-  assert store.raw("ForceStops") == force                       # the switch on the same page is not part of the reset
+  # the whole page: its switch rows back to their shipped defaults too (Force Stops off, Quality of Life on)
+  assert store.get_bool("ForceStops") is False and store.get_bool("QOLLongitudinal") is True
   # Quality of Life off: its rows and the reset go together
   [i for i in rows() if i.title == "Quality of Life"][0].action_item.toggle._handle_mouse_release(None)
   store.invalidate()

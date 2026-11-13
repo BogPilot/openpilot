@@ -346,11 +346,17 @@ def build_items(editor, store, CP, section=None, confirm=None, request_confirm=N
                                  translate=tr)
     return attach_help(item, k)
 
-  def add_section_reset(parent, keys, rows):
-    # One "Reset section to defaults" row: asks first, then writes only these keys back to their existing defaults.
+  def add_section_reset(parent, keys, rows, parent_in_section=False):
+    # One "Reset section to defaults" row: asks first, then writes these keys back to their existing defaults and, when
+    # the section's own switch sits with it (a personality profile), that switch back to its shipped default, last.
     # Shown only while one of its value rows is shown, and also behind the parent toggle's Tuning Level, so it is
     # hidden whenever the rows it resets are hidden. Enabled only while one of those keys can be edited.
-    item = reset_section_item(lambda keys=keys: editor.section_defaults(keys),
+    from openpilot.selfdrive.ui.bogpilot.step_defaults import whole_section
+
+    def table(keys=keys, parent=parent):
+      return whole_section(editor.section_defaults(keys), parent=parent if parent_in_section else None,
+                           can_edit=editor.can_edit)
+    item = reset_section_item(table,
                               lambda k, default: must(editor.write(k, default), k),
                               title=lambda: tr(RESET_SECTION_TITLE),
                               enabled=lambda keys=keys: any(editor.can_edit(k) for k in keys),
@@ -386,7 +392,7 @@ def build_items(editor, store, CP, section=None, confirm=None, request_confirm=N
       p = k[len("Reset"):-len("Personality")]
       keys = profile_value_keys(p)
       rows = [it for key, it in value_items if key in keys]
-      add_section_reset(row.parent, keys, rows)
+      add_section_reset(row.parent, keys, rows, parent_in_section=True)
   if section == "longitudinal_tuning":
     # Lead Detection has no pre-existing RESET row; its parent toggle lives on the Gas / Brake page.
     lead_rows = [it for key, it in value_items if key == "LeadDetectionThreshold"]

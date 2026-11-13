@@ -88,6 +88,7 @@ class TestSteeringTuningNativeRender(unittest.TestCase):
     render()
     layout.advanced_reset.callback()
     self.assertIsNone(store.raw("SteerRatio"))
+    self.assertFalse(store.get_bool("AdvancedLateralTune"))  # the whole section: its switch back to the shipped default
     box["offroad"] = False
     render()
     click_step(ratio, "right")

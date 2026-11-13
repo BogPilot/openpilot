@@ -206,7 +206,8 @@ def test_preap_section_reset_returns_the_legacy_profile(metric):
   reset(ed, MAIN)
   assert {k: store.vals[k] for k in MAIN} == {"SLCOverride": "2", "SLCPriority1": "Dashboard", "SLCPriority2": "Map Data",
                                               "SLCPriority3": "Navigation", "SLCLookaheadLower": "5"}
-  # no AP1-only key on Pre-AP: Visual Settings has nothing to reset, Show Speed Limit Offset keeps its value
-  assert ed.profile_reset_rows(("ShowSLCOffset",)) == () and reset(ed, ("ShowSLCOffset",)) == {}
+  # no AP1-only key on Pre-AP: no profile row in Visual Settings (the panel shows no reset row there); its table is
+  # the shipped default for the toggle (on), and Fallback (another section) keeps its saved value
+  assert ed.profile_reset_rows(("ShowSLCOffset",)) == () and reset(ed, ("ShowSLCOffset",)) == {"ShowSLCOffset": True}
   assert (store.vals["ShowSLCOffset"], store.vals["SLCFallback"]) == ("1", "0")
   assert "SLCLookaheadHigher" not in store.vals

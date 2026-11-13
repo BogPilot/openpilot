@@ -155,11 +155,15 @@ def test_reset_rows_follow_their_value_rows_and_ask_first(layout, store):
   assert len(layout.asked) == 1 and store.get("LaneChangeTime") == "2.5"   # nothing before the yes
   layout.asked[0][1]()
   assert store.get("LaneChangeTime") == "1.0"
+  assert store.get_bool("NudgelessLaneChange") is False   # its own switch: back to the shipped default (off)
+  assert "LaneChangeTime" not in layout.steps and layout.resets["NudgelessLaneChange"] is None   # rebuilt like a toggle
   assert store.get("MinimumLaneChangeSpeed") == "30.0"   # other section left alone
+  store.put_bool("OneLaneChange", False)
   speed.callback()
   assert len(layout.asked) == 2 and store.get("MinimumLaneChangeSpeed") == "30.0"
   layout.asked[1][1]()
   assert store.get("MinimumLaneChangeSpeed") == "20.0"
+  assert store.get_bool("OneLaneChange") is True and store.get_bool("LaneChanges") is True   # shipped defaults
 
 
 @HEADLESS
@@ -187,3 +191,21 @@ def test_reset_rows_follow_their_rows_tuning_level(layout, monkeypatch, level):
   assert layout.steps["MinimumLaneChangeSpeed"].is_visible is speed_shown
   assert layout.resets["NudgelessLaneChange"].is_visible is delay_shown
   assert layout.resets["LaneChanges"].is_visible is speed_shown
+
+
+@HEADLESS
+def test_section_resets_restore_the_whole_section_with_its_switch(layout, store):
+  nudge = layout.resets["NudgelessLaneChange"].section_defaults()
+  assert nudge == {"LaneChangeTime": "1.0", "LaneDetectionWidth": "0", "NudgelessLaneChange": False}
+  assert list(nudge)[-1] == "NudgelessLaneChange"            # the switch last (shipped default off)
+  speed_item = layout.resets["LaneChanges"]
+  speed = speed_item.section_defaults()
+  assert speed == {"MinimumLaneChangeSpeed": "20.0", "OneLaneChange": True, "LaneChanges": True}
+  assert list(speed)[-1] == "LaneChanges"
+  # the switch at its non-default value (off): the reset writes it back on, and nothing outside the section moves
+  store.put("LaneChangeTime", "2.5")
+  store.put_bool("OneLaneChange", False)
+  configure(store, "LaneChanges", False)
+  reset_section(speed_item.section_defaults(), speed_item.section_write)
+  assert store.get_bool("LaneChanges") is True and store.get_bool("OneLaneChange") is True
+  assert store.get("MinimumLaneChangeSpeed") == "20.0" and store.get("LaneChangeTime") == "2.5"

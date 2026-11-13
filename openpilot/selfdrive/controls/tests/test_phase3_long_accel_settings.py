@@ -431,12 +431,14 @@ def test_conditional_number_rows_show_their_defaults_and_reset_follows_the_rows(
   assert hints == {'CESpeed': 'default: Off', 'CESpeedLead': 'default: Off', 'CEModelStopTime': 'default: 8 seconds',
                    'CESignalSpeed': 'default: 55 mph'}
   assert panel.items['CESpeed'].action_item.highlighted and not panel.items['CESpeedLead'].action_item.highlighted
-  before = store.raw('CECurves')
+  store.put('CECurves', '1')
+  panel.show_event()
   panel.reset.callback()
   store.invalidate()
   assert (store.get_int('CESpeed'), store.get_int('CESpeedLead'), store.get_float('CEModelStopTime'),
           store.get_int('CESignalSpeed')) == (0, 0, 8.0, 55)
-  assert store.raw('CECurves') == before                # switches in the group are not part of the reset
+  # the whole group: its switch rows back to their shipped defaults (Curves off) and the group switch stays on
+  assert store.get_bool('CECurves') is False and store.get_bool('ConditionalExperimental') is True
   # metric: the mph default shows (and resets to) the same km/h value the row shows while unsaved
   metric(store)
   panel.show_event()

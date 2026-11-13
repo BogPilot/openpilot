@@ -173,23 +173,32 @@ class LaneChangeLayout:
           by_key[key] = item
         items = place(by_key, TREE)
 
-        def add_reset(parent_key, keys):
+        def add_reset(parent_key, keys, toggles=()):
           rows = [by_key[k] for k in keys if k in by_key]
           parent = by_key.get(parent_key)
           if not rows or parent is None:
             return None
-          defaults = {k: STEP_DEFAULTS[k] for k in keys if k in by_key}
+          from openpilot.selfdrive.ui.bogpilot.step_defaults import whole_section
+
+          def defaults():
+            # The whole section: its value rows back to their existing defaults, its toggle rows and its own switch
+            # back to their shipped defaults (switch last).
+            return whole_section({k: STEP_DEFAULTS[k] for k in keys if k in by_key},
+                                 tuple(k for k in toggles if k in by_key), parent=parent_key)
 
           def write(key, value):
             if not self._editable():
               raise PermissionError(f"{key} was not reset")
-            # Only this section's existing keys, back to their existing defaults (no other writes).
-            self.store.put(key, value)
+            # Only this section's keys (no other writes). Switches go through the same path as their toggle rows.
+            if isinstance(value, bool):
+              configure(self.store, key, value)
+            else:
+              self.store.put(key, value)
             if hasattr(self.store, "invalidate"):
               self.store.invalidate()
 
           item = reset_section_item(defaults, write, title=lambda: tr(RESET_SECTION_TITLE),
-                                    enabled=self._editable)
+                                    enabled=self._editable, on_done=self._after_reset)
           item.set_visible(lambda rs=tuple(rows): any(r.is_visible for r in rs))
           item.set_level_gate(lambda: tuning_level.row_visible(parent_key))
           attach_help(item, "section.reset_defaults")
@@ -198,8 +207,13 @@ class LaneChangeLayout:
           return item
 
         self.resets["NudgelessLaneChange"] = add_reset("NudgelessLaneChange", NUDGELESS_STEP_KEYS)
-        self.resets["LaneChanges"] = add_reset("LaneChanges", SPEED_STEP_KEYS)
+        self.resets["LaneChanges"] = add_reset("LaneChanges", SPEED_STEP_KEYS, toggles=("OneLaneChange",))
         self.scroller = Scroller(items, line_separator=True, spacing=0)
+
+      def _after_reset(self):
+        # A reset may switch a section off or on: rebuild like a toggle does, so the rows follow the switch.
+        self._build()
+        self.scroller.show_event()
 
       def _toggle(self, key, state):
         if self._editable():

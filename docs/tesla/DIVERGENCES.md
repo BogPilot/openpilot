@@ -193,3 +193,12 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Safety-relevant: no; settings UI only.
 - Tests: `openpilot/selfdrive/ui/tests/test_set_speed_offset_hidden.py`.
 - Credits: BogPilot bogpilot-tesla `367e1fe` (the original row).
+
+## "Reset section to defaults" resets the whole section, its switch included
+- Platforms: all car types.
+- Reference behavior: BogPilot section resets wrote only the section's number rows (and, on cars with an SLC reset profile, the toggle and choice rows that profile lists); the section's own on/off switch and its other toggle and choice rows kept their saved values.
+- Our behavior: a section reset writes the shipped BogPilot defaults for the whole section, the same values "Reset BogPilot Settings to Defaults" writes: number rows, toggle and choice rows and the section's own switch, the switch last. On AP1 Model S, AP1 Model X and Pre-AP Model S the Speed Limit Controller reset then applies that car type's SLC values on top; other car types get the plain defaults. Sections with their own switch: Speed Limit Controller (on), Gas / Brake Quality of Life (on), Alert Volume Controller (off), Lane Changes (on), Automatic Lane Changes (off), Advanced Lateral Tuning (off), Steering Quality of Life (on), Advanced Longitudinal Tuning (off), Conditional Experimental Mode (on), and each Driving Personality profile (on). Lead Detection does not reset Longitudinal Tuning, whose switch is on another page. Only rows shown and editable at the time of the reset are written; hidden rows (for example "Offset Set Speed by:") and keys outside the section are never touched.
+- Why: "defaults" should mean the whole section as shipped, not only its numbers.
+- Safety-relevant: no; settings UI only. Every write goes through the same guarded path as the row's own control (offroad only, refused writes reported).
+- Tests: `openpilot/selfdrive/ui/tests/test_section_reset_parent.py` and the panel section-reset tests (sounds, steering, lane changes, following, speed limit controller).
+- Credits: BogPilot (the section reset rows).

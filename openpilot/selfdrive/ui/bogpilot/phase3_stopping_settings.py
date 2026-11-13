@@ -123,16 +123,25 @@ class StoppingSettingsModel:
     from openpilot.selfdrive.ui.bogpilot.step_defaults import differs_from_default
     return not differs_from_default(self.value(row), self.default(page, row))
 
+  # The switch each reset page belongs to (written back to its shipped default too, last).
+  PAGE_PARENTS = {"qol": "QOLLongitudinal"}
+
   def section_defaults(self, page):
-    """Reset table for one page: each number row on it now that has a default, with that default. Nothing else."""
+    """Reset table for one whole page (step_defaults.whole_section): each number row on it now that has a default,
+    with that default, plus its toggle rows and the page's own switch at their shipped defaults. Nothing else."""
+    from openpilot.selfdrive.ui.bogpilot.step_defaults import whole_section
     if not self.can_edit():
       return {}
-    out = {}
-    for row in self.rows(page):
+    values = {}
+    rows = self.rows(page)
+    for row in rows:
       d = self.default(page, row)
       if d is not None:
-        out[row.key] = d
-    return out
+        values[row.key] = d
+    if page not in self.DEFAULT_PAGES:
+      return values
+    toggles = tuple(r.key for r in rows if r.kind == "toggle")
+    return whole_section(values, toggles, parent=self.PAGE_PARENTS.get(page), sub_parents=("WeatherPresets",))
 
   def reset_write(self, page, key, value):
     """Section-reset writer: the same guarded change() as the -/+ buttons; a refused write raises (the row reports it)."""
@@ -285,8 +294,9 @@ class StoppingSettingsLayout:
           items.append(item)
         self.reset = None
         if values:
-          # One reset row for the page, after its rows: asks first, then writes only the value rows' keys back to their
-          # existing defaults (StoppingSettingsModel.default). Locked like those rows; shown only while one of them is
+          # One reset row for the page, after its rows: asks first, then writes the whole page back (value rows to their
+          # existing defaults, toggle rows and the Quality of Life switch to their shipped defaults; see
+          # StoppingSettingsModel.section_defaults). Locked like those rows; shown only while one of its value rows is
           # shown, and behind the Quality of Life switch's own Tuning Level.
           rows_of_reset = tuple(values)
           self.reset = reset_section_item(lambda: self.model.section_defaults(page),

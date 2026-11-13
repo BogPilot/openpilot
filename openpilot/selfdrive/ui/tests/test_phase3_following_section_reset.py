@@ -281,3 +281,29 @@ def test_refused_section_reset_is_reported(layout_env, store, monkeypatch):
   assert told == [gated_actions.RESET_FAILED_TEXT]
   # The live editor used by the test helper still has the changed value (the layout's writer was the one that refused).
   assert e.value("RelaxedFollow") == 2.00
+
+
+@HEADLESS
+def test_profile_resets_include_the_profile_switch_lead_detection_does_not(layout_env, store):
+  e = editor(store)
+  assert e.write("CustomPersonalities", True)
+  page = make(store, "personalities", layout_env)
+  page.show_event()
+  found = resets(page)
+  for profile, item in zip(PROFILES, found):
+    table = item.section_defaults()
+    switch = f"{profile}PersonalityProfile"
+    assert list(table)[-1] == switch and table[switch] is True      # the profile's own switch, shipped on, last
+    assert set(table) - {switch} <= set(U.profile_value_keys(profile))
+  # the switch at its non-default value (off): its rows are locked, the reset writes the switch back on
+  relaxed = found[PROFILES.index("Relaxed")]
+  assert e.write("RelaxedPersonalityProfile", False) and e.write("StandardFollow", 2.00)
+  table = relaxed.section_defaults()
+  assert table == {"RelaxedPersonalityProfile": True}
+  reset_section(table, relaxed.section_write)
+  assert e.on("RelaxedPersonalityProfile") and e.value("StandardFollow") == 2.00   # another section left alone
+  # Lead Detection: its switch (Longitudinal Tuning) lives on the Gas / Brake page, so its reset never writes it
+  long_page = make(store, "longitudinal_tuning", layout_env)
+  long_page.show_event()
+  (lead,) = resets(long_page)
+  assert "LongitudinalTune" not in lead.section_defaults()

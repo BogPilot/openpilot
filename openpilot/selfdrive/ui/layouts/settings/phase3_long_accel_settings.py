@@ -99,6 +99,8 @@ ROWS = (
   Row("ShowCEMStatus", "Status Widget"),
 )
 BY_KEY = {r.key: r for r in ROWS}
+# Toggle rows other rows hang under (written before their rows when they turn on, after when they turn off).
+SUB_PARENTS = tuple(sorted({r.parent for r in ROWS if r.parent and BY_KEY[r.parent].kind == "toggle"}))
 GROUPS = {
   "advanced": ("AdvancedLongitudinalTune", "Advanced Longitudinal Tuning", ADVANCED_ACK,
                ("LongitudinalActuatorDelay", "MaxDesiredAcceleration", "StopAccel", "StoppingDecelRate")),
@@ -329,6 +331,22 @@ def make_settings(group, store=None, capabilities=Capabilities(), cp=None, can_e
       if self.controller.change(key, value):
         self._build()
 
+    def _section_table(self, reset_keys):
+      """The whole group (step_defaults.whole_section): its number rows back to their existing defaults
+      (section_defaults), its toggle and choice rows and the group switch itself back to their shipped defaults, the
+      switch last. Only rows shown right now, and only while the group can be edited."""
+      from openpilot.selfdrive.ui.bogpilot.step_defaults import whole_section
+      c = self.controller
+      if not bool(can_edit()) or not c.long_available():
+        return {}
+      rows = c.rows()
+      shown = {r.key for r in rows}
+      return whole_section(c.section_defaults(reset_keys),
+                           toggles=tuple(r.key for r in rows if r.kind == "toggle"),
+                           choices=tuple(r.key for r in rows if r.kind == "choice"),
+                           parent=c.parent, sub_parents=SUB_PARENTS,
+                           can_edit=lambda k: k == c.parent or k in shown)
+
     def _build(self):
       c = self.controller
       editable = bool(can_edit()) and c.long_available()
@@ -371,11 +389,12 @@ def make_settings(group, store=None, capabilities=Capabilities(), cp=None, can_e
       self.reset = None
       reset_keys = tuple(r.key for r in rows if c.unsaved_value(r.key) is not None)
       if reset_keys:
-        # One reset row for the group, after its own rows: asks first, then writes only these keys back to their
-        # existing defaults (unsaved_value). Locked like the rows; shown only while one of them is shown, and behind
-        # the group switch's own Tuning Level.
+        # One reset row for the group, after its own rows: asks first, then writes the whole group back
+        # (_section_table: number rows to their existing defaults, toggle / choice rows and the group switch to the
+        # shipped defaults, the switch last). Locked like the rows; shown only while one of its number rows is shown,
+        # and behind the group switch's own Tuning Level.
         rows_of_reset = tuple(self.items[k] for k in reset_keys)
-        self.reset = reset_section_item(lambda: c.section_defaults(reset_keys), c.reset_write,
+        self.reset = reset_section_item(lambda: self._section_table(reset_keys), c.reset_write,
                                         title=lambda: tr(RESET_SECTION_TITLE),
                                         enabled=lambda: bool(can_edit()) and c.long_available(), on_done=self._build)
         attach_help(self.reset, "section.reset_defaults")

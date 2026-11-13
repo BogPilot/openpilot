@@ -68,7 +68,7 @@ def test_ap1_s_reset_writes_the_ap1_profile_values(metric):
   assert store.vals["ShowSLCOffset"] == "1"
   reset(ed, VISUALS)
   assert store.vals["ShowSLCOffset"] == "0"
-  # rows the profile does not write are never touched by any reset
+  # rows outside the reset sections are never touched by any reset
   assert (store.vals["SLCFallback"], store.vals["SLCConfirmation"], store.vals["SetSpeedLimit"]) == ("0", "1", "1")
   assert "SLCLookaheadHigher" not in store.vals      # profile key without a row: not written by the panel
 
@@ -91,10 +91,13 @@ def test_todays_mapping():
 
 
 def expected_reset(store, keys, profile):
-  """What a reset of keys must store: the profile's value when the car type has one for the key, else the registry."""
+  """What a reset of keys must store: the profile's value when the car type has one for the key, else the shipped
+  default (value rows: the registry default the panel shows; toggle / choice rows: shipping_defaults())."""
   out = {}
+  shipped = shipping_defaults()
   for k in keys:
-    text = (profile or {}).get(k, BOGPILOT_PARAMS[k][2])
+    fallback = shipped[k] if ss.BY_KEY[k][1] in ("choice", "toggle") else BOGPILOT_PARAMS[k][2]
+    text = (profile or {}).get(k, fallback)
     kind = ss.BY_KEY[k][1]
     if kind in ("offset", "seconds", "choice"):
       out[k] = str(int(float(text)))
@@ -113,12 +116,11 @@ def test_every_car_type_resets_to_its_profile_or_the_general_table(car, metric):
   assert (profile is not None) == (car in TODAY)
   for keys in (OFFSETS, MAIN, VISUALS):
     reset(ed, keys)
-  # choice / toggle rows are reset only when the profile lists them; otherwise they keep the saved value
-  resettable = OFFSETS + tuple(k for k in MAIN + VISUALS
-                               if ss.BY_KEY[k][1] not in ("choice", "toggle") or k in (profile or {}))
+  # the whole section resets: every row (choice / toggle rows too) to the profile's value, else the shipped default
+  resettable = OFFSETS + MAIN + VISUALS
   assert {k: store.vals[k] for k in resettable} == expected_reset(store, resettable, profile)
-  for k in set(MAIN + VISUALS) - set(resettable):
-    assert store.vals[k] == SAVED[k]
+  # rows outside the reset sections keep the saved value
+  assert (store.vals["SLCFallback"], store.vals["SLCConfirmation"], store.vals["SetSpeedLimit"]) == ("0", "1", "1")
 
 
 @pytest.mark.parametrize("car", OTHER_CARS)
@@ -130,10 +132,12 @@ def test_other_cars_reset_to_the_general_table(car, metric):
   reset(ed, OFFSETS)
   assert [int(store.vals[k]) for k in OFFSETS] == [int(BOGPILOT_PARAMS[k][2]) for k in OFFSETS]
   reset(ed, MAIN)
-  assert {k: store.vals[k] for k in MAIN} == {"SLCOverride": SAVED["SLCOverride"], "SLCPriority1": "Navigation",
-                                              "SLCPriority2": "Map Data", "SLCPriority3": "Dashboard",
-                                              "SLCLookaheadLower": "5"}
-  assert reset(ed, VISUALS) == {} and store.vals["ShowSLCOffset"] == "1"
+  assert {k: store.vals[k] for k in MAIN} == {"SLCOverride": shipping_defaults()["SLCOverride"],
+                                              "SLCPriority1": "Navigation", "SLCPriority2": "Map Data",
+                                              "SLCPriority3": "Dashboard", "SLCLookaheadLower": "5"}
+  # a toggle-only section resets its toggle to the shipped default (the panel shows no reset row there on these cars)
+  assert reset(ed, VISUALS) == {"ShowSLCOffset": shipping_defaults()["ShowSLCOffset"] == "1"}
+  assert store.vals["ShowSLCOffset"] == shipping_defaults()["ShowSLCOffset"]
 
 
 def test_general_table_is_unchanged():

@@ -260,13 +260,24 @@ def make_layout(cp, store, offroad):
         if not ok:
           raise PermissionError(f"{key} was not reset")
 
-      def section_reset(parent, keys, write, rows):
-        # One "Reset section to defaults" row: asks first, then writes only these keys back to their existing defaults.
-        # Shown only while one of its value rows is shown (their visibility and Tuning Level gates), and also behind the
-        # parent toggle's own Tuning Level, so it is hidden whenever the rows it resets are hidden. Enabled only while
-        # one of those keys can be edited.
-        item = reset_section_item(lambda: e.section_defaults(keys), write, title=lambda: tr(RESET_SECTION_TITLE),
-                                  enabled=lambda: any(e.can_edit(k) for k in keys))
+      def section_reset(parent, keys, write, rows, toggles=()):
+        # One "Reset section to defaults" row: asks first, then writes the whole section back: its value keys to their
+        # existing defaults, its toggle rows and its own switch (parent) to their shipped defaults, the switch last
+        # (step_defaults.whole_section). Shown only while one of its value rows is shown (their visibility and Tuning
+        # Level gates), and also behind the parent toggle's own Tuning Level, so it is hidden whenever the rows it
+        # resets are hidden. Enabled only while one of those keys can be edited.
+        from openpilot.selfdrive.ui.bogpilot.step_defaults import whole_section
+
+        def table():
+          return whole_section(e.section_defaults(keys), toggles, parent=parent, can_edit=e.can_edit)
+
+        def write_any(k, value):
+          if isinstance(value, bool):   # a toggle row or the switch: the same guarded write as its toggle
+            return must(e.write(k, value), k)
+          return write(k, value)
+        item = reset_section_item(table, write_any, title=lambda: tr(RESET_SECTION_TITLE),
+                                  enabled=lambda: any(e.can_edit(k) for k in keys),
+                                  on_done=self._after_reset)
         item.set_visible(lambda: any(r.is_visible for r in rows))
         item.set_level_gate(lambda: tuning_level.row_visible(parent))
         attach_help(item, "section.reset_defaults")
@@ -282,7 +293,7 @@ def make_layout(cp, store, offroad):
       toggle("ForceAutoTune", "Force Auto-Tune On", "Torque cars without native live tuning: learn Friction and Lateral Acceleration live (validity gate stays).")
       # Removing a numeric key is its existing reset: the value goes back to the default shown in its hint.
       self.advanced_reset = section_reset("AdvancedLateralTune", NUMERIC_ORDER, lambda k, _default: must(e.reset(k), k),
-                                          numeric_rows_shown)
+                                          numeric_rows_shown, toggles=("ForceAutoTuneOff", "ForceAutoTune"))
       toggle("QOLLateral", "Quality of Life", "Steering quality-of-life options. Offroad only; applies next drive.")
       pause_row = add(attach_help(stepper("PauseLateralSpeed", "Pause Steering Below",
                                           "0 is Off. Steering is suppressed below this speed. Uses the saved speed units; does not rewrite values.",
@@ -291,7 +302,7 @@ def make_layout(cp, store, offroad):
                                   "PauseLateralSpeed"), "PauseLateralSpeed")
       toggle("PauseLateralOnSignal", "Turn Signal Only", "Only pause steering below the speed while a turn signal is on.")
       self.qol_reset = section_reset("QOLLateral", ("PauseLateralSpeed",), lambda k, default: must(e.write(k, int(default)), k),
-                                     [pause_row])
+                                     [pause_row], toggles=("PauseLateralOnSignal",))
       add(attach_help(stepper(OVERRIDE_SENSITIVITY, "Override Sensitivity", lambda: e.hint(OVERRIDE_SENSITIVITY), "-", "+",
                               lambda: e.step(OVERRIDE_SENSITIVITY, -1), lambda: e.step(OVERRIDE_SENSITIVITY, 1)),
                       OVERRIDE_SENSITIVITY,
@@ -305,6 +316,11 @@ def make_layout(cp, store, offroad):
     def show_event(self):
       super().show_event()
       self.scroller.show_event()
+      for key, item in self.toggles.items():
+        item.action_item.set_state(store.get_bool(key))
+
+    def _after_reset(self):
+      # A reset may switch toggles (and the section's own switch): show the stored states, as show_event does.
       for key, item in self.toggles.items():
         item.action_item.set_state(store.get_bool(key))
 

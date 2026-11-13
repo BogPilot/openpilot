@@ -384,23 +384,30 @@ class SlcEditor:
     return not differs_from_default(self.shown_value(key), self.default(key))
 
   def section_defaults(self, keys):
-    """Reset table for one section: each of its keys that has a default and can be edited right now (offroad, row
-    shown for this car, Tuning Level and parent), with that default. Anything locked right now is left alone.
-    With an SLC reset profile, a toggle or choice row the profile writes (ShowSLCOffset, SLCOverride) is reset too."""
-    table = {k: self.default(k) for k in keys if self.default(k) is not None and self.can_edit(k)}
+    """Reset table for one whole section (step_defaults.whole_section): its value rows back to the defaults above, its
+    toggle and choice rows and the Speed Limit Controller switch itself back to the shipped defaults, and then this
+    car's SLC reset profile on top (SLC_RESET_PROFILES). Only keys that can be edited right now (offroad, row shown for
+    this car, Tuning Level and parent) are listed; anything locked is left alone. The switch is written last."""
+    from openpilot.selfdrive.ui.bogpilot.step_defaults import whole_section
+    keys = tuple(k for k in keys if k in BY_KEY)
+    values = {k: self.default(k) for k in keys if self.default(k) is not None and self.can_edit(k)}
     prof = self.reset_profile_values()
+    overrides = {}
     for k in keys:
-      if k in table or k not in prof or not self.can_edit(k):
+      if k in values or k not in prof or not self.can_edit(k):
         continue
       kind = BY_KEY[k][1]
       try:
         if kind == "toggle":
-          table[k] = prof[k] == "1"
+          overrides[k] = prof[k] == "1"
         elif kind == "choice":
-          table[k] = int(float(prof[k]))
+          overrides[k] = int(float(prof[k]))
       except (TypeError, ValueError):
         pass
-    return table
+    toggles = tuple(k for k in keys if BY_KEY[k][1] == "toggle")
+    choices = tuple(k for k in keys if BY_KEY[k][1] == "choice")
+    return whole_section(values, toggles, choices, parent=PARENT_KEY if PARENT_KEY in keys else None,
+                         sub_parents=("SLCConfirmation",), can_edit=self.can_edit, overrides=overrides)
 
   def profile_reset_rows(self, keys):
     """Toggle / choice row keys among keys that this car's SLC reset profile writes (empty with the general table)."""
@@ -533,10 +540,11 @@ def make_layout(CP, store, offroad, section=None, open_section=None):
       prof_rows = tuple((k, self.toggles.get(k) or self.choices.get(k)) for k in e.profile_reset_rows(shown_keys))
       prof_rows = tuple((k, i) for k, i in prof_rows if i is not None)
       if values or prof_rows:
-        # One reset row for the section, right after its value rows: asks first, then writes only those keys back to
-        # the defaults above (SlcEditor.default). Locked whenever none of them can be edited; shown only while one of
-        # its rows is shown, and behind the Speed Limit Controller's own Tuning Level.
-        keys = tuple(k for k, _ in values) + tuple(k for k, _ in prof_rows)
+        # One reset row for the section, right after its rows: asks first, then writes the whole section back
+        # (SlcEditor.section_defaults: value rows, toggle / choice rows and, on the main page, the Speed Limit
+        # Controller switch, with this car's SLC reset profile on top). Locked whenever none of them can be edited;
+        # shown only while one of its value or profile rows is shown, and behind the switch's own Tuning Level.
+        keys = shown_keys
         rows_of_reset = tuple(i for _, i in values) + tuple(i for _, i in prof_rows)
         self.reset = reset_section_item(lambda: self.editor.section_defaults(keys), self.editor.reset_write,
                                         title=lambda: tr(RESET_SECTION_TITLE),

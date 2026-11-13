@@ -309,7 +309,10 @@ def reset_section_item(defaults: Mapping | Callable[[], Mapping], write: Callabl
       return
     ask(confirm_text, on_yes)
 
-  return ListItem(title=title, description=description, callback=on_tap, action_item=action)
+  item = ListItem(title=title, description=description, callback=on_tap, action_item=action)
+  # Read-only handles for tests and callers: the table this row writes and its writer (nothing is written here).
+  item.section_defaults, item.section_write = defaults, write
+  return item
 
 
 __all__ = ["GatedDualButtonAction", "GatedMultipleButtonAction", "GatedValueStepAction", "gated_dual_button_item",

@@ -33,8 +33,16 @@ def test_reset_table_is_the_existing_volume_defaults():
   assert ps.PARENT_KEY not in table
 
 
+def test_section_reset_includes_the_controller_at_its_shipped_default():
+  from openpilot.selfdrive.ui.bogpilot.alert_volumes import BOGPILOT_VOLUME_DEFAULTS
+  from openpilot.common.bogpilot_params import BOGPILOT_PARAMS
+  table = ps.section_defaults()
+  assert list(table) == list(ps.VOLUME_KEYS) + [ps.PARENT_KEY]
+  assert table[ps.PARENT_KEY] == BOGPILOT_VOLUME_DEFAULTS[ps.PARENT_KEY] == BOGPILOT_PARAMS[ps.PARENT_KEY][2] == "0"
+
+
 def test_writer_refuses_keys_outside_the_section(store):
-  for key in (ps.PARENT_KEY, "EngageVolumePreMute", "SomethingElse"):
+  for key in ("EngageVolumePreMute", "SomethingElse"):
     with pytest.raises(KeyError):
       ps.write_volume_default(key, "101")
   assert files(store) == {}
@@ -48,12 +56,13 @@ def test_reset_writes_only_volume_keys_with_defaults(store):
   ps.toggle_mute("EngageVolume")                       # leaves an EngageVolumePreMute restore file
   (store / "OtherSetting").write_text("7")
   before = files(store)
-  written = reset_section(ps.volume_defaults, ps.write_volume_default)
+  written = reset_section(ps.section_defaults, ps.write_volume_default)
   after = files(store)
-  assert written == list(ps.VOLUME_KEYS)
-  assert {k for k in after if after[k] != before.get(k)} == set(ps.VOLUME_KEYS)
+  # the whole section: the volumes, then the controller switch back to its shipped default (off), last
+  assert written == list(ps.VOLUME_KEYS) + [ps.PARENT_KEY]
+  assert {k for k in after if after[k] != before.get(k)} == set(ps.VOLUME_KEYS) | {ps.PARENT_KEY}
   assert all(after[k] == "101" for k in ps.VOLUME_KEYS)
-  assert after[ps.PARENT_KEY] == "1" and after["OtherSetting"] == "7"
+  assert after[ps.PARENT_KEY] == "0" and after["OtherSetting"] == "7"
   assert after["EngageVolumePreMute"] == before["EngageVolumePreMute"]
   assert not ps.is_muted("EngageVolume")               # back at the default, not at the floor
 
@@ -126,7 +135,7 @@ def test_reset_row_follows_the_controller_and_asks_first(layout, store):
   assert len(layout.asked) == 1 and ps.read_volume("EngageVolume") == 60   # nothing before the yes
   layout.asked[0][1]()
   assert ps.read_volume("EngageVolume") == 101
-  assert files(store)[ps.PARENT_KEY] == "1"
+  assert files(store)[ps.PARENT_KEY] == "0"                 # the controller switch is back at its shipped default
 
 
 @HEADLESS

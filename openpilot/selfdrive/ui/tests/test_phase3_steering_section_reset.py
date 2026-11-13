@@ -158,6 +158,7 @@ def test_section_resets_follow_their_rows_and_ask_first(layout, store):
   assert len(layout.asked) == 1 and store.raw("SteerRatio") is not None   # nothing before the yes
   layout.asked[0][1]()
   assert store.raw("SteerRatio") is None
+  assert not store.get_bool("AdvancedLateralTune")            # the section's own switch: back to its shipped default (off)
   assert store.get_int("PauseLateralSpeed") == 20 and e.level() == 4
   layout.box["offroad"] = False                               # onroad: dimmed, and a late yes writes nothing
   assert not qol.action_item.enabled
@@ -206,3 +207,41 @@ def test_refused_section_reset_is_reported(layout, store, monkeypatch):
   layout.advanced_reset.callback()
   layout.asked[-1][1]()
   assert told == [("alert", gated_actions.RESET_FAILED_TEXT)] and store.raw("SteerRatio") is not None
+
+
+@HEADLESS
+def test_section_resets_restore_the_whole_section_with_its_switch(layout, store):
+  # Advanced: its numbers, its toggle rows and its own switch (shipped default off, written last).
+  from openpilot.selfdrive.ui.bogpilot.step_defaults import reset_section
+  layout.box["cp"] = layout.cp
+  store.put_bool("AdvancedLateralTune", True)
+  store.put_bool("QOLLateral", True)
+  e = layout.editor
+  assert e.write("SteerRatio", layout.cp.steerRatio + 1) and e.write("PauseLateralSpeed", 20)
+  assert e.write("PauseLateralOnSignal", True)
+  store.put("LaneChangeTime", "2.5")                          # outside both sections
+  adv = layout.advanced_reset.section_defaults()
+  assert list(adv)[-1] == "AdvancedLateralTune" and adv["AdvancedLateralTune"] is False
+  assert set(adv) <= set(st.NUMERIC_ORDER) | {"ForceAutoTuneOff", "ForceAutoTune", "AdvancedLateralTune"}
+  assert all(adv[k] is False for k in ("ForceAutoTuneOff", "ForceAutoTune") if k in adv)
+  qol = layout.qol_reset.section_defaults()
+  assert list(qol) == ["PauseLateralSpeed", "PauseLateralOnSignal", "QOLLateral"]
+  assert qol["PauseLateralOnSignal"] is False and qol["QOLLateral"] is True
+  reset_section(qol, layout.qol_reset.section_write)
+  assert store.get_int("PauseLateralSpeed") == 0 and not store.get_bool("PauseLateralOnSignal")
+  assert store.get_bool("QOLLateral") and store.raw("SteerRatio") is not None   # Advanced left alone
+  reset_section(adv, layout.advanced_reset.section_write)
+  assert store.raw("SteerRatio") is None and not store.get_bool("AdvancedLateralTune")
+  assert store.get("LaneChangeTime") == "2.5"
+
+
+@HEADLESS
+def test_quality_of_life_switch_off_comes_back_on(layout, store):
+  # The switch at its non-default value (off): the table still lists it (its rows are locked) and writes it back on.
+  from openpilot.selfdrive.ui.bogpilot.step_defaults import reset_section
+  layout.box["cp"] = layout.cp
+  store.put_bool("QOLLateral", False)
+  table = layout.qol_reset.section_defaults()
+  assert table == {"QOLLateral": True}
+  reset_section(table, layout.qol_reset.section_write)
+  assert store.get_bool("QOLLateral")

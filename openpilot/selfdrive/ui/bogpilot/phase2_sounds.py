@@ -116,8 +116,24 @@ def volume_defaults() -> dict[str, str]:
   return {key: str(default_volume(key)) for key in VOLUME_KEYS}
 
 
+def section_defaults() -> dict[str, str]:
+  """The whole Alert Volume section: each volume row back to its existing default, then the controller switch
+  (AlertVolumeControl) back to its shipped default (the file-store default, "0"), last. The PreMute restore files are
+  not touched."""
+  out = volume_defaults()
+  sd = _sd()
+  default = sd.BOGPILOT_VOLUME_DEFAULTS.get(PARENT_KEY)
+  if default is not None:
+    out[PARENT_KEY] = "1" if sd._bogpilot_bool(default, False) else "0"
+  return out
+
+
 def write_volume_default(key: str, value: str) -> None:
-  """Section reset writer: only volume keys, through the same file-store write as the row buttons."""
+  """Section reset writer: only this section's keys (volumes and the controller switch), through the same file-store
+  write as the row buttons and the switch."""
+  if key == PARENT_KEY:
+    set_controller(str(value) == "1")
+    return
   if key not in VOLUME_KEYS:
     raise KeyError(key)
   _write(key, str(value))
@@ -312,8 +328,9 @@ def create_volume_layout():
         attach_help(row, key)
         self.volumes[key] = row
         items.append(row)
-      # One reset row for the section: asks first, then writes only the volume keys back to their defaults.
-      self.reset = reset_section_item(volume_defaults, write_volume_default, title=lambda: tr(RESET_SECTION_TITLE),
+      # One reset row for the section: asks first, then writes the volume keys back to their defaults and the controller
+      # switch back to its shipped default (section_defaults).
+      self.reset = reset_section_item(section_defaults, write_volume_default, title=lambda: tr(RESET_SECTION_TITLE),
                                       enabled=ui_state.is_offroad, on_done=lambda: self.refresh(force=True))
       self.reset.set_enabled(ui_state.is_offroad)
       attach_help(self.reset, "section.reset_defaults")
