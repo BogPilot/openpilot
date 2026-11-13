@@ -698,10 +698,10 @@ def apply_legacy_tesla_ce_off_once(params=None, bogpilot_dir: Path | None = None
       current = params.get(key)
       still_default = _unset(current) or (values_equal(current, table[key]) and not ap1_profile_ran)
       if still_default and not values_equal(current, value):
-        params.put(key, value)
+        params.put(key, value, block=True)      # persisted before the once-only marker below
         written.append(key)
     directory.mkdir(parents=True, exist_ok=True)
-    marker.write_text("1\n")
+    _write_marker_durable(marker, "1\n")
     if written and refresh:
       try:
         params.invalidate()
@@ -710,6 +710,28 @@ def apply_legacy_tesla_ce_off_once(params=None, bogpilot_dir: Path | None = None
     return written
   except Exception:
     return []
+
+
+def _write_marker_durable(marker: Path, text: str) -> None:
+  """Write a once-only marker so it survives a power cut: temp file, fsync, rename, fsync of the directory.
+
+  The values the marker stands for are written with block=True first, so a lost marker only means the
+  one-time write runs again on the next start (it rechecks the still-default rule), never a marker without its values.
+  """
+  tmp = marker.with_name(marker.name + ".tmp")
+  with open(tmp, "w") as f:
+    f.write(text)
+    f.flush()
+    os.fsync(f.fileno())
+  os.replace(tmp, marker)
+  try:
+    fd = os.open(marker.parent, os.O_RDONLY)
+    try:
+      os.fsync(fd)
+    finally:
+      os.close(fd)
+  except OSError:
+    pass
 
 
 def _shared_store(params=None):
@@ -735,8 +757,8 @@ class StoreParams:
         return None
     return self._store._raw(key)
 
-  def put(self, key: str, value) -> None:
-    self._store.put(key, value)
+  def put(self, key: str, value, *, block: bool = False) -> None:
+    self._store.put(key, value, block=block)
 
   def invalidate(self) -> None:
     self._store.invalidate()

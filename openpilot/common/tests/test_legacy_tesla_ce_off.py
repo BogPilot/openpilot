@@ -12,13 +12,15 @@ class FakeParams:
   def __init__(self, **vals):
     self.vals = {k: v for k, v in vals.items() if v is not None}
     self.puts = []
+    self.blocks = []
 
   def get(self, key):
     return self.vals.get(key)
 
-  def put(self, key, value):
+  def put(self, key, value, block=False):
     self.vals[key] = value
     self.puts.append(key)
+    self.blocks.append(block)
 
   def invalidate(self):
     pass
@@ -79,6 +81,44 @@ def test_section_reset_tables_x_and_preap_get_no_other_non_slc_profile_key():
   allowed = set(AP1_SLC_KEYS) | set(LEGACY_SLC_PROFILE) | {"ConditionalExperimental"}
   for car in ("TESLA_AP1_MODELX", "TESLA_PREAP_MODELS"):
     assert set(slc_reset_profile(FakeParams(CarModel=car))) <= allowed, car
+
+
+def test_ce_off_write_blocks_and_lands_before_the_marker(tmp_path):
+  """Real 0.11.2 Params puts are asynchronous unless block=True; the once-only marker must come after the value."""
+  marker = P.legacy_tesla_ce_marker_path(tmp_path)
+  seen = []
+
+  class Ordered(FakeParams):
+    def put(self, key, value, block=False):
+      seen.append((key, block, marker.exists()))
+      super().put(key, value, block)
+
+  p = Ordered(CarModel="TESLA_AP1_MODELX", ConditionalExperimental="1")
+  assert run(p, tmp_path) == ["ConditionalExperimental"]
+  assert seen == [("ConditionalExperimental", True, False)]
+  assert marker.read_text() == "1\n" and not marker.with_name(marker.name + ".tmp").exists()
+
+
+def test_store_params_passes_block_through():
+  calls = []
+
+  class Store:
+    def put(self, key, value, *, block=False):
+      calls.append((key, value, block))
+
+  sp = P.StoreParams(Store())
+  sp.put("ConditionalExperimental", "0", block=True)
+  sp.put("ConditionalExperimental", "0")
+  assert calls == [("ConditionalExperimental", "0", True), ("ConditionalExperimental", "0", False)]
+
+
+def test_marker_write_is_fsynced(tmp_path, monkeypatch):
+  synced = []
+  real = P.os.fsync
+  monkeypatch.setattr(P.os, "fsync", lambda fd: (synced.append(fd), real(fd))[1])
+  run(FakeParams(CarModel="TESLA_PREAP_MODELS"), tmp_path)
+  assert P.legacy_tesla_ce_marker_path(tmp_path).read_text() == "1\n"
+  assert len(synced) == 2, "file and directory"
 
 
 def test_never_raises():
