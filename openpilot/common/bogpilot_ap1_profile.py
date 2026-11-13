@@ -416,10 +416,15 @@ LEGACY_SLC_PROFILE: dict[str, str] = {
 # Pre-AP Model S also gets the AP1 profile's speed settings, read from the AP1 profile itself (nothing copied): the
 # Offset1-7 table AP1_SPEED_OFFSETS_MPH through speed_offsets_for_units() (km/h, same conversion and rounding, on a
 # metric device) and AP1_PARAM_PROFILE's SLCOverride (Max Set Speed). The fallback is not written: its table default
-# (Previous Limit) is already what AP1 uses. No AP1-only display key (ShowSLCOffset) is added. AP1 Model X keeps
-# the shared keys above only.
+# (Previous Limit) is already what AP1 uses. No AP1-only display key (ShowSLCOffset) is added.
 LEGACY_SLC_AP1_SPEED_PLATFORMS = frozenset({"TESLA_PREAP_MODELS"})
 LEGACY_SLC_AP1_SPEED_KEYS = ("SLCOverride",)
+# AP1 Model X gets the AP1 Model S profile's SLC settings, and only those: the keys below as _profile_for_units()
+# writes them (offsets unit-aware). No other AP1 profile key (themes, personalities, Conditional Experimental Mode,
+# ...) reaches the X, and is_ap1() stays Model S only. Same one-time path and marker as the rest of this profile.
+LEGACY_SLC_AP1_SLC_PLATFORMS = frozenset({"TESLA_AP1_MODELX"})
+AP1_SLC_KEYS = ("SLCOverride", "SLCPriority1", "SLCPriority2", "SLCPriority3", "SLCLookaheadLower",
+                "SLCLookaheadHigher", "ShowSLCOffset", *AP1_SPEED_OFFSETS_MPH)
 
 
 def _legacy_slc_fingerprint(params) -> str | None:
@@ -442,6 +447,16 @@ def is_preap_slc_platform(params) -> bool:
   return _legacy_slc_fingerprint(params) in LEGACY_SLC_AP1_SPEED_PLATFORMS and not is_ap1(params)
 
 
+def is_ap1x_slc_platform(params) -> bool:
+  """AP1 Model X: the legacy SLC platform that gets the AP1 Model S profile's SLC settings."""
+  return _legacy_slc_fingerprint(params) in LEGACY_SLC_AP1_SLC_PLATFORMS and not is_ap1(params)
+
+
+def ap1_slc_profile_for_units(params) -> dict[str, str]:
+  """The AP1 Model S profile's SLC settings only (AP1_SLC_KEYS), as stored text for this device's units."""
+  return {key: value for key, value in _profile_for_units(params).items() if key in AP1_SLC_KEYS}
+
+
 def legacy_slc_profile_for_units(params) -> dict[str, str]:
   """The legacy SLC values this car receives as stored text ({} on AP1 Model S and on non-legacy cars)."""
   if not is_legacy_slc_platform(params) or is_ap1(params):
@@ -450,6 +465,8 @@ def legacy_slc_profile_for_units(params) -> dict[str, str]:
   if is_preap_slc_platform(params):
     profile.update({key: AP1_PARAM_PROFILE[key] for key in LEGACY_SLC_AP1_SPEED_KEYS})
     profile.update(speed_offsets_for_units(_is_metric(params)))
+  elif is_ap1x_slc_platform(params):
+    profile.update(ap1_slc_profile_for_units(params))
   return profile
 
 

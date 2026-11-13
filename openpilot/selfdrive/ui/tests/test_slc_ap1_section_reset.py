@@ -1,5 +1,5 @@
 """SLC section resets follow the car type's SLC reset profile (SLC_RESET_PROFILES): AP1 Model S maps to the
-one-time AP1 profile, Pre-AP to the legacy SLC profile; every other car keeps the general table. The profile itself, the general table and saved
+one-time AP1 profile, Pre-AP and AP1 Model X to the legacy SLC profile; every other car keeps the general table. The profile itself, the general table and saved
 values are unchanged. The car-type cases are parametrized over ALL_CARS, so a new table entry is covered as is."""
 import pytest
 
@@ -16,7 +16,7 @@ OFFSETS = tuple(f"Offset{i}" for i in range(1, 8))
 MAIN = ("SLCOverride", "SLCPriority1", "SLCPriority2", "SLCPriority3", "SLCLookaheadLower")
 VISUALS = ("ShowSLCOffset",)
 ALL_CARS = (AP1_CAR_MODEL, "TESLA_AP1_MODELX", "TESLA_PREAP_MODELS", "TESLA_MODEL_3", None)
-TODAY = {AP1_CAR_MODEL, "TESLA_PREAP_MODELS"}          # car types with an SLC reset profile in this tree
+TODAY = {AP1_CAR_MODEL, "TESLA_PREAP_MODELS", "TESLA_AP1_MODELX"}   # car types with an SLC reset profile
 OTHER_CARS = tuple(c for c in ALL_CARS if c not in TODAY)
 SAVED = dict(SLCOverride="0", SLCPriority1="Map Data", SLCPriority2="Navigation", SLCPriority3="None", SLCLookaheadLower="9",
              ShowSLCOffset="1", SLCFallback="0", SLCConfirmation="1", SetSpeedLimit="1",
@@ -84,7 +84,7 @@ def test_ap1_s_defaults_follow_the_profiles_own_table(metric):
 
 
 def test_todays_mapping():
-  assert [e[0] for e in ss.SLC_RESET_PROFILES] == ["TESLA_AP1_MODELS", "TESLA_PREAP_MODELS"]
+  assert [e[0] for e in ss.SLC_RESET_PROFILES] == ["TESLA_AP1_MODELS", "TESLA_PREAP_MODELS", "TESLA_AP1_MODELX"]
   assert {c for c in ALL_CARS if ss.slc_reset_profile(editor(c)[1]) is not None} == TODAY
   ed, store = editor(AP1_CAR_MODEL)
   assert ss.slc_reset_profile(store) == _profile_for_units(store)      # read from the profile, nothing copied

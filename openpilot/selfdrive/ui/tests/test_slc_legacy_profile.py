@@ -3,7 +3,8 @@ return, and that a device whose marker is set is never rewritten. Values are rea
 import pytest
 
 from openpilot.common.bogpilot_ap1_profile import (
-  AP1_CAR_MODEL, AP1_PARAM_PROFILE, AP1_SPEED_OFFSETS_MPH, LEGACY_SLC_PROFILE, MPH_TO_KPH,
+  AP1_CAR_MODEL, AP1_PARAM_PROFILE, AP1_SLC_KEYS, AP1_SPEED_OFFSETS_MPH, LEGACY_SLC_PROFILE, MPH_TO_KPH,
+  _profile_for_units, ap1_slc_profile_for_units,
   apply_legacy_slc_defaults_once, clear_ap1_defaults_marker, is_ap1, is_legacy_slc_platform, legacy_slc_marker_path,
   legacy_slc_profile_for_units,
 )
@@ -29,9 +30,11 @@ def offsets(metric):
 def expected(car, metric):
   """The legacy SLC values each car type receives (stored text)."""
   out = dict(SHARED)
-  if car == PREAP:
+  if car in (PREAP, AP1X):
     out["SLCOverride"] = "2"
     out.update({k: f"{v:.6f}" for k, v in zip(OFFSETS, offsets(metric))})
+  if car == AP1X:
+    out["ShowSLCOffset"] = "0"                             # the X gets the AP1 S profile's SLC keys, this one too
   return out
 
 
@@ -95,8 +98,23 @@ def test_fresh_install_apply(tmp_path, car, metric):
     assert float(p.get(k)) == float(v) if k in OFFSETS else p.get(k) == v
   # nothing outside the expected SLC keys is written: no ShowSLCOffset, no other AP1 profile key
   assert {k: v for k, v in p.vals.items() if k not in want} == {k: v for k, v in before.items() if k not in want}
-  if car == AP1X:
-    assert [p.get(k) for k in OFFSETS] == [OLD[k] for k in OFFSETS] and p.get("SLCOverride") == before["SLCOverride"]
+  if car == PREAP:
+    assert "ShowSLCOffset" not in written
+
+
+@pytest.mark.parametrize("metric", [False, True])
+def test_ap1x_gets_the_ap1_s_slc_keys_only(tmp_path, metric):
+  p = fresh(AP1X, metric)
+  s_profile = _profile_for_units(fresh(AP1_CAR_MODEL, metric))
+  slc = ap1_slc_profile_for_units(p)
+  assert slc == {k: v for k, v in s_profile.items() if k in AP1_SLC_KEYS}
+  assert {k: v for k, v in legacy_slc_profile_for_units(p).items() if k in s_profile} == slc   # same as the S
+  non_slc = set(s_profile) - set(AP1_SLC_KEYS)
+  assert non_slc                                           # themes, personalities, ... exist in the S profile
+  before = {k: p.get(k) for k in non_slc}
+  written = apply_legacy_slc_defaults_once(p, bogpilot_dir=tmp_path, refresh=False)
+  assert not set(written) & non_slc and {k: p.get(k) for k in non_slc} == before
+  assert not is_ap1(p)
 
 
 def test_metric_ui_converted_default_counts_as_default(tmp_path):
@@ -161,6 +179,22 @@ def reset(ed, keys):
   for k, v in table.items():
     ed.reset_write(k, v)
   return table
+
+
+@pytest.mark.parametrize("metric", [False, True])
+def test_ap1x_section_reset_returns_the_ap1_slc_values(metric):
+  ed, store = editor(AP1X, metric, **SAVED)
+  assert ss.slc_reset_profile(store) == legacy_slc_profile_for_units(store)
+  reset(ed, OFFSETS)
+  assert [int(store.vals[k]) for k in OFFSETS] == offsets(metric)
+  reset(ed, MAIN)
+  assert {k: store.vals[k] for k in MAIN} == {"SLCOverride": "2", "SLCPriority1": "Dashboard", "SLCPriority2": "Map Data",
+                                              "SLCPriority3": "Navigation", "SLCLookaheadLower": "5"}
+  assert store.vals["ShowSLCOffset"] == "1"
+  assert ed.profile_reset_rows(("ShowSLCOffset",)) == ("ShowSLCOffset",)
+  reset(ed, ("ShowSLCOffset",))
+  assert store.vals["ShowSLCOffset"] == "0"
+  assert store.vals["SLCFallback"] == "0" and "SLCLookaheadHigher" not in store.vals
 
 
 @pytest.mark.parametrize("metric", [False, True])
