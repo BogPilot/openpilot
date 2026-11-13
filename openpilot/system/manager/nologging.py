@@ -13,13 +13,39 @@ def _default(key: str) -> str:
   return BOGPILOT_PARAMS[key][2] or ""
 
 
+def _get_int(params, key: str) -> int:
+  # The real openpilot.common.params.Params has no get_int. get() returns the typed value (int for an INT key),
+  # or None when the key is unset or its stored value does not cast (params.py get / _cpp2python).
+  # Unset, None or any unexpected value reads as the registry default, so the manager never raises here.
+  fallback = int(_default(key) or 0)
+  try:
+    value = params.get(key)
+  except Exception:
+    return fallback
+  if isinstance(value, bool) or value is None:
+    return fallback
+  if isinstance(value, int):
+    return value
+  try:
+    return int(value.decode() if isinstance(value, bytes) else value)
+  except (TypeError, ValueError, UnicodeDecodeError):
+    return fallback
+
+
 def _tuning_level(params) -> int:
-  return params.get_int("TuningLevel") if params.get_bool("TuningLevelConfirmed") else 3
+  try:
+    confirmed = params.get_bool("TuningLevelConfirmed")
+  except Exception:
+    confirmed = False
+  return _get_int(params, "TuningLevel") if confirmed else 3
 
 
 def _get_bool(params, key: str) -> bool:
-  if _tuning_level(params) >= BOGPILOT_PARAMS[key][3]:
-    return params.get_bool(key) if params.get(key) is not None else _default(key) == "1"
+  try:
+    if _tuning_level(params) >= BOGPILOT_PARAMS[key][3]:
+      return params.get_bool(key) if params.get(key) is not None else _default(key) == "1"
+  except Exception:
+    pass
   return _default(key) == "1"
 
 

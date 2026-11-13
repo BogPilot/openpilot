@@ -2,13 +2,18 @@
 
 Loads the real process_config.py / helpers.py / nologging.py with light stand-ins for the runtime-only modules
 (Params, hardware, process classes, mapd supervisor), so it also runs on a checkout without msgq / zstandard.
+FakeParams mirrors the real Params API (typed get(), no get_int). The test_real_params_* cases use the real
+openpilot.common.params.Params on a temp params dir and need the native params library (build tree / device).
 """
+import importlib
 import importlib.util
 import sys
 import types
 from pathlib import Path
 
 import pytest
+
+from openpilot.common.bogpilot_params import BOGPILOT_PARAMS
 
 OP = Path(__file__).resolve().parents[3]  # .../openpilot
 GATED_ONROAD = ("loggerd", "encoderd", "proclogd", "journald")
@@ -23,15 +28,18 @@ class FakeParams:
     pass
 
   def get(self, key, *a, **k):
+    """Like the real Params.get: the typed value for the key's registry type, None if unset or it does not cast."""
     v = self.store.get(key)
-    return None if v is None else v.encode()
+    if v is None:
+      return None
+    kind = BOGPILOT_PARAMS[key][1] if key in BOGPILOT_PARAMS else "STRING"
+    try:
+      return {"INT": int, "BOOL": lambda s: s == "1"}.get(kind, str)(v)
+    except ValueError:
+      return None
 
   def get_bool(self, key, *a, **k):
     return self.store.get(key) == "1"
-
-  def get_int(self, key, default=0, *a, **k):
-    v = self.store.get(key)
-    return int(v) if v is not None else default
 
   def put_bool(self, key, val, *a, **k):
     self.store[key] = "1" if val else "0"
@@ -195,3 +203,49 @@ def test_manager_imports_and_starts_without_bogpilot_settings(monkeypatch, on):
   assert callable(helpers.save_bootlog)
   for rel in ("system/manager/process_config.py", "system/manager/helpers.py", "system/manager/nologging.py"):
     assert "bogpilot_settings" not in (OP / rel).read_text().split('"""', 2)[-1], rel
+
+
+def test_fake_params_mirrors_real_api():
+  assert not hasattr(FakeParams, "get_int")   # the real Params has no get_int (an earlier build crashed on it)
+  FakeParams.store = {"TuningLevel": "2", "NoLogging": "1", "TuningLevelConfirmed": "1"}
+  p = FakeParams()
+  assert p.get("TuningLevel") == 2 and p.get("NoLogging") is True and p.get("TuningLevelConfirmed") == "1"
+  assert p.get("DeviceManagement") is None
+
+
+def _real(tmp_path):
+  """Real Params on a temp dir plus a fresh copy of the real nologging module (no stand-ins).
+  Writes use block=True: a non-blocking put lands asynchronously, after the reads below."""
+  Params = importlib.import_module("openpilot.common.params").Params
+  assert not hasattr(Params, "get_int")
+  return Params(str(tmp_path / "params")), _load("_nologging_real", "system/manager/nologging.py")
+
+
+@pytest.mark.parametrize("confirmed", [None, "0", "1"])
+@pytest.mark.parametrize("level", [None, 1, 2])
+def test_real_params_tuning_gate(tmp_path, confirmed, level):
+  params, nologging = _real(tmp_path)
+  params.put_bool("NoLogging", True, block=True)   # a level-2 toggle, so the tuning level decides the result
+  if confirmed is not None:
+    params.put("TuningLevelConfirmed", confirmed, block=True)
+  if level is not None:
+    params.put("TuningLevel", level, block=True)
+  # unconfirmed reads as level 3; confirmed + unset TuningLevel reads as the registry default 0
+  expect = 3 if confirmed != "1" else (0 if level is None else level)
+  assert nologging._tuning_level(params) == expect
+  assert nologging.no_logging(params) is (expect >= 2)
+
+
+def test_real_params_all_unset(tmp_path):
+  params, nologging = _real(tmp_path)
+  assert nologging._tuning_level(params) == 3
+  assert nologging.no_logging(params) is False   # NoLogging default "0": logging as before
+
+
+def test_real_params_unreadable_level_never_raises(tmp_path):
+  params, nologging = _real(tmp_path)
+  params.put("TuningLevelConfirmed", "1", block=True)
+  params.put_bool("NoLogging", True, block=True)
+  (Path(params.get_param_path()) / "TuningLevel").write_bytes(b"not-a-number")
+  assert params.get("TuningLevel") is None
+  assert nologging._tuning_level(params) == 0 and nologging.no_logging(params) is False
