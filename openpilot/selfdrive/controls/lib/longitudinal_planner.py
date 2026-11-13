@@ -88,7 +88,7 @@ class LongitudinalPlanner:
     self.dt = dt
     self.ap1_plan = Ap1Planning(CP, dt)
     self.curve_speed = Ap1CurveSpeed(CP, dt)
-    self.arbiter = CurveArbiter(dt) if self.curve_speed.available else None  # AP1 comfort arbitration (stock min() elsewhere)
+    self.arbiter = CurveArbiter(dt) if self.curve_speed.available else None  # CSC cars (AP1, Pre-AP pedal): comfort arbitration
     self.arbiter_clock = ModelClock(dt)
     try:
       self.long_accel = LongAccelPort(CP, dt)
@@ -175,7 +175,7 @@ class LongitudinalPlanner:
     experimental = self.speed_control.resolve_experimental(sm['selfdriveState'].experimentalMode) or conditional
     self.experimental = bool(experimental)
 
-    # AP1 curve speed control: can only lower the cruise speed (never above the driver's set speed).
+    # Curve speed control (AP1, Pre-AP pedal in FULL): can only lower the cruise speed (never above the driver's set speed).
     v_cruise = self.curve_speed.update(sm, v_ego, v_cruise, reset_state)
     try:
       if self.long_stopping is None or self.long_accel is None:

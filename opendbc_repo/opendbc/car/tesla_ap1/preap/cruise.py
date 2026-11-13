@@ -1,6 +1,6 @@
 """Pre-AP cruiseState helpers for comma-pedal longitudinal.
 
-legacy-port sets cruiseState.available=True always and engages on SpdCtrlLvr_Stat=2
+NAP (preap/carstate.py:75, e99f4dc75) sets cruiseState.available=True always and engages on SpdCtrlLvr_Stat=2
 (RWD / pull toward driver). With pcmCruise=False we cannot leave available
 tied to DI_cruiseState STANDBY/ENABLED or the UI shows wrongCarMode
 ("Enable Adaptive Cruise to Engage"). Panda SAFETY_TESLA_PREAP already
@@ -8,7 +8,7 @@ arms controls_allowed on stalk lever==2 (not DI_cruiseState).
 """
 from __future__ import annotations
 
-# STW_ACTN_RQ.SpdCtrlLvr_Stat — same as legacy-port CruiseButtons / DBC
+# STW_ACTN_RQ.SpdCtrlLvr_Stat — same as NAP CruiseButtons (tesla/values.py:223-224) / DBC
 SPD_CTRL_CANCEL = 1  # FWD — push away
 SPD_CTRL_MAIN = 2    # RWD — pull toward driver (engage)
 
@@ -31,18 +31,27 @@ def remap_preap_pedal_button_type(event_type):
     return ButtonType.setCruise
   return event_type
 
-# Echo windows (legacy-port engagement.py): suppress SpdCtrl CANCEL that is our own
+# Echo windows (NAP preap/engagement.py:9-10,189-190): suppress SpdCtrl CANCEL that is our own
 # spoofed STW_ACTN_RQ so openpilot does not treat it as a driver FWD cancel.
 CANCEL_ECHO_WINDOW_MS = 600
 SPOOF_ECHO_WINDOW_MS = 300
 
 
-def is_preap_cancel_echo(*, now_ms: int, last_stalk_non_cancel_ms: int,
+def is_preap_cancel_echo(*, now_ms: int, last_pull_ms: int,
                          last_cc_spoof_ms: int, cruise_enabled: bool = False) -> bool:
-  """True when a SpdCtrl=CANCEL edge is likely our stalk spoof echo."""
-  if cruise_enabled and last_stalk_non_cancel_ms and (
-      now_ms - last_stalk_non_cancel_ms) < CANCEL_ECHO_WINDOW_MS:
+  """True when a SpdCtrl=CANCEL edge is likely our stalk spoof echo.
+
+  A cancel is real once more than CANCEL_ECHO_WINDOW_MS (600) have passed since the last
+  counted pull, matching tesla_preap.h:114-120 (the panda ignores only a cancel shortly
+  after a pull, not after an up or down tip).
+
+  The SPOOF_ECHO_WINDOW_MS (300) window starts only when our own CANCEL frame is sent
+  (StockCCSpoofer stamps last_cc_spoof_ms on TX) and only swallows a cancel that is also
+  inside the pull window, so a cancel the panda counts as real is never swallowed.
+  """
+  in_pull_window = last_pull_ms > 0 and 0 <= (now_ms - last_pull_ms) <= CANCEL_ECHO_WINDOW_MS
+  if cruise_enabled and in_pull_window:
     return True
-  if last_cc_spoof_ms and (now_ms - last_cc_spoof_ms) < SPOOF_ECHO_WINDOW_MS:
+  if in_pull_window and last_cc_spoof_ms and 0 <= (now_ms - last_cc_spoof_ms) < SPOOF_ECHO_WINDOW_MS:
     return True
   return False

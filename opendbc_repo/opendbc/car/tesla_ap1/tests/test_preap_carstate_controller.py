@@ -74,6 +74,10 @@ class Rig:
         self.send(n, ESP_vehicleSpeed=v_kph)
       else:
         self.send(n)
+    for bus, addr, dat in getattr(self, "_pending_pedal", []):
+      parser = self.parsers[Bus.chassis] if bus == 0 else self.parsers[Bus.cam]
+      parser.update([(self.nanos, [(addr, dat, bus)])])
+    self._pending_pedal = []
     self.cs.op_enabled = op
     return self.cs.update(self.parsers)
 
@@ -109,66 +113,53 @@ def test_aol_gate_follows_only_a_provider_that_answers_exactly_true(monkeypatch)
     real.register_aol_provider(None)
 
 
-def test_saved_double_pull_is_kept_but_inert_without_aol():
-  # Branch default is ON, so a fresh install has it saved ON. With AOL unavailable the first pull still engages steering AND pedal long.
+def test_saved_double_pull_choice_is_kept_but_the_first_pull_is_always_steering_only():
+  # rc9: the NAP-style double pull is always on (NAP nap_conf.py:214-215). The saved choice and AOL availability change nothing.
   assert params.get_bool(params.PreApParamKeys.DOUBLE_PULL) is True
-  AOL[0] = False
-  assert params.double_pull_enabled() is False
-  r = Rig()
-  r.frame()
-  out = r.frame(stalk=PULL)
-  assert out.cruiseState.enabled and not out.bogpilot.preapLatOnly
+  for aol in (False, True):
+    AOL[0] = aol
+    r = Rig()
+    r.frame()
+    out = r.frame(stalk=PULL)
+    assert out.cruiseState.enabled and out.bogpilot.preapLatOnly and not out.bogpilot.preapAolLat
   assert params.get_bool(params.PreApParamKeys.DOUBLE_PULL) is True          # the saved choice is never rewritten
-  AOL[0] = True
-  assert params.double_pull_enabled() is True
 
-
-def test_single_pull_sets_cruise_enabled_and_enable_request():
-  params.set_bool(params.PreApParamKeys.DOUBLE_PULL, False)
+def test_single_pull_sets_cruise_enabled_and_enable_request_steering_only():
   r = Rig()
   out = r.frame(stalk=0)
   assert not out.cruiseState.enabled
   out = r.frame(stalk=PULL)
-  assert out.cruiseState.enabled and not out.bogpilot.preapLatOnly
+  assert out.cruiseState.enabled and out.bogpilot.preapLatOnly
   assert r.cs.update_button_enable(out.buttonEvents) is True
   out = r.frame(stalk=0, op=True)
   assert out.cruiseState.enabled and r.cs.update_button_enable(out.buttonEvents) is False
 
-
-def test_double_pull_first_pull_is_an_aol_lateral_intent_and_second_engages():
-  params.set_bool(params.PreApParamKeys.DOUBLE_PULL, True)
-  r = Rig()
-  r.frame()
-  out = r.frame(stalk=PULL)
-  assert out.bogpilot.preapAolLat and not out.cruiseState.enabled and not out.bogpilot.preapLatOnly
-  assert r.cs.update_button_enable(out.buttonEvents) is False      # openpilot is NOT asked to engage
-  out = r.frame(stalk=0)
-  assert out.bogpilot.preapAolLat and not out.cruiseState.enabled
+def test_double_pull_second_pull_inside_the_window_adds_speed_control():
+  r, _ = _ready_rig(double=False)      # speed control needs a detected, calibrated pedal
+  _pedal_frame(r, 0); r.frame()
+  _pedal_frame(r, 1); out = r.frame(stalk=PULL)
+  assert out.cruiseState.enabled and out.bogpilot.preapLatOnly
+  _pedal_frame(r, 2); out = r.frame(stalk=0, op=True)
   r.wait(50)
-  out = r.frame(stalk=PULL)
-  assert out.cruiseState.enabled and not out.bogpilot.preapAolLat and not out.bogpilot.preapLatOnly
-  assert r.cs.update_button_enable(out.buttonEvents) is True
+  _pedal_frame(r, 3); out = r.frame(stalk=PULL, op=True)
+  assert out.cruiseState.enabled and not out.bogpilot.preapLatOnly
+  assert r.cs.update_button_enable(out.buttonEvents) is False      # already engaged: no new enable request
 
-
-def test_double_pull_second_pull_after_the_400ms_window_stays_an_aol_intent():
-  params.set_bool(params.PreApParamKeys.DOUBLE_PULL, True)
+def test_double_pull_second_pull_after_the_400ms_window_stays_steering_only():
   r = Rig()
-  r.frame(); r.frame(stalk=PULL); r.frame()
+  r.frame(); r.frame(stalk=PULL); r.frame(op=True)
   r.wait(450)
-  r.frame()
-  out = r.frame(stalk=PULL)
-  assert out.bogpilot.preapAolLat and not out.cruiseState.enabled
+  r.frame(op=True)
+  out = r.frame(stalk=PULL, op=True)
+  assert out.cruiseState.enabled and out.bogpilot.preapLatOnly
 
-
-def test_double_pull_intent_is_dropped_when_aol_goes_away_and_is_not_promoted():
-  params.set_bool(params.PreApParamKeys.DOUBLE_PULL, True)
+def test_aol_availability_does_not_change_the_pull_fsm():
   r = Rig()
   r.frame(); out = r.frame(stalk=PULL)
-  assert out.bogpilot.preapAolLat
+  assert out.bogpilot.preapLatOnly and not out.bogpilot.preapAolLat
   AOL[0] = False
-  out = r.frame()
-  assert not out.bogpilot.preapAolLat and not out.cruiseState.enabled
-
+  out = r.frame(op=True)
+  assert out.cruiseState.enabled and out.bogpilot.preapLatOnly and not out.bogpilot.preapAolLat
 
 def test_aol_lat_flag_is_false_in_single_pull_mode():
   params.set_bool(params.PreApParamKeys.DOUBLE_PULL, False)
@@ -213,12 +204,15 @@ def test_steer_fault_temporary_never_set_and_stock_aeb_false():
   assert out.steerFaultTemporary is False and out.stockAeb is False
 
 
-def test_no_pedal_mode_follows_stock_tacc():
+def test_no_pedal_mode_engages_only_from_a_pull():
   r = Rig(long=False)
   r.base["DI_state"]["DI_cruiseState"] = _inv("DI_state", "DI_cruiseState", "ENABLED")
-  assert r.frame().cruiseState.enabled
-  out = r.frame(stalk=PULL)           # a pull must not invent an engagement in stock-TACC mode
+  out = r.frame()
+  # stock cruise on without a counted pull: openpilot stays off and the stock cruise is left alone (NAP carstate.py:139)
+  assert not out.cruiseState.enabled and not r.cs.preap_cc_cancel_needed
+  out = r.frame(stalk=PULL)           # the pull engages steering only through cruiseState.enabled (pcmCruise), never buttonEnable
   assert r.cs.update_button_enable(out.buttonEvents) is False
+  assert out.cruiseState.enabled and out.bogpilot.preapLatOnly
 
 
 def test_available_needs_pedal_detected_and_calibrated():
@@ -281,9 +275,10 @@ def _act(accel):
 
 
 # ---- end to end: stalk -> CarState -> (controlsd-style CC) -> CarController -> 0x551 ----
-def _pedal_frame(rig, idx, raw=0.8, state=0):
-  addr, dat, _ = rig.packer.make_can_msg("GAS_SENSOR", 2, {"INTERCEPTOR_GAS": raw, "INTERCEPTOR_GAS2": raw * 2, "STATE": state, "IDX": idx % 16})
-  rig.parsers[Bus.cam].update([(rig.nanos, [(addr, dat, 2)])])
+def _pedal_frame(rig, idx, raw=0.8, state=0, bus=2):
+  addr, dat, _ = rig.packer.make_can_msg("GAS_SENSOR", bus, {"INTERCEPTOR_GAS": raw, "INTERCEPTOR_GAS2": raw * 2, "STATE": state, "IDX": idx % 16})
+  rig._pending_pedal = getattr(rig, "_pending_pedal", [])
+  rig._pending_pedal.append((bus, addr, dat))
 
 
 def _drive(rig, ctl, stalk_at, frames, *, pulls=(), idx0=0):
@@ -318,25 +313,27 @@ def _ready_rig(double):
   return rig, PreApCarController(DBC[CAR.TESLA_PREAP_MODELS], rig.CP)
 
 
-def test_e2e_single_pull_drives_the_pedal():
+def test_e2e_single_pull_steers_but_never_drives_the_pedal():
   rig, ctl = _ready_rig(double=False)
   enabled, outs = _drive(rig, ctl, 0, 300, pulls={20})
+  assert outs[-1][0] and not outs[-1][1], "engaged, steering only"
+  assert enabled == 0
+  assert getattr(rig, "lat_frames", 0) > 50
+
+
+def test_e2e_double_pull_drives_the_pedal():
+  rig, ctl = _ready_rig(double=False)
+  enabled, outs = _drive(rig, ctl, 0, 300, pulls={20, 45})
   assert outs[-1][0] and outs[-1][1], "engaged with long active"
   assert enabled > 20
 
-
-def test_e2e_double_pull_first_pull_steers_via_aol_and_never_drives_the_pedal_second_pull_does():
+def test_e2e_double_pull_with_the_saved_choice_on_drives_the_pedal_only_after_the_second_pull():
   rig, ctl = _ready_rig(double=True)
-  enabled, outs = _drive(rig, ctl, 0, 300, pulls={20})
-  assert not outs[-1][0] and not outs[-1][1], "openpilot not engaged: AOL lateral only"
-  assert outs[-1][2].bogpilot.preapAolLat
-  assert enabled == 0
-  assert getattr(rig, "lat_frames", 0) > 50, "steering is active (0x488 control type ANGLE) from the AOL latActive"
-  rig, ctl = _ready_rig(double=True)
-  enabled, outs = _drive(rig, ctl, 0, 300, pulls={20, 45})        # 250 ms apart
-  assert outs[-1][0] and outs[-1][1]
-  assert enabled > 20
-
+  enabled, outs = _drive(rig, ctl, 0, 40, pulls={20})
+  assert outs[-1][0] and not outs[-1][1] and enabled == 0
+  rig2, ctl2 = _ready_rig(double=True)
+  enabled, outs = _drive(rig2, ctl2, 0, 300, pulls={20, 45})
+  assert outs[-1][0] and outs[-1][1] and enabled > 20
 
 def test_e2e_double_pull_without_the_aol_consumer_never_steers_or_drives():
   # AOL provider says yes but nothing acts on preapAolLat (e.g. a half-wired AOL lane): the first pull must do nothing dangerous
@@ -426,9 +423,9 @@ def test_spoof_crc_matches_the_frame_it_protects():
   assert dat[7] == ctl.tesla_can.crc(dat[:7])
 
 
-def test_e2e_double_pull_saved_on_without_aol_still_drives_the_pedal_on_one_pull():
-  rig, ctl = _ready_rig(double=True)
+def test_e2e_double_pull_saved_on_without_aol_needs_two_pulls_for_the_pedal():
   AOL[0] = False
+  rig, ctl = _ready_rig(double=True)
   enabled, outs = _drive(rig, ctl, 0, 300, pulls={20})
-  assert outs[-1][0] and outs[-1][1], "single pull: steering and long together"
-  assert enabled > 20
+  assert outs[-1][0] and not outs[-1][1] and enabled == 0
+

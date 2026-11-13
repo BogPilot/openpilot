@@ -994,6 +994,24 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
       Priority.MID, VisualAlert.none, AudibleAlert.disengage, 3.),
   },
 
+  # Pre-AP pull FSM (opendbc tesla_ap1/preap/engagement.py). Pre-AP has no brake actuation: no text may suggest the car brakes or holds.
+  EventName.preapSteerOnly: {
+    ET.PERMANENT: NormalPermanentAlert("Steering only", "Pull twice for speed control"),
+  },
+
+  EventName.preapSpeedBlocked: {
+    ET.WARNING: Alert(
+      "Speed control off",
+      "Steering only. Pull twice to retry",
+      AlertStatus.normal, AlertSize.mid,
+      Priority.LOW, VisualAlert.none, AudibleAlert.prompt, 3.),
+  },
+
+  # NAP teslaCCNotArmed parity ("Arm Stock Cruise to Enable Speed Control", NAP selfdrive/selfdrived/events.py:1063-1065 @ e99f4dc75).
+  EventName.preapCruiseNotArmed: {
+    ET.PERMANENT: NormalPermanentAlert("Stock cruise did not arm", "Pull twice again"),
+  },
+
   EventName.steerUnavailable: {
     ET.IMMEDIATE_DISABLE: ImmediateDisableAlert("LKAS Fault: Restart the Car"),
     ET.PERMANENT: NormalPermanentAlert("LKAS Fault: Restart the car to engage"),

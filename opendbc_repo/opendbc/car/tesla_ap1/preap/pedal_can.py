@@ -1,6 +1,6 @@
-"""Comma Pedal GAS_COMMAND (0x551) packing — from the upstream legacy port TeslaCANPreAP.
+"""Comma Pedal GAS_COMMAND (0x551) packing — from NotAutopilot TeslaCANPreAP.
 
-Credit: the upstream legacy port. License: MIT (openpilot lineage). Keep this notice.
+Credit: NotAutopilot (NAP) teslacan.py @ cc39c7fa via BogPilot 0.9.7 na-preap 568fea947. License: MIT (openpilot lineage). Keep this notice.
 """
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from ctypes import create_string_buffer
 
 from opendbc.car.can_definitions import CanData
 
-# Comma Pedal protocol constants (the upstream legacy port / Comma Pedal firmware)
+# Comma Pedal protocol constants (NAP TeslaCANPreAP / Comma Pedal firmware)
 PEDAL_M1 = 0.050796813
 PEDAL_M2 = 0.101593626
 PEDAL_D = -22.85856576

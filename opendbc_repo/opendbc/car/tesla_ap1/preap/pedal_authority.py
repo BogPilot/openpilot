@@ -1,7 +1,7 @@
-"""legacy-port-style pedal command-authority FSM and regen under-delivery monitor.
+"""NAP-style pedal command-authority FSM and regen under-delivery monitor.
 
 Software-only handshake over GAS_SENSOR STATE/IDX. No panda loosening.
-Credit: legacy-port-style.
+Credit: NAP-style.
 """
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ REGEN_COMMAND_CLEAR_DI = -1.0
 REGEN_DECEL_REQUEST_TRIGGER = -0.5
 REGEN_DECEL_REQUEST_CLEAR = -0.2
 
-# GAS_SENSOR STATE nibble (legacy-port test_tesla_preap.py). ENABLE=0 zero-gas
+# GAS_SENSOR STATE nibble (NAP test_tesla_preap.py). ENABLE=0 zero-gas
 # GAS_COMMAND (0x551) clears FAULT_TIMEOUT / FAULT_STARTUP firmware-side.
 PEDAL_STATE_NO_FAULT = 0
 PEDAL_STATE_FAULT_STARTUP = 4

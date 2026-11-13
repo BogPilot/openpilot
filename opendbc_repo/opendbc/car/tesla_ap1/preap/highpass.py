@@ -1,6 +1,6 @@
-"""Band-pass helper used by legacy-port-style VirtualDAS grade estimation.
+"""Band-pass helper used by NAP-style VirtualDAS grade estimation.
 
-Credit: legacy-port-style.
+Credit: NAP-style.
 """
 from opendbc.car.common.filter_simple import FirstOrderFilter
 

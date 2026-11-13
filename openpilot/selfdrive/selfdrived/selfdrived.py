@@ -21,7 +21,7 @@ from openpilot.selfdrive.locationd.helpers import PoseCalibrator, Pose
 from openpilot.selfdrive.selfdrived.events import Events, ET
 from openpilot.selfdrive.selfdrived.helpers import ExcessiveActuationCheck
 from openpilot.selfdrive.selfdrived.preap_arm import PreapArmWatch
-from openpilot.selfdrive.selfdrived.preap_brake import brake_disengages, panda_controls_dropped_on_purpose
+from openpilot.selfdrive.selfdrived.preap_brake import PreapHeldBrake, brake_disengages, panda_controls_dropped_on_purpose
 from openpilot.selfdrive.ui.bogpilot.phase2_alerts import create_optional_alert_runtime, dispatch_optional_alerts
 from openpilot.selfdrive.ui.bogpilot.phase2_driver_alerts import create_driver_alert_runtime, dispatch_driver_alerts
 from openpilot.selfdrive.selfdrived.cruise_chimes import CruiseChimeRuntime, dispatch_long_only_chime
@@ -97,6 +97,7 @@ class SelfdriveD:
 
     self.car_events = CarEvents(self.CP)
     self.preap_arm = PreapArmWatch(self.CP)
+    self.preap_held_brake = PreapHeldBrake(self.CP)
 
     self.pose_calibrator = PoseCalibrator()
     self.calibrated_pose: Pose | None = None
@@ -202,6 +203,7 @@ class SelfdriveD:
     """Compute onroadEvents from carState"""
 
     self.events.clear()
+    preap_brake_held = self.preap_held_brake.update(CS)   # every frame: tracks a Pre-AP brake held since FULL entry
 
     if self.sm['controlsState'].lateralControlState.which() == 'debugState':
       self.events.add(EventName.joystickDebug)
@@ -302,7 +304,7 @@ class SelfdriveD:
       # Disable on rising edge of accelerator or brake. Also disable on brake when speed > 0
       # (Pre-AP,: not on a brake press that only drops longitudinal, see preap_brake.py)
       if (CS.gasPressed and not self.CS_prev.gasPressed and self.disengage_on_accelerator) or \
-        brake_disengages(CS, self.CS_prev) or \
+        brake_disengages(CS, self.CS_prev, preap_brake_held) or \
         (CS.regenBraking and (not self.CS_prev.regenBraking or not CS.standstill)):
         self.events.add(EventName.pedalPressed)
 

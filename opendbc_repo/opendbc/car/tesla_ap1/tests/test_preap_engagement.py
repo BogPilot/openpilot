@@ -1,150 +1,176 @@
-"""PreAPEngagement: single pull, double pull (400 ms window), demote on re-pull, brake, cancel, openpilot-follow resets."""
-from opendbc.car.tesla_ap1.preap.engagement import ENABLE_TIMEOUT_MS, WINDOW_MS, PreAPEngagement, preap_steer_drop
+"""PreAPEngagement (NAP-style double pull): first pull steering only, second pull < 400 ms = speed control, brake / re-pull demote,
+cancel / gear / door / stale / EPAS drop reset, openpilot-follow resets. The full transition table is in test_preap_nap_fsm.py."""
+from opendbc.car.tesla_ap1.preap import engagement as eng
+from opendbc.car.tesla_ap1.preap.engagement import ENABLE_TIMEOUT_MS, WINDOW_MS, Mode, PreAPEngagement, preap_steer_drop
 
 
-def step(e, t, pull=False, cancel=False, brake=False, op=False, double=False):
-  return e.update(t, pull_edge=pull, cancel_edge=cancel, brake_pressed=brake, op_enabled=op, double_pull=double)
+def step(e, t, pull=False, cancel=False, brake=False, op=False, pedal=True, gear_d=True, door_open=False, epas_drop=False,
+         stale=False, di=False, v_ego=10.0, long_allowed=True, speed_block=False, cancel_tx_ms=0, gas=False, pedal_bus_ok=True):
+  return e.update(t, pull_edge=pull, cancel_edge=cancel, brake_pressed=brake, op_enabled=op, pedal=pedal, gear_d=gear_d,
+                  door_open=door_open, epas_drop=epas_drop, stale=stale, di_engaged=di, v_ego=v_ego, long_allowed=long_allowed,
+                  speed_block=speed_block, cancel_tx_ms=cancel_tx_ms, gas_pressed=gas, pedal_bus_ok=pedal_bus_ok)
+
+
+def full(e, t=0, **kw):
+  step(e, t, pull=True, **kw)
+  step(e, t + 10, op=True, **kw)
+  return step(e, t + 250, pull=True, op=True, **kw)
 
 
 def test_window_is_the_400ms_cap():
   assert WINDOW_MS == 400
 
 
-def test_single_pull_engages_lateral_and_long_together():
+def test_first_pull_engages_steering_only():
   e = PreAPEngagement()
   d = step(e, 0, pull=True)
-  assert d.enable_request and d.engaged and d.long_wanted and not d.lat_only
+  assert d.enable_request and d.engaged and d.lat_only and not d.long_wanted and d.mode == Mode.LAT_PENDING
   d = step(e, 10, op=True)
-  assert d.engaged and d.long_wanted and not d.enable_request
+  assert d.engaged and d.lat_only and not d.enable_request
 
 
-def test_double_pull_first_pull_is_an_aol_lateral_intent_not_an_engagement():
+def test_second_pull_inside_window_is_full():
   e = PreAPEngagement()
-  d = step(e, 0, pull=True, double=True)
-  assert d.aol_lat and not d.engaged and not d.enable_request and not d.long_wanted and not d.lat_only
-  # never engages or goes long on its own, however long we wait
-  for t in range(10, 3000, 10):
-    d = step(e, t, op=False, double=True)
-    assert d.aol_lat and not d.engaged and not d.long_wanted and not d.enable_request
+  d = full(e)
+  assert d.mode == Mode.FULL and d.long_wanted and not d.lat_only and d.full_edge and not d.enable_request
 
 
-def test_double_pull_second_pull_inside_window_engages_lateral_and_long():
-  for gap in (50, 250, 399, 400):
-    e = PreAPEngagement()
-    step(e, 0, pull=True, double=True)
-    d = step(e, gap, pull=True, double=True)
-    assert d.engaged and d.long_wanted and d.enable_request and not d.lat_only and not d.aol_lat, gap
-    d = step(e, gap + 10, op=True, double=True)
-    assert d.engaged and d.long_wanted and not d.enable_request
-
-
-def test_double_pull_second_pull_outside_window_stays_aol_lateral():
-  e = PreAPEngagement()
-  step(e, 0, pull=True, double=True)
-  d = step(e, 401, pull=True, double=True)
-  assert d.aol_lat and not d.engaged and not d.enable_request
-  # but that pull opened a window: a third pull inside it engages
-  d = step(e, 401 + 300, pull=True, double=True)
-  assert d.engaged and d.long_wanted and d.enable_request
-
-
-def test_repull_while_engaged_demotes_to_aol_lateral_then_second_pull_reengages():
-  e = PreAPEngagement()
-  step(e, 0, pull=True, double=True)
-  step(e, 200, pull=True, double=True)
-  step(e, 210, op=True, double=True)                          # engaged, openpilot enabled
-  d = step(e, 2000, pull=True, op=True, double=True)          # re-pull: demote
-  assert d.aol_lat and not d.engaged and not d.long_wanted
-  d = step(e, 2010, op=False, double=True)                    # openpilot disengages; the lateral intent survives that
-  assert d.aol_lat and not d.engaged
-  d = step(e, 2250, pull=True, double=True)                   # second pull inside the window: engage again
-  assert d.engaged and d.long_wanted and d.enable_request
-  step(e, 2260, op=True, double=True)
-  step(e, 5000, pull=True, op=True, double=True)              # demote again; a late pull does not re-engage
-  d = step(e, 5500, pull=True, double=True)
-  assert d.aol_lat and not d.engaged and not d.enable_request
-
-
-def test_double_pull_brake_while_engaged_hands_lateral_to_aol():
-  e = PreAPEngagement()
-  step(e, 0, pull=True, double=True)
-  step(e, 100, pull=True, double=True)
-  step(e, 110, op=True, double=True)
-  d = step(e, 200, brake=True, op=True, double=True)
-  assert d.aol_lat and not d.engaged and not d.long_wanted and not d.lat_only
-
-
-def test_aol_going_away_drops_the_lateral_intent_and_never_promotes_it():
-  e = PreAPEngagement()
-  step(e, 0, pull=True, double=True)
-  d = step(e, 10, double=False)
-  assert not d.aol_lat and not d.engaged and not d.enable_request
-  # a pull afterwards is a normal single pull
-  d = step(e, 20, pull=True, double=False)
-  assert d.engaged and d.long_wanted and d.enable_request
-
-
-def test_cancel_resets_both_modes():
-  for dbl in (False, True):
-    e = PreAPEngagement()
-    step(e, 0, pull=True, double=dbl)
-    d = step(e, 100, cancel=True, op=True, double=dbl)
-    assert not d.engaged and not d.long_wanted and not d.lat_only and not d.aol_lat
-    d = step(e, 200, pull=True, double=dbl)
-    assert d.enable_request or d.aol_lat
-
-
-def test_brake_drops_long_keeps_lateral():
+def test_window_expiry_stays_steering_only():
   e = PreAPEngagement()
   step(e, 0, pull=True)
-  step(e, 10, op=True)
-  d = step(e, 20, brake=True, op=True)
-  assert d.engaged and d.lat_only and not d.long_wanted
-  # a single-mode pull afterwards brings long back
-  d = step(e, 1000, pull=True, op=True)
-  assert d.long_wanted
+  d = step(e, WINDOW_MS, op=True)
+  assert d.mode == Mode.LAT_ONLY and d.lat_only
 
 
-def test_single_pull_while_the_brake_is_still_held_does_not_offer_long_back():
-  # the panda blocks the pedal while the brake is pressed, so a pull with the foot still on the brake changes nothing
+def test_repull_in_full_demotes_then_second_pull_reenters():
+  e = PreAPEngagement()
+  full(e)
+  d = step(e, 2000, pull=True, op=True)
+  assert d.mode == Mode.LAT_PENDING and d.lat_only
+  d = step(e, 2300, pull=True, op=True)
+  assert d.mode == Mode.FULL and d.full_edge
+
+
+def test_brake_in_full_drops_speed_keeps_steering_and_one_pull_does_not_restore():
+  e = PreAPEngagement()
+  full(e)
+  d = step(e, 1000, brake=True, op=True)
+  assert d.mode == Mode.LAT_ONLY and d.engaged and d.lat_only
+  d = step(e, 2000, pull=True, op=True)
+  assert d.mode == Mode.LAT_PENDING and not d.long_wanted
+  d = step(e, 3000, op=True)
+  assert d.mode == Mode.LAT_ONLY
+
+
+def test_double_pull_while_brake_held_stays_steering_only():
   e = PreAPEngagement()
   step(e, 0, pull=True)
-  step(e, 10, op=True)
-  d = step(e, 20, brake=True, op=True)
-  assert d.engaged and d.lat_only and not d.long_wanted
-  d = step(e, 500, pull=True, brake=True, op=True)             # pull, brake still held
-  assert d.engaged and d.lat_only and not d.long_wanted and not d.enable_request
-  d = step(e, 520, brake=False, op=True)                       # released: still lateral only until a pull
-  assert d.engaged and d.lat_only and not d.long_wanted
-  d = step(e, 900, pull=True, brake=False, op=True)            # pull with the brake free: long is back
-  assert d.engaged and d.long_wanted and not d.lat_only and not d.enable_request
+  d = step(e, 200, pull=True, op=True, brake=True)
+  assert d.mode == Mode.LAT_ONLY and not d.long_wanted
+
+
+def test_cancel_gear_door_stale_reset():
+  for kw in ({"cancel": True}, {"gear_d": False}, {"door_open": True}, {"stale": True}):
+    e = PreAPEngagement()
+    full(e)
+    d = step(e, 1000, op=True, **kw)
+    assert d.mode == Mode.OFF and not d.engaged, kw
+
+
+def test_epas_drop_locks_out_until_a_new_pull():
+  e = PreAPEngagement()
+  full(e)
+  d = step(e, 1000, op=True, epas_drop=True)
+  assert d.mode == Mode.LOCKOUT and not d.engaged
+  d = step(e, 1010, pull=True, epas_drop=True)    # drop and pull in one step: the drop wins
+  assert d.mode == Mode.LOCKOUT
+  d = step(e, 1100, pull=True)
+  assert d.mode == Mode.LAT_PENDING and d.enable_request
 
 
 def test_follows_openpilot_down_after_it_was_enabled():
   e = PreAPEngagement()
-  step(e, 0, pull=True)
-  step(e, 10, op=True)
-  d = step(e, 20, op=False)
-  assert not d.engaged
-  # a fresh pull is a fresh engage (enable request again)
-  assert step(e, 30, pull=True).enable_request
+  full(e)
+  d = step(e, 1000, op=False)
+  assert d.mode == Mode.OFF
 
 
 def test_enable_request_that_never_takes_resets():
   e = PreAPEngagement()
   step(e, 0, pull=True)
-  assert step(e, ENABLE_TIMEOUT_MS - 1, op=False).engaged
+  assert step(e, ENABLE_TIMEOUT_MS, op=False).engaged
   assert not step(e, ENABLE_TIMEOUT_MS + 1, op=False).engaged
 
 
-def test_double_mode_second_pull_can_land_before_openpilot_state_changes():
-  # the second pull arrives while openpilot is still disabled (the first pull never enabled it): exactly one enable request
+def test_unknown_inputs_fail_closed():
   e = PreAPEngagement()
-  step(e, 0, pull=True, double=True)
-  d = step(e, 30, pull=True, op=False, double=True)
-  assert d.long_wanted and d.enable_request
-  d = step(e, 40, op=False, double=True)
-  assert d.engaged and not d.enable_request
+  assert step(e, 0, pull=True, gear_d=None).mode == Mode.OFF
+  assert step(e, 100, pull=True, door_open=None).mode == Mode.OFF
+  step(e, 200, pull=True)
+  d = step(e, 300, pull=True, op=True, long_allowed=None)
+  assert d.mode == Mode.LAT_ONLY
+
+
+def test_standstill_option_a_refuses_full(monkeypatch):
+  monkeypatch.setattr(eng, "PREAP_FULL_AT_STANDSTILL", False)
+  e = PreAPEngagement()
+  step(e, 0, pull=True, v_ego=0.0)
+  d = step(e, 200, pull=True, op=True, v_ego=0.0)
+  assert d.mode == Mode.LAT_ONLY and d.standstill_refused and not d.standstill_hold
+
+
+def test_standstill_default_b_holds_until_the_accelerator_release_while_moving():
+  assert eng.PREAP_FULL_AT_STANDSTILL is True
+  e = PreAPEngagement()
+  step(e, 0, pull=True, v_ego=0.0)
+  d = step(e, 200, pull=True, op=True, v_ego=0.0)
+  assert d.mode == Mode.FULL and d.standstill_hold and d.full_edge and not d.capture_edge, "nothing captured at 0"
+  assert step(e, 300, op=True, v_ego=0.0).standstill_hold
+  assert step(e, 400, op=True, v_ego=0.0, gas=True).standstill_hold, "still holding while the accelerator is pressed"
+  d = step(e, 500, op=True, v_ego=0.0)
+  assert d.standstill_hold and not d.capture_edge, "released while still stopped: keep holding, capture nothing"
+  step(e, 600, op=True, v_ego=0.5, gas=True)
+  d = step(e, 700, op=True, v_ego=1.0)
+  assert d.mode == Mode.FULL and not d.standstill_hold and d.capture_edge, "released while moving: capture on this edge"
+  assert not step(e, 800, op=True, v_ego=1.0).capture_edge
+
+
+def test_moving_double_pull_captures_on_the_full_edge():
+  e = PreAPEngagement()
+  step(e, 0, pull=True)
+  d = step(e, 200, pull=True, op=True)
+  assert d.mode == Mode.FULL and d.capture_edge and not d.standstill_hold
+
+
+def test_standstill_unknown_speed_is_refused_not_held():
+  e = PreAPEngagement()
+  step(e, 0, pull=True, v_ego=None)
+  d = step(e, 200, pull=True, op=True, v_ego=None)
+  assert d.mode == Mode.LAT_ONLY and not d.standstill_hold
+
+
+def test_brake_during_standstill_hold_drops_to_steering_only():
+  e = PreAPEngagement()
+  step(e, 0, pull=True, v_ego=0.0)
+  step(e, 200, pull=True, op=True, v_ego=0.0)
+  d = step(e, 300, op=True, v_ego=0.0, brake=True)
+  assert d.mode == Mode.LAT_ONLY and d.lat_only and not d.standstill_hold
+
+
+def test_speed_block_in_full_demotes_with_flag():
+  e = PreAPEngagement()
+  full(e)
+  d = step(e, 1000, op=True, speed_block=True)
+  assert d.mode == Mode.LAT_ONLY and d.speed_blocked
+  step(e, 2000, pull=True, op=True)
+  d = step(e, 2200, pull=True, op=True)
+  assert d.mode == Mode.FULL and not d.speed_blocked
+
+
+def test_aol_lat_is_retired():
+  e = PreAPEngagement()
+  assert not step(e, 0, pull=True).aol_lat
+  assert not step(e, 100, op=True).aol_lat
 
 
 def test_steer_drop_matches_the_panda_condition():
@@ -157,3 +183,16 @@ def test_steer_drop_matches_the_panda_condition():
       for err in range(16):
         want = status == 3 or hands >= 3 or (status == 0 and 6 <= err <= 9)
         assert preap_steer_drop(status, hands, err) == want, (status, hands, err)
+
+
+def test_second_pull_without_a_latched_bus_stays_steering_only():
+  e = PreAPEngagement()
+  d = full(e, pedal_bus_ok=False)
+  assert d.mode == Mode.LAT_ONLY and d.lat_only and not d.long_wanted
+
+
+def test_bus_not_ok_in_full_demotes_and_stays_steering_only():
+  e = PreAPEngagement()
+  assert full(e).mode == Mode.FULL
+  d = step(e, 300, op=True, pedal_bus_ok=False)
+  assert d.mode == Mode.LAT_ONLY and d.lat_only and d.speed_blocked

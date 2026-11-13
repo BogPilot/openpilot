@@ -2,8 +2,8 @@
 
 carstate.preap_fresh_pull_pending mirrors tesla_preap_need_fresh_pull (tesla_preap.h): set by every EPAS drop, cleared by a pull in D
 with the doors closed unless the pull was held through the drop. With stock cruise (pcmCruise True) it is reported as blockPcmEnable,
-which stops only the pcmEnable rising edge (selfdrive/car/car_events.py). cruiseState.enabled still follows DI_cruiseState, so the gate
-can never keep openpilot engaged or delay a disengage. The pedal mode never sets blockPcmEnable; AP1 uses a different CarState.
+which stops only the pcmEnable rising edge (selfdrive/car/car_events.py). cruiseState.enabled comes from the pull FSM (a counted pull only),
+so the gate can never keep openpilot engaged or delay a disengage. The pedal mode never sets blockPcmEnable; AP1 uses a different CarState.
 Event-level tests: selfdrive/car/tests/test_preap_reengage.py.
 """
 import inspect
@@ -91,8 +91,8 @@ def test_stock_cruise_block_pcm_enable_is_the_mirror_and_cruise_state_still_foll
     out = step(d)
     seen.append(out.blockPcmEnable)
     assert out.blockPcmEnable == d.rig.cs.preap_fresh_pull_pending
-    di_on = d.rig.base["DI_state"]["DI_cruiseState"] == _inv("DI_state", "DI_cruiseState", "ENABLED")
-    assert out.cruiseState.enabled == di_on, "the gate never touches cruiseState.enabled"
+    # Stock cruise on without a counted pull never engages openpilot (the pull FSM, NAP carstate.py:139), so the gate cannot hold it on.
+    assert not out.cruiseState.enabled
   assert not any(seen[:10]) and all(seen[10:])
   out = step(d, stalk=PULL)
   assert not out.blockPcmEnable and not d.panda.need_fresh_pull, "the fresh pull clears the block on the tick the panda re-arms"
@@ -100,11 +100,14 @@ def test_stock_cruise_block_pcm_enable_is_the_mirror_and_cruise_state_still_foll
 
 def test_stock_cruise_cancel_while_pending_drops_cruise_state_on_that_tick():
   d = Drive(pedal=False)
+  step(d, stalk=PULL)
+  out = step(d)
+  assert out.cruiseState.enabled, "a pull engages steering only"
   d.epas(3, EAC_ACTIVE, 0)
   step(d)
   d.epas(0, EAC_ACTIVE, 0)
   out = step(d)
-  assert out.blockPcmEnable and out.cruiseState.enabled, "TACC still on: cruiseState stays as the car reports it"
+  assert out.blockPcmEnable and not out.cruiseState.enabled, "the EPAS drop ends the session on that tick (LOCKOUT)"
   tacc(d, False)
   out = step(d, stalk=CANCEL)
   assert not out.cruiseState.enabled, "the disengage edge is not held back by the pending pull"

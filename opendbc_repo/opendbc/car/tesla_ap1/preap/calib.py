@@ -1,7 +1,7 @@
-"""Comma Pedal calibration math and gating — from the upstream legacy port legacy conf.
+"""Comma Pedal calibration math and gating — from BogPilot 0.9.7 na-preap calib.py.
 
 Driver-press capture only (no commanded gas; never unlock panda for calib).
-Credit: the upstream legacy port. User-facing product name: BogPilot.
+Credit: NotAutopilot (NAP) nap_conf @ e99f4dc75 (opendbc cc39c7fa), via BogPilot 0.9.7 na-preap 568fea947 calib.py. User-facing product name: BogPilot.
 """
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ STAGE_FAILED = "failed"
 MESSAGE_MAX = 300
 PEDAL_LIVE_S = 3.0             # PedalSeenTs older than this = the pedal is not being heard now
 
-# DI units (the upstream legacy port)
+# DI units (NAP nap_conf / na-preap calib.py)
 PEDAL_DI_ZERO = 0.0
 PEDAL_DI_PRESSED = 2.0
 
@@ -121,7 +121,7 @@ def transform_pedal_to_di(val: float, pedal_zero: float, pedal_factor: float) ->
 
 
 def coast_pedal_zero(calib_zero: float, pedal_factor: float) -> float:
-  """Coast position: calib_zero - 1/factor (the upstream legacy port pedal_zero property)."""
+  """Coast position: calib_zero - 1/factor (NAP nap_conf pedal_zero property)."""
   if pedal_factor == 0:
     pedal_factor = 1.0
   return calib_zero - 1.0 / pedal_factor

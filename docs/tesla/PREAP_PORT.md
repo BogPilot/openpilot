@@ -6,6 +6,18 @@ Code: `opendbc_repo/opendbc/car/tesla_ap1/preap/`, panda mode `opendbc_repo/open
 
 ## Changelog
 
+### Curve speed control with the pedal (vision-only)
+- With a calibrated Comma Pedal and openpilot long, the curve speed controller is back as in 0.9.7: it slows for curves the
+  camera sees ahead, only lowers the set speed, and controls speed only in speed control (second pull). Steering only never
+  slows the car for a curve. Never on a car without the pedal. See DIVERGENCES_preap_csc.md.
+
+### NAP-style double pull: steering first, speed control on the second pull
+- One pull engages steering only; a second pull within 400 ms adds speed control. From speed control a brake press or a single pull
+  goes back to steering only (speed-off chime, "Steering only" banner, blue path); hands on or an EPAS refusal disengages and needs a
+  fresh pull. Without the pedal the first pull cancels a stock cruise it armed and the driver's second pull re-arms it.
+- The pedal is enabled only in speed control, never while braking or with the accelerator pressed, and at a stop it holds at 0 until
+  the accelerator is pressed and released while moving. See DIVERGENCES_preap_nap_fsm.md.
+
 ### Pedal scale window and the pedal command limit
 - The panda drops every enabled Comma Pedal command (0x551) whose raw value is above `max_enabled_raw_gas_cmd` (2500 in
   `tesla_preap.h`). The pedal then hears nothing from openpilot and falls back to the real pedal (foot off, so the car regens).

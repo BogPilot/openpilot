@@ -29,6 +29,19 @@ NO_THROTTLE_COLORS = [
   rl.Color(242, 242, 242, 0),   # HSLF(112/360, 0.0, 0.95, 0.0)
 ]
 
+STEER_ONLY_COLORS = [   # Pre-AP steering only (carState.bogpilot.preapLatOnly): speed control is off
+  rl.Color(64, 160, 255, 102),
+  rl.Color(64, 160, 255, 89),
+  rl.Color(64, 160, 255, 0),
+]
+
+
+def preap_steer_only(sm) -> bool:
+  try:
+    return bool(sm['selfdriveState'].enabled) and bool(sm['carState'].bogpilot.preapLatOnly)
+  except Exception:
+    return False
+
 LANE_LINE_COLORS = {
   UIStatus.DISENGAGED: rl.Color(200, 200, 200, 255),
   UIStatus.OVERRIDE: rl.Color(255, 255, 255, 255),
@@ -334,6 +347,11 @@ class ModelRenderer(Widget):
     self._blend_filter.update(int(allow_throttle))
 
     path_pts = self._path.projected_points + np.array([self._rect.x, self._rect.y], dtype=np.float32)
+
+    if preap_steer_only(sm):
+      draw_polygon(self._rect, path_pts, gradient=Gradient(start=(0.0, 1.0), end=(0.0, 0.0), colors=STEER_ONLY_COLORS,
+                                                           stops=[0.0, 0.5, 1.0]))
+      return
 
     if self._experimental_mode:
       # Draw with acceleration coloring

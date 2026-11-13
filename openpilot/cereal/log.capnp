@@ -137,6 +137,9 @@ struct OnroadEvent @0xc4fa6047f024e718 {
     pedalRetrying @107;       # Pre-AP: the pedal did not take authority; retrying with back-off, the detail names the cause
     experimentalModeUnconfirmed @108;  # Stalk hold: Experimental Mode has not been confirmed in Settings
     ap1SpeedLimitUnknown @109;  # AP1 openpilot long: standstill engage with no known speed limit and no stalk tap set
+    preapSteerOnly @110;      # Pre-AP: engaged, steering only (one pull, a brake or a re-pull in FULL): "Pull twice for speed control"
+    preapSpeedBlocked @111;   # Pre-AP pedal: speed control refused or dropped (blocked pedal frame, standstill option (a))
+    preapCruiseNotArmed @112; # Pre-AP no pedal: the second pull did not arm stock cruise within 600 ms
 
     lowBatteryDEPRECATED @40;
     soundsUnavailableDEPRECATED @47;

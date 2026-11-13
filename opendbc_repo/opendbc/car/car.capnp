@@ -801,6 +801,9 @@ struct BogPilotCarState {
   preapPedalUnavailable @31 :Bool;  # pedal authority failed (long dropped until re-acquired)
   preapAolLat @32 :Bool;            # double pull, first pull / after a re-pull: lateral intent for the Always On Lateral core (0.9.7 pedalCruiseLatOnly); openpilot NOT engaged
   preapPedalFailCause @34 :UInt8;   # why the last pedal acquisition failed (PedalFailCause in preap/pedal_authority.py): 0 none, 1 no stream, 2 state fault, 3 counter/state mismatch, 4 counter stuck, 5 command error, 6 no response; 0 unless preapPedalUnavailable
-  preapPedalNotResponding @33 :Bool;  # pedal longitudinal is on but the Comma Pedal stream (GAS_SENSOR 0x552) is missing or stale (no new counter for 0.5 s)
   ap1SpeedLimitUnknown @36 :Bool;  # AP1 openpilot long: standstill, no dashboard speed limit and no stalk tap set, so no engage set (NO_ENTRY)
+  preapFsmMode @37 :UInt8;          # Pre-AP pull FSM (preap/engagement.py Mode): 0 off, 1 lockout (fresh pull), 2/3 steering only, 4 full
+  preapSpeedBlocked @38 :Bool;      # speed control was refused or dropped (blocked pedal frame, standstill, no stock cruise): steering only
+  preapSteerLatch @39 :Bool;        # mirror of the panda steer-through-brake latch (tesla_preap.h steer_armed && steer_brake_seen)
+  preapPedalNotResponding @33 :Bool;  # pedal longitudinal is on but the Comma Pedal stream (GAS_SENSOR 0x552) is missing or stale (no new counter for 0.5 s)
 }

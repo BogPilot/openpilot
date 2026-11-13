@@ -1,6 +1,6 @@
-"""Comma Pedal GAS_SENSOR feedback parser (legacy-port-style).
+"""Comma Pedal GAS_SENSOR feedback parser (NAP-style).
 
-Credit: legacy-port-style.
+Credit: NAP-style.
 """
 from __future__ import annotations
 

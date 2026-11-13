@@ -152,7 +152,7 @@ def _ready():
 def test_e2e_a_stuck_pedal_stays_engaged_reports_the_cause_and_recovers_when_it_heals():
   rig, ctl = _ready()
   heal_at = 700
-  enabled, outs = _drive(rig, ctl, 1200, lambda n: BAD if n < heal_at else PEDAL_STATE_NO_FAULT, pulls={20})
+  enabled, outs = _drive(rig, ctl, 1200, lambda n: BAD if n < heal_at else PEDAL_STATE_NO_FAULT, pulls={20, 45})
   # while the pedal is stuck: still engaged, cruise still "available" (the old latch dropped it), unavailable + the real cause published
   op, out = outs[500]
   assert op and out.cruiseState.enabled and out.cruiseState.available

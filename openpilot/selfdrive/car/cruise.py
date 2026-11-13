@@ -12,6 +12,9 @@ V_CRUISE_MIN = 8
 V_CRUISE_MAX = 145
 V_CRUISE_UNSET = 255
 V_CRUISE_INITIAL = 40
+# Q6 (PENDING DECISION): Pre-AP pedal FULL capture uses SetSpeedLimit (limit + offset) when it is on and fresh (True, plan
+# default) or always the exact vEgo (False).
+PREAP_FULL_USE_SET_SPEED_LIMIT = True
 IMPERIAL_INCREMENT = round(CV.MPH_TO_KPH, 1)  # round here to avoid rounding errors incrementing set speed
 
 ButtonEvent = car.CarState.ButtonEvent
@@ -121,6 +124,17 @@ class VCruiseHelper:
         # Start/end timer and store current state on change of button pressed
         self.button_timers[b.type.raw] = 1 if b.pressed else 0
         self.button_change_states[b.type.raw] = {"standstill": CS.cruiseState.standstill, "enabled": enabled}
+
+  def capture_preap_full(self, v_ego_ms: float, set_limit_kph: float = 0.0) -> None:
+    """Pre-AP pedal: set speed on the FULL capture edge (second pull while moving, or the standstill hold released by the
+    accelerator). SetSpeedLimit fresh -> limit + offset (clipped as initialize_v_cruise does); otherwise the exact vEgo, as NAP
+    captures the current speed (NAP preap/engagement.py:142,243-246 @ e99f4dc75; NAP rounds to the display unit). Never
+    V_CRUISE_INITIAL (40) and never the V_CRUISE_MIN (8) floor. No resume path: the old set speed is never restored here."""
+    if set_limit_kph > 0.0:
+      self.v_cruise_kph = int(round(np.clip(set_limit_kph, V_CRUISE_MIN, V_CRUISE_MAX)))
+    else:
+      self.v_cruise_kph = float(min(max(float(v_ego_ms), 0.0) * CV.MS_TO_KPH, V_CRUISE_MAX))
+    self.v_cruise_cluster_kph = self.v_cruise_kph
 
   def initialize_v_cruise(self, CS, experimental_mode: bool, set_limit_kph: float = 0.0) -> None:
     # initializing is handled by the PCM

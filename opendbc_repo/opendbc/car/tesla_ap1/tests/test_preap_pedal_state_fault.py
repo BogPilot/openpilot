@@ -61,10 +61,11 @@ def test_failed_authority_is_silent_through_its_back_off():
 # ---- end to end: GAS_SENSOR -> PreApCarState -> PreApCarController -> 0x551 ----------------------------
 
 class Run:
-  """Single pull to engage with a healthy pedal, then GAS_SENSOR STATE follows `self.state`; records each authority step."""
+  """Double pull (steering, then speed control) with a healthy pedal, then GAS_SENSOR STATE follows `self.state`; records each
+  authority step. One pull is steering only and never drives the pedal (test_preap_carstate_controller.py double-pull e2e)."""
 
   def __init__(self):
-    self.rig, self.ctl = _ready_rig(double=False)
+    self.rig, self.ctl = _ready_rig(double=True)
     self.auth = self.ctl.long_ctrl.pedal_authority
     self.calls = []          # (STATE the authority saw, authority state before, action)
     real = self.auth.update
@@ -98,7 +99,7 @@ class Run:
   def engage(self):
     enabled = 0
     for i in range(300):
-      frames, _ = self.step(pull=(i == 20))
+      frames, _ = self.step(pull=(i in (20, 45)))
       enabled += sum(1 for d in frames if d[4] & ENABLE_BYTE_BIT)
     assert self.op and self.auth.state == PedalAuthorityState.ACTIVE and enabled > 20, "engaged, pedal enabled before the fault"
 

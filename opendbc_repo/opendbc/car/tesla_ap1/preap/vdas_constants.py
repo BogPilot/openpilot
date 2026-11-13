@@ -1,6 +1,6 @@
-"""legacy-port-style Pre-AP VirtualDAS and pedal long constants.
+"""NAP-style Pre-AP VirtualDAS and pedal long constants.
 
-Credit: legacy-port-style / Tinkla pedal profiles reduced for feedforward architecture.
+Credit: NAP-style / Tinkla pedal profiles reduced for feedforward architecture.
 """
 
 # Pre-AP pedal accel envelopes, mapped to openpilot Driving Personality toggle.

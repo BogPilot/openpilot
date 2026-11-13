@@ -64,6 +64,11 @@ def chimes_allowed(brand: str | None, enabled: bool | None = None, reader=None) 
   return _read_enabled()
 
 
+# Q5 (PENDING DECISION): the Pre-AP speed on/off chimes (preapLatOnly edges: a brake or a re-pull in FULL, a second pull, no-pedal
+# stock cruise drop / re-arm) follow the "Cruise engage/disengage chimes" toggle (True, plan default) or always sound (False).
+PREAP_SPEED_CHIMES_FOLLOW_TOGGLE = True
+
+
 def long_only_edge(prev_lat_only: bool, lat_only: bool, still_enabled: bool,
                    brand: str | None, *, enabled: bool | None = None, reader=None,
                    stock_chime: bool = False) -> str | None:
@@ -74,7 +79,9 @@ def long_only_edge(prev_lat_only: bool, lat_only: bool, still_enabled: bool,
   Skip when openpilot is no longer engaged, when a stock enable/disable
   chime is already firing this frame, or when the toggle is off.
   """
-  if brand != BRAND or stock_chime or not still_enabled or not chimes_allowed(brand, enabled=enabled, reader=reader):
+  if brand != BRAND or stock_chime or not still_enabled:
+    return None
+  if PREAP_SPEED_CHIMES_FOLLOW_TOGGLE and not chimes_allowed(brand, enabled=enabled, reader=reader):
     return None
   if lat_only and not prev_lat_only:
     return "disengage"

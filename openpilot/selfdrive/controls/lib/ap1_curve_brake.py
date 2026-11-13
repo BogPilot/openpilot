@@ -24,7 +24,7 @@ node speed used only to turn yaw rate into curvature (1/m) and to skip near-stop
 model's own speed choice is never used as a target.
 
 Safety: the planner uses min(plan, request), so this can only ADD braking. Panda safety is not
-touched. C3X only: the planner builds it for TESLA_AP1_MODELS with openpilot longitudinal.
+touched. C3X only: the planner builds it where CSC is supported (AP1, or Pre-AP with a calibrated pedal, csc_platform.py).
 """
 from __future__ import annotations
 
@@ -177,8 +177,12 @@ class TeslaCurveBrake:
     return self.a_request
 
 
-def ap1_curve_brake_for(CP, dt: float = 0.05):
-  """TeslaCurveBrake for AP1 with openpilot longitudinal, None for every other car / stock ACC."""
-  if str(CP.carFingerprint) == AP1_FINGERPRINT and bool(CP.openpilotLongitudinalControl):
+def ap1_curve_brake_for(CP, dt: float = 0.05, pedal_ok: bool | None = None):
+  """TeslaCurveBrake where CSC is supported (csc_platform.csc_supported: AP1 with openpilot longitudinal, or Pre-AP with
+  openpilot longitudinal and a calibrated pedal, as 0.9.7 tesla_curve_brake_for built it for every Tesla,
+  selfdrive/car/tesla/curve_speed.py:173-175 @568fea947). None for every other car, stock ACC and no-pedal Pre-AP.
+  A_MIN stays -1.2 m/s^2 on Pre-AP too (inside its regen range, vdas_constants.REGEN_MAX -1.5)."""
+  from openpilot.selfdrive.controls.lib.csc_platform import csc_supported
+  if csc_supported(CP, pedal_ok):
     return TeslaCurveBrake(dt)
   return None

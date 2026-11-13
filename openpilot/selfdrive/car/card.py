@@ -21,7 +21,7 @@ from opendbc.car.fw_versions import ObdCallback
 from opendbc.car.car_helpers import get_car, interfaces
 from opendbc.car.interfaces import CarInterfaceBase, RadarInterfaceBase
 from openpilot.selfdrive.pandad import can_capnp_to_list, can_list_to_can_capnp
-from openpilot.selfdrive.car.cruise import VCruiseHelper
+from openpilot.selfdrive.car.cruise import VCruiseHelper, PREAP_FULL_USE_SET_SPEED_LIMIT
 from openpilot.selfdrive.car.ap1_runtime import apply_ap1_volume_defaults
 from openpilot.selfdrive.car.bogpilot_card import bogpilot_car_state_msg
 
@@ -175,6 +175,7 @@ class Car:
     self.ap1_cluster_lift = bool(self.CP.brand == "tesla_ap1" and self.CP.carFingerprint != "TESLA_PREAP_MODELS" and self.CP.openpilotLongitudinalControl)
     # Pre-AP with pedal (pcmCruise=False): 0.9.7 SetSpeedLimit engage set from a fresh posted limit.
     self.preap_engage_set_limit = None
+    self.preap_tx_blocked_prev = None
     if self.CP.brand == "tesla_ap1" and self.CP.carFingerprint == "TESLA_PREAP_MODELS" and not self.CP.pcmCruise:
       from openpilot.selfdrive.controls.lib.phase3_speed_control import PreapEngageSetLimit
       self.preap_engage_set_limit = PreapEngageSetLimit(self.CP)
@@ -216,6 +217,14 @@ class Car:
       # Arm detection without ExperimentalModeConfirmed so a completed hold can
       # still raise the "confirm in Settings" alert; apply_experimental_toggle keeps the gate.
       self.CI.CS.stalk_controls_allowed = started and experimental_supported(self.CP)
+    if hasattr(self.CI.CS, "preap_panda_tx_blocked") and self.sm.valid["pandaStates"]:
+      # Pre-AP pedal: pandaStates.safetyTxBlocked (cereal log.capnp:568) is a running total for every address,
+      # not only the pedal command. Feed the per-step increase into the pull FSM; a blocked TX (steering included)
+      # drops speed control back to steering only.
+      tx_total = sum(int(ps.safetyTxBlocked) for ps in self.sm["pandaStates"])
+      if self.preap_tx_blocked_prev is not None and tx_total > self.preap_tx_blocked_prev:
+        self.CI.CS.preap_panda_tx_blocked = tx_total - self.preap_tx_blocked_prev
+      self.preap_tx_blocked_prev = tx_total
     # Update carState from CAN. Physical buttons/cancel remain untouched.
     CS = self.CI.update(can_list)
 
@@ -254,6 +263,14 @@ class Car:
       if self.preap_engage_set_limit is not None:
         set_limit_kph = self.preap_engage_set_limit.kph(self.CS_prev, getattr(self.CI.CS, "engage_limit_ms", 0.0))
       self.v_cruise_helper.initialize_v_cruise(self.CS_prev, self.experimental_mode, set_limit_kph)
+
+    if getattr(self.CI.CS, "preap_capture_edge", False) and not self.CP.pcmCruise:
+      # Pre-AP pedal FULL capture edge (opendbc tesla_ap1/preap/engagement.py capture_edge). Q6: SetSpeedLimit gives limit + offset
+      # through the same freshness / units / standstill / gas gates as the engage set; otherwise the exact vEgo.
+      set_limit_kph = 0.0
+      if PREAP_FULL_USE_SET_SPEED_LIMIT and self.preap_engage_set_limit is not None:
+        set_limit_kph = self.preap_engage_set_limit.kph(CS, getattr(self.CI.CS, "engage_limit_ms", 0.0))
+      self.v_cruise_helper.capture_preap_full(float(CS.vEgo), set_limit_kph)
 
     # TODO: mirror the carState.cruiseState struct?
     CS.vCruise = float(self.v_cruise_helper.v_cruise_kph)

@@ -6,9 +6,10 @@ from opendbc.car import structs
 from openpilot.selfdrive.selfdrived import preap_brake, selfdrived
 
 
-def cs(brake, standstill=False, lat_only=False):
+def cs(brake, standstill=False, lat_only=False, latch=None):
   c = structs.CarState.new_message(brakePressed=brake, standstill=standstill)
   c.bogpilot.preapLatOnly = lat_only
+  c.bogpilot.preapSteerLatch = lat_only if latch is None else latch   # steering only after a brake: the panda latch is set
   return c.as_reader()
 
 
@@ -28,9 +29,15 @@ class TestPreapBrake(unittest.TestCase):
     self.assertTrue(preap_brake.panda_controls_dropped_on_purpose(cs(True, lat_only=True)))
     self.assertTrue(preap_brake.panda_controls_dropped_on_purpose(cs(False, lat_only=True)))   # released, still lateral only until a pull
 
+  def test_dropped_on_purpose_needs_the_panda_latch(self):
+    # steering only without the steer-through-brake latch (no brake involved): the panda should still allow controls, so the normal
+    # not-armed / mismatch checks stay on
+    self.assertFalse(preap_brake.panda_controls_dropped_on_purpose(cs(False, lat_only=True, latch=False)))
+    self.assertFalse(preap_brake.panda_controls_dropped_on_purpose(cs(True, lat_only=False, latch=True)))
+
   def test_selfdrived_uses_the_helpers_and_the_gas_and_regen_rules_are_untouched(self):
     src = inspect.getsource(selfdrived.SelfdriveD)
-    self.assertIn("brake_disengages(CS, self.CS_prev)", src)
+    self.assertIn("brake_disengages(CS, self.CS_prev, preap_brake_held)", src)
     self.assertIn("panda_controls_dropped_on_purpose(CS)", src)
     self.assertIn("CS.gasPressed and not self.CS_prev.gasPressed and self.disengage_on_accelerator", src)
     self.assertIn("CS.regenBraking and (not self.CS_prev.regenBraking or not CS.standstill)", src)

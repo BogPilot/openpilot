@@ -103,7 +103,7 @@ def test_selfdrived_owns_gas_disengagement_and_brake_is_never_suppressed():
   # the brake clause is the helper selfdrive/selfdrived/preap_brake.py: same rule for every car, except a
   # Pre-AP brake press that the car side reports as lateral-only (carState.bogpilot.preapLatOnly)
   from openpilot.selfdrive.selfdrived.preap_brake import brake_disengages
-  glob = {"brake_disengages": brake_disengages}
+  glob = {"brake_disengages": brake_disengages, "preap_brake_held": False}
   previous = NS(gasPressed=False, brakePressed=False, regenBraking=False)
   cs = NS(gasPressed=True, brakePressed=False, regenBraking=False, standstill=False, bogpilot=NS(preapLatOnly=False))
   owner = NS(CS_prev=previous, disengage_on_accelerator=True)

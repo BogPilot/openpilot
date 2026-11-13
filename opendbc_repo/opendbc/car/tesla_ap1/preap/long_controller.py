@@ -1,6 +1,6 @@
-"""legacy-port-style Pre-AP pedal longitudinal controller (VirtualDAS + authority).
+"""NAP-style Pre-AP pedal longitudinal controller (VirtualDAS + authority).
 
-Credit: legacy-port-style. Software-only GAS_SENSOR handshake; no panda loosening.
+Credit: NotAutopilot (NAP) nap-release e99f4dc75 preap/carcontroller.py (cancel triggers, 50 Hz path, engage grace); PedalAuthority/RegenDecelMonitor and gating are BogPilot. Software-only GAS_SENSOR handshake; no panda loosening.
 Passive BogPilot PedalCalib* stays; di_to_pedal uses current_pedal_transform.
 """
 from __future__ import annotations
@@ -10,6 +10,7 @@ import math
 
 from pathlib import Path
 from opendbc.car.tesla_ap1.preap.accel_limits import get_preap_accel_limits
+from opendbc.car.tesla_ap1.preap.engagement import Mode
 from opendbc.car.tesla_ap1.preap.pedal_authority import (
   ENGAGE_GRACE_FRAMES,
   ENGAGE_GRACE_PEDAL_RAMP_RATE_UP,
@@ -49,8 +50,38 @@ class PreAPLongController:
     self.pedal_counter = pedal_counter
     self._pedal_bus_fn = pedal_bus_fn
 
+  @staticmethod
+  def _fsm_full(CS) -> bool:
+    """True only when the pull FSM is in FULL (steering + speed control). A missing or invalid mode reads as not FULL."""
+    try:
+      return Mode(int(getattr(CS, "preap_fsm_mode", Mode.OFF))) == Mode.FULL
+    except (TypeError, ValueError):
+      return False
+
+  @staticmethod
+  def _driver_holds_pedal(CS) -> bool:
+    """ENABLE=1 is never sent while braking, while the accelerator is pressed (by our test or the panda's), during the one update
+    after it is released (the panda refuses ENABLE while gas_pressed_prev), or during the Q1 (b) standstill hold. Missing = hold."""
+    return (bool(getattr(CS, "real_brake_pressed", True)) or bool(getattr(getattr(CS, "out", None), "gasPressed", True))
+            or bool(getattr(CS, "preap_panda_gas_pressed", True)) or int(getattr(CS, "preap_gas_clear_updates", 0)) < 2
+            or bool(getattr(CS, "preap_standstill_hold", True)))
+
   def _append_pedal_command(self, can_sends, CS, pedal_cmd: float, enable: int):
-    cmd = create_pedal_command(pedal_cmd, enable, self.pedal_counter, self._pedal_bus_fn())
+    # The one place a pedal frame is built (single choke point). ENABLE=1 only in FULL: anything else is sent as
+    # (0.0, enable=0), the passthrough frame the disabled path already sends, and counted so CarState demotes FULL
+    # with the speed-blocked warning. Mirrors NAP, where only the second pull of a double pull starts the pedal
+    # (NAP preap/engagement.py:131, e99f4dc75). Userspace only; the panda checks are unchanged.
+    if enable and not self._fsm_full(CS):
+      enable, pedal_cmd = 0, 0.0
+      CS.preap_pedal_guard_blocks = int(getattr(CS, "preap_pedal_guard_blocks", 0)) + 1
+    elif enable and self._driver_holds_pedal(CS):
+      enable, pedal_cmd = 0, 0.0           # driver input, not a fault: not counted, FULL stays
+    elif enable and getattr(CS, "preap_pedal_bus_ok", True) is not True:
+      # interceptor never seen, or 0x552 arrived on a bus other than the latched one (tesla_preap.h:128-135)
+      enable, pedal_cmd = 0, 0.0
+      CS.preap_pedal_guard_blocks = int(getattr(CS, "preap_pedal_guard_blocks", 0)) + 1
+    cmd = create_pedal_command(pedal_cmd, enable, self.pedal_counter,
+                               int(getattr(CS, "pedal_bus", self._pedal_bus_fn())))
     can_sends.append(cmd)
     # counter lives in dat[4] low nibble
     try:
@@ -74,9 +105,11 @@ class PreAPLongController:
     can_sends = []
     actuators = CC.actuators
 
-    # BogPilot: requested_long from CC.enabled + longActive + gating (no legacy-port
-    # engagement FSM / double-pull). BogPilot uses CC.enabled+longActive (no legacy-port engagement FSM).
-    requested_long = bool(CC.enabled) and bool(CC.longActive) and bool(long_ok)
+    # requested_long needs CC.enabled + longActive + gating AND the pull FSM in FULL (the second pull of a NAP-style
+    # double pull, NAP preap/engagement.py:131), so the authority FSM never asks for the pedal on steering only.
+    # Q1 (b) standstill hold: not requested, so the pedal authority acquires (with its engage grace) only after the accelerator.
+    requested_long = bool(CC.enabled) and bool(CC.longActive) and bool(long_ok) and self._fsm_full(CS) \
+      and not bool(getattr(CS, "preap_standstill_hold", False))
     long_active = requested_long
     pedal_long_allowed = bool(long_ok)
 
@@ -111,7 +144,7 @@ class PreAPLongController:
 
     self.prev_requested_long = requested_long
 
-    # 50 Hz pedal path (even frames), matching legacy-port
+    # 50 Hz pedal path (even frames), matching NAP preap/carcontroller.py:88
     if frame % 2 == 0:
       brake_pressed = bool(getattr(CS, "real_brake_pressed", False))
       gas_pressed = bool(getattr(CS.out, "gasPressed", False))
@@ -188,7 +221,7 @@ class PreAPLongController:
           )
           if in_engage_grace:
             # Cap at grace_progress * engage_a_max so the ceiling is the
-            # personality accel envelope scaled by grace progress (legacy-port).
+            # personality accel envelope scaled by grace progress (NAP preap/carcontroller.py:105-111).
             grace_progress = engage_elapsed_frames / ENGAGE_GRACE_FRAMES
             accel_cap = grace_progress * self.engage_a_max
             accel_request = max(0.0, min(accel_request, accel_cap))

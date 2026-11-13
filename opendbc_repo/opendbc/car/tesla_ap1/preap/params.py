@@ -3,7 +3,7 @@
 July prebuilt params_pyx.so cannot store new Params keys (UnknownKeyName at
 boot if added to bogpilot_default_params). Same pattern as EnableICIntegration.
 
-Credit: the upstream legacy port nap_params / legacy conf (names without legacy-port prefix).
+Credit: NotAutopilot nap_params / nap_conf (names without NAP prefix).
 User-facing product name: BogPilot.
 """
 from __future__ import annotations
@@ -25,7 +25,7 @@ class PreApParamKeys:
   PEDAL_DETECTED = "PedalDetected"      # runtime mirror for UI status line
   PEDAL_CALIB_STAGE = "PedalCalibStage"  # runtime: "", coast, coast_ok, saved, failed (the car publishes, the UI reads)
   PEDAL_SEEN_TS = "PedalSeenTs"          # runtime: wall-clock heartbeat while the pedal is heard (UI status goes stale without it)
-  # Pre-AP legacy-port-style double-pull under Always On Lateral. Default ON.
+  # Pre-AP NAP-style double-pull under Always On Lateral. Default ON.
   # File-backed: July params_pyx.so cannot store new Params keys.
   DOUBLE_PULL = "TeslaPreApDoublePull"
   # Driver Override Sensitivity, 1 to 5 (default 3). File-backed and read by the car code once per drive (override.py); it is not a
@@ -35,7 +35,7 @@ class PreApParamKeys:
   PANDA_FIRMWARE = "PandaFirmwareVersion"
 
 
-# Safe defaults (match the upstream legacy port DEFAULT_CONFIG).
+# Safe defaults (match NotAutopilot DEFAULT_CONFIG).
 DEFAULTS = {
   PreApParamKeys.PEDAL_CALIB_DONE: False,
   PreApParamKeys.PEDAL_CALIB_MIN: -3.0,

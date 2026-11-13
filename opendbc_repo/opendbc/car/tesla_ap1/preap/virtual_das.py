@@ -1,7 +1,7 @@
 """Virtual DAS — feedforward-dominant cascaded longitudinal controller.
 
-legacy-port-style Pre-AP pedal long. Replaces open-loop compute_pedal_command() with a
-jerk-limited, feedback-corrected controller. Credit: legacy-port-style.
+NAP-style Pre-AP pedal long. Replaces open-loop compute_pedal_command() with a
+jerk-limited, feedback-corrected controller. Credit: NAP-style.
 """
 
 import json

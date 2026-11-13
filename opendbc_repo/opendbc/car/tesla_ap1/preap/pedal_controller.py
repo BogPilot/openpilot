@@ -1,6 +1,6 @@
-"""legacy-port-style Pre-AP pedal DI mapping: zero-torque learn, deadband, ramps, hysteresis.
+"""NAP-style Pre-AP pedal DI mapping: zero-torque learn, deadband, ramps, hysteresis.
 
-Credit: legacy-port-style. DI→pedal uses BogPilot PedalCalib* (current_pedal_transform).
+Credit: NAP-style. DI→pedal uses BogPilot PedalCalib* (current_pedal_transform).
 Passive PedalCalib* learning stays as-is.
 """
 from __future__ import annotations
@@ -21,7 +21,7 @@ from opendbc.car.tesla_ap1.preap.vdas_constants import (
   REGEN_MAX,
 )
 
-# Zero-torque learning (legacy-port PedalZeroTorque)
+# Zero-torque learning (NAP PedalZeroTorque)
 TORQUE_LEVEL_ACC = 0.0
 TORQUE_LEVEL_DECEL = -30.0
 ZERO_TORQUE_MIN_SPEED = 10.0 * CV.MPH_TO_MS
@@ -99,7 +99,7 @@ def compute_pedal_command(accel_request: float, v_ego: float, prev_pedal_di: flo
   Returns (pedal_cmd, updated_prev_pedal_di). Legacy open-loop path; VirtualDAS
   is the live controller. Kept for unit tests and fallback.
   """
-  del target_speed_kph  # unused; legacy-port signature compatibility
+  del target_speed_kph  # unused; NAP signature compatibility
   pedal_profile = get_pedal_profile_values()
   max_pedal_value = float(interp(v_ego, PEDAL_BP, pedal_profile))
   zero_torque_di = _zero_torque.get(v_ego)

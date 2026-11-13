@@ -1,6 +1,6 @@
 """Default feedforward lookup table for VirtualDAS.
 
-Credit: legacy-port-style. Ships in-tree so VirtualDAS works without /data/vdas_ff_table.json.
+Credit: NAP-style. Ships in-tree so VirtualDAS works without /data/vdas_ff_table.json.
 
 Generated from the existing 3-breakpoint linear interpolation at a grid of
 (speed, accel) points, with a conservative field correction on the positive

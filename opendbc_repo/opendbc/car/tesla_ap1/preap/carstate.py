@@ -5,7 +5,7 @@ DAS_control to read, and the EPAS idles in INHIBITED / TMP_FAULT until we send E
 the AP1 CarState (cited in docs/tesla/PREAP_PORT.md, issue list in the port notes):
 
 - cruiseState: with the Comma Pedal doing longitudinal (CP.openpilotLongitudinalControl, pcmCruise False) openpilot
-  owns "enabled" through PreAPEngagement (stalk pull), and `available` means pedal detected + calibrated + healthy.
+  owns "enabled" through PreAPEngagement (NAP-style double pull: first pull steering only, second pull speed control), and `available` means pedal detected + calibrated + healthy.
   Without the pedal, stock TACC drives (pcmCruise True) exactly like AP1.
 - standstill is the DI STANDSTILL state, not vEgo < 0.1 (the pedal holds 0 mph; a vEgo standstill plus a brake press
   raised preEnableStandstill and blocked engage).
@@ -27,19 +27,19 @@ from opendbc.car.tesla_ap1.hso import ap1_driver_input
 from opendbc.car.tesla_ap1.speed_limit import dashboard_speed_limit_ms, frame_fresh
 from opendbc.car.tesla_ap1.values import BUTTONS, CANBUS, DBC, DOORS, GEAR_MAP
 from opendbc.car.tesla_ap1.preap.calib import is_pedal_calibrated, pedal_can_bus
-from opendbc.car.tesla_ap1.preap.cruise import SPD_CTRL_MAIN, is_preap_cancel_echo, pedal_cruise_available
-from opendbc.car.tesla_ap1.preap.engagement import PreAPEngagement, preap_epas_refusing, preap_steer_drop
-from opendbc.car.tesla_ap1.preap import params as _preap_params
+# Panda gas threshold in GAS_SENSOR.INTERCEPTOR_GAS units: raw 650 (tesla_preap.h:135) with the DBC scale (tesla_ap1_can.dbc:938).
+PANDA_GAS_PRESSED_DBC = 650 * 0.0507968128 - 22.85856576
+# tesla_preap.h:254 blocks ENABLE=1 from the first INTERCEPTOR_GAS > 650 (gas_pressed, :135) and while the brake is pressed
+# (get_longitudinal_allowed / brake_pressed). Ignore a TX-block delta in this window after a gas or brake press edge:
+# that block is the expected panda refusal, not a reason to drop speed control. Blocks outside the window still demote.
+TX_BLOCK_PRESS_IGNORE_MS = 300
+from opendbc.car.tesla_ap1.preap.cruise import SPD_CTRL_CANCEL, SPD_CTRL_MAIN, is_preap_cancel_echo, pedal_cruise_available
+from opendbc.car.tesla_ap1.preap.engagement import Decision, PreAPEngagement, preap_epas_refusing, preap_steer_drop
 from opendbc.car.tesla_ap1.preap.params import PreApParamKeys, get_bool  # noqa: F401
 from opendbc.car.tesla_ap1.preap.pedal_feedback import PedalFeedback
 
 OPTIONAL = float('nan')   # 0.9.7 frequency 0 (never marks the message missing)
 ButtonType = structs.CarState.ButtonEvent.Type
-
-
-def preap_double_pull() -> bool:
-  # True only with the saved choice ON and Always On Lateral available (registered provider). Otherwise single pull: steering and pedal long together.
-  return _preap_params.double_pull_enabled()
 
 
 class PreApCarState(CarStateBase):
@@ -49,6 +49,10 @@ class PreApCarState(CarStateBase):
     self.button_states = {button.event_type: False for button in BUTTONS}
     self.pedal_long = bool(CP.openpilotLongitudinalControl)
     self.pedal_bus = pedal_can_bus()
+    # tesla_preap.h:20, :276: tesla_preap_pedal_bus starts at -1 and is latched by the first 0x552 (:128-135).
+    self._preap_pedal_bus_latched = False
+    self.preap_pedal_bus_mismatch = False
+    self.preap_pedal_bus_ok = False
 
     # Read by CarController / long controller (names kept from the Pre-AP lane).
     self.msg_stw_actn_req = None
@@ -61,8 +65,9 @@ class PreApCarState(CarStateBase):
     self.cruise_buttons = 0
     self.prev_cruise_buttons = 0
     self.preap_cc_cancel_needed = False
+    self.preap_cc_cancel_drop = False   # no pedal: forget a CANCEL not yet sent (StockCCSpoofer.drop_pending)
+    self.preap_cc_cancel_tx_ms = 0      # no pedal: monotonic ms of the last CANCEL put on the bus
     self.preap_last_cc_spoof_ms = 0
-    self.last_stalk_non_cancel_ms = 0
     self.preap_pedal_detected = False
     self.preap_pedal_raw = None
     self._preap_pedal_last_idx = None
@@ -81,12 +86,25 @@ class PreApCarState(CarStateBase):
     self.pedal_brake_required = False
     # Engagement (stalk pull) and the panda-drop latch.
     self.engagement = PreAPEngagement()
-    self.decision = self.engagement.update(0, pull_edge=False, cancel_edge=False, brake_pressed=False,
-                                           op_enabled=False, double_pull=False)
+    self.decision = Decision()
+    self.preap_fsm_mode = int(self.decision.mode)   # read by the pedal guard (long_controller._append_pedal_command)
+    self.preap_pedal_guard_blocks = 0               # pedal ENABLE frames the userspace guard turned into enable=0
+    self._preap_guard_blocks_seen = 0
+    self.preap_panda_tx_blocked = 0                 # pandaStates.safetyTxBlocked delta, fed by card.py each step
+    self._tx_block_press_ms = 0                     # last gas or brake press edge; TX blocks inside the window are ignored
+    self._prev_tx_block_gas = False
+    self._prev_tx_block_brake = False
+    self.preap_panda_gas_pressed = False            # the panda's own gas test on GAS_SENSOR (see below)
+    self.preap_gas_clear_updates = 0                # updates since both gas tests read released
+    self.preap_standstill_hold = False              # Q1 (b) hold, read by the pedal guard
+    self.preap_capture_edge = False                 # one update: the card captures the FULL set speed (selfdrive/car/card.py)
     self.op_enabled = False          # CarController feeds CC.enabled here every frame
     self.preap_panda_drop = False
     self.preap_epas_refusing = False
     self.preap_fresh_pull_pending = False   # mirror of the panda's tesla_preap_need_fresh_pull
+    self.preap_steer_armed = False          # mirror of tesla_preap_steer_armed
+    self.preap_steer_brake_seen = False     # mirror of tesla_preap_steer_brake_seen
+    self.preap_last_pull_ms = -1_000_000
     self._enable_request = False
     self.stock_ap_active = False
     # Fresh posted limit for the SetSpeedLimit engage set (m/s, 0 = unknown). Read by the card on the enable edge.
@@ -108,7 +126,25 @@ class PreApCarState(CarStateBase):
     ret.vEgo, ret.aEgo = self.update_speed_kf(ret.vEgoRaw)
     ret.standstill = (ret.vEgo < 0.1)
 
-    # Comma Pedal presence: GAS_SENSOR IDX advances (on the configured bus).
+    # Comma Pedal presence. Latch the interceptor bus on the first GAS_SENSOR (0x552), mirroring
+    # tesla_preap.h:128-135 (tesla_preap_pedal_bus; init/reset :20, :276). NAP @ e99f4dc75 tesla_preap.h:349-355
+    # and BogPilot na-preap @ 568fea947 safety_tesla_preap.h:302-307 also record the first bus, but still drive
+    # gas_pressed from every 0x552; the panda here (and this userspace) only trusts the latched bus. A later
+    # 0x552 on the other bus is a mismatch: no FULL, never ENABLE=1. Stale IDX timeout is unchanged.
+    chassis_idx = cp.vl_all.get("GAS_SENSOR", {}).get("IDX", [])
+    cam_idx = cp_cam.vl_all.get("GAS_SENSOR", {}).get("IDX", [])
+    seen = []
+    if len(chassis_idx):
+      seen.append(CANBUS.chassis)
+    if len(cam_idx):
+      seen.append(CANBUS.autopilot_chassis)
+    if not self._preap_pedal_bus_latched and seen:
+      self.pedal_bus = seen[0]
+      self._preap_pedal_bus_latched = True
+    if self._preap_pedal_bus_latched and any(b != self.pedal_bus for b in seen):
+      self.preap_pedal_bus_mismatch = True
+    self.preap_pedal_bus_ok = bool(self._preap_pedal_bus_latched) and not self.preap_pedal_bus_mismatch
+
     pedal_cp = cp if self.pedal_bus == CANBUS.chassis else cp_cam
     idx_all = pedal_cp.vl_all.get("GAS_SENSOR", {}).get("IDX", [])
     gas_all = pedal_cp.vl_all.get("GAS_SENSOR", {}).get("INTERCEPTOR_GAS", [])
@@ -119,6 +155,9 @@ class PreApCarState(CarStateBase):
       self._preap_pedal_last_idx = last
     if len(gas_all):
       self.preap_pedal_raw = float(gas_all[-1])
+      # The panda's gas test: raw INTERCEPTOR_GAS > 650 (tesla_preap.h:134-135), i.e. > 650 * 0.0507968128 - 22.85856576 in DBC
+      # units (tesla_ap1_can.dbc:938). Any frame of this update counts, as each one updates the panda's gas_pressed.
+      self.preap_panda_gas_pressed = max(float(g) for g in gas_all) > PANDA_GAS_PRESSED_DBC
     gas_sensor = pedal_cp.vl.get("GAS_SENSOR", {}) or {}
     self.pedal.update(gas_sensor, now_ms)
     self.pedal.update_torque(cp.vl.get("DI_torque1", {}) or {})
@@ -181,14 +220,15 @@ class PreApCarState(CarStateBase):
     pull_edge = any(e.type == ButtonType.resumeCruise and e.pressed for e in button_events)
     if self.pedal_long:
       # Our own STW CANCEL spoof (StockCCSpoofer) must not read as a driver FWD disengage.
-      for e in button_events:
-        if e.pressed and e.type in (ButtonType.accelCruise, ButtonType.decelCruise, ButtonType.resumeCruise):
-          self.last_stalk_non_cancel_ms = now_ms
+      # A cancel is real once more than 600 ms have passed since the last counted pull
+      # (tesla_preap.h:114-120); an up or down tip does not open this window.
       for e in button_events:
         if e.type == ButtonType.cancel and is_preap_cancel_echo(
-            now_ms=now_ms, last_stalk_non_cancel_ms=self.last_stalk_non_cancel_ms,
+            now_ms=now_ms, last_pull_ms=int(self.preap_last_pull_ms or 0),
             last_cc_spoof_ms=int(self.preap_last_cc_spoof_ms or 0), cruise_enabled=bool(self.op_enabled)):
           e.type = ButtonType.unknown
+    # No pedal: no echo filter. A CANCEL that reads back only ends the session (OFF), the stricter outcome; a driver cancel
+    # right after a pull is never swallowed while stock cruise is cancelled by the DI.
     cancel_edge = any(e.type == ButtonType.cancel and e.pressed for e in button_events)
     ret.buttonEvents = button_events
 
@@ -203,14 +243,40 @@ class PreApCarState(CarStateBase):
     # openpilot disengage on that frame (steerDisengage, rising edge), with or without the pedal, as NAP does
     # (NAP opendbc preap/carstate.py:60-68 @ cc39c7fa). EAC_FAULT stays steerFaultPermanent (steerUnavailable).
     ret.steeringDisengage = bool(self.preap_epas_refusing)
+    # Doors (DOORS includes frunk and trunk, like the panda's tesla_preap_door_open). Read before the pull FSM, which needs them.
+    ret.doorOpen = any((self.can_define.dv["GTW_carState"][door].get(int(cp.vl["GTW_carState"][door]), "OPEN") == "OPEN") for door in DOORS)
     if self.pedal_long:
+      # Accelerator, by either test. The panda refuses pedal ENABLE while gas_pressed_prev (get_longitudinal_allowed), so the guard
+      # sends the first ENABLE=1 only one update after both read released.
+      gas_any = bool(ret.gasPressed) or bool(self.preap_panda_gas_pressed)
+      if (gas_any and not self._prev_tx_block_gas) or (bool(ret.brakePressed) and not self._prev_tx_block_brake):
+        self._tx_block_press_ms = now_ms
+      self._prev_tx_block_gas = bool(gas_any)
+      self._prev_tx_block_brake = bool(ret.brakePressed)
+      # A userspace-guard block or a panda TX block (safetyTxBlocked is a total for all addresses, so this is stricter than
+      # needed) drops FULL to steering only with the speed-blocked warning. A TX-block delta inside
+      # TX_BLOCK_PRESS_IGNORE_MS of a gas or brake press edge is the expected panda refusal of ENABLE=1
+      # (tesla_preap.h:254) and is ignored; a guard block or bus mismatch still demotes, and any TX block
+      # outside the window still demotes.
+      tx_blocked = int(self.preap_panda_tx_blocked) > 0
+      press_tx = bool(self._tx_block_press_ms) and 0 <= (now_ms - self._tx_block_press_ms) <= TX_BLOCK_PRESS_IGNORE_MS
+      speed_block = ((self.preap_pedal_guard_blocks != self._preap_guard_blocks_seen) or (tx_blocked and not press_tx)
+                     or bool(self.preap_pedal_bus_mismatch))
+      self.preap_gas_clear_updates = 0 if gas_any else min(self.preap_gas_clear_updates + 1, 1000)
+      self._preap_guard_blocks_seen = self.preap_pedal_guard_blocks
+      self.preap_panda_tx_blocked = 0
+      # NAP-style double pull (preap/engagement.py). Unknown DI state / gear are passed as None and read as unsafe by the FSM.
       self.decision = self.engagement.update(
         now_ms, pull_edge=pull_edge, cancel_edge=cancel_edge, brake_pressed=ret.brakePressed,
-        op_enabled=bool(self.op_enabled), double_pull=preap_double_pull())
-      if self.preap_panda_drop or ret.gearShifter != structs.CarState.GearShifter.drive:
-        self.engagement.reset()
-        self.decision = self.engagement.update(now_ms, pull_edge=False, cancel_edge=False, brake_pressed=False,
-                                               op_enabled=False, double_pull=False)
+        op_enabled=bool(self.op_enabled), pedal=True,
+        gear_d=(ret.gearShifter == structs.CarState.GearShifter.drive), door_open=bool(ret.doorOpen),
+        epas_drop=bool(self.preap_panda_drop), stale=not bool(getattr(cp, "can_valid", True)),
+        di_engaged=(acc_enabled if cruise_state is not None else None), v_ego=float(ret.vEgo),
+        long_allowed=bool(self.preap_pedal_detected and is_pedal_calibrated() and self.preap_pedal_bus_ok),
+        speed_block=speed_block, gas_pressed=gas_any, pedal_bus_ok=bool(self.preap_pedal_bus_ok))
+      self.preap_fsm_mode = int(self.decision.mode)
+      self.preap_standstill_hold = bool(self.decision.standstill_hold)
+      self.preap_capture_edge = bool(self.decision.capture_edge)
       self._enable_request = bool(self.decision.enable_request)
       ret.cruiseState.enabled = bool(self.decision.engaged)
       ret.cruiseState.available = pedal_cruise_available(
@@ -221,23 +287,54 @@ class PreApCarState(CarStateBase):
       fp_ret.preapLatOnly = bool(self.decision.lat_only)
       fp_ret.preapAolLat = bool(self.decision.aol_lat)
     else:
-      # No pedal: stock TACC, openpilot follows the PCM like AP1.
-      ret.cruiseState.enabled = acc_enabled
+      # No pedal: the same pull FSM (NAP runs one FSM for both, NAP preap/engagement.py:126-173 @ e99f4dc75). openpilot still engages
+      # from cruiseState.enabled rising (pcmCruise). The first pull is steering only: if it armed stock cruise we CANCEL it (0x45 is
+      # cancel-only in the panda); the driver's real second pull re-arms stock cruise and that is FULL.
+      self.decision = self.engagement.update(
+        now_ms, pull_edge=pull_edge, cancel_edge=cancel_edge, brake_pressed=ret.brakePressed,
+        op_enabled=bool(self.op_enabled), pedal=False,
+        gear_d=(ret.gearShifter == structs.CarState.GearShifter.drive), door_open=bool(ret.doorOpen),
+        epas_drop=bool(self.preap_panda_drop), stale=not bool(getattr(cp, "can_valid", True)),
+        di_engaged=(acc_enabled if cruise_state is not None else None), v_ego=float(ret.vEgo),
+        long_allowed=False, cancel_tx_ms=int(self.preap_cc_cancel_tx_ms or 0))
+      self.preap_fsm_mode = int(self.decision.mode)
+      if self.decision.drop_cancel:
+        self.preap_cc_cancel_drop = True
+        self.preap_cc_cancel_needed = False
+      if self.decision.cancel_cc:
+        self.preap_cc_cancel_needed = True
+      ret.cruiseState.enabled = bool(self.decision.engaged)
       ret.cruiseState.available = (cruise_state == "STANDBY") or acc_enabled
+      fp_ret.preapLatOnly = bool(self.decision.lat_only)
       self._enable_request = False
 
-    # Doors, blinkers, seatbelt
-    ret.doorOpen = any((self.can_define.dv["GTW_carState"][door].get(int(cp.vl["GTW_carState"][door]), "OPEN") == "OPEN") for door in DOORS)
+    # Blinkers, seatbelt (doors are read above, before the pull FSM)
 
     # Mirror of the panda's tesla_preap_need_fresh_pull (tesla_preap.h): set by every EPAS drop (tesla_preap_epas_state), cleared by a
     # stalk pull (SpdCtrlLvr_Stat RWD) in D with the doors closed, except a pull held through the drop (0x45). If a drop and a clearing
     # pull land in the same update the drop wins, which is the stricter of the two frame orders the panda can see.
     lever_pull = self.cruise_buttons == SPD_CTRL_MAIN
-    if lever_pull and not (self.preap_fresh_pull_pending and self.prev_cruise_buttons == SPD_CTRL_MAIN) and \
-       ret.gearShifter == structs.CarState.GearShifter.drive and not ret.doorOpen:
+    in_d_closed = ret.gearShifter == structs.CarState.GearShifter.drive and not ret.doorOpen
+    counted_pull = lever_pull and not (self.preap_fresh_pull_pending and self.prev_cruise_buttons == SPD_CTRL_MAIN) and in_d_closed
+    if counted_pull:
       self.preap_fresh_pull_pending = False
     if self.preap_panda_drop:
       self.preap_fresh_pull_pending = True
+    # Mirror of the panda's steer-through-brake latch: armed by a counted pull (tesla_preap.h:98-110), disarmed by a cancel outside the
+    # 600 ms echo window (:111-120), an EPAS drop or fault (:52-59), leaving D, a door or stale data (:78-88); brake_seen is set by a brake
+    # while armed (:89-91). preapSteerLatch = armed && brake_seen (:92): the panda keeps steering through that brake press, so openpilot
+    # lateral-only after the brake is on purpose (selfdrived preap_brake). Same drop-wins order as the fresh-pull mirror.
+    if counted_pull:
+      self.preap_steer_armed, self.preap_steer_brake_seen, self.preap_last_pull_ms = True, False, now_ms
+    elif self.cruise_buttons == SPD_CTRL_CANCEL and (now_ms - self.preap_last_pull_ms) > 600:
+      self.preap_steer_armed = self.preap_steer_brake_seen = False
+    if self.preap_panda_drop or not in_d_closed or not bool(getattr(cp, "can_valid", True)):
+      self.preap_steer_armed = self.preap_steer_brake_seen = False
+    if self.preap_steer_armed and ret.brakePressed:
+      self.preap_steer_brake_seen = True
+    fp_ret.preapSteerLatch = bool(self.preap_steer_armed and self.preap_steer_brake_seen)
+    fp_ret.preapFsmMode = int(self.decision.mode)
+    fp_ret.preapSpeedBlocked = bool(self.decision.speed_blocked or self.decision.standstill_refused or self.decision.cc_not_armed)
     # Stock cruise: while the panda waits for a fresh pull it keeps controls off, so stock TACC coming on without that pull must not
     # engage openpilot. blockPcmEnable stops only the pcmEnable rising edge (selfdrive/car/car_events.py); cruiseState.enabled, pcmDisable
     # and every disengage path are unchanged, and no alert is added. NAP gets the same result by setting cruiseState.enabled only from a
@@ -297,10 +394,9 @@ class PreApCarState(CarStateBase):
       ("UI_gpsVehicleSpeed", OPTIONAL),
     ]
     cam_messages = []
-    if pedal_can_bus() == CANBUS.chassis:
-      messages.append(("GAS_SENSOR", OPTIONAL))
-    else:
-      cam_messages.append(("GAS_SENSOR", OPTIONAL))
+    # Listen on bus 0 and bus 2 so the first 0x552 can latch, as tesla_preap.h:297-298 does.
+    messages.append(("GAS_SENSOR", OPTIONAL))
+    cam_messages.append(("GAS_SENSOR", OPTIONAL))
     return {
       Bus.chassis: CANParser(DBC[CP.carFingerprint][Bus.chassis], messages, CANBUS.chassis),
       Bus.cam: CANParser(DBC[CP.carFingerprint][Bus.chassis], cam_messages, CANBUS.autopilot_chassis),

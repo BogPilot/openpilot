@@ -1,6 +1,6 @@
 """Stock cruise cancel spoofer for Pre-AP + comma pedal.
 
-Ports legacy-port StockCCSpoofer cancel path: when pedal longitudinal engages or
+Ports NAP (NotAutopilot nap-release e99f4dc75) StockCCSpoofer cancel path (opendbc/car/tesla/preap/stock_cc_spoofer.py:29-63): when pedal longitudinal engages or
 disengages, or the stalk moves while pedal long is allowed, TX one
 STW_ACTN_RQ CANCEL (SpdCtrlLvr_Stat=1) so stock DI cruise cannot run
 alongside the pedal for long.
@@ -9,9 +9,11 @@ Uses BogPilot TeslaCAN.create_action_request (live-frame copy including
 SpdCtrlLvrStat_Inv / VSL_Enbl_Rq, counter, CRC-8). Bus must be
 CANBUS.chassis (0) — SAFETY_TESLA_PREAP TX-whitelists 0x45 only on bus 0.
 
-Credit: the upstream legacy port. Product name: BogPilot.
+Credit: NotAutopilot (NAP) nap-release e99f4dc75, via BogPilot 0.9.7 na-preap 568fea947. Product name: BogPilot.
 """
 from __future__ import annotations
+
+import time
 
 # Delay between cancel-pending and CANCEL on the bus. Lets pedal mode
 # establish control before the DI drops stock CC.
@@ -25,9 +27,16 @@ class StockCCSpoofer:
     self.cancel_pending = False
     self.cancel_frame = -1_000_000
 
+  def drop_pending(self):
+    """Forget a CANCEL that has not been sent yet (no pedal: the driver's second pull beat it, so stock cruise must stay on)."""
+    self.cancel_pending = False
+
   def update(self, CS, frame, tesla_can, bus):
     can_sends = []
 
+    if getattr(CS, "preap_cc_cancel_drop", False):
+      self.drop_pending()
+      CS.preap_cc_cancel_drop = False
     if getattr(CS, "preap_cc_cancel_needed", False):
       self.cancel_pending = True
       self.cancel_frame = frame
@@ -39,6 +48,10 @@ class StockCCSpoofer:
       if sent is not None:
         can_sends.append(sent)
         self.cancel_pending = False
+        # When the CANCEL really went out: the no-pedal FSM uses it to tell our cancel from the DI state it left behind.
+        CS.preap_cc_cancel_tx_ms = int(time.monotonic() * 1000)
+        # The spoof-echo window (preap/cruise.py) opens only on our own frame, never on a tip or a pending flag.
+        CS.preap_last_cc_spoof_ms = CS.preap_cc_cancel_tx_ms
 
     return can_sends
 

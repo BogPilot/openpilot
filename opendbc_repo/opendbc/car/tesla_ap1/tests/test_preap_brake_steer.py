@@ -55,6 +55,8 @@ def _engaged():
   d = Drive()
   d.run(20)
   d.step(pull=True)
+  d.run(20)
+  d.step(pull=True)                    # NAP-style double pull: the second pull inside 400 ms adds the pedal
   d.run(250)
   assert d.log[-1]["op"] and d.log[-1]["long_active"] and any(f["pedal"] for f in d.log[-50:]), "engaged with the pedal driving"
   return d
@@ -69,7 +71,7 @@ def test_brake_press_keeps_openpilot_engaged_steering_on_and_cuts_the_pedal():
   assert sum(f["steer"] for f in held) >= 25, "steering frames (0x488 ANGLE) keep going at 50 Hz"
 
 
-def test_after_the_brake_is_released_steering_continues_and_the_pedal_stays_off_until_a_pull():
+def test_after_the_brake_is_released_steering_continues_and_the_pedal_stays_off_until_a_double_pull():
   d = _engaged()
   d.run(30, brake=True)
   free = d.run(150)
@@ -77,9 +79,14 @@ def test_after_the_brake_is_released_steering_continues_and_the_pedal_stays_off_
   assert not any(f["pedal"] for f in free), "no pedal until the driver pulls again"
   assert sum(f["steer"] for f in free) >= 70
   d.step(pull=True)
+  one = d.run(60)
+  assert not any(f["pedal"] for f in one), "one pull alone never brings the pedal back (NAP: a lone pull demotes)"
+  d.step(pull=True)
+  d.run(20)
+  d.step(pull=True)
   back = d.run(250)
   assert back[-1]["op"] and back[-1]["long_active"] and not back[-1]["lat_only"]
-  assert any(f["pedal"] for f in back), "a pull with the brake free brings the pedal back"
+  assert any(f["pedal"] for f in back), "a double pull with the brake free brings the pedal back"
 
 
 def test_a_pull_with_the_foot_still_on_the_brake_does_not_bring_the_pedal_back():

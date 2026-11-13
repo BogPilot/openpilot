@@ -1,6 +1,6 @@
-"""Pre-AP accel envelope helpers (legacy-port-style personality profiles).
+"""Pre-AP accel envelope helpers (NAP-style personality profiles).
 
-Credit: legacy-port-style.
+Credit: NAP-style.
 """
 from __future__ import annotations
 

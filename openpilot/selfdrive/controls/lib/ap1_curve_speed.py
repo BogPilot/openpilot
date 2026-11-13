@@ -11,11 +11,14 @@ Authority (can only slow the car down, only for curves):
     cruise and Experimental (e2e) candidates are untouched, so lead following is never weakened
   * the existing reactive turn limit in get_cruise_accel and the ACCEL_MIN/MAX clip stay as they are
 
-Active only for TESLA_AP1_MODELS with openpilot longitudinal and CurveSpeedController on (367e1fe
-tuning-level rule via ParamStore). Everything fails closed: stock ACC, other cars, toggle off, a
-stale / invalid modelV2 or carState, short or non-finite model arrays, or a non-finite speed leave
-the cruise speed alone, release the curve brake and publish bogpilotPlan.valid = False so the UI
-blanks. ShowCSCStatus is display only and is read by the UI, never here.
+Active only where csc_platform.csc_supported allows it (TESLA_AP1_MODELS with openpilot longitudinal, or
+TESLA_PREAP_MODELS with openpilot longitudinal and a calibrated Comma Pedal, as 0.9.7 ran it) and
+CurveSpeedController is on (367e1fe tuning-level rule via ParamStore). On Pre-AP it controls speed only
+while the pedal is live and the pull FSM is in FULL (csc_platform.preap_pedal_live / preap_full); in
+steering only it never caps, but may still learn (training). Everything fails closed: stock ACC, other
+cars, no-pedal Pre-AP, toggle off, a stale / invalid modelV2 or carState, short or non-finite model
+arrays, or a non-finite speed leave the cruise speed alone, release the curve brake and publish
+bogpilotPlan.valid = False so the UI blanks. ShowCSCStatus is display only and is read by the UI, never here.
 
 Units: speeds m/s, road curvature 1/m (signed, daily sign convention), accelerations m/s^2.
 """
@@ -31,6 +34,7 @@ from openpilot.selfdrive.controls.lib.ap1_curve_arbitration import ModelClock
 from openpilot.selfdrive.controls.lib.ap1_curve_brake import TESLA_CSC_MAX_LAT_ACCEL, ap1_curve_brake_for
 from openpilot.selfdrive.controls.lib.bogpilot_csc import (CRUISING_SPEED, MINIMUM_LATERAL_ACCELERATION, CurveSpeedController,
                                                            CurveDetector, RoadCurvatureFilter, TrackingLead)
+from openpilot.selfdrive.controls.lib.csc_platform import csc_gate, csc_supported, is_preap
 
 AP1 = "TESLA_AP1_MODELS"
 TOGGLE = "CurveSpeedController"
@@ -74,10 +78,11 @@ def model_path(model):
 
 
 class Ap1CurveSpeed:
-  def __init__(self, CP, dt: float = DT_MDL, store=None):
-    self.available = str(CP.carFingerprint) == AP1 and bool(CP.openpilotLongitudinalControl)
+  def __init__(self, CP, dt: float = DT_MDL, store=None, pedal_ok: bool | None = None):
+    self.available = csc_supported(CP, pedal_ok)
+    self.preap = self.available and is_preap(CP)
     self.dt = dt
-    self.brake = ap1_curve_brake_for(CP, dt) if self.available else None
+    self.brake = ap1_curve_brake_for(CP, dt, pedal_ok=True if self.preap else None) if self.available else None
     if self.available and store is None:
       from openpilot.common.bogpilot_store import ParamStore
       store = ParamStore(cache_ttl=TOGGLE_CACHE_S)
@@ -144,6 +149,10 @@ class Ap1CurveSpeed:
 
     t, x, v, yaw, yaw_t = path
     CS = sm['carState']
+    # Pre-AP: no live pedal on its latched bus = inactive (fail closed). Outside FULL (steering only) never cap.
+    active, speed_control_ok = csc_gate(self.preap, CS)
+    if not active:
+      return self._inactive(v_cruise, reset_state)
     # The model may continue a lane change after the stalk signal is released.
     # Use the existing blinker cancellation/release path; do not change tuning.
     try:
@@ -174,7 +183,7 @@ class Ap1CurveSpeed:
     # curve is active, and hold the last target for CSC_HOLD_S after it goes quiet so the plan
     # never jumps back to the SLC cap mid-curve.
     in_curve = (not blinker) and (detected or driving_in_curve or limiting)
-    keep = enabled and (not reset_state) and (v_ego > CRUISING_SPEED) and (not blinker) and (
+    keep = speed_control_ok and enabled and (not reset_state) and (v_ego > CRUISING_SPEED) and (not blinker) and (
         detected or in_curve or (self.controlling and self._hold_s < CSC_HOLD_S))
     if keep:
       if detected or limiting or (in_curve and not self.controlling):

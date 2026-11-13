@@ -130,7 +130,7 @@ class PreApCarController(CarControllerBase):
   def update(self, CC, CS, now_nanos):
     actuators = CC.actuators
     can_sends = []
-    self.pedal_bus = pedal_can_bus()
+    self.pedal_bus = int(getattr(CS, "pedal_bus", pedal_can_bus()))
     # openpilot's engaged state feeds the engagement FSM (CarState cannot see CarControl).
     CS.op_enabled = bool(CC.enabled)
 
@@ -165,8 +165,7 @@ class PreApCarController(CarControllerBase):
     long_ok = pedal_long_allowed(user_wants_long=user_wants_long, detected=detected, calibrated=calibrated)
     if user_wants_long:
       can_sends.extend(self.long_ctrl.update(CC, CS, self.frame, long_ok=long_ok, now_nanos=int(now_nanos or 0)))
-      if getattr(CS, "preap_cc_cancel_needed", False):
-        CS.preap_last_cc_spoof_ms = int(time.monotonic() * 1000)
+    # The spoof-echo window (preap/cruise.py) is stamped by StockCCSpoofer only when our CANCEL frame is put on the bus.
     can_sends.extend(self.stock_cc.update(CS, self.frame, self.tesla_can, CANBUS.chassis))
 
     new_actuators = actuators.as_builder()

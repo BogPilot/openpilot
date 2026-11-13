@@ -51,6 +51,11 @@ def test_factory_ap1_openpilot_long_only():
   assert isinstance(ap1_curve_brake_for(cp("TESLA_AP1_MODELS", True)), TeslaCurveBrake)
   for fp, long in (("TESLA_AP1_MODELS", False), ("TESLA_MODEL_3", True), ("HONDA_CIVIC", True), ("", True)):
     assert ap1_curve_brake_for(cp(fp, long)) is None
+  # Pre-AP: only with openpilot long (pcmCruise False) and a calibrated pedal, as 0.9.7 built it for every Tesla.
+  preap = SimpleNamespace(carFingerprint="TESLA_PREAP_MODELS", openpilotLongitudinalControl=True, pcmCruise=False)
+  assert isinstance(ap1_curve_brake_for(preap, pedal_ok=True), TeslaCurveBrake)
+  assert ap1_curve_brake_for(preap, pedal_ok=False) is None
+  assert ap1_curve_brake_for(cp("TESLA_PREAP_MODELS", True), pedal_ok=True) is None    # pcmCruise unknown: stock cruise
 
 
 # --- request math ---

@@ -27,6 +27,10 @@ PEDAL_RETRYING = "pedalRetrying"
 # AP1 openpilot long: standstill, no dashboard speed limit, no stalk tap set (carState.bogpilot.ap1SpeedLimitUnknown): NO_ENTRY.
 SPEED_LIMIT_UNKNOWN = "ap1SpeedLimitUnknown"
 WRONG_CAR_MODE = "wrongCarMode"
+# Pre-AP pull FSM: steering-only banner, speed control blocked (pedal) / stock cruise not armed (no pedal).
+PREAP_STEER_ONLY = "preapSteerOnly"
+PREAP_SPEED_BLOCKED = "preapSpeedBlocked"
+PREAP_CC_NOT_ARMED = "preapCruiseNotArmed"
 INHIBIT_ALERT_FRAMES = int(1.0 / DT_CTRL)  # ~1 s at 100 Hz
 
 
@@ -67,4 +71,10 @@ class Ap1Events:
     # AP1 openpilot long: no set speed for a standstill engage (op_long_set_speed.py). NO_ENTRY only, so it never disengages.
     if bool(getattr(bogpilot, "ap1SpeedLimitUnknown", False)) and SPEED_LIMIT_UNKNOWN not in out:
       out.append(SPEED_LIMIT_UNKNOWN)
+
+    if bool(enabled) and bool(getattr(bogpilot, "preapLatOnly", False)):
+      if bool(getattr(bogpilot, "preapSpeedBlocked", False)):
+        out.append(PREAP_SPEED_BLOCKED if bool(getattr(bogpilot, "preapPedalDetected", False)) else PREAP_CC_NOT_ARMED)
+      else:
+        out.append(PREAP_STEER_ONLY)
     return out
