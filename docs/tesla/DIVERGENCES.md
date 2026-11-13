@@ -211,3 +211,22 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Safety-relevant: no; settings UI only.
 - Tests: `openpilot/selfdrive/ui/tests/test_section_icons.py`, `openpilot/selfdrive/ui/tests/test_bogpilot_menu_097.py` (section icon tests).
 - Credits: BogPilot 0.9.7 (the icons and their mapping).
+
+## Panda (AP1): no active steering into a refusing EPAS, with a latched TMP_FAULT exception
+- Platforms: AP1 Model S and Model X (`TESLA_FLAG_AP1`).
+- Reference behavior: BogPilot 0.9.7 `panda/board/safety/safety_tesla.h` (0x370 RX and the 0x488 TX check) and
+  Tinkla/BogGyver panda `board/safety/safety_tesla.h` do not read `EPAS_eacStatus` or `EPAS_eacErrorCode` at all.
+  NAP `opendbc/safety/modes/tesla_legacy.h` only disengages on hands-on level 3 or INHIBITED with error 9. On the car
+  side, BogPilot 0.9.7 `selfdrive/car/tesla/actuator_plan.py` (`ap1_hold_measured_angle`) keeps sending ANGLE at the
+  measured wheel while the EPAS is not ACTIVE, whatever the error code.
+- Our behavior: `opendbc/safety/modes/tesla_ap1.h` drops an active 0x488 frame (type 1 or 2) while the last 0x370
+  says INHIBITED, FAULT or SNA, or carries an error other than IDLE, HANDS_ON (3) or HIGH_ANGLE_REQ (6). One
+  exception: EAC_ERROR_TMP_FAULT (4) is let through while the same 0x370 frame says AVAILABLE or ACTIVE and the last
+  EPB_epasControl (0x214, bus 0) said EPB_epasEACAllow = 1 less than 250 ms ago. 0x214 is an AP1 RX check (10 Hz).
+  controls_allowed, the angle rate table and every other check still apply.
+- Why: the EPAS keeps codes 3, 4 and 6 latched until it is commanded again. Blocking code 4 for good turned one
+  transient EPAS fault into a lateral lockout for the rest of the drive. Every other code stays blocked, and
+  INHIBITED/FAULT/SNA always block.
+- Safety-relevant: yes. Stricter than BogPilot 0.9.7, Tinkla and NAP for every error and status value.
+- Tests: `opendbc/safety/tests/test_tesla_ap1_epas_refusal.py`, `opendbc/safety/tests/test_tesla_ap1_epas_tmp_fault.py`.
+- Credits: BogPilot 0.9.7; Tinkla/BogGyver; NAP.
