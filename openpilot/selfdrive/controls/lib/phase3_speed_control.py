@@ -527,14 +527,15 @@ class LongEngageGate:
   def __init__(self):
     self.long_on = False
     self._drop_s = 0.0
+    self.was_on = False   # longitudinal was ours at some point in this cruise session
 
   def update(self, cruise_on: bool, long_active: bool, dt: float):
     """-> (engaged, lat_only)."""
     if not cruise_on:
-      self.long_on, self._drop_s = False, 0.0
+      self.long_on, self._drop_s, self.was_on = False, 0.0, False
       return False, False
     if long_active:
-      self.long_on, self._drop_s = True, 0.0
+      self.long_on, self._drop_s, self.was_on = True, 0.0, True
     elif self.long_on:
       self._drop_s += dt
       if self._drop_s >= self.DROP_S:
@@ -724,6 +725,16 @@ class Ap1SpeedControl:
       self._tip_override_active = False
       self.slc.overridden_speed = 0.0
       self.slc.override_slc = False
+      if self._ap1_op_long and gas and enabled and self.engage.was_on:
+        # Gas held past DROP_S after longitudinal was ours in this cruise session. carState.vCruise is the car-layer
+        # engage latch (after a pull, the engage-time limit + offset), not a driver set. Show the same set the Max Set
+        # Speed override returns to: the driver's own set (tip / tap latch), else the current limit + offset.
+        held_ms = float(self.holdoff.driver_set_ms)
+        if not (math.isfinite(held_ms) and held_ms > 0.0):
+          held_ms = float(self.slc_target) + float(self.slc_offset) - v_ego_diff
+        if math.isfinite(held_ms) and held_ms > 0.0:
+          self.v_cruise_out = float(min(held_ms, V_CRUISE_MAX_MS))
+          return self.v_cruise_out
       # Gas-held engage (longActive 0 while the gas is down, or the few ticks before longActive is seen): the
       # pass-through is carState.vCruise. Floor it at vEgo, the same floor as the long branch below, so the
       # plan (and the IC lift from it) never shows a ~vEgo/2 DI_cruiseSet seed. Raises only, never lowers.

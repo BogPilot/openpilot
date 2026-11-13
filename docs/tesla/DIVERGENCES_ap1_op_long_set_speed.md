@@ -209,9 +209,17 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
   seen while longitudinal was ours); with none (pull engage, SLC tracking) it uses the current limit plus offset, so the
   override ends at the release. Example: pull at 45 + 5 (set 50), the limit drops to 35 (SLC 40), gas to 45, release:
   40, not 50. A tap latch or a tipped set is still restored after the gas.
+- Held gas: when the gas is held longer than `LongEngageGate.DROP_S` (1.0 s) after longitudinal was ours in the
+  same cruise session, the lateral-only pass-through used to publish `carState.vCruise`, that same engage latch, so
+  plan, IC and HUD showed the earlier zone's limit plus offset until the release. It now publishes the same set as
+  above (`driver_set_ms`, else the current limit plus offset) with no vEgo floor. The DROP_S timing, the gas-held
+  engage (longitudinal not yet ours: pass-through floored at vEgo) and the double-pull first pull are unchanged.
+  Example: pull at 35 + 5, tip down to 20, the limit drops to 25, gas held 2 s: 20 during the hold and after.
 - Why: the old rule raised the set back to an earlier zone's limit plus offset with no driver set action.
-- Safety-relevant: planner set speed only, and only lower or equal to before. No panda, CAN TX, DBC or cereal change.
-- Tests: `TestMaxSetSpeedGasOverride` and `test_override_manual_and_set_speed` (`test_phase3_speed_control.py`).
+- Safety-relevant: planner set speed only, and only lower or equal to before. During the held-gas pass-through
+  longitudinal is not active, so the value is shown, not acted on; after the release it is the set the old code also
+  returned to. No panda, CAN TX, DBC or cereal change.
+- Tests: `TestMaxSetSpeedGasOverride`, `TestHeldGasPassThrough` and `test_override_manual_and_set_speed` (`test_phase3_speed_control.py`).
 - Credits: BogPilot 0.9.7 (SLC override rule).
 
 ### AP1: non-finite engage inputs never become a set

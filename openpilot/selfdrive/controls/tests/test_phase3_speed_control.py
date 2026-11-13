@@ -765,3 +765,53 @@ class TestEngageSetWithSlcOff(unittest.TestCase):
     outs = [run(ctl, sm, 45 * MPH, 20.0, limit=lim * MPH) for lim in (45, 35, 25, 55)]
     self.assertTrue(all(abs(o - 45 * MPH) < 1e-6 for o in outs), outs)
 
+
+class TestHeldGasPassThrough(unittest.TestCase):
+  """Gas held longer than LongEngageGate.DROP_S after longitudinal was ours (AP1 openpilot long, SLCOverride 2). The
+  lateral-only pass-through used carState.vCruise, the car-layer engage latch (after a pull, the engage-time limit +
+  offset). It now shows the driver's own set, else the current limit + offset, during the hold and after the release."""
+
+  HOLD_S = sc.LongEngageGate.DROP_S + 1.0
+
+  def _gas_hold_then_release(self, ctl, sm, v_set, limit_mph, v_from_mph, v_to_mph):
+    n = int(self.HOLD_S / DT)
+    during = [run(ctl, sm, v_set, (v_from_mph + (v_to_mph - v_from_mph) * i / n) * MPH, limit=limit_mph * MPH,
+                  gas=True, long_active=False) for i in range(n)]
+    after = [run(ctl, sm, v_set, v_to_mph * MPH, limit=limit_mph * MPH) for _ in range(int(2.0 / DT))]
+    return during, after
+
+  def test_pull_tip_down_to_20_lower_limit_gas_held_stays_at_20(self):
+    ctl, sm = make(toggles(SLCOverride="2")), Sm()
+    v_set = 40 * MPH   # car-layer set after the pull: 35 + 5, held until disengage
+    run(ctl, sm, 0.0, 25 * MPH, limit=35 * MPH, rwd=True, cruise=False)
+    run(ctl, sm, 0.0, 25 * MPH, limit=35 * MPH, cruise=False)
+    self.assertAlmostEqual(run(ctl, sm, v_set, 25 * MPH, limit=35 * MPH), 40 * MPH, places=4)
+    for _ in range(4):   # deep down tips: 40 -> 35 -> 30 -> 25 -> 20
+      run(ctl, sm, v_set, 25 * MPH, limit=35 * MPH, dn=True, spd=8)
+      run(ctl, sm, v_set, 25 * MPH, limit=35 * MPH)
+    self.assertAlmostEqual(run(ctl, sm, v_set, 22 * MPH, limit=35 * MPH), 20 * MPH, places=3)
+    out = [run(ctl, sm, v_set, 22 * MPH, limit=25 * MPH) for _ in range(int(3.0 / DT))]
+    self.assertAlmostEqual(out[-1], 20 * MPH, places=3)
+    during, after = self._gas_hold_then_release(ctl, sm, v_set, 25, 22, 28)
+    self.assertTrue(all(abs(x - 20 * MPH) < 1e-3 for x in during), f"during: max {max(during) / MPH:.2f} mph")
+    self.assertTrue(all(abs(x - 20 * MPH) < 1e-3 for x in after), f"after: max {max(after) / MPH:.2f} mph")
+
+  def test_pull_no_tip_lower_limit_gas_held_stays_at_current_limit_plus_offset(self):
+    ctl, sm = make(toggles(SLCOverride="2")), Sm()
+    v_set = 50 * MPH   # car-layer set after the pull: 45 + 5
+    run(ctl, sm, 0.0, 45 * MPH, limit=45 * MPH, rwd=True, cruise=False)
+    run(ctl, sm, 0.0, 45 * MPH, limit=45 * MPH, cruise=False)
+    self.assertAlmostEqual(run(ctl, sm, v_set, 45 * MPH, limit=45 * MPH), 50 * MPH, places=4)
+    out = [run(ctl, sm, v_set, 40 * MPH, limit=35 * MPH) for _ in range(int(3.0 / DT))]
+    self.assertAlmostEqual(out[-1], 40 * MPH, places=4)
+    during, after = self._gas_hold_then_release(ctl, sm, v_set, 35, 40, 45)
+    self.assertTrue(all(abs(x - 40 * MPH) < 1e-3 for x in during), f"during: max {max(during) / MPH:.2f} mph")
+    self.assertTrue(all(abs(x - 40 * MPH) < 1e-3 for x in after), f"after: max {max(after) / MPH:.2f} mph")
+
+  def test_gas_held_engage_before_longitudinal_keeps_the_pass_through(self):
+    """Longitudinal never ours yet in this cruise session (gas-held engage): unchanged, carState.vCruise floored at vEgo."""
+    ctl, sm = make(toggles(SLCOverride="2")), Sm()
+    run(ctl, sm, 0.0, 20.0, limit=45 * MPH, rwd=True, cruise=False)
+    outs = [run(ctl, sm, 10.0, 20.0, limit=45 * MPH, gas=True, long_active=False) for _ in range(int(self.HOLD_S / DT))]
+    self.assertTrue(all(abs(x - 20.0) < 1e-6 for x in outs), outs[:3])
+
