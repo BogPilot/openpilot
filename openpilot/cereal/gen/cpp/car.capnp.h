@@ -5308,6 +5308,12 @@ public:
 
   inline bool getAp1SpeedLimitUnknown() const;
 
+  inline  ::uint8_t getPreapFsmMode() const;
+
+  inline bool getPreapSpeedBlocked() const;
+
+  inline bool getPreapSteerLatch() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -5446,6 +5452,15 @@ public:
 
   inline bool getAp1SpeedLimitUnknown();
   inline void setAp1SpeedLimitUnknown(bool value);
+
+  inline  ::uint8_t getPreapFsmMode();
+  inline void setPreapFsmMode( ::uint8_t value);
+
+  inline bool getPreapSpeedBlocked();
+  inline void setPreapSpeedBlocked(bool value);
+
+  inline bool getPreapSteerLatch();
+  inline void setPreapSteerLatch(bool value);
 
 private:
   ::capnp::_::StructBuilder _builder;
@@ -11740,6 +11755,48 @@ inline bool BogPilotCarState::Builder::getAp1SpeedLimitUnknown() {
 inline void BogPilotCarState::Builder::setAp1SpeedLimitUnknown(bool value) {
   _builder.setDataField<bool>(
       ::capnp::bounded<171>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint8_t BogPilotCarState::Reader::getPreapFsmMode() const {
+  return _reader.getDataField< ::uint8_t>(
+      ::capnp::bounded<28>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint8_t BogPilotCarState::Builder::getPreapFsmMode() {
+  return _builder.getDataField< ::uint8_t>(
+      ::capnp::bounded<28>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setPreapFsmMode( ::uint8_t value) {
+  _builder.setDataField< ::uint8_t>(
+      ::capnp::bounded<28>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getPreapSpeedBlocked() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<172>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getPreapSpeedBlocked() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<172>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setPreapSpeedBlocked(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<172>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getPreapSteerLatch() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<173>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getPreapSteerLatch() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<173>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setPreapSteerLatch(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<173>() * ::capnp::ELEMENTS, value);
 }
 
 }  // namespace
