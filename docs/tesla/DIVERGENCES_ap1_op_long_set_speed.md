@@ -195,3 +195,20 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
   `test_standstill_tap_with_known_limit_car_and_planner_agree_on_tap_from_stop_speed`.
 - Credits: BogPilot 0.9.7 (cruise-edge classification, tap/pull policy); Tinkla/BogGyver (current-speed latch at engage);
   NAP (Pre-AP pull / double-pull engagement).
+
+### AP1: Max Set Speed gas override returns to the driver's set, else the current limit plus offset
+- Platforms: AP1 Model S and Model X with openpilot longitudinal (`Ap1SpeedControl._ap1_op_long`). Pre-AP keeps 0.9.7.
+- Reference behavior: BogPilot 0.9.7 `frogpilot/controls/lib/speed_limit_controller.py:344-356` (`568fea947`): with
+  SLCOverride 2 ("Max Set Speed") a gas press above limit plus offset sets `overridden_speed = v_cruise + v_cruise_diff`,
+  and the override holds after the release while that value is above limit plus offset. In 0.9.7 `v_cruise` is the
+  driver's cruise set.
+- Our behavior: under AP1 openpilot long `v_cruise` is the car-layer engage latch (`op_long_set_speed.py`), which after a
+  pull is the engage-time limit plus offset and is never refreshed on a limit change. So Max Set Speed uses the set the
+  driver chose instead (`Ap1RaiseHoldoff.driver_set_ms`: the sticky tap / vEgo latch or an engaged tip, or the last one
+  seen while longitudinal was ours); with none (pull engage, SLC tracking) it uses the current limit plus offset, so the
+  override ends at the release. Example: pull at 45 + 5 (set 50), the limit drops to 35 (SLC 40), gas to 45, release:
+  40, not 50. A tap latch or a tipped set is still restored after the gas.
+- Why: the old rule raised the set back to an earlier zone's limit plus offset with no driver set action.
+- Safety-relevant: planner set speed only, and only lower or equal to before. No panda, CAN TX, DBC or cereal change.
+- Tests: `TestMaxSetSpeedGasOverride` and `test_override_manual_and_set_speed` (`test_phase3_speed_control.py`).
+- Credits: BogPilot 0.9.7 (SLC override rule).

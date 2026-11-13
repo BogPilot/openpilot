@@ -239,6 +239,19 @@ class Ap1RaiseHoldoff:
     self._prev_cruise = False
     self._prev_rwd = False
 
+  @property
+  def driver_set_ms(self) -> float:
+    """The set the driver chose this cruise session, in m/s; 0 when there is none (pull engage, SLC tracking).
+
+    A sticky tap / vEgo latch or an engaged tip; while longitudinal is briefly not ours (gas override) the last one
+    seen while it was ours. Used as the Max Set Speed source under AP1 openpilot long.
+    """
+    if self.sticky_vego and float(self.latched_vego_ms) > 0.0:
+      return float(self.latched_vego_ms)
+    if float(self.tip_ms) > 0.0:
+      return float(self.tip_ms)
+    return max(float(self._session_set_ms), 0.0)
+
   def forget_engage(self):
     """Drop the remembered engage action (cruise off, cancel, brake, any disengage)."""
     self.engage_kind = None

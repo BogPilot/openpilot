@@ -457,7 +457,14 @@ class SpeedLimitController:
       self.speed_limit_changed_timer = 0.0
       self.unconfirmed_speed_limit = 0.0
 
-  def update_override(self, v_cruise, v_cruise_diff, v_ego, v_ego_diff, gas_pressed, enabled):
+  def update_override(self, v_cruise, v_cruise_diff, v_ego, v_ego_diff, gas_pressed, enabled, driver_set_ms=None):
+    """Gas override of the SLC target (0.9.7 speed_limit_controller.py:344-356 @568fea947).
+
+    driver_set_ms: None = Max Set Speed returns to v_cruise (0.9.7: v_cruise is the driver's cruise set).
+    A number = the set the driver chose (> 0), or 0 for none: then Max Set Speed returns to the current
+    limit + offset. AP1 openpilot long passes it because there v_cruise is the car-layer engage latch, which after a
+    pull is the engage-time limit + offset and is never refreshed on a limit change.
+    """
     t = self.t
     self.override_slc = self.overridden_speed > self.target + self.offset > 0
     self.override_slc |= bool(gas_pressed) and v_ego > self.target + self.offset > 0
@@ -470,7 +477,12 @@ class SpeedLimitController:
         lo, hi = self.target + self.offset, v_cruise + v_cruise_diff
         self.overridden_speed = float(min(max(self.overridden_speed, lo), hi)) if lo <= hi else float(hi)
       elif t.speed_limit_controller_override_set_speed:
-        self.overridden_speed = v_cruise + v_cruise_diff
+        if driver_set_ms is None:
+          self.overridden_speed = v_cruise + v_cruise_diff
+        elif math.isfinite(driver_set_ms) and driver_set_ms > 0.0:
+          self.overridden_speed = float(driver_set_ms)
+        else:
+          self.overridden_speed = max(float(self.target + self.offset), 0.0)
       self.source = "None"
     else:
       self.overridden_speed = 0.0
@@ -690,7 +702,10 @@ class Ap1SpeedControl:
       steering_deg = 0.0
     self.slc.update_limits(dashboard_limit_ms(bp.dashboardSpeedLimit), v_cruise, enabled, up, dn, long_active, dt=dt,
                            v_ego=max(float(v_ego), 0.0), steering_deg=steering_deg if math.isfinite(steering_deg) else 0.0)
-    self.slc.update_override(v_cruise, v_cruise_diff, v_ego, v_ego_diff, gas, enabled)
+    # AP1 openpilot long: Max Set Speed returns to a set the driver chose (tap latch / tip), else to the current
+    # limit + offset, never to the engage-time limit + offset still held in carState.vCruise after a pull.
+    driver_set = float(self.holdoff.driver_set_ms) if self._ap1_op_long else None
+    self.slc.update_override(v_cruise, v_cruise_diff, v_ego, v_ego_diff, gas, enabled, driver_set_ms=driver_set)
     # AP1: ignore bogus <15 mph limits, confirm sudden big drops (e.g. a 5 mph blip).
     self.slc_target, self.slc_offset = self.guard.update(self.slc.target, self.slc.offset, dt)
     self.active = True
