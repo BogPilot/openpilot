@@ -722,3 +722,37 @@ class TestMaxSetSpeedGasOverride(unittest.TestCase):
       after = self._gas_then_release(ctl, sm, v_set, 35, 55, long_active_on_gas)
       self.assertAlmostEqual(after[-1], 51 * MPH, places=3)
 
+
+class TestEngageSetWithSlcOff(unittest.TestCase):
+  """Pins the current car-layer engage set with SpeedLimitController off (documented divergence in
+  DIVERGENCES_ap1_op_long_set_speed.md): a pull with a known dashboard limit still latches that limit, with no offset
+  (offset_for is 0 with SLC off), and the planner passes the car-side set through unchanged."""
+
+  def _pull(self, slc, v_ms, standstill, limit_ms):
+    from opendbc.car.tesla_ap1.op_long_set_speed import OpLongSetSpeed
+    off = sc.EngageLimitOffset(CP_AP1, toggles_fn=lambda: toggles(SpeedLimitController=slc), clock=lambda: 0.0)
+    ols = OpLongSetSpeed()
+    ols.update("STANDBY", v_ms, standstill, limit_ms=limit_ms, offset_fn=off, pull=True)
+    return ols.update("ENABLED", v_ms, standstill, limit_ms=limit_ms, offset_fn=off), ols
+
+  def test_pull_with_slc_off_latches_the_dashboard_limit_without_offset(self):
+    for standstill, v_ms in ((False, 20.0), (True, 0.0)):
+      out, ols = self._pull("0", v_ms, standstill, 45 * MPH)
+      self.assertAlmostEqual(out, 45 * MPH, places=4, msg=f"standstill={standstill}")
+      self.assertFalse(ols.speed_limit_unknown)
+      on, _ = self._pull("1", v_ms, standstill, 45 * MPH)
+      self.assertAlmostEqual(on, 50 * MPH, places=4)   # SLC on: limit + Offset4 (5 mph)
+
+  def test_pull_with_slc_off_and_no_limit_is_unchanged(self):
+    out, _ = self._pull("0", 20.0, False, 0.0)
+    self.assertAlmostEqual(out, 20.0, places=4)        # rolling: exact vEgo
+    out, ols = self._pull("0", 0.0, True, 0.0)
+    self.assertEqual(out, 0.0)                         # standstill: refused (NO_ENTRY ap1SpeedLimitUnknown)
+    self.assertTrue(ols.speed_limit_unknown)
+
+  def test_planner_passes_the_car_side_set_through_with_slc_off(self):
+    ctl, sm = make(toggles(SpeedLimitController="0")), Sm()
+    run(ctl, sm, 0.0, 20.0, limit=45 * MPH, rwd=True, cruise=False)
+    outs = [run(ctl, sm, 45 * MPH, 20.0, limit=lim * MPH) for lim in (45, 35, 25, 55)]
+    self.assertTrue(all(abs(o - 45 * MPH) < 1e-6 for o in outs), outs)
+

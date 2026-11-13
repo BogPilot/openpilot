@@ -258,3 +258,22 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
   `test_held_stalk_level_short_press_is_stretched_to_the_minimum_width`, `test_planner_hold_upgrade_follows_the_physical_hold`,
   `test_short_tap_between_planner_ticks_classified`, `test_cancel_drops_held_stalk_levels` (`test_ap1_op_long_set_speed.py`).
 
+
+### AP1: a pull with SpeedLimitController off still engages at the dashboard limit (no offset)
+- Our behavior (current, pinned by tests, not changed): the car-layer engage set (`op_long_set_speed.py`, rules 1 and 4)
+  does not read the SpeedLimitController toggle. With SLC off, `EngageLimitOffset` gives offset 0 (`offset_for` is 0
+  with SLC off), so a rolling pull with a fresh known limit, or a standstill pull / no-stalk engage with one, latches the
+  bare dashboard limit; the planner is a pass-through with SLC off, so that limit stays the set for the engagement and no
+  longer follows later limits. With no limit: rolling vEgo, standstill NO_ENTRY `ap1SpeedLimitUnknown`, as with SLC on.
+- Reference behavior: BogPilot 0.9.7 sets the speed to the limit only through SLC: `toggle.set_speed_limit` requires
+  `toggle.speed_limit_controller` (`frogpilot/common/frogpilot_variables.py:1143`, `568fea947`), and with SLC off the
+  0.9.7 AP1 set is `DI_cruiseSet`. Tinkla/BogGyver (`501c7de`) latches vEgo at the engage (`ACC_module.py:154-158`) and
+  has no standstill engage. NAP has no AP1 path.
+- Why it is kept for now: the set is the posted limit with no offset, never above it, and is only taken on a driver
+  pull. Gating it on the SLC toggle is not a contained change: at a standstill the limit rule is what lets a pull engage
+  at all, so the gate would turn every standstill pull with SLC off and no tap into a NO_ENTRY `ap1SpeedLimitUnknown`
+  refusal (an alert that names the limit while the limit feature is off), and the car layer would need the SLC toggle
+  passed in from the card. That is a behavior change in its own right, not a clear bug fix.
+- Possible gate (not implemented): with SLC off, a rolling pull latches exact vEgo (Tinkla); a standstill pull uses a
+  fresh tap's tap-from-stop speed or is refused.
+- Tests: `TestEngageSetWithSlcOff` (`test_phase3_speed_control.py`).
