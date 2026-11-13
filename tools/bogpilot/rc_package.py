@@ -48,6 +48,11 @@ ORIGIN = re.compile(r"(git@github\.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+|https://g
 COMMIT_DATE = re.compile(r"'[0-9]+ [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} [+-][0-9]{4}'")
 HASH = re.compile(r"[0-9a-f]{64}")
 
+try:
+  from tools.bogpilot.err4_panda_pairing import check as check_err4_panda_pairing
+except ImportError:  # run as a script from tools/bogpilot
+  from err4_panda_pairing import check as check_err4_panda_pairing  # type: ignore[no-redef]
+
 
 def canonical(value):
   return json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
@@ -362,6 +367,8 @@ def verify(root, candidate, manifest, shipping_manifest=None):
       raise ValueError("artifact checksum mismatch: " + name)
     entries[name] = {"sha256": checksum, "size": info.st_size, "mode": "0755" if mode & 0o111 else "0644"}
   provenance = validate_panda(root, candidate, exclusions)
+  # The AP1 code 4 recovery must ship with the panda rule that allows it (err4_panda_pairing.py).
+  check_err4_panda_pairing(root, json.loads((root / ".panda-source.json").read_text())["source_sha256"][:8])
   check_metadata_runtime(root, names)
   build_metadata = generate_build_metadata(root, candidate)
   return {"schema": 1, "kind": "cataloged-excluded-source-test-build" if exclusions else "full-tree-test-build",
