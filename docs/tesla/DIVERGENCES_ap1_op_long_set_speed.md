@@ -209,17 +209,24 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
   seen while longitudinal was ours); with none (pull engage, SLC tracking) it uses the current limit plus offset, so the
   override ends at the release. Example: pull at 45 + 5 (set 50), the limit drops to 35 (SLC 40), gas to 45, release:
   40, not 50. A tap latch or a tipped set is still restored after the gas.
-- Held gas: when the gas is held longer than `LongEngageGate.DROP_S` (1.0 s) after longitudinal was ours in the
-  same cruise session, the lateral-only pass-through used to publish `carState.vCruise`, that same engage latch, so
-  plan, IC and HUD showed the earlier zone's limit plus offset until the release. It now publishes the same set as
-  above (`driver_set_ms`, else the current limit plus offset) with no vEgo floor. The DROP_S timing, the gas-held
-  engage (longitudinal not yet ours: pass-through floored at vEgo) and the double-pull first pull are unchanged.
-  Example: pull at 35 + 5, tip down to 20, the limit drops to 25, gas held 2 s: 20 during the hold and after.
+- Gas override after longitudinal was ours: when the gas holds `carControl.longActive` False longer than
+  `LongEngageGate.DROP_S` (1.0 s) while cruise and openpilot stay engaged, the planner is lateral only until
+  longActive is seen again. That covers the gas hold, the release tick (gas already up, longActive still False from
+  controlsd's previous step) and any further ticks longActive lags. On those ticks the planner used to publish
+  `carState.vCruise`, that same engage latch, so plan, IC, HUD and the 0x389 set digit showed the earlier zone's limit
+  plus offset. It now publishes the same set as above (`driver_set_ms`, else the current limit plus offset), with no
+  vEgo floor. An openpilot disengage with cruise still on clears this state, so a re-engage is an engage again. A
+  lateral-only state with no gas press since longActive was last seen (double-pull first pull, a re-pull demote) keeps
+  the pass-through. The DROP_S timing, the gas-held engage before longitudinal is ours (pass-through floored at vEgo)
+  and the double-pull first pull are unchanged. Example: pull at 35 + 5, tip down to 20, the limit drops to 25, gas
+  held 2 s, longActive back 1 to 5 ticks after the release: 20 on every tick.
 - Why: the old rule raised the set back to an earlier zone's limit plus offset with no driver set action.
-- Safety-relevant: planner set speed only. During a held-gas pass-through longitudinal is inactive, so the published
-  set is display only (plan, IC, HUD); it equals the value the set returns to after the release. No panda, CAN TX,
-  DBC or cereal change.
-- Tests: `TestMaxSetSpeedGasOverride`, `TestHeldGasPassThrough` and `test_override_manual_and_set_speed` (`test_phase3_speed_control.py`).
+- Safety-relevant: planner set speed only. Longitudinal is not commanding while the lateral-only path runs
+  (longActive False). The plan computed on its last tick is what controlsd follows for up to one planner tick (~50 ms)
+  after longActive returns; that is now the same set the planner holds after the release, not the engage latch. The
+  0x389 set digit follows the published set by design. No panda, safety, DBC or cereal change.
+- Tests: `TestMaxSetSpeedGasOverride`, `TestHeldGasPassThrough` and `test_override_manual_and_set_speed`
+  (`test_phase3_speed_control.py`); `TestDoublePullMode` (`test_phase3_speed_control_pull_modes.py`).
 - Credits: BogPilot 0.9.7 (SLC override rule).
 
 ### AP1: non-finite engage inputs never become a set

@@ -815,3 +815,68 @@ class TestHeldGasPassThrough(unittest.TestCase):
     outs = [run(ctl, sm, 10.0, 20.0, limit=45 * MPH, gas=True, long_active=False) for _ in range(int(self.HOLD_S / DT))]
     self.assertTrue(all(abs(x - 20.0) < 1e-6 for x in outs), outs[:3])
 
+  # Release with a lagging longActive: the gas is up but carControl.longActive is still False for a few planner ticks
+  # (it comes from controlsd's previous step). Those ticks are still lateral only and publish the same set.
+  def _tip_to_20(self, ctl, sm):
+    v_set = 40 * MPH   # car-layer set after the pull: 35 + 5
+    run(ctl, sm, 0.0, 25 * MPH, limit=35 * MPH, rwd=True, cruise=False)
+    run(ctl, sm, 0.0, 25 * MPH, limit=35 * MPH, cruise=False)
+    run(ctl, sm, v_set, 25 * MPH, limit=35 * MPH)
+    for _ in range(4):   # deep down tips: 40 -> 35 -> 30 -> 25 -> 20
+      run(ctl, sm, v_set, 25 * MPH, limit=35 * MPH, dn=True, spd=8)
+      run(ctl, sm, v_set, 25 * MPH, limit=35 * MPH)
+    run(ctl, sm, v_set, 22 * MPH, limit=25 * MPH, n=int(3.0 / DT))
+    return v_set, 25, 20 * MPH
+
+  def _no_tip(self, ctl, sm):
+    v_set = 50 * MPH   # car-layer set after the pull: 45 + 5
+    run(ctl, sm, 0.0, 45 * MPH, limit=45 * MPH, rwd=True, cruise=False)
+    run(ctl, sm, 0.0, 45 * MPH, limit=45 * MPH, cruise=False)
+    run(ctl, sm, v_set, 45 * MPH, limit=45 * MPH)
+    run(ctl, sm, v_set, 40 * MPH, limit=35 * MPH, n=int(3.0 / DT))
+    return v_set, 35, 40 * MPH
+
+  def _release_with_long_active_lag(self, setup, lag_ticks):
+    ctl, sm = make(toggles(SLCOverride="2")), Sm()
+    v_set, limit_mph, want = setup(ctl, sm)
+    hold = [run(ctl, sm, v_set, 30 * MPH, limit=limit_mph * MPH, gas=True, long_active=False) for _ in range(int(self.HOLD_S / DT))]
+    lag = [run(ctl, sm, v_set, 30 * MPH, limit=limit_mph * MPH, long_active=False) for _ in range(lag_ticks)]
+    after = [run(ctl, sm, v_set, 30 * MPH, limit=limit_mph * MPH) for _ in range(int(1.0 / DT))]
+    for name, outs in (("hold", hold), ("release lag", lag), ("after", after)):
+      bad = [round(x / MPH, 2) for x in outs if abs(x - want) > 1e-3]
+      self.assertFalse(bad, f"{name}: expected {want / MPH:.0f} mph, got {bad[:5]}")
+
+  def test_release_long_active_lag_1_tick_after_tip(self):
+    self._release_with_long_active_lag(self._tip_to_20, 1)
+
+  def test_release_long_active_lag_2_ticks_after_tip(self):
+    self._release_with_long_active_lag(self._tip_to_20, 2)
+
+  def test_release_long_active_lag_5_ticks_after_tip(self):
+    self._release_with_long_active_lag(self._tip_to_20, 5)
+
+  def test_release_long_active_lag_1_tick_no_tip(self):
+    self._release_with_long_active_lag(self._no_tip, 1)
+
+  def test_release_long_active_lag_2_ticks_no_tip(self):
+    self._release_with_long_active_lag(self._no_tip, 2)
+
+  def test_release_long_active_lag_5_ticks_no_tip(self):
+    self._release_with_long_active_lag(self._no_tip, 5)
+
+  def test_reengage_with_gas_held_after_disengage_keeps_the_pass_through(self):
+    """openpilot disengaged with cruise still on, then re-engaged with the gas held: that is an engage again, so the
+    pass-through (carState.vCruise floored at vEgo) applies, as before longitudinal was ever ours."""
+    ctl, sm = make(toggles(SLCOverride="2")), Sm()
+    v_set, limit_mph, _ = self._no_tip(ctl, sm)
+    run(ctl, sm, v_set, 40 * MPH, limit=limit_mph * MPH, enabled=False, long_active=False, n=int(self.HOLD_S / DT))
+    outs = [run(ctl, sm, v_set, 55 * MPH, limit=limit_mph * MPH, gas=True, long_active=False) for _ in range(int(self.HOLD_S / DT))]
+    self.assertTrue(all(abs(x - 55 * MPH) < 1e-3 for x in outs), [round(x / MPH, 2) for x in outs[:3]])
+
+  def test_lateral_only_without_gas_after_long_keeps_the_pass_through(self):
+    """longActive drops with no gas press (double-pull re-pull demote): the set is not ours, carState.vCruise passes through."""
+    ctl, sm = make(toggles(SLCOverride="2")), Sm()
+    v_set, limit_mph, _ = self._no_tip(ctl, sm)
+    outs = [run(ctl, sm, v_set, 40 * MPH, limit=limit_mph * MPH, long_active=False) for _ in range(int(self.HOLD_S / DT))]
+    self.assertAlmostEqual(outs[-1], v_set, places=4)
+

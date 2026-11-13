@@ -527,7 +527,7 @@ class LongEngageGate:
   def __init__(self):
     self.long_on = False
     self._drop_s = 0.0
-    self.was_on = False   # longitudinal was ours at some point in this cruise session
+    self.was_on = False   # longitudinal was ours in this cruise session and openpilot engagement
 
   def update(self, cruise_on: bool, long_active: bool, dt: float):
     """-> (engaged, lat_only)."""
@@ -588,6 +588,7 @@ class Ap1SpeedControl:
     self.engage = LongEngageGate()
     self._tip_override_active = False
     self._sd_enabled_prev = False
+    self._gas_since_long = False   # gas seen since longActive was last True (the gas override and its release ticks)
     self._reset_outputs()
 
   def _new_holdoff(self):
@@ -714,8 +715,14 @@ class Ap1SpeedControl:
     cruise_on = bool(CS.cruiseState.enabled)
     if self._sd_enabled_prev and not enabled:
       self.holdoff.forget_engage()   # openpilot disengaged: never carry the engage stalk action across it
+      self.engage.was_on = False     # a re-engage with cruise still on is an engage again, not a return from override
+      self._gas_since_long = False
     self._sd_enabled_prev = enabled
     engaged, lat_only = self.engage.update(cruise_on, long_active, dt)
+    if long_active or not cruise_on:
+      self._gas_since_long = False
+    elif gas:
+      self._gas_since_long = True
     if lat_only:
       # cruise on but openpilot longitudinal never engaged (double-pull mode, first pull): lateral only. No hand-over, no cap, no
       # raise, no tip: the set speed is not ours. Limits above keep updating (display, Previous Limit bookkeeping).
@@ -725,10 +732,11 @@ class Ap1SpeedControl:
       self._tip_override_active = False
       self.slc.overridden_speed = 0.0
       self.slc.override_slc = False
-      if self._ap1_op_long and gas and enabled and self.engage.was_on:
-        # Gas held past DROP_S after longitudinal was ours in this cruise session. carState.vCruise is the car-layer
-        # engage latch (after a pull, the engage-time limit + offset), not a driver set. Show the same set the Max Set
-        # Speed override returns to: the driver's own set (tip / tap latch), else the current limit + offset.
+      if self._ap1_op_long and enabled and self.engage.was_on and self._gas_since_long:
+        # Gas override after longitudinal was ours in this engagement: the gas held past DROP_S, the release tick and
+        # any further ticks until longActive is seen again. carState.vCruise is the car-layer engage latch (after a
+        # pull, the engage-time limit + offset), not a driver set. Publish the set the Max Set Speed override returns
+        # to: the driver's own set (tip / tap latch), else the current limit + offset.
         held_ms = float(self.holdoff.driver_set_ms)
         if not (math.isfinite(held_ms) and held_ms > 0.0):
           held_ms = float(self.slc_target) + float(self.slc_offset) - v_ego_diff
