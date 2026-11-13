@@ -60,8 +60,16 @@ def test_rows_wired_to_sections():
   assert si.GAS_BRAKE_SECTIONS == {"advanced": "AdvancedLongitudinalTune", "conditional": "ConditionalExperimental",
                                    "personalities": "CustomPersonalities", "profiles": "LongitudinalTune",
                                    "qol": "QOLLongitudinal", "slc": "SpeedLimitController"}
-  assert si.PAGE_SECTIONS == {"lane_changes": "LaneChanges"}
+  assert si.PAGE_SECTIONS == {"lane_changes": "LaneChanges", "steering_tuning": "LateralTune"}
   assert si.STEERING_SECTIONS == ("AdvancedLateralTune", "QOLLateral")
+
+
+def test_steering_tuning_row_gets_the_lateral_tuning_icon_and_the_file_is_there():
+  import hashlib
+  assert si.resolve_icon(si.PAGE_SECTIONS["steering_tuning"]) == "bogpilot/icon_lateral_tune.png"
+  path = si.ICON_DIR / "icon_lateral_tune.png"
+  assert path.is_file() and path.read_bytes()[:8] == si.PNG_MAGIC
+  assert hashlib.sha256(path.read_bytes()).hexdigest() == SHA256["icon_lateral_tune.png"]   # same bytes as 0.9.7
 
 
 def test_no_icon_for_anything_else():

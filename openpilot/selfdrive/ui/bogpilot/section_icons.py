@@ -27,8 +27,9 @@ SECTION_ICONS = {
 }
 
 
-# Menu pages that stand for a 0.9.7 section row (the STEERING list opens Lane Changes as its own page).
-PAGE_SECTIONS = {"lane_changes": "LaneChanges"}
+# Menu pages that stand for a 0.9.7 section row (the STEERING list opens Lane Changes as its own page). Steering Tuning
+# has no 0.9.7 row of its own; it gets the 0.9.7 Lateral Tuning icon (not a 0.9.7 mapping, added here).
+PAGE_SECTIONS = {"lane_changes": "LaneChanges", "steering_tuning": "LateralTune"}
 
 # Gas / Brake top rows (phase3_gas_brake.root_entries keys) and the 0.9.7 section each one is.
 GAS_BRAKE_SECTIONS = {

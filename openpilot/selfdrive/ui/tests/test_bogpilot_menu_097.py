@@ -712,7 +712,8 @@ class TestMenuNative(NativeCase):
     rows = {r.title: r for r in self.page_rows()}
     self.assertEqual(rows["Lane Changes"].icon, resolve_icon("LaneChanges"))
     self.assertIsNotNone(rows["Lane Changes"].icon)
-    self.assertIsNone(rows["Steering Tuning"].icon)              # not a 0.9.7 section row
+    self.assertEqual(rows["Steering Tuning"].icon, "bogpilot/icon_lateral_tune.png")   # the 0.9.7 Lateral Tuning icon
+    self.assertEqual(rows["Steering Tuning"].icon, resolve_icon("LateralTune"))
     nav.open_page("steering", "steering_tuning")
     self.draw()
     for r in self.page_rows():
@@ -775,7 +776,7 @@ class TestMenuNative(NativeCase):
     while nav.path:
       nav.back()
     nav.open_pill("steering")
-    self.draw(shot="settings_icons_steering.png")
+    self.draw(shot="settings_icons_steering_H.png")
     nav.open_page("steering", "steering_tuning")
     self.draw(shot="settings_icons_steering_tuning.png")
 
