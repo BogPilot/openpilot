@@ -17,6 +17,9 @@ from opendbc.car.tesla_ap1.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTT
 from opendbc.car.interfaces import CarStateBase
 from opendbc.can import CANDefine, CANParser
 
+# 100 Hz frames a published stalk level outlives the release: 6 x 10 ms > one 50 ms planner tick (DT_MDL) plus jitter.
+STALK_LEVEL_HOLD_FRAMES = 6
+
 # 0.9.7 frequency 0 (never marks the message missing) is NaN in the 0.11 parser.
 OPTIONAL = float('nan')
 
@@ -24,6 +27,9 @@ class CarState(CarStateBase):
   def __init__(self, CP):
     super().__init__(CP)
     self.button_states = {button.event_type: False for button in BUTTONS}
+    # Published stalk levels (bogpilot.accelPressed / decelPressed / resumePressed) stay high this many 100 Hz frames
+    # after release, so the 20 Hz planner (DT_MDL 50 ms) cannot miss a short tap or pull. buttonEvents are untouched.
+    self.stalk_level_hold = {}
     self.can_define = CANDefine(DBC[CP.carFingerprint][Bus.chassis])
 
     # Needed by carcontroller
@@ -262,11 +268,13 @@ class CarState(CarStateBase):
       # latch; BogPilot 0.9.7 SLC limit + offset for the engage set. 0 while not engaged (no DI seed).
       ButtonType = structs.CarState.ButtonEvent.Type
       tap = any(be.pressed and be.type in (ButtonType.accelCruise, ButtonType.decelCruise) for be in ret.buttonEvents)
+      # Pull toward the driver: resumeCruise = SpdCtrlLvr_Stat 2 (values.py BUTTONS). Only a pull engages at limit+offset.
+      pull = any(be.pressed and be.type == ButtonType.resumeCruise for be in ret.buttonEvents)
       tap_zero = self.op_long_tap_from_zero() if self.op_long_tap_from_zero is not None else None
       ret.cruiseState.speed = self.op_long_set.update(cruise_state, ret.vEgoRaw, ret.standstill,
                                                       limit_ms=engage_limit_ms,
                                                       offset_fn=self.op_long_offset, tap=tap,
-                                                      tap_from_zero_kph=tap_zero)
+                                                      tap_from_zero_kph=tap_zero, pull=pull)
       fp_ret.ap1SpeedLimitUnknown = self.op_long_set.speed_limit_unknown
 
     if ap1_s:
@@ -283,10 +291,12 @@ class CarState(CarStateBase):
     if ap1:
       # Continuous UP/DN/RWD levels (button_states, not 10 ms buttonEvents) for the SLC software set and
       # confirmation (0.9.7 bogpilot_card._apply_ap1_stalk_levels). accelPressed is UP only, RWD is resumePressed.
+      # Each level is held STALK_LEVEL_HOLD_FRAMES after release (>= one planner tick); a cancel (FWD) drops them all.
       ButtonType = structs.CarState.ButtonEvent.Type
-      fp_ret.accelPressed = bool(self.button_states.get(ButtonType.accelCruise, False))
-      fp_ret.decelPressed = bool(self.button_states.get(ButtonType.decelCruise, False))
-      fp_ret.resumePressed = bool(self.button_states.get(ButtonType.resumeCruise, False))
+      levels = self._held_stalk_levels(ButtonType)
+      fp_ret.accelPressed = levels[ButtonType.accelCruise]
+      fp_ret.decelPressed = levels[ButtonType.decelCruise]
+      fp_ret.resumePressed = levels[ButtonType.resumeCruise]
     fp_ret.ap1HandsOnLevel = max(0, min(255, int(self.hands_on_level or 0)))
     fp_ret.ap1EacInhibited = self.eac_status == "EAC_INHIBITED"
     fp_ret.ap1StalkPullToggle = self.stalk_pull_toggle
@@ -296,6 +306,20 @@ class CarState(CarStateBase):
     fp_ret.ap1StalkFollowS = float(stalk_follow_s) if ap1_s else 0.0
 
     return ret
+
+  def _held_stalk_levels(self, ButtonType) -> dict:
+    """Continuous UP/DN/RWD levels from button_states, each stretched to at least one 20 Hz planner tick."""
+    cancel = bool(self.button_states.get(ButtonType.cancel, False))
+    out = {}
+    for bt in (ButtonType.accelCruise, ButtonType.decelCruise, ButtonType.resumeCruise):
+      pressed = bool(self.button_states.get(bt, False))
+      left = STALK_LEVEL_HOLD_FRAMES if pressed else max(int(self.stalk_level_hold.get(bt, 0)) - 1, 0)
+      if cancel:
+        left = 0
+        pressed = False
+      self.stalk_level_hold[bt] = left
+      out[bt] = pressed or left > 0
+    return out
 
   @staticmethod
   def new_cluster_frames(cp_cam):

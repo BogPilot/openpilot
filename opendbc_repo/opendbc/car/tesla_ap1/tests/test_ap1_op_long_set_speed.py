@@ -21,6 +21,7 @@ STANDBY, ENABLED, STANDSTILL, OVERRIDE, PRE_FAULT, PRE_CANCEL = 1, 2, 3, 4, 6, 7
 ENGAGED = [ENABLED, STANDSTILL, OVERRIDE, PRE_FAULT, PRE_CANCEL]
 MPH = 0  # DI_speedUnits 0 (the MPH branch in carstate.py)
 UP, DN, CANCEL, RWD = 4, 8, 1, 2
+UP_1ST, DN_1ST = 16, 32
 MAP_65 = 14  # UI_mapSpeedLimit enum 14 = 65 mph
 V_CRUISE_UNSET = 255
 
@@ -126,12 +127,25 @@ def test_standstill_engage_with_limit_is_limit_plus_offset(cruise_state):
   assert not ret.bogpilot.ap1SpeedLimitUnknown and SPEED_LIMIT_UNKNOWN not in _events(ret)
 
 
-def test_moving_engage_limit_wins_over_vego_and_holds_through_stop():
+def test_moving_pull_engage_takes_limit_and_holds_through_stop():
   car = Car()
   limit = ui_map_speed_limit_ms(MAP_65, False)
+  car.step(STANDBY, 20, 40.0, map_limit=MAP_65, lever=RWD)          # pull toward the driver engages SLC
   rets = [car.step(ENABLED, 20, 40.0, map_limit=MAP_65)]
   rets += [car.step(ENABLED, 0, 0.0, map_limit=0) for _ in range(3)]  # limit gone, stopped: latch holds
   assert all(r.cruiseState.speed == pytest.approx(limit, abs=1e-3) for r in rets)
+
+
+@pytest.mark.parametrize("lever", [0, UP, DN, UP_1ST, DN_1ST])
+def test_moving_tap_or_no_stalk_engage_latches_vego_and_holds_through_stop(lever):
+  """A rolling tap, or an engage with no stalk seen, latches vEgo even with a known limit; held through a stop."""
+  car = Car()
+  if lever:
+    car.step(STANDBY, 20, 40.0, map_limit=MAP_65, lever=lever)
+  rets = [car.step(ENABLED, 20, 40.0, map_limit=MAP_65)]
+  rets += [car.step(ENABLED, 0, 0.0, map_limit=0) for _ in range(3)]
+  assert all(r.cruiseState.speed == pytest.approx(40.0 * CV.KPH_TO_MS, abs=1e-3) for r in rets)
+  assert all(not r.bogpilot.ap1SpeedLimitUnknown for r in rets)
 
 
 def test_standstill_no_limit_no_tap_raises_no_entry():
@@ -576,3 +590,100 @@ def test_tap_from_zero_setting_default_edges_live_and_display():
   # 0x389 overlay uses cruise_set_mph (DAS_accSpeedLimit, DBC factor 0.4).
   for mph in (5, 15, 20, 30):
     assert cruise_set_mph(mph * CV.MPH_TO_MS) == pytest.approx(float(mph), abs=1e-6)
+
+
+# Rolling engage: tap latches the current speed, only a pull takes limit + offset.
+
+def _rolling_engage(v_kph, lever, offset_ms=None, gap_frames=0, map_limit=MAP_65):
+  car = Car(offset_ms=offset_ms)
+  _roll(car, STANDBY, v_kph)
+  car.step(STANDBY, 0, v_kph, map_limit=map_limit, lever=lever)
+  for _ in range(gap_frames):
+    car.step(STANDBY, 0, v_kph, map_limit=map_limit)
+  return car, car.step(ENABLED, 0, v_kph, map_limit=map_limit)
+
+
+@pytest.mark.parametrize("lever", [UP, DN, UP_1ST, DN_1ST])
+def test_rolling_tap_engage_latches_vego_not_limit(lever):
+  car, ret = _rolling_engage(72.0, lever, offset_ms=5 * CV.MPH_TO_MS)
+  assert not ret.standstill
+  assert ret.cruiseState.speed == pytest.approx(72.0 * CV.KPH_TO_MS, abs=1e-3)
+  limit = ui_map_speed_limit_ms(MAP_65, False)
+  assert abs(ret.cruiseState.speed - limit) > 1.0
+  held = [car.step(ENABLED, 0, 90.0, map_limit=MAP_65) for _ in range(20)]   # speeding up later never moves it
+  assert all(h.cruiseState.speed == pytest.approx(72.0 * CV.KPH_TO_MS, abs=1e-3) for h in held)
+
+
+def test_rolling_pull_engage_latches_limit_plus_offset():
+  offset = 5 * CV.MPH_TO_MS
+  _car, ret = _rolling_engage(72.0, RWD, offset_ms=offset)
+  limit = ui_map_speed_limit_ms(MAP_65, False)
+  assert ret.cruiseState.speed == pytest.approx(limit + offset, abs=1e-3)
+
+
+def test_rolling_pull_engage_without_a_limit_latches_vego():
+  _car, ret = _rolling_engage(50.0, RWD, map_limit=0)
+  assert ret.cruiseState.speed == pytest.approx(50.0 * CV.KPH_TO_MS, abs=1e-3)
+
+
+@pytest.mark.parametrize("mph", [5.0, 7.5, 10.0])
+@pytest.mark.parametrize("lever", [UP, DN])
+def test_low_speed_tap_with_limit_latches_vego(mph, lever):
+  v_kph = mph * CV.MPH_TO_KPH
+  _car, ret = _rolling_engage(v_kph, lever, offset_ms=5 * CV.MPH_TO_MS)
+  assert not ret.standstill
+  assert ret.cruiseState.speed == pytest.approx(v_kph * CV.KPH_TO_MS, abs=1e-3)
+  assert not ret.bogpilot.ap1SpeedLimitUnknown and SPEED_LIMIT_UNKNOWN not in _events(ret)
+
+
+def test_stale_pull_before_rolling_engage_latches_vego():
+  """A pull older than TAP_WINDOW_S before the engage edge does not count: vEgo, not the limit."""
+  _car, ret = _rolling_engage(72.0, RWD, offset_ms=5 * CV.MPH_TO_MS, gap_frames=_frames(TAP_WINDOW_S) + 5)
+  assert ret.cruiseState.speed == pytest.approx(72.0 * CV.KPH_TO_MS, abs=1e-3)
+
+
+@pytest.mark.parametrize("first,last,want_limit", [(RWD, UP, False), (UP, RWD, True)])
+def test_most_recent_stalk_action_decides_the_rolling_engage(first, last, want_limit):
+  offset = 5 * CV.MPH_TO_MS
+  car = Car(offset_ms=offset)
+  _roll(car, STANDBY, 72.0)
+  car.step(STANDBY, 0, 72.0, map_limit=MAP_65, lever=first)
+  car.step(STANDBY, 0, 72.0, map_limit=MAP_65)
+  car.step(STANDBY, 0, 72.0, map_limit=MAP_65, lever=last)
+  ret = car.step(ENABLED, 0, 72.0, map_limit=MAP_65)
+  limit = ui_map_speed_limit_ms(MAP_65, False)
+  want = (limit + offset) if want_limit else 72.0 * CV.KPH_TO_MS
+  assert ret.cruiseState.speed == pytest.approx(want, abs=1e-3)
+
+
+def test_standstill_tap_with_limit_keeps_the_standstill_rule():
+  """Standstill rules are unchanged: a known limit still gives limit + offset at a standstill engage."""
+  offset = 5 * CV.MPH_TO_MS
+  car = Car(offset_ms=offset)
+  car.step(STANDBY, 0, 0.0, map_limit=MAP_65, lever=UP)
+  ret = car.step(STANDSTILL, 0, 0.0, map_limit=MAP_65)
+  assert ret.cruiseState.speed == pytest.approx(ui_map_speed_limit_ms(MAP_65, False) + offset, abs=1e-3)
+
+
+@pytest.mark.parametrize("lever", [UP, DN, RWD])
+def test_short_tap_between_planner_ticks_classified(lever):
+  """A one-frame (10 ms) stalk press stays on the published level for 6 frames (> one 50 ms planner tick), so a
+  20 Hz sample at any phase sees it. buttonEvents are not stretched."""
+  car = Car()
+  car.step(STANDBY, 0, 50.0)
+  rets = [car.step(STANDBY, 0, 50.0, lever=lever)]
+  rets += [car.step(STANDBY, 0, 50.0) for _ in range(12)]
+  field = {UP: "accelPressed", DN: "decelPressed", RWD: "resumePressed"}[lever]
+  levels = [bool(getattr(r.bogpilot, field)) for r in rets]
+  assert all(levels[:6]) and not any(levels[6:]), levels
+  for phase in range(5):   # samples every 5 frames starting at any phase: at least one sees the press
+    assert any(levels[phase::5])
+  assert len([be for r in rets for be in r.buttonEvents if be.pressed]) == 1
+
+
+def test_cancel_drops_held_stalk_levels():
+  car = Car()
+  car.step(STANDBY, 0, 50.0, lever=UP)
+  ret = car.step(STANDBY, 0, 50.0, lever=CANCEL)
+  assert not ret.bogpilot.accelPressed and not ret.bogpilot.decelPressed and not ret.bogpilot.resumePressed
+
