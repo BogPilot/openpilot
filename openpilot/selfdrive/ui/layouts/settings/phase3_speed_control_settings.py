@@ -197,8 +197,10 @@ APPLIES = "Applies next drive (the planner reads these settings once per drive).
 # _profile_for_units() so nothing is copied here: Offset1-7 from AP1_SPEED_OFFSETS_MPH (converted and rounded to km/h
 # on a metric device, as the profile writes them), SLCOverride, SLCPriority1 / SLCPriority3, SLCLookaheadLower and
 # ShowSLCOffset. Its detector is the profile's own is_ap1() (CarModel or CarParamsPersistent TESLA_AP1_MODELS). A key
-# the profile does not list keeps its registry default (SLCPriority2 "Map Data"). AP1 Model X, Pre-AP and every other
-# car are not listed and keep the general table; giving another car type a profile is one more entry here.
+# the profile does not list keeps its registry default (SLCPriority2 "Map Data").
+# Pre-AP Model S maps to the one-time legacy SLC profile (legacy_slc_profile_for_units in the same file): its
+# SLCPriority1-3 (Dashboard / Map Data / Navigation) and look-ahead, plus the AP1 profile's Offset1-7 and SLCOverride.
+# AP1 Model X and every other car are not listed and keep the general table; another car type is one more entry.
 def _ap1_model_s(store) -> bool:
   from openpilot.common.bogpilot_ap1_profile import is_ap1
   return bool(is_ap1(store))
@@ -209,8 +211,19 @@ def _ap1_profile_values(store) -> dict[str, str]:
   return _profile_for_units(store)
 
 
+def _preap_model_s(store) -> bool:
+  from openpilot.common.bogpilot_ap1_profile import is_preap_slc_platform
+  return bool(is_preap_slc_platform(store))
+
+
+def _legacy_slc_values(store) -> dict[str, str]:
+  from openpilot.common.bogpilot_ap1_profile import legacy_slc_profile_for_units
+  return legacy_slc_profile_for_units(store)
+
+
 SLC_RESET_PROFILES: tuple[tuple, ...] = (
   ("TESLA_AP1_MODELS", _ap1_model_s, _ap1_profile_values),
+  ("TESLA_PREAP_MODELS", _preap_model_s, _legacy_slc_values),
 )
 
 
@@ -325,7 +338,7 @@ class SlcEditor:
   #     for a stored value that is not an option).
   def default(self, key):
     """The value this row shows while its key is unsaved, or None when the key has no default (never invented).
-    On a car with an SLC reset profile (AP1 Model S) a row the profile writes defaults to that profile value."""
+    On a car with an SLC reset profile (AP1 Model S, Pre-AP) a row the profile writes defaults to that value."""
     from openpilot.common.bogpilot_store import registry_default
     if key not in BY_KEY:
       return None
@@ -506,7 +519,7 @@ def make_layout(CP, store, offroad, section=None, open_section=None):
           values.append((k, item))
           items.append(item)
       self.reset = None
-      # With an SLC reset profile (AP1 Model S): the section's toggle / choice rows the profile writes reset with it.
+      # With an SLC reset profile (AP1 Model S, Pre-AP): toggle / choice rows the profile writes reset with it.
       shown_keys = tuple(r[0] for r in (visible_rows(store, section, CP) if self.editor.available() else []))
       prof_rows = tuple((k, self.toggles.get(k) or self.choices.get(k)) for k in e.profile_reset_rows(shown_keys))
       prof_rows = tuple((k, i) for k, i in prof_rows if i is not None)

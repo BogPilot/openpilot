@@ -413,6 +413,13 @@ LEGACY_SLC_PROFILE: dict[str, str] = {
   "SLCLookaheadLower": "5",
   "SLCLookaheadHigher": "0",
 }
+# Pre-AP Model S also gets the AP1 profile's speed settings, read from the AP1 profile itself (nothing copied): the
+# Offset1-7 table AP1_SPEED_OFFSETS_MPH through speed_offsets_for_units() (km/h, same conversion and rounding, on a
+# metric device) and AP1_PARAM_PROFILE's SLCOverride (Max Set Speed). The fallback is not written: its table default
+# (Previous Limit) is already what AP1 uses. No AP1-only display key (ShowSLCOffset) is added. AP1 Model X keeps
+# the shared keys above only.
+LEGACY_SLC_AP1_SPEED_PLATFORMS = frozenset({"TESLA_PREAP_MODELS"})
+LEGACY_SLC_AP1_SPEED_KEYS = ("SLCOverride",)
 
 
 def _legacy_slc_fingerprint(params) -> str | None:
@@ -430,13 +437,30 @@ def is_legacy_slc_platform(params) -> bool:
   return _legacy_slc_fingerprint(params) in LEGACY_SLC_PLATFORMS
 
 
+def is_preap_slc_platform(params) -> bool:
+  """Pre-AP Model S: the legacy SLC platform that also gets the AP1 speed settings."""
+  return _legacy_slc_fingerprint(params) in LEGACY_SLC_AP1_SPEED_PLATFORMS and not is_ap1(params)
+
+
+def legacy_slc_profile_for_units(params) -> dict[str, str]:
+  """The legacy SLC values this car receives as stored text ({} on AP1 Model S and on non-legacy cars)."""
+  if not is_legacy_slc_platform(params) or is_ap1(params):
+    return {}
+  profile = dict(LEGACY_SLC_PROFILE)
+  if is_preap_slc_platform(params):
+    profile.update({key: AP1_PARAM_PROFILE[key] for key in LEGACY_SLC_AP1_SPEED_KEYS})
+    profile.update(speed_offsets_for_units(_is_metric(params)))
+  return profile
+
+
 def legacy_slc_marker_path(bogpilot_dir: Path | None = None) -> Path:
   return Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR) / LEGACY_SLC_MARKER_NAME
 
 
 def apply_legacy_slc_defaults_once(params=None, bogpilot_dir: Path | None = None,
                                    default_table: dict | None = None, refresh: bool = True) -> list[str]:
-  """One-shot SLC priority / look-ahead defaults for Pre-AP and AP1 X. Saved values are preserved.
+  """One-shot SLC defaults for Pre-AP and AP1 X (legacy_slc_profile_for_units). Saved values are preserved: only a
+  key still at its table default (for an offset on a metric device, also the UI's km/h conversion of it) is written.
 
   Never raises. AP1 Model S is ignored here (apply_ap1_defaults_once owns those keys).
   """
@@ -450,12 +474,13 @@ def apply_legacy_slc_defaults_once(params=None, bogpilot_dir: Path | None = None
     if not is_legacy_slc_platform(params) or is_ap1(params) or marker.exists():
       return []
     table = default_table if default_table is not None else _default_table()
+    metric = _is_metric(params)
     written = []
-    for key, value in LEGACY_SLC_PROFILE.items():
+    for key, value in legacy_slc_profile_for_units(params).items():
       if key not in table:
         continue
       current = params.get(key)
-      if current is None or values_equal(current, table[key]):
+      if current is None or values_equal(current, table[key]) or _is_converted_default(key, current, table, metric):
         params.put(key, value)
         written.append(key)
     directory.mkdir(parents=True, exist_ok=True)
