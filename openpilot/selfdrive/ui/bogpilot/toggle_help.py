@@ -346,8 +346,9 @@ _add("SpeedLimitController", "Speed Limit Controller",
 _add("ConditionalExperimental", "Conditional Experimental Mode",
      "Switches Experimental Mode on automatically when the conditions you choose below are met, and back off when they are "
      "not. " + _ADOPT,
-     note="Pressing the gas or brake pedal resets it. Needs openpilot longitudinal control. " + _OFFROAD,
-     default="Off")
+     note="Warning: this has not worked on Tesla AP1 so far, so we recommend you do not turn it on. "
+          "Pressing the gas or brake pedal resets it. Needs openpilot longitudinal control. " + _OFFROAD,
+     default="Off", recommended="Off (not working on Tesla AP1 yet)")
 _add("CESpeed", "Below (no lead)",
      "Switches to Experimental Mode when you drive below this speed and there is no lead car (above 1 m/s).",
      when="Helps the model handle slow, stop-and-go driving.",
