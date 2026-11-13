@@ -938,3 +938,65 @@ def test_planner_hold_upgrade_follows_the_physical_hold(phase, press_frames, wan
     hold.update(True, False, up, False, base, 20.0, current_set_ms=base, cruise_on=True)
   assert hold.tip_ms == pytest.approx(want_mph * CV.MPH_TO_MS, abs=1e-3)
 
+
+def _rolling_tap_stop_then_engage(tap_mph, stop_s, press=None, tap_zero_mph=15):
+  """Car side (OpLongSetSpeed at 100 Hz) and planner (Ap1RaiseHoldoff + ap1_cruise_ms at 20 Hz) over one sequence:
+  an UP tap while rolling at tap_mph (45 mph limit known, offset 5 mph), a full stop for stop_s, then optionally a NEW
+  press at that same stop ("tap" or "pull"), then the engage edge at the stop. -> (car-side set, planner set) in m/s."""
+  tap_zero_kph = tap_zero_mph * CV.MPH_TO_KPH
+  offset_fn = lambda _limit: OFFSET_5_MS
+  slc_ms = LIMIT_45_MS + OFFSET_5_MS
+  ols = OpLongSetSpeed()
+  hold = Ap1RaiseHoldoff()
+  hold.tap_from_zero_ms = tap_zero_mph * CV.MPH_TO_MS
+  car_kw = dict(limit_ms=LIMIT_45_MS, offset_fn=offset_fn, tap_from_zero_kph=tap_zero_kph)
+
+  ols.update("STANDBY", tap_mph * CV.MPH_TO_MS, False, tap=True, **car_kw)        # tap while rolling
+  hold.update(False, False, True, False, slc_ms, tap_mph * CV.MPH_TO_MS, cruise_on=False)
+  for _ in range(int(round(stop_s / 0.01))):                                        # full stop
+    ols.update("STANDBY", 0.0, True, **car_kw)
+  for _ in range(int(round(stop_s / 0.05))):
+    hold.update(False, False, False, False, slc_ms, 0.0, cruise_on=False)
+  if press is not None:                                                              # new press at the same stop
+    ols.update("STANDBY", 0.0, True, tap=press == "tap", pull=press == "pull", **car_kw)
+    hold.update(False, False, press == "tap", press == "pull", slc_ms, 0.0, cruise_on=False)
+    ols.update("STANDBY", 0.0, True, **car_kw)
+    hold.update(False, False, False, False, slc_ms, 0.0, cruise_on=False)
+  car_ms = ols.update("STANDSTILL", 0.0, True, **car_kw)                             # engage edge at the stop
+  assert all(ols.update("STANDSTILL", 0.0, True, **car_kw) == car_ms for _ in range(20))   # held
+  hold.update(False, False, False, False, slc_ms, 0.0, current_set_ms=car_ms, cruise_on=True)   # cruise edge
+  allow, sticky = hold.update(True, False, False, False, slc_ms, 0.0, current_set_ms=car_ms, cruise_on=True)  # long edge
+  plan_ms = ap1_cruise_ms(car_ms, sticky, hold.tip_ms, allow, slc_ms, LIMIT_45_MS, 0.0, False, 0.0,
+                          sticky_zero_is_none=True)
+  return car_ms, plan_ms
+
+
+@pytest.mark.parametrize("stop_s", [0.1, 0.3, 0.6])
+@pytest.mark.parametrize("tap_zero_mph", [15, 17])
+def test_rolling_tap_at_8_mph_then_stop_within_window_gives_8_mph_car_and_planner(stop_s, tap_zero_mph):
+  """A tap while rolling at 8 mph sets the rolling speed: a stop and the engage inside 0.8 s keep 8 mph on the car side
+  and in the planner, not the tap-from-stop speed and not limit + offset."""
+  car_ms, plan_ms = _rolling_tap_stop_then_engage(8.0, stop_s, tap_zero_mph=tap_zero_mph)
+  assert car_ms == pytest.approx(8.0 * CV.MPH_TO_MS, abs=1e-6)
+  assert plan_ms == pytest.approx(8.0 * CV.MPH_TO_MS, abs=1e-6)
+
+
+@pytest.mark.parametrize("stop_s", [0.3, 1.5])
+@pytest.mark.parametrize("tap_zero_mph", [15, 17])
+def test_rolling_tap_at_8_mph_stop_then_new_standstill_tap_gives_tap_from_stop_speed(stop_s, tap_zero_mph):
+  """After the 8 mph rolling tap and the stop, a NEW tap at the stop sets AP1TapFromZeroMph (15 default, 17 on this
+  car) on the car side and in the planner, whether or not the rolling tap is still inside the 0.8 s window."""
+  car_ms, plan_ms = _rolling_tap_stop_then_engage(8.0, stop_s, press="tap", tap_zero_mph=tap_zero_mph)
+  assert car_ms == pytest.approx(tap_zero_mph * CV.MPH_TO_MS, abs=1e-6)
+  assert plan_ms == pytest.approx(tap_zero_mph * CV.MPH_TO_MS, abs=1e-6)
+
+
+@pytest.mark.parametrize("stop_s", [0.3, 1.5])
+@pytest.mark.parametrize("tap_zero_mph", [15, 17])
+def test_rolling_tap_at_8_mph_stop_then_pull_gives_limit_plus_offset(stop_s, tap_zero_mph):
+  """After the 8 mph rolling tap and the stop, a pull at the stop goes to SLC: limit + offset (45 + 5) on the car side
+  and in the planner."""
+  car_ms, plan_ms = _rolling_tap_stop_then_engage(8.0, stop_s, press="pull", tap_zero_mph=tap_zero_mph)
+  assert car_ms == pytest.approx((45 + 5) * CV.MPH_TO_MS, abs=1e-3)
+  assert plan_ms == pytest.approx((45 + 5) * CV.MPH_TO_MS, abs=1e-3)
+
