@@ -8,6 +8,10 @@
     "severity": 0,
     "_comment": "Set extra field to number of days"
   },
+  "Offroad_ConnectingPanda": {
+    "text": "Connecting to panda...",
+    "severity": 0
+  },
   "Offroad_ConnectivityNeeded": {
     "text": "Connect to internet to check for updates. openpilot won't automatically start until it connects to internet to check for updates.",
     "severity": 1
