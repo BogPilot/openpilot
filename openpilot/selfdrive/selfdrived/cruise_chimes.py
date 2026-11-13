@@ -64,8 +64,8 @@ def chimes_allowed(brand: str | None, enabled: bool | None = None, reader=None) 
   return _read_enabled()
 
 
-# Q5 (PENDING DECISION): the Pre-AP speed on/off chimes (preapLatOnly edges: a brake or a re-pull in FULL, a second pull, no-pedal
-# stock cruise drop / re-arm) follow the "Cruise engage/disengage chimes" toggle (True, plan default) or always sound (False).
+# Open choice (Pre-AP speed chimes): the Pre-AP speed on/off chimes (preapLatOnly edges: a brake or a re-pull in FULL, a second pull, no-pedal
+# stock cruise drop / re-arm) follow the "Cruise engage/disengage chimes" toggle (True, default) or always sound (False).
 PREAP_SPEED_CHIMES_FOLLOW_TOGGLE = True
 
 

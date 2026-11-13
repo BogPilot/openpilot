@@ -179,7 +179,7 @@ def test_default_off_matches_previous_process_config(env, tmp_path):
 @pytest.mark.parametrize("on", [False, True])
 def test_manager_imports_and_starts_without_bogpilot_settings(monkeypatch, on):
   """Manager import + first launch-set evaluation with NoLogging OFF and ON, with the real openpilot.common.version
-  and the real nologging module, and bogpilot_settings unimportable (an rc9 build crashed here on BOGPILOT_BRANCHES)."""
+  and the real nologging module, and bogpilot_settings unimportable (an earlier build crashed here on BOGPILOT_BRANCHES)."""
   FakeParams.store = {"DeviceManagement": "1", "NoLogging": str(int(on))}
   for k, v in {
     "openpilot.common.params": _module("openpilot.common.params", Params=FakeParams),

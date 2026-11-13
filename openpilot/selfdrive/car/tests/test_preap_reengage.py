@@ -7,7 +7,7 @@ with the panda mirror of tesla_preap.h (need_fresh_pull included). Not a full se
   NAP-style double pull (preap/engagement.py), the no-pedal cruiseState.enabled is the engagement FSM's `engaged`, set only from a
   stalk pull, as NAP does (NAP opendbc preap/carstate.py:139, preap/engagement.py:67-78,126-173 @ cc39c7fa / NotAutopilot e99f4dc75).
   It no longer mirrors DI_cruiseState: that was the single-pull behavior of 0.9.7 na-preap, which the double pull replaced
-  (rc9 pre-AP engagement design). A first pull engages STEERING ONLY and cancels stock cruise if that pull armed it; a second pull within
+  (the Pre-AP double-pull engagement design). A first pull engages STEERING ONLY and cancels stock cruise if that pull armed it; a second pull within
   400 ms is FULL (stock cruise armed by the driver's own pull). Every EPAS drop puts the FSM in LOCKOUT on the drop frame, so openpilot
   disengages on that frame and cruiseState.enabled drops with it. A fresh pull re-arms the panda and re-engages steering only on that
   tick; a pull held through the drop, or a stock TACC edge without a fresh pull (blockPcmEnable), never re-engages either side.

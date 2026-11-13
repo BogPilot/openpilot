@@ -10,9 +10,9 @@ import subprocess
 from pathlib import Path
 
 # Byte-identical copies of the two lines at the AP1 set-speed change (014bb965d).
-RC8_CAR_LINE = "  ap1SpeedLimitUnknown @36 :Bool;  # AP1 openpilot long: standstill, no dashboard speed limit and no stalk tap set, so no engage set (NO_ENTRY)"
-RC8_LOG_LINE = "    ap1SpeedLimitUnknown @109;  # AP1 openpilot long: standstill engage with no known speed limit and no stalk tap set"
-RC8_REV = "014bb965d"
+REF_CAR_LINE = "  ap1SpeedLimitUnknown @36 :Bool;  # AP1 openpilot long: standstill, no dashboard speed limit and no stalk tap set, so no engage set (NO_ENTRY)"
+REF_LOG_LINE = "    ap1SpeedLimitUnknown @109;  # AP1 openpilot long: standstill engage with no known speed limit and no stalk tap set"
+REF_REV = "014bb965d"
 CAR_REL = "opendbc_repo/opendbc/car/car.capnp"
 LOG_REL = "openpilot/cereal/log.capnp"
 
@@ -42,15 +42,15 @@ def test_ap1_speed_limit_unknown_lines_match_the_set_speed_change():
   log_text = (wt / LOG_REL).read_text()
   car_lines = _field_lines(car_text, "ap1SpeedLimitUnknown")
   log_lines = _field_lines(log_text, "ap1SpeedLimitUnknown")
-  assert car_lines == [RC8_CAR_LINE]
-  assert log_lines == [RC8_LOG_LINE]
-  # rc9 Pre-AP fields stay in the next ordinals
+  assert car_lines == [REF_CAR_LINE]
+  assert log_lines == [REF_LOG_LINE]
+  # the Pre-AP fields stay in the next ordinals
   assert _field_lines(car_text, "preapFsmMode @37")
   assert _field_lines(log_text, "preapSteerOnly @110")
 
-  for rel, expected in ((CAR_REL, RC8_CAR_LINE), (LOG_REL, RC8_LOG_LINE)):
-    shown = _git_show(wt, RC8_REV, rel)
+  for rel, expected in ((CAR_REL, REF_CAR_LINE), (LOG_REL, REF_LOG_LINE)):
+    shown = _git_show(wt, REF_REV, rel)
     if shown is None:
       continue
     got = _field_lines(shown, "ap1SpeedLimitUnknown")
-    assert got == [expected], f"{RC8_REV}:{rel} drifted from the pinned line"
+    assert got == [expected], f"{REF_REV}:{rel} drifted from the pinned line"

@@ -39,26 +39,27 @@ NOPEDAL_CC_CONFIRM_MS = 600
 # Below this speed the car is at a standstill for the FULL-entry rule (same bound as the SetSpeedLimit standstill guard).
 STANDSTILL_SPEED_MS = 0.1
 
-# ---- Pending decisions (plan Q1-Q7). Each default is the plan default; change the constant to switch. ----
-# Q1 (decided: option (b), pending the safety review with the panda unchanged): double pull at a standstill with the pedal.
+# ---- Open choices. Each constant holds the current default; change it to switch. ----
+# Standstill double pull (decided: option (b), pending the safety review with the panda unchanged): double pull at a standstill with the pedal.
 # True = FULL is entered but the car is held at 0 by the driver's own pedal (pedal ENABLE=0, raw <= 500, never a drive-off) until
 # the driver presses the accelerator; one update after the accelerator is released normal FULL control starts. NAP enters pedal
 # control at 0 too (NAP preap/engagement.py:142,243-246 capture 0 as the set speed; carcontroller.py:123-128 holds ENABLE=1 at zero
 # torque); here the hold sends ENABLE=0, which is stricter. False = option (a): refuse speed control until moving (steering only).
 PREAP_FULL_AT_STANDSTILL = True
-# Q2 (PENDING DECISION): no pedal, when to cancel stock cruise armed by a single pull. True = as soon as it is seen after the pull
-# (NAP timing, plan default (a)). False = only when the window expires without a second pull (plan option (b)).
+# Open choice (single-pull cancel timing): no pedal, when to cancel stock cruise armed by a single pull. True = as soon as it is seen after the pull
+# (NAP timing, default (a)). False = only when the window expires without a second pull (option (b)).
 PREAP_NOPEDAL_CANCEL_ON_PULL = True
-# Q3 (PENDING DECISION): no pedal, hands-on takeover. False = leave stock cruise as it is (NAP parity, plan default).
+# Open choice (hands-on takeover): no pedal, hands-on takeover. False = leave stock cruise as it is (NAP parity, default).
 # True = also cancel stock cruise.
 PREAP_NOPEDAL_CANCEL_ON_HANDS_ON = False
-# Q4 (PENDING DECISION): no pedal, stock cruise turned on by a driver act other than a counted double pull (up/down tip) while
-# steering only. True = follow it as FULL (plan default). False = cancel it.
+# Open choice (other cruise-on act): no pedal, stock cruise turned on by a driver act other than a counted double pull (up/down tip) while
+# steering only. True = follow it as FULL (default). False = cancel it.
 PREAP_NOPEDAL_FOLLOW_DRIVER_CC = True
-# Q7 (PENDING DECISION): no pedal, a single pull while stock cruise is already on. True = cancel it, steering only (NAP parity, plan
+# Open choice (single pull with cruise on): no pedal, a single pull while stock cruise is already on. True = cancel it, steering only (NAP parity,
 # default). False = keep it and report FULL.
 PREAP_NOPEDAL_PULL_CANCELS_ACTIVE_CC = True
-# (Q5 is in openpilot selfdrived/cruise_chimes.py, Q6 in openpilot selfdrive/car/card.py.)
+# (The Pre-AP speed chimes choice is in openpilot selfdrived/cruise_chimes.py, the pedal capture speed choice in
+# openpilot selfdrive/car/card.py.)
 
 
 class Mode(IntEnum):
@@ -82,8 +83,8 @@ class Decision:
   mode: int = int(Mode.OFF)
   speed_blocked: bool = False    # left FULL because a pedal ENABLE frame was blocked (userspace guard or panda)
   cc_not_armed: bool = False     # no pedal: the second pull did not arm stock cruise
-  standstill_refused: bool = False  # Q1 (a): a double pull at a standstill was refused
-  standstill_hold: bool = False     # Q1 (b): FULL entered at a standstill, pedal ENABLE stays 0 until the accelerator is pressed
+  standstill_refused: bool = False  # standstill double pull (a): a double pull at a standstill was refused
+  standstill_hold: bool = False     # standstill double pull (b): FULL entered at a standstill, pedal ENABLE stays 0 until the accelerator is pressed
   capture_edge: bool = False        # one tick: capture the set speed now (FULL entered while moving, or the hold released)
   cancel_cc: bool = False        # one tick: send one STW_ACTN_RQ CANCEL (no pedal)
   drop_cancel: bool = False      # one tick: a pending CANCEL must not be sent (the second pull beat it)
@@ -217,7 +218,7 @@ class PreAPEngagement:
         # T7/T8. A pull held through an EPAS drop has no new rising edge, so LOCKOUT leaves only on a fresh pull.
         self._clear_session()
         if not pedal and di_on and not PREAP_NOPEDAL_PULL_CANCELS_ACTIVE_CC:
-          self._enter_full()   # Q7 alternative: keep the stock cruise that was already on
+          self._enter_full()   # single pull with cruise on, alternative: keep the stock cruise that was already on
           full_edge = True
         else:
           self._open_window(now_ms, pedal)
@@ -229,7 +230,7 @@ class PreAPEngagement:
     if self.mode == Mode.FULL:
       demoted_by_pull = False
       if self.standstill_hold:
-        # Q1 (b): the hold ends on the accelerator RELEASE edge, and only if the car is moving then; still below 0.1 m/s = keep
+        # standstill double pull (b): the hold ends on the accelerator RELEASE edge, and only if the car is moving then; still below 0.1 m/s = keep
         # holding and wait for the next press. The set speed is captured on that edge (capture_edge, the card).
         if gas_pressed:
           self._hold_gas_seen = True
@@ -283,7 +284,7 @@ class PreAPEngagement:
         # held at a stop enters pedal control. Divergence, stricter than NAP: NAP hides the brake from openpilot
         # (preap/carstate.py:134-135 brakePressed = False) and from the panda (tesla_preap.h:399-403) and holds with ENABLE=1
         # at zero torque (preap/carcontroller.py:123-128), so ENABLE=1 goes out under the held brake. Here brakePressed stays
-        # visible, the hold sends ENABLE=0 (raw <= 500) until the accelerator (Q1 (b), the pedal guard also refuses ENABLE while
+        # visible, the hold sends ENABLE=0 (raw <= 500) until the accelerator (standstill double pull (b), the pedal guard also refuses ENABLE while
         # braking), and the panda still refuses ENABLE=1 under a brake (tesla_preap.h:254, unchanged). Releasing the brake does
         # not end the hold; only the accelerator does.
         # Refused (steering only): the brake held while moving (the panda drops controls on a brake while moving, safety.h:354)
@@ -294,11 +295,11 @@ class PreAPEngagement:
           self.window_start_ms = None
         elif v_ego is None or v_ego < STANDSTILL_SPEED_MS:
           if PREAP_FULL_AT_STANDSTILL and v_ego is not None:   # unknown speed is never a hold: refused (fail closed)
-            self._enter_full()           # Q1 (b): FULL, held at 0 by the pedal guard until the accelerator is pressed
+            self._enter_full()           # standstill double pull (b): FULL, held at 0 by the pedal guard until the accelerator is pressed
             self.standstill_hold = True
             full_edge = True
           else:
-            self.mode = Mode.LAT_ONLY    # Q1 (a): no speed control from a standstill
+            self.mode = Mode.LAT_ONLY    # standstill double pull (a): no speed control from a standstill
             self.window_start_ms = None
             self.standstill_refused = True
         else:
@@ -329,7 +330,7 @@ class PreAPEngagement:
     return self._decision(cancel_cc=cancel_cc, full_edge=self.mode == Mode.FULL)
 
   def _nopedal_steer_only_cc(self, now_ms: int) -> bool:
-    """No pedal, steering only, stock cruise is on. Returns True to send one CANCEL (or moves to FULL, Q4)."""
+    """No pedal, steering only, stock cruise is on. Returns True to send one CANCEL (or moves to FULL, the other cruise-on act choice)."""
     if self._cancel_req_ms is not None and (now_ms - self._cancel_req_ms) < NOPEDAL_CC_CONFIRM_MS:
       return False                       # our CANCEL is in flight
     pull_caused = self._cc_watch_until_ms is not None and now_ms < self._cc_watch_until_ms
@@ -337,7 +338,7 @@ class PreAPEngagement:
       if PREAP_NOPEDAL_CANCEL_ON_PULL or self.mode == Mode.LAT_ONLY:
         self._cancel_req_ms = now_ms
         return True
-      return False                       # Q2 (b): wait for the window to expire
+      return False                       # single-pull cancel timing (b): wait for the window to expire
     if PREAP_NOPEDAL_FOLLOW_DRIVER_CC:
       self._enter_full()                 # T17: stock cruise on by a driver act (or our CANCEL did not take): report it honestly
       return False

@@ -193,7 +193,7 @@ class TestStoppingWeatherRowShowsStored(NoWindow):
     self.assertEqual(a.selected_button, 0)
 
 
-# Every BogPilot settings panel that had a locked-row UI bug (icbsm_rc8.md rc7 locked-row audit rows 1-4, 6, 8, 9, 15,
+# Every BogPilot settings panel that had a locked-row UI bug (an earlier locked-row audit, rows 1-4, 6, 8, 9, 15,
 # 17, 19), plus the already-gated long-accel and stopping choice rows, now builds its rows from gated_actions.
 PANELS = {
   "layouts/settings/phase3_speed_control_settings.py": 3,

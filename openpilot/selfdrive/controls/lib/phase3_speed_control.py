@@ -915,7 +915,7 @@ def warm_engage_helpers(offset_fn=None, tap_fn=None) -> None:
   """Card start: run the engage-set helpers once while offroad, so their lazy imports, the ParamStore
   and the first param reads happen here instead of on the first engage frame inside card's 100 Hz loop.
 
-  Without this the first engage after boot stalled card for ~145 ms (saved rlogs, bf6f and rc8), the next
+  Without this the first engage after boot stalled card for ~145 ms (seen in saved logs of two earlier builds), the next
   carOutput was invalid and selfdrived raised commIssue; the second press then engaged. Failure-tolerant:
   any error is swallowed so a param read problem can never block card start (the helpers already fall
   back to 0 offset / 15 mph on their own).

@@ -111,7 +111,7 @@ class TestAlwaysShown(unittest.TestCase):
 
 
 class TestNeverEngagedPaletteWhenNotEngaged(unittest.TestCase):
-  """Panda-Safety condition: DISENGAGED / OVERRIDE never use teal, green, orange (or red) - nothing that reads as active."""
+  """Safety review condition: DISENGAGED / OVERRIDE never use teal, green, orange (or red) - nothing that reads as active."""
 
   def test_sweep_of_confidence_values(self):
     for status in NOT_ENGAGED:

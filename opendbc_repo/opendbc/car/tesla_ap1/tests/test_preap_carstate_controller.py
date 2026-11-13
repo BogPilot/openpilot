@@ -114,7 +114,7 @@ def test_aol_gate_follows_only_a_provider_that_answers_exactly_true(monkeypatch)
 
 
 def test_saved_double_pull_choice_is_kept_but_the_first_pull_is_always_steering_only():
-  # rc9: the NAP-style double pull is always on (NAP nap_conf.py:214-215). The saved choice and AOL availability change nothing.
+  # The NAP-style double pull is always on (NAP nap_conf.py:214-215). The saved choice and AOL availability change nothing.
   assert params.get_bool(params.PreApParamKeys.DOUBLE_PULL) is True
   for aol in (False, True):
     AOL[0] = aol

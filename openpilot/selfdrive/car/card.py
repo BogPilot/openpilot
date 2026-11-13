@@ -265,7 +265,7 @@ class Car:
       self.v_cruise_helper.initialize_v_cruise(self.CS_prev, self.experimental_mode, set_limit_kph)
 
     if getattr(self.CI.CS, "preap_capture_edge", False) and not self.CP.pcmCruise:
-      # Pre-AP pedal FULL capture edge (opendbc tesla_ap1/preap/engagement.py capture_edge). Q6: SetSpeedLimit gives limit + offset
+      # Pre-AP pedal FULL capture edge (opendbc tesla_ap1/preap/engagement.py capture_edge). Pedal capture speed choice: SetSpeedLimit gives limit + offset
       # through the same freshness / units / standstill / gas gates as the engage set; otherwise the exact vEgo.
       set_limit_kph = 0.0
       if PREAP_FULL_USE_SET_SPEED_LIMIT and self.preap_engage_set_limit is not None:
