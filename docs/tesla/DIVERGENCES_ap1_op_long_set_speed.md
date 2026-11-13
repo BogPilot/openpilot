@@ -216,9 +216,9 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
   engage (longitudinal not yet ours: pass-through floored at vEgo) and the double-pull first pull are unchanged.
   Example: pull at 35 + 5, tip down to 20, the limit drops to 25, gas held 2 s: 20 during the hold and after.
 - Why: the old rule raised the set back to an earlier zone's limit plus offset with no driver set action.
-- Safety-relevant: planner set speed only, and only lower or equal to before. During the held-gas pass-through
-  longitudinal is not active, so the value is shown, not acted on; after the release it is the set the old code also
-  returned to. No panda, CAN TX, DBC or cereal change.
+- Safety-relevant: planner set speed only. During a held-gas pass-through longitudinal is inactive, so the published
+  set is display only (plan, IC, HUD); it equals the value the set returns to after the release. No panda, CAN TX,
+  DBC or cereal change.
 - Tests: `TestMaxSetSpeedGasOverride`, `TestHeldGasPassThrough` and `test_override_manual_and_set_speed` (`test_phase3_speed_control.py`).
 - Credits: BogPilot 0.9.7 (SLC override rule).
 
