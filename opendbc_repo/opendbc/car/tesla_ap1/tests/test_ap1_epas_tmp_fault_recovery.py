@@ -171,15 +171,67 @@ def test_starts_only_on_available_code4_while_latactive_is_off_and_engaged():
   assert not any(run(EpasTmpFaultRecovery(), 50, engaged=False))
 
 
+def _starts(out):
+  return [i for i, (a, b) in enumerate(zip([False] + out, out)) if b and not a]
+
+
 def test_a_clear_holds_until_latactive_returns_then_frees_the_slot():
-  rec = started(EpasTmpFaultRecovery())
-  assert run(rec, 2) == [True] * 2
-  assert run(rec, 4, status=ACT, err=IDLE) == [True] * 4, "EPAS took the request; keep the measured hold"
-  assert run(rec, 1, status=ACT, err=IDLE, lat=True) == [False] and rec.last_result == "cleared"
+  rec = EpasTmpFaultRecovery()
+  out = run(rec, ERR4_SETTLE_FRAMES)
+  out += run(rec, 2)
+  hold = run(rec, 4, status=ACT, err=IDLE)
+  assert hold == [True] * 4, "EPAS took the request; keep the measured hold"
+  out += hold
+  end = run(rec, 1, status=ACT, err=IDLE, lat=True)
+  assert end == [False] and rec.last_result == "cleared"
+  out += end
   assert rec.state == epas_gate.R_IDLE and rec.probes == 1
-  assert not any(run(rec, 50, status=ACT, err=IDLE, lat=True))
+  lat_on = run(rec, 50, status=ACT, err=IDLE, lat=True)
+  assert not any(lat_on)
+  out += lat_on + run(rec, ERR4_WAIT_FRAMES + ERR4_SETTLE_FRAMES)
+  s = _starts(out)
+  assert rec.probes == 2 and len(s) == 2, "a later code 4 in the same engagement gets the next request"
+  assert s[1] - s[0] >= ERR4_WAIT_FRAMES >= 200, ("2 s from the first request's start, also after a clear", s)
+
+
+@pytest.mark.parametrize("relatch_after", [1, 10, ERR4_SETTLE_FRAMES, 150])
+def test_clear_relatch_retry_is_at_least_2s_after_the_first_start(relatch_after):
+  """Clear, re-latch, retry: the second request starts >= 2 s after the first one started (one clock)."""
+  rec = EpasTmpFaultRecovery()
+  out = run(rec, ERR4_SETTLE_FRAMES)                                    # first request starts on the last frame
+  out += run(rec, 3)
+  out += run(rec, 3, status=ACT, err=IDLE)                              # EPAS takes it, code clears
+  out += run(rec, 1, status=ACT, err=IDLE, lat=True)                    # latActive back: cleared
+  assert rec.last_result == "cleared" and rec.state == epas_gate.R_IDLE
+  out += run(rec, relatch_after, status=ACT, err=IDLE, lat=True)        # lateral on for a while
+  out += run(rec, 3 * ERR4_WAIT_FRAMES)                                 # a new code 4, AVAILABLE, latActive off
+  s = _starts(out)
+  assert len(s) >= 2 and rec.probes >= 2, s
+  assert s[1] - s[0] >= ERR4_WAIT_FRAMES, ("start to start", s)
+  # It starts at the later of: 2 s after the first start, and the settle completing on the re-latched code 4
+  # (7 request/clear frames + the latActive frames + the settle).
+  assert s[1] - s[0] == max(ERR4_WAIT_FRAMES, 7 + relatch_after + ERR4_SETTLE_FRAMES), s
+  assert rec.probes <= ERR4_MAX_PROBES
+
+
+def test_every_start_to_start_gap_is_at_least_2s_and_the_cap_holds_with_repeated_clears():
+  rec = EpasTmpFaultRecovery()
+  out = []
+  for _ in range(6):
+    out += run(rec, ERR4_SETTLE_FRAMES + ERR4_WAIT_FRAMES)                # latched: wait for a start
+    out += run(rec, 2, status=ACT, err=IDLE)
+    out += run(rec, 1, status=ACT, err=IDLE, lat=True)                    # clear at once
+  s = _starts(out)
+  assert len(s) == ERR4_MAX_PROBES, s
+  assert all(b - a >= ERR4_WAIT_FRAMES for a, b in zip(s, s[1:])), s
+  assert rec.state == epas_gate.R_DONE
+
+
+def test_disengage_still_resets_the_count_and_the_clock():
+  rec = started(EpasTmpFaultRecovery())
+  run(rec, 1, engaged=False)
+  assert rec.probes == 0 and rec.since_start is None
   started(rec)
-  assert rec.probes == 2, "a later code 4 in the same engagement gets the next request after the settle"
 
 
 def test_a_clear_without_latactive_still_ends_at_the_window():

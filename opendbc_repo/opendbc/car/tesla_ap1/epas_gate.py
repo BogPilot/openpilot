@@ -100,8 +100,10 @@ class EpasGate:
 #     and only after that state has held for ERR4_SETTLE_FRAMES in a row (see the value below).
 #  3. Each request: ANGLE at the measured wheel only (actuator_plan hold, existing rate limit and clip),
 #     at most ERR4_PROBE_FRAMES (0.3 s).
-#  4. Spacing and cap: ERR4_WAIT_FRAMES (2 s) after each request, then the settle again; at most
-#     ERR4_MAX_PROBES (3) per engagement. A new engagement starts the count from zero.
+#  4. Spacing and cap: a request never starts less than ERR4_WAIT_FRAMES (2 s) after the previous request
+#     started, whatever that request's result (cleared, timeout or abort); one clock, counted from the start.
+#     After a timeout or an abort there is also the ERR4_WAIT_FRAMES wait and then the settle again. At most
+#     ERR4_MAX_PROBES (3) per engagement. A new engagement starts the count and the clock from zero.
 #  5. Abort on the frame it is seen: INHIBITED / FAULT / SNA, EAC_FAULT, hands level 2+, a driver override,
 #     EPB_epasEACAllow other than 1, any error code other than 4 and IDLE, or vEgo below MIN_ERR4_PROBE_SPEED.
 #  6. EPB: a request needs a 0x214 sample with EPB_epasEACAllow 1 no older than ERR4_EPB_FRESH_FRAMES, as the
@@ -148,6 +150,7 @@ class EpasTmpFaultRecovery:
     self.frames = 0
     self.cleared = False
     self.settle = 0
+    self.since_start = None   # control steps since the last request started; None before the first one
     self.last_result = None   # "cleared", "timeout" or "abort:<reason>" for the last request
 
   @property
@@ -191,6 +194,8 @@ class EpasTmpFaultRecovery:
       if was_probe:
         self.last_result = "abort:disengaged"
       return False
+    if self.since_start is not None:
+      self.since_start += 1
     reason = self.abort_reason(eac_status, steer_warning, hands_on_level, epb_eac_allow, eac_fault, driver_yield, v_ego)
     if self.state == R_PROBE:
       if reason is not None:
@@ -220,8 +225,10 @@ class EpasTmpFaultRecovery:
       self.settle += 1
     else:
       self.settle = 0
-    if self.settle >= ERR4_SETTLE_FRAMES:
+    spaced = self.since_start is None or self.since_start >= ERR4_WAIT_FRAMES
+    if self.settle >= ERR4_SETTLE_FRAMES and spaced:
       self.settle = 0
+      self.since_start = 0
       self.state = R_PROBE
       self.probes += 1
       self.frames = 1
