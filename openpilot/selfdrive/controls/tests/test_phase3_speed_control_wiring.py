@@ -145,7 +145,7 @@ def test_experimental_fallback_or_default_reaches_planner():
   # no dashboard limit -> fallback turns Experimental Mode on (e2e candidate brakes) although the manual flag is off
   out = drive(p, limit=0.0, manual_em=False, e2e_accel=-2.0)
   assert p.experimental is True and out[-1] < -1.0
-  # a limit is known -> rc7 "or": manual Experimental Mode stays on and is published on bogpilotPlan
+  # a limit is known -> the previous release baseline "or": manual Experimental Mode stays on and is published on bogpilotPlan
   p = planner(s)
   out = drive(p, limit=LIMIT, manual_em=True, e2e_accel=-2.0)
   assert p.experimental is True and out[-1] < -1.0

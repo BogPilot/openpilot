@@ -73,7 +73,7 @@ SLC_ACK = "Phase3SpeedLimitEnabled"   # adoption marker (file store; written onl
 SLC_KEYS = ("SpeedLimitController", "SLCFallback", "SLCOverride", *[f"Offset{i}" for i in range(1, 8)],
             "SLCConfirmation", "SLCConfirmationLower", "SLCConfirmationHigher", "ShowSLCOffset",
             "SLCPriority1", "SLCPriority2", "SLCPriority3", "SLCLookaheadLower", "SetSpeedLimit")
-# "or" = never cancel a manual Experimental Mode (rc7); "replace" = 0.9.7 (SLC-derived flag replaces the manual one).
+# "or" = never cancel a manual Experimental Mode (previous release baseline); "replace" = 0.9.7 (SLC-derived flag replaces the manual one).
 EXPERIMENTAL_POLICY = "or"
 # ACTIVATION. "default_on": the saved/registry SpeedLimitController value
 # decides (registry default "1"); saved prefs are never rewritten. "adoption": dormant until the panel writes SLC_ACK.

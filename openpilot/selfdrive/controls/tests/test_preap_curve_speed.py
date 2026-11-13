@@ -133,7 +133,7 @@ def test_setspeedlimit_then_csc_min():
 
 
 def test_training_policy_in_lat_only():
-  # PENDING DECISION default: learning is allowed in steering only (0.9.7 trained while longActive was False).
+  # Default: learning is allowed in steering only (0.9.7 trained while longActive was False).
   steady = road(0.0, 0.004, 1e9)                                # 1.6 m/s^2 at 20 m/s: a curve the driver is taking
   c, _ = run(30.0, mode=LAT_ONLY, seconds=12.0, road_k=steady)
   assert c.training and not c.controlling

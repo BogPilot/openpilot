@@ -125,7 +125,7 @@ Recorded disagreements only where the cited files were read. No speculation.
 - Why: locked BogPilot settings rows should look and act locked, without changing the stock list widget.
 - Safety-relevant: no. UI only; no control or panda path.
 - Tests: `openpilot/selfdrive/ui/tests/test_bogpilot_gated_actions.py`.
-- Credits: stock v0.11.2; the rc7 locked-row audit. Full write-up: `docs/tesla/UI_GATED_ACTIONS.md`.
+- Credits: stock v0.11.2; the locked-row audit of the previous release baseline. Full write-up: `docs/tesla/UI_GATED_ACTIONS.md`.
 - Value rows (rc9): the shared value row adds a grey default hint, a changed-value highlight and one confirmed "Reset section to defaults" row per section, built on the same gated actions. Credits: BogPilot rc8 Alert Volume row and stock v0.11.2 `list_view.py` / `confirm_dialog.py`. See "Value rows" in `docs/tesla/UI_GATED_ACTIONS.md`.
 - Steering Tuning (rc9): no per-row RESET. The Advanced and Quality of Life section Resets cover value rows only (numeric defaults from `numeric_rows`; `PauseLateralSpeed` default 0). Toggles stay out. Override Sensitivity is in neither section and has no reset. The unlabeled level-0 -/+ row for Pause Steering Below is hidden. Credits: BogPilot rc8 and stock v0.11.2. Details in `docs/tesla/UI_GATED_ACTIONS.md`.
 

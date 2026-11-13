@@ -47,13 +47,12 @@ Credit: BogPilot 0.9.7 / na-preap 568fea947 (FrogPilot Curve Speed Controller li
   (a failed request still stamps `last_updated` at `:123` and keeps the previous `weather_id` at `:124-139`,
   with no expiry).
 
-## Pending decisions (defaults in use)
+## Defaults in use
 - Learning in steering only: allowed (0.9.7 trained while `longActive` was False). CSC never caps in steering only.
-  PENDING DECISION.
-- Settings row before the pedal is calibrated: hidden until the stored pedal is detected and calibrated. PENDING DECISION.
-- ShowCSCStatus on Pre-AP: same param, default ON at level 2, display only. PENDING DECISION.
-- Map / 0x3C8 curvature: not ported (0.9.7 Pre-AP CSC was vision-only). PENDING DECISION.
-- Default ON at level 1 (as 0.9.7) and the curve-brake floor -1.2 m/s^2 (not the full Pre-AP regen -1.5). PENDING DECISION.
+- Settings row before the pedal is calibrated: hidden until the stored pedal is detected and calibrated.
+- ShowCSCStatus on Pre-AP: same param, default ON at level 2, display only.
+- Map / 0x3C8 curvature: not ported (0.9.7 Pre-AP CSC was vision-only).
+- Default ON at level 1 (as 0.9.7) and the curve-brake floor -1.2 m/s^2 (not the full Pre-AP regen -1.5).
 
 ## Tests
 `openpilot/selfdrive/controls/tests/test_csc_platform_gate.py` (gate: no pedal, uncalibrated, steering only, FULL, AP1,

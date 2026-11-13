@@ -626,7 +626,7 @@ class ViewBase(TailBase):
     return [c for c in self.calls if c not in skip]
 
 
-# pre-change (rc7 27e82a496) AugmentedRoadView._render with the same fakes: scissor, camera, composer (alert inside), end, border
+# pre-change (previous release baseline 27e82a496) AugmentedRoadView._render with the same fakes: scissor, camera, composer (alert inside), end, border
 RC7_GOLDEN = {
   True: ["scissor_begin", "camera", "model", "hud", "stock_dm", "alert", "scissor_end", "border_frame", "border"],
   False: ["scissor_begin", "camera", "model", "hud", "alert", "stock_dm", "scissor_end", "border_frame", "border"],
@@ -683,7 +683,7 @@ class TestViewOrder(ViewBase):
 
 
 class TestBallOffOrFailingMatchesPreChange(ViewBase):
-  """CB3: with the ball off or failing, the content-area draws equal the pre-change (rc7) sequence; the only change is that
+  """CB3: with the ball off or failing, the content-area draws equal the pre-change (previous release baseline) sequence; the only change is that
   the alert tail sits after the border, in its own scissor pair."""
 
   def test_sequences(self):

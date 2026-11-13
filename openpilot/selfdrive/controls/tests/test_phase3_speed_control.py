@@ -489,7 +489,7 @@ class TestAdoptionAndDefaults(unittest.TestCase):
 
 
 class TestExperimentalFallbackPolicy(unittest.TestCase):
-  """rc7 default is "or" (manual Experimental Mode is never cancelled by a known SLC limit)."""
+  """The previous release baseline default is "or" (manual Experimental Mode is never cancelled by a known SLC limit)."""
 
   def ctl(self, fallback="1", **kw):
     return make(toggles(SLCFallback=fallback), **kw), Sm()

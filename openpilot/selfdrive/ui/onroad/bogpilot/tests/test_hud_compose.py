@@ -205,7 +205,7 @@ class TestOrder(Base):
 
 class TestStockFallback(Base):
   def test_lock_not_painted_does_not_draw_stock_chevron(self):
-    # rc7: when RedesignUI is on (including first frames and fail-closed hide),
+    # Previous release baseline: when RedesignUI is on (including first frames and fail-closed hide),
     # the stock orange lead chevron must not be flushed.
     for kw in ({"enabled": False}, {"draw": False}, {"raises": "draw"}, {"raises": "enabled"}):
       self.calls.clear()

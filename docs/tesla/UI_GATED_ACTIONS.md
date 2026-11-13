@@ -35,7 +35,7 @@ BogPilot rc8 (`openpilot/selfdrive/ui/bogpilot/gated_actions.py`):
   `toggles.py` keep the stock actions. `selfdrive/ui/tests/test_bogpilot_gated_actions.py` fails if a BogPilot panel
   goes back to a stock dual/multiple action or builds a gated row without a lock.
 
-**Why diverge.** rc7 locked-row audit: 10 BogPilot rows looked and acted enabled
+**Why diverge.** A locked-row audit of the previous release baseline: 10 BogPilot rows looked and acted enabled
 while onroad (rows 1-4, 6, 8, 9, 15, 17, 19), and rows 1, 17 and 19 could leave a wrong value highlighted. No row wrote
 a Param, because every BogPilot editor re-checks offroad/visibility at write time. That is unchanged: the gate here
 only adds refusals in front of the editors' own checks, so writes stay refused onroad by the same code as before.
@@ -49,7 +49,7 @@ and shrink-to-fit labels. If the lane is ever revisited, those belong in `GatedM
 it) rather than in `list_view.py`. Revisiting it needs the owner's ask first.
 
 **Sources.** Stock openpilot v0.11.2 `f7db927c7` (`list_view.py`, `widgets/__init__.py`, `widgets/button.py`); BogPilot
-rc7 `27e82a496` panels (cited in the audit). Tinkla/BogGyver and NAP use the Qt UI and were not read for this; no
+previous release baseline `27e82a496` panels (cited in the audit). Tinkla/BogGyver and NAP use the Qt UI and were not read for this; no
 claim is made about them.
 
 ## Value rows: default hint, changed highlight, section reset (rc9 UI-unify M1)
