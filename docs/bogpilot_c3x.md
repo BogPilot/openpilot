@@ -12,26 +12,21 @@ for this fork is still an older tree and is easy to install by mistake.
 
 | What you want | Branch | Approx tip (Nov 2026) | AGNOS | openpilot base |
 |---|---|---|---|---|
-| **BogPilot comma 3X (this guide)** | **`bogpilot-c3x-donotuse`** | see branch head | **19.9** | **0.11.2** |
-| Do **not** use for 3X AGNOS 19.9 | `bogpilot-tesla` (GitHub default) | `04d560f3…` | 10.1 era | 0.9.7 |
+| **BogPilot comma 3X (this guide)** | **`bogpilot-tesla`** | see branch head | **19.9** | **0.11.2** |
 
-- Public tree: https://github.com/BogPilot/openpilot/tree/bogpilot-c3x-donotuse
+- Public tree: https://github.com/BogPilot/openpilot/tree/bogpilot-tesla
 - Custom-software installer URL (comma setup / Software panel):
 
 ```text
-installer.comma.ai/BogPilot/bogpilot-c3x-donotuse
+installer.comma.ai/BogPilot/bogpilot-tesla
 ```
 
 ### Wrong-branch warning
 
-`bogpilot-tesla` is the repository default. It is an older 0.9.7 / AGNOS ~10.1
-line with **no shared history** with `bogpilot-c3x-donotuse`. Installing it on a
+Until this release is published, `bogpilot-tesla` holds the older 0.9.7 / AGNOS ~10.1
+line, which has **no shared history** with this tree. Installing that older line on a
 comma 3X that is already on AGNOS 19.9 will not give you this feature set and
-can leave you on the wrong OS pin. Always enter the **`bogpilot-c3x-donotuse`**
-installer URL above (or flash a package built from that tip).
-
-`BogPilot-donotuse` as a branch name does **not** exist. The published name is
-lowercase `bogpilot-c3x-donotuse`.
+can leave you on the wrong OS pin.
 
 ## Hardware assumptions
 
@@ -40,7 +35,6 @@ lowercase `bogpilot-c3x-donotuse`.
 - Supported research target for this tip: Tesla **AP1 Model S** (`TESLA_AP1_MODELS`), unchanged
 - Tesla **AP1 Model X** (`TESLA_AP1_MODELX`): manual selection, and strict marker auto-detect. Lateral only, stock ACC, unverified on a car
 - Tesla **Model X AP2** is blocked: no second-panda / powertrain safety path, and Tinkla's AP2 Model X fingerprint is an identical copy of the AP1 Model X fingerprint
-- **PreAP** is still unsupported
 - Signed TRES/H7 panda firmware in the tip is left byte-identical; do not flash
   alternate panda firmware from this guide
 
@@ -118,7 +112,6 @@ parent toggles that gate them.
 
 | Area | State |
 |---|---|
-| Speed Limit Controller / Following | Held: high-risk longitudinal control, not integrated yet |
 | Lane Changes (automatic/nudgeless) | Integrated with adoption markers and BSM fail-closed; Human-Like Lane Changes / Turn Desires consumers present but no menu row (dormant) |
 | Drive stats producer (`trackd`) | Present but needs extra verification before relying on it |
 | Model Selector | **Paused** (stock models only) |
@@ -138,11 +131,11 @@ parent toggles that gate them.
 
 ## After install checklist
 
-1. Confirm Software / branch shows **`bogpilot-c3x-donotuse`** (not `bogpilot-tesla`)
+1. Confirm Software / branch shows **`bogpilot-tesla`**
 2. Confirm device is on **AGNOS 19.9**
 3. Connect harness + car (or set developer `FINGERPRINT` only if you know why)
 4. Expect Vehicle Controls only after AP1 fingerprint
-5. Expect BogPilot (Alerts and Sounds, Driving Controls > Steering Tuning, Vehicle Settings, System Settings) + Visuals as above; Lane Changes is present, Speed Limit Controller is not
+5. Expect BogPilot (Alerts and Sounds, Driving Controls > Steering Tuning, Vehicle Settings, System Settings) + Visuals as above; Lane Changes is present
 
 ## Related docs in this tree
 

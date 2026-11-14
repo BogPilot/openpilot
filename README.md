@@ -1,135 +1,108 @@
-<div align="center" style="text-align: center;">
+# BogPilot for legacy Tesla Model S / X (openpilot 0.11.2 base)
 
-<h1>openpilot</h1>
+Branch: `bogpilot-tesla` (openpilot 0.11.2 base, comma 3X on AGNOS 19.9).
 
-<p>
-  <b>openpilot is an operating system for robotics.</b>
-  <br>
-  Currently, it upgrades the driver assistance system in 300+ supported cars.
-</p>
+BogPilot is a community fork. It is not a comma product. You are always responsible for driving: keep your hands on the
+wheel and your eyes on the road, and be ready to take over at any time.
 
-<h3>
-  <a href="https://docs.comma.ai">Docs</a>
-  <span> · </span>
-  <a href="https://docs.comma.ai/contributing/roadmap/">Roadmap</a>
-  <span> · </span>
-  <a href="https://github.com/commaai/openpilot/blob/master/docs/CONTRIBUTING.md">Contribute</a>
-  <span> · </span>
-  <a href="https://discord.comma.ai">Community</a>
-  <span> · </span>
-  <a href="https://comma.ai/shop">Try it on a comma four</a>
-</h3>
+## Supported cars
 
-Quick start: `bash <(curl -fsSL openpilot.comma.ai)`
+| Car | Platform | Lateral | Longitudinal | Tested on a car? |
+|---|---|---|---|---|
+| Model S, Autopilot 1 (2014-16) | `TESLA_AP1_MODELS` | yes | openpilot long | **Yes**: the only drive-tested car (see "Testing status") |
+| Model X, Autopilot 1 (2016) | `TESLA_AP1_MODELX` | yes | stock cruise only, lateral-only | No engaged logs yet |
+| Model S, Pre-Autopilot (2012-14) | `TESLA_PREAP_MODELS` | yes, through the Pre-AP safety flag | only with a Comma Pedal | No: no Pre-AP logs exist yet |
+| Model S / X, Autopilot 2 | none | - | - | **Not supported**: AP2 is not a platform in this tree |
 
-[![openpilot tests](https://github.com/commaai/openpilot/actions/workflows/tests.yaml/badge.svg)](https://github.com/commaai/openpilot/actions/workflows/tests.yaml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![X Follow](https://img.shields.io/twitter/follow/comma_ai)](https://x.com/comma_ai)
-[![Discord](https://img.shields.io/discord/469524606043160576)](https://discord.comma.ai)
+Car detection: AP1 cars have no firmware-version rows, so they are picked by their CAN signature or by the
+CarModel / ForceFingerprint setting. Pre-AP is picked by CarModel / ForceFingerprint, or detected from a Comma Pedal
+with no Mobileye on bus 2.
 
-</div>
+### Testing status (be honest with yourself before you drive)
+- AP1 Model S: drive-tested by the owner on earlier builds of this line and bench-driven on this build; the owner
+  reports everything working on this build. No other driver or car has tested it.
+- AP1 Model X and Pre-AP Model S: no engaged drive logs. The driver-override numbers were chosen from AP1 Model S
+  driving and are unproven on those cars.
+- Panda safety code is unchanged from the previously reviewed build of this line.
 
-<table>
-  <tr>
-    <td><a href="https://youtu.be/NmBfgOanCyk" title="Video By Greer Viau"><img src="https://github.com/commaai/openpilot/assets/8762862/2f7112ae-f748-4f39-b617-fabd689c3772"></a></td>
-    <td><a href="https://youtu.be/VHKyqZ7t8Gw" title="Video By Logan LeGrand"><img src="https://github.com/commaai/openpilot/assets/8762862/92351544-2833-40d7-9e0b-7ef7ae37ec4c"></a></td>
-    <td><a href="https://youtu.be/SUIZYzxtMQs" title="A drive to Taco Bell"><img src="https://github.com/commaai/openpilot/assets/8762862/05ceefc5-2628-439c-a9b2-89ce77dc6f63"></a></td>
-  </tr>
-</table>
+## Install
 
+Requirements: comma 3X on AGNOS 19.9, a harness for your car.
 
-BogPilot on comma 3X (AGNOS 19.9)
-------
+1. On the comma 3X setup screen, choose custom software and enter the installer URL for this branch:
+   `installer.comma.ai/BogPilot/bogpilot-tesla`
+2. After install, confirm Settings > Software shows branch `bogpilot-tesla` and the device is on AGNOS 19.9.
+3. Connect the harness and the car. Vehicle settings appear once the car is detected.
 
-**Use branch `bogpilot-c3x-donotuse`**, not the repository default `bogpilot-tesla`.
+Note: until this release is published, the `bogpilot-tesla` branch holds the older 0.9.7 / AGNOS 10.1 line, which has
+no shared history with this tree. Do not install the old branch on a comma 3X that is already on AGNOS 19.9.
 
-| | |
-|---|---|
-| Branch | [`bogpilot-c3x-donotuse`](https://github.com/BogPilot/openpilot/tree/bogpilot-c3x-donotuse) |
-| Installer URL | `installer.comma.ai/BogPilot/bogpilot-c3x-donotuse` |
-| Device / OS | comma **3X** on **AGNOS 19.9** (openpilot 0.11.2 line) |
-| Do not install for this target | GitHub default `bogpilot-tesla` (0.9.7 / AGNOS ~10.1, unrelated history) |
+## Features and defaults
 
-AP1 Model S detection needs the chassis+Mobileye CAN signature (or a developer `FINGERPRINT`); there is no AP1 FW row. Menus on this tip are an active-only shell (BogPilot: Alerts and Sounds, Driving Controls > Gas/Brake + Steering Tuning, Vehicle Settings incl. Stalk Controls, System Settings; plus Visuals). Speed Limit Controller is not in this build. Full install, car-detect, menu map, and known limits: **[docs/bogpilot_c3x.md](docs/bogpilot_c3x.md)**.
+### Camera View (default: Auto)
+- Choices: **Auto**, **Standard**, **Wide**. Help text (BogPilot 0.9.7 wording): "Select the active camera view.
+  This is purely a visual change and doesn't impact how openpilot drives!"
+- Auto is stock openpilot 0.11.2 switching: in Experimental Mode with a wide stream, wide below 11 mph, narrow above
+  22 mph, otherwise narrow. Standard always shows the narrow road camera; Wide always the wide one.
+- The old "Driver" choice is gone; a saved Driver value reads as Auto. The cabin camera still shows in reverse.
+- Registered default 0 (Auto). Settings > Visuals, under Quality of Life Visuals (default On).
 
-Pre-AP signal data values may reference an upstream legacy port (data only); that port's code is not used.
+### Accel / decel bars (Pedals on Screen; default: **On**)
+- Two vertical bars replace the 0.9.7 pedal icons: decel on the left, accel on the right. They show when openpilot
+  longitudinal is active, Driving Screen Widgets is on (default On) and Pedals on Screen is on (default **On**).
+- AP1 decel bar: total braking decel on one scale. **2.0 m/s² fills 50 %**, 3.5 m/s² fills 100 %.
+- Colours:
+  - regen (you, or nobody, braking with regen): **blue**; OP regen decel: dusty blue;
+  - your brake press: **red** when friction does most of the braking, violet when regen does most;
+  - OP applying the brake booster (AP1): **muted lavender** while regen has the majority, **rose** when friction has it;
+  - accel: green for your pedal, sage for an OP accel request.
+- The OP brake colour clears at most 0.25 s (plus one frame) after OP stops braking. Display only.
+- Pre-AP and other cars keep the two-half layout (regen half, brake press from 50 %).
 
-Using openpilot in a car
-------
+### Confidence ball (default: On, left edge)
+- A small ball on the edge of the driving screen whose height follows the driving model's confidence.
+- Engaged: green / orange / red. Overriding: consistent white ball with grey shade. **Disengaged: slate grey at high confidence fading to white
+  at low confidence**, shaded top to bottom like stock, so it never looks like openpilot is active.
+- Display only; no control path reads it. Side: Left (default) or Right.
 
-To use openpilot in a car, you need four things:
-1. **Supported Device:** a comma four, available at [comma.ai/shop/comma-four](https://www.comma.ai/shop/comma-four).
-2. **Software:** The setup procedure for the comma four allows users to enter a URL for custom software. Use the URL `openpilot.comma.ai` to install the release version.
-3. **Supported Car:** Ensure that you have one of [the 300+ supported cars](docs/CARS.md).
-4. **Car Harness:** You will also need a [car harness](https://comma.ai/shop/car-harness) to connect your comma four to your car.
+### Override Sensitivity (default: 2)
+- How hard you must push the wheel to take over steering, levels 1 to 5.
+- Fire torque = 2.0 Nm × scale: **1 = 2.5 Nm, 2 = 2.25 Nm (default), 3 = 2.0 Nm, 4 = 1.75 Nm, 5 = 1.5 Nm**.
+- The EPAS hands-on flag always counts as a takeover; panda steering limits do not change with this setting.
+- AP1 Model S / X and Pre-AP Model S only.
 
-We have detailed instructions for [how to install the harness and device in a car](https://comma.ai/setup). Note that it's possible to run openpilot on [other hardware](https://blog.comma.ai/self-driving-car-for-free/), although it's not plug-and-play.
+### Stalk hold for Experimental Mode (default: 1.23 s)
+- With openpilot longitudinal, a long stalk **pull** while engaged, or a long **push** while disengaged, flips
+  Experimental Mode once (Chill <-> Experimental). Default hold 1.23 s, adjustable 1.10 to 5.00 s in 0.01 s steps.
+- The engaging pull and an engaged cancel push never flip modes; normal engage and cancel timing is fixed.
 
+### Bog to the Future (default: On; display only)
+- Draws two burning tire tracks for 3 seconds down the lane beside you behind a car that passes faster than **88 mph**.
+- Needs blind spot data (Tesla AP1), Blind Spot Lane Fill on, and a radar track of that car. Never steers or brakes.
 
-### Branches
+### Blind spot monitoring (BSM) display (AP1)
+- Blind Spot Lane Fill (default On): tints the lane beside you red while the car reports a vehicle there.
+- Blind Spot Border (default On): turns that half of the screen border red.
+- Only cars that report blind spot data (Tesla AP1).
 
-Running `master` and other branches directly is supported, but it's recommended to run one of the following prebuilt branches:
+### AP1 / legacy Tesla longitudinal tuning ported from 0.9.7
+On AP1 Model S / X and Pre-AP Model S, a one-time start-up write applies the profiles the owner drove on 0.9.7,
+without overwriting any setting you already changed:
+- Acceleration **Sport** (max 3.0 / 2.5 / 2.0 / 1.5 / 1.0 / 0.8 / 0.6 m/s² at 0 / 11 / 22 / 34 / 45 / 56 / 89 mph);
+- Deceleration **Eco+** (coasts more, brakes as softly as possible);
+- Human-Like Acceleration on, Human Following on, custom personalities (follow 1.25 / 1.45 / 2.0 s).
+- Turning Longitudinal Tuning off (or Reset to stock) returns to the stock cruise limit.
 
-| comma four branch      | comma 3X branch        | URL                                    | description                                                                         |
-|------------------------|------------------------|----------------------------------------|-------------------------------------------------------------------------------------|
-| `release-mici`         | `release-tizi`         | openpilot.comma.ai                     | This is openpilot's release branch.                                                 |
-| `release-mici-staging` | `release-tizi-staging` | openpilot-test.comma.ai                | This is the staging branch for releases. Use it to get new releases slightly early. |
-| `nightly`              | `nightly`              | openpilot-nightly.comma.ai             | This is the bleeding edge development branch. Do not expect this to be stable.      |
-| `nightly-dev`          | `nightly-dev`          | installer.comma.ai/commaai/nightly-dev | Same as nightly, but includes experimental development features for some cars.      |
+## Privacy
+BogPilot does not register with comma servers and does not upload driving data to comma by default.
 
-For [chestnut](https://comma.ai/shop/chestnut), use the following installer URLs:
-
-| branch                       | URL                                                        | description                                                                         |
-|------------------------------|------------------------------------------------------------|-------------------------------------------------------------------------------------|
-| `release-chestnut`           | installer.comma.ai/commaai/release-chestnut                | This is openpilot's release branch.                                                 |
-| `release-chestnut-staging`   | installer.comma.ai/commaai/release-chestnut-staging        | This is the staging branch for releases. Use it to get new releases slightly early. |
-| `nightly-chestnut`           | installer.comma.ai/commaai/nightly-chestnut                | This is the bleeding edge development branch. Do not expect this to be stable.      |
-| `nightly-chestnut-dev`       | installer.comma.ai/commaai/nightly-chestnut-dev            | Same as nightly, but includes experimental development features for some cars.      |
-
-To start developing openpilot
-------
-
-openpilot is developed by [comma](https://comma.ai/) and by users like you. We welcome both pull requests and issues on [GitHub](http://github.com/commaai/openpilot).
-
-* Join the [community Discord](https://discord.comma.ai)
-* Check out [the contributing docs](docs/CONTRIBUTING.md)
-* Check out the [openpilot tools](openpilot/tools/)
-* Code documentation lives at https://docs.comma.ai
-* Information about running openpilot lives on the [community wiki](https://github.com/commaai/openpilot/wiki)
-
-Want to get paid to work on openpilot? [comma is hiring](https://comma.ai/jobs#open-positions) and offers lots of [bounties](https://comma.ai/bounties) for external contributors.
-
-Safety and Testing
-----
-
-* openpilot observes [ISO26262](https://en.wikipedia.org/wiki/ISO_26262) guidelines, see [SAFETY.md](docs/SAFETY.md) for more details.
-* openpilot has software-in-the-loop [tests](.github/workflows/tests.yaml) that run on every commit.
-* The code enforcing the safety model lives in panda and is written in C, see [code rigor](https://github.com/commaai/panda#code-rigor) for more details.
-* panda has software-in-the-loop [safety tests](https://github.com/commaai/panda/tree/master/tests/safety).
-* Internally, we have a hardware-in-the-loop Jenkins test suite that builds and unit tests the various processes.
-* panda has additional hardware-in-the-loop [tests](https://github.com/commaai/panda/blob/master/Jenkinsfile).
-* We run the latest openpilot in a testing closet containing 10 comma devices continuously replaying routes.
-
-<details>
-<summary>MIT Licensed</summary>
-
-openpilot is released under the MIT license. Some parts of the software are released under other licenses as specified.
-
-Any user of this software shall indemnify and hold harmless Comma.ai, Inc. and its directors, officers, employees, agents, stockholders, affiliates, subcontractors and customers from and against all allegations, claims, actions, suits, demands, damages, liabilities, obligations, losses, settlements, judgments, costs and expenses (including without limitation attorneys’ fees and costs) which arise out of, relate to or result from any use of this software by user.
-
-**THIS IS ALPHA QUALITY SOFTWARE FOR RESEARCH PURPOSES ONLY. THIS IS NOT A PRODUCT.
-YOU ARE RESPONSIBLE FOR COMPLYING WITH LOCAL LAWS AND REGULATIONS.
-NO WARRANTY EXPRESSED OR IMPLIED.**
-</details>
-
-<details>
-<summary>User Data and Accounts</summary>
-
-BogPilot does **not** register with comma servers and does **not** upload driving data to comma by default. Builds that strip registration and phone-home keep logs on the device only.
-
-Stock openpilot (upstream) uploads driving data to comma by default and offers [comma connect](https://connect.comma.ai/). That stock behavior does **not** apply to BogPilot no-registration builds. If you run a build that still includes comma services, those services follow [comma's Privacy Policy](https://comma.ai/privacy).
-
-openpilot is open source software. Users of stock openpilot can disable data collection if they wish. BogPilot's no-registration / no-upload trees go further: they do not call comma registration, athena, or the stock uploader.
+## Credits
+- comma.ai openpilot (MIT).
+- BogPilot 0.9.7 (`bogpilot-tesla`), Tinkla / BogGyver openpilot and NotAutopilot (NAP) are the Tesla references.
+- mapd map data by pfeiferj (MIT).
+- Beta tester **IRIT-able** (GitHub, fork `github.com/IRIT-able/bogpilot-openpilot`) found and fixed, on Nov 5 2026, the same
+  Pre-AP problems that BogPilot's Pre-AP work fixes: the Comma Pedal sensor bit layout (GAS_SENSOR state and counter nibbles),
+  engaging only on a stalk pull, and re-arming on a new pull. Thank you. The Pre-AP code in this repository is BogPilot's own;
+  no code from that fork was copied.
 
 Lineage: BogPilot is forked from FrogPilot's work (FrogAi and contributors, MIT), which is itself a fork of openpilot (MIT, Comma.ai, Inc.), and adds Tesla support. Thank you to the FrogPilot team for their brilliant work. Pre-AP signal reference values may come from an upstream legacy port (data values only). BogPilot is not a comma product and does not use the openpilot trademark as a product name for modified safety builds.
-</details>
