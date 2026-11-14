@@ -193,21 +193,21 @@ Recorded disagreements only where the cited files were read. No speculation.
   effect the next time the car starts. With the radar toggle on, `radarUnavailable` is false, the Bosch parser
   reads bus 1 (`tesla_radar_bosch_generated`), and the safety param gains 256 (plus 128 only when the nosecone
   toggle is also on), through `flags_for_preap` (panda half above). Radar leads then feed radard, the pedal
-  planner and Human-Like Following (still the owner's Following toggle). With the radar on at car start, Human-Like
-  Following and Human-Like Lane Changes default On (owner decision; unset values only, a saved Off is kept, nothing
+  planner and Human-Like Following (still the driver's Following toggle). With the radar on at car start, Human-Like
+  Following and Human-Like Lane Changes default On (maintainer decision; unset values only, a saved Off is kept, nothing
   is written to Params); with it off both are effectively Off. Toggle off: CarParams bytes and the safety param (96 / 32) are identical to the build before.
 - Divergences from NAP: (1) the nosecone bit is only sent with the radar bit (NAP sends it on its own; the panda
   ignores it without 256 anyway). (2) Fail closed when the radar is silent: with the toggle on and no radar cycle
   for 0.5 s, the radar interface publishes canError at 20 Hz instead of nothing, so radarState goes invalid and
   openpilot will not engage (radar CAN error / commIssue). NAP returns nothing until the radar answers.
-  (3) Radar status faults (owner decision): Pre-AP ignores `RADC_SensorDirty`, following NAP; Tinkla faults on it
+  (3) Radar status faults (maintainer decision): Pre-AP ignores `RADC_SensorDirty`, following NAP; Tinkla faults on it
   unless the radar is behind the nosecone; `RADC_HWFail` remains the only fault. NAP's Bosch rule is HWFail-only
   on every car (`opendbc/car/tesla/radar_interface.py:85-88` @ `cc39c7fa`). Tinkla faults on HWFail, on SGUFail
   except on PREAP, and on SensorDirty unless PREAP with the radar behind the nosecone
   (`selfdrive/car/tesla/radar_interface.py:89-111` @ `501c7de`). Here Pre-AP faults on HWFail only, so SGUFail and
   SensorDirty never fault, nosecone or not (`opendbc_repo/opendbc/car/tesla_ap1/radar_interface.py`); AP1 keeps
   HWFail, SGUFail and SensorDirty. A CAN error or a silent radar still fails closed as in (2).
-- Backup and resets (owner decision): both keys are in the durable settings backup and Toggle Backups (restore),
+- Backup and resets (maintainer decision): both keys are in the durable settings backup and Toggle Backups (restore),
   and are not in Reset to Stock or Reset to Defaults, so a reset never turns the retrofit off.
 - Why: drivers moving from NAP have the retrofit; off by default leaves every other Pre-AP car unchanged.
 - Safety-relevant: yes when on (radar leads drive the pedal planner). No host TX added; the panda gateway is
@@ -726,7 +726,7 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Credits: BogPilot 0.9.7 / 367e1fe (options and codes), upstream openpilot 0.11.2 (Auto switching and its default), BogPilot (the wiring: Standard / Wide hold one stream, Driver aside).
 
 ## Longitudinal: legacy Tesla cruise accel uses the 0.9.7 acceleration profiles by default
-- Platforms: AP1 Model S, AP1 Model X and Pre-AP Model S (`openpilot/common/bogpilot_ap1_profile.py:552` `LEGACY_TESLA_PLATFORMS`). Every other car keeps the stock cruise limit unless the owner adopts the profiles in the Gas / Brake page.
+- Platforms: AP1 Model S, AP1 Model X and Pre-AP Model S (`openpilot/common/bogpilot_ap1_profile.py:552` `LEGACY_TESLA_PLATFORMS`). Every other car keeps the stock cruise limit unless the driver adopts the profiles in the Gas / Brake page.
 - Reference behavior: stock openpilot 0.11.2 caps cruise acceleration at [1.6, 1.2, .8, .6] m/s^2 over 0 / 10 / 25 / 40 m/s (`selfdrive/controls/lib/longitudinal_planner.py:32-33` `A_CRUISE_MAX_VALS` / `A_CRUISE_MAX_BP`). BogPilot 0.9.7 applies its acceleration profiles instead (`04d560f3e` `bogpilot_acceleration`).
 - Our behavior: on the legacy Tesla platforms the Acceleration / Deceleration / Human-Like group is live without a UI re-select (`selfdrive/controls/lib/phase3_long_accel.py:63-68` `profiles_default_on`, used by `profiles_adopted` at `:71-72`), while Longitudinal Tuning stays on (registry default `1`, `common/bogpilot_params.py:229`). The cruise maximum then comes from `Profiles.limits` (`phase3_long_accel.py:102-109`):
   - Standard (0): [2, 1.6, .8, .6] over 0 / 10 / 25 / 40 m/s (`:109`).

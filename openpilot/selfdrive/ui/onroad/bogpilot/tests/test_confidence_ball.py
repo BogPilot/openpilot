@@ -76,7 +76,7 @@ class TestMath(unittest.TestCase):
 
 
 class TestAlwaysShown(unittest.TestCase):
-  """Owner rule: the ball shows in every state while the toggle is on (stock / 0.9.7 slide it out when disengaged)."""
+  """Maintainer rule: the ball shows in every state while the toggle is on (stock / 0.9.7 slide it out when disengaged)."""
 
   def state(self):
     return L.ConfidenceBallState(lambda: True, lambda: False, lambda: 0.0, 0.05)
@@ -197,7 +197,7 @@ class TestDisengagedSlateToWhite(unittest.TestCase):
 
 
 class TestDisengagedShading(unittest.TestCase):
-  """Owner-approved stock shading for the DISENGAGED ball: bottom = top * 82/255 (the stock OVERRIDE ball's ratio,
+  """Maintainer-approved stock shading for the DISENGAGED ball: bottom = top * 82/255 (the stock OVERRIDE ball's ratio,
   mici/onroad/confidence_ball.py:68-70) at every confidence; ENGAGED and OVERRIDE unchanged."""
 
   # mockup levels: disengage prob -> (top, bottom) colours and the hex sampled at cy - r + 3, cy, cy + r - 3
@@ -1590,7 +1590,7 @@ class TestBallOnPixels(NativeBase):
     self.assertEqual(len(dis), 3)
     self.assertIn((L.SLATE, L.shade(L.SLATE)), dis)
 
-  # owner-approved shaded mockup: disengage prob -> (top, middle, bottom) sampled at cy - r + 3, cy, cy + r - 3
+  # maintainer-approved shaded mockup: disengage prob -> (top, middle, bottom) sampled at cy - r + 3, cy, cy + r - 3
   MOCKUP = {"high": (0.0, ("#6B7A8A", "#49545E", "#282D33")), "mid": (1 - 0.5 ** 0.5, ("#B0B8BF", "#787E83", "#414446")),
             "low": (0.9, ("#F6F6F6", "#AAAAAA", "#5D5D5D"))}
 

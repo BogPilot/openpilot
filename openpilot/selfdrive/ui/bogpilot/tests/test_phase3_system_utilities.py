@@ -325,7 +325,7 @@ class UtilitiesTest(unittest.TestCase):
     self.assertTrue(marker.exists())
 
   def test_reset_bogpilot_defaults_leaves_preap_radar_toggles(self):
-    # Owner rule: the radar toggles are backed up and restored, never reset.
+    # Maintainer rule: the radar toggles are backed up and restored, never reset.
     act = self.actions()
     for k in ("TeslaRadarEnabled", "TeslaRadarBehindNosecone"):
       self.assertNotIn(k, b.shipping_defaults())
