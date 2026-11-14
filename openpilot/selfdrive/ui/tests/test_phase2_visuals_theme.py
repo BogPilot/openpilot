@@ -139,11 +139,12 @@ class TestCatalog(unittest.TestCase):
     self.assertEqual(len(AUDIT_KEYS), 21)
     self.assertEqual(len(NEW_VISUAL_KEYS) + len(OMITTED_KEYS), 21)
     self.assertEqual(set(AUDIT_KEYS), set(NEW_VISUAL_KEYS) | set(OMITTED_KEYS))
-    self.assertEqual(len(NEW_VISUAL_KEYS), 11)
-    self.assertEqual(len(OMITTED_KEYS), 10)
+    self.assertEqual(len(NEW_VISUAL_KEYS), 10)
+    self.assertEqual(len(OMITTED_KEYS), 11)                              # BorderMetrics: folded into Blind Spot Border
+    self.assertIn("BorderMetrics", OMITTED_KEYS)
     table = decision_table()
-    self.assertEqual(sum(1 for r in table if r["decision"] == "IMPLEMENT"), 11)
-    self.assertEqual(sum(1 for r in table if r["decision"] == "OMIT"), 10)
+    self.assertEqual(sum(1 for r in table if r["decision"] == "IMPLEMENT"), 10)
+    self.assertEqual(sum(1 for r in table if r["decision"] == "OMIT"), 11)
 
   def test_visuals_menu_includes_new_and_existing(self):
     from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import VISUAL_KEYS, EXISTING_VISUAL_KEYS

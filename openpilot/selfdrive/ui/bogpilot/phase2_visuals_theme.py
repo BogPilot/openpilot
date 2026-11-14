@@ -83,6 +83,9 @@ OMITTED: tuple[tuple[str, str], ...] = (
    "(the Developer HUD already shows the lead data)."),
   ("UseSI",
    "0.9.7 SI formatting for developer metrics; no UseSI reader in raylib UI (developer metric overlays absent)."),
+  ("BorderMetrics",
+   "0.9.7 Status Border parent; folded into Blind Spot Border, which alone draws the red blind-spot half-border. "
+   "The stored value is kept (backup, restore and resets still carry it) but nothing reads it."),
 )
 
 OMITTED_KEYS = tuple(k for k, _ in OMITTED)
