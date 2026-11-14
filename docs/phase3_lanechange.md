@@ -4,7 +4,7 @@ This module makes NO deployment, CAN, vehicle, road, or bench changes.
 
 ## Exact scope and historical inventory (read before implementation)
 
-Reference: existing repository's own `04d560f3` (0.9.7 bogpilot-tesla), not an upstream/newer fork. Evidence exports accompany this note.
+Reference: existing repository's own `04d560f3` (0.9.7 bogpilot-tesla), not an upstream/newer fork.
 
 `bogpilot/ui/qt/offroad/lateral_settings.cc` / `.h` and the historical Python metadata establish:
 
@@ -52,18 +52,21 @@ AOL/safety capability and controller tuning/NNFF/QoL belong to other modules. Tu
 
 ## Tests / limitations
 
-`native-tests.txt`: 25 passing native Python 3.12 deterministic tests; all three unapplied core patches also pass git apply --check against the isolated baseline. Policies, raw saved preference preservation, units, missing/corrupt config, BSM/driver-intent/standstill/min-speed/hazards, signal release, road edges, width geometry, current-model validity, timeout, stock manual state parity, exact TurnDesires consumer and parent/default/negative gating, actual adjacent producer->get_lead consumer, full RadarD.update source replay with real capnp messages, radar fault/invalid input fallback, raw/filtered lead-confidence guards, closer low-speed override and downstream AP1-filter ordering.
+Tests in this tree:
 
-Consumer replay loads the actual proposed source; RadarD functions/class bodies are AST-extracted only to omit platform-specific imports, with deterministic track/filter fixtures. This is NOT a full radard process, IPC, Kalman or model inference replay. A direct full radard import is blocked off-device by the AGNOS ELF `msgq/ipc_pyx.so`, not native Mach-O. No box rendering or parallel full build attempted. Two small native test packages (setproctitle/zstandard) were installed into the lane-only evidence directory; shared venv was not modified.
+- `openpilot/selfdrive/controls/tests/test_phase3_lanechange.py`: deterministic policy and consumer tests. They cover defaults and saved-preference preservation, units and the stock 20mph floor, bad or unreadable settings failing closed, blind-spot / opposing-intent / delay resets, held-signal and one-per-signal handling, lane width and road edges, model validity and timeout, stock manual-path parity, the TurnDesires consumer and its parent/default gates, the Human row gate, the adjacent-lead producer feeding `get_lead`, a `RadarD.update` replay with real capnp messages and the AP1 lead-filter order, AP1 blind-spot SNA/stale handling, and adoption (saved values stay dormant until `configure()`).
+- `openpilot/selfdrive/ui/tests/test_lane_changes_page.py` and `openpilot/selfdrive/ui/tests/test_phase3_lanechange_section_reset.py`: the Lane Changes page and its section reset.
+- `opendbc_repo/opendbc/car/tesla_ap1/tests/test_ap1_lead_filter.py`: AP1 lead-filter regression tests.
 
-`native-ap1-regression.txt`: 11 passing unchanged actual AP1 lead-filter pytest regression tests (not the spy). `native-lint.txt`: scoped native ruff check. No native UI rendering/interaction or AGNOS process acceptance claimed.
+Limits:
 
-No parameters, pushes, bench or vehicle access. Subsequent verification disables bytecode/cache writes.
+- The radard replay extracts the RadarD functions and class bodies by AST so it can run without the AGNOS-only msgq/IPC binaries, and it uses fixed track/filter fixtures. It is not a full radard process, IPC, Kalman or model-inference replay.
+- No onroad, AGNOS process/IPC or vehicle validation is claimed for this module.
 
 ## Adoption markers
 
 Consumers stay stock-equivalent until the user changes a row in the matching panel (configure()).
-Saved bench prefs (e.g. NudgelessLaneChange=1, HumanLaneChanges=1) never activate on first boot.
+Saved preferences (e.g. NudgelessLaneChange=1, HumanLaneChanges=1) never activate on first boot.
 
 | Marker | Clears on sysUtilities reset |
 |---|---|
@@ -71,5 +74,5 @@ Saved bench prefs (e.g. NudgelessLaneChange=1, HumanLaneChanges=1) never activat
 | Phase3HumanLaneChangesEnabled | Human-Like Lane Changes (Gas/Brake) |
 | Phase3TurnDesiresEnabled | Turn Desires (Lateral Tuning) |
 
-BSM: Ap1Blindspot treats SNA/stale/invalid as OCCUPIED (see PROPOSED_shared blindspot.py).
+BSM: Ap1Blindspot treats SNA/stale/invalid as OCCUPIED (see `opendbc_repo/opendbc/car/tesla_ap1/blindspot.py`).
 Human radard substitution: leadOne only, and only when Human marker adopted + valid.
