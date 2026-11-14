@@ -177,6 +177,40 @@ Recorded disagreements only where the cited files were read. No speculation.
 - Credits: NAP (opendbc `cc39c7fa`); Tinkla/BogGyver compared, not copied for the items listed above.
 
 
+## Pre-AP car port: Bosch radar retrofit toggles (host half), off by default
+- Platforms: Pre-AP Model S only. AP1 Model S / Model X ignore both keys (rows hidden, CarParams unchanged).
+- Reference behavior: NAP (openpilot `e99f4dc75`, opendbc `cc39c7fa`) has `NAPRadarEnabled` and
+  `NAPRadarBehindNosecone` (`common/params_keys.h:147-148`), shown as "Radar Enabled" / "Radar Behind Nosecone",
+  offroad only, reboot to apply (`selfdrive/ui/layouts/settings/nap.py:160-175`). Its Pre-AP interface sets
+  `radarUnavailable = not radar_enabled` (`opendbc/car/tesla/preap/interface.py:54`) and ORs the emulation and
+  nosecone flags independently (`:46-49`); its Bosch radar faults on `RADC_HWFail` only (`opendbc/car/tesla/radar_interface.py:86-88`).
+  Tinkla/BogGyver (`501c7de`) uses `TinklaUseTeslaRadar` (`selfdrive/car/interfaces.py:262`), `radarOffCan` for
+  PREAP (`selfdrive/car/tesla/interface.py:125-126`), and ignores SGUFail on PREAP and SensorDirty behind the
+  nosecone (`selfdrive/car/tesla/radar_interface.py:89-111`). BogPilot 0.9.7 (`04d560f3`) has no Pre-AP radar.
+- Our behavior: two file-backed keys under the BogPilot params dir, both default off: `TeslaRadarEnabled` and
+  `TeslaRadarBehindNosecone` (`tesla_ap1/preap/params.py`). Vehicle Settings shows "Pre-AP: Bosch Radar" on Pre-AP
+  only, and "Pre-AP: Radar Behind Nosecone" only while the radar toggle is on; both are offroad edits and take
+  effect the next time the car starts. With the radar toggle on, `radarUnavailable` is false, the Bosch parser
+  reads bus 1 (`tesla_radar_bosch_generated`), and the safety param gains 256 (plus 128 only when the nosecone
+  toggle is also on), through `flags_for_preap` (panda half above). Radar leads then feed radard, the pedal
+  planner and Human-Like Following (still the owner's Following toggle); Human-Like Lane Changes stays off by
+  default on Pre-AP. Toggle off: CarParams bytes and the safety param (96 / 32) are identical to the build before.
+- Divergences from NAP: (1) the nosecone bit is only sent with the radar bit (NAP sends it on its own; the panda
+  ignores it without 256 anyway). (2) Fail closed when the radar is silent: with the toggle on and no radar cycle
+  for 0.5 s, the radar interface publishes canError at 20 Hz instead of nothing, so radarState goes invalid and
+  openpilot will not engage (radar CAN error / commIssue). NAP returns nothing until the radar answers.
+  (3) Following NAP, not Tinkla: SensorDirty never faults on Pre-AP, nosecone or not.
+- Backup and resets (owner decision): both keys are in the durable settings backup and Toggle Backups (restore),
+  and are not in Reset to Stock or Reset to Defaults, so a reset never turns the retrofit off.
+- Why: drivers moving from NAP have the retrofit; off by default leaves every other Pre-AP car unchanged.
+- Safety-relevant: yes when on (radar leads drive the pedal planner). No host TX added; the panda gateway is
+  firmware TX on bus 1. No VIN learn, no UDS.
+- Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_bosch_radar.py`,
+  `openpilot/system/bogpilot/tests/test_preap_radar_backup_reset.py`, and radar cases in
+  `test_phase3_system_feature_archive.py`, `test_phase3_system_utilities.py` and `test_preap_pedal_cal.py`.
+- Credits: NAP (openpilot `e99f4dc75`, opendbc `cc39c7fa`); Tinkla/BogGyver (`501c7de`) compared.
+
+
 ## Onroad UI: confidence ball on the big (C3X) driving screen
 - Platforms: all (onroad UI only; not the Tesla instrument cluster).
 - Reference behavior: stock 0.11.2 has the ball only on the comma four UI (`selfdrive/ui/mici/onroad/confidence_ball.py`);
