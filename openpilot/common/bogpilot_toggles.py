@@ -52,6 +52,9 @@ FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
   "RegenComfortBrake": (CAR_DEPENDENT, "AP1 regen-sized lead approaches"),
   "RegenAwareStop": (CAR_DEPENDENT, "AP1 regen-aware stopping"),
   "AP1StandstillEngage": (CAR_DEPENDENT, "AP1 standstill engage"),
+  # Pre-AP Bosch radar retrofit (tesla_ap1/preap/params.py). Default OFF. Backed up and restored; never reset.
+  "TeslaRadarEnabled": (False, "Pre-AP Bosch radar retrofit"),
+  "TeslaRadarBehindNosecone": (False, "Pre-AP Bosch radar behind the nosecone"),
 }
 
 # key: (default, allowed values) for the few text-valued files

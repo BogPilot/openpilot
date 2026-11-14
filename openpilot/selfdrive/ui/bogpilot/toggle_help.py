@@ -162,6 +162,18 @@ _add("TeslaPreApDoublePull", "Pre-AP: Double Pull to Engage Pedal Longitudinal",
      note="Shown only while Always On Lateral is available. Takes effect immediately. Pre-AP Model S with Comma Pedal longitudinal only. "
           "Cancel (push the stalk away) still ends everything. " + _OFFROAD,
      default="On")
+_add("TeslaRadarEnabled", "Pre-AP: Bosch Radar",
+     "For a Pre-AP Model S with a retrofitted Tesla Bosch radar. On: openpilot reads the radar, and radar leads feed Comma Pedal "
+     "longitudinal and Human-Like Following. The panda passes the car data the radar needs to it. If the radar does not answer or "
+     "reports a hardware fault, openpilot will not engage and shows an alert.",
+     when="Only after the radar is fitted, wired to the radar bus and the panda firmware supports it.",
+     note="Pre-AP Model S only. Takes effect the next time the car starts. " + _OFFROAD,
+     default="Off")
+_add("TeslaRadarBehindNosecone", "Pre-AP: Radar Behind Nosecone",
+     "Tells the radar it is mounted behind the nosecone. Only the mounting position the panda reports to the radar changes.",
+     when="If your retrofit radar sits behind the nosecone.",
+     note="Shown only while Bosch Radar is on. Takes effect the next time the car starts. " + _OFFROAD,
+     default="Off")
 _add("PedalStatus", "Comma Pedal",
      "Live status of the Comma Pedal. Not detected: the car has not heard the pedal lately (also shown with the car off). Needs "
      "calibration: the pedal is heard but not calibrated, so pedal longitudinal stays off. Recalibrate: the saved pedal scale is out of "

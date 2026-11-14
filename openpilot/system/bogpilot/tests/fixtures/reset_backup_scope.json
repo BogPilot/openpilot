@@ -34,7 +34,9 @@
     "Phase3HumanLaneChangesEnabled",
     "Phase3TurnDesiresEnabled",
     "Phase3StopAccelEnabled",
-    "Phase3StoppingRateEnabled"
+    "Phase3StoppingRateEnabled",
+    "TeslaRadarEnabled",
+    "TeslaRadarBehindNosecone"
   ],
   "setting_keys": [
     "AccelerationPath",

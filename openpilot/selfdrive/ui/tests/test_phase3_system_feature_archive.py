@@ -39,7 +39,7 @@ class FeatureArchiveTests(unittest.TestCase):
                                   specs=self.specs, defaults=lambda:{'Fahrenheit':'0','ScreenTimeout':'30','NoLogging':'0'})
 
   def test_full_frozen_scope_not_generic_secret_dump(self):
-    self.assertEqual(len(f.FEATURE_SPECS),257)
+    self.assertEqual(len(f.FEATURE_SPECS),259)
     self.assertFalse(set(f.FEATURE_SPECS)&set(f.PROTECTED_EXCLUSIONS))
     for key in ('SshEnabled','CarParams','CalibrationParams','SecOCKey','DongleId','ForceFingerprint','AlwaysOnDM','RemoteUIStream'):
       self.assertNotIn(key,f.FEATURE_SPECS)

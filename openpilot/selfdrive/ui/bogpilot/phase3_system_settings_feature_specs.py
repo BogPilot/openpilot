@@ -2193,6 +2193,24 @@ FEATURE_SPECS = json.loads(r'''{
     "title": "\"Taco Bell Run\" Torque Hack",
     "type": "BOOL"
   },
+  "TeslaRadarBehindNosecone": {
+    "declared_default": "0",
+    "max": null,
+    "min": null,
+    "source": "FILE_TOGGLES",
+    "step": null,
+    "title": "Pre-AP: Radar Behind Nosecone",
+    "type": "BOOL"
+  },
+  "TeslaRadarEnabled": {
+    "declared_default": "0",
+    "max": null,
+    "min": null,
+    "source": "FILE_TOGGLES",
+    "step": null,
+    "title": "Pre-AP: Bosch Radar",
+    "type": "BOOL"
+  },
   "ToyotaDoors": {
     "declared_default": "1",
     "max": null,

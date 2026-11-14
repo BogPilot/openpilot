@@ -33,6 +33,10 @@ class PreApParamKeys:
   OVERRIDE_SENSITIVITY = "OverrideSensitivity"
   # Runtime: pandad records the panda firmware version it found (and "Not found" with no panda) so the Vehicle screen can show it.
   PANDA_FIRMWARE = "PandaFirmwareVersion"
+  # Bosch radar retrofit (NotAutopilot NAPRadarEnabled / NAPRadarBehindNosecone, common/params_keys.h:147-148@e99f4dc75).
+  # Default OFF, Pre-AP only, read once when the car starts (CarParams + safety flags). Nosecone is a sub-option of Enabled.
+  RADAR_ENABLED = "TeslaRadarEnabled"
+  RADAR_BEHIND_NOSECONE = "TeslaRadarBehindNosecone"
 
 
 # Safe defaults (match NotAutopilot DEFAULT_CONFIG).
@@ -51,6 +55,8 @@ DEFAULTS = {
   PreApParamKeys.DOUBLE_PULL: True,
   PreApParamKeys.PANDA_FIRMWARE: "",
   PreApParamKeys.OVERRIDE_SENSITIVITY: 2,
+  PreApParamKeys.RADAR_ENABLED: False,
+  PreApParamKeys.RADAR_BEHIND_NOSECONE: False,
 }
 
 # Overridable in tests.

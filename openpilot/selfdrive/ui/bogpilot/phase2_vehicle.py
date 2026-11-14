@@ -16,10 +16,14 @@ PANDA_FIRMWARE = "PreApPandaFirmware"
 LONG = "DisableOpenpilotLongitudinal"
 CLUSTER = "EnableICIntegration"
 REGEN = "RegenComfortBrake"
+RADAR = "TeslaRadarEnabled"
+RADAR_NOSECONE = "TeslaRadarBehindNosecone"
 TITLES = {LONG: "Disable openpilot Longitudinal Control",
           CLUSTER: "Tesla AP1: Dash Cluster Integration",
           REGEN: "Tesla AP1: Earlier, Gentler Regen Stops",
-          DOUBLE_PULL: "Pre-AP: Double Pull to Engage Pedal Longitudinal"}
+          DOUBLE_PULL: "Pre-AP: Double Pull to Engage Pedal Longitudinal",
+          RADAR: "Pre-AP: Bosch Radar",
+          RADAR_NOSECONE: "Pre-AP: Radar Behind Nosecone"}
 # Pre-AP wording for the shared Disable row (AP1 keeps the stock text).
 PREAP_LONG_TITLE = "Disable Pedal Longitudinal"
 PREAP_LONG_DESCRIPTION = ("Turn on to disable Comma Pedal longitudinal (steering only). Leave it off so BogPilot can control your speed through a "
@@ -44,6 +48,11 @@ DESCRIPTIONS = {
   DOUBLE_PULL: "Needs Always On Lateral. On: the first pull of the cruise stalk starts Always On Lateral steering only (openpilot is not engaged); a second pull "
                "within 400 ms engages openpilot with pedal longitudinal, and a pull or the brake while engaged drops back to steering only. Off: one pull "
                "engages steering and pedal longitudinal. Takes effect immediately.",
+  RADAR: "Turn on only if a Tesla Bosch radar is fitted on the radar bus and the panda firmware supports it. Radar leads then feed "
+         "pedal longitudinal and Human-Like Following. If the radar does not answer, openpilot will not engage and shows an alert. "
+         "Takes effect the next time the car starts.",
+  RADAR_NOSECONE: "Turn on if the radar is mounted behind the nosecone. Shown while Bosch Radar is on. "
+                  "Takes effect the next time the car starts.",
 }
 
 
@@ -90,6 +99,12 @@ class VehicleSettings:
         return False
       preap_aol.install(cp)
       return preap_params.aol_available()
+    if key == RADAR:
+      return is_preap(cp)              # Pre-AP retrofit only; AP1 has its own radar and never shows the row
+    if key == RADAR_NOSECONE:
+      # Sub-option: shown only while the main radar toggle is On (NotAutopilot nap.py:160-175@e99f4dc75 has both rows).
+      from opendbc.car.tesla_ap1.preap import params as preap_params
+      return is_preap(cp) and preap_params.get_bool(RADAR)
     if key in (BUILD_INFO, PANDA_FIRMWARE):
       return is_preap(cp)              # read-only support info: shown for every Pre-AP car, pedal longitudinal on or off
     if key in (PEDAL_STATUS, PEDAL_CALIBRATE):
@@ -146,9 +161,9 @@ class VehicleSettings:
   def read(self, key):
     if key == LONG:
       return self.toggles.disable_openpilot_long(paths=(self.file_dir / LONG, self.params_file))
-    if key == DOUBLE_PULL:
+    if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE):
       from opendbc.car.tesla_ap1.preap import params as preap_params
-      return preap_params.get_bool(DOUBLE_PULL)
+      return preap_params.get_bool(key)
     # Missing/unreadable files have the consumer's default-on semantics.
     path = self.cluster_path if key == CLUSTER else self.regen_path
     try:
@@ -165,9 +180,9 @@ class VehicleSettings:
     if not self.enabled(key):
       return False
     state = bool(state)
-    if key == DOUBLE_PULL:
+    if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE):
       from opendbc.car.tesla_ap1.preap import params as preap_params
-      preap_params.set_bool(DOUBLE_PULL, state)
+      preap_params.set_bool(key, state)
       return True
     if key == LONG:
       # Existing override has priority over Params. Do not create a new override.
