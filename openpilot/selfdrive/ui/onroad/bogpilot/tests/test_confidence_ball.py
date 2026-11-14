@@ -1484,8 +1484,8 @@ class TestBallOnPixels(NativeBase):
   TestPixelsMatchPreChange. DISENGAGED and ENGAGED x left and right edge x high / mid / low model confidence (model data present,
   no flame track, no alert). The centre pixel (renderer.last_draw, Y flipped for the bottom-up texture) must equal EXACTLY the
   colour of the ball's own 1 px scanline at that pixel row, or of the adjacent scanline one row either way (the rows sit at
-  sub-pixel heights); no per-channel tolerance. Disengaged = slate (high) to white (low) shaded by 82/255, engaged = the engaged palette. The ball is on the chosen
-  edge strip and the same strip on the other edge shows none of the ball's colours."""
+  sub-pixel heights); no per-channel tolerance. Disengaged = slate (high) to white (low) shaded by 82/255, engaged = the engaged palette.
+  The ball is on the chosen edge strip and the same strip on the other edge shows none of the ball's colours."""
 
   CONFIDENCE = {"high": 0.0, "mid": 0.5, "low": 0.9}   # disengage probability -> confidence 1.0 / 0.25 / 0.01
 
