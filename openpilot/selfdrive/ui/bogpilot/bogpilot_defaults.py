@@ -41,7 +41,7 @@ DEFAULT_ROWS: tuple[tuple[str, str, int, str], ...] = (
   ('BorderMetrics', '1', 0, '0'),
   ('CalibratedLateralAcceleration', '2.0', 2, '2.0'),
   ('CalibrationProgress', '0', 3, '0'),
-  ('CameraView', '3', 2, '0'),
+  ('CameraView', '0', 2, '0'),
   ('CarMake', '', 0, ''),
   ('CarModel', '', 0, ''),
   ('CarModelName', '', 0, ''),

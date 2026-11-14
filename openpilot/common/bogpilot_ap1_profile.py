@@ -177,7 +177,7 @@ AP1_PARAM_PROFILE: dict[str, str] = {
   "ShowStoppingPointMetrics": "0",       # stopping-point distance off
   "ShowSLCOffset": "0",                  # hide the SLC offset under the speed limit
   "OnroadDistanceButton": "1",           # driving-personality button on the driving screen
-  "CameraView": "0",                     # camera view Auto (default Wide)
+  "CameraView": "0",                     # camera view Auto (also the registered default)
   "DriverCamera": "1",                   # show driver camera in reverse
   "MapStyle": "0",                       # map style: stock openpilot
   # --- Theme: BogPilot in every theme menu (assets are copies of the stock look) ---

@@ -35,7 +35,7 @@
     {"BorderMetrics", {PERSISTENT, BOOL, "1"}},
     {"CalibratedLateralAcceleration", {PERSISTENT, FLOAT, "2.0"}},
     {"CalibrationProgress", {PERSISTENT, FLOAT, "0"}},
-    {"CameraView", {PERSISTENT, INT, "3"}},
+    {"CameraView", {PERSISTENT, INT, "0"}},
     {"CancelModelDownload", {CLEAR_ON_MANAGER_START, BOOL}},
     {"CancelThemeDownload", {CLEAR_ON_MANAGER_START, BOOL}},
     {"CarMake", {PERSISTENT, STRING}},

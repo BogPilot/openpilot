@@ -41,6 +41,9 @@ REF.update(REQUESTED_SLC_LOOKAHEAD)
 # FPS Display registers OFF (the 367e1fe snapshot had it on); level and stock value unchanged.
 REQUESTED_FPS_OFF = {"FPSCounter": ["0", 3, "0"]}
 REF.update(REQUESTED_FPS_OFF)
+# Camera View registers Auto (the 367e1fe snapshot had Wide, 3); level and stock value unchanged.
+REQUESTED_CAMERA_AUTO = {"CameraView": ["0", 2, "0"]}
+REF.update(REQUESTED_CAMERA_AUTO)
 STOCK_011_KEYS = set(bp.BOGPILOT_STOCK_KEY_DEFAULTS)
 
 
@@ -57,6 +60,8 @@ def test_fixture_is_367e1fe():
   assert REF["FPSCounter"] == ["0", 3, "0"]
   assert RAW_REF["SLCLookaheadLower"] == ["0", 2, "0"]
   assert REF["SLCLookaheadLower"] == ["5", 2, "0"]
+  assert RAW_REF["CameraView"] == ["3", 2, "0"]
+  assert REF["CameraView"] == ["0", 2, "0"]
 
 
 @pytest.mark.parametrize("key", sorted(REF))

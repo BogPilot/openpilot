@@ -6,6 +6,7 @@ bogpilot/common/bogpilot_variables.py bogpilot_default_params / misc_tuning_leve
 
 BogPilot policy overrides on top of the 367e1fe BogPilot table:
   HolidayThemes default "0" (off); TuningLevel default "0" + Confirmed "0" (fresh-install unset).
+  CameraView default "0" (Auto, the stock road camera switching; 367e1fe registers 3, Wide).
 Border/Sidebar metrics + LowerSpeedLimitsBox at Minimal (shipping defaults); Model UI widths stay Advanced.
 Unconfirmed TuningLevel still reads as 3 at runtime via ParamStore.tuning_level(); AP1 profile no longer locks TuningLevel (shipping defaults).
 
@@ -70,7 +71,7 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "BorderMetrics": ("PERSISTENT", "BOOL", "1", 0, "0"),
   "CalibratedLateralAcceleration": ("PERSISTENT", "FLOAT", "2.0", 2, "2.0"),
   "CalibrationProgress": ("PERSISTENT", "FLOAT", "0", 3, "0"),
-  "CameraView": ("PERSISTENT", "INT", "3", 2, "0"),
+  "CameraView": ("PERSISTENT", "INT", "0", 2, "0"),
   "CancelModelDownload": ("CLEAR_ON_MANAGER_START", "BOOL", None, None, None),
   "CancelThemeDownload": ("CLEAR_ON_MANAGER_START", "BOOL", None, None, None),
   "CarMake": ("PERSISTENT", "STRING", "", 0, ""),

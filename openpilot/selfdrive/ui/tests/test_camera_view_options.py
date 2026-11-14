@@ -6,8 +6,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from openpilot.common import bogpilot_params as P
 from openpilot.selfdrive.ui.bogpilot import camera_view as cv
 
+REGISTERED = P.BOGPILOT_PARAMS["CameraView"][2]
 UI = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # openpilot/selfdrive/ui
 
 
@@ -115,7 +117,7 @@ class _Store:
   def get(self, k):
     if k == "boom":
       raise OSError
-    return self.vals.get(k, "3" if k == "CameraView" else "")
+    return self.vals.get(k, REGISTERED if k == "CameraView" else "")   # unset -> what the manager stores on first boot
   def put(self, k, v):
     self.writes.append((k, v)); self.vals[k] = str(v)
   def invalidate(self, k=None):
@@ -168,3 +170,62 @@ def test_settings_row_offers_auto_standard_wide_under_qol_visuals():
   assert '("QOLVisuals", (("DriverCamera", ()), (CAMERA_KEY, ()), ("OnroadDistanceButton", ())))' in src
   assert "CV.OPTIONS.values()" in src and "Driver\"" not in src.split("CAMERA_KEY =")[1].split("def _store")[0]
   assert cv.CODES == (0, 2, 3) and [cv.button_index(c) for c in (0, 1, 2, 3, 9)] == [0, 0, 1, 2, 0]
+
+
+# --- registered default: Auto (stock behavior) ---
+
+def _openpilot_src(*parts):
+  return open(os.path.join(os.path.dirname(os.path.dirname(UI)), *parts), encoding="utf-8").read()   # openpilot/
+
+
+def test_registered_default_is_auto_everywhere_it_is_declared():
+  assert REGISTERED == str(cv.AUTO) == "0" and P.BOGPILOT_PARAMS["CameraView"][4] == "0"
+  assert '{"CameraView", {PERSISTENT, INT, "0"}}' in _openpilot_src("common", "params_keys_bogpilot.h")
+  assert P.render_header() == _openpilot_src("common", "params_keys_bogpilot.h")
+  assert "('CameraView', '0', 2, '0')," in _openpilot_src("selfdrive", "ui", "bogpilot", "bogpilot_defaults.py")
+  assert '"CameraView": {\n    "declared_default": "0",' in _openpilot_src("selfdrive", "ui", "bogpilot",
+                                                                            "phase3_system_settings_feature_specs.py")
+  for rel in (("common", "bogpilot_params.py"), ("common", "params_keys_bogpilot.h"),
+              ("selfdrive", "ui", "bogpilot", "bogpilot_defaults.py")):
+    for line in _openpilot_src(*rel).splitlines():
+      if '"CameraView"' in line or "'CameraView'" in line:
+        assert '"3"' not in line and "'3'" not in line, (rel, line)
+
+
+def test_fresh_install_resolves_to_auto():
+  # nothing saved: the manager stores the registered default, which reads, shows and runs as Auto
+  fresh = _Store(QOLVisuals=1)
+  assert cv.normalize(REGISTERED) == cv.AUTO and cv.selected_view(fresh) == cv.AUTO
+  assert cv.button_index(cv.normalize(fresh.get("CameraView"))) == 0
+  arv = _road_view_switch()
+  for v, want in ((0.0, "wide"), (30.0, "narrow")):
+    view = _view_with(arv, "narrow" if want == "wide" else "wide", fresh)
+    arv.step(view, _sm(True, v))
+    assert view.stream_type == want, v
+  assert fresh.writes == []
+
+
+def test_both_settings_resets_write_auto():
+  from openpilot.system.bogpilot import toggle_reset as tr
+  assert "CameraView" in tr.RESET_KEYS
+  assert tr.shipping_defaults()["CameraView"] == "0" and tr.reset_defaults()["CameraView"] == "0"
+
+
+@pytest.mark.parametrize("saved, want", [("2", cv.STANDARD), ("3", cv.WIDE), (b"2", cv.STANDARD), (b"3", cv.WIDE)])
+def test_saved_standard_and_wide_are_kept(saved, want):
+  store = _Store(QOLVisuals=1, CameraView=saved.decode() if isinstance(saved, bytes) else saved)
+  assert cv.normalize(saved) == want and cv.selected_view(store) == want
+  assert store.vals["CameraView"] == str(int(saved)) and store.writes == []
+
+
+@pytest.mark.parametrize("saved", ["1", b"1", 1])
+def test_saved_driver_maps_to_auto_with_the_new_default(saved):
+  store = _Store(QOLVisuals=1, CameraView=saved.decode() if isinstance(saved, bytes) else saved)
+  assert cv.normalize(saved) == cv.AUTO and cv.selected_view(store) == cv.AUTO and store.writes == []
+
+
+@pytest.mark.parametrize("saved", [None, "", "junk", "4", "-1", "2.5", "nan", b"\xff", "  "])
+def test_garbage_or_missing_falls_back_to_auto(saved):
+  assert cv.normalize(saved) == cv.AUTO
+  store = _Store(QOLVisuals=1) if saved is None else _Store(QOLVisuals=1, CameraView=saved if isinstance(saved, str) else "x")
+  assert cv.selected_view(store) == cv.AUTO and store.writes == []

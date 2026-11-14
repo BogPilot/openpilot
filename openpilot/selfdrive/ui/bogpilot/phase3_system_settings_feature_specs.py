@@ -369,7 +369,7 @@ FEATURE_SPECS = json.loads(r'''{
     "type": "BOOL"
   },
   "CameraView": {
-    "declared_default": "3",
+    "declared_default": "0",
     "max": null,
     "min": null,
     "source": "BOGPILOT_PARAMS",
