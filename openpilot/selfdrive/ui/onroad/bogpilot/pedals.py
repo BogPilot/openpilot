@@ -11,18 +11,26 @@ Heights (Dynamic):
   accel  max(carState.deprecated.gas, OP carControl.actuators.accel / OP_ACCEL_FULL_SCALE), 0..1. deprecated.gas is
          DI_pedalPos / 100 set by the tesla_ap1 and Pre-AP carstate (no schema change). OP accel counts only while
          carControl.longActive and fresh.
-  decel  two halves (decel_fill). Bottom half = regen: measured decel max(0, -carState.aEgo) on the regen capacity
-         (regen_scale), so full regen is 50 %. Top half = braking past regen: driver brake pressed -> 50 % + 50 % *
-         brake level (carState.deprecated.brake = normalized 0x39D rod stroke, AP1 only); OP past capacity
-         (AP1 only) -> 50 % + 50 % * (decel - capacity) / (DECEL_FULL_SCALE - capacity).
+  decel  AP1: total braking decel max(0, -carState.aEgo) (regen + friction) on ONE continuous scale (ap1_decel_height):
+         0..AP1_BAR_REGEN_REF fills 0..50 %, AP1_BAR_REGEN_REF..AP1_BAR_TOP fills 50..100 %. The anchor is a FIXED decel
+         (peak no-pedal decel measured over all speeds), so weaker regen (high speed, low-speed fade) reads lower and a
+         press simply adds on top. Pre-AP / other: as before (decel_fill_legacy: regen half on the regen scale, a brake
+         press at least half).
 Colours (PEDAL_BAR_PALETTE), one source per bar; the driver wins:
   accel  driver gas pedal pressed -> human green; else longActive and OP accel > 0 -> OP sage; else human green.
-  decel  brakePressed -> human light purple at a light press (level < HUMAN_LIGHT_MAX, regen doing most of the decel),
-         human red from level > HUMAN_RED_MIN (between holds the previous colour), human red with no level (Pre-AP,
-         stale frame). The colour keys off brakePressed only: a rod stroke without it (the rod lags the bit) shows
-         nothing special. Else (AP1 only,
-         GUESS) longActive and OP accel below -regen capacity -> OP light purple in the first OP_LIGHT_BAND of the band
-         above capacity, OP rose above it; else longActive and OP accel < 0 -> OP dusty blue; else human regen blue.
+  decel  AP1 has NO car-side regen / friction blending: any iBooster application (driver or OP) adds friction at once
+         and regen runs in parallel. So friction = max(0, measured decel - regen being applied), and it exists only
+         while the iBooster is applied; with no press / command the bar is blue whatever the decel. Regen being applied
+         = the live motor regen from DI_torqueMotor (bogpilotCarState.ap1MotorTorqueNm, RA.regen_decel_from_torque),
+         else the measured table ap1_regen_capacity(vEgo) (UI only, NOT the control estimate). Share = friction /
+         decel. AP1, brakePressed: violet below SHARE_VIOLET_BELOW, red above SHARE_RED_ABOVE, the colour holds in
+         between; at a standstill red (friction holds the car); red when the brake level frame is missing / stale
+         (carState.deprecated.brake < 0). The colour keys off brakePressed only (the rod stroke lags it). AP1 OP:
+         lavender / rose by the same share ONLY while op_brake_active (OP is applying the iBooster). The car port
+         publishes no such signal today (carcontroller sends only a DAS_control accel request; brakeLights is never
+         set), so the HUD passes False and OP decel stays dusty blue; being past regen capacity never triggers it.
+         Else longActive and OP accel < 0 -> OP dusty blue; else human regen blue. Pre-AP / other: brakePressed ->
+         red; else OP dusty blue / human blue as before.
   Hysteresis: thresholds have an on / off deadband, and a source change waits SOURCE_HOLD_S of steady request, except a
   change TO an active driver input (pedal or brake), which shows at once; so an alternating input cannot flicker.
 Static (on / off, the daily rule): decel bar full when daily_opacity's brake is 1 (standstill, brakeLights or
@@ -51,13 +59,21 @@ PEDAL_W, PEDAL_H, PEDAL_GAP = 60, 120, 18
 OP_ACCEL_FULL_SCALE = ACCEL_MAX
 PREAP_SPEC_ACCEL_MAX = VDAS.ACCEL_MAX          # documented only (see above)
 
-# Decel layout (replaces the former scale modes A / B; mode B's regen-capacity scale is now the bottom half).
-DECEL_FULL_SCALE = -ACCEL_MIN    # 3.5 m/s^2: the top of the OP band and of the no-level driver fallback
-REGEN_HALF = 0.5                 # full regen fills this much; braking past regen fills the rest
-OP_LIGHT_BAND = 0.10             # first 10 % of the band above capacity shows the OP light purple
-HUMAN_LIGHT_MAX = 0.08           # brake-level dead band: light purple below, red above HUMAN_RED_MIN, between holds
-HUMAN_RED_MIN = 0.12             # (about 10 % of the rest-to-top stroke span = "under about 10 % force")
-REGEN_MOST = 0.5                 # light purple only while regen gives at least this share of the measured decel
+# Decel bar. Pre-AP / other keep the two-half layout (regen half on regen_scale, brake press from 50 %).
+DECEL_FULL_SCALE = -ACCEL_MIN    # 3.5 m/s^2: top of the bar (AP1 and the legacy layout)
+REGEN_HALF = 0.5                 # the regen anchor fills this much
+# AP1, UI ONLY (measured on the AP1 drive logs; see DIVERGENCES). Controls keep regen_aware.regen_capacity untouched.
+AP1_BAR_REGEN_REF = 2.0          # m/s^2 total decel at 50 %: p95 of no-pedal decel over all speeds (1.96)
+AP1_BAR_TOP = DECEL_FULL_SCALE   # 3.5 m/s^2 at 100 %: driver-braking total decel p99 is 3.2
+# Fallback regen (m/s^2) by speed for the friction share when the live motor torque is missing: p99 of the motor-torque
+# regen decel with no pedal (brake and gas released, no OP longitudinal, rod at rest; grade-free), 1 m/s bins below
+# 10 m/s, then 5 m/s, over the AP1 drive logs (the 35-40 m/s bin is too thin and is left out).
+AP1_REGEN_V = (0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 12.5, 17.5, 22.5, 27.5, 32.5)
+AP1_REGEN_A = (0.24, 0.32, 0.88, 1.38, 1.52, 1.52, 1.52, 1.52, 1.54, 1.50, 1.38, 0.92, 0.80, 0.78, 0.44)
+MOTOR_TORQUE_SNA_NM = -1024.0    # DI_torqueMotor raw -4096 x 0.25: signal not available
+SHARE_RED_ABOVE = 0.55           # friction share hysteresis: red above, violet below SHARE_VIOLET_BELOW, hold between
+SHARE_VIOLET_BELOW = 0.45
+STANDSTILL_V = 0.3               # m/s: below this a pressed brake is holding the car (friction)
 
 PREAP = "TESLA_PREAP_MODELS"
 AP1 = ("TESLA_AP1_MODELS", "TESLA_AP1_MODELX")
@@ -78,9 +94,9 @@ PEDAL_BAR_PALETTE = {
   DECEL_HUMAN_REGEN: (90, 205, 255),   # regen with OP not commanding: the old blue
   DECEL_OP_REGEN: (122, 155, 191),     # OP regen decel: dusty blue #7A9BBF
   DECEL_HUMAN_BRAKE: (238, 48, 44),    # brakePressed: the old brake red
-  DECEL_HUMAN_LIGHT: (176, 124, 255),  # light driver press (regen doing most of it): bright violet #B07CFF
-  DECEL_OP_LIGHT: (154, 134, 184),     # OP just past regen capacity (AP1 only): muted lavender #9A86B8
-  DECEL_OP_BRAKE: None,                # OP past regen capacity (AP1 only, GUESS): PEDAL_BAR_OP_BRAKE_ROSES[...]
+  DECEL_HUMAN_LIGHT: (176, 124, 255),  # driver brake, regen has the majority (AP1): bright violet #B07CFF
+  DECEL_OP_LIGHT: (154, 134, 184),     # OP past regen, regen has the majority (AP1): muted lavender #9A86B8
+  DECEL_OP_BRAKE: None,                # OP past regen, friction has the majority (AP1): PEDAL_BAR_OP_BRAKE_ROSES[...]
 }
 BRAKING = (DECEL_HUMAN_BRAKE, DECEL_HUMAN_LIGHT, DECEL_OP_LIGHT, DECEL_OP_BRAKE)
 HUMAN_BRAKING = (DECEL_HUMAN_BRAKE, DECEL_HUMAN_LIGHT)
@@ -96,7 +112,6 @@ def bar_color(source: str):
 # ---- source thresholds and hysteresis ----
 PEDAL_ON, PEDAL_OFF = 0.02, 0.01        # pedal 0..1; 2 % = the Pre-AP stock pressed threshold (DI_pedalPos noise)
 OP_ACCEL_ON, OP_ACCEL_OFF = 0.10, 0.05  # m/s^2: OP counts as commanding accel (or decel, mirrored)
-OP_BRAKE_MARGIN = 0.05                  # m/s^2 around -regen capacity: enter below cap + margin, leave above cap - margin
 SOURCE_HOLD_S = 0.25                    # steady request needed to change colour (not for a new driver input)
 
 FILL_A = 191                 # about 75 % opacity (25 % transparent)
@@ -178,8 +193,8 @@ def accel_fraction(pedal_pos, op_accel) -> float:
 
 
 def regen_scale(v_ego, platform: str) -> float:
-  """Regen capacity (m/s^2, > 0) = the top of the bottom half. Pre-AP: |VDAS.REGEN_MAX| (1.5). Otherwise the AP1 regen
-  estimate at the nominal power, floored at RA.A_GENTLE_FLOOR so it does not collapse to 0 in the low-speed fade."""
+  """Legacy layout's regen scale (m/s^2, > 0). Pre-AP: |VDAS.REGEN_MAX| (1.5). Otherwise the control regen estimate at
+  the nominal power (read only), floored at RA.A_GENTLE_FLOOR. AP1 bars use ap1_regen_capacity instead."""
   if platform == "preap":
     return abs(VDAS.REGEN_MAX)
   return max(RA.A_GENTLE_FLOOR, RA.regen_capacity(max(0.0, finite(v_ego)), RA.P_NOMINAL_KW))
@@ -197,13 +212,13 @@ def brake_level_of(level) -> float | None:
 
 
 def regen_part(a_ego, v_ego, platform: str) -> float:
-  """Bottom half: measured decel on the regen capacity, 0..REGEN_HALF (regen beyond capacity clamps at 50 %)."""
+  """Legacy bottom half: measured decel on the regen scale, 0..REGEN_HALF."""
   decel = max(0.0, -finite(a_ego))
   return REGEN_HALF * clamp(decel / regen_scale(v_ego, platform), 0.0, 1.0)
 
 
 def beyond_regen(decel, v_ego, platform: str) -> float:
-  """0..1 position of a decel (m/s^2, > 0) between the regen capacity and DECEL_FULL_SCALE."""
+  """0..1 position of a decel (m/s^2, > 0) between the regen scale and DECEL_FULL_SCALE."""
   cap = regen_scale(v_ego, platform)
   span = DECEL_FULL_SCALE - cap
   if span <= 0:
@@ -215,23 +230,65 @@ def top_half(frac) -> float:
   return REGEN_HALF + (1.0 - REGEN_HALF) * clamp(frac, 0.0, 1.0)
 
 
-def decel_fill(source: str, a_ego, v_ego, platform: str, level: float | None) -> float:
-  """Decel bar height 0..1 for a colour source (see the module doc)."""
-  decel = max(0.0, -finite(a_ego))
-  if source in OP_BRAKING:
-    return top_half(beyond_regen(decel, v_ego, platform))
-  if source in HUMAN_BRAKING:
-    if level is None:       # no level (Pre-AP, stale frame): at least half, then the measured decel past capacity
-      return top_half(beyond_regen(decel, v_ego, platform))
-    if level <= 0.0:        # pressed with the stroke at rest: the regen part
-      return regen_part(a_ego, v_ego, platform)
-    return top_half(level)  # past the top pegs at 100 %
+def decel_fill_legacy(source: str, a_ego, v_ego, platform: str) -> float:
+  """Pre-AP / other: brake press -> 50 % + measured decel past the regen scale; otherwise the regen half."""
+  if source in BRAKING:
+    return top_half(beyond_regen(max(0.0, -finite(a_ego)), v_ego, platform))
   return regen_part(a_ego, v_ego, platform)
 
 
-def regen_doing_most(a_ego, v_ego, platform: str) -> bool:
+def ap1_regen_capacity(v_ego) -> float:
+  """UI-only regen capacity (m/s^2) at speed, linear between the measured bins, flat past the ends."""
+  v = max(0.0, finite(v_ego))
+  xs, ys = AP1_REGEN_V, AP1_REGEN_A
+  if v <= xs[0]:
+    return ys[0]
+  for i in range(1, len(xs)):
+    if v <= xs[i]:
+      return ys[i - 1] + (ys[i] - ys[i - 1]) * (v - xs[i - 1]) / (xs[i] - xs[i - 1])
+  return ys[-1]
+
+
+def ap1_decel_height(a_ego) -> float:
+  """Total decel on one continuous scale: 0..REF -> 0..50 %, REF..TOP -> 50..100 %."""
   decel = max(0.0, -finite(a_ego))
-  return decel <= 0.0 or min(decel, regen_scale(v_ego, platform)) / decel >= REGEN_MOST
+  if decel <= AP1_BAR_REGEN_REF:
+    return REGEN_HALF * decel / AP1_BAR_REGEN_REF
+  return top_half((decel - AP1_BAR_REGEN_REF) / (AP1_BAR_TOP - AP1_BAR_REGEN_REF))
+
+
+def regen_live(motor_torque_nm) -> float | None:
+  """Regen decel (m/s^2) the motor is applying now, from DI_torqueMotor (read-only use of the regen_aware helper).
+  None when missing, not finite or SNA."""
+  try:
+    tq = float(motor_torque_nm)
+  except (TypeError, ValueError):
+    return None
+  if not math.isfinite(tq) or tq <= MOTOR_TORQUE_SNA_NM:
+    return None
+  return RA.regen_decel_from_torque(tq)
+
+
+def friction_share(decel, v_ego, regen=None) -> float:
+  """No blending: friction = max(0, decel - regen being applied); share = friction / decel, 0..1. regen: live regen
+  (regen_live) or None for the measured table. 1 at a standstill (friction holds the car); 0 with no decel."""
+  v = max(0.0, finite(v_ego))
+  if v < STANDSTILL_V:
+    return 1.0
+  if decel <= 0.0:
+    return 0.0
+  r = ap1_regen_capacity(v) if regen is None else max(0.0, finite(regen))
+  return clamp(max(0.0, decel - r) / decel, 0.0, 1.0)
+
+
+def _by_share(share, cur, light, heavy):
+  if share > SHARE_RED_ABOVE:
+    return heavy
+  if share < SHARE_VIOLET_BELOW:
+    return light
+  if cur in (light, heavy):
+    return cur                                     # band holds
+  return heavy if share >= 0.5 else light
 
 
 class PedalBars:
@@ -269,28 +326,27 @@ class PedalBars:
       return ACCEL_OP
     return ACCEL_HUMAN
 
-  def _decel_want(self, brake_pressed, op, v_ego, long_active, platform, level, a_ego):
-    if brake_pressed:
-      if level is None or level > HUMAN_RED_MIN or not regen_doing_most(a_ego, v_ego, platform):
-        return DECEL_HUMAN_BRAKE
-      if level < HUMAN_LIGHT_MAX:
-        return DECEL_HUMAN_LIGHT
-      return self.decel_src if self.decel_src in HUMAN_BRAKING else DECEL_HUMAN_LIGHT   # dead band holds
-    if long_active and platform == "ap1":
-      cap = regen_scale(v_ego, platform)
-      margin = -OP_BRAKE_MARGIN if self.decel_src in OP_BRAKING else OP_BRAKE_MARGIN
-      if op < -(cap + margin):
-        edge = cap + OP_LIGHT_BAND * (DECEL_FULL_SCALE - cap)
-        rose_margin = -OP_BRAKE_MARGIN if self.decel_src == DECEL_OP_BRAKE else OP_BRAKE_MARGIN
-        return DECEL_OP_BRAKE if op < -(edge + rose_margin) else DECEL_OP_LIGHT
-    if long_active and op < -(OP_ACCEL_OFF if self.decel_src in (DECEL_OP_REGEN, DECEL_OP_BRAKE) else OP_ACCEL_ON):
+  def _decel_want(self, brake_pressed, op, v_ego, long_active, platform, level, a_ego, regen=None, op_brake=False):
+    if platform == "ap1":
+      decel = max(0.0, -finite(a_ego))
+      if brake_pressed:
+        if level is None:
+          return DECEL_HUMAN_BRAKE                   # no brake level (missing / stale frame): red
+        return _by_share(friction_share(decel, v_ego, regen), self.decel_src, DECEL_HUMAN_LIGHT, DECEL_HUMAN_BRAKE)
+      if long_active and op_brake:                   # OP applying the iBooster (no published signal today)
+        return _by_share(friction_share(decel, v_ego, regen), self.decel_src, DECEL_OP_LIGHT, DECEL_OP_BRAKE)
+    elif brake_pressed:
+      return DECEL_HUMAN_BRAKE
+    if long_active and op < -(OP_ACCEL_OFF if self.decel_src in (DECEL_OP_REGEN,) + OP_BRAKING else OP_ACCEL_ON):
       return DECEL_OP_REGEN
     return DECEL_HUMAN_REGEN
 
   def update(self, policy: PedalPolicy, fresh: bool, now: float, a_ego, v_ego, standstill: bool, brake_pressed: bool,
-             brake_lights: bool, pedal_pos, op_accel, long_active: bool, platform: str, brake_level=None) -> Bars:
+             brake_lights: bool, pedal_pos, op_accel, long_active: bool, platform: str, brake_level=None,
+             motor_torque_nm=None, op_brake_active: bool = False) -> Bars:
     """op_accel: carControl.actuators.accel (used only while long_active). now: monotonic seconds. brake_level:
-    carState.deprecated.brake (0..1, negative = missing); used on AP1 only."""
+    carState.deprecated.brake (0..1, negative = missing); motor_torque_nm: bogpilotCarState.ap1MotorTorqueNm (None
+    when stale); op_brake_active: OP is applying the iBooster. The last three are used on AP1 only."""
     if not policy.show or not fresh:
       self.reset()
       return EMPTY
@@ -298,13 +354,15 @@ class PedalBars:
     want_a = self._accel_want(pedal, op, bool(long_active))
     self.accel_src = self._settle("a", self.accel_src, want_a, now, want_a == ACCEL_HUMAN and self._pedal_on)
     level = brake_level_of(brake_level) if platform == "ap1" else None
-    want_d = self._decel_want(bool(brake_pressed), op, v, bool(long_active), platform, level, a_ego)
-    # a new driver brake input shows at once; light <-> red and everything else wait for a steady request
+    regen = regen_live(motor_torque_nm) if platform == "ap1" else None
+    want_d = self._decel_want(bool(brake_pressed), op, v, bool(long_active), platform, level, a_ego, regen,
+                              bool(op_brake_active))
+    # a new driver brake input shows at once; violet <-> red and everything else wait for a steady request
     new_press = want_d in HUMAN_BRAKING and self.decel_src not in HUMAN_BRAKING
     self.decel_src = self._settle("d", self.decel_src, want_d, now, new_press)
     if policy.dynamic:
-      return Bars(decel_fill(self.decel_src, a_ego, v, platform, level), self.decel_src, accel_fraction(pedal, op),
-                  self.accel_src)
+      fill = ap1_decel_height(a_ego) if platform == "ap1" else decel_fill_legacy(self.decel_src, a_ego, v, platform)
+      return Bars(fill, self.decel_src, accel_fraction(pedal, op), self.accel_src)
     brake, gas = daily_opacity(policy, finite(a_ego), bool(standstill), bool(brake_lights))
     return Bars(1.0 if brake >= 1.0 else 0.0, self.decel_src, 1.0 if gas >= 1.0 else 0.0, self.accel_src)
 

@@ -20,10 +20,10 @@ class Rig:
     self.b, self.t, self.policy, self.plat = PED.PedalBars(), 0.0, policy, plat
 
   def step(self, a=0.0, v=20.0, brake=False, pedal=0.0, op=0.0, long=False, fresh=True, standstill=False, lights=False,
-           level=None):
+           level=None, tq=None, opb=False):
     self.t += DT
     return self.b.update(self.policy, fresh, self.t, a, v, standstill, brake, lights, pedal, op, long, self.plat,
-                         brake_level=level)
+                         brake_level=level, motor_torque_nm=tq, op_brake_active=opb)
 
   def hold(self, n=30, **k):
     out = None
@@ -34,6 +34,11 @@ class Rig:
 
 def once(**k):
   return Rig(plat=k.pop("plat", "ap1")).hold(**k)
+
+
+def tq_for(regen):
+  """DI_torqueMotor (Nm) that gives this regen decel (m/s^2)."""
+  return -regen * RA.MASS_KG * RA.WHEEL_RADIUS_M / RA.GEAR_RATIO
 
 
 class TestAccelHeight(unittest.TestCase):
@@ -107,16 +112,18 @@ class TestSource(unittest.TestCase):
     self.assertEqual(once(op=-1.0, long=True).accel_src, PED.ACCEL_HUMAN)
 
   def test_decel_sources(self):
-    cap = RA.regen_capacity(20.0, RA.P_NOMINAL_KW)
+    cap = PED.ap1_regen_capacity(20.0)
     self.assertEqual(once(a=-0.5).decel_src, PED.DECEL_HUMAN_REGEN)                    # disengaged regen
     self.assertEqual(once(a=-0.5, op=-0.3, long=True).decel_src, PED.DECEL_OP_REGEN)
-    self.assertEqual(once(a=-1.0, op=-(cap + 0.15), long=True).decel_src, PED.DECEL_OP_LIGHT)   # first 10 % above cap
-    self.assertEqual(once(a=-1.0, op=-(cap + 0.6), long=True).decel_src, PED.DECEL_OP_BRAKE)
-    self.assertEqual(once(a=-1.0, op=-(cap + 0.3), long=True, plat="preap").decel_src, PED.DECEL_OP_REGEN)  # AP1 only
-    self.assertEqual(once(a=-1.0, op=-(cap + 0.3), long=True, plat="other").decel_src, PED.DECEL_OP_REGEN)
+    self.assertEqual(once(a=-1.0, op=-1.3 * cap, long=True).decel_src, PED.DECEL_OP_REGEN)   # no iBooster command
+    self.assertEqual(once(a=-3.0, op=-3.0 * cap, long=True).decel_src, PED.DECEL_OP_REGEN)
+    self.assertEqual(once(a=-1.2 * cap, op=-1.3 * cap, long=True, opb=True).decel_src, PED.DECEL_OP_LIGHT)
+    self.assertEqual(once(a=-3.0 * cap, op=-3.0 * cap, long=True, opb=True).decel_src, PED.DECEL_OP_BRAKE)
+    for plat in ("preap", "other"):                                                   # AP1 only
+      self.assertEqual(once(a=-1.0, op=-3.0 * cap, long=True, plat=plat).decel_src, PED.DECEL_OP_REGEN)
     for plat in ("ap1", "preap"):
-      self.assertEqual(once(a=-1.0, op=-(cap + 0.3), long=True, brake=True, plat=plat).decel_src, PED.DECEL_HUMAN_BRAKE)
-      self.assertEqual(once(a=-1.0, brake=True, plat=plat).decel_src, PED.DECEL_HUMAN_BRAKE)
+      self.assertEqual(once(a=-1.0, op=-3.0 * cap, long=True, brake=True, plat=plat).decel_src, PED.DECEL_HUMAN_BRAKE)
+      self.assertEqual(once(a=-1.0, brake=True, plat=plat).decel_src, PED.DECEL_HUMAN_BRAKE)   # no level: red
 
   def test_driver_input_shows_at_once_other_changes_wait(self):
     r = Rig()
@@ -155,110 +162,117 @@ class TestSource(unittest.TestCase):
     self.assertEqual(r.hold(op=0.02, long=True).accel_src, PED.ACCEL_HUMAN)
 
 
-class TestDecelLayout(unittest.TestCase):
-  V = 20.0
+class TestDecelAp1(unittest.TestCase):
+  """AP1: height = total decel on one continuous scale; colour = friction share against the UI-only regen table."""
 
-  def cap(self, plat="ap1"):
-    return PED.regen_scale(self.V, plat)
+  def a_for_share(self, share, v):
+    return -PED.ap1_regen_capacity(v) / (1.0 - share)
 
-  def test_constants(self):
-    self.assertEqual(PED.DECEL_FULL_SCALE, -interfaces.ACCEL_MIN)
-    self.assertEqual((PED.REGEN_HALF, PED.OP_LIGHT_BAND), (0.5, 0.10))
-    self.assertEqual((PED.HUMAN_LIGHT_MAX, PED.HUMAN_RED_MIN), (0.08, 0.12))
-    self.assertFalse(hasattr(PED, "PEDAL_BAR_DECEL_SCALE_MODE"))          # scale modes replaced by the layout
+  def test_constants_and_control_estimate_untouched(self):
+    self.assertEqual((PED.AP1_BAR_REGEN_REF, PED.AP1_BAR_TOP), (2.0, 3.5))
+    self.assertEqual(PED.AP1_BAR_TOP, -interfaces.ACCEL_MIN)
+    self.assertEqual((PED.SHARE_VIOLET_BELOW, PED.SHARE_RED_ABOVE), (0.45, 0.55))
+    self.assertEqual(len(PED.AP1_REGEN_V), len(PED.AP1_REGEN_A))
+    self.assertEqual(list(PED.AP1_REGEN_V), sorted(PED.AP1_REGEN_V))
+    self.assertTrue(all(0.0 < a <= RA.A_CAP_MAX for a in PED.AP1_REGEN_A))
+    self.assertAlmostEqual(max(PED.AP1_REGEN_A), 1.54)                         # motor-torque regen saturates ~1.52
+    # the control estimate (regen_aware, used by the planner) keeps its values
+    self.assertAlmostEqual(RA.regen_capacity(20.0, RA.P_NOMINAL_KW), 30.0 * 1000 * 0.9 / (2100 * 20.0))
+    self.assertEqual(RA.A_CAP_MAX, 1.6)
 
-  def test_regen_is_the_bottom_half_and_clamps(self):
-    cap = self.cap()
-    self.assertAlmostEqual(once(a=-cap / 2).decel, 0.25)
-    self.assertAlmostEqual(once(a=-cap).decel, 0.5)
-    self.assertEqual(once(a=-5.0).decel, 0.5)                              # (b) regen past capacity, no pedal: 50 %
-    self.assertEqual(once(a=-5.0).decel_src, PED.DECEL_HUMAN_REGEN)
-    self.assertAlmostEqual(once(a=-cap / 2, op=-0.3, long=True).decel, 0.25)
-    self.assertAlmostEqual(once(a=-0.75, plat="preap").decel, 0.5 * 0.75 / abs(VDAS.REGEN_MAX))
-    self.assertEqual(PED.regen_scale(0.0, "ap1"), RA.A_GENTLE_FLOOR)
-    self.assertEqual(once(a=1.0).decel, 0.0)
+  def test_height_is_continuous_total_decel(self):
+    for a, h in ((0.0, 0.0), (-1.0, 0.25), (-2.0, 0.5), (-2.75, 0.75), (-3.5, 1.0), (-9.0, 1.0), (1.0, 0.0)):
+      self.assertAlmostEqual(once(a=a).decel, h, msg=a)
+    hs = [PED.ap1_decel_height(-i / 1000) for i in range(0, 4001)]
+    self.assertTrue(all(y >= x for x, y in zip(hs, hs[1:])))
+    self.assertLess(max(y - x for x, y in zip(hs, hs[1:])), 0.001)               # no jump anywhere
+    # a press does not change the height: same total decel, same bar
+    for lvl in (0.0, 0.3, 1.0, -1.0):
+      self.assertAlmostEqual(once(a=-1.0, brake=True, level=lvl).decel, 0.25)
+      self.assertAlmostEqual(once(a=-1.0, brake=True, level=lvl, v=3.0).decel, 0.25)
 
-  def test_driver_brake_climbs_the_top_half_and_pegs(self):
-    for lvl, fill in ((0.20, 0.60), (0.5, 0.75), (0.97, 0.985), (1.0, 1.0), (7.0, 1.0)):
-      b = once(a=-2.0, brake=True, level=lvl)
-      self.assertAlmostEqual(b.decel, fill, msg=lvl)
-      self.assertEqual(b.decel_src, PED.DECEL_HUMAN_BRAKE)
+  def test_owner_low_regen_case_reads_25_percent_violet(self):
+    v, tq = 2.0, tq_for(0.8)                             # low speed, the motor gives 0.8 m/s^2 of regen
+    b = once(a=-0.8, v=v, tq=tq)
+    self.assertEqual((b.decel_src, round(b.decel, 3)), (PED.DECEL_HUMAN_REGEN, 0.2))   # regen alone ~20 %
+    b = once(a=-1.0, v=v, tq=tq, brake=True, level=0.05)
+    self.assertEqual((b.decel_src, round(b.decel, 3)), (PED.DECEL_HUMAN_LIGHT, 0.25))  # light press ~25 % violet
 
-  def test_pressed_at_rest_is_light_purple_at_the_regen_part(self):   # (a)
-    cap = self.cap()
-    b = once(a=-cap / 2, brake=True, level=0.0)
-    self.assertEqual(b.decel_src, PED.DECEL_HUMAN_LIGHT)
-    self.assertAlmostEqual(b.decel, 0.25)
-    b = once(a=-cap / 2, brake=True, level=0.03)
-    self.assertEqual(b.decel_src, PED.DECEL_HUMAN_LIGHT)
-    self.assertAlmostEqual(b.decel, 0.515)
+  def test_no_blending_live_regen_drives_the_share(self):
+    self.assertAlmostEqual(PED.regen_live(tq_for(1.2)), 1.2)
+    for bad in (None, float("nan"), "x", PED.MOTOR_TORQUE_SNA_NM):
+      self.assertIsNone(PED.regen_live(bad))
+    self.assertEqual(PED.regen_live(50.0), 0.0)                                  # driving torque: no regen
+    self.assertAlmostEqual(PED.friction_share(2.0, 10.0, 1.2), 0.4)              # friction = decel - regen
+    self.assertEqual(PED.friction_share(1.0, 10.0, 1.4), 0.0)                    # regen covers it: no friction
+    self.assertEqual(PED.friction_share(1.0, 10.0, 0.0), 1.0)                    # motor not regenerating
+    # human press, friction under the regen majority -> violet; friction majority -> red (same speed, same decel)
+    self.assertEqual(once(a=-2.0, v=10.0, tq=tq_for(1.4), brake=True, level=0.2).decel_src, PED.DECEL_HUMAN_LIGHT)
+    self.assertEqual(once(a=-2.0, v=10.0, tq=tq_for(0.6), brake=True, level=0.2).decel_src, PED.DECEL_HUMAN_BRAKE)
+    # missing torque falls back to the measured table
+    self.assertEqual(once(a=-1.2 * PED.ap1_regen_capacity(10.0), v=10.0, brake=True, level=0.2).decel_src,
+                     PED.DECEL_HUMAN_LIGHT)
+    # no press and no OP iBooster command: blue whatever the decel (friction is 0)
+    for a in (-0.5, -2.5, -5.0):
+      self.assertEqual(once(a=a, v=10.0, tq=tq_for(0.3)).decel_src, PED.DECEL_HUMAN_REGEN)
 
-  def test_light_purple_needs_regen_doing_most(self):
-    cap = self.cap()
-    self.assertEqual(once(a=-1.9 * cap, brake=True, level=0.03).decel_src, PED.DECEL_HUMAN_LIGHT)
-    self.assertEqual(once(a=-2.1 * cap, brake=True, level=0.03).decel_src, PED.DECEL_HUMAN_BRAKE)
+  def test_colour_follows_friction_share(self):
+    for v in (5.0, 12.0, 25.0):
+      self.assertEqual(once(a=self.a_for_share(0.2, v), v=v, brake=True, level=0.1).decel_src, PED.DECEL_HUMAN_LIGHT)
+      self.assertEqual(once(a=self.a_for_share(0.7, v), v=v, brake=True, level=0.4).decel_src, PED.DECEL_HUMAN_BRAKE)
+    self.assertEqual(once(a=0.0, v=10.0, brake=True, level=0.02).decel_src, PED.DECEL_HUMAN_LIGHT)  # no decel yet
+    self.assertEqual(once(a=-0.2, v=0.0, brake=True, level=0.6, standstill=True).decel_src, PED.DECEL_HUMAN_BRAKE)
+    self.assertEqual(PED.friction_share(1.0, 0.1), 1.0)                         # holding the car: friction
 
-  def test_dead_band_holds_between_and_does_not_flicker(self):
+  def test_share_band_holds_and_does_not_flicker(self):
+    v, lvl = 10.0, 0.2
     r = Rig()
-    self.assertEqual(r.step(a=-1.0, brake=True, level=0.05).decel_src, PED.DECEL_HUMAN_LIGHT)   # new press: at once
-    self.assertEqual(r.hold(a=-1.0, brake=True, level=0.10).decel_src, PED.DECEL_HUMAN_LIGHT)   # band holds
-    self.assertEqual(r.step(a=-1.0, brake=True, level=0.13).decel_src, PED.DECEL_HUMAN_LIGHT)   # waits the hold
-    self.assertEqual(r.hold(a=-1.0, brake=True, level=0.13).decel_src, PED.DECEL_HUMAN_BRAKE)
-    self.assertEqual(r.hold(a=-1.0, brake=True, level=0.10).decel_src, PED.DECEL_HUMAN_BRAKE)   # band holds red
-    self.assertEqual(r.hold(a=-1.0, brake=True, level=0.07).decel_src, PED.DECEL_HUMAN_LIGHT)
-    r = Rig()
-    self.assertEqual(r.step(a=-1.0, brake=True, level=0.10).decel_src, PED.DECEL_HUMAN_LIGHT)   # starts light in band
-    for lo, hi in ((0.07, 0.13), (0.05, 0.20), (0.09, 0.11)):
+    self.assertEqual(r.step(a=self.a_for_share(0.3, v), v=v, brake=True, level=lvl).decel_src, PED.DECEL_HUMAN_LIGHT)
+    self.assertEqual(r.hold(a=self.a_for_share(0.5, v), v=v, brake=True, level=lvl).decel_src, PED.DECEL_HUMAN_LIGHT)
+    self.assertEqual(r.step(a=self.a_for_share(0.6, v), v=v, brake=True, level=lvl).decel_src, PED.DECEL_HUMAN_LIGHT)
+    self.assertEqual(r.hold(a=self.a_for_share(0.6, v), v=v, brake=True, level=lvl).decel_src, PED.DECEL_HUMAN_BRAKE)
+    self.assertEqual(r.hold(a=self.a_for_share(0.5, v), v=v, brake=True, level=lvl).decel_src, PED.DECEL_HUMAN_BRAKE)
+    self.assertEqual(r.hold(a=self.a_for_share(0.4, v), v=v, brake=True, level=lvl).decel_src, PED.DECEL_HUMAN_LIGHT)
+    self.assertEqual(Rig().step(a=self.a_for_share(0.52, v), v=v, brake=True, level=lvl).decel_src,
+                     PED.DECEL_HUMAN_BRAKE)                                     # a new press in the band: nearer side
+    for lo, hi in ((0.4, 0.6), (0.3, 0.8), (0.46, 0.54)):
       r = Rig()
-      seen = [r.step(a=-1.0, brake=True, level=(lo if i % 2 else hi)).decel_src for i in range(120)]
+      seen = [r.step(a=self.a_for_share(lo if i % 2 else hi, v), v=v, brake=True, level=lvl).decel_src for i in range(120)]
       self.assertLessEqual(sum(1 for x, y in zip(seen, seen[1:]) if x != y), 1, (lo, hi))
 
-  def test_stroke_without_brake_pressed_changes_nothing(self):
-    # the rod lags brakePressed: a nonzero level alone never turns the bar purple or red
-    cap = self.cap()
-    for lvl in (0.05, 0.3, 1.0):
-      b = once(a=-cap / 2, level=lvl)
-      self.assertEqual((b.decel_src, round(b.decel, 6)), (PED.DECEL_HUMAN_REGEN, 0.25))
-      b = once(a=-cap / 2, op=-0.5, long=True, level=lvl)
-      self.assertEqual(b.decel_src, PED.DECEL_OP_REGEN)
+  def test_stale_level_is_red_and_lag_without_press_is_blue(self):
+    for lvl in (None, -1.0, float("nan")):
+      b = once(a=-0.5, v=10.0, brake=True, level=lvl)
+      self.assertEqual((b.decel_src, round(b.decel, 3)), (PED.DECEL_HUMAN_BRAKE, 0.125))
+    for lvl in (0.05, 0.3, 1.0):                         # the rod lags brakePressed: a stroke alone changes nothing
+      b = once(a=-1.0, v=10.0, level=lvl)
+      self.assertEqual((b.decel_src, round(b.decel, 3)), (PED.DECEL_HUMAN_REGEN, 0.25))
+      self.assertEqual(once(a=-1.0, op=-0.5, long=True, level=lvl).decel_src, PED.DECEL_OP_REGEN)
 
-  def test_missing_or_stale_level_falls_back_to_red_from_half(self):
-    cap = self.cap()
-    for lvl in (None, -1.0, float("nan"), "x"):
-      b = once(a=-0.9 * cap, brake=True, level=lvl)
-      self.assertEqual((b.decel_src, b.decel), (PED.DECEL_HUMAN_BRAKE, 0.5), lvl)
-    self.assertAlmostEqual(once(a=-(cap + 3.5) / 2, brake=True, level=-1.0).decel, 0.75)
-    self.assertEqual(once(a=-9.0, brake=True, level=-1.0).decel, 1.0)
-    # Pre-AP has no level: the same fallback, whatever deprecated.brake holds
+  def test_op_purples_only_with_an_ibooster_command(self):
+    v, regen = 10.0, 1.4
+    for op in (-1.5, -2.5, -3.5, -5.0):                  # past regen capacity alone never triggers it
+      self.assertEqual(once(a=op, v=v, op=op, long=True, tq=tq_for(regen)).decel_src, PED.DECEL_OP_REGEN)
+    self.assertEqual(once(a=-2.0, v=v, op=-2.0, long=True, tq=tq_for(regen), opb=True).decel_src, PED.DECEL_OP_LIGHT)
+    self.assertEqual(once(a=-3.5, v=v, op=-3.5, long=True, tq=tq_for(regen), opb=True).decel_src, PED.DECEL_OP_BRAKE)
+    self.assertEqual(once(a=-2.0, v=v, op=-2.0, long=False, tq=tq_for(regen), opb=True).decel_src, PED.DECEL_HUMAN_REGEN)
+    for plat in ("preap", "other"):                      # AP1 only
+      self.assertEqual(once(a=-3.5, v=v, op=-3.5, long=True, opb=True, plat=plat).decel_src, PED.DECEL_OP_REGEN)
+    r = Rig()                                            # share band holds on the OP side too
+    r.hold(a=-regen / 0.3, v=v, op=-3.0, long=True, tq=tq_for(regen), opb=True)
+    self.assertEqual(r.hold(a=-regen / 0.5, v=v, op=-3.0, long=True, tq=tq_for(regen), opb=True).decel_src, PED.DECEL_OP_BRAKE)
+    self.assertEqual(r.hold(a=-regen / 0.6, v=v, op=-3.0, long=True, tq=tq_for(regen), opb=True).decel_src, PED.DECEL_OP_LIGHT)
+    self.assertAlmostEqual(once(a=-2.75, v=v, op=-3.0, long=True, opb=True).decel, 0.75)    # height = measured decel
+    self.assertEqual(once(a=-2.0, v=v, op=-3.0, long=True, opb=True, brake=True).decel_src, PED.DECEL_HUMAN_BRAKE)
+
+  def test_preap_layout_unchanged(self):
+    self.assertAlmostEqual(once(a=-0.75, plat="preap").decel, 0.5 * 0.75 / abs(VDAS.REGEN_MAX))
+    self.assertEqual(once(a=-5.0, plat="preap").decel, 0.5)
     b = once(a=-2.0, brake=True, level=0.0, plat="preap")
     self.assertEqual(b.decel_src, PED.DECEL_HUMAN_BRAKE)
     self.assertAlmostEqual(b.decel, 0.5 + 0.5 * (2.0 - 1.5) / (3.5 - 1.5))
-
-  def test_op_light_band_then_rose_with_margin(self):
-    cap = self.cap()
-    edge = cap + PED.OP_LIGHT_BAND * (3.5 - cap)
-    self.assertEqual(once(a=-cap, op=-(cap + 0.03), long=True).decel_src, PED.DECEL_OP_REGEN)   # inside the margin
-    self.assertEqual(once(a=-cap, op=-(cap + 0.06), long=True).decel_src, PED.DECEL_OP_LIGHT)
-    self.assertEqual(once(a=-cap, op=-(edge + 0.03), long=True).decel_src, PED.DECEL_OP_LIGHT)  # margin above the edge
-    self.assertEqual(once(a=-cap, op=-(edge + 0.06), long=True).decel_src, PED.DECEL_OP_BRAKE)
-    r = Rig()
-    r.hold(a=-2.5, op=-(edge + 0.3), long=True)
-    self.assertEqual(r.hold(op=-(edge - 0.03), long=True, a=-2.5).decel_src, PED.DECEL_OP_BRAKE)  # rose holds
-    self.assertEqual(r.hold(op=-(edge - 0.06), long=True, a=-2.5).decel_src, PED.DECEL_OP_LIGHT)
-    self.assertEqual(r.hold(op=-(cap - 0.03), long=True, a=-2.5).decel_src, PED.DECEL_OP_LIGHT)   # top band holds
-    self.assertEqual(r.hold(op=-(cap - 0.06), long=True, a=-2.5).decel_src, PED.DECEL_OP_REGEN)
-    seen = []
-    r = Rig()
-    for i in range(120):
-      seen.append(r.step(a=-2.0, op=-(edge + (0.04 if i % 2 else -0.04)), long=True).decel_src)
-    self.assertLessEqual(sum(1 for x, y in zip(seen, seen[1:]) if x != y), 2)
-    self.assertEqual(once(a=-2.5, op=-2.5, long=True, plat="preap").decel_src, PED.DECEL_OP_REGEN)   # AP1 only
-
-  def test_op_top_half_follows_measured_decel(self):
-    cap = self.cap()
-    self.assertAlmostEqual(once(a=-(cap + 3.5) / 2, op=-2.6, long=True).decel, 0.75)
-    self.assertAlmostEqual(once(a=-3.5, op=-3.5, long=True).decel, 1.0)
-    self.assertAlmostEqual(once(a=-cap * 0.9, op=-2.6, long=True).decel, 0.5)    # measured below capacity: half
+    self.assertEqual(once(a=-2.5, op=-2.5, long=True, plat="preap").decel_src, PED.DECEL_OP_REGEN)
+    self.assertEqual(PED.regen_scale(0.0, "ap1"), RA.A_GENTLE_FLOOR)
 
   def test_platform_of(self):
     self.assertEqual(PED.platform_of("TESLA_PREAP_MODELS"), "preap")

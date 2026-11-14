@@ -363,15 +363,14 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   position and keeps the order (decel left, accel right), as daily did not swap the pedals.
   - Right bar height: max(driver pedal, OP accel / `OP_ACCEL_FULL_SCALE`), 0..1. OP accel counts only while
     `carControl.longActive` and fresh.
-  - Left bar height, two halves (`decel_fill`; replaces the former scale modes A / B, requested). Bottom half = regen:
-    measured decel max(0, -`aEgo`) on the regen capacity (`regen_scale`: AP1 regen estimate floored at
-    `A_GENTLE_FLOOR`; Pre-AP |`REGEN_MAX`| = 1.5), so full regen is 50 %; regen past capacity without the brake pedal
-    clamps at 50 % blue. Top half = braking past regen, 50 % + 50 % x:
-    - driver brake pressed (AP1): x = the brake booster rod-stroke level in `CarState.deprecated.brake` (see the 0x39D
-      entry below). Pressed with the stroke at rest shows the regen part instead. A stroke past the top pegs at 100 %.
-    - driver brake pressed with no level (Pre-AP, AP1 frame missing / stale / bad checksum): x = measured decel past
-      capacity on (capacity .. 3.5 m/s^2), so the bar is at least half.
-    - OP braking past capacity (AP1 only): x = measured decel past capacity on (capacity .. |`ACCEL_MIN`| = 3.5 m/s^2).
+  - Left bar height, AP1 (`ap1_decel_height`, requested; replaces the two-half layout): total braking decel
+    max(0, -`aEgo`) (regen + friction; `aEgo` is carstate's own filtered value, no extra smoothing) on ONE continuous
+    scale. 0 .. `AP1_BAR_REGEN_REF` = 2.0 m/s^2 fills 0 .. 50 %, 2.0 .. `AP1_BAR_TOP` = 3.5 m/s^2 fills 50 .. 100 %
+    (past the top pegs). The 50 % anchor is fixed (the p95 of no-pedal decel over all speeds, 1.96 m/s^2), so weaker
+    regen (low-speed fade, high speed) reads lower and a press adds on top with no jump. The top stays 3.5: driver
+    braking decel is p99 3.2 m/s^2 in the AP1 drive logs.
+  - Left bar height, Pre-AP / other (`decel_fill_legacy`, unchanged behavior): bottom half = measured decel on
+    `regen_scale` (Pre-AP |`REGEN_MAX`| = 1.5); a brake press is 50 % + 50 % of the measured decel past it, up to 3.5.
 - Colours: all in the `PEDAL_BAR_PALETTE` block of `pedals.py` (requested; replaces one look for OP and driver): driver gas (64,206,84) green; OP accel (163,190,140) sage, a lighter #9CAF88 that reads as clearly against
   the bar track as the driver green; driver-side regen (90,205,255) blue; OP regen (122,155,191) dusty blue; brake
   pedal (238,48,44) red; OP braking past regen (214,110,112) rose mix by default, or pure dusty rose (201,169,166) by
@@ -379,19 +378,39 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Colour source, one per bar, the driver wins: right bar green while the gas pedal is pressed, else sage while
   `longActive` and OP accel > 0, else green. Left bar red while `brakePressed`; else rose (see the guess below); else
   dusty blue while `longActive` and OP accel < 0; else blue (disengaged or no OP request).
-  - Light presses (requested): while `brakePressed` with a level below `HUMAN_LIGHT_MAX` = 0.08 (about 8 % of the
-    rest-to-top stroke span, "under about 10 % force") and regen giving at least half the measured decel, bright violet
-    (176,124,255) #B07CFF instead of red; red above `HUMAN_RED_MIN` = 0.12; between, the colour holds. No level -> red.
-  - OP just past capacity (AP1 only): muted lavender (154,134,184) #9A86B8 in the first `OP_LIGHT_BAND` = 10 % of the
-    band above capacity, rose above it (both edges with the 0.05 m/s^2 margin).
-  - Colour keys off `brakePressed` only: the rod stroke can lag the bit (about 3-10 % of unpressed frames are above
-    rest), so a stroke without `brakePressed` never turns the bar purple or red.
-- AP1 only, GUESS: rose when OP's accel request is below minus the estimated regen capacity
-  (`regen_aware.regen_capacity(vEgo, P_NOMINAL_KW)`), i.e. OP asks for more than regen can give, so friction braking is
-  assumed. Not checked against a drive log. Below about 0.9 m/s the estimate is 0, so an OP standstill hold shows rose.
-  Absent on Pre-AP and unknown cars (their OP decel stays dusty blue).
+  - AP1 colour model (requested): AP1 has NO car-side regen / friction blending. Any iBooster application, driver or
+    OP, adds friction braking at once and regen runs in parallel; no car-decided split is modelled. Friction =
+    max(0, measured decel - regen being applied) and exists only while the iBooster is applied: with no press and no
+    OP iBooster command the bar is blue whatever the decel. Regen being applied = the live motor regen from
+    DI_torqueMotor (0x108; `bogpilotCarState.ap1MotorTorqueNm`, set in `tesla_ap1/carstate.py`, converted with
+    `regen_aware.regen_decel_from_torque`, read only), else the measured table below. Share = friction / decel.
+  - Driver brake pressed: bright violet (176,124,255) #B07CFF while regen supplies the majority, red above
+    `SHARE_RED_ABOVE` = 0.55, violet again below `SHARE_VIOLET_BELOW` = 0.45, the colour holds between (a new press
+    inside the band takes the nearer side). Below 0.3 m/s (holding the car) red. No level (0x39D frame missing / stale
+    / bad checksum) -> red. The colour keys off `brakePressed` only; the rod stroke can lag the bit (about 3-10 % of
+    unpressed frames are above rest), so a stroke without it changes nothing.
+  - OP: muted lavender (154,134,184) #9A86B8 / rose by the same share ONLY while OP is applying the iBooster
+    (`op_brake_active`). Being past regen capacity alone never triggers it. The AP1 port publishes no such signal:
+    carcontroller sends only the DAS_control accel request (`DAS_accelMin` / `DAS_accelMax`, `teslacan.py`), the car
+    decides the actuation, and `brakeLights` is never set. So the HUD passes False and OP decel stays dusty blue.
+    Drive-log evidence for a future signal (not used): under OP longitudinal with no driver brake, the stock
+    `DI_brakePedalState` (DI_torque2 0x118, "ON") and the 0x39D rod stroke rise with the friction share of the decel
+    (about 15 % of frames at 0.4 m/s^2 of friction, 61 % at 1.0, 94 % at 1.4, 100 % from 1.8; about 0.1 % with no OP
+    and no pedal). `DI_brakePedalState` is parsed but not published; using it needs a carstate change and approval.
+  - Fallback regen table (`AP1_REGEN_V` / `AP1_REGEN_A`, used only when the torque is missing / SNA): p99 of the
+    motor-torque regen decel with no pedal (brake and gas released, no OP longitudinal, rod at rest; grade-free) over
+    2,119 AP1 drive logs, 1 m/s bins below 10 m/s then 5 m/s: 0.24 at 0-1 m/s, 0.32 at 1-2, 0.88 at 2-3, 1.38 at
+    3-4, 1.52 at 4-9, 1.50 at 9-10, 1.38 at 10-15, 0.92 at 15-20, 0.80 at 20-25, 0.78 at 25-30, 0.44 at 30-35.
+  - Height anchor: total decel with no pedal is higher than motor regen alone (drag, grade): p95 1.96 m/s^2 over all
+    speeds, which is the 50 % point (`AP1_BAR_REGEN_REF` = 2.0), so plain regen peaks near half the bar.
+  - The control estimate `regen_aware.regen_capacity` (used by the AP1 planner) is NOT changed and not used by the
+    bars on AP1. At the nominal power it is 0 below about 0.9 m/s, 1.6 at 5-8 m/s, then falls with 1/v (1.03 at
+    12.5, 0.57 at 22.5 m/s), under the measured regen above 10 m/s; that is why the former bar pegged at 50 % in plain
+    regen.
+- AP1 only, GUESS: friction is inferred (measured decel minus motor regen); drag and grade count as friction while
+  the pedal is pressed. Absent on Pre-AP and unknown cars (their OP decel stays dusty blue).
 - Hysteresis: on / off deadbands (pedal 2 % on, 1 % off, the Pre-AP stock pressed threshold; OP accel 0.10 on, 0.05 off
-  m/s^2, mirrored for decel; regen capacity +/- 0.05 m/s^2), and a colour change needs `SOURCE_HOLD_S` = 0.25 s of
+  m/s^2, mirrored for decel; the AP1 friction share 0.45 / 0.55), and a colour change needs `SOURCE_HOLD_S` = 0.25 s of
   steady request. A change TO a pressed pedal or brake shows at once. An input that alternates every frame does not
   change the colour more than once (tested).
 - Static mode keeps daily's on / off rule (decel bar full at standstill, on brake lights or aEgo < -0.25; accel bar full
@@ -429,7 +448,8 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   also start checking the existing DAS frames; not done). Registered with frequency 0, so a car without the frame does
   not trip `canValid`. The deprecated slot avoids a compiled schema change; nothing else reads it.
 - Not known: no calibrated unit (pressure or mm), and a panic / ABS stop may exceed TOP (the bar then pegs).
-- Why: requested (brake bar climbs with the pedal).
+- Why: requested. The decel bar uses it only as a freshness / sanity input (missing or stale -> red while pressed);
+  the bar height and colour come from the measured decel split.
 - Safety-relevant: no. Receive only, display only: no controls, planner, panda safety or TX change; the panda safety
   modes do not reference 0x39D.
 - Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_ap1_brake_booster_stroke.py`, `test_pedal_bars.py`.
