@@ -13,6 +13,7 @@ import pyray as rl
 from openpilot.selfdrive.ui.onroad.bogpilot.style import (
   C, W, EDGE, SPEED_ROW_HEIGHT, SPEED_ROW_MIN_RIGHT, SPEED_PANEL, PANEL_DARK, MUTED, TEXT, STROKE, BADGE_GREEN, TRAFFIC_RED,
   REC_CX, REC_CY, REC_HIT, REC_DIAMETER, CLUSTER_LEFT, CLUSTER_CY, CLUSTER_D, CLUSTER_GAP, PILL_W, PILL_LABEL_SPACE,
+  PILL_LABEL_SIZE, PILL_LABEL_PAD,
   STACK_BOTTOM, PEDAL_W, PEDAL_H, PEDAL_GAP, NOGPS_CX, NOGPS_CY, ALERT_GAP, ALERT_RIGHT_MARGIN, LKAS_FAULT_FLASH_MS,
   LKAS_RED, LKAS_ORANGE, GRAPH_WIDTH, GRAPH_HEIGHT, speed_row_top, graph_top, panel, fill_rounded, stroke_rounded,
   fill_circle, stroke_circle, line, polyline, fill_convex, draw_text, draw_text_centred, draw_text_in_rect_centred, text_width,
@@ -225,7 +226,8 @@ def paint_personality(pill: rl.Rectangle, personality: int, traffic_mode: bool, 
   cx, cy = pill.x + pill.width / 2, pill.y + pill.height / 2
   disc = rect(cx - d / 2, cy - d / 2, d, d)
   panel(disc, d / 2, PANEL_DARK, traffic if traffic_mode else C(255, 255, 255, 60), 3)
-  draw_text_in_rect_centred(label.upper(), rect(disc.x, disc.y - PILL_LABEL_SPACE, disc.width, PILL_LABEL_SPACE - 4), 20,
+  draw_text_in_rect_centred(label.upper(), rect(disc.x, disc.y - PILL_LABEL_SPACE, disc.width, PILL_LABEL_SPACE - PILL_LABEL_PAD),
+                            PILL_LABEL_SIZE,
                             traffic if traffic_mode else C(255, 255, 255, 200), W.DEMI)
   nb = 1 if traffic_mode else int(clamp(personality, 0, 2)) + 1
   col = traffic if traffic_mode else C(245, 245, 245, 240)

@@ -24,7 +24,7 @@ from openpilot.selfdrive.ui.onroad.bogpilot import developer_hud_logic as DEV
 from openpilot.selfdrive.ui.onroad.bogpilot import developer_hud as DEVP
 from openpilot.selfdrive.ui.onroad.bogpilot import fps_counter as FPS
 from openpilot.selfdrive.ui.onroad.bogpilot import overlay_gate as OVG
-from openpilot.selfdrive.ui.onroad.bogpilot.style import REC_CY, REC_HIT, record_center_x
+from openpilot.selfdrive.ui.onroad.bogpilot.style import record_hit_rect
 from openpilot.selfdrive.ui.onroad.exp_button import ExpButton
 from openpilot.system.ui.widgets import Widget
 from openpilot.selfdrive.ui.onroad.bogpilot.file_toggles import toggles
@@ -446,9 +446,8 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
         self.bp_pedals = None
     _pol, rec = self._bp_extras.get(bool(getattr(ui_state, "has_longitudinal_control", False)))
     if rec:
-      cx = record_center_x(scale, self.bp_rhd, widget_w)
-      hit = rl.Rectangle(rect.x + (cx - REC_HIT / 2) * scale, rect.y + (REC_CY - REC_HIT / 2) * scale, REC_HIT * scale,
-                         REC_HIT * scale)
+      # one fixed spot halfway between the pedal bars' rect and the personality label; tap area = drawn button
+      hit = record_hit_rect(rect, scale, widget_w, self.bp_rhd)
       try:
         self._bp_rec_btn.render(hit)
         self.bp_extra_keepouts.append(hit)

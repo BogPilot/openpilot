@@ -402,3 +402,18 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Tests: `openpilot/selfdrive/ui/onroad/bogpilot/tests/test_pedal_bars.py`, `test_onroad_hud_features.py` (TestPedals),
   `opendbc_repo/opendbc/car/tesla_ap1/tests/test_pedal_pos_published.py`.
 - Credits: BogPilot (pedals widget, regen estimate); stock openpilot (accel limits).
+
+## Onroad record button: one fixed spot between the pedal bars and the personality label
+- Platforms: all (UI only).
+- Reference behavior: the record button sits at design y 696 on the driver side, x aligned with the stock DM corner.
+- Our behavior: one fixed spot. The button centre sits halfway between the pedal bars' bottom edge (`pedals.pedal_rect`,
+  the bars' layout rect, used whether or not the bars are drawn) and the cap top of the driving-personality label
+  (`style.record_center_y`, from the label placement hud_compose and paint_personality use: DM_CORNER_OFF, CLUSTER_D,
+  PILL_LABEL_SPACE / PAD / SIZE), so the gaps above and below the button are equal (about 49 px on the 2160 x 1080
+  screen, 26 px lower than before). The position takes no pedals-gate input, so the button does not move when the bars
+  are switched on or off. x, size and RHD mirroring are unchanged. One rect (`style.record_hit_rect`) is the tap target,
+  the drawn box and the lead-label keepout.
+- Why: requested placement.
+- Safety-relevant: no (display / tap position only).
+- Tests: `openpilot/selfdrive/ui/onroad/bogpilot/tests/test_record_button_placement.py`.
+- Credits: BogPilot (record button, personality cluster).

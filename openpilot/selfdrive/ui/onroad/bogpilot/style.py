@@ -80,6 +80,9 @@ CLUSTER_GAP = 6
 PILL_W = 150
 PILL_H = 150
 PILL_LABEL_SPACE = 40
+PILL_LABEL_SIZE = 20                  # personality label font size (paint_personality)
+PILL_LABEL_PAD = 4                    # label box = PILL_LABEL_SPACE - PILL_LABEL_PAD above the disc
+DM_CORNER_OFF = 30 + 192 // 2         # stock UI_BORDER + DM BTN_SIZE // 2: pill centre, screen px from the content edges
 HUD_W = 400
 HUD_H = 430
 STACK_BOTTOM = GRAPH_TOP + GRAPH_HEIGHT        # 468 in both orders
@@ -93,6 +96,34 @@ ALERT_RIGHT_MARGIN = 150
 LKAS_FAULT_FLASH_MS = 200
 LKAS_RED = C(0xE0, 0x1B, 0x24)
 LKAS_ORANGE = C(0xFF, 0x8C, 0x00)
+
+
+def pill_label_text_top(scale: float, content_h: float) -> float:
+  """Screen px below the content-rect top of the cap top of the label above the personality disc. hud_compose
+  centres the disc (CLUSTER_D * scale) on the stock DM corner, DM_CORNER_OFF above the content bottom, and
+  paint_personality centres the caps in a PILL_LABEL_SPACE - PILL_LABEL_PAD box above the disc (screen px)."""
+  box_y = content_h - DM_CORNER_OFF - CLUSTER_D * scale / 2 - PILL_LABEL_SPACE
+  return box_y + (PILL_LABEL_SPACE - PILL_LABEL_PAD) / 2 - cap_height(PILL_LABEL_SIZE) / 2
+
+
+def record_center_y(scale: float, content_h: float) -> float:
+  """Design-space y of the record-button centre: halfway between the pedal bars' bottom edge (pedals.pedal_rect, the
+  bars' layout rect, whether or not the bars are drawn) and the personality label's cap top, so the gaps above and
+  below the (fixed-size) button are equal. One fixed spot: it does not depend on the pedals gate."""
+  if scale <= 0:
+    return REC_CY
+  from openpilot.selfdrive.ui.onroad.bogpilot.pedals import pedal_rect   # bar geometry lives in pedals (no pyray)
+  _x, y, _w, h = pedal_rect(0.0, False)                                    # y and h do not depend on side or width
+  return ((y + h) * scale + pill_label_text_top(scale, content_h)) / 2 / scale
+
+
+def record_hit_rect(content: rl.Rectangle, scale: float, widget_w: float, rhd: bool) -> rl.Rectangle:
+  """Screen rect of the record button: the tap target, the lead-label keepout and the box paint_record_button centres
+  the drawn button in (one rect, so the tap area always moves with the button)."""
+  cx = record_center_x(scale, rhd, widget_w)
+  cy = record_center_y(scale, content.height)
+  return rl.Rectangle(content.x + (cx - REC_HIT / 2) * scale, content.y + (cy - REC_HIT / 2) * scale,
+                      REC_HIT * scale, REC_HIT * scale)
 
 
 def speed_row_top(swap: bool) -> int:
