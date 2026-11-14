@@ -109,6 +109,31 @@ class IdentityTest(unittest.TestCase):
     p.write_text('old build output')
     self.assertEqual(before, m.capture(self.root))
 
+  def test_untracked_os_objects_do_not_change_identity(self):
+    """A built clone must hash the same as a clean checkout.
+
+    scons writes panda/tests/libpanda/panda.os; libsafety writes tmp*.os
+    under tests/libsafety. Those are gitignored, but inventory walks the
+    filesystem and previously counted *.os (it already skipped *.o / *.so).
+    """
+    before_files = m.inventory(self.root)
+    before = m.digest(before_files)
+    (self.root / 'panda/tests/libpanda').mkdir(parents=True, exist_ok=True)
+    (self.root / 'panda/tests/libpanda/panda.os').write_text('libpanda obj')
+    (self.root / 'panda/tests/libpanda/libpanda.so').write_bytes(b'\x00so')
+    safety = self.root / 'opendbc_repo/opendbc/safety/tests/libsafety'
+    safety.mkdir(parents=True, exist_ok=True)
+    (safety / 'tmpTEST123.os').write_text('libsafety obj')
+    (self.root / 'panda/coverage.gcda').write_text('gcda')
+    (self.root / 'panda/coverage.gcno').write_text('gcno')
+    (self.root / 'opendbc_repo/opendbc/safety/foo.d').write_text('dep')
+    (self.root / 'opendbc_repo/opendbc/safety/foo.a').write_bytes(b'ar')
+    after_files = m.inventory(self.root)
+    self.assertEqual(before_files, after_files)
+    self.assertEqual(before, m.digest(after_files))
+    for name in after_files:
+      self.assertFalse(name.endswith(('.os', '.o', '.so', '.d', '.a', '.tmp', '.gcda', '.gcno')), name)
+
 
 if __name__ == '__main__':
   unittest.main()

@@ -19,16 +19,31 @@ def git(root, *args):
   return subprocess.check_output(['git', '-C', str(root), *args], stderr=subprocess.DEVNULL).decode().strip()
 
 
+# Path parts, names and suffixes that are build outputs, not source.
+# Keep in sync with the repo, panda/ and opendbc_repo/ .gitignore patterns
+# for objects and coverage files. Inventory walks the filesystem (it has to
+# work in a source archive with no git), so gitignore is not consulted.
+_SKIP_PARTS = ('.git', '__pycache__', '.pytest_cache', 'obj')
+_SKIP_NAMES = ('.sconsign.dblite', 'compile_commands.json')
+_SKIP_SUFFIXES = ('.pyc', '.o', '.so', '.os', '.d', '.a', '.tmp', '.gcda', '.gcno')
+
+
+def _is_build_output(rel: Path) -> bool:
+  if any(x in rel.parts for x in _SKIP_PARTS):
+    return True
+  name = rel.name
+  if name in _SKIP_NAMES or name.endswith(_SKIP_SUFFIXES):
+    return True
+  # *.o-* and *.os-* from the repo .gitignore
+  return ('.o-' in name) or ('.os-' in name)
+
+
 def inventory(root):
   paths = set(EXTRA)
   for scope in SCOPES:
     for p in (root / scope).rglob('*'):
       rel = p.relative_to(root)
-      if any(x in rel.parts for x in ('.git', '__pycache__', '.pytest_cache', 'obj')):
-        continue
-      if p.name in (".sconsign.dblite", "compile_commands.json"):
-        continue
-      if p.is_file() and not p.name.endswith(('.pyc', '.o', '.so')):
+      if p.is_file() and not _is_build_output(rel):
         paths.add(rel.as_posix())
   result = {}
   for name in sorted(paths):
