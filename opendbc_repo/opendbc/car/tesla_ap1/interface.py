@@ -6,6 +6,7 @@ from opendbc.car.tesla_ap1.radar_interface import RadarInterface
 from opendbc.car.tesla_ap1.modelx_fingerprint import s_contradicts_x
 from opendbc.car.tesla_ap1.safety_flags import dashcam_only_for_candidate, flags_for_candidate, flags_for_preap
 from opendbc.car.tesla_ap1.preap.calib import pedal_can_bus
+from opendbc.car.tesla_ap1.preap import params as preap_params
 from opendbc.car.tesla_ap1.preap.carcontroller import PreApCarController
 from opendbc.car.tesla_ap1.preap.carstate import PreApCarState
 from opendbc.car.tesla_ap1.preap.vdas_constants import PEDAL_LONG_K_BP, PEDAL_LONG_KI_V
@@ -72,14 +73,17 @@ class CarInterface(CarInterfaceBase):
   def _get_preap_params(ret: structs.CarParams, candidate) -> structs.CarParams:
     """Pre-AP Model S. Lateral always. Longitudinal only when the user wants openpilot long (DisableOpenpilotLongitudinal
     off); whether the pedal is then actually driven is gated at CarController time (detected + calibrated + longActive).
-    No radar here (radar GTW emulation is not part of this port)."""
+    Radar only with the Bosch radar retrofit toggle (default off, read once here at car start)."""
     ret.dashcamOnly = False
     ret.steerControlType = structs.CarParams.SteerControlType.angle
-    ret.radarUnavailable = True
+    radar_on = preap_params.get_bool(preap_params.PreApParamKeys.RADAR_ENABLED)
+    nosecone = radar_on and preap_params.get_bool(preap_params.PreApParamKeys.RADAR_BEHIND_NOSECONE)
+    ret.radarUnavailable = not radar_on  # NotAutopilot preap/interface.py:54@cc39c7fa
     long_on = not disable_openpilot_long()
     ret.openpilotLongitudinalControl = long_on
     ret.pcmCruise = not long_on          # pedal long: openpilot owns the engage state (PreAPEngagement)
-    ret.safetyConfigs = [get_safety_config(structs.CarParams.SafetyModel.tesla, flags_for_preap(pedal=long_on))]
+    safety_param = flags_for_preap(pedal=long_on, radar=radar_on, behind_nosecone=nosecone)
+    ret.safetyConfigs = [get_safety_config(structs.CarParams.SafetyModel.tesla, safety_param)]
     ret.steerLimitTimer = 0.4
     ret.steerActuatorDelay = 0.1
     ret.longitudinalActuatorDelay = 0.4
