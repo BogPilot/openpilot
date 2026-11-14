@@ -2,10 +2,15 @@
 from opendbc.can import CANParser
 from opendbc.car import Bus, structs
 from opendbc.car.interfaces import RadarInterfaceBase
-from opendbc.car.tesla_ap1.values import CANBUS, DBC
+from opendbc.car.tesla_ap1.values import CANBUS, DBC, is_preap
 
 NUM_POINTS = 32
 TRIGGER_MSG = 878  # RadarPoint31_B
+# Pre-AP retrofit, fail closed: card calls update() at 100 Hz and the radar cycles at about 16 Hz. With no radar cycle
+# for 0.5 s, publish a canError RadarData at 20 Hz (the RadarInterfaceBase rate) instead of nothing, so radard marks
+# radarState invalid and selfdrived raises its radar CAN error / commIssue (no engage, soft disable).
+PREAP_MISSING_RADAR_FRAMES = 50
+PREAP_MISSING_RADAR_PUBLISH_DIV = 5
 
 
 def get_radar_can_parser(CP):
@@ -31,6 +36,8 @@ class RadarInterface(RadarInterfaceBase):
     self.trigger_msg = TRIGGER_MSG
     self.rcp = get_radar_can_parser(CP)
     self.updated_messages = set()
+    self.preap = is_preap(CP.carFingerprint)
+    self.frames_without_radar = 0
 
   def update(self, can_strings):
     if self.rcp is None:
@@ -39,14 +46,29 @@ class RadarInterface(RadarInterfaceBase):
     vls = self.rcp.update(can_strings)
     self.updated_messages.update(vls)
     if self.trigger_msg not in self.updated_messages:
+      if self.preap:
+        self.frames_without_radar += 1
+        if self.frames_without_radar >= PREAP_MISSING_RADAR_FRAMES and self.frames_without_radar % PREAP_MISSING_RADAR_PUBLISH_DIV == 0:
+          self.pts.clear()               # no stale tracks survive a radar dropout
+          ret = structs.RadarData()
+          ret.errors.canError = True
+          return ret
       return None
+    self.frames_without_radar = 0
 
     ret = structs.RadarData()
     if not self.rcp.can_valid:
       ret.errors.canError = True
 
     radar_status = self.rcp.vl['TeslaRadarSguInfo']
-    if radar_status['RADC_HWFail'] or radar_status['RADC_SGUFail'] or radar_status['RADC_SensorDirty']:
+    if self.preap:
+      # Retrofit: only a hardware failure faults (Tinkla: "ignore RADC_SGUFail on PREAP MODEL S due to retrofit").
+      # NotAutopilot radar_interface.py:86-88@cc39c7fa. Tinkla still faults on SensorDirty unless behind the nosecone
+      # (selfdrive/car/tesla/radar_interface.py:89-111@501c7de); NotAutopilot's HWFail-only rule is followed here.
+      fault = radar_status['RADC_HWFail']
+    else:
+      fault = radar_status['RADC_HWFail'] or radar_status['RADC_SGUFail'] or radar_status['RADC_SensorDirty']
+    if fault:
       ret.errors.radarFault = True
 
     for i in range(self.num_points):
