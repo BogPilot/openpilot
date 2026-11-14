@@ -534,7 +534,7 @@ class TestLockNotesNative(NativeCase):
     self.assertEqual(lock.title, "Locked: needs longitudinal control")
     self.assertEqual(lock.action_item.text, "No car detected")
     self.assertTrue(lock.description_visible)
-    self.assertEqual(len(groups), 8)   # 6 groups + the 2 AP1 tap-speed rows (greyed, like SLC)
+    self.assertEqual(len(groups), 7)   # 5 groups (no Conditional Experimental Mode) + the 2 AP1 tap-speed rows (greyed, like SLC)
     for row in groups:
       self.assertFalse(row.action_item.enabled, row.title)   # not un-greyed: the explanation is added, the gate stays
     # opening the page and rendering it wrote nothing
@@ -564,7 +564,7 @@ class TestLockNotesNative(NativeCase):
       self.draw(layout)
       rows = self.rows(layout)
       self.assertEqual(rows[1].title, "Open: Disable openpilot Longitudinal Control")
-      self.assertEqual([r.action_item.enabled for r in rows[2:]], [False] * 8)   # the group rows stay locked
+      self.assertEqual([r.action_item.enabled for r in rows[2:]], [False] * 7)   # the group rows stay locked
       rows[1].callback()
     self.assertEqual(calls, [menu_locks.JUMP_TARGET])
 
@@ -605,7 +605,7 @@ class TestLockNotesNative(NativeCase):
     layout = self.gas_brake()
     self.draw(layout)
     rows = self.rows(layout)
-    self.assertEqual(len(rows), 8)
+    self.assertEqual(len(rows), 7)
     self.assertNotIn("Locked", " ".join(r.title for r in rows))
     for row in rows:
       self.assertTrue(row.action_item.enabled, row.title)
@@ -617,7 +617,7 @@ class TestLockNotesNative(NativeCase):
     self.car["cp"] = cp()
     layout.lock.refresh()
     self.draw(layout)
-    self.assertEqual(len(self.rows(layout)), 8)
+    self.assertEqual(len(self.rows(layout)), 7)
 
   def test_gas_brake_back_closes_an_open_group_and_reports_its_title(self):
     self.car["cp"] = cp()

@@ -141,6 +141,14 @@ def make_sidebar(params, monkeypatch_started=False):
 
 
 class TestSidebar(unittest.TestCase):
+  def setUp(self):
+    # The onroad middle box saves its choice as a file (SidebarVehicleSlot). Point the file store at a temp dir so a tap
+    # here never leaves a choice behind for later tests, the same way TestRows isolates its params.
+    from openpilot.common import bogpilot_toggles as bt
+    saved = bt.BOGPILOT_DIR
+    bt.BOGPILOT_DIR = Path(tempfile.mkdtemp(prefix="sidebar_slots_"))
+    self.addCleanup(setattr, bt, "BOGPILOT_DIR", saved)
+
   def draw(self, on, started=False, dev=None):
     m, s = make_sidebar(on)
     calls = []
@@ -246,10 +254,13 @@ class TestSidebar(unittest.TestCase):
     tap(100, 338 + 60)
     self.assertEqual(s._temp_mode, "status")
 
-  def test_onroad_the_vehicle_box_does_not_cycle_and_the_others_do(self):
+  def test_onroad_the_vehicle_box_flips_to_cpu_and_the_others_cycle(self):
+    from openpilot.common import bogpilot_toggles as bt
     m, s, writes, tap = self.tapper({"ShowCPU": "1", "ShowMemoryUsage": "1", "NumericalTemp": "1"}, started=True)
     tap(100, 496 + 60)
-    self.assertEqual(writes, {})
+    self.assertEqual(writes, {})   # no Params write: the choice is the SidebarVehicleSlot file
+    self.assertEqual(s._slot_vehicle, "cpu")
+    self.assertEqual((bt.BOGPILOT_DIR / "SidebarVehicleSlot").read_text().strip(), "cpu")
     tap(100, 654 + 60)
     self.assertEqual(s._slot_memory, "storage_left")
     tap(100, 338 + 60)
