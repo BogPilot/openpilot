@@ -1,8 +1,8 @@
 # BogPilot on comma 3X (AGNOS 19.9)
 
-**Status:** research candidate for `bogpilot-tesla`. Not a release product. Stationary
-offroad validation only unless a later note says otherwise. You are responsible
-for local laws and for staying attentive behind the wheel.
+This is the comma 3X build of BogPilot, published as `bogpilot-tesla`. BogPilot is a
+community fork, not a comma product. See the README's testing status for what has
+been tested. You are responsible for local laws and for staying attentive behind the wheel.
 
 This page is the install and onboarding guide for the **openpilot 0.11.2 /
 AGNOS 19.9** BogPilot comma 3X line. It exists because GitHub's default branch
@@ -120,7 +120,6 @@ parent toggles that gate them.
 
 ## Known limits
 
-- Research only: no claim of road or full-release acceptance from this doc
 - Missing menus on a fresh install are often **by design** of the active-only build, not a failed publish
 - No physical validation of alert audio, reverse camera or on-road behavior has been done; stationary offroad bench only
 - AP1 fingerprint needs the CAN signature (or developer `FINGERPRINT`); empty FW table
