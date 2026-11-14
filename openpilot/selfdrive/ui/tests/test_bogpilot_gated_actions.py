@@ -231,7 +231,7 @@ class TestPanelsUseGatedActions(unittest.TestCase):
         self.assertTrue(locked or follows, f"{rel}:{c.lineno}")
 
   def test_stock_actions_not_patched(self):
-    """D2 option 2: the fix lives here, not in list_view.py (its Dual/Multiple actions stay v0.11.2 code)."""
+    """The gated-row fix lives here, not in list_view.py (its Dual/Multiple actions stay v0.11.2 code)."""
     import inspect
     src = (UI.parents[1] / "system/ui/widgets/list_view.py").read_text()
     self.assertNotIn("gated", src.lower())
