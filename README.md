@@ -105,7 +105,7 @@ BogPilot does not register with comma servers and does not upload driving data t
   engaging only on a stalk pull, and re-arming on a new pull. Thank you. The Pre-AP code in this repository is BogPilot's own;
   no code from that fork was copied.
 
-Lineage: BogPilot is forked from FrogPilot's work (FrogAi and contributors, MIT), which is itself a fork of openpilot (MIT, Comma.ai, Inc.), and adds Tesla support. Thank you to the FrogPilot team for their brilliant work. Pre-AP signal reference values may come from an upstream legacy port (data values only). BogPilot is not a comma product and does not use the openpilot trademark as a product name for modified safety builds.
+Lineage: BogPilot is forked from FrogPilot's work (FrogAi and contributors, MIT), which is itself a fork of openpilot (MIT, Comma.ai, Inc.), and adds Tesla support. Thank you to the FrogPilot team for their brilliant work. Legacy Tesla (AP1 and Pre-AP) CAN definitions and panda safety come from BogPilot 0.9.7, Tinkla / BogGyver and NotAutopilot (NAP), credited in docs/tesla/DIVERGENCES.md and docs/tesla/PREAP_PORT.md. BogPilot is not a comma product and does not use the openpilot trademark as a product name for modified safety builds.
 
 <details>
 <summary>MIT Licensed</summary>

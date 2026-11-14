@@ -32,7 +32,7 @@ can leave you on the wrong OS pin.
 
 - Device: **comma 3X**
 - OS: **AGNOS 19.9** (see `launch_env.sh`: `AGNOS_VERSION="19.9"`)
-- Supported research target for this tip: Tesla **AP1 Model S** (`TESLA_AP1_MODELS`), unchanged
+- Tesla **AP1 Model S** (`TESLA_AP1_MODELS`): the only drive-tested car (see the README's testing status)
 - Tesla **AP1 Model X** (`TESLA_AP1_MODELX`): manual selection, and strict marker auto-detect. Lateral only, stock ACC, unverified on a car
 - Tesla **Model X AP2** is blocked: no second-panda / powertrain safety path, and Tinkla's AP2 Model X fingerprint is an identical copy of the AP1 Model X fingerprint
 - Signed TRES/H7 panda firmware in the tip is left byte-identical; do not flash
@@ -121,12 +121,12 @@ parent toggles that gate them.
 ## Known limits
 
 - Missing menus on a fresh install are often **by design** of the active-only build, not a failed publish
-- No physical validation of alert audio, reverse camera or on-road behavior has been done; stationary offroad bench only
+- Testing is as listed in the README's testing status: AP1 Model S only, and no other driver or car has tested this build
 - AP1 fingerprint needs the CAN signature (or developer `FINGERPRINT`); empty FW table
 - Drive Stats producer needs extra verification before you rely on it
 - AOL core excluded; Model Selector paused; Goat Scream skipped
 - Telemetry: the tip's own cloud/uploader toggles default OFF and are audited by tests; no claim beyond what those tests prove (see README User Data section)
-- Lineage note: Pre-AP signal **data values** may come from an **upstream legacy port** (data only). BogPilot does not ship that port's code. Tinkla and BogPilot's own code are primary; NotAutopilot is contrast / fill only
+- Lineage note: Pre-AP signal definitions come from BogPilot 0.9.7, Tinkla / BogGyver and NotAutopilot (NAP). Tinkla and BogPilot's own code are primary; NotAutopilot is contrast / fill only
 
 ## After install checklist
 

@@ -175,12 +175,13 @@ def ap1_gas_neutral(chassis_das_only, openpilot_longitudinal_control, enabled, g
 
   controlsd drops longActive for the press, but carcontroller runs with the
   new carState and the previous step's CarControl. On the first pressed step
-  that stale longActive=True frame was the one the panda rejected (route
-  00000010 segment 18, twice). Gas wins over longActive here.
+  that stale longActive=True frame was the one the panda rejected (seen twice
+  in one AP1 drive log). Gas wins over longActive here.
 
-  Style: lukasloetkolben frog_ap1 teslacan.create_longitudinal_command keeps
-  sending DAS_control while long is inactive with accel 0 and DAS_setSpeed =
-  vEgo. Tinkla LONG_module also zeroes target_accel when the pedal is pressed
+  Ported from BogPilot 0.9.7 (bogpilot-tesla 026cfb3
+  selfdrive/car/tesla/actuator_plan.py:158 ap1_gas_neutral and :233-234), which
+  keeps sending DAS_control while long is inactive with accel 0 and
+  DAS_setSpeed = vEgo. Tinkla LONG_module also zeroes target_accel when the pedal is pressed
   (CS.realPedalValue > 0). The driver pedal goes to the DI directly and is not
   touched; releasing it returns to the normal path on the next step.
   """

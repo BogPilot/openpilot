@@ -28,7 +28,7 @@ STAGE_COAST = "coast"          # armed, waiting for a quiet interceptor with no 
 STAGE_COAST_OK = "coast_ok"    # coast captured, waiting for the driver press
 STAGE_SAVED = "saved"
 STAGE_FAILED = "failed"
-# The failure reason is shown on the guided screen. The legacy port stored only the first 120 characters, which cut the reason
+# The failure reason is shown on the guided screen. na-preap (BogPilot 0.9.7 Pre-AP) stored only the first 120 characters, which cut the reason
 # (and its "try again" advice) off mid-word; UI text only, no calibration value or threshold changed.
 MESSAGE_MAX = 300
 PEDAL_LIVE_S = 3.0             # PedalSeenTs older than this = the pedal is not being heard now

@@ -57,11 +57,45 @@ Recorded disagreements only where the cited files were read. No speculation.
   `board/safety/safety_tesla.h` whitelists 0x45 for Pre-AP (line 169); its cancel-only check (lines 1113-1121) is
   commented out and applied only with AP hardware.
 - Our behavior: `tesla_preap_tx_hook` rejects any 0x45 frame whose lever field (`data[0] & 0x3F`) is not 1 (cancel)
-  (lines 219-224), and 0x45 is whitelisted on bus 0 only (line 261). Engage stays a driver stalk pull read on RX.
+  (lines 237-242), and 0x45 is whitelisted on bus 0 only (line 281). Engage stays a driver stalk pull read on RX.
 - Why: openpilot never needs to send anything but cancel on the stalk message, so the panda blocks the rest.
 - Safety-relevant: yes; stricter than all three references. Keep it.
 - Tests: `opendbc_repo/opendbc/safety/tests/test_tesla_preap.py` (`test_stalk_is_cancel_only`).
 - Credits: BogPilot `bogpilot-na-preap`; Tinkla/BogGyver; NAP.
+
+## Panda safety and host (Pre-AP): rules stricter than the references
+- Platforms: Pre-AP Model S (`TESLA_FLAG_PREAP` on SAFETY_TESLA). Summarised in the header of
+  `opendbc_repo/opendbc/safety/modes/tesla_preap.h` (lines 11-13). References: NAP (opendbc `cc39c7fa252e`)
+  `opendbc/safety/modes/tesla_preap.h`, BogPilot `bogpilot-na-preap` (`568fea947`) `panda/board/safety/safety_tesla_preap.h`
+  and `selfdrive/car/tesla/`.
+- Our behavior, each stricter than those references:
+  1. The panda reads the brake: `brake_pressed` is BrakeMessage (0x20A) driverBrakeStatus != NOT_PRESSED or
+     DI_torque2 (0x118) DI_brakePedal (`tesla_preap.h` lines 158-165). NAP and `bogpilot-na-preap` set
+     `brake_pressed = false`. Tests: `test_brake_message_drops_controls`, `test_di_brake_pedal_drops_controls`,
+     `test_brake_from_one_source_is_not_cleared_by_the_other`.
+  2. EAC_FAULT (EPAS_eacStatus 3) drops controls like an EPAS refusal (`tesla_preap.h` lines 53-54); neither NAP nor
+     `bogpilot-na-preap` drops on it. Tests: `test_epas_fault_drops_controls`, `test_a_held_pull_also_cannot_survive_an_eac_fault`.
+  3. DAS_control (0x2B9) is not on the TX whitelist (`tesla_preap.h` lines 278-284); NAP whitelists it.
+     Test: `test_tx_whitelist_without_the_pedal_flag`.
+  4. STW_ACTN_RQ (0x45) may only send CANCEL; see the 0x45 entry above.
+  5. An enabled Comma Pedal command (0x551) is rejected while the brake is pressed or above raw 2500
+     (`tesla_preap.h` lines 248 and 253-254); neither reference has these limits. The 2500 cap is described in
+     `docs/tesla/PREAP_PORT.md`. Test: `test_enabled_pedal_is_bounded` (the cap).
+  6. The pedal sensor (GAS_SENSOR, 0x552) bus is latched to the first bus it is seen on, and the other bus never drives
+     gas (`opendbc_repo/opendbc/car/tesla_ap1/preap/carstate.py` lines 129-146, mirroring the panda). NAP and
+     `bogpilot-na-preap` record the first bus but still drive gas from every 0x552. Also in
+     `docs/tesla/DIVERGENCES_preap_nap_fsm.md`. Tests: `test_pedal_on_the_other_bus_never_drives_gas_pressed`,
+     `test_latch_resets_on_init`.
+  7. The pedal scale floor is 0.82 (`opendbc_repo/opendbc/car/tesla_ap1/preap/calib.py` line 60, `FACTOR_MIN`);
+     `bogpilot-na-preap` `calib.py` uses 0.4. Described in `docs/tesla/PREAP_PORT.md`.
+     Test: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_pedal_limit.py`.
+- Note on 0x488 (DAS_steeringControl): the car sends it at 50 Hz, every second control frame
+  (`opendbc_repo/opendbc/car/tesla_ap1/preap/carcontroller.py` lines 156-158). The `frequency = 50U` field in
+  `tesla_preap.h` (line 210) is unused on this path: `steer_angle_cmd_checks_with_lateral_permission`
+  (`opendbc_repo/opendbc/safety/lateral.h` lines 204-243) does not read it, so there is no 0x488 message-rate check.
+  No panda source change.
+- Safety-relevant: yes; every rule above is stricter than the references. Keep them.
+- Credits: NAP; BogPilot `bogpilot-na-preap`; Tinkla/BogGyver.
 
 ## Onroad UI: confidence ball on the big (C3X) driving screen (D-CB1)
 - Platforms: all (onroad UI only; not the Tesla instrument cluster).
