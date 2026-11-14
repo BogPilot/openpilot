@@ -80,8 +80,9 @@ class PolicyToggles:
   hide_lead_marker (:768) = longitudinal and AdvancedCustomUI and HideLeadMarker and not DebugMode
   onroad_distance_button (:1110) = longitudinal and ((QOLVisuals and OnroadDistanceButton) or DebugMode)
   adjacent_leads = has_radar and (AdjacentLeadsUI or DebugMode). Daily (367e1fe :908) also required the DeveloperUI /
-    DeveloperWidgets parents and drew when human_lane_changes made radard compute the leads; C3X has no human lane
-    change controller and no reachable developer-widget panel, so the UI gate is the user's AdjacentLeadsUI setting
+    DeveloperWidgets parents and drew when human_lane_changes made radard compute the leads. C3X has the human
+    lane-change logic, but it only acts after its row is adopted on an AP1 Model S with openpilot longitudinal, and
+    C3X has no reachable developer-widget panel, so the UI gate is the user's AdjacentLeadsUI setting
     alone (BogPilot Visuals panel). radard still computes the leads (BSMFlameTracks); the UI decides visibility.
   The longitudinal term is applied by the caller from the real CarParams. A read failure fails closed: the lead
   marker is reported hidden (so no lock-on box is drawn) and there is no personality pill."""
