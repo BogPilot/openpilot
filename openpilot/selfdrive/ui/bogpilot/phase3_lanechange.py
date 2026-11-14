@@ -66,7 +66,9 @@ def display_bool(store, key: str, CP=None) -> bool:
     return False
   if key == "TurnDesires" and not turn_desires_adopted(store):
     return False
-  return store.get_bool(key, key in ("LaneChanges", "OneLaneChange"))
+  # Unset rows show the same default the runtime reads (read_settings: HumanLaneChanges defaults on).
+  default = key in ("LaneChanges", "OneLaneChange") or (key == "HumanLaneChanges" and human_lane_changes_default_on(CP))
+  return store.get_bool(key, default)
 
 
 def visible_rows(store, *, runtime_integrated=False):
