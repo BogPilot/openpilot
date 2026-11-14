@@ -143,6 +143,19 @@ class FeatureArchiveTests(unittest.TestCase):
     archive.apply_preview(archive.preview(name))
     self.assertEqual(self.store.raw('TeslaRadarBehindNosecone'), '1')
 
+  def test_unread_border_metrics_still_round_trips(self):
+    # Blind Spot Border alone draws the half-border now; the stored BorderMetrics stays in backups untouched.
+    spec = f.FEATURE_SPECS['BorderMetrics']
+    self.assertEqual((spec['source'], spec['type'], spec['declared_default']), ('BOGPILOT_PARAMS', 'BOOL', '1'))
+    archive = f.FeatureArchive(self.prefs, lambda: dict(self.compat), self.root, specs={'BorderMetrics': spec},
+                               defaults=lambda: {'BorderMetrics': '1'})
+    self.store.values['BorderMetrics'] = '0'
+    name = archive.backup()
+    self.assertEqual(json.loads((self.root / name).read_text())['values'], {'BorderMetrics': '0'})
+    self.store.values['BorderMetrics'] = '1'
+    archive.apply_preview(archive.preview(name))
+    self.assertEqual(self.store.raw('BorderMetrics'), '0')
+
   def test_unrelated_archives_survive_delete_all(self):
     self.archive.backup()
     legacy=self.root/'old-system-backup.json'

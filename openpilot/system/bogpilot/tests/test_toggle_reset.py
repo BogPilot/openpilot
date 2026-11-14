@@ -78,6 +78,15 @@ class TestReset(unittest.TestCase):
     self.assertFalse(self.files.exists())
     self.assertEqual(self.params.calls, [])
 
+  def test_unread_border_metrics_still_in_scope(self):
+    from openpilot.system.bogpilot import settings_backup as sb
+    self.assertIn("BorderMetrics", sb.SETTING_KEYS)
+    self.assertIn("BorderMetrics", RESET_KEYS)
+    self.params.values["BorderMetrics"] = False
+    result = self.reset()
+    self.assertEqual(result.status, "completed", result)
+    self.assertTrue(self.params.values["BorderMetrics"])
+
   def test_approved_reset_defaults(self):
     result = self.reset()
     self.assertEqual(result.status, "completed", result)

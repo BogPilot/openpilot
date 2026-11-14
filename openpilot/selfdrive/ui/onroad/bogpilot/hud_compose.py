@@ -608,8 +608,9 @@ class HudComposer:
 
   def bsm_border(self, now=None):
     """(left, right) border halves to paint red, or None. Daily bogpilot_onroad paintTurnSignalBorder: a side with
-    carState blindspot paints its half bg_colors[STATUS_TRAFFIC_MODE_ENABLED], steady, when blind_spot_metrics =
-    has_bsm and BorderMetrics and BlindSpotMetrics (or DebugMode). Physical sides (RHD does not swap). Priority: the
+    carState blindspot paints its half bg_colors[STATUS_TRAFFIC_MODE_ENABLED], steady, when has_bsm and (BlindSpotMetrics
+    or DebugMode). The daily build also needed the BorderMetrics parent; here Blind Spot Border alone decides and a stored
+    BorderMetrics is left unread. Physical sides (RHD does not swap). Priority: the
     LKAS-fault flash, a full-screen alert and a critical alert keep the whole border (BSM never hides them)."""
     f = self.frame
     if f is None or f.full_alert:
@@ -638,8 +639,7 @@ class HudComposer:
           from openpilot.common.bogpilot_store import ParamStore
           s = self._bsm_store = ParamStore()
         level = s.tuning_level()
-        self._bsm_border_on = bool((s.toggle_bool("BorderMetrics", level) and s.toggle_bool("BlindSpotMetrics", level))
-                                   or s.get_bool("DebugMode", False))
+        self._bsm_border_on = bool(s.toggle_bool("BlindSpotMetrics", level) or s.get_bool("DebugMode", False))
       except Exception:
         self._bsm_border_on = False
     return bool(getattr(self, "_bsm_border_on", False))

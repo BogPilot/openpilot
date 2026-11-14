@@ -269,7 +269,7 @@ class TestUIStoreConsumer(unittest.TestCase):
       self.typed[k] = "1"
     lay._write("QOLVisuals", True)
     lay._write("CustomUI", True)
-    lay._write("BorderMetrics", True)
+    self.typed["BorderMetrics"] = "0"                                   # stored legacy parent: unread
     lay._write("DynamicPedalsOnUI", True)
     lay._write("NavigationUI", True)
     lay._write("ShowSpeedLimits", True)
@@ -278,12 +278,14 @@ class TestUIStoreConsumer(unittest.TestCase):
     self.assertTrue(snap["QOLVisuals_personality"])
     self.assertTrue(snap["CustomUI_pedals"])
     self.assertTrue(snap["DynamicPedalsOnUI"])
-    self.assertTrue(snap["BorderMetrics"])
+    self.assertTrue(snap["BlindSpotMetrics_border"])
+    self.assertNotIn("BorderMetrics", snap)
     self.assertTrue(snap["ShowSpeedLimits"])
 
     lay._write("QOLVisuals", False)
     lay._write("CustomUI", False)
-    lay._write("BorderMetrics", False)
+    lay._write("BlindSpotMetrics", False)
+    self.typed["BorderMetrics"] = "1"
     lay._write("DynamicPedalsOnUI", False)
     lay._write("NavigationUI", False)
     snap = consumer_snapshot(self.store, longitudinal=True, has_bsm=True)
@@ -291,7 +293,7 @@ class TestUIStoreConsumer(unittest.TestCase):
     self.assertFalse(snap["QOLVisuals_personality"])
     self.assertFalse(snap["CustomUI_pedals"])
     self.assertFalse(snap["DynamicPedalsOnUI"])
-    self.assertFalse(snap["BorderMetrics"])
+    self.assertFalse(snap["BlindSpotMetrics_border"])
     self.assertFalse(snap["ShowSpeedLimits"])
 
   def test_layout_toggles_file_consumer(self):
@@ -344,7 +346,7 @@ class TestUIStoreConsumer(unittest.TestCase):
   def test_blind_spot_rows_hidden_on_preap_only_and_nothing_written(self):
     from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import BogPilotVisualsLayout, PREAP_HIDDEN, car_row_allowed
     self.assertEqual(set(PREAP_HIDDEN), {"BlindSpotPath", "BlindSpotMetrics", "BSMFlameTracks"})
-    self.typed.update({"CustomUI": "1", "BorderMetrics": "1"})           # parents on, so the car is the only gate
+    self.typed.update({"CustomUI": "1"})                                 # parent on, so the car is the only gate
     before = dict(self.typed)
     cars = {fp: SimpleNamespace(carFingerprint=fp) for fp in ("TESLA_PREAP_MODELS", "TESLA_AP1_MODELS", "TESLA_AP1_MODELX")}
     level = mock.patch("openpilot.selfdrive.ui.bogpilot.tuning_level.row_visible", return_value=True)  # Tuning Level aside
@@ -355,7 +357,8 @@ class TestUIStoreConsumer(unittest.TestCase):
       for key in PREAP_HIDDEN:
         self.assertEqual(lay._toggles[key].is_visible, fp != "TESLA_PREAP_MODELS", (fp, key))
         self.assertEqual(car_row_allowed(key, cp), fp != "TESLA_PREAP_MODELS", (fp, key))
-      for key in ("AdjacentLeadsUI", "CustomUI", "BorderMetrics", "ConfidenceBall"):
+      self.assertNotIn("BorderMetrics", lay._toggles)                   # the Status Border row is gone
+      for key in ("AdjacentLeadsUI", "CustomUI", "ConfidenceBall"):
         self.assertTrue(lay._toggles[key].is_visible, (fp, key))      # every other row is unchanged
         self.assertTrue(car_row_allowed(key, cp), (fp, key))
     self.assertEqual(self.typed, before)                                 # no stored value written
@@ -364,12 +367,11 @@ class TestUIStoreConsumer(unittest.TestCase):
 
 
 class TestBsmBorderStillGated(unittest.TestCase):
-  def test_border_metrics_parent_required(self):
-    """Mirror hud_compose._bsm_border_enabled formula without importing pyray."""
+  def test_blind_spot_border_alone_decides(self):
+    """Mirror hud_compose._bsm_border_enabled formula without importing pyray (the source is pinned below)."""
     def enabled(store):
       level = store.tuning_level()
-      return bool((store.toggle_bool("BorderMetrics", level) and store.toggle_bool("BlindSpotMetrics", level))
-                  or store.get_bool("DebugMode", False))
+      return bool(store.toggle_bool("BlindSpotMetrics", level) or store.get_bool("DebugMode", False))
 
     class Store:
       def __init__(self, d):
@@ -381,10 +383,22 @@ class TestBsmBorderStillGated(unittest.TestCase):
       def get_bool(self, k, default=False):
         return bool(self.d.get(k, default))
 
-    self.assertTrue(enabled(Store({"BorderMetrics": True, "BlindSpotMetrics": True})))
-    self.assertFalse(enabled(Store({"BorderMetrics": False, "BlindSpotMetrics": True})))
-    self.assertFalse(enabled(Store({"BorderMetrics": True, "BlindSpotMetrics": False})))
-    self.assertTrue(enabled(Store({"BorderMetrics": False, "BlindSpotMetrics": False, "DebugMode": True})))
+    for border in (True, False):                                          # a stored BorderMetrics changes nothing
+      self.assertTrue(enabled(Store({"BorderMetrics": border, "BlindSpotMetrics": True})))
+      self.assertFalse(enabled(Store({"BorderMetrics": border, "BlindSpotMetrics": False})))
+      self.assertTrue(enabled(Store({"BorderMetrics": border, "BlindSpotMetrics": False, "DebugMode": True})))
+    src = (Path(__file__).parents[1] / "onroad/bogpilot/hud_compose.py").read_text()
+    body = src.split("def _bsm_border_enabled")[1].split("\n  def ")[0]
+    self.assertIn('bool(s.toggle_bool("BlindSpotMetrics", level) or s.get_bool("DebugMode", False))', body)
+    self.assertNotIn('"BorderMetrics"', src)
+
+  def test_status_border_row_and_help_removed(self):
+    from openpilot.selfdrive.ui.bogpilot.phase2_visuals_theme import NEW_VISUAL_KEYS
+    from openpilot.selfdrive.ui.bogpilot import toggle_help
+    self.assertNotIn("BorderMetrics", NEW_VISUAL_KEYS)
+    src = Path(toggle_help.__file__).read_text()
+    self.assertNotIn('_add("BorderMetrics"', src)
+    self.assertIn("red blind-spot half-border", src.split('_add("BlindSpotMetrics"')[1].split("_add(")[0])
 
 
 if __name__ == "__main__":

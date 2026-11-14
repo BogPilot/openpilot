@@ -85,10 +85,40 @@ class TestBsmBorder(Base):
 
   def test_gates(self):
     self.assertIsNone(self.sides(composer(store=Store(BlindSpotMetrics=False)), left=True))
-    self.assertIsNone(self.sides(composer(store=Store(BorderMetrics=False)), left=True))
-    self.assertEqual(self.sides(composer(store=Store(BorderMetrics=False, DebugMode=True)), left=True), (True, False))
+    self.assertEqual(self.sides(composer(store=Store(BorderMetrics=False)), left=True), (True, False))  # legacy key unread
+    self.assertEqual(self.sides(composer(store=Store(BlindSpotMetrics=False, DebugMode=True)), left=True), (True, False))
     ui_state.CP = SimpleNamespace(carFingerprint="TESLA_MODEL_3")
     self.assertIsNone(self.sides(left=True))
+
+  def test_alerts_and_fault_still_own_the_border_with_the_legacy_key_off(self):
+    for border in (True, False):
+      self.assertIsNone(self.sides(composer(lkas=True, store=Store(BorderMetrics=border)), left=True))
+      c = composer(store=Store(BorderMetrics=border)); c.frame.full_alert = True
+      self.assertIsNone(self.sides(c, left=True))
+      c = composer(store=Store(BorderMetrics=border)); c.frame.alert = SimpleNamespace(status=CRIT, size=1)
+      self.assertIsNone(self.sides(c, left=True))
+
+  def test_status_colours_do_not_depend_on_either_toggle(self):
+    from openpilot.selfdrive.ui.ui_state import UIStatus
+    from openpilot.selfdrive.ui.onroad.augmented_road_view import BORDER_COLORS
+    from openpilot.selfdrive.ui.onroad.bogpilot.style import TRAFFIC_RED
+    rgb = lambda c: (c.r, c.g, c.b, c.a)   # noqa: E731
+    self.assertEqual({s: rgb(c) for s, c in BORDER_COLORS.items()},
+                     {UIStatus.DISENGAGED: (0x12, 0x28, 0x39, 0xFF), UIStatus.OVERRIDE: (0x89, 0x92, 0x8D, 0xFF),
+                      UIStatus.ENGAGED: (0x16, 0x7F, 0x40, 0xFF)})
+    saved = ui_state.status
+    self.addCleanup(setattr, ui_state, "status", saved)
+    for store in (Store(BorderMetrics=False, BlindSpotMetrics=False), Store(BorderMetrics=True, BlindSpotMetrics=True),
+                  Store(BorderMetrics=False, BlindSpotMetrics=True)):
+      for status, base in BORDER_COLORS.items():
+        ui_state.status = status
+        c = composer(store=store); c.frame.engaged = True; c.frame.longitudinal = True
+        self.assertEqual(rgb(c.border_color(base)), rgb(base), status)                       # Traffic Mode off
+        c.frame.traffic_mode = True
+        want = TRAFFIC_RED if status == UIStatus.ENGAGED else base
+        self.assertEqual(rgb(c.border_color(base)), rgb(want), status)                       # Traffic Mode red
+        f = composer(lkas=True, store=store); f.frame.engaged = True; f.frame.longitudinal = True
+        self.assertEqual(rgb(f.border_color(base)), rgb(f.border_override()), status)       # LKAS-fault flash wins
 
   def test_daily_colour(self):
     self.assertEqual(HC.HudComposer.BSM_BORDER_RGBA, (0xC9, 0x22, 0x31, 0xF1))

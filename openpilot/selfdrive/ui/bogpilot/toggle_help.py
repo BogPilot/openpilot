@@ -562,8 +562,11 @@ _add("BlindSpotPath", "Blind Spot Lane Fill",
      note="Only on cars that report blind spot data (Tesla AP1). Needs Driving Screen Widgets.",
      default="On", default_param="BlindSpotPath")
 _add("BlindSpotMetrics", "Blind Spot Border",
-     "Turns the matching half of the screen border red while the blind spot monitor reports a vehicle.",
-     note="Needs Blind Spot Status Border. Only on cars that report blind spot data.",
+     "Draws the red blind-spot half-border: the half of the screen border on the side where the car's blind spot monitor "
+     "reports a vehicle turns red. This switch alone controls it. The other border colors always draw: green while "
+     "engaged, gray while you override openpilot, dark blue while disengaged, red while engaged in Traffic Mode, and the "
+     "flashing lane-keep fault border.",
+     note="Only on cars that report blind spot data. The lane-keep fault border and critical alerts take the whole border.",
      default="On", default_param="BlindSpotMetrics")
 _add("BSMFlameTracks", "Bog to the Future",
      "Draws two burning tire tracks down the lane beside you, for 3 seconds, behind a car that passes you faster than 88 mph "
@@ -605,13 +608,6 @@ _add("QOLVisuals", "Quality of Life Visuals",
 _add("CustomUI", "Driving Screen Widgets",
      "Parent switch for the blind spot lane fill and the pedals on screen. When off, those stay hidden.",
      default="On", default_param="CustomUI")
-_add("BorderMetrics", "Blind Spot Status Border",
-     "Only controls the red blind-spot border: the half of the screen border on the side where the car's blind spot monitor "
-     "reports a vehicle. The other border colors always draw, on or off: green while engaged, gray while you override "
-     "openpilot, dark blue while disengaged, red while engaged in Traffic Mode, and the flashing lane-keep fault border.",
-     note="The Blind Spot Border needs it. Only on cars that report blind spot data. The lane-keep fault border and critical "
-          "alerts take the whole border over the blind-spot half.",
-     default="On", default_param="BorderMetrics")
 _add("DynamicPedalsOnUI", "Dynamic Pedals",
      "When Pedals on Screen is on, the bars fill in proportion: the right bar with the gas pedal or openpilot's acceleration "
      "request, and the left bar with the car's deceleration (on Tesla AP1 it is half full at 2.0 m/s^2). Off hides the bars "

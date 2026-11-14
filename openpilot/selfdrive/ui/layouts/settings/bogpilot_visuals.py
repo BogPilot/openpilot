@@ -5,7 +5,7 @@ Leaf rows already on feae:
   PedalsOnUI, DriverCamera. (The Screen Recorder button is under System Settings > Device Controls > Screen Settings.)
 
 visualsTheme adds parent / peer gates that earlier builds had ON but were unregistered:
-  QOLVisuals, CustomUI, BorderMetrics, DynamicPedalsOnUI, LowerSpeedLimitsBox, NavigationUI, ShowSpeedLimits.
+  QOLVisuals, CustomUI, DynamicPedalsOnUI, LowerSpeedLimitsBox, NavigationUI, ShowSpeedLimits.
 
 Developer overlays: DeveloperHUD (onroad Developer HUD panel), FPSCounter, DeveloperSidebar (with its seven metric pickers,
 shown while it is on) and ShowIP. The sidebar's CPU / GPU, RAM / storage and temperature contents are not rows: a tap on
@@ -36,7 +36,7 @@ _EXISTING = (
            "Shown only on cars that report blind spot data.")),
   ("BlindSpotMetrics", tr_noop("Blind Spot Border"),
    tr_noop("Turn the matching half of the screen border red while the blind spot monitor reports a vehicle. "
-           "Requires the status border (Border Metrics), which is on by default.")),
+           "Shown only on cars that report blind spot data.")),
   ("OnroadDistanceButton", tr_noop("Driving Personality Button"),
    tr_noop("Show a button in the driver-side corner that shows and changes the driving personality.")),
   ("PedalsOnUI", tr_noop("Pedals on Screen"),
@@ -119,7 +119,7 @@ APPEARANCE_KEYS = tuple(k for k in VISUAL_KEYS if k not in NAVIGATION_KEYS)
 
 # The page tree: (row, (children...)). A child is indented under its parent and shown only while the parent is on (nesting.py).
 # Each pairing is the one the consumer already enforces (QOL: reverse_camera / hud_compose, CustomUI: bogpilot_onroad_toggles /
-# pedals.py, BorderMetrics: hud_compose). Bog to the Future and Adjacent Lead Speed Boxes stay peers: their renderers read no
+# pedals.py). Bog to the Future and Adjacent Lead Speed Boxes stay peers: their renderers read no
 # parent, so hiding them would leave them applying unseen.
 _SIDEBAR_PICKERS = tuple((k, ()) for k in DSL.metric_keys())
 TREE = (
@@ -129,7 +129,7 @@ TREE = (
   ("CustomUI", (("BlindSpotPath", ()), ("PedalsOnUI", (("DynamicPedalsOnUI", ()),)))),
   ("BSMFlameTracks", ()),
   ("AdjacentLeadsUI", ()),
-  ("BorderMetrics", (("BlindSpotMetrics", ()),)),
+  ("BlindSpotMetrics", ()),
   ("LowerSpeedLimitsBox", ()),
   ("ShowAccelGraph", ()),
   ("DeveloperHUD", ()),

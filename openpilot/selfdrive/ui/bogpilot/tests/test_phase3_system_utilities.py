@@ -342,6 +342,22 @@ class UtilitiesTest(unittest.TestCase):
     for k in ("TeslaRadarEnabled", "TeslaRadarBehindNosecone"):
       self.assertEqual((self.file_root / k).read_text(), "1")
 
+  def test_reset_bogpilot_defaults_still_resets_unread_border_metrics(self):
+    act = self.actions()
+    self.params.values["BorderMetrics"] = False
+    self.params.known.add("BorderMetrics")
+
+    def fake_backup(params, *, file_root, backup_root, reason):
+      (Path(backup_root) / "receipt.json").write_text("{}")
+      return BackupReceipt()
+
+    import openpilot.system.bogpilot.settings_backup as sb
+    import openpilot.common.bogpilot_ap1_profile as ap1
+    with patch.object(sb, "backup_settings", fake_backup), patch.object(ap1, "clear_ap1_defaults_marker", lambda directory=None: None):
+      msg = act.reset_bogpilot_defaults()
+    self.assertIn("fresh-install", msg.lower())
+    self.assertTrue(self.params.get_bool("BorderMetrics"))
+
   def test_flash_panda_and_force_drive_state_are_not_offered(self):
     # Placeholders were hidden: nothing implements them, and this page must never flash or override the drive state.
     import inspect

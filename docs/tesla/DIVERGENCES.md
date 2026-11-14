@@ -211,6 +211,18 @@ Recorded disagreements only where the cited files were read. No speculation.
 - Credits: NAP (openpilot `e99f4dc75`, opendbc `cc39c7fa`); Tinkla/BogGyver (`501c7de`) compared.
 
 
+## Onroad UI: Blind Spot Border alone controls the red blind-spot half-border
+
+- Reference: the daily BogPilot onroad border painted the blind-spot half red only when both the parent `BorderMetrics`
+  ("Border Metrics") and `BlindSpotMetrics` were on (or `DebugMode`).
+- Here `BlindSpotMetrics` ("Blind Spot Border") alone decides, on a car that reports blind spot data, or `DebugMode`.
+  The separate Status Border row and its help are gone from Visuals, and Blind Spot Border is a top-level row.
+- `BorderMetrics` stays registered with its default. A stored value is left in place and unread: no migration and no
+  delete. Backups, restores, Reset to Defaults and Reset to Stock still carry and reset it as before.
+- Unchanged: the green engaged, gray override, dark blue disengaged, Traffic Mode red and flashing lane-keep fault
+  borders. The lane-keep fault, full-screen alerts and critical alerts still take the whole border over the
+  blind-spot half.
+
 ## Onroad UI: confidence ball on the big (C3X) driving screen
 - Platforms: all (onroad UI only; not the Tesla instrument cluster).
 - Reference behavior: stock 0.11.2 has the ball only on the comma four UI (`selfdrive/ui/mici/onroad/confidence_ball.py`);

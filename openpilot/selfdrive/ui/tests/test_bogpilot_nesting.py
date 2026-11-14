@@ -116,7 +116,6 @@ class TestAppearancePage(unittest.TestCase):
   def test_children_are_offered_only_while_the_parent_is_on(self):
     for parent, children in (("QOLVisuals", ("DriverCamera", "OnroadDistanceButton")),
                              ("CustomUI", ("BlindSpotPath", "PedalsOnUI")),
-                             ("BorderMetrics", ("BlindSpotMetrics",)),
                              ("NavigationUI", ("ShowSpeedLimits",))):
       for state in (True, False, True):
         self.layout._toggles[parent].action_item.set_state(state)
