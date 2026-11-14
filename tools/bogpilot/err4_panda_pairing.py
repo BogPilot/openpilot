@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 import sys
 
-ERR4_PANDA_IDENTITY = "c3bc9380"
+ERR4_PANDA_IDENTITY = "25e380f4"
 RECOVERY_FILE = "opendbc_repo/opendbc/car/tesla_ap1/epas_gate.py"
 RECOVERY_MARKER = "class EpasTmpFaultRecovery"
 PANDA_RULE_FILE = "opendbc_repo/opendbc/safety/modes/tesla_ap1.h"
