@@ -33,7 +33,7 @@ FALLBACK_EXPERIMENTAL = 1
 ROWS = (
   ("SpeedLimitController", "toggle", tr_noop("Speed Limit Controller"),
    tr_noop("<b>Limit openpilot's maximum driving speed to the current speed limit</b> from the dashboard "
-           "(Tesla maps, and Mobileye on AP1). Map data can start an early slowdown toward a lower upcoming limit."),
+           "(Tesla maps, and Mobileye on AP1). The map look-ahead needs offline map data that this build does not include."),
    None, None),
   ("SLCFallback", "choice", tr_noop("Fallback Speed"),
    tr_noop("<b>The speed used by \"Speed Limit Controller\" when no speed limit is found.</b><br><br>- <b>Set Speed</b>: "
