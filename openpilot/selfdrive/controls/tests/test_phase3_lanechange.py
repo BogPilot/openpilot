@@ -11,6 +11,7 @@ import ast
 from collections import deque
 from dataclasses import replace
 import importlib.util
+import inspect
 import math
 import os
 import subprocess
@@ -48,7 +49,7 @@ from opendbc.car.tesla_ap1.blindspot import Ap1Blindspot, BSM_CLEAR, BSM_SNA, BS
 
 LCS, LCD = log.LaneChangeState, log.LaneChangeDirection
 ROOT = Path(__file__).resolve().parents[4]
-OVERLAY = os.getenv('PHASE3_CORE_OVERLAY') or str(ROOT)  # INT: patch is applied in-tree; replay the real files
+OVERLAY = os.getenv('PHASE3_CORE_OVERLAY') or str(ROOT)  # default: replay this tree's own consumer files
 
 
 class Store:
@@ -350,7 +351,7 @@ class AdjacentBehaviorTests(unittest.TestCase):
     self.assertIsNone(human_lane_change_track(self.tracks, self.m, {2, 3}, enabled=True, valid=True))
 
 
-@unittest.skipUnless(OVERLAY, 'set PHASE3_CORE_OVERLAY for proposed consumer replay')
+@unittest.skipUnless(OVERLAY, 'consumer replay needs a source tree root (PHASE3_CORE_OVERLAY or this tree)')
 class ConsumerReplayTests(unittest.TestCase):
   @classmethod
   def setUpClass(cls):
@@ -367,7 +368,7 @@ class ConsumerReplayTests(unittest.TestCase):
       )
     cls.stock = NS()
     exec(compile(stock_source, 'committed-stock-desire', 'exec'), vars(cls.stock))
-    # Load real source bodies without importing ELF msgq/kalman on this native Mac.
+    # Load the real source bodies without importing the AGNOS-only msgq/Kalman binaries.
     tree = ast.parse((Path(OVERLAY) / 'openpilot/selfdrive/controls/radard.py').read_text())
     names = {'laplacian_pdf', 'match_vision_to_track', 'get_RadarState_from_vision', 'get_lead'}
     tree.body = [n for n in tree.body if (isinstance(n, ast.FunctionDef) and n.name in names) or (isinstance(n, ast.ClassDef) and n.name == 'RadarD')]
@@ -533,6 +534,8 @@ class ConsumerReplayTests(unittest.TestCase):
       rd.stopping_runtime = None
       rd.lane_change_settings = NS(read=lambda: LaneChangeSettings(human=enabled))
       rd.ap1_lead_filters = [AP1FilterSpy(), AP1FilterSpy()]
+      # __new__ skips RadarD.__init__; assign lead_threshold as __init__ does, from its own default.
+      rd.lead_threshold = inspect.signature(self.radar['RadarD'].__init__).parameters['lead_threshold'].default
       return rd
 
     rd = make(False)
