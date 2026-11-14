@@ -79,7 +79,7 @@ def make_cp(long=True):
 def stock_class(env, git_path, name):
   path = os.environ.get(env)
   source = Path(path).read_text() if path else subprocess.check_output(
-    ["git", "show", f"feae029245e281e37667457a74387671458d716f:{git_path}"], text=True)
+    ["git", "show", f"4f09d9fffd92098ef1084247a2cff58e738d1675:{git_path}"], text=True)
   namespace = {"__name__": name}
   exec(compile(source, name + ".py", "exec"), namespace)
   return namespace

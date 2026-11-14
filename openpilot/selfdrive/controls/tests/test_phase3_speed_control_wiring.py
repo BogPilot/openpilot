@@ -1,6 +1,6 @@
 """gasFollowSpeed wiring: real capnp + compiled long MPC + real LongitudinalPlanner + native Params + the SLC panel editor.
 
-Synthetic deterministic open-loop replays only (no route log, no drive). BASELINE_LONG_PLANNER points at the feae0292
+Synthetic deterministic open-loop replays only (no route log, no drive). BASELINE_LONG_PLANNER points at the 4f09d9ff
 longitudinal_planner.py so the fresh-install replay is compared bit-for-bit with the planner that is on the bench today.
 """
 import importlib.util

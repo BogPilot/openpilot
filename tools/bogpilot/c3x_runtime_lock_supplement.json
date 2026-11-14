@@ -3,7 +3,7 @@
   "openpilot/selfdrive/modeld/modeld.py": {
    "change": "integration: DesireHelper receives modelV2 + model_valid (lane-change policy); no model loading/runtime change",
    "sha256": "4540a2677a7ce5d25f4b5ea30e4704b58397155ad5767982f4c7cedbccf72eff",
-   "stock_git_blob": "feae029245e281e37667457a74387671458d716f:openpilot/selfdrive/modeld/modeld.py sha256 8eeb7065cb6d672b18d0b5062fe932c1611b3b1b882bf560e81917d79a3501f1"
+   "stock_git_blob": "4f09d9fffd92098ef1084247a2cff58e738d1675:openpilot/selfdrive/modeld/modeld.py sha256 8eeb7065cb6d672b18d0b5062fe932c1611b3b1b882bf560e81917d79a3501f1"
   },
   "pyproject.toml": {
    "change": "removes PyJWT[crypto], websocket_client deps and the teleoprtc submodule/source",
