@@ -199,7 +199,13 @@ Recorded disagreements only where the cited files were read. No speculation.
   ignores it without 256 anyway). (2) Fail closed when the radar is silent: with the toggle on and no radar cycle
   for 0.5 s, the radar interface publishes canError at 20 Hz instead of nothing, so radarState goes invalid and
   openpilot will not engage (radar CAN error / commIssue). NAP returns nothing until the radar answers.
-  (3) Following NAP, not Tinkla: SensorDirty never faults on Pre-AP, nosecone or not.
+  (3) Radar status faults (owner decision): Pre-AP ignores `RADC_SensorDirty`, following NAP; Tinkla faults on it
+  unless the radar is behind the nosecone; `RADC_HWFail` remains the only fault. NAP's Bosch rule is HWFail-only
+  on every car (`opendbc/car/tesla/radar_interface.py:85-88` @ `cc39c7fa`). Tinkla faults on HWFail, on SGUFail
+  except on PREAP, and on SensorDirty unless PREAP with the radar behind the nosecone
+  (`selfdrive/car/tesla/radar_interface.py:89-111` @ `501c7de`). Here Pre-AP faults on HWFail only, so SGUFail and
+  SensorDirty never fault, nosecone or not (`opendbc_repo/opendbc/car/tesla_ap1/radar_interface.py`); AP1 keeps
+  HWFail, SGUFail and SensorDirty. A CAN error or a silent radar still fails closed as in (2).
 - Backup and resets (owner decision): both keys are in the durable settings backup and Toggle Backups (restore),
   and are not in Reset to Stock or Reset to Defaults, so a reset never turns the retrofit off.
 - Why: drivers moving from NAP have the retrofit; off by default leaves every other Pre-AP car unchanged.
@@ -208,7 +214,9 @@ Recorded disagreements only where the cited files were read. No speculation.
 - Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_bosch_radar.py`,
   `openpilot/system/bogpilot/tests/test_preap_radar_backup_reset.py`, and radar cases in
   `test_phase3_system_feature_archive.py`, `test_phase3_system_utilities.py` and `test_preap_pedal_cal.py`.
-- Credits: NAP (openpilot `e99f4dc75`, opendbc `cc39c7fa`); Tinkla/BogGyver (`501c7de`) compared.
+- Credits: NAP (openpilot `e99f4dc75`, opendbc `cc39c7fa`), including the HWFail-only radar fault rule
+  (`opendbc/car/tesla/radar_interface.py:85-88` @ `cc39c7fa`); Tinkla/BogGyver (`501c7de`) compared, including its
+  PREAP SGUFail / nosecone SensorDirty rule (`selfdrive/car/tesla/radar_interface.py:89-111` @ `501c7de`).
 
 
 ## Onroad UI: Blind Spot Border alone controls the red blind-spot half-border
