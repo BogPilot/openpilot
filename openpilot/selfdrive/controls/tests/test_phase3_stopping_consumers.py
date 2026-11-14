@@ -61,7 +61,7 @@ class NativeConsumerTests(unittest.TestCase):
     if baseline_path:
       source = Path(baseline_path).read_text()
     else:
-      source = subprocess.check_output(["git", "show", "4f09d9fffd92098ef1084247a2cff58e738d1675:openpilot/selfdrive/controls/lib/longcontrol.py"], text=True)
+      source = subprocess.check_output(["git", "show", "f7db927c728bab57bb1263e05465766a8f28fc9d:openpilot/selfdrive/controls/lib/longcontrol.py"], text=True)
     namespace = {"__name__": "phase3_native_stock_longcontrol"}
     exec(compile(source, "native_stock_longcontrol.py", "exec"), namespace)
     return namespace["LongControl"](self.cp)

@@ -30,7 +30,7 @@ def stock_longcontrol(cp):
   if path:
     source = Path(path).read_text()
   else:
-    source = subprocess.check_output(["git", "show", "4f09d9fffd92098ef1084247a2cff58e738d1675:openpilot/selfdrive/controls/lib/longcontrol.py"], text=True)
+    source = subprocess.check_output(["git", "show", "f7db927c728bab57bb1263e05465766a8f28fc9d:openpilot/selfdrive/controls/lib/longcontrol.py"], text=True)
   ns = {"__name__": "int_stock_longcontrol"}
   exec(compile(source, "stock_longcontrol.py", "exec"), ns)
   return ns["LongControl"](cp)
