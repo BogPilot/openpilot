@@ -1,12 +1,12 @@
 # Phase 3 lane-change / adjacent-radar notes
 
-This module makes NO deployment, CAN, vehicle, road, or bench changes.
+The lane-change settings in this build, where each one came from in BogPilot 0.9.7, and how this build uses it. None of them changes CAN messages or panda safety.
 
-## Exact scope and historical inventory (read before implementation)
+## Settings and their BogPilot 0.9.7 origin
 
 Reference: existing repository's own `04d560f3` (0.9.7 bogpilot-tesla), not an upstream/newer fork.
 
-`bogpilot/ui/qt/offroad/lateral_settings.cc` / `.h` and the historical Python metadata establish:
+In the BogPilot 0.9.7 reference tree (`04d560f3`), `frogpilot/ui/qt/offroad/lateral_settings.cc` / `.h` define these rows, and `frogpilot/ui/qt/offroad/longitudinal_settings.cc` defines Human-Like Lane Changes:
 
 | Historical path | Key | Exact label | Range / nesting |
 |---|---|---|---|
@@ -19,9 +19,9 @@ Reference: existing repository's own `04d560f3` (0.9.7 bogpilot-tesla), not an u
 | Steering / Lateral Tuning | TurnDesires | Force Turn Desires Below Lane Change Speed | Boolean; LateralTune parent; OFF by default |
 | Gas / Brake / Longitudinal Tuning | HumanLaneChanges | Human-Like Lane Changes | Boolean; radar + openpilot longitudinal + LongitudinalTune |
 
-The Human row was NOT a Steering submenu in 0.9.7. Export `HUMAN_ROW`/`HUMAN_PATH` to the Gas/Brake page rather than silently relocating it. Import `human_lane_change_item` to attach its actual native control to the existing Gas/Brake parent. This module supplies that gated native item and its functional consumer, not merely a visibility flag.
+Human-Like Lane Changes stays on the Gas / Brake > Longitudinal Tuning page, where 0.9.7 had it, not under Steering. When its gate passes (see `docs/bogpilot_c3x.md`), the row is a real setting: radard uses it to prefer the target-lane radar track for the lead during a lane change.
 
-Historical consumers: `selfdrive/controls/lib/desire_helper.py` handled lane master, automatic delay, lane-width eligibility and one-per-signal; `bogpilot/common/bogpilot_utilities.py:calculate_lane_width` used median adjacent-line spacing with a road-edge veto. `selfdrive/controls/radard.py:match_vision_to_track` preferred the closest target-lane radar track during laneChangeStarting. Historical HumanLaneChanges was NOT a lane-clearance/blindspot permission and did not initiate a lane change.
+In the 0.9.7 reference tree, `selfdrive/controls/lib/desire_helper.py` handled the lane-change master switch, the automatic delay, the lane-width check and one change per signal; `frogpilot/common/frogpilot_utilities.py:86` `calculate_lane_width` used the median spacing to the adjacent lane line, with a road-edge veto; and `selfdrive/controls/radard.py` `match_vision_to_track` preferred the closest target-lane radar track during laneChangeStarting. HumanLaneChanges there was not a lane-clearance or blind-spot permission and did not start a lane change.
 
 AOL/safety capability and controller tuning/NNFF/QoL belong to other modules. TurnDesires is implemented here with its exact historical LateralTune parent. No steering gain, actuator tuning, carcontroller, opendbc safety or panda file changes.
 

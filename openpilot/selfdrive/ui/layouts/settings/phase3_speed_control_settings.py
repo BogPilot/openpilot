@@ -59,7 +59,7 @@ ROWS = (
            "0 seconds turns look-ahead off. The current posted limit still comes from the dashboard; "
            "look-ahead never raises the set speed. Early slowing is capped at 2.0 mph/s and finishes "
            "only when the dashboard confirms the new limit. At 65 mph, 5 seconds is about 480 feet, "
-           "enough to ease about 10 mph at 2 mph/s."),
+           "enough to ease about 10 mph at 2 mph/s. The map look-ahead needs offline map data that this build does not include."),
    PARENT_KEY, None),
   *[(f"Offset{i}", "offset", None, None, PARENT_KEY, "SLCOffsets") for i in range(1, 8)],
   ("SLCConfirmation", "toggle", tr_noop("Confirm New Speed Limits"),

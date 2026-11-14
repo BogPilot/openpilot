@@ -27,7 +27,8 @@ with no Mobileye on bus 2.
   reports everything working on this build. No other driver or car has tested it.
 - AP1 Model X and Pre-AP Model S: no engaged drive logs. The driver-override numbers were chosen from AP1 Model S
   driving and are unproven on those cars.
-- Panda safety code is unchanged from the previously reviewed build of this line.
+- Panda safety code is unchanged since commit `15baccd4f`, the bench-driven build: nothing under `panda/` or
+  `opendbc_repo/opendbc/safety/` changed except one added test (`opendbc_repo/opendbc/safety/tests/test_tesla_preap_pedal_brake.py`).
 
 ## Install
 
