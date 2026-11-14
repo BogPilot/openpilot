@@ -25,15 +25,13 @@ Historical consumers: `selfdrive/controls/lib/desire_helper.py` handled lane mas
 
 AOL/safety capability and controller tuning/NNFF/QoL belong to other modules. TurnDesires is implemented here with its exact historical LateralTune parent. No steering gain, actuator tuning, carcontroller, opendbc safety or panda file changes.
 
-## Deliverables and integration order
+## Integration in this tree
 
-
-1. Cherry-pick the three local lane commits (see commits.txt). Only new uniquely named module/UI/tests/docs files are in them.
-2. Review and apply **separate unapplied** `desire_helper.patch`, `modeld.patch`, `radard.patch` against your integration checkout. They change shared files deliberately excluded from this lane's commit. Reconcile with other control-lane patches before applying. `core-net.diff` combines these proposals.
-3. Only then add Steering -> Lane Changes native navigation, instantiate `LaneChangeLayout(store, runtime_integrated=True, offroad=<real offroad predicate>)`. Default `runtime_integrated=False` exposes zero rows and refuses layout construction. No fake active controls are registered. Offroad predicate is mandatory for writes; absent predicate means read-only.
-4. The Gas/Brake page should attach `human_lane_change_item(store, CP, runtime_integrated=True, offroad=<real predicate>)` at historical `LongitudinalTune` parent. The helper enforces radar/op-long/parent eligibility and allows a saved-OFF child to remain visible. It is functional only after radard.patch is installed. No standalone Human UI switch was attached to any central menu by this lane.
-5. The steering page should import `turn_desire_item(store, runtime_integrated=True, offroad=<real predicate>)` into Steering / Lateral Tuning after desire_helper.patch + modeld.patch are integrated. This is the missing historical TurnDesires child, separate from lane-change initiation. It needs LateralTune ON, is OFF by default and preserves saved settings. Historical consumer was the final below-lane-change-speed turnLeft/turnRight branch in DesireHelper; no new navigation/turn algorithm is invented.
-6. Re-run tests against the integrated root (`PHASE3_CORE_OVERLAY=$PWD`) and run AGNOS process/IPC replay and native UI acceptance before deployment. Do not call these features live-validated.
+- `desire_helper.py` and `radard.py` consume this module here: `desire_helper.py` imports the lane-change policy from `controls/lib/phase3_lanechange.py`, and `radard.py` calls `human_lane_change_track` (`radard.py:18`, `:261`).
+- Lane Changes: `layouts/settings/bogpilot.py` builds `LaneChangeLayout(runtime_integrated=True, offroad=ui_state.is_offroad)`. With the default `runtime_integrated=False` the layout exposes no rows. Writes need the offroad predicate; without it the rows are read-only. No fake active controls are registered.
+- Human-Like Lane Changes: `human_lane_change_item` is attached after Human-Like Following on the Gas/Brake Longitudinal Tuning page (`ui/bogpilot/phase3_following.py:389`). It returns no row unless `human_row_available` passes (radar available, openpilot longitudinal control on, LongitudinalTune on, and the tuning-level checks). No standalone Human switch is attached to any central menu.
+- Turn Desires: the consumer is the below-lane-change-speed turnLeft/turnRight branch in `desire_helper.py`, separate from lane-change initiation; no new navigation or turn algorithm is added. `turn_desire_item` exists, but nothing in the settings mounts it, so this build has no Turn Desires row. `TurnDesires` is OFF by default and needs LateralTune ON.
+- No AGNOS process/IPC replay or native UI acceptance is claimed. Do not call these features live-validated.
 
 ## Producer -> consumer trace
 
@@ -58,7 +56,7 @@ AOL/safety capability and controller tuning/NNFF/QoL belong to other modules. Tu
 
 Consumer replay loads the actual proposed source; RadarD functions/class bodies are AST-extracted only to omit platform-specific imports, with deterministic track/filter fixtures. This is NOT a full radard process, IPC, Kalman or model inference replay. A direct full radard import is blocked off-device by the AGNOS ELF `msgq/ipc_pyx.so`, not native Mach-O. No box rendering or parallel full build attempted. Two small native test packages (setproctitle/zstandard) were installed into the lane-only evidence directory; shared venv was not modified.
 
-`native-ap1-regression.txt`: 11 passing unchanged actual AP1 lead-filter pytest regression tests (not the spy). `native-lint.txt`: scoped native ruff check. Final git diff/check and commits in commits.txt. No native UI rendering/interaction or AGNOS process acceptance claimed.
+`native-ap1-regression.txt`: 11 passing unchanged actual AP1 lead-filter pytest regression tests (not the spy). `native-lint.txt`: scoped native ruff check. No native UI rendering/interaction or AGNOS process acceptance claimed.
 
 No parameters, pushes, bench or vehicle access. Subsequent verification disables bytecode/cache writes.
 

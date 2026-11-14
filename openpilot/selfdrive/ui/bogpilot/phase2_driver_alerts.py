@@ -42,7 +42,7 @@ DRIVER_ALERT_ROWS = (
    "Play an alert when the posted speed limit changes. Needs the Speed Limit Controller."),
 )
 DRIVER_ALERT_KEYS = tuple(row[0] for row in DRIVER_ALERT_ROWS)
-# Fresh install ON (owner choice, same as Green Light / Lead Departed). A saved OFF is never overwritten:
+# Fresh install ON (maintainer choice, same as Green Light / Lead Departed). A saved OFF is never overwritten:
 # nothing in the profile, defaults table or migration writes these keys.
 DRIVER_ALERT_DEFAULTS = dict.fromkeys(DRIVER_ALERT_KEYS, True)
 
