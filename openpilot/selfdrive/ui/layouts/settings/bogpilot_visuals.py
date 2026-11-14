@@ -25,6 +25,7 @@ from openpilot.selfdrive.ui.bogpilot import developer_sidebar_logic as DSL
 from openpilot.selfdrive.ui.bogpilot.nesting import place
 from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
 from openpilot.selfdrive.ui.onroad.bogpilot.overlay_gate import read_overlay
+from openpilot.selfdrive.ui.bogpilot import camera_view as CV
 
 # key, title, description — existing leaf rows first (stable order for tests/screenshots)
 _EXISTING = (
@@ -84,6 +85,11 @@ SIDE_KEY = "ConfidenceBallSide"
 SIDE_CHOICES = ("left", "right")
 SIDE_DESCRIPTION = tr_noop("Which edge of the driving screen the confidence ball rides on.")
 SIDE_BUTTON_WIDTH = 200
+# Camera View (QOL child): Auto / Standard / Wide; stored codes 0 / 2 / 3 (bogpilot/camera_view.py). No Driver.
+CAMERA_KEY = "CameraView"
+CAMERA_DESCRIPTION = tr_noop("Which road camera the driving screen shows. Auto switches to the wide camera at low speed in "
+                             "Experimental Mode, as stock openpilot does. Display only.")
+CAMERA_BUTTON_WIDTH = 230
 
 VISUAL_TOGGLES = _BALL + _EXISTING[:3] + _FLAME + _EXISTING[3:] + _NEW + _DEVELOPER
 VISUAL_KEYS = tuple(k for k, _, _ in VISUAL_TOGGLES)
@@ -105,7 +111,7 @@ _SIDEBAR_PICKERS = tuple((k, ()) for k in DSL.metric_keys())
 TREE = (
   ("ConfidenceBall", ()),
   (SIDE_KEY, ()),
-  ("QOLVisuals", (("DriverCamera", ()), ("OnroadDistanceButton", ()))),
+  ("QOLVisuals", (("DriverCamera", ()), (CAMERA_KEY, ()), ("OnroadDistanceButton", ()))),
   ("CustomUI", (("BlindSpotPath", ()), ("PedalsOnUI", (("DynamicPedalsOnUI", ()),)))),
   ("BSMFlameTracks", ()),
   ("AdjacentLeadsUI", ()),
@@ -149,6 +155,12 @@ class BogPilotVisualsLayout(Widget):
                                                            [lambda: tr("Left"), lambda: tr("Right")], self._read_side(),
                                                            button_width=SIDE_BUTTON_WIDTH, callback=self._write_side)
       attach_help(self._side, SIDE_KEY)
+    self._camera = None
+    if "QOLVisuals" in self._toggles:
+      self._camera = by_key[CAMERA_KEY] = multiple_button_item(
+        lambda: tr("Camera View"), lambda: tr(CAMERA_DESCRIPTION), [lambda n=n: tr(n) for n in CV.OPTIONS.values()],
+        self._read_camera(), button_width=CAMERA_BUTTON_WIDTH, callback=self._write_camera)
+      attach_help(self._camera, CAMERA_KEY)
     items = place(by_key, TREE)
     # a row the tree does not name is still offered (never silently lost), after the tree
     items += [item for key, item in by_key.items() if item not in items]
@@ -217,6 +229,16 @@ class BogPilotVisualsLayout(Widget):
     self._store.put(SIDE_KEY, SIDE_CHOICES[1 if index == 1 else 0])
     self._store.invalidate(SIDE_KEY)
 
+  def _read_camera(self) -> int:
+    try:
+      return CV.button_index(CV.normalize(self._store.get(CAMERA_KEY)))   # a saved Driver shows (and acts) as Auto
+    except Exception:
+      return 0
+
+  def _write_camera(self, index: int) -> None:
+    self._store.put(CAMERA_KEY, CV.CODES[index] if 0 <= index < len(CV.CODES) else CV.AUTO)
+    self._store.invalidate(CAMERA_KEY)
+
   def show_event(self):
     super().show_event()
     self._scroller.show_event()
@@ -227,6 +249,8 @@ class BogPilotVisualsLayout(Widget):
       item.action_item.set_state(self._read(key))
     if self._side is not None:
       self._side.action_item.set_selected_button(self._read_side())
+    if self._camera is not None:
+      self._camera.action_item.set_selected_button(self._read_camera())
 
   def _render(self, rect):
     self._scroller.render(rect)

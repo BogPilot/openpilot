@@ -1,4 +1,4 @@
-# Copied unchanged (apart from this header) from BogPilot bogpilot-tesla 367e1fe
+# Copied unchanged (apart from this header and the CameraView options, see docs/tesla/DIVERGENCES.md) from BogPilot bogpilot-tesla 367e1fe
 # bogpilot/ui/layouts/settings/toggle_metadata.py. The raylib BogPilot panels (panels.py) render these
 # definitions directly; icon paths are mapped onto selfdrive/assets/icons/bogpilot by panels.resolve_icon().
 
@@ -2695,7 +2695,8 @@ APPEARANCE_TOGGLES = (
     title=("Camera View"),
     param="CameraView",
     button_labels=["SELECT"],
-    button_options=["Auto", "Driver", "Standard", "Wide"],
+    button_options=["Auto", "Standard", "Wide"],   # BogPilot: "Driver" dropped; stored codes kept (bogpilot/camera_view.py)
+    value_map={0: "Auto", 2: "Standard", 3: "Wide"},
     description=("<b>Select the active camera view.</b> This is purely a visual change and doesn't impact how openpilot drives!"),
     parent_param="QOLVisuals",
     toggle_type=ToggleType.BUTTON_PARAM,

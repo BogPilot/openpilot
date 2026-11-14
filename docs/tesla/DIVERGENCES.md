@@ -499,3 +499,16 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Safety-relevant: no (display only).
 - Tests: `openpilot/selfdrive/ui/tests/test_sidebar_logo_ring.py`.
 - Credits: BogPilot theme (the mark).
+
+## Onroad Camera View: Auto, Standard and Wide (no Driver)
+- Platforms: all car types (UI only).
+- Reference behavior: BogPilot 0.9.7 / 367e1fe offers Camera View Auto, Driver, Standard and Wide (`CameraView` 0, 1, 2, 3). Driver (1) shows the cabin camera as the onroad view. Its Auto switches to the wide camera below 10 m/s and back above 15 m/s. Upstream openpilot 0.11.2 has no setting; it always does what Auto does here, with 5 m/s and 10 m/s.
+- Our behavior: the options are Auto, Standard and Wide (`toggle_metadata.py` CameraView, with a `value_map` so the stored codes stay 0, 2 and 3). Driver is not offered. A saved 1, or any value that is not 0, 2 or 3, reads as Auto through `selfdrive/ui/bogpilot/camera_view.normalize`; nothing is written back. Auto is upstream 0.11.2 unchanged (`onroad/augmented_road_view.py` `WIDE_CAM_MAX_SPEED` 5.0 m/s, `ROAD_CAM_MIN_SPEED` 10.0 m/s, only in Experimental Mode and with the wide stream available, current stream kept in between; narrow otherwise).
+- Settings > Visuals has a "Camera View" row (Auto / Standard / Wide) under Quality of Life Visuals (`layouts/settings/bogpilot_visuals.py`; `toggle_metadata.py` is still not rendered). Onroad, `augmented_road_view._switch_stream_if_needed` reads it through `camera_view.selected_view` (ParamStore, 2 s cache): Standard holds the narrow road camera, Wide the wide one (narrow if there is no wide stream), Auto is the upstream code above. Quality of Life Visuals off, a missing store or a read error means Auto. The setting is not tuning-level gated (the row is always shown under its parent).
+- Registered default: `CameraView` registers 3 (Wide), which the manager stores on first boot. The AP1 profile writes 0 (Auto) once while the stored value is still the default, so AP1 cars start on Auto. The profile covers Model S AP1 only, so any other car (Pre-AP, Model X, non-Tesla) that kept the stored 3 now shows Wide, and the row says Wide.
+- The cabin camera is still shown in reverse (`QOLVisuals` and `DriverCamera`; `layouts/main.py` `_update_reverse_camera`, `bogpilot/reverse_camera.py`, `onroad/reverse_camera_view.py`) and from Settings > Device > Cabin Camera (PREVIEW). Neither reads `CameraView`.
+- Why: the owner asked for Driver to go from the onroad choices. The cabin view stays where it is used: in reverse and in the Settings preview.
+- Safety-relevant: no. Display only; nothing in controls or monitoring reads `CameraView`.
+- Tests: `openpilot/selfdrive/ui/tests/test_camera_view_options.py`, `openpilot/selfdrive/ui/tests/test_reverse_camera.py`.
+- Credits for the wiring: BogPilot (Standard / Wide hold one stream, Driver aside).
+- Credits: BogPilot 0.9.7 / 367e1fe (options and codes), upstream openpilot 0.11.2 (Auto switching).

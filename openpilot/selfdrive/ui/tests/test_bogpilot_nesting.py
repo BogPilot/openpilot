@@ -105,7 +105,8 @@ class TestAppearancePage(unittest.TestCase):
     items = self.layout._scroller._items
     self.assertEqual(len(items), len({id(i) for i in items}))
     side = 1 if self.layout._side is not None else 0   # the Confidence Ball Side (Left / Right) row is not a toggle
-    self.assertEqual(len(items), len(VISUAL_KEYS) + len(self.layout._pickers) + side)
+    camera = 1 if self.layout._camera is not None else 0   # nor is Camera View (Auto / Standard / Wide)
+    self.assertEqual(len(items), len(VISUAL_KEYS) + len(self.layout._pickers) + side + camera)
     self.assertEqual(set(self.layout._toggles), set(VISUAL_KEYS))
 
   def test_the_screen_recorder_button_is_not_on_appearance(self):
@@ -121,6 +122,13 @@ class TestAppearancePage(unittest.TestCase):
         self.layout._toggles[parent].action_item.set_state(state)
         for child in children:
           self.assertEqual(self.shown(child) and self.layout._toggles[child].indent > 0, self.shown(parent) and state, (parent, child, state))
+
+  def test_camera_view_row_hides_with_quality_of_life_visuals(self):
+    cam = self.layout._camera
+    self.assertIsNotNone(cam)
+    for state in (True, False, True):
+      self.layout._toggles["QOLVisuals"].action_item.set_state(state)
+      self.assertEqual(cam.is_visible and cam.indent > 0, self.shown("QOLVisuals") and state, state)
 
   def test_pedals_dynamic_needs_both_levels(self):
     t = self.layout._toggles

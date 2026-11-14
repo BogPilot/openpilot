@@ -13,6 +13,7 @@ from openpilot.selfdrive.ui.onroad.bogpilot.bogpilot_hud import BogPilotHudRende
 from openpilot.selfdrive.ui.onroad.bogpilot.bogpilot_model import BogPilotModelRenderer
 from openpilot.selfdrive.ui.onroad.bogpilot.hud_compose import HudComposer, make_alert_renderer
 from openpilot.selfdrive.ui.onroad.bogpilot.confidence_ball import ConfidenceBallRenderer
+from openpilot.selfdrive.ui.bogpilot import camera_view
 
 OpState = log.SelfdriveState.OpenpilotState
 CALIBRATED = log.ExtrinsicsCalibration.Status.calibrated
@@ -169,7 +170,24 @@ class AugmentedRoadView(CameraView):
           finally:
             rl.end_scissor_mode()
 
+  def _camera_view_store(self):
+    store = getattr(self, "_cv_store", None)
+    if store is None:
+      try:
+        from openpilot.common.bogpilot_store import ParamStore
+        store = self._cv_store = ParamStore(cache_ttl=2.0)
+      except Exception:
+        return None
+    return store
+
   def _switch_stream_if_needed(self, sm):
+    # BogPilot Camera View (Settings > Visuals): Standard / Wide hold one stream; Auto is the upstream 0.11.2 switching below
+    view = camera_view.selected_view(self._camera_view_store())
+    if view in (camera_view.STANDARD, camera_view.WIDE):
+      target = WIDE_CAM if view == camera_view.WIDE and WIDE_CAM in self.available_streams else NARROW_ROAD_CAM
+      if self.stream_type != target:
+        self.switch_stream(target)
+      return
     if sm['selfdriveState'].experimentalMode and WIDE_CAM in self.available_streams:
       v_ego = sm['carState'].vEgo
       if v_ego < WIDE_CAM_MAX_SPEED:
