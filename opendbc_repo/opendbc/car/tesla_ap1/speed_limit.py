@@ -184,7 +184,8 @@ def dashboard_speed_limit_ms(fused_phys, ui_map_code, mpp_phys, ui_map_speed_lim
     the previous limit goes back to the set speed or Experimental Mode, which can be higher. The camera limit is
     the lower, car-confirmed value whatever that setting is.
   - with no camera limit, a value that comes only from the GTW map / mpp is ignored: hold_ms is kept, except
-    that a map value below hold_ms is returned (a lower limit always wins).
+    that a map value below hold_ms is returned (a lower limit always wins). With nothing held (hold_ms 0 or
+    invalid) the map value is returned as before, never 0.
   A candidate at or below the camera limit, or within the tolerance, is returned unchanged.
   """
   candidate, map_only = _dashboard_candidate(fused_phys, ui_map_code, mpp_phys, ui_map_speed_limit_units)
@@ -201,6 +202,9 @@ def dashboard_speed_limit_ms(fused_phys, ui_map_code, mpp_phys, ui_map_speed_lim
     except (TypeError, ValueError):
       hold = 0.0
     if not math.isfinite(hold) or hold <= 0.0:
-      return 0.0
+      # Nothing held yet: return the candidate, as the previous rule does (dashboard_speed_limit_ms at 5324ed6bf,
+      # speed_limit.py:127-148, map / mpp value returned at :147). 0 would hand the choice to the SLC fallback,
+      # which can be higher (set speed or Experimental Mode).
+      return candidate
     return candidate if candidate < hold - 1e-3 else hold
   return candidate
