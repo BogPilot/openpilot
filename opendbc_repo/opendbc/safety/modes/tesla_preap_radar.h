@@ -7,9 +7,12 @@
 // Behind-nosecone (flag 128) only changes the GTW_carConfig radar_position field,
 // and only when emulation (flag 256) is also set.
 
-// Board can_send on the panda; libsafety tests provide a recording stub.
+// Board builds already declare these in panda/board/drivers/drivers.h (STM32).
+// Libsafety tests and the safety MISRA main provide/need the same prototypes.
+#if !defined(STM32H7) && !defined(STM32F4)
 void can_send(CANPacket_t *to_push, uint8_t bus_number, bool skip_tx_hook);
-void can_set_checksum(CANPacket_t *to_push);
+void can_set_checksum(CANPacket_t *packet);
+#endif
 
 #define TESLA_PREAP_RADAR_GET_BYTES_04(msg) ((uint32_t)(msg)->data[0] | ((uint32_t)(msg)->data[1] << 8) | ((uint32_t)(msg)->data[2] << 16) | ((uint32_t)(msg)->data[3] << 24))
 #define TESLA_PREAP_RADAR_GET_BYTES_48(msg) ((uint32_t)(msg)->data[4] | ((uint32_t)(msg)->data[5] << 8) | ((uint32_t)(msg)->data[6] << 16) | ((uint32_t)(msg)->data[7] << 24))
@@ -35,40 +38,48 @@ static void tesla_preap_radar_pkt_clear(CANPacket_t *pkt) {
   }
 }
 
-// CRC-8 lookup, polynomial 0x1D. NAP tesla_preap.h:151-167 @ cc39c7fa.
-static const int tesla_preap_radar_crc_lookup[256] = {
-  0x00, 0x1D, 0x3A, 0x27, 0x74, 0x69, 0x4E, 0x53, 0xE8, 0xF5, 0xD2, 0xCF, 0x9C, 0x81, 0xA6, 0xBB,
-  0xCD, 0xD0, 0xF7, 0xEA, 0xB9, 0xA4, 0x83, 0x9E, 0x25, 0x38, 0x1F, 0x02, 0x51, 0x4C, 0x6B, 0x76,
-  0x87, 0x9A, 0xBD, 0xA0, 0xF3, 0xEE, 0xC9, 0xD4, 0x6F, 0x72, 0x55, 0x48, 0x1B, 0x06, 0x21, 0x3C,
-  0x4A, 0x57, 0x70, 0x6D, 0x3E, 0x23, 0x04, 0x19, 0xA2, 0xBF, 0x98, 0x85, 0xD6, 0xCB, 0xEC, 0xF1,
-  0x13, 0x0E, 0x29, 0x34, 0x67, 0x7A, 0x5D, 0x40, 0xFB, 0xE6, 0xC1, 0xDC, 0x8F, 0x92, 0xB5, 0xA8,
-  0xDE, 0xC3, 0xE4, 0xF9, 0xAA, 0xB7, 0x90, 0x8D, 0x36, 0x2B, 0x0C, 0x11, 0x42, 0x5F, 0x78, 0x65,
-  0x94, 0x89, 0xAE, 0xB3, 0xE0, 0xFD, 0xDA, 0xC7, 0x7C, 0x61, 0x46, 0x5B, 0x08, 0x15, 0x32, 0x2F,
-  0x59, 0x44, 0x63, 0x7E, 0x2D, 0x30, 0x17, 0x0A, 0xB1, 0xAC, 0x8B, 0x96, 0xC5, 0xD8, 0xFF, 0xE2,
-  0x26, 0x3B, 0x1C, 0x01, 0x52, 0x4F, 0x68, 0x75, 0xCE, 0xD3, 0xF4, 0xE9, 0xBA, 0xA7, 0x80, 0x9D,
-  0xEB, 0xF6, 0xD1, 0xCC, 0x9F, 0x82, 0xA5, 0xB8, 0x03, 0x1E, 0x39, 0x24, 0x77, 0x6A, 0x4D, 0x50,
-  0xA1, 0xBC, 0x9B, 0x86, 0xD5, 0xC8, 0xEF, 0xF2, 0x49, 0x54, 0x73, 0x6E, 0x3D, 0x20, 0x07, 0x1A,
-  0x6C, 0x71, 0x56, 0x4B, 0x18, 0x05, 0x22, 0x3F, 0x84, 0x99, 0xBE, 0xA3, 0xF0, 0xED, 0xCA, 0xD7,
-  0x35, 0x28, 0x0F, 0x12, 0x41, 0x5C, 0x7B, 0x66, 0xDD, 0xC0, 0xE7, 0xFA, 0xA9, 0xB4, 0x93, 0x8E,
-  0xF8, 0xE5, 0xC2, 0xDF, 0x8C, 0x91, 0xB6, 0xAB, 0x10, 0x0D, 0x2A, 0x37, 0x64, 0x79, 0x5E, 0x43,
-  0xB2, 0xAF, 0x88, 0x95, 0xC6, 0xDB, 0xFC, 0xE1, 0x5A, 0x47, 0x60, 0x7D, 0x2E, 0x33, 0x14, 0x09,
-  0x7F, 0x62, 0x45, 0x58, 0x0B, 0x16, 0x31, 0x2C, 0x97, 0x8A, 0xAD, 0xB0, 0xE3, 0xFE, 0xD9, 0xC4
-};
-
-// NAP tesla_preap.h:170-176 @ cc39c7fa.
-static int tesla_preap_radar_compute_crc8(uint32_t lo, uint32_t hi, int msg_len) {
-  int crc = 0xFF;
-  for (int x = 0; x < msg_len; x++) {
-    int v = (x <= 3) ? ((lo >> (x * 8)) & 0xFF) : ((hi >> ((x - 4) * 8)) & 0xFF);
+// CRC-8, polynomial 0x1D. NAP tesla_preap.h:151-176 @ cc39c7fa.
+// Table is function-local (MISRA 8.9); values are unchanged.
+static uint8_t tesla_preap_radar_compute_crc8(uint32_t lo, uint32_t hi, uint32_t msg_len) {
+  static const uint8_t tesla_preap_radar_crc_lookup[256] = {
+    0x00U, 0x1DU, 0x3AU, 0x27U, 0x74U, 0x69U, 0x4EU, 0x53U, 0xE8U, 0xF5U, 0xD2U, 0xCFU, 0x9CU, 0x81U, 0xA6U, 0xBBU,
+    0xCDU, 0xD0U, 0xF7U, 0xEAU, 0xB9U, 0xA4U, 0x83U, 0x9EU, 0x25U, 0x38U, 0x1FU, 0x02U, 0x51U, 0x4CU, 0x6BU, 0x76U,
+    0x87U, 0x9AU, 0xBDU, 0xA0U, 0xF3U, 0xEEU, 0xC9U, 0xD4U, 0x6FU, 0x72U, 0x55U, 0x48U, 0x1BU, 0x06U, 0x21U, 0x3CU,
+    0x4AU, 0x57U, 0x70U, 0x6DU, 0x3EU, 0x23U, 0x04U, 0x19U, 0xA2U, 0xBFU, 0x98U, 0x85U, 0xD6U, 0xCBU, 0xECU, 0xF1U,
+    0x13U, 0x0EU, 0x29U, 0x34U, 0x67U, 0x7AU, 0x5DU, 0x40U, 0xFBU, 0xE6U, 0xC1U, 0xDCU, 0x8FU, 0x92U, 0xB5U, 0xA8U,
+    0xDEU, 0xC3U, 0xE4U, 0xF9U, 0xAAU, 0xB7U, 0x90U, 0x8DU, 0x36U, 0x2BU, 0x0CU, 0x11U, 0x42U, 0x5FU, 0x78U, 0x65U,
+    0x94U, 0x89U, 0xAEU, 0xB3U, 0xE0U, 0xFDU, 0xDAU, 0xC7U, 0x7CU, 0x61U, 0x46U, 0x5BU, 0x08U, 0x15U, 0x32U, 0x2FU,
+    0x59U, 0x44U, 0x63U, 0x7EU, 0x2DU, 0x30U, 0x17U, 0x0AU, 0xB1U, 0xACU, 0x8BU, 0x96U, 0xC5U, 0xD8U, 0xFFU, 0xE2U,
+    0x26U, 0x3BU, 0x1CU, 0x01U, 0x52U, 0x4FU, 0x68U, 0x75U, 0xCEU, 0xD3U, 0xF4U, 0xE9U, 0xBAU, 0xA7U, 0x80U, 0x9DU,
+    0xEBU, 0xF6U, 0xD1U, 0xCCU, 0x9FU, 0x82U, 0xA5U, 0xB8U, 0x03U, 0x1EU, 0x39U, 0x24U, 0x77U, 0x6AU, 0x4DU, 0x50U,
+    0xA1U, 0xBCU, 0x9BU, 0x86U, 0xD5U, 0xC8U, 0xEFU, 0xF2U, 0x49U, 0x54U, 0x73U, 0x6EU, 0x3DU, 0x20U, 0x07U, 0x1AU,
+    0x6CU, 0x71U, 0x56U, 0x4BU, 0x18U, 0x05U, 0x22U, 0x3FU, 0x84U, 0x99U, 0xBEU, 0xA3U, 0xF0U, 0xEDU, 0xCAU, 0xD7U,
+    0x35U, 0x28U, 0x0FU, 0x12U, 0x41U, 0x5CU, 0x7BU, 0x66U, 0xDDU, 0xC0U, 0xE7U, 0xFAU, 0xA9U, 0xB4U, 0x93U, 0x8EU,
+    0xF8U, 0xE5U, 0xC2U, 0xDFU, 0x8CU, 0x91U, 0xB6U, 0xABU, 0x10U, 0x0DU, 0x2AU, 0x37U, 0x64U, 0x79U, 0x5EU, 0x43U,
+    0xB2U, 0xAFU, 0x88U, 0x95U, 0xC6U, 0xDBU, 0xFCU, 0xE1U, 0x5AU, 0x47U, 0x60U, 0x7DU, 0x2EU, 0x33U, 0x14U, 0x09U,
+    0x7FU, 0x62U, 0x45U, 0x58U, 0x0BU, 0x16U, 0x31U, 0x2CU, 0x97U, 0x8AU, 0xADU, 0xB0U, 0xE3U, 0xFEU, 0xD9U, 0xC4U
+  };
+  uint8_t crc = 0xFFU;
+  for (uint32_t x = 0U; x < msg_len; x++) {
+    uint32_t src;
+    uint32_t shift;
+    if (x <= 3U) {
+      src = lo;
+      shift = x * 8U;
+    } else {
+      src = hi;
+      shift = (x - 4U) * 8U;
+    }
+    const uint8_t v = (uint8_t)((src >> shift) & 0xFFU);
     crc = tesla_preap_radar_crc_lookup[crc ^ v];
   }
-  return crc ^ 0xFF;
+  return (uint8_t)(crc ^ 0xFFU);
 }
 
 // NAP tesla_preap.h:203-209 @ cc39c7fa. Sum of address bytes + all data bytes except the last.
 static uint8_t tesla_preap_radar_byte_sum_checksum(const CANPacket_t *pkt) {
   uint8_t chksum = (uint8_t)(pkt->addr & 0xFFU) + (uint8_t)((pkt->addr >> 8) & 0xFFU);
-  int len = GET_LEN(pkt);
+  const int len = (int)GET_LEN(pkt);
   for (int i = 0; i < (len - 1); i++) {
     chksum += pkt->data[i];
   }
@@ -91,7 +102,8 @@ static void tesla_preap_radar_readdr(const CANPacket_t *src, uint16_t new_addr) 
   pkt.fd = src->fd;
   pkt.addr = new_addr;
   pkt.data_len_code = src->data_len_code;
-  for (int i = 0; i < GET_LEN(src); i++) {
+  const unsigned int len = (unsigned int)GET_LEN(src);
+  for (unsigned int i = 0U; i < len; i++) {
     pkt.data[i] = src->data[i];
   }
   tesla_preap_radar_send(&pkt);
@@ -100,109 +112,107 @@ static void tesla_preap_radar_readdr(const CANPacket_t *src, uint16_t new_addr) 
 // NAP tesla_preap.h:216-316 @ cc39c7fa. Called from tesla_rx_all for every RX.
 // Emits at most one rewritten frame per source, plus at most one synthetic on 0x115 and 0x118.
 static void tesla_preap_radar_rx_all(const CANPacket_t *to_fwd) {
-  if (!tesla_preap || !tesla_preap_radar_emulation) {
-    return;
-  }
-  if (to_fwd->bus != 0U) {
-    return;
-  }
+  if (tesla_preap && tesla_preap_radar_emulation && (to_fwd->bus == 0U)) {
+    const int addr = (int)to_fwd->addr;
 
-  const int addr = (int)to_fwd->addr;
-
-  // Group A: simple re-address (NAP :221-230)
-  switch (addr) {
-    case 0x45:   tesla_preap_radar_readdr(to_fwd, 0x219); break;  // STW_ACTN_RQ
-    case 0x108:  tesla_preap_radar_readdr(to_fwd, 0x109); break;  // DI_torque1
-    case 0x145:  tesla_preap_radar_readdr(to_fwd, 0x149); break;  // ESP_145h
-    case 0x20A:  tesla_preap_radar_readdr(to_fwd, 0x159); break;  // BrakeMessage -> ESP_C
-    case 0x308:  tesla_preap_radar_readdr(to_fwd, 0x209); break;  // GTW_odo
-    case 0x30A:  tesla_preap_radar_readdr(to_fwd, 0x2D9); break;  // BC_status
-    case 0x405:  tesla_preap_radar_readdr(to_fwd, 0x2B9); break;  // VIP_405HS (not DAS_control)
-    default: break;
-  }
-
-  // Group B: GTW_carConfig (0x398) -> 0x2A9 with bitfield patching (NAP :233-247)
-  if (addr == 0x398) {
-    CANPacket_t pkt;
-    tesla_preap_radar_pkt_clear(&pkt);
-    pkt.extended = to_fwd->extended;
-    pkt.fd = to_fwd->fd;
-    pkt.addr = 0x2A9;
-    pkt.data_len_code = to_fwd->data_len_code;
-    uint32_t lo = TESLA_PREAP_RADAR_GET_BYTES_04(to_fwd);
-    uint32_t hi = TESLA_PREAP_RADAR_GET_BYTES_48(to_fwd);
-    lo = (lo & 0xFFFFF33FU) | 0x100U | 0x440U;  // country=US, radar_type=Bosch
-    hi = (hi & 0xCFFF0F0FU) | 0x10000000U | ((uint32_t)tesla_preap_radar_position << 4) | ((uint32_t)tesla_preap_radar_epas_type << 12);
-    tesla_preap_radar_word_to_bytes(&pkt.data[0], lo);
-    tesla_preap_radar_word_to_bytes(&pkt.data[4], hi);
-    pkt.data[7] = tesla_preap_radar_byte_sum_checksum(&pkt);
-    tesla_preap_radar_send(&pkt);
-  }
-
-  // Group B: STW_ANGLHP_STAT (0x0E) -> 0x199 with SNA replacement (NAP :250-267)
-  if (addr == 0x0E) {
-    CANPacket_t pkt;
-    tesla_preap_radar_pkt_clear(&pkt);
-    pkt.extended = to_fwd->extended;
-    pkt.fd = to_fwd->fd;
-    pkt.addr = 0x199;
-    pkt.data_len_code = to_fwd->data_len_code;
-    uint32_t lo = TESLA_PREAP_RADAR_GET_BYTES_04(to_fwd);
-    uint32_t hi = TESLA_PREAP_RADAR_GET_BYTES_48(to_fwd);
-    if (((lo >> 16) & 0xFF3FU) == 0xFF3FU) {
-      lo = (lo & 0x00C0FFFFU) | (0x0020U << 16);
-      hi = (hi & 0x00FFFFF0U) | 0x00000004U;  // force DELPHI sensor ID
-      int crc = tesla_preap_radar_compute_crc8(lo, hi, 7);
-      hi = hi | ((uint32_t)crc << 24);
+    // Group A: simple re-address (NAP :221-230)
+    switch (addr) {
+      case 0x45:   tesla_preap_radar_readdr(to_fwd, 0x219); break;  // STW_ACTN_RQ
+      case 0x108:  tesla_preap_radar_readdr(to_fwd, 0x109); break;  // DI_torque1
+      case 0x145:  tesla_preap_radar_readdr(to_fwd, 0x149); break;  // ESP_145h
+      case 0x20A:  tesla_preap_radar_readdr(to_fwd, 0x159); break;  // BrakeMessage -> ESP_C
+      case 0x308:  tesla_preap_radar_readdr(to_fwd, 0x209); break;  // GTW_odo
+      case 0x30A:  tesla_preap_radar_readdr(to_fwd, 0x2D9); break;  // BC_status
+      case 0x405:  tesla_preap_radar_readdr(to_fwd, 0x2B9); break;  // VIP_405HS (not DAS_control)
+      default: break;
     }
-    tesla_preap_radar_word_to_bytes(&pkt.data[0], lo);
-    tesla_preap_radar_word_to_bytes(&pkt.data[4], hi);
-    tesla_preap_radar_send(&pkt);
-  }
 
-  // Group C: ESP_115h (0x115) -> 0x129 + synthetic DI_espControl 0x1A9, bus 1 only, len 5 (NAP :270-284)
-  if (addr == 0x115) {
-    tesla_preap_radar_readdr(to_fwd, 0x129);
-    uint32_t hi_src = TESLA_PREAP_RADAR_GET_BYTES_48(to_fwd);
-    int counter = ((hi_src & 0xF0) >> 4) & 0x0F;
-    uint32_t syn_lo = 0x000C0000U | ((uint32_t)counter << 28);
-    int cksm = (0x38 + 0x0C + (counter << 4)) & 0xFF;
-    CANPacket_t pkt;
-    tesla_preap_radar_pkt_clear(&pkt);
-    pkt.addr = 0x1A9;
-    pkt.data_len_code = 5;
-    tesla_preap_radar_word_to_bytes(&pkt.data[0], syn_lo);
-    tesla_preap_radar_word_to_bytes(&pkt.data[4], (uint32_t)cksm);
-    tesla_preap_radar_send(&pkt);
-  }
-
-  // Group C: DI_torque2 (0x118) -> 0x119 + synthetic ESP_wheelSpeeds 0x169, bus 1 only, len 8 (NAP :287-314)
-  if (addr == 0x118) {
-    tesla_preap_radar_readdr(to_fwd, 0x119);
-    uint32_t lo = TESLA_PREAP_RADAR_GET_BYTES_04(to_fwd);
-    int ws_counter = TESLA_PREAP_RADAR_GET_BYTES_48(to_fwd) & 0x0F;
-    int raw_speed = (int)((0xFFF0000U & lo) >> 16);
-    int speed;
-    if (raw_speed == 0xFFF) {
-      speed = 0x1FFF;
-    } else {
-      int mph_x100 = raw_speed * 5 - 2500;
-      int kph_x100 = mph_x100 * 1609 / 1000;
-      speed = (kph_x100 < 0) ? 0 : ((kph_x100 / 4) & 0x1FFF);
+    // Group B: GTW_carConfig (0x398) -> 0x2A9 with bitfield patching (NAP :233-247)
+    if (addr == 0x398) {
+      CANPacket_t pkt;
+      tesla_preap_radar_pkt_clear(&pkt);
+      pkt.extended = to_fwd->extended;
+      pkt.fd = to_fwd->fd;
+      pkt.addr = 0x2A9;
+      pkt.data_len_code = to_fwd->data_len_code;
+      uint32_t lo = TESLA_PREAP_RADAR_GET_BYTES_04(to_fwd);
+      uint32_t hi = TESLA_PREAP_RADAR_GET_BYTES_48(to_fwd);
+      lo = (lo & 0xFFFFF33FU) | 0x100U | 0x440U;  // country=US, radar_type=Bosch
+      hi = (hi & 0xCFFF0F0FU) | 0x10000000U | ((uint32_t)tesla_preap_radar_position << 4) | ((uint32_t)tesla_preap_radar_epas_type << 12);
+      tesla_preap_radar_word_to_bytes(&pkt.data[0], lo);
+      tesla_preap_radar_word_to_bytes(&pkt.data[4], hi);
+      pkt.data[7] = tesla_preap_radar_byte_sum_checksum(&pkt);
+      tesla_preap_radar_send(&pkt);
     }
-    uint32_t speed_u = (uint32_t)speed;
-    uint32_t ws_lo = speed_u | (speed_u << 13) | (speed_u << 26);
-    uint32_t ws_hi = ((speed_u >> 6) | (speed_u << 7) | ((uint32_t)ws_counter << 20)) & 0x00FFFFFFU;
-    int ws_cksm = 0x76;
-    ws_cksm = (ws_cksm + (int)(ws_lo & 0xFF) + (int)((ws_lo >> 8) & 0xFF) + (int)((ws_lo >> 16) & 0xFF) + (int)((ws_lo >> 24) & 0xFF)) & 0xFF;
-    ws_cksm = (ws_cksm + (int)(ws_hi & 0xFF) + (int)((ws_hi >> 8) & 0xFF) + (int)((ws_hi >> 16) & 0xFF)) & 0xFF;
-    ws_hi = ws_hi | ((uint32_t)ws_cksm << 24);
-    CANPacket_t pkt;
-    tesla_preap_radar_pkt_clear(&pkt);
-    pkt.addr = 0x169;
-    pkt.data_len_code = 8;
-    tesla_preap_radar_word_to_bytes(&pkt.data[0], ws_lo);
-    tesla_preap_radar_word_to_bytes(&pkt.data[4], ws_hi);
-    tesla_preap_radar_send(&pkt);
+
+    // Group B: STW_ANGLHP_STAT (0x0E) -> 0x199 with SNA replacement (NAP :250-267)
+    if (addr == 0x0E) {
+      CANPacket_t pkt;
+      tesla_preap_radar_pkt_clear(&pkt);
+      pkt.extended = to_fwd->extended;
+      pkt.fd = to_fwd->fd;
+      pkt.addr = 0x199;
+      pkt.data_len_code = to_fwd->data_len_code;
+      uint32_t lo = TESLA_PREAP_RADAR_GET_BYTES_04(to_fwd);
+      uint32_t hi = TESLA_PREAP_RADAR_GET_BYTES_48(to_fwd);
+      if (((lo >> 16) & 0xFF3FU) == 0xFF3FU) {
+        lo = (lo & 0x00C0FFFFU) | ((uint32_t)0x0020UL << 16);
+        hi = (hi & 0x00FFFFF0U) | 0x00000004U;  // force DELPHI sensor ID
+        const uint8_t crc = tesla_preap_radar_compute_crc8(lo, hi, 7U);
+        hi = hi | ((uint32_t)crc << 24);
+      }
+      tesla_preap_radar_word_to_bytes(&pkt.data[0], lo);
+      tesla_preap_radar_word_to_bytes(&pkt.data[4], hi);
+      tesla_preap_radar_send(&pkt);
+    }
+
+    // Group C: ESP_115h (0x115) -> 0x129 + synthetic DI_espControl 0x1A9, bus 1 only, len 5 (NAP :270-284)
+    if (addr == 0x115) {
+      tesla_preap_radar_readdr(to_fwd, 0x129);
+      const uint32_t hi_src = TESLA_PREAP_RADAR_GET_BYTES_48(to_fwd);
+      const uint32_t counter = ((hi_src & 0xF0U) >> 4) & 0x0FU;
+      const uint32_t syn_lo = 0x000C0000U | (counter << 28);
+      const uint32_t cksm = (0x38U + 0x0CU + (counter << 4U)) & 0xFFU;
+      CANPacket_t pkt;
+      tesla_preap_radar_pkt_clear(&pkt);
+      pkt.addr = 0x1A9;
+      pkt.data_len_code = 5;
+      tesla_preap_radar_word_to_bytes(&pkt.data[0], syn_lo);
+      tesla_preap_radar_word_to_bytes(&pkt.data[4], cksm);
+      tesla_preap_radar_send(&pkt);
+    }
+
+    // Group C: DI_torque2 (0x118) -> 0x119 + synthetic ESP_wheelSpeeds 0x169, bus 1 only, len 8 (NAP :287-314)
+    if (addr == 0x118) {
+      tesla_preap_radar_readdr(to_fwd, 0x119);
+      const uint32_t lo = TESLA_PREAP_RADAR_GET_BYTES_04(to_fwd);
+      const uint32_t ws_counter = TESLA_PREAP_RADAR_GET_BYTES_48(to_fwd) & 0x0FU;
+      const uint32_t raw_speed = (0xFFF0000U & lo) >> 16;
+      uint32_t speed_u;
+      if (raw_speed == 0xFFFU) {
+        speed_u = 0x1FFFU;
+      } else {
+        const int32_t mph_x100 = ((int32_t)raw_speed * 5) - 2500;
+        const int32_t kph_x100 = (mph_x100 * 1609) / 1000;
+        if (kph_x100 < 0) {
+          speed_u = 0U;
+        } else {
+          speed_u = ((uint32_t)kph_x100 / 4U) & 0x1FFFU;
+        }
+      }
+      uint32_t ws_lo = speed_u | (speed_u << 13) | (speed_u << 26);
+      uint32_t ws_hi = ((speed_u >> 6) | (speed_u << 7) | (ws_counter << 20)) & 0x00FFFFFFU;
+      uint32_t ws_cksm = 0x76U;
+      ws_cksm = (ws_cksm + (ws_lo & 0xFFU) + ((ws_lo >> 8) & 0xFFU) + ((ws_lo >> 16) & 0xFFU) + ((ws_lo >> 24) & 0xFFU)) & 0xFFU;
+      ws_cksm = (ws_cksm + (ws_hi & 0xFFU) + ((ws_hi >> 8) & 0xFFU) + ((ws_hi >> 16) & 0xFFU)) & 0xFFU;
+      ws_hi = ws_hi | (ws_cksm << 24);
+      CANPacket_t pkt;
+      tesla_preap_radar_pkt_clear(&pkt);
+      pkt.addr = 0x169;
+      pkt.data_len_code = 8;
+      tesla_preap_radar_word_to_bytes(&pkt.data[0], ws_lo);
+      tesla_preap_radar_word_to_bytes(&pkt.data[4], ws_hi);
+      tesla_preap_radar_send(&pkt);
+    }
   }
 }
