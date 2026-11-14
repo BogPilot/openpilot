@@ -5,6 +5,10 @@ Branch: `bogpilot-tesla` (openpilot 0.11.2 base, comma 3X on AGNOS 19.9).
 BogPilot is a community fork. It is not a comma product. You are always responsible for driving: keep your hands on the
 wheel and your eyes on the road, and be ready to take over at any time.
 
+[![BogPilot on a legacy Model S (replay, signs and plates blurred).](docs/media/bogpilot_ui_replay_poster.png)](VIDEO_ATTACHMENT_URL_PLACEHOLDER)
+
+*BogPilot on a legacy Model S (replay, signs and plates blurred). Click the picture for the video. `VIDEO_ATTACHMENT_URL_PLACEHOLDER` is a placeholder that is replaced with the video link when this is published.*
+
 ## Supported cars
 
 | Car | Platform | Lateral | Longitudinal | Tested on a car? |
