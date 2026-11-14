@@ -119,6 +119,10 @@ class TeslaAp1SafetyFlags(IntFlag):
   # Pre-AP (opendbc/safety/modes/tesla_preap.h). PREAP selects the Pre-AP hooks; they never run with AP1 (8) set.
   PREAP = 32
   PREAP_PEDAL = 64
+  # Bosch radar GTW on Pre-AP only. Matches NAP TeslaSafetyFlags on SafetyModel.tesla
+  # (opendbc cc39c7fa values.py FLAG_RADAR_BEHIND_NOSECONE / FLAG_RADAR_EMULATION).
+  PREAP_RADAR_BEHIND_NOSECONE = 128
+  PREAP_RADAR_EMULATION = 256
 
 
 # Chassis-only recognition is insufficient: Pre-AP shares these messages.

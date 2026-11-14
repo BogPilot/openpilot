@@ -10,14 +10,23 @@
 // redistributions); AP1 rate tables as in Tinkla / BogGyver @ 501c7de.
 // Stricter than both references on purpose (see DIVERGENCES): the brake is read, steering through the brake needs an armed latch,
 // EAC_FAULT drops controls, STW_ACTN_RQ (0x45) may only send CANCEL, DAS_control (0x2b9) is not whitelisted, the pedal command is
-// capped at 2500, and the pedal sensor bus is latched to the first bus it is seen on. No radar emulation or UDS code.
+// capped at 2500, and the pedal sensor bus is latched to the first bus it is seen on. Optional Bosch radar
+// GTW (flags 256/128) is off by default; there is still no VIN or UDS path.
 
 #define TESLA_FLAG_PREAP 32U
 #define TESLA_FLAG_PREAP_PEDAL 64U
+#define TESLA_FLAG_PREAP_RADAR_BEHIND_NOSECONE 128U  // NAP TeslaSafetyFlags; only applied with flag 256
+#define TESLA_FLAG_PREAP_RADAR_EMULATION 256U         // NAP TeslaSafetyFlags on SafetyModel.tesla
 
 static bool tesla_preap = false;
 static bool tesla_preap_pedal = false;
 static int tesla_preap_pedal_bus = -1;  // G3: first bus the GAS_SENSOR (0x552) is seen on, as in NAP / BogPilot na-preap
+
+// Bosch radar GTW. tesla_preap_radar_emulation is set only when this is the Pre-AP mode and flag 256 is set.
+// Flag 128 without 256 is a no-op (position stays 0, no can_send). epas_type stays 0 (NAP inits it to 0).
+static bool tesla_preap_radar_emulation = false;
+static int tesla_preap_radar_position = 0;
+static int tesla_preap_radar_epas_type = 0;
 static int tesla_preap_gear = 4;                  // DI_gear, 4 = D
 static int tesla_preap_gear_prev = 4;
 static bool tesla_preap_doors_open = false;
@@ -262,6 +271,10 @@ static bool tesla_preap_tx_hook(const CANPacket_t *msg) {
 
 static safety_config tesla_preap_init_config(uint16_t param) {
   tesla_preap_pedal = GET_FLAG(param, TESLA_FLAG_PREAP_PEDAL);
+  // Radar GTW only when flag 256 is set. Flag 128 without 256 is a no-op.
+  tesla_preap_radar_emulation = GET_FLAG(param, TESLA_FLAG_PREAP_RADAR_EMULATION);
+  tesla_preap_radar_position = (tesla_preap_radar_emulation && GET_FLAG(param, TESLA_FLAG_PREAP_RADAR_BEHIND_NOSECONE)) ? 1 : 0;
+  tesla_preap_radar_epas_type = 0;
   tesla_preap_gear = 4;
   tesla_preap_gear_prev = 4;
   tesla_preap_doors_open = false;
@@ -314,3 +327,5 @@ static safety_config tesla_preap_init_config(uint16_t param) {
   ret.disable_forwarding = true;  // no harness relay on Pre-AP: nothing is ever forwarded
   return ret;
 }
+
+#include "opendbc/safety/modes/tesla_preap_radar.h"
