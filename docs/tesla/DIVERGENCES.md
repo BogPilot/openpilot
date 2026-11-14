@@ -139,6 +139,44 @@ Recorded disagreements only where the cited files were read. No speculation.
   `test_model_3_y_and_ap1_still_lose_steering_on_a_brake_press`); `test_tesla_preap_pedal_brake.py` (the pedal side).
 - Credits: BogPilot (this port). NAP, BogPilot `bogpilot-na-preap` and Tinkla/BogGyver were compared; none has this latch.
 
+## Panda safety (Pre-AP): optional Bosch radar gateway, off by default
+- Platforms: Pre-AP Model S only (`TESLA_FLAG_PREAP` on SAFETY_TESLA, `opendbc_repo/opendbc/safety/modes/tesla_preap.h`
+  and `tesla_preap_radar.h`). AP1 and stock Tesla modes ignore flags 128 and 256.
+- Reference behavior: NAP (opendbc `cc39c7fa`) `opendbc/safety/modes/tesla_preap.h` (`tesla_preap_gtw_emulation`,
+  lines 183-316, called from `.rx_all` at line 635) gateways a fixed list of chassis frames from bus 0 onto bus 1
+  when its radar-emulation flag is set, and synthesizes DI_espControl (0x1A9, length 5) and ESP_wheelSpeeds
+  (0x169, length 8) on bus 1 only. The behind-nosecone flag only sets GTW_carConfig radar_position. NAP does not
+  put those synthetics on bus 0, does not whitelist radar IDs for host TX, and does not blanket-forward bus 0 to
+  bus 1. Tinkla/BogGyver (panda `f7751e4`) has a radar-emulation path that also injects 0x1A9 on bus 0 and includes
+  VIN-learn and diagnostic forwarders. BogPilot 0.9.7 has no Pre-AP radar flag.
+- Our behavior: two flags on SAFETY_TESLA, numbered as NAP `TeslaSafetyFlags` (no new safety ordinal): 256
+  (`TESLA_FLAG_PREAP_RADAR_EMULATION`) and 128 (`TESLA_FLAG_PREAP_RADAR_BEHIND_NOSECONE`). Flag 256 is applied only
+  in Pre-AP init. Flag 128 without 256 is a no-op. When 256 is set, `tesla_preap_radar_rx_all` repeats the NAP map
+  onto bus 1: 0x45 to 0x219, 0x108 to 0x109, 0x145 to 0x149, 0x20A to 0x159, 0x308 to 0x209, 0x30A to 0x2D9,
+  0x405 to 0x2B9 (VIP_405HS on bus 1, not DAS_control), patched 0x398 to 0x2A9, 0x0E to 0x199, plus the 0x115 to
+  0x129 and 0x118 to 0x119 re-addresses and the two synthetics on bus 1. Patches, checksums and the 0x169 speed
+  formula follow NAP `cc39c7fa` line-for-line. Frames are sent with `can_send(..., bus 1, skip_tx_hook=true)`, so
+  they are firmware TX, not host TX. The host TX allowlist is unchanged: still no bus-0 0x2B9, and no radar IDs.
+  `disable_forwarding` stays true; `tesla_fwd_hook` still returns -1. Park-ultrasonic 0x32E / 0x33E are not copied.
+  Flags off leave the hooks byte-identical to today.
+- Deliberately not copied: Tinkla's bus-0 synthetic 0x1A9; Tinkla / NAP VIN-learn; any UDS or diagnostic forwarder;
+  a blanket 0-to-1 or 1-to-0 forward; NAP's 0x631 / 0x300 radar-status machine (informational, not on the gateway
+  list); Tinkla's FLAG_TESLA_NEED_RADAR_EMULATION bit 32, which is already `TESLA_FLAG_PREAP` here.
+- Why: a Bosch radar retrofit on the Pre-AP Model S needs the same chassis view NAP already builds on bus 1. Off
+  remains the default, so a car without the retrofit is unchanged.
+- Safety-relevant: yes, but only when flag 256 is set. The added bus-1 traffic is one rewritten frame per source
+  (plus one synthetic on 0x115 and 0x118). Known source rates (0x45 at 10 Hz, 0x108 at 100 Hz, 0x20A at 50 Hz,
+  0x118 at 100 Hz plus its synthetic) are 360 frames/s; even if every other mapped ID were also 100 Hz, the total
+  would stay around 1160 frames/s, well under the 16000 irq/s interrupt-rate cap on that bus. The firmware still
+  does not clear a sticky interrupt-rate fault until reboot.
+- Tests: `opendbc_repo/opendbc/safety/tests/test_tesla_preap_radar.py` (flag off, flag 128 alone, flag 256 mappings
+  and bytes, behind-nosecone, one TX per source, no bus-0 frames, allowlist unchanged, bus-0 0x2B9 still blocked,
+  0x32E not forwarded, flags ignored without PREAP). Existing `test_tesla_preap.py`,
+  `test_tesla_preap_brake_steer.py`, `test_tesla_preap_gas_threshold.py` and `test_tesla_preap_pedal_brake.py`
+  stay on the flag-off param.
+- Credits: NAP (opendbc `cc39c7fa`); Tinkla/BogGyver compared, not copied for the items listed above.
+
+
 ## Onroad UI: confidence ball on the big (C3X) driving screen
 - Platforms: all (onroad UI only; not the Tesla instrument cluster).
 - Reference behavior: stock 0.11.2 has the ball only on the comma four UI (`selfdrive/ui/mici/onroad/confidence_ball.py`);
