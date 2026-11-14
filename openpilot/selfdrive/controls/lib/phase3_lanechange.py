@@ -64,8 +64,9 @@ def human_lane_changes_adopted(store) -> bool:
 
 
 # Human-Like Lane Changes is on without a row change on the AP1 Model S, as in 0.9.7 (HumanLaneChanges default on, read
-# with no marker: frogpilot_variables.py:1003 @04d560f3). Every other car keeps the marker rule. Pre-AP (radar marked
-# unavailable) and AP1 Model X (no openpilot longitudinal) also stay off through read_settings' own gates.
+# with no marker: frogpilot_variables.py:1003 @04d560f3). Every other car keeps the marker rule. Pre-AP is marked
+# radar-unavailable unless the optional Bosch radar retrofit toggle (TeslaRadarEnabled, default Off) is on; with it on
+# it follows the marker rule. AP1 Model X (no openpilot longitudinal) stays off through read_settings' own gates.
 HUMAN_LANE_CHANGES_DEFAULT_ON_FPS = frozenset({"TESLA_AP1_MODELS"})
 
 

@@ -212,16 +212,25 @@ Recorded disagreements only where the cited files were read. No speculation.
 
 
 ## Onroad UI: Blind Spot Border alone controls the red blind-spot half-border
-
-- Reference: the daily BogPilot onroad border painted the blind-spot half red only when both the parent `BorderMetrics`
-  ("Border Metrics") and `BlindSpotMetrics` were on (or `DebugMode`).
-- Here `BlindSpotMetrics` ("Blind Spot Border") alone decides, on a car that reports blind spot data, or `DebugMode`.
-  The separate Status Border row and its help are gone from Visuals, and Blind Spot Border is a top-level row.
-- `BorderMetrics` stays registered with its default. A stored value is left in place and unread: no migration and no
-  delete. Backups, restores, Reset to Defaults and Reset to Stock still carry and reset it as before.
-- Unchanged: the green engaged, gray override, dark blue disengaged, Traffic Mode red and flashing lane-keep fault
-  borders. The lane-keep fault, full-screen alerts and critical alerts still take the whole border over the
-  blind-spot half.
+- Platforms: AP1 Model S only, the one car whose carstate fills blind spot data (`bsm_state.has_bsm`); onroad UI
+  only. AP1 Model X and Pre-AP never paint the blind-spot half.
+- Reference behavior: BogPilot 0.9.7 painted the blind-spot half red only when both the parent `BorderMetrics`
+  ("Border Metrics") and `BlindSpotMetrics` were on, or `DebugMode` (`frogpilot/common/frogpilot_variables.py:885`,
+  `frogpilot/ui/qt/onroad/frogpilot_onroad.cc:24` @ `04d560f3`).
+- Our behavior: `BlindSpotMetrics` ("Blind Spot Border") alone decides, on a car that reports blind spot data, or
+  `DebugMode` (`openpilot/selfdrive/ui/onroad/bogpilot/hud_compose.py`). The separate Status Border row and its help are
+  gone from Visuals, and Blind Spot Border is a top-level row. `BorderMetrics` stays registered with its default; a
+  stored value is left in place and unread (no migration, no delete), and backups, restores, Reset to Defaults and
+  Reset to Stock still carry and reset it as before. The green engaged, gray override, dark blue disengaged, Traffic
+  Mode red and flashing lane-keep fault borders are unchanged.
+- Why: one switch for one visible effect; the parent row only gated the blind-spot half.
+- Safety-relevant: display only. The lane-keep fault border, full-screen alerts and critical alerts still take the
+  whole border over the blind-spot half. Lane-change blocking on blind spot data is unchanged.
+- Tests: `openpilot/selfdrive/ui/onroad/bogpilot/tests/test_border_dm_button.py`,
+  `openpilot/selfdrive/ui/tests/test_phase2_visuals_theme.py`, `openpilot/selfdrive/ui/tests/test_bogpilot_nesting.py`,
+  `openpilot/system/bogpilot/tests/test_toggle_reset.py`, `openpilot/selfdrive/ui/tests/test_phase3_system_feature_archive.py`
+  and `openpilot/selfdrive/ui/bogpilot/tests/test_phase3_system_utilities.py`.
+- Credits: BogPilot 0.9.7 for the blind-spot half-border; dropping its parent switch is a BogPilot UI decision.
 
 ## Onroad UI: confidence ball on the big (C3X) driving screen
 - Platforms: all (onroad UI only; not the Tesla instrument cluster).
