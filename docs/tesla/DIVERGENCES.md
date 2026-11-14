@@ -80,7 +80,8 @@ Recorded disagreements only where the cited files were read. No speculation.
   4. STW_ACTN_RQ (0x45) may only send CANCEL; see the 0x45 entry above.
   5. An enabled Comma Pedal command (0x551) is rejected while the brake is pressed or above raw 2500
      (`tesla_preap.h` lines 248 and 253-254); neither reference has these limits. The 2500 cap is described in
-     `docs/tesla/PREAP_PORT.md`. Test: `test_enabled_pedal_is_bounded` (the cap).
+     `docs/tesla/PREAP_PORT.md`. Tests: `test_enabled_pedal_is_bounded` (the cap);
+     `opendbc_repo/opendbc/safety/tests/test_tesla_preap_pedal_brake.py` (the brake rule).
   6. The pedal sensor (GAS_SENSOR, 0x552) bus is latched to the first bus it is seen on, and the other bus never drives
      gas (`opendbc_repo/opendbc/car/tesla_ap1/preap/carstate.py` lines 129-146, mirroring the panda). NAP and
      `bogpilot-na-preap` record the first bus but still drive gas from every 0x552. Also in
@@ -96,6 +97,47 @@ Recorded disagreements only where the cited files were read. No speculation.
   No panda source change.
 - Safety-relevant: yes; every rule above is stricter than the references. Keep them.
 - Credits: NAP; BogPilot `bogpilot-na-preap`; Tinkla/BogGyver.
+
+## Panda safety (Pre-AP): steering stays armed through a brake press (1 s freshness)
+- Platforms: Pre-AP Model S (`TESLA_FLAG_PREAP` on SAFETY_TESLA, `opendbc_repo/opendbc/safety/modes/tesla_preap.h`).
+- Reference behavior: NAP (opendbc `cc39c7fa`) `opendbc/safety/modes/tesla_preap.h` lines 399-402 sets `brake_pressed = false`
+  on BrakeMessage (0x20A), so a brake never clears `controls_allowed`, and it has no steer-through-brake latch; an enabled Comma
+  Pedal command (0x551) is gated only by the pedal flag and `get_longitudinal_allowed()` (lines 526-535). BogPilot
+  `bogpilot-na-preap` (`568fea947`) `panda/board/safety/safety_tesla_preap.h` lines 341-342 and 473-486 does the same.
+  Tinkla/BogGyver (`501c7de`) handles Pre-AP inside `panda/board/safety/safety_tesla.h` and has no such latch. BogPilot 0.9.7
+  has no Pre-AP panda mode.
+- Our behavior: a stalk pull in D with the doors closed arms the latch (`tesla_preap.h` lines 102-110). A brake press still
+  clears `controls_allowed` (`opendbc_repo/opendbc/safety/safety.h` lines 359-362: a rising edge always, a held brake only while
+  moving; moving is ESP_B (0x155) speed above 0.139 m/s, `tesla_preap.h` lines 147-152). While armed, a brake press marks the
+  latch (lines 89-91), and `tesla_preap_steer_allowed()` (lines 78-93) then allows ANGLE on 0x488 (lines 216, 220-223) although
+  `controls_allowed` is false. The latch never sets `controls_allowed` and never allows longitudinal: an enabled 0x551 is
+  rejected while `brake_pressed` or `!get_longitudinal_allowed()` (lines 244-257).
+  It stays armed only while the car is in D, the doors are closed, the RX checks are valid, and every required RX message has
+  been seen, is not lagging and is at most 1 s old (lines 79-84; with the pedal flag this includes GAS_SENSOR 0x552). It is
+  disarmed when any of these fails (lines 85-88, checked on every RX frame, line 187, and on every 0x488), by a cancel outside
+  the 600 ms echo window (lines 114-120), by hands on (EPAS_handsOnLevel 3), an EPAS refusal (EPAS_eacStatus 0 with error code
+  6-9) or EAC_FAULT (EPAS_eacStatus 3) (lines 46-59), and by a safety-mode init (lines 273-274). Only a new pull arms it again.
+  A gas press does not disarm it. While hands are on or the EPAS is refusing, ANGLE is also rejected (lines 217-219). Angle rate
+  limits and the 360 degree cap still apply (lines 199-223).
+  Note: the comment at `tesla_preap.h` lines 76-77 says hands on and an EPAS refusal do not disarm the latch; the code at
+  lines 54-59 does disarm on both. This entry describes the code.
+- Why: the Model S has no brake control, so a brake press should stop the pedal without also taking the wheel away. A gas press
+  after a brake tap used to disarm the latch while openpilot still showed engaged, silently blocking steering for 34 s; gas has
+  no bearing on steering and the pedal has its own gas rule (`tesla_preap.h` lines 29-38; `docs/tesla/PREAP_PORT.md` lines 84-96).
+- Safety-relevant: yes. Condition by condition, against NAP and `bogpilot-na-preap`:
+  - Brake sampling: stricter. BrakeMessage (0x20A) driverBrakeStatus != NOT_APPLIED or DI_torque2 (0x118) DI_brakePedal sets
+    `brake_pressed` (lines 158-165); the references force it false.
+  - `controls_allowed` on a brake: stricter. It is cleared as above; in the references a brake never clears it.
+  - Steering through a brake: same outcome as NAP (which keeps `controls_allowed`), reached by a bounded steer-only exception
+    after `controls_allowed` is cleared.
+  - Bound on that exception: the 1 s freshness, lag, unseen streams, gear, doors, cancel, hands on, EPAS refusal and EAC_FAULT.
+  - Enabled 0x551 during a brake: stricter. Rejected while the brake is pressed, and capped at raw 2500.
+- Tests: `opendbc_repo/opendbc/safety/tests/test_tesla_preap_brake_steer.py` (`test_brake_press_keeps_steering_and_blocks_the_pedal`,
+  `test_held_brake_for_seconds_keeps_steering_while_streams_stay_fresh`, `test_cancel_disarms`, `test_hands_on_disarms_the_brake_latch`,
+  `test_epas_refusing_disarms_the_brake_latch`, `test_epas_fault_disarms`, `test_leaving_drive_disarms`, `test_door_open_disarms`,
+  `test_stale_stream_disarms`, `test_gas_press_does_not_disarm`, `test_safety_mode_change_removes_the_permission`,
+  `test_model_3_y_and_ap1_still_lose_steering_on_a_brake_press`); `test_tesla_preap_pedal_brake.py` (the pedal side).
+- Credits: BogPilot (this port). NAP, BogPilot `bogpilot-na-preap` and Tinkla/BogGyver were compared; none has this latch.
 
 ## Onroad UI: confidence ball on the big (C3X) driving screen (D-CB1)
 - Platforms: all (onroad UI only; not the Tesla instrument cluster).
