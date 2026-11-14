@@ -250,7 +250,7 @@ class TestPedals(unittest.TestCase):
 
   def test_bar_fill_follows_inputs(self):
     full = PED.PedalBars().update(self.DYN, True, 0.0, -PED.DECEL_FULL_SCALE, 20.0, False, True, False, 1.0, 0.0, False,
-                                  "ap1", mode="A")
+                                  "ap1")
     self.assertEqual((full.decel, full.braking, full.accel), (1.0, True, 1.0))
     self.assertEqual(PED.PedalBars().update(self.DYN, True, 0.0, 0.0, 20.0, False, False, False, 0.0, 0.0, False, "ap1"),
                      PED.EMPTY)

@@ -369,7 +369,8 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
       cp = ui_state.CP
       self.bp_pedals = self.bp_pedal_bars.update(pol, _fresh(sm, "carState"), now, cs.aEgo, cs.vEgo, bool(cs.standstill),
                                                  bool(cs.brakePressed), lights, cs.deprecated.gas, op_accel, long_active,
-                                                 PED.platform_of(getattr(cp, "carFingerprint", "") if cp is not None else ""))
+                                                 PED.platform_of(getattr(cp, "carFingerprint", "") if cp is not None else ""),
+                                                 brake_level=cs.deprecated.brake)
 
   def user_interacting(self) -> bool:
     return super().user_interacting() or self._bp_arc_btn.is_pressed or self._bp_rec_btn.is_pressed

@@ -363,12 +363,15 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   position and keeps the order (decel left, accel right), as daily did not swap the pedals.
   - Right bar height: max(driver pedal, OP accel / `OP_ACCEL_FULL_SCALE`), 0..1. OP accel counts only while
     `carControl.longActive` and fresh.
-  - Left bar height: measured decel max(0, -`aEgo`). There is no brake pressure or pedal travel signal on these cars, so
-    braking colours also show measured decel; none is invented.
-  - Decel scale: one constant `PEDAL_BAR_DECEL_SCALE_MODE` in `pedals.py`, default "B" (chosen after comparing both).
-    B: regen colours on the regen scale (`regen_scale`: AP1 regen estimate floored at `A_GENTLE_FLOOR`; Pre-AP
-    |`REGEN_MAX`| = 1.5), braking colours on |`ACCEL_MIN`| = 3.5 m/s^2. A (the alternate): every colour on 3.5 (regen
-    tops out near 1.5, so regen rarely passes about 45 %). Set the constant to "A" to switch; no user toggle.
+  - Left bar height, two halves (`decel_fill`; replaces the former scale modes A / B, requested). Bottom half = regen:
+    measured decel max(0, -`aEgo`) on the regen capacity (`regen_scale`: AP1 regen estimate floored at
+    `A_GENTLE_FLOOR`; Pre-AP |`REGEN_MAX`| = 1.5), so full regen is 50 %; regen past capacity without the brake pedal
+    clamps at 50 % blue. Top half = braking past regen, 50 % + 50 % x:
+    - driver brake pressed (AP1): x = the brake booster rod-stroke level in `CarState.deprecated.brake` (see the 0x39D
+      entry below). Pressed with the stroke at rest shows the regen part instead. A stroke past the top pegs at 100 %.
+    - driver brake pressed with no level (Pre-AP, AP1 frame missing / stale / bad checksum): x = measured decel past
+      capacity on (capacity .. 3.5 m/s^2), so the bar is at least half.
+    - OP braking past capacity (AP1 only): x = measured decel past capacity on (capacity .. |`ACCEL_MIN`| = 3.5 m/s^2).
 - Colours: all in the `PEDAL_BAR_PALETTE` block of `pedals.py` (requested; replaces one look for OP and driver): driver gas (64,206,84) green; OP accel (163,190,140) sage, a lighter #9CAF88 that reads as clearly against
   the bar track as the driver green; driver-side regen (90,205,255) blue; OP regen (122,155,191) dusty blue; brake
   pedal (238,48,44) red; OP braking past regen (214,110,112) rose mix by default, or pure dusty rose (201,169,166) by
@@ -376,6 +379,13 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Colour source, one per bar, the driver wins: right bar green while the gas pedal is pressed, else sage while
   `longActive` and OP accel > 0, else green. Left bar red while `brakePressed`; else rose (see the guess below); else
   dusty blue while `longActive` and OP accel < 0; else blue (disengaged or no OP request).
+  - Light presses (requested): while `brakePressed` with a level below `HUMAN_LIGHT_MAX` = 0.08 (about 8 % of the
+    rest-to-top stroke span, "under about 10 % force") and regen giving at least half the measured decel, bright violet
+    (176,124,255) #B07CFF instead of red; red above `HUMAN_RED_MIN` = 0.12; between, the colour holds. No level -> red.
+  - OP just past capacity (AP1 only): muted lavender (154,134,184) #9A86B8 in the first `OP_LIGHT_BAND` = 10 % of the
+    band above capacity, rose above it (both edges with the 0.05 m/s^2 margin).
+  - Colour keys off `brakePressed` only: the rod stroke can lag the bit (about 3-10 % of unpressed frames are above
+    rest), so a stroke without `brakePressed` never turns the bar purple or red.
 - AP1 only, GUESS: rose when OP's accel request is below minus the estimated regen capacity
   (`regen_aware.regen_capacity(vEgo, P_NOMINAL_KW)`), i.e. OP asks for more than regen can give, so friction braking is
   assumed. Not checked against a drive log. Below about 0.9 m/s the estimate is 0, so an OP standstill hold shows rose.
@@ -402,6 +412,28 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Tests: `openpilot/selfdrive/ui/onroad/bogpilot/tests/test_pedal_bars.py`, `test_onroad_hud_features.py` (TestPedals),
   `opendbc_repo/opendbc/car/tesla_ap1/tests/test_pedal_pos_published.py`.
 - Credits: BogPilot (pedals widget, regen estimate); stock openpilot (accel limits).
+
+## AP1 brake booster rod stroke (0x39D) for the onroad decel bar
+- Platforms: AP1 Model S / X only (DBC, carstate). Pre-AP unchanged (its parser does not register the frame).
+- Reference behavior: no BogPilot, Tinkla or NAP definition of 0x39D on these cars. The only public layout for that ID is
+  the 5-byte Model 3 `IBST_status`, which does not match these frames and is not used.
+- Our behavior (from drive-log evidence): `BrakeBoosterStroke` (0x39D) in `tesla_ap1_can.dbc`, chassis bus 0, 4 bytes,
+  25 Hz. Byte 0 `brakeBoosterChecksum` = (0x9D + 0x03 + byte 1 + byte 2 + byte 3) & 0xFF (the Tesla sum checksum);
+  byte 1 low nibble `brakeBoosterCounter` (+1 mod 16, high nibble always 0); bytes 2-3 `brakeRodStroke`, a unitless
+  16-bit little-endian rod stroke. Evidence: every logged AP1 frame (about 6 M) passed that checksum with DLC 4; a replay
+  window rechecked here gave 100 % checksum pass, no counter skips, 25.0 Hz, rest mode 174 and a peak of 5470.
+- Carstate: `CarState.deprecated.brake` = clamp((stroke - `BRAKE_STROKE_REST`) / (`BRAKE_STROKE_TOP` - REST), 0, 1) in
+  `tesla_ap1/brake_level.py`, REST = 174 (the rest mode; 168 was also seen and clamps to 0), TOP = 5631 (21 x 256 + 255,
+  the top of the hardest logged press). -1 (`BRAKE_LEVEL_MISSING`) when the frame is missing, older than 0.5 s or fails
+  the checksum, which is checked in Python because the parser has no checksum hook for this DBC (registering one would
+  also start checking the existing DAS frames; not done). Registered with frequency 0, so a car without the frame does
+  not trip `canValid`. The deprecated slot avoids a compiled schema change; nothing else reads it.
+- Not known: no calibrated unit (pressure or mm), and a panic / ABS stop may exceed TOP (the bar then pegs).
+- Why: requested (brake bar climbs with the pedal).
+- Safety-relevant: no. Receive only, display only: no controls, planner, panda safety or TX change; the panda safety
+  modes do not reference 0x39D.
+- Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_ap1_brake_booster_stroke.py`, `test_pedal_bars.py`.
+- Credits: drive-log evidence (BogPilot); Tesla sum checksum as in opendbc's Tesla checksum helper.
 
 ## Onroad record button: one fixed spot between the pedal bars and the personality label
 - Platforms: all (UI only).

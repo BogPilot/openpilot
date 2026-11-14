@@ -11,11 +11,18 @@ Heights (Dynamic):
   accel  max(carState.deprecated.gas, OP carControl.actuators.accel / OP_ACCEL_FULL_SCALE), 0..1. deprecated.gas is
          DI_pedalPos / 100 set by the tesla_ap1 and Pre-AP carstate (no schema change). OP accel counts only while
          carControl.longActive and fresh.
-  decel  measured decel max(0, -carState.aEgo) on decel_fraction() (scale mode A / B below).
+  decel  two halves (decel_fill). Bottom half = regen: measured decel max(0, -carState.aEgo) on the regen capacity
+         (regen_scale), so full regen is 50 %. Top half = braking past regen: driver brake pressed -> 50 % + 50 % *
+         brake level (carState.deprecated.brake = normalized 0x39D rod stroke, AP1 only); OP past capacity
+         (AP1 only) -> 50 % + 50 % * (decel - capacity) / (DECEL_FULL_SCALE - capacity).
 Colours (PEDAL_BAR_PALETTE), one source per bar; the driver wins:
   accel  driver gas pedal pressed -> human green; else longActive and OP accel > 0 -> OP sage; else human green.
-  decel  brakePressed -> human red; else (AP1 only, GUESS) longActive and OP accel below -regen capacity -> OP rose;
-         else longActive and OP accel < 0 -> OP dusty blue; else human regen blue (disengaged, no pedal).
+  decel  brakePressed -> human light purple at a light press (level < HUMAN_LIGHT_MAX, regen doing most of the decel),
+         human red from level > HUMAN_RED_MIN (between holds the previous colour), human red with no level (Pre-AP,
+         stale frame). The colour keys off brakePressed only: a rod stroke without it (the rod lags the bit) shows
+         nothing special. Else (AP1 only,
+         GUESS) longActive and OP accel below -regen capacity -> OP light purple in the first OP_LIGHT_BAND of the band
+         above capacity, OP rose above it; else longActive and OP accel < 0 -> OP dusty blue; else human regen blue.
   Hysteresis: thresholds have an on / off deadband, and a source change waits SOURCE_HOLD_S of steady request, except a
   change TO an active driver input (pedal or brake), which shows at once; so an alternating input cannot flicker.
 Static (on / off, the daily rule): decel bar full when daily_opacity's brake is 1 (standstill, brakeLights or
@@ -44,10 +51,13 @@ PEDAL_W, PEDAL_H, PEDAL_GAP = 60, 120, 18
 OP_ACCEL_FULL_SCALE = ACCEL_MAX
 PREAP_SPEC_ACCEL_MAX = VDAS.ACCEL_MAX          # documented only (see above)
 
-# Decel scale. "B" (chosen as the default): blue scaled to regen capacity (regen_scale), red on |ACCEL_MIN|
-# (3.5 m/s^2). "A" (the alternate): one scale for every colour, |ACCEL_MIN|. Switch by changing this one constant.
-PEDAL_BAR_DECEL_SCALE_MODE = "B"
-DECEL_FULL_SCALE = -ACCEL_MIN
+# Decel layout (replaces the former scale modes A / B; mode B's regen-capacity scale is now the bottom half).
+DECEL_FULL_SCALE = -ACCEL_MIN    # 3.5 m/s^2: the top of the OP band and of the no-level driver fallback
+REGEN_HALF = 0.5                 # full regen fills this much; braking past regen fills the rest
+OP_LIGHT_BAND = 0.10             # first 10 % of the band above capacity shows the OP light purple
+HUMAN_LIGHT_MAX = 0.08           # brake-level dead band: light purple below, red above HUMAN_RED_MIN, between holds
+HUMAN_RED_MIN = 0.12             # (about 10 % of the rest-to-top stroke span = "under about 10 % force")
+REGEN_MOST = 0.5                 # light purple only while regen gives at least this share of the measured decel
 
 PREAP = "TESLA_PREAP_MODELS"
 AP1 = ("TESLA_AP1_MODELS", "TESLA_AP1_MODELX")
@@ -56,6 +66,7 @@ AP1 = ("TESLA_AP1_MODELS", "TESLA_AP1_MODELX")
 ACCEL_HUMAN, ACCEL_OP = "accel_human", "accel_op"
 DECEL_HUMAN_REGEN, DECEL_OP_REGEN, DECEL_HUMAN_BRAKE, DECEL_OP_BRAKE = "decel_human_regen", "decel_op_regen", \
   "decel_human_brake", "decel_op_brake"
+DECEL_HUMAN_LIGHT, DECEL_OP_LIGHT = "decel_human_light", "decel_op_light"
 PEDAL_BAR_OP_BRAKE_ROSES = {
   "rose_mix": (214, 110, 112),     # between the human red and dusty rose (default)
   "dusty_rose": (201, 169, 166),   # pure dusty rose #C9A9A6
@@ -67,9 +78,13 @@ PEDAL_BAR_PALETTE = {
   DECEL_HUMAN_REGEN: (90, 205, 255),   # regen with OP not commanding: the old blue
   DECEL_OP_REGEN: (122, 155, 191),     # OP regen decel: dusty blue #7A9BBF
   DECEL_HUMAN_BRAKE: (238, 48, 44),    # brakePressed: the old brake red
+  DECEL_HUMAN_LIGHT: (176, 124, 255),  # light driver press (regen doing most of it): bright violet #B07CFF
+  DECEL_OP_LIGHT: (154, 134, 184),     # OP just past regen capacity (AP1 only): muted lavender #9A86B8
   DECEL_OP_BRAKE: None,                # OP past regen capacity (AP1 only, GUESS): PEDAL_BAR_OP_BRAKE_ROSES[...]
 }
-BRAKING = (DECEL_HUMAN_BRAKE, DECEL_OP_BRAKE)
+BRAKING = (DECEL_HUMAN_BRAKE, DECEL_HUMAN_LIGHT, DECEL_OP_LIGHT, DECEL_OP_BRAKE)
+HUMAN_BRAKING = (DECEL_HUMAN_BRAKE, DECEL_HUMAN_LIGHT)
+OP_BRAKING = (DECEL_OP_LIGHT, DECEL_OP_BRAKE)
 
 
 def bar_color(source: str):
@@ -163,21 +178,60 @@ def accel_fraction(pedal_pos, op_accel) -> float:
 
 
 def regen_scale(v_ego, platform: str) -> float:
-  """Mode B blue full scale (m/s^2, > 0). Pre-AP: |VDAS.REGEN_MAX| (1.5). Otherwise the AP1 regen estimate at the
-  nominal power, floored at RA.A_GENTLE_FLOOR so it does not collapse to 0 in the low-speed fade."""
+  """Regen capacity (m/s^2, > 0) = the top of the bottom half. Pre-AP: |VDAS.REGEN_MAX| (1.5). Otherwise the AP1 regen
+  estimate at the nominal power, floored at RA.A_GENTLE_FLOOR so it does not collapse to 0 in the low-speed fade."""
   if platform == "preap":
     return abs(VDAS.REGEN_MAX)
   return max(RA.A_GENTLE_FLOOR, RA.regen_capacity(max(0.0, finite(v_ego)), RA.P_NOMINAL_KW))
 
 
-def decel_fraction(a_ego, braking: bool, v_ego=0.0, platform: str = "ap1", mode: str | None = None) -> float:
-  """Measured decel on the scale: mode A |ACCEL_MIN| for every colour; mode B regen colours on regen_scale, braking
-  colours on |ACCEL_MIN|."""
+def brake_level_of(level) -> float | None:
+  """carState.deprecated.brake -> 0..1; None when missing / stale / bad checksum (negative, not finite, not a number)."""
+  try:
+    x = float(level)
+  except (TypeError, ValueError):
+    return None
+  if not math.isfinite(x) or x < 0.0:
+    return None
+  return clamp(x, 0.0, 1.0)
+
+
+def regen_part(a_ego, v_ego, platform: str) -> float:
+  """Bottom half: measured decel on the regen capacity, 0..REGEN_HALF (regen beyond capacity clamps at 50 %)."""
   decel = max(0.0, -finite(a_ego))
-  mode = PEDAL_BAR_DECEL_SCALE_MODE if mode is None else mode
-  if mode == "B" and not braking:
-    return clamp(decel / regen_scale(v_ego, platform), 0.0, 1.0)
-  return clamp(decel / DECEL_FULL_SCALE, 0.0, 1.0)
+  return REGEN_HALF * clamp(decel / regen_scale(v_ego, platform), 0.0, 1.0)
+
+
+def beyond_regen(decel, v_ego, platform: str) -> float:
+  """0..1 position of a decel (m/s^2, > 0) between the regen capacity and DECEL_FULL_SCALE."""
+  cap = regen_scale(v_ego, platform)
+  span = DECEL_FULL_SCALE - cap
+  if span <= 0:
+    return 1.0 if decel > cap else 0.0
+  return clamp((decel - cap) / span, 0.0, 1.0)
+
+
+def top_half(frac) -> float:
+  return REGEN_HALF + (1.0 - REGEN_HALF) * clamp(frac, 0.0, 1.0)
+
+
+def decel_fill(source: str, a_ego, v_ego, platform: str, level: float | None) -> float:
+  """Decel bar height 0..1 for a colour source (see the module doc)."""
+  decel = max(0.0, -finite(a_ego))
+  if source in OP_BRAKING:
+    return top_half(beyond_regen(decel, v_ego, platform))
+  if source in HUMAN_BRAKING:
+    if level is None:       # no level (Pre-AP, stale frame): at least half, then the measured decel past capacity
+      return top_half(beyond_regen(decel, v_ego, platform))
+    if level <= 0.0:        # pressed with the stroke at rest: the regen part
+      return regen_part(a_ego, v_ego, platform)
+    return top_half(level)  # past the top pegs at 100 %
+  return regen_part(a_ego, v_ego, platform)
+
+
+def regen_doing_most(a_ego, v_ego, platform: str) -> bool:
+  decel = max(0.0, -finite(a_ego))
+  return decel <= 0.0 or min(decel, regen_scale(v_ego, platform)) / decel >= REGEN_MOST
 
 
 class PedalBars:
@@ -215,32 +269,42 @@ class PedalBars:
       return ACCEL_OP
     return ACCEL_HUMAN
 
-  def _decel_want(self, brake_pressed, op, v_ego, long_active, platform):
+  def _decel_want(self, brake_pressed, op, v_ego, long_active, platform, level, a_ego):
     if brake_pressed:
-      return DECEL_HUMAN_BRAKE
+      if level is None or level > HUMAN_RED_MIN or not regen_doing_most(a_ego, v_ego, platform):
+        return DECEL_HUMAN_BRAKE
+      if level < HUMAN_LIGHT_MAX:
+        return DECEL_HUMAN_LIGHT
+      return self.decel_src if self.decel_src in HUMAN_BRAKING else DECEL_HUMAN_LIGHT   # dead band holds
     if long_active and platform == "ap1":
-      cap = RA.regen_capacity(max(0.0, v_ego), RA.P_NOMINAL_KW)
-      margin = -OP_BRAKE_MARGIN if self.decel_src == DECEL_OP_BRAKE else OP_BRAKE_MARGIN
+      cap = regen_scale(v_ego, platform)
+      margin = -OP_BRAKE_MARGIN if self.decel_src in OP_BRAKING else OP_BRAKE_MARGIN
       if op < -(cap + margin):
-        return DECEL_OP_BRAKE
+        edge = cap + OP_LIGHT_BAND * (DECEL_FULL_SCALE - cap)
+        rose_margin = -OP_BRAKE_MARGIN if self.decel_src == DECEL_OP_BRAKE else OP_BRAKE_MARGIN
+        return DECEL_OP_BRAKE if op < -(edge + rose_margin) else DECEL_OP_LIGHT
     if long_active and op < -(OP_ACCEL_OFF if self.decel_src in (DECEL_OP_REGEN, DECEL_OP_BRAKE) else OP_ACCEL_ON):
       return DECEL_OP_REGEN
     return DECEL_HUMAN_REGEN
 
   def update(self, policy: PedalPolicy, fresh: bool, now: float, a_ego, v_ego, standstill: bool, brake_pressed: bool,
-             brake_lights: bool, pedal_pos, op_accel, long_active: bool, platform: str, mode: str | None = None) -> Bars:
-    """op_accel: carControl.actuators.accel (used only while long_active). now: monotonic seconds."""
+             brake_lights: bool, pedal_pos, op_accel, long_active: bool, platform: str, brake_level=None) -> Bars:
+    """op_accel: carControl.actuators.accel (used only while long_active). now: monotonic seconds. brake_level:
+    carState.deprecated.brake (0..1, negative = missing); used on AP1 only."""
     if not policy.show or not fresh:
       self.reset()
       return EMPTY
     pedal, op, v = finite(pedal_pos), finite(op_accel) if long_active else 0.0, finite(v_ego)
     want_a = self._accel_want(pedal, op, bool(long_active))
     self.accel_src = self._settle("a", self.accel_src, want_a, now, want_a == ACCEL_HUMAN and self._pedal_on)
-    want_d = self._decel_want(bool(brake_pressed), op, v, bool(long_active), platform)
-    self.decel_src = self._settle("d", self.decel_src, want_d, now, want_d == DECEL_HUMAN_BRAKE)
-    braking = self.decel_src in BRAKING
+    level = brake_level_of(brake_level) if platform == "ap1" else None
+    want_d = self._decel_want(bool(brake_pressed), op, v, bool(long_active), platform, level, a_ego)
+    # a new driver brake input shows at once; light <-> red and everything else wait for a steady request
+    new_press = want_d in HUMAN_BRAKING and self.decel_src not in HUMAN_BRAKING
+    self.decel_src = self._settle("d", self.decel_src, want_d, now, new_press)
     if policy.dynamic:
-      return Bars(decel_fraction(a_ego, braking, v, platform, mode), self.decel_src, accel_fraction(pedal, op), self.accel_src)
+      return Bars(decel_fill(self.decel_src, a_ego, v, platform, level), self.decel_src, accel_fraction(pedal, op),
+                  self.accel_src)
     brake, gas = daily_opacity(policy, finite(a_ego), bool(standstill), bool(brake_lights))
     return Bars(1.0 if brake >= 1.0 else 0.0, self.decel_src, 1.0 if gas >= 1.0 else 0.0, self.accel_src)
 

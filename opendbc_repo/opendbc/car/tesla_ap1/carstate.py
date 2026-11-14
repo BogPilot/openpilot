@@ -5,6 +5,7 @@ from opendbc.car import Bus, structs
 from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car import DT_CTRL
 from opendbc.car.tesla_ap1.blindspot import Ap1Blindspot, frames_from_vl_all
+from opendbc.car.tesla_ap1.brake_level import BRAKE_LEVEL_MAX_AGE_S, brake_level
 from opendbc.car.tesla_ap1.cluster import CLUSTER_ADDRS, COUNTER_SIGNALS, MSG_NAMES
 from opendbc.car.tesla_ap1.hso import ap1_driver_input
 from opendbc.car.tesla_ap1.op_long_set_speed import OpLongSetSpeed
@@ -103,6 +104,12 @@ class CarState(CarStateBase):
 
     # Brake pedal
     ret.brakePressed = bool(cp.vl["BrakeMessage"]["driverBrakeStatus"] != 1)
+    # Brake level 0..1 for the onroad decel bar (0x39D rod stroke, BogPilot divergence from drive logs), in the deprecated
+    # CarState.brake slot (no schema change); BRAKE_LEVEL_MISSING (-1) when missing, stale or bad checksum. Display only.
+    booster = cp.vl["BrakeBoosterStroke"]
+    ret.deprecated.brake = brake_level(booster["brakeRodStroke"], booster["brakeBoosterCounter"],
+                                       booster["brakeBoosterChecksum"],
+                                       frame_fresh(cp, "BrakeBoosterStroke", BRAKE_LEVEL_MAX_AGE_S))
 
     # Steering wheel
     epas_status = cp.vl["EPAS_sysStatus"]
@@ -402,6 +409,8 @@ class CarState(CarStateBase):
       ("STW_ACTN_RQ", 10),
       ("GTW_carState", 10),
       ("BrakeMessage", 50),
+      # 0x39D brake level for the onroad decel bar (display only). Frequency 0 so a car without it does not trip canValid.
+      ("BrakeBoosterStroke", OPTIONAL),
     ]
 
     # Model X seatbelt is RCM_status (0x211). SDM1 stays in this slot for Model S.

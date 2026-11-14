@@ -666,6 +666,11 @@ BO_ 1064 UI_telemetryControl: 8 GTW
 BO_ 522 BrakeMessage: 8 XXX
  SG_ driverBrakeStatus : 2|2@1+ (1,0) [0|3] "" XXX
 
+BO_ 925 BrakeBoosterStroke: 4 XXX
+ SG_ brakeBoosterChecksum : 0|8@1+ (1,0) [0|255] "" XXX
+ SG_ brakeBoosterCounter : 8|4@1+ (1,0) [0|15] "" XXX
+ SG_ brakeRodStroke : 16|16@1+ (1,0) [0|65535] "" XXX
+
 BO_ 921 AutopilotStatus: 8 XXX
  SG_ autopilotStatus : 0|4@1+ (1,0) [0|0] "" XXX
  SG_ DAS_blindSpotRearLeft : 4|2@1+ (1,0) [0|0] "" XXX
@@ -954,3 +959,7 @@ VAL_ 1362 STATE 5 "FAULT_TIMEOUT" 4 "FAULT_STARTUP" 3 "FAULT_SCE" 2 "FAULT_SEND"
 # Pre-AP panda has disable_forwarding. Never apply an ID-only filter.
 CM_ "0x32e (814) on bus 0 is PARK_sensorStatusFront (5 bytes, 4 Hz, front corner ultrasonics in cm, 255 = no reading). On bus 1 the same ID is RadarPoint10_A (8 bytes, ~16 Hz) in tesla_radar_bosch_generated. Never filter by ID alone.";
 CM_ "0x33e (830) on bus 0 is the rear park corners (5 bytes, 4 Hz). On bus 1 the same ID is RadarPoint15_B (8 bytes, ~16 Hz). Radar parsing is bus 1 only; Pre-AP panda disable_forwarding is on.";
+CM_ BO_ 925 "BogPilot divergence, from drive-log evidence: 0x39D (925) on chassis bus 0, 4 bytes, 25 Hz on AP1, the brake booster rod-stroke frame. No BogPilot, Tinkla or NAP definition exists. The 5-byte Model 3 IBST_status layout does not match these frames and is NOT used. Parse only (never sent).";
+CM_ SG_ 925 brakeBoosterChecksum "(0x9D + 0x03 + byte 1 + byte 2 + byte 3) & 0xFF, the Tesla sum checksum; valid on every logged frame. Checked in tesla_ap1/brake_level.py (no parser checksum hook for this DBC).";
+CM_ SG_ 925 brakeBoosterCounter "Alive counter, +1 mod 16. The high nibble of byte 1 was always 0 in the logs and is not defined.";
+CM_ SG_ 925 brakeRodStroke "Unitless 16-bit little-endian rod stroke (bytes 2-3): about 174 at rest (168 seen), rises with pedal travel, highest seen 5470 (a firm press at a standstill). No calibrated unit. Normalized by BRAKE_STROKE_REST / BRAKE_STROKE_TOP in tesla_ap1/brake_level.py.";
