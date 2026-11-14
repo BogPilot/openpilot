@@ -579,6 +579,11 @@ _add("DriverCamera", "Show Driver Camera When In Reverse",
      "to the road view when you leave reverse.",
      note="Needs Quality of Life Visuals. Alerts still draw on top of the camera view.",
      default="Off", default_param="DriverCamera")
+# Camera View: BogPilot 0.9.7 wording (frogpilot/ui/qt/offroad/visual_settings.cc:118). Help text carries no tags (see _clean),
+# so the bold first sentence of the 0.9.7 description is plain text here.
+_add("CameraView", "Camera View",
+     "Select the active camera view. This is purely a visual change and doesn't impact how openpilot drives!",
+     default="Auto")
 _add("QOLVisuals", "Quality of Life Visuals",
      "Parent switch for the reverse camera and the driving personality button. When off, both stay off.",
      default="On", default_param="QOLVisuals")
