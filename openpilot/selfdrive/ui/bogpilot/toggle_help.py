@@ -528,9 +528,10 @@ _add("driving_model.entry", "Installed model",
 _add("ConfidenceBall", "Confidence Ball",
      "Shows a small ball on the edge of the driving screen (the left edge by default) whenever the car is on. Its height follows "
      "how sure the driving model is that it can keep driving without help: high when sure, low when not. While openpilot is "
-     "engaged it is green above 50 percent, orange under 50 percent and red under 20 percent. While openpilot is off it stays "
-     "dark grey, and while you are overriding it is white to grey, so its colour never suggests openpilot is driving; the "
-     "screen border shows whether openpilot is engaged. It hides while a full-screen alert is showing.",
+     "engaged it is green above 50 percent, orange under 50 percent and red under 20 percent. While you are overriding it is "
+     "a consistent white ball with a grey shade. While openpilot is off it is slate grey when the model is sure, so it blends "
+     "in, and fades to white as the model gets less sure, so it stands out. Its colour never suggests openpilot is driving; "
+     "the screen border shows whether openpilot is engaged. It hides while a full-screen alert is showing.",
      when="If you want a glance-able sign of how sure the driving model is, like the comma four's ball.",
      note="Display only: it never steers, brakes or changes how the car drives. The ball is the model's own prediction that "
           "you will need to brake or steer soon, not a guarantee. With no model data it sits at the bottom (red only while engaged).",
@@ -565,8 +566,10 @@ _add("OnroadDistanceButton", "Driving Personality Button",
      note="Needs Quality of Life Visuals and openpilot longitudinal control.",
      default="On", default_param="OnroadDistanceButton")
 _add("PedalsOnUI", "Pedals on Screen",
-     "Shows gas and brake pedal icons that light up with the car's acceleration. Shows measured acceleration, not pedal "
-     "position or commanded braking.",
+     "Shows two vertical bars on the driving screen. The right bar is acceleration, in green: it fills with the gas pedal or "
+     "with openpilot's acceleration request. The left bar is deceleration: blue for regen and red for the brake. On Tesla AP1 "
+     "a brake press shows violet while regen does most of the slowing, the bar turns lavender or rose while openpilot is "
+     "applying the brake, and the halfway mark is 2.0 m/s^2 of deceleration.",
      note="Needs Driving Screen Widgets and openpilot longitudinal control.",
      default="On", default_param="PedalsOnUI")
 _add("ScreenRecorder", "Screen Recorder Button",
