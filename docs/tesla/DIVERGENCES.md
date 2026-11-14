@@ -488,3 +488,11 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Safety-relevant: no new behaviour. With the shipped legacy Tesla settings (CEM off) the planner inputs are identical before and after; with CEM saved on, Experimental Mode only follows the driver's own toggle.
 - Tests: `openpilot/selfdrive/ui/tests/test_cem_removed.py`, `openpilot/selfdrive/ui/tests/test_stalk_gaps.py`, `openpilot/selfdrive/controls/tests/test_gas_brake_mounts.py`, `openpilot/selfdrive/controls/tests/test_gas_brake_stop_defaults.py`; CEM behaviour tests in `test_phase3_long_accel.py` and `test_phase3_long_accel_settings.py` are skipped while `CEM_REMOVED` is set.
 - Credits: BogPilot (CEM port, kept on the preserve branch).
+
+## Sidebar home mark: ring top rebuilt from the mark's own bottom half
+- Reference behavior: the sidebar home button draws the BogPilot theme mark `bogpilot/button_home.png` (360 x 360) at HOME_BTN (180 x 180), scale 0.5, bilinear.
+- Our behavior: the sidebar draws `bogpilot/button_home_ring.png`, made from `button_home.png` only: inside the ring band (radius 140 px and out from the centre; the road art ends at 136.9 px) the top half is the vertical mirror of the bottom half. Every other pixel is the shipped file's, which stays unchanged in the tree and is the fallback.
+- Why: in the shipped file the ring is thinner and hard-edged at the top (6 px over half alpha with a 1 px outer edge, against 8 px and a 3 px edge at the bottom). Drawn at 2160 x 1080 that is 3.06 px against 3.53 px with no edge softening, which looks like a clipped, aliased top. The draw path is not the cause: the asset has 25-27 px of transparent padding, the draw is exactly 2:1 at integer positions (the render matches an ideal 2 x 2 box downscale within 0.5/255), there are no mipmaps to blur it, and no scissor covers the button (the metric boxes' scissors stop at y 780; the logo starts at y 872). After the change the ring is 3.53 px top and bottom with the same edge, and the logo keeps 12-13 px inside the button and 52 px above the screen bottom.
+- Safety-relevant: no (display only).
+- Tests: `openpilot/selfdrive/ui/tests/test_sidebar_logo_ring.py`.
+- Credits: BogPilot theme (the mark).

@@ -91,7 +91,12 @@ class Sidebar(Widget):
     # image_resize down to HOME_BTN (180) then drawing with GPU bilinear double-filters
     # the arc AA and looks like clipped/smudged pixels on the lower-left sidebar logo.
     # Draw at HOME_BTN with an explicit scale so only one filter step runs.
-    self._home_img = gui_app.texture("bogpilot/button_home.png")
+    # button_home_ring.png is button_home.png with the ring's top half replaced by the mirror of its bottom half (the
+    # shipped ring is thinner and hard-edged at the top, which reads as a clipped top at 2160x1080); every other pixel
+    # is the shipped asset's. The shipped file stays the fallback.
+    self._home_img = gui_app.texture("bogpilot/button_home_ring.png")
+    if not (self._home_img.width > 0 and self._home_img.height > 0):
+      self._home_img = gui_app.texture("bogpilot/button_home.png")
     if not (self._home_img.width > 0 and self._home_img.height > 0):
       # ui is a managed process (selfdrived raises processNotRunning if it is down): never crash on an asset failure.
       # Fall back to the other BogPilot mark, never to the stock comma logo or flag images; if that fails too draw nothing.
