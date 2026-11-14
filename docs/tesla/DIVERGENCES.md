@@ -284,6 +284,15 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Tests: `openpilot/selfdrive/ui/tests/test_slc_legacy_profile.py`, `openpilot/selfdrive/ui/tests/test_slc_ap1_section_reset.py`.
 - Credits: BogPilot bogpilot-tesla `367e1fe` (AP1 profile speed values).
 
+## Pre-AP Model S Speed Limit Controller page without the map source rows
+- Platforms: Pre-AP Model S with the pedal (`TESLA_PREAP_MODELS` with openpilot longitudinal control). AP1 Model S keeps its page unchanged; AP1 Model X has no openpilot longitudinal control and gets no page.
+- Reference behavior: BogPilot 0.9.7 (`04d560f3`) shows every Speed Limit Controller row, including the source priority and look-ahead rows, by tuning level only; the one car-dependent row is Match Speed Limit on Engage, hidden with stock cruise control (`frogpilot/ui/qt/offroad/longitudinal_settings.cc:966-1048`, `:984-985`).
+- Our behavior: the page is mounted on Pre-AP with the pedal (`slc_page_supported` in `openpilot/selfdrive/ui/bogpilot/phase3_gas_brake_mounts.py`) with its switch, Fallback Speed, Override Speed, Speed Limit Offsets, Quality of Life (including Match Speed Limit on Engage) and Visual Settings. Priority 1-3 and Look-ahead are hidden there (`CAR_GATED` / `car_row_allowed` in `openpilot/selfdrive/ui/layouts/settings/phase3_speed_control_settings.py`): the dashboard limit is the only source on Pre-AP and there is no map look-ahead, so those rows would change nothing. Saved values are kept. Turning the switch off stops the controller on Pre-AP (onroad toggle `speed_limit_controller`); the one-time legacy SLC profile never writes the switch.
+- Why: the controller is on by default on Pre-AP, so it needs a page to turn it off; rows that do nothing there are not shown.
+- Safety-relevant: no; settings page only. Planner, car code and panda are unchanged.
+- Tests: `openpilot/selfdrive/controls/tests/test_gas_brake_mounts.py`, `openpilot/selfdrive/ui/tests/test_phase3_speed_control_settings.py`.
+- Credits: BogPilot 0.9.7 (`04d560f3`, the Speed Limit Controller rows).
+
 ## AP1 Model X SLC defaults match the AP1 Model S
 - Platforms: AP1 Model X only (`TESLA_AP1_MODELX`, through the legacy SLC profile in `openpilot/common/bogpilot_ap1_profile.py`). `is_ap1()` is unchanged and stays Model S only.
 - Reference behavior: BogPilot bogpilot-tesla `367e1fe` has no AP1 Model X platform; its SLC settings come from the AP1 Model S profile (`selfdrive/car/tesla/ap1_defaults.py`).

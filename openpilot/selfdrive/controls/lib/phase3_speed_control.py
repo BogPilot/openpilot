@@ -27,11 +27,11 @@ is Ap1SpeedControl.resolve_experimental (planner), also exposed as .experimental
 Units: m/s internally; Offset params are stored in the device's display unit (mph or km/h, IsMetric).
 
 gasFollowSpeed additions:
-  * ACTIVATION (stock-equivalent defaults). The registry default of SpeedLimitController is "1" (0.9.7 shipped it ON for
-    AP1) and native defaults are written at boot, so a stored "1" cannot be told apart from a user choice. The consumer is
-    therefore dormant (bit-exact passthrough) until the user changes a row in the Speed Limit Controller panel, which writes
-    the adoption marker SLC_ACK (same rule as phase3_following / phase3_long_accel). Saved values are never rewritten,
-    nothing here writes defaults, and the panel shows the toggle as OFF until adopted so it never lies about the runtime.
+  * ACTIVATION (default_on, ACTIVATION_POLICY below). The registry default of SpeedLimitController is "1" (0.9.7 shipped
+    it ON for AP1) and slc_adopted() is True under default_on, so the consumer runs on AP1 Model S and on Pre-AP with the
+    pedal whenever the toggle reads on; the switch in the Speed Limit Controller panel turns it off. Saved values are never
+    rewritten and nothing here writes defaults. configure() still writes the SLC_ACK marker, which only the "adoption"
+    policy reads.
   * EXPERIMENTAL FALLBACK semantics = "or" (EXPERIMENTAL_POLICY). With Fallback Speed = Experimental Mode the
     planner still turns experimental on when no limit is known, but a known SLC target must never cancel the
     user's ExperimentalMode toggle. Policy "replace" (0.9.7) remains selectable.

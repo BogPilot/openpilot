@@ -33,7 +33,7 @@ FALLBACK_EXPERIMENTAL = 1
 ROWS = (
   ("SpeedLimitController", "toggle", tr_noop("Speed Limit Controller"),
    tr_noop("<b>Limit openpilot's maximum driving speed to the current speed limit</b> from the dashboard "
-           "(Tesla maps, and Mobileye on AP1). The map look-ahead needs offline map data that this build does not include."),
+           "(Tesla maps; on AP1 also Mobileye). On AP1 the map look-ahead needs offline map data that this build does not include."),
    None, None),
   ("SLCFallback", "choice", tr_noop("Fallback Speed"),
    tr_noop("<b>The speed used by \"Speed Limit Controller\" when no speed limit is found.</b><br><br>- <b>Set Speed</b>: "
@@ -99,8 +99,13 @@ _SET_SPEED_LIMIT = (
   "Pre-AP with pedal (pcmCruise=False): 0.9.7 applied it on engage. "
   "This tree applies it on that engage too (cruise.py initialize_v_cruise), so the row is shown only there."
 )
+_NO_PREAP_SOURCE = (
+  "Pre-AP: the dashboard limit (GTW map / mpp) is the only source and there is no map look-ahead, so the source "
+  "priority and look-ahead rows would change nothing there. Hidden on Pre-AP only; saved values are kept."
+)
+PREAP_HIDDEN = ("SLCPriority1", "SLCPriority2", "SLCPriority3", "SLCLookaheadLower")
 # Rows shown only on cars whose CarParams match (row key -> reason it is hidden elsewhere).
-CAR_GATED = {"SetSpeedLimit": _SET_SPEED_LIMIT}
+CAR_GATED = {"SetSpeedLimit": _SET_SPEED_LIMIT, **{k: _NO_PREAP_SOURCE for k in PREAP_HIDDEN}}
 OMITTED = {
   "CustomCruise": _NO_AP1, "CustomCruiseLong": _NO_AP1,
   "SetSpeedOffset": "hidden on every car type: nothing in this tree reads it while driving; the speed limit offsets "
@@ -146,11 +151,14 @@ def slc_on(store, level=None) -> bool:
 
 
 def car_row_allowed(key, CP) -> bool:
-  """CAR_GATED rows: SetSpeedLimit only on Pre-AP with pedal (pcmCruise=False), as 0.9.7 !pcm_cruise. No CP: hidden."""
+  """CAR_GATED rows: SetSpeedLimit only on Pre-AP with pedal (pcmCruise=False), as 0.9.7 !pcm_cruise. No CP: hidden.
+  PREAP_HIDDEN rows (source priority, look-ahead): hidden on Pre-AP only, shown on every other car and with no CP."""
   if key not in CAR_GATED:
     return True
-  return (CP is not None and str(getattr(CP, "carFingerprint", "") or "") == "TESLA_PREAP_MODELS"
-          and not bool(getattr(CP, "pcmCruise", True)))
+  preap = CP is not None and str(getattr(CP, "carFingerprint", "") or "") == "TESLA_PREAP_MODELS"
+  if key in PREAP_HIDDEN:
+    return not preap
+  return preap and not bool(getattr(CP, "pcmCruise", True))
 
 
 def visible_rows(store, sub_panel=None, CP=None) -> list[tuple]:

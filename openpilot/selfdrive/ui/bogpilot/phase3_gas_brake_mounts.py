@@ -22,6 +22,7 @@ PERSONALITIES_TITLE = "Driving Personalities"
 SLC_TITLE = "Speed Limit Controller"
 PERSONALITIES_KEY = "CustomPersonalities"
 SLC_KEY = "SpeedLimitController"
+PREAP = "TESLA_PREAP_MODELS"
 
 
 def personalities_description() -> str:
@@ -35,8 +36,9 @@ def slc_description() -> str:
 
 
 def slc_supported(cp) -> bool | None:
-  """True: a CarParams for a car the Speed Limit Controller consumer drives (Tesla AP1); False: any other car;
-  None: no CarParams yet (the row shows, greyed, like the other longitudinal entries)."""
+  """True: a CarParams for an AP1 Model S (the standstill tap-speed rows; the Speed Limit Controller page uses
+  slc_page_supported below); False: any other car; None: no CarParams yet (the row shows, greyed, like the other
+  longitudinal entries)."""
   from openpilot.selfdrive.controls.lib.phase3_speed_control import AP1
   try:
     fingerprint = getattr(cp, "carFingerprint", None)
@@ -45,6 +47,22 @@ def slc_supported(cp) -> bool | None:
   if fingerprint is None:
     return None
   return str(fingerprint) == AP1
+
+
+def slc_page_supported(cp) -> bool | None:
+  """The Speed Limit Controller page. True: an AP1 Model S, or a Pre-AP Model S with openpilot longitudinal control
+  (the pedal), the cars the consumer (phase3_speed_control.slc_supported) drives that get its settings; False: any other
+  car (AP1 Model X has no openpilot longitudinal control); None: no CarParams yet (the entry shows, greyed)."""
+  from openpilot.selfdrive.controls.lib.phase3_speed_control import AP1
+  try:
+    fingerprint = getattr(cp, "carFingerprint", None)
+  except Exception:
+    return None
+  if fingerprint is None:
+    return None
+  if str(fingerprint) == AP1:
+    return True
+  return str(fingerprint) == PREAP and bool(getattr(cp, "openpilotLongitudinalControl", False))
 
 
 def _request_confirm(text, on_yes):

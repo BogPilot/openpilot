@@ -340,8 +340,8 @@ _add("SpeedLimitController", "Speed Limit Controller",
      "Follows the speed limit shown on the car's dashboard: the speed the car drives to follows the limit plus the offset you set "
      "for that speed band. You choose what it does when no limit is known and after you drive faster than the limit.",
      when="If you want the set speed to follow the posted limit.",
-     note="Tesla AP1 with openpilot longitudinal control only. Needs a limit from the dashboard; maps and navigation sources are "
-          "not available. Takes effect on the next drive. " + _OFFROAD,
+     note="AP1 Model S, and Pre-AP Model S with the pedal (openpilot longitudinal control). Needs a limit from the dashboard; "
+          "maps and navigation sources are not available. Takes effect on the next drive. " + _OFFROAD,
      default="On", default_param="SpeedLimitController")
 _add("ConditionalExperimental", "Conditional Experimental Mode",
      "Switches Experimental Mode on automatically when the conditions you choose below are met, and back off when they are "

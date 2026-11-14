@@ -10,6 +10,8 @@ from openpilot.selfdrive.ui.layouts.settings import phase3_speed_control_setting
 from openpilot.selfdrive.controls.lib import phase3_speed_control as sc
 from openpilot.selfdrive.controls.tests.test_phase3_speed_control import CP_AP1, FakeStore, Sm, run, DT, MPH
 
+CP_PREAP = NS(carFingerprint="TESLA_PREAP_MODELS", openpilotLongitudinalControl=True, pcmCruise=False,
+              radarUnavailable=True, enableBsm=False)
 
 class TestRows(unittest.TestCase):
   def test_keys_registered(self):
@@ -162,6 +164,38 @@ class TestEditor(unittest.TestCase):
       self.assertTrue(ed.available(), fp)
       self.assertTrue(ed.visible("SpeedLimitController"), fp)
 
+  def test_preap_hides_the_source_priority_and_look_ahead_rows(self):
+    ed, store, _ = self.editor(FakeStore(SpeedLimitController="1"), cp=CP_PREAP)
+    main = [r[0] for r in ss.visible_rows(store, None, CP_PREAP)]
+    for key in ("SpeedLimitController", "SLCFallback", "SLCOverride"):
+      self.assertIn(key, main)
+    for key in ss.PREAP_HIDDEN:
+      self.assertNotIn(key, main)
+      self.assertFalse(ed.visible(key), key)
+      self.assertFalse(ed.can_edit(key), key)
+    self.assertIn("SetSpeedLimit", [r[0] for r in ss.visible_rows(store, "SLCQOL", CP_PREAP)])
+    self.assertEqual(ss.visible_sub_panels(store, CP_PREAP), ["SLCOffsets", "SLCQOL", "SLCVisuals"])
+    for fp in ("TESLA_AP1_MODELS", "TESLA_AP1_MODELX", None):
+      cp = None if fp is None else NS(carFingerprint=fp, openpilotLongitudinalControl=True, pcmCruise=True)
+      shown = [r[0] for r in ss.visible_rows(store, None, cp)]
+      self.assertIn("SLCPriority1", shown, fp)
+      self.assertIn("SLCLookaheadLower", shown, fp)
+    self.assertEqual(store.puts, [])
+
+  def test_preap_switch_off_writes_0_and_the_planner_passes_through(self):
+    ed, store, _ = self.editor(FakeStore(SpeedLimitController="1", SLCPriority1="Dashboard"), cp=CP_PREAP)
+    t = [0.0]
+
+    def clock():
+      t[0] += 2.0
+      return t[0]
+    ctl, sm = sc.Ap1SpeedControl(CP_PREAP, store=store, clock=clock), Sm()
+    self.assertTrue(ctl.ap1)
+    self.assertLess(run(ctl, sm, 30.0, 20.0, limit=45 * MPH, rwd=True), 30.0)   # on by default: follows the limit
+    self.assertTrue(ed.write("SpeedLimitController", False))
+    self.assertEqual(store.vals["SpeedLimitController"], "0")
+    self.assertEqual(run(ctl, sm, 30.0, 20.0, limit=45 * MPH), 30.0)            # off: the set speed passes through
+
   def test_stored_garbage_is_clamped_not_rewritten(self):
     ed, store, _ = self.editor(FakeStore(Offset2="9999", SLCFallback="42", SLCLookaheadLower="99"))
     self.assertEqual(ed.offset("Offset2"), 99)
@@ -203,6 +237,45 @@ class TestEditor(unittest.TestCase):
       rl.end_drawing()
     layout.hide_event()
 
+
+  @unittest.skipUnless(os.getenv("RAYLIB_BACKEND") == "headless", "requires authorized native headless render")
+  def test_native_preap_layout_hides_the_source_rows_and_shows_match_on_engage(self):
+    """Pre-AP with the pedal, real raylib widgets: the main page and Quality of Life. Set MENU_SHOTS=/dir to also write
+    slc_preap_main.png and slc_preap_qol.png."""
+    import pyray as rl
+    from openpilot.system.ui.lib.application import gui_app
+    gui_app.init_window("SLC native layout Pre-AP")
+    shots = os.getenv("MENU_SHOTS")
+    store = FakeStore(SpeedLimitController="1")
+    rect = rl.Rectangle(500, 0, 1660, 1080)
+
+    def render(layout, shot):
+      for i in range(3):
+        rl.begin_drawing()
+        try:
+          rl.clear_background(rl.BLACK)
+          layout.render(rect)
+          if shots and i == 2:
+            os.makedirs(shots, exist_ok=True)
+            img = rl.load_image_from_screen()
+            rl.export_image(img, os.path.join(shots, shot))
+            rl.unload_image(img)
+        finally:
+          rl.end_drawing()
+    main = ss.make_layout(CP_PREAP, store, lambda: True, open_section=lambda _sp: None)
+    main.show_event()
+    render(main, "slc_preap_main.png")
+    self.assertIn("SpeedLimitController", main.toggles)
+    self.assertIn("SLCFallback", main.choices)
+    self.assertIn("SLCOverride", main.choices)
+    self.assertFalse(set(ss.PREAP_HIDDEN) & set(main.shown[0]))
+    self.assertEqual(main.shown[1], ("SLCOffsets", "SLCQOL", "SLCVisuals"))
+    qol = ss.make_layout(CP_PREAP, store, lambda: True, section="SLCQOL")
+    qol.show_event()
+    render(qol, "slc_preap_qol.png")
+    self.assertIn("SetSpeedLimit", qol.toggles)
+    main.hide_event()
+    qol.hide_event()
 
 class TestDefaultOnPanel(unittest.TestCase):
   """SLC default ON (0.9.7) - the panel shows the real state from the first launch."""

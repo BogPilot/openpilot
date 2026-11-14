@@ -6,7 +6,8 @@ Composes the two consumer-backed Gas / Brake lanes under ONE page:
   Longitudinal Tuning            Acceleration / Deceleration profile, Human-Like Acceleration, Human-Like Following,
                                  Human Lane Changes, Lead Detection Confidence Threshold
   Quality of Life                Force Stop, Increase Stopped Distance, manual weather offsets
-  Speed Limit Controller         the AP1 Speed Limit Controller (fallback, override, offsets, confirmation, visuals)
+  Speed Limit Controller         the Speed Limit Controller on AP1 Model S and on Pre-AP with the pedal (fallback,
+                                 override, offsets, confirmation, visuals)
 
 Every row writes through the shared ParamStore with a BLOCKING Params write and a read-back before its
 internal adoption marker (see common/bogpilot_store.ParamStore.put(block=True)). Importing this module and
@@ -93,7 +94,7 @@ def root_entries(store, cp=None):
       entries.append((group, title, HISTORICAL_DESCRIPTIONS.get(parent, "")))
   if store.honoured("QOLLongitudinal"):
     entries.append(("qol", "Quality of Life", ""))
-  if store.honoured(mounts.SLC_KEY) and mounts.slc_supported(cp) is not False:
+  if store.honoured(mounts.SLC_KEY) and mounts.slc_page_supported(cp) is not False:
     entries.append(("slc", mounts.SLC_TITLE, mounts.slc_description()))   # 0.9.7 order: last
   return entries
 
@@ -240,8 +241,8 @@ def create_gas_brake_layout(store=None, cp_source=None, can_edit=None):
           items.append(attach_help(button_item(title, "MANAGE", desc, callback=lambda k=key: self.open_panel(k),
                                               enabled=lambda: self.cp.openpilotLongitudinalControl,
                                               icon=resolve_icon(GAS_BRAKE_SECTIONS.get(key, ""))), "group:" + key))
-      # Same no-car rule as the AP1-only Speed Limit Controller entry above (root_entries: mounts.slc_supported(cp) is not
-      # False): with no CarParams yet the rows show greyed, hidden only on a known non-AP1 car. The buttons are gated (gated_actions.py).
+      # AP1 Model S only (mounts.slc_supported(cp) is not False), with the same no-car rule as the Speed Limit Controller
+      # entry above: with no CarParams yet the rows show greyed, hidden only on a known non-AP1 car. The buttons are gated (gated_actions.py).
       # One value row [-] [value] [+] (was a text row plus a button row) and its own section reset row: same two rows,
       # same gates. As on the old rows, the row itself stays enabled (its help still opens); its buttons and the reset
       # are locked unless offroad with openpilot longitudinal (the same lock the old button row had).

@@ -37,6 +37,7 @@ def store(tmp_path, monkeypatch):
 GENERIC = "TESLA_MODEL_3"     # not a legacy tesla_ap1 platform: the Longitudinal Tuning group starts OFF until the owner flips it
                               # (on TESLA_AP1_MODELS/MODELX/PREAP it starts ON, see test_gas_brake_profiles_default_on.py)
 
+PREAP = "TESLA_PREAP_MODELS"
 
 def make_cp(long=True, fingerprint="TESLA_AP1_MODELS", radar=False):
   cp = car.CarParams.new_message()
@@ -122,6 +123,15 @@ def test_speed_limit_controller_is_hidden_for_a_car_its_consumer_does_not_drive(
   # no CarParams yet: the entry is listed (greyed like the others), never hidden by an unknown car
   assert "slc" in [k for k, _, _ in GB.root_entries(store, None)]
 
+
+def test_speed_limit_controller_page_on_preap_with_the_pedal_only(store):
+  def keys(cp):
+    return [k for k, _, _ in GB.root_entries(store, cp)]
+  assert "slc" in keys(make_cp(fingerprint=PREAP))                        # Pre-AP with the pedal: openpilot longitudinal
+  assert "slc" not in keys(make_cp(long=False, fingerprint=PREAP))        # Pre-AP on stock cruise: the consumer does not run
+  assert "slc" not in keys(make_cp(long=False, fingerprint="TESLA_AP1_MODELX"))
+  assert "slc" in keys(make_cp(long=False))                               # AP1 Model S unchanged (listed, greyed)
+  assert not GB.tap_from_zero_visible(store, make_cp(fingerprint=PREAP))  # the standstill tap row stays AP1 Model S only
 
 def test_tuning_level_hides_rows_like_the_stock_menu(store):
   store.put("TuningLevel", 0, block=True)
@@ -304,6 +314,24 @@ def test_speed_limit_controller_toggle_off_hides_its_children(store):
   assert store.get_bool("SpeedLimitController") is False
   assert titles(page.panel) == ["Speed Limit Controller"]
 
+
+def test_speed_limit_controller_page_on_preap_hides_the_source_rows_and_turns_off(store):
+  from openpilot.common.bogpilot_onroad_toggles import onroad_toggles
+  cp = make_cp(fingerprint=PREAP)                     # pcmCruise stays False: the pedal
+  page, _ = page_for(store, cp)
+  page.open_panel("slc")
+  t = titles(page.panel)
+  assert t[0] == "Speed Limit Controller" and "Fallback Speed" in t and "Override Speed" in t
+  assert not {"Priority 1", "Priority 2", "Priority 3", "Look-ahead"} & set(t)
+  assert {"Speed Limit Offsets", "Quality of Life", "Visual Settings"} <= set(t)
+  [i for i in rows(page.panel) if i.title == "Quality of Life"][0].callback()
+  assert "Match Speed Limit on Engage" in titles(page.panel)
+  assert page.navigation_back() is True
+  assert onroad_toggles(store, cp).speed_limit_controller is True        # on by default
+  switch(page.panel, "Speed Limit Controller")
+  assert store.get_bool("SpeedLimitController") is False
+  assert onroad_toggles(store, cp).speed_limit_controller is False       # the planner's switch is off
+  assert titles(page.panel) == ["Speed Limit Controller"]
 
 def test_speed_limit_controller_writes_are_refused_while_the_car_is_on(store):
   page, flag = page_for(store)
