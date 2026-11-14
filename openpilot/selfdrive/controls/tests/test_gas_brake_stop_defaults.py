@@ -10,12 +10,16 @@ from types import SimpleNamespace as NS
 from pathlib import Path
 import subprocess
 
+import numpy as np
 import pytest
 import pyray as rl
+from opendbc.car.honda.interface import CarInterface as HondaInterface
 from opendbc.car.structs import car
 from openpilot.common.bogpilot_store import ParamStore
 from openpilot.common.params import Params
-from openpilot.common.realtime import DT_CTRL
+from openpilot.common.realtime import DT_CTRL, DT_MDL
+from openpilot.selfdrive.controls.lib.ap1_planning import AP1_CRUISE_J_SCALE
+from openpilot.selfdrive.controls.lib.longitudinal_planner import A_CRUISE_MAX_BP, J_CRUISE_VALS
 from openpilot.selfdrive.controls.lib.longcontrol import LongControl, LongCtrlState
 from openpilot.selfdrive.controls.lib.phase3_long_accel import (
   ADVANCED_ACK, CEM_ACK, PROFILE_ACK, ADVANCED_KEYS, advanced_values, configure,
@@ -232,8 +236,17 @@ def test_adopting_only_the_advanced_parent_keeps_stock_5000_frames_and_cp_delay(
   run_longcontrol_equivalence(cp, s)
 
 
+def stock_cp():
+  # Non-AP1 stock CarParams, as in test_ap1_curve_speed_planner.py / test_ap1_throttle_gate_planner.py: no AP1 planner
+  # shaping, so the planner must equal stock bit for bit. (The legacy Tesla Pre-AP platform is not a stock path here.)
+  cp = HondaInterface.get_non_essential_params("HONDA_CIVIC")
+  cp.openpilotLongitudinalControl = True
+  return cp
+
+
 def planner_equivalence(prefs, name, prepare=None, frames=200):
-  p = planner(toggle=False)
+  p = planner(cp=stock_cp(), toggle=False)
+  assert not p.ap1_plan.active
   p.long_accel.store = production_store(prefs, name)
   if prepare:
     prepare(p.long_accel.store, p.CP)
@@ -250,26 +263,78 @@ def planner_equivalence(prefs, name, prepare=None, frames=200):
     assert not p.long_accel.cem.experimental
 
 
+def planner_ap1_cruise_shaping(prefs, name, prepare=None, frames=200):
+  """AP1: the same scenario against the same stock planner. The AP1 set-speed shaping is intentional
+  (ap1_planning.py:15 AP1_CRUISE_J_SCALE, :14 AP1_CRUISE_GAIN; applied in get_cruise_accel): the cruise term's jerk
+  limit is stock x AP1_CRUISE_J_SCALE and its gain is lower. So AP1 equals stock x AP1_CRUISE_J_SCALE exactly only
+  while both cruise terms are still on their jerk limit (the opening ramp, checked frame by frame); after that the gain
+  differs, and what holds on every frame is the scaled jerk bound and the same stop decision."""
+  p = planner(toggle=False)
+  assert p.ap1_plan.active
+  p.long_accel.store = production_store(prefs, name)
+  if prepare:
+    prepare(p.long_accel.store, p.CP)
+  module = stock_class("BASELINE_LONG_PLANNER", "openpilot/selfdrive/controls/lib/longitudinal_planner.py", "stock_planner")
+  old = module["LongitudinalPlanner"](p.CP)
+  old.curve_speed = p.curve_speed
+  ramp, ramping = 0, True
+  for tick in range(frames):
+    v_ego = 10 + tick / 100
+    sm = SM(msgs(v_ego, 20, model_v=1 if tick % 50 > 25 else v_ego))
+    prev_new, prev_old = p.a_cruise, old.a_cruise
+    p.update(sm)
+    old.update(sm)
+    v32 = float(np.float32(v_ego))                                               # carState.vEgo is Float32
+    step = float(np.interp(v32, A_CRUISE_MAX_BP, J_CRUISE_VALS)) * DT_MDL      # stock cruise jerk limit per frame
+    assert abs(p.a_cruise - prev_new) <= AP1_CRUISE_J_SCALE * step + 1e-9, tick
+    if tick == 0:
+      assert p.output_a_target == pytest.approx(old.output_a_target * AP1_CRUISE_J_SCALE, rel=1e-9, abs=1e-12)
+    ramping = ramping and old.a_cruise - prev_old == pytest.approx(step, rel=1e-9)
+    if ramping:
+      assert p.a_cruise == pytest.approx(old.a_cruise * AP1_CRUISE_J_SCALE, rel=1e-9), tick
+      ramp += 1
+    assert p.output_should_stop == old.output_should_stop, tick
+    assert not p.force_stop_result.forcing_stop
+    assert not p.long_accel.cem.experimental
+  assert ramp >= 10, ramp   # stock stays on its jerk limit for the first 19 frames of this scenario
+
+
 def test_fresh_install_planner_200_frames_equal_stock_real_params(prefs):
   planner_equivalence(prefs, "planner_fresh")
 
 
+def test_fresh_install_planner_ap1_cruise_jerk_is_stock_times_ap1_scale(prefs):
+  planner_ap1_cruise_shaping(prefs, "planner_fresh_ap1")
+
+
+def prepare_dormant(s, cp):
+  for key, value in (("AccelerationProfile", 3), ("DecelerationProfile", 2), ("LongitudinalActuatorDelay", .9),
+                     ("CESpeed", 99)):
+    s.put(key, value, block=True)
+  for key in ("ForceStops", "ConditionalExperimental", "HumanAcceleration", "LongitudinalTune"):
+    s.put_bool(key, True, block=True)
+
+
+def prepare_parent_only(s, cp):
+  s.put_bool("TuningLevelConfirmed", True, block=True)
+  s.put("TuningLevel", 3, block=True)
+  assert SettingsController("advanced", s, cp=cp).change("AdvancedLongitudinalTune", True)
+
+
 def test_dormant_saved_planner_values_without_adoption_200_frames_equal_stock(prefs):
-  def prepare(s, cp):
-    for key, value in (("AccelerationProfile", 3), ("DecelerationProfile", 2), ("LongitudinalActuatorDelay", .9),
-                       ("CESpeed", 99)):
-      s.put(key, value, block=True)
-    for key in ("ForceStops", "ConditionalExperimental", "HumanAcceleration", "LongitudinalTune"):
-      s.put_bool(key, True, block=True)
-  planner_equivalence(prefs, "planner_dormant", prepare)
+  planner_equivalence(prefs, "planner_dormant", prepare_dormant)
+
+
+def test_dormant_saved_planner_ap1_cruise_jerk_is_stock_times_ap1_scale(prefs):
+  planner_ap1_cruise_shaping(prefs, "planner_dormant_ap1", prepare_dormant)
 
 
 def test_parent_only_advanced_adoption_planner_200_frames_equal_stock(prefs):
-  def prepare(s, cp):
-    s.put_bool("TuningLevelConfirmed", True, block=True)
-    s.put("TuningLevel", 3, block=True)
-    assert SettingsController("advanced", s, cp=cp).change("AdvancedLongitudinalTune", True)
-  planner_equivalence(prefs, "planner_parent_only", prepare)
+  planner_equivalence(prefs, "planner_parent_only", prepare_parent_only)
+
+
+def test_parent_only_advanced_adoption_planner_ap1_cruise_jerk_is_stock_times_ap1_scale(prefs):
+  planner_ap1_cruise_shaping(prefs, "planner_parent_only_ap1", prepare_parent_only)
 
 
 def test_opening_the_page_and_every_subpanel_never_writes_a_preference_or_marker(store, prefs):
