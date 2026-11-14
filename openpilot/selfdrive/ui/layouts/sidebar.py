@@ -235,7 +235,10 @@ class Sidebar(Widget):
     elif kind == "temp":
       writes = cycle_temp(getattr(self, "_temp_mode", "celsius"))
     elif kind == "vehicle":
-      # onroad middle box: vehicle status <-> CPU, saved as a file choice (SidebarVehicleSlot)
+      # onroad middle box: vehicle status <-> CPU, saved as a file choice (SidebarVehicleSlot). While "NO PANDA" holds
+      # the box a tap is ignored and nothing is written, so the driver's choice comes back with the panda.
+      if not getattr(self, "_panda_seen", True):
+        return
       choice = cycle_vehicle_slot(getattr(self, "_slot_vehicle", "vehicle"))
       if write_vehicle_slot(choice):
         self._slot_vehicle = choice

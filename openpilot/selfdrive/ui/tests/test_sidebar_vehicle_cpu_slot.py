@@ -212,3 +212,34 @@ def test_sidebar_tap_on_middle_box_cycles_and_saves(files, monkeypatch):
   assert (files / KEY).read_text().strip() == "cpu" and s._slot_vehicle == "cpu"
   s._cycle("vehicle")
   assert (files / KEY).read_text().strip() == "vehicle" and s._slot_vehicle == "vehicle"
+
+
+def test_sidebar_tap_during_no_panda_is_ignored_and_not_saved(files, monkeypatch):
+  from openpilot.selfdrive.ui.layouts import sidebar as m
+  s = _sidebar(m, files, "cpu", panda_seen=False)
+  calls = _onroad_calls(m, s, monkeypatch)
+  assert calls[1][0] == 'VEHICLE' and s._slot_vehicle == "cpu"
+  writes = []
+  monkeypatch.setattr(m, 'write_vehicle_slot', lambda choice: writes.append(choice) or True)
+  s._recording_audio = False
+  box = next(rect for rect, kind in s._metric_hits if kind == "vehicle")
+  tap = m.rl.Vector2(box.x + box.width / 2, box.y + box.height / 2)
+  for _ in range(3):
+    s._handle_mouse_release(tap)                  # the real tap path
+    s._cycle("vehicle")
+  assert writes == [] and s._slot_vehicle == "cpu"
+  assert (files / KEY).read_text().strip() == "cpu"
+  # the panda is back: the chosen CPU returns, and taps flip it again
+  s._panda_seen = True
+  assert _onroad_calls(m, s, monkeypatch)[1][0] == 'CPU'
+  s._handle_mouse_release(tap)
+  assert writes == ["vehicle"] and s._slot_vehicle == "vehicle"
+
+
+def test_sidebar_tap_flips_at_any_time_the_panda_is_seen(files, monkeypatch):
+  from openpilot.selfdrive.ui.layouts import sidebar as m
+  s = _sidebar(m, files, panda_seen=True)
+  _onroad_calls(m, s, monkeypatch)
+  for expect in ("cpu", "vehicle", "cpu"):
+    s._cycle("vehicle")
+    assert s._slot_vehicle == expect and (files / KEY).read_text().strip() == expect

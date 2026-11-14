@@ -345,6 +345,8 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   from 70 %, red from 85 %, gray "--" on stale data (`sidebar_metrics.py` `_usage` / `device_readings`). The choice is the
   file `SidebarVehicleSlot` ("vehicle" or "cpu"; a missing or unknown value is "vehicle"), read with the other sidebar
   metrics, not every frame. NO PANDA always takes the box back, whatever was chosen, so a missing panda is never hidden.
+  While NO PANDA shows, a tap on the box is ignored and the file is not written; when the panda is back the box shows
+  the saved choice again, and taps switch it as before.
   Offroad and the default onroad sidebar are unchanged (the default render is pixel-identical).
 - Saved values and resets: the full Reset (stock and shipping tables, the Utilities reset) writes "vehicle", and the
   settings backup covers the file. The sidebar has no menu rows, so no section Reset owns it, as with the other
