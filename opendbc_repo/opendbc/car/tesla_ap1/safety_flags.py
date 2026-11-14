@@ -28,13 +28,23 @@ def flags_for_candidate(candidate, fingerprint=None, standstill=False):
 
 FLAG_TESLA_PREAP = int(TeslaAp1SafetyFlags.PREAP)
 FLAG_TESLA_PREAP_PEDAL = int(TeslaAp1SafetyFlags.PREAP_PEDAL)
+FLAG_TESLA_PREAP_RADAR_BEHIND_NOSECONE = int(TeslaAp1SafetyFlags.PREAP_RADAR_BEHIND_NOSECONE)
+FLAG_TESLA_PREAP_RADAR_EMULATION = int(TeslaAp1SafetyFlags.PREAP_RADAR_EMULATION)
 
 
-def flags_for_preap(pedal: bool) -> int:
-  """Safety param for the Pre-AP Model S (SAFETY_TESLA + PREAP, never with the AP1 bit). pedal = Comma Pedal longitudinal."""
+def flags_for_preap(pedal: bool, radar: bool = False, behind_nosecone: bool = False) -> int:
+  """Safety param for the Pre-AP Model S (SAFETY_TESLA + PREAP, never with the AP1 bit).
+
+  pedal = Comma Pedal longitudinal. radar / behind_nosecone set flags 256 and 128
+  (128 only when both are on). Defaults keep the param identical to PREAP / PREAP|PEDAL.
+  """
   flags = FLAG_TESLA_PREAP
   if pedal:
     flags |= FLAG_TESLA_PREAP_PEDAL
+  if radar:
+    flags |= FLAG_TESLA_PREAP_RADAR_EMULATION
+    if behind_nosecone:
+      flags |= FLAG_TESLA_PREAP_RADAR_BEHIND_NOSECONE
   return flags
 
 

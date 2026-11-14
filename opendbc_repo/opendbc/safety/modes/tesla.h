@@ -371,10 +371,12 @@ static void tesla_rx_hook(const CANPacket_t *msg) {
   }
 }
 
-// Every received message, before the RX-check whitelist. AP1 only; other platforms ignore it.
+// Every received message, before the RX-check whitelist. AP1: EPB watch. Pre-AP: optional radar GTW.
 static void tesla_rx_all_hook(const CANPacket_t *msg) {
   if (tesla_ap1) {
     tesla_ap1_rx_all_hook(msg);
+  } else if (tesla_preap) {
+    tesla_preap_radar_rx_all(msg);
   }
 }
 

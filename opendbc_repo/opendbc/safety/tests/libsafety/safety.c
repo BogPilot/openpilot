@@ -215,3 +215,60 @@ void init_tests(void){
   ignition_can = false;
   ignition_can_cnt = 0U;
 }
+
+// Recording stub for firmware can_send (used by the Pre-AP radar GTW). The panda
+// board provides the real can_send; this file is only linked into libsafety tests.
+#define SAFETY_CAN_SEND_LOG_MAX 64
+static CANPacket_t safety_can_send_log[SAFETY_CAN_SEND_LOG_MAX];
+static int safety_can_send_log_n = 0;
+
+void can_set_checksum(CANPacket_t *to_push) {
+  (void)to_push;
+}
+
+void can_send(CANPacket_t *to_push, uint8_t bus_number, bool skip_tx_hook) {
+  (void)skip_tx_hook;
+  if (safety_can_send_log_n < SAFETY_CAN_SEND_LOG_MAX) {
+    CANPacket_t *dst = &safety_can_send_log[safety_can_send_log_n];
+    dst->fd = to_push->fd;
+    dst->bus = bus_number;
+    dst->data_len_code = to_push->data_len_code;
+    dst->rejected = to_push->rejected;
+    dst->returned = to_push->returned;
+    dst->extended = to_push->extended;
+    dst->addr = to_push->addr;
+    dst->checksum = to_push->checksum;
+    for (unsigned int i = 0U; i < CANPACKET_DATA_SIZE_MAX; i++) {
+      dst->data[i] = to_push->data[i];
+    }
+    safety_can_send_log_n++;
+  }
+}
+
+void safety_can_send_log_reset(void) {
+  safety_can_send_log_n = 0;
+}
+
+int safety_can_send_log_count(void) {
+  return safety_can_send_log_n;
+}
+
+uint32_t safety_can_send_log_addr(int i) {
+  return ((i >= 0) && (i < safety_can_send_log_n)) ? safety_can_send_log[i].addr : 0U;
+}
+
+int safety_can_send_log_bus(int i) {
+  return ((i >= 0) && (i < safety_can_send_log_n)) ? (int)safety_can_send_log[i].bus : -1;
+}
+
+int safety_can_send_log_len(int i) {
+  return ((i >= 0) && (i < safety_can_send_log_n)) ? (int)GET_LEN(&safety_can_send_log[i]) : -1;
+}
+
+uint8_t safety_can_send_log_byte(int i, int b) {
+  if ((i < 0) || (i >= safety_can_send_log_n) || (b < 0) || (b >= (int)GET_LEN(&safety_can_send_log[i]))) {
+    return 0U;
+  }
+  return safety_can_send_log[i].data[b];
+}
+
