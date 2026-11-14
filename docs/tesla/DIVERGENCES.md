@@ -365,10 +365,10 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
     `carControl.longActive` and fresh.
   - Left bar height: measured decel max(0, -`aEgo`). There is no brake pressure or pedal travel signal on these cars, so
     braking colours also show measured decel; none is invented.
-  - Decel scale: one constant `PEDAL_BAR_DECEL_SCALE_MODE` in `pedals.py`, default "A". A: every colour on
-    |`ACCEL_MIN`| = 3.5 m/s^2 (regen tops out near 1.5, so regen rarely passes about 45 %). B: regen colours on the
-    regen scale (`regen_scale`: AP1 regen estimate floored at `A_GENTLE_FLOOR`; Pre-AP |`REGEN_MAX`| = 1.5), braking
-    colours on 3.5. Set the constant to "B" to flip; no user toggle until a scale is chosen.
+  - Decel scale: one constant `PEDAL_BAR_DECEL_SCALE_MODE` in `pedals.py`, default "B" (chosen after comparing both).
+    B: regen colours on the regen scale (`regen_scale`: AP1 regen estimate floored at `A_GENTLE_FLOOR`; Pre-AP
+    |`REGEN_MAX`| = 1.5), braking colours on |`ACCEL_MIN`| = 3.5 m/s^2. A (the alternate): every colour on 3.5 (regen
+    tops out near 1.5, so regen rarely passes about 45 %). Set the constant to "A" to switch; no user toggle.
 - Colours: all in the `PEDAL_BAR_PALETTE` block of `pedals.py` (requested; replaces one look for OP and driver): driver gas (64,206,84) green; OP accel (163,190,140) sage, a lighter #9CAF88 that reads as clearly against
   the bar track as the driver green; driver-side regen (90,205,255) blue; OP regen (122,155,191) dusty blue; brake
   pedal (238,48,44) red; OP braking past regen (214,110,112) rose mix by default, or pure dusty rose (201,169,166) by

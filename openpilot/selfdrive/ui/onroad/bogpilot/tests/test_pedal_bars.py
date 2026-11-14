@@ -150,8 +150,14 @@ class TestSource(unittest.TestCase):
 
 
 class TestDecelHeight(unittest.TestCase):
-  def test_mode_a_default_one_scale(self):
-    self.assertEqual(PED.PEDAL_BAR_DECEL_SCALE_MODE, "A")
+  def test_mode_b_is_the_default(self):
+    self.assertEqual(PED.PEDAL_BAR_DECEL_SCALE_MODE, "B")
+    cap = PED.regen_scale(20.0, "ap1")
+    self.assertAlmostEqual(PED.decel_fraction(-cap / 2, False, 20.0, "ap1"), 0.5)            # mode=None -> B
+    self.assertAlmostEqual(PED.decel_fraction(-1.75, True, 20.0, "ap1"), 0.5)                # braking on 3.5
+    self.assertAlmostEqual(once(a=-cap / 2, mode=None).decel, 0.5)                           # PedalBars default too
+
+  def test_mode_a_alternate_one_scale(self):
     self.assertEqual(PED.DECEL_FULL_SCALE, -interfaces.ACCEL_MIN)
     self.assertAlmostEqual(once(a=-1.75).decel, 0.5)
     self.assertAlmostEqual(once(a=-1.75, brake=True).decel, 0.5)
@@ -170,12 +176,13 @@ class TestDecelHeight(unittest.TestCase):
 
   def test_mode_flip_is_one_constant(self):
     try:
-      PED.PEDAL_BAR_DECEL_SCALE_MODE = "B"
-      cap = PED.regen_scale(20.0, "ap1")
-      self.assertAlmostEqual(PED.decel_fraction(-cap / 2, False, 20.0, "ap1"), 0.5)
-    finally:
       PED.PEDAL_BAR_DECEL_SCALE_MODE = "A"
-    self.assertAlmostEqual(PED.decel_fraction(-1.75, False, 20.0, "ap1"), 0.5)
+      self.assertAlmostEqual(PED.decel_fraction(-1.75, False, 20.0, "ap1"), 0.5)
+      self.assertAlmostEqual(once(a=-1.75, mode=None).decel, 0.5)
+    finally:
+      PED.PEDAL_BAR_DECEL_SCALE_MODE = "B"
+    cap = PED.regen_scale(20.0, "ap1")
+    self.assertAlmostEqual(PED.decel_fraction(-cap / 2, False, 20.0, "ap1"), 0.5)
 
   def test_platform_of(self):
     self.assertEqual(PED.platform_of("TESLA_PREAP_MODELS"), "preap")

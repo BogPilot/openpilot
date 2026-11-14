@@ -44,9 +44,9 @@ PEDAL_W, PEDAL_H, PEDAL_GAP = 60, 120, 18
 OP_ACCEL_FULL_SCALE = ACCEL_MAX
 PREAP_SPEC_ACCEL_MAX = VDAS.ACCEL_MAX          # documented only (see above)
 
-# Decel scale. "A": one scale for both colours, |ACCEL_MIN| (3.5 m/s^2). "B": blue scaled to regen capacity
-# (regen_scale), red on |ACCEL_MIN|. Flip by changing this one constant (no user toggle until a scale is chosen).
-PEDAL_BAR_DECEL_SCALE_MODE = "A"
+# Decel scale. "B" (chosen as the default): blue scaled to regen capacity (regen_scale), red on |ACCEL_MIN|
+# (3.5 m/s^2). "A" (the alternate): one scale for every colour, |ACCEL_MIN|. Switch by changing this one constant.
+PEDAL_BAR_DECEL_SCALE_MODE = "B"
 DECEL_FULL_SCALE = -ACCEL_MIN
 
 PREAP = "TESLA_PREAP_MODELS"
