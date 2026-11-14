@@ -806,4 +806,5 @@ struct BogPilotCarState {
   preapSpeedBlocked @38 :Bool;      # speed control was refused or dropped (blocked pedal frame, standstill, no stock cruise): steering only
   preapSteerLatch @39 :Bool;        # mirror of the panda steer-through-brake latch (tesla_preap.h steer_armed && steer_brake_seen)
   preapPedalNotResponding @33 :Bool;  # pedal longitudinal is on but the Comma Pedal stream (GAS_SENSOR 0x552) is missing or stale (no new counter for 0.5 s)
+  ap1BrakePedalState @40 :UInt8 = 3;  # AP1 DI_torque2 DI_brakePedalState: 0 OFF, 1 ON (iBooster applied, driver or OP), 2 INVALID, 3 SNA / stale / not AP1. Onroad decel bar colour ONLY
 }

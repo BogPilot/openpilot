@@ -357,6 +357,7 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
       cs = sm["carState"]
       lights = False
       motor_tq = None
+      brake_state = None
       psm = self._plan_sm()
       try:
         if psm is not None and "bogpilotCarState" in getattr(psm, "data", psm) and psm.valid["bogpilotCarState"] and \
@@ -364,16 +365,19 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
            psm.recv_time["bogpilotCarState"] >= self._bp_drive_start:
           lights = bool(psm["bogpilotCarState"].brakeLights)
           motor_tq = float(psm["bogpilotCarState"].ap1MotorTorqueNm)   # live regen for the decel bar colour (AP1)
+          brake_state = int(psm["bogpilotCarState"].ap1BrakePedalState)   # iBooster applied (AP1), bar colour only
       except (KeyError, AttributeError, TypeError, ValueError):
         lights = False
         motor_tq = None
+        brake_state = None
       long_active = bool(_fresh(sm, "carControl") and sm["carControl"].longActive)
       op_accel = float(sm["carControl"].actuators.accel) if long_active else 0.0
       cp = ui_state.CP
       self.bp_pedals = self.bp_pedal_bars.update(pol, _fresh(sm, "carState"), now, cs.aEgo, cs.vEgo, bool(cs.standstill),
                                                  bool(cs.brakePressed), lights, cs.deprecated.gas, op_accel, long_active,
                                                  PED.platform_of(getattr(cp, "carFingerprint", "") if cp is not None else ""),
-                                                 brake_level=cs.deprecated.brake, motor_torque_nm=motor_tq)
+                                                 brake_level=cs.deprecated.brake, motor_torque_nm=motor_tq,
+                                                 brake_pedal_state=brake_state)
 
   def user_interacting(self) -> bool:
     return super().user_interacting() or self._bp_arc_btn.is_pressed or self._bp_rec_btn.is_pressed

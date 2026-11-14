@@ -316,5 +316,59 @@ class TestGeometry(unittest.TestCase):
         self.assertTrue(math.isclose(max(xs) - min(xs), 40.0))
 
 
+class TestOpBrakeState(unittest.TestCase):
+  """OP lavender / rose key off bogpilotCarState.ap1BrakePedalState (DI_brakePedalState): longActive AND ON AND no
+  driver press. OFF / INVALID / SNA / stale (None) / junk -> OP dusty blue. Share logic, hysteresis and hold unchanged."""
+
+  def run_bars(self, n=30, plat="ap1", state=None, a=-2.0, v=10.0, op=-2.0, long=True, brake=False, tq=None, level=0.3):
+    b, t, out = PED.PedalBars(), 0.0, None
+    for _ in range(n):
+      t += DT
+      out = b.update(DYN, True, t, a, v, False, brake, False, 0.0, op, long, plat, brake_level=level, motor_torque_nm=tq,
+                     brake_pedal_state=state)
+    return out
+
+  def test_helper_gating(self):
+    f = PED.op_ibooster_applied
+    self.assertTrue(f(1, True, False))
+    for args in ((1, False, False), (1, True, True), (0, True, False), (2, True, False), (3, True, False), (None, True, False),
+                 ("x", True, False), (float("nan"), True, False), (1.5, True, False)):
+      self.assertFalse(f(*args), args)
+
+  def test_on_shows_op_purples_by_share(self):
+    regen = 1.5
+    self.assertEqual(self.run_bars(state=1, a=-2.0, tq=tq_for(regen)).decel_src, PED.DECEL_OP_LIGHT)   # share .25
+    self.assertEqual(self.run_bars(state=1, a=-3.5, tq=tq_for(regen)).decel_src, PED.DECEL_OP_BRAKE)   # share .57
+
+  def test_off_invalid_sna_stale_stay_blue(self):
+    for st in (0, 2, 3, None):
+      self.assertEqual(self.run_bars(state=st, a=-3.5, tq=tq_for(1.0)).decel_src, PED.DECEL_OP_REGEN, st)
+
+  def test_not_long_active_is_not_op(self):
+    self.assertEqual(self.run_bars(state=1, long=False, op=0.0, a=-3.5, tq=tq_for(1.0)).decel_src, PED.DECEL_HUMAN_REGEN)
+
+  def test_driver_press_wins(self):
+    out = self.run_bars(state=1, brake=True, a=-3.5, tq=tq_for(1.0))
+    self.assertIn(out.decel_src, (PED.DECEL_HUMAN_LIGHT, PED.DECEL_HUMAN_BRAKE))
+    self.assertEqual(out.decel_src, PED.DECEL_HUMAN_BRAKE)
+
+  def test_state_drop_returns_to_blue_after_the_hold(self):
+    b, t = PED.PedalBars(), 0.0
+    def step(st, n):
+      nonlocal t
+      out = None
+      for _ in range(n):
+        t += DT
+        out = b.update(DYN, True, t, -3.5, 10.0, False, False, False, 0.0, -3.5, True, "ap1", brake_level=0.3,
+                       motor_torque_nm=tq_for(1.0), brake_pedal_state=st)
+      return out
+    self.assertEqual(step(1, 30).decel_src, PED.DECEL_OP_BRAKE)
+    self.assertEqual(step(None, 5).decel_src, PED.DECEL_OP_BRAKE)                 # 0.08 s < SOURCE_HOLD_S: holds
+    self.assertEqual(step(None, 30).decel_src, PED.DECEL_OP_REGEN)
+
+  def test_preap_ignores_the_state(self):
+    self.assertEqual(self.run_bars(plat="preap", state=1, a=-3.5).decel_src, PED.DECEL_OP_REGEN)
+
+
 if __name__ == "__main__":
   unittest.main()

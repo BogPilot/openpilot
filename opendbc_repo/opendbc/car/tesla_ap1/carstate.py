@@ -5,7 +5,7 @@ from opendbc.car import Bus, structs
 from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car import DT_CTRL
 from opendbc.car.tesla_ap1.blindspot import Ap1Blindspot, frames_from_vl_all
-from opendbc.car.tesla_ap1.brake_level import BRAKE_LEVEL_MAX_AGE_S, brake_level
+from opendbc.car.tesla_ap1.brake_level import BRAKE_LEVEL_MAX_AGE_S, DI_BRAKE_STATE_MAX_AGE_S, brake_level, brake_pedal_state
 from opendbc.car.tesla_ap1.cluster import CLUSTER_ADDRS, COUNTER_SIGNALS, MSG_NAMES
 from opendbc.car.tesla_ap1.hso import ap1_driver_input
 from opendbc.car.tesla_ap1.op_long_set_speed import OpLongSetSpeed
@@ -319,6 +319,10 @@ class CarState(CarStateBase):
     # these off CarState/CarController directly; 0.11 goes through carState).
     fp_ret.spdCtrlLvr = max(0, min(255, int(self.spd_ctrl_lvr)))
     if ap1:
+      # DI_brakePedalState (DI_torque2, stock DBC): iBooster applied, driver or OP. For the onroad decel bar colour ONLY
+      # (BogPilot divergence); nothing in controls, the planner or safety reads it. SNA (3) when stale. Pre-AP keeps 3.
+      fp_ret.ap1BrakePedalState = brake_pedal_state(cp.vl["DI_torque2"]["DI_brakePedalState"],
+                                                    frame_fresh(cp, "DI_torque2", DI_BRAKE_STATE_MAX_AGE_S))
       # Continuous UP/DN/RWD levels (button_states, not 10 ms buttonEvents) for the SLC software set and
       # confirmation (0.9.7 bogpilot_card._apply_ap1_stalk_levels). accelPressed is UP only, RWD is resumePressed.
       # Each level is at least STALK_LEVEL_HOLD_FRAMES wide (>= one planner tick) and ends at the release of a longer

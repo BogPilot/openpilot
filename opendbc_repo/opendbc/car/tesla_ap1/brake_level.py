@@ -16,6 +16,13 @@ BRAKE_LEVEL_MAX_AGE_S = 0.5
 # Published when the frame is missing, stale or fails its checksum, so the UI can tell "no level" from "released" (0.0).
 BRAKE_LEVEL_MISSING = -1.0
 
+# DI_torque2 (0x118) DI_brakePedalState, stock tesla_ap1_can.dbc (VAL_ 280: 0 OFF, 1 ON, 2 INVALID, 3 SNA). ON while the
+# iBooster is applied, by the driver or by the car for OP (drive logs: 100 % of OP frames with at least 1.8 m/s^2 of
+# friction decel, about 0.1 % with no OP and no pedal). Published for the onroad decel bar colour only.
+DI_BRAKE_STATE_ON = 1
+DI_BRAKE_STATE_SNA = 3
+DI_BRAKE_STATE_MAX_AGE_S = 0.2   # 100 Hz frame: older than this is published as SNA
+
 
 def stroke_checksum(counter: int, stroke: int) -> int:
   """Tesla sum checksum of the frame: address bytes + byte 1 (counter, high nibble 0) + bytes 2-3 (stroke LE)."""
@@ -35,3 +42,16 @@ def brake_level(stroke, counter, checksum, fresh: bool) -> float:
   if stroke_checksum(int(ctr), int(st)) != int(ck):
     return BRAKE_LEVEL_MISSING
   return min(max((st - BRAKE_STROKE_REST) / (BRAKE_STROKE_TOP - BRAKE_STROKE_REST), 0.0), 1.0)
+
+
+def brake_pedal_state(raw, fresh: bool) -> int:
+  """DI_brakePedalState 0..3 for a fresh frame, else DI_BRAKE_STATE_SNA (also for junk values)."""
+  if not fresh:
+    return DI_BRAKE_STATE_SNA
+  try:
+    v = float(raw)
+  except (TypeError, ValueError):
+    return DI_BRAKE_STATE_SNA
+  if not math.isfinite(v) or int(v) != v or not 0 <= v <= 3:
+    return DI_BRAKE_STATE_SNA
+  return int(v)

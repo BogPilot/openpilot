@@ -389,14 +389,18 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
     inside the band takes the nearer side). Below 0.3 m/s (holding the car) red. No level (0x39D frame missing / stale
     / bad checksum) -> red. The colour keys off `brakePressed` only; the rod stroke can lag the bit (about 3-10 % of
     unpressed frames are above rest), so a stroke without it changes nothing.
-  - OP: muted lavender (154,134,184) #9A86B8 / rose by the same share ONLY while OP is applying the iBooster
-    (`op_brake_active`). Being past regen capacity alone never triggers it. The AP1 port publishes no such signal:
-    carcontroller sends only the DAS_control accel request (`DAS_accelMin` / `DAS_accelMax`, `teslacan.py`), the car
-    decides the actuation, and `brakeLights` is never set. So the HUD passes False and OP decel stays dusty blue.
-    Drive-log evidence for a future signal (not used): under OP longitudinal with no driver brake, the stock
-    `DI_brakePedalState` (DI_torque2 0x118, "ON") and the 0x39D rod stroke rise with the friction share of the decel
-    (about 15 % of frames at 0.4 m/s^2 of friction, 61 % at 1.0, 94 % at 1.4, 100 % from 1.8; about 0.1 % with no OP
-    and no pedal). `DI_brakePedalState` is parsed but not published; using it needs a carstate change and approval.
+  - OP: muted lavender (154,134,184) #9A86B8 / rose by the same share ONLY while OP is applying the iBooster:
+    longActive AND `bogpilotCarState.ap1BrakePedalState` == ON AND NOT `brakePressed` (`op_ibooster_applied`; a driver
+    press always wins and shows violet / red). Being past regen capacity alone never triggers it. OFF, INVALID, SNA, a
+    stale `bogpilotCarState` or junk -> OP dusty blue. The same `SOURCE_HOLD_S` hold and share hysteresis apply.
+  - `ap1BrakePedalState` (requested, owner-approved; UI only): the stock `DI_brakePedalState` of DI_torque2 (0x118,
+    `tesla_ap1_can.dbc` SG_ at 36|2, VAL_ 0 OFF / 1 ON / 2 INVALID / 3 SNA), published by AP1 carstate in
+    `carState.bogpilot` @40 and mirrored to `bogpilotCarState` @21 (custom.capnp). 3 (SNA) when the 100 Hz frame is older
+    than 0.2 s, for junk values, and by default (Pre-AP, other cars). The car sets it ON while the iBooster is applied,
+    by the driver or for OP: in the AP1 drive logs, under OP longitudinal with no driver brake, it is ON in about 15 %
+    of frames at 0.4 m/s^2 of estimated friction decel, 61 % at 1.0, 94 % at 1.4 and 100 % from 1.8, and in about 0.1 %
+    of frames with no OP and no pedal. Only the onroad decel bar reads it (pedals.py via bogpilot_hud.py); nothing in
+    controls, the planner, carcontroller or safety does, and `brakePressed` still comes from BrakeMessage only.
   - Fallback regen table (`AP1_REGEN_V` / `AP1_REGEN_A`, used only when the torque is missing / SNA): p99 of the
     motor-torque regen decel with no pedal (brake and gas released, no OP longitudinal, rod at rest; grade-free) over
     2,119 AP1 drive logs, 1 m/s bins below 10 m/s then 5 m/s: 0.24 at 0-1 m/s, 0.32 at 1-2, 0.88 at 2-3, 1.38 at

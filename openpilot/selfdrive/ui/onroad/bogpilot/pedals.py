@@ -26,9 +26,10 @@ Colours (PEDAL_BAR_PALETTE), one source per bar; the driver wins:
          decel. AP1, brakePressed: violet below SHARE_VIOLET_BELOW, red above SHARE_RED_ABOVE, the colour holds in
          between; at a standstill red (friction holds the car); red when the brake level frame is missing / stale
          (carState.deprecated.brake < 0). The colour keys off brakePressed only (the rod stroke lags it). AP1 OP:
-         lavender / rose by the same share ONLY while op_brake_active (OP is applying the iBooster). The car port
-         publishes no such signal today (carcontroller sends only a DAS_control accel request; brakeLights is never
-         set), so the HUD passes False and OP decel stays dusty blue; being past regen capacity never triggers it.
+         lavender / rose by the same share ONLY while OP is applying the iBooster: longActive AND
+         bogpilotCarState.ap1BrakePedalState == ON (DI_brakePedalState) AND NOT brakePressed (a driver press always wins,
+         violet / red). Stale or missing state (SNA, stale bogpilotCarState) -> OP dusty blue; being past regen
+         capacity never triggers it.
          Else longActive and OP accel < 0 -> OP dusty blue; else human regen blue. Pre-AP / other: brakePressed ->
          red; else OP dusty blue / human blue as before.
   Hysteresis: thresholds have an on / off deadband, and a source change waits SOURCE_HOLD_S of steady request, except a
@@ -73,6 +74,7 @@ AP1_REGEN_A = (0.24, 0.32, 0.88, 1.38, 1.52, 1.52, 1.52, 1.52, 1.54, 1.50, 1.38,
 MOTOR_TORQUE_SNA_NM = -1024.0    # DI_torqueMotor raw -4096 x 0.25: signal not available
 SHARE_RED_ABOVE = 0.55           # friction share hysteresis: red above, violet below SHARE_VIOLET_BELOW, hold between
 SHARE_VIOLET_BELOW = 0.45
+DI_BRAKE_STATE_ON = 1             # bogpilotCarState.ap1BrakePedalState ON (tesla_ap1 brake_level.DI_BRAKE_STATE_ON)
 STANDSTILL_V = 0.3               # m/s: below this a pressed brake is holding the car (friction)
 
 PREAP = "TESLA_PREAP_MODELS"
@@ -281,6 +283,16 @@ def friction_share(decel, v_ego, regen=None) -> float:
   return clamp(max(0.0, decel - r) / decel, 0.0, 1.0)
 
 
+def op_ibooster_applied(brake_pedal_state, long_active, brake_pressed) -> bool:
+  """OP is applying the iBooster: long control active, DI_brakePedalState ON and no driver press. Anything else
+  (OFF, INVALID, SNA, stale = None, junk) is False, so OP decel stays dusty blue."""
+  try:
+    on = int(brake_pedal_state) == DI_BRAKE_STATE_ON and float(brake_pedal_state) == DI_BRAKE_STATE_ON
+  except (TypeError, ValueError, OverflowError):
+    return False
+  return bool(long_active) and on and not bool(brake_pressed)
+
+
 def _by_share(share, cur, light, heavy):
   if share > SHARE_RED_ABOVE:
     return heavy
@@ -333,7 +345,7 @@ class PedalBars:
         if level is None:
           return DECEL_HUMAN_BRAKE                   # no brake level (missing / stale frame): red
         return _by_share(friction_share(decel, v_ego, regen), self.decel_src, DECEL_HUMAN_LIGHT, DECEL_HUMAN_BRAKE)
-      if long_active and op_brake:                   # OP applying the iBooster (no published signal today)
+      if long_active and op_brake:                   # OP applying the iBooster (DI_brakePedalState ON, no driver press)
         return _by_share(friction_share(decel, v_ego, regen), self.decel_src, DECEL_OP_LIGHT, DECEL_OP_BRAKE)
     elif brake_pressed:
       return DECEL_HUMAN_BRAKE
@@ -343,10 +355,11 @@ class PedalBars:
 
   def update(self, policy: PedalPolicy, fresh: bool, now: float, a_ego, v_ego, standstill: bool, brake_pressed: bool,
              brake_lights: bool, pedal_pos, op_accel, long_active: bool, platform: str, brake_level=None,
-             motor_torque_nm=None, op_brake_active: bool = False) -> Bars:
+             motor_torque_nm=None, op_brake_active: bool = False, brake_pedal_state=None) -> Bars:
     """op_accel: carControl.actuators.accel (used only while long_active). now: monotonic seconds. brake_level:
     carState.deprecated.brake (0..1, negative = missing); motor_torque_nm: bogpilotCarState.ap1MotorTorqueNm (None
-    when stale); op_brake_active: OP is applying the iBooster. The last three are used on AP1 only."""
+    when stale); op_brake_active: OP is applying the iBooster; brake_pedal_state: bogpilotCarState.ap1BrakePedalState
+    (None when stale), ON sets op_brake_active. The last four are used on AP1 only."""
     if not policy.show or not fresh:
       self.reset()
       return EMPTY
@@ -356,7 +369,7 @@ class PedalBars:
     level = brake_level_of(brake_level) if platform == "ap1" else None
     regen = regen_live(motor_torque_nm) if platform == "ap1" else None
     want_d = self._decel_want(bool(brake_pressed), op, v, bool(long_active), platform, level, a_ego, regen,
-                              bool(op_brake_active))
+                              bool(op_brake_active) or op_ibooster_applied(brake_pedal_state, long_active, brake_pressed))
     # a new driver brake input shows at once; violet <-> red and everything else wait for a steady request
     new_press = want_d in HUMAN_BRAKING and self.decel_src not in HUMAN_BRAKING
     self.decel_src = self._settle("d", self.decel_src, want_d, now, new_press)

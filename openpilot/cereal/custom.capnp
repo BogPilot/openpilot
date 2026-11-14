@@ -147,6 +147,9 @@ struct BogPilotCarStateMsg @0xda96579883444c35 {
   ap1AmbientTempC @18 :Float32;
   ap1MotorTorqueNm @19 :Float32;
   ap1MotorRpm @20 :Float32;
+  # AP1 DI_torque2 (0x118) DI_brakePedalState: 0 OFF, 1 ON (iBooster applied, driver or OP), 2 INVALID, 3 SNA / stale /
+  # not AP1 (default). Read by the onroad decel bar colour ONLY (pedals.py); no controls, planner or safety reader.
+  ap1BrakePedalState @21 :UInt8 = 3;
 
   struct ButtonEvent {
     enum Type {
