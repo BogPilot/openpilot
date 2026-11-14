@@ -5,7 +5,9 @@ from openpilot.cereal import log
 from openpilot.common.params import Params
 from openpilot.selfdrive.ui.bogpilot.sidebar_metrics import (device_readings, metric_visibility_from_params, slot_choices,
                                                               slot_flags_from_params, chip_reading, storage_reading, data_usage_gb,
-                                                              IpReader, cycle_chip, cycle_memory, cycle_temp, temp_mode)
+                                                              IpReader, cycle_chip, cycle_memory, cycle_temp, temp_mode,
+                                                              read_vehicle_slot, write_vehicle_slot, cycle_vehicle_slot,
+                                                              vehicle_slot_shown)
 from openpilot.selfdrive.ui.onroad.bogpilot.overlay_gate import OverlayGate
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app, FontWeight, MousePos, FONT_SCALE
@@ -83,7 +85,7 @@ class Sidebar(Widget):
     self._panda_status = MetricData(tr_noop("VEHICLE"), tr_noop("ONLINE"), Colors.GOOD)
     self._recording_audio = False
     self._hw_args = (None, False)        # (deviceState, fresh) of the last metrics update, to redraw at once after a tap
-    self._metric_hits: list = []         # (rect, kind) of the boxes drawn last frame; kind is "temp", "chip" or "memory"
+    self._metric_hits: list = []         # (rect, kind) of the boxes drawn last frame; kind is "temp", "chip", "memory" or "vehicle"
 
     # Load BogPilot home mark at native PNG resolution (360x360). Forcing a CPU
     # image_resize down to HOME_BTN (180) then drawing with GPU bilinear double-filters
@@ -161,6 +163,7 @@ class Sidebar(Widget):
     # chip slot: CPU or GPU; memory slot: RAM, storage left or storage used (0.9.7). CPU and RAM keep their slots by default.
     flags = slot_flags_from_params(self._params) | {"ShowCPU": show_cpu, "ShowMemoryUsage": show_memory}
     self._slot_chip, self._slot_memory = slot_choices(flags)
+    self._slot_vehicle = read_vehicle_slot()   # onroad middle box (file choice), read with the other slots, not every frame
     if not hasattr(self, "_extra_status"):
       self._extra_status = {"gpu": MetricData(tr_noop("GPU"), "--", Colors.GRAY),
                             "storage_left": MetricData(tr_noop("LEFT"), "--", Colors.GRAY),
@@ -188,8 +191,10 @@ class Sidebar(Widget):
 
   def _update_panda_status(self):
     if ui_state.panda_type == log.PandaState.PandaType.unknown:
+      self._panda_seen = False
       self._panda_status.update(tr_noop("NO"), tr_noop("PANDA"), Colors.DANGER)
     else:
+      self._panda_seen = True
       self._panda_status.update(tr_noop("VEHICLE"), tr_noop("ONLINE"), Colors.GOOD)
 
   def _handle_mouse_release(self, mouse_pos: MousePos):
@@ -224,6 +229,12 @@ class Sidebar(Widget):
       writes = cycle_memory(getattr(self, "_slot_memory", "memory"))
     elif kind == "temp":
       writes = cycle_temp(getattr(self, "_temp_mode", "celsius"))
+    elif kind == "vehicle":
+      # onroad middle box: vehicle status <-> CPU, saved as a file choice (SidebarVehicleSlot)
+      choice = cycle_vehicle_slot(getattr(self, "_slot_vehicle", "vehicle"))
+      if write_vehicle_slot(choice):
+        self._slot_vehicle = choice
+      return
     else:
       return
     self._store_flags(writes)
@@ -310,8 +321,10 @@ class Sidebar(Widget):
     # The temperature box shows GOOD / HIGH or the number in C or F, onroad as well as offroad, as saved by tapping it.
     temp_metric = self._offroad_temp_status if numerical_temp else self._temp_status
     if ui_state.started:
-      # The middle box is the vehicle status: there is nothing to cycle in it.
-      chosen = [(temp_metric, "temp"), (self._panda_status, None)]
+      # The middle box is the vehicle status, or CPU when the driver tapped it to CPU (SidebarVehicleSlot). "NO PANDA"
+      # always takes it back, so a missing panda is never hidden.
+      shown = vehicle_slot_shown(getattr(self, "_slot_vehicle", "vehicle"), getattr(self, "_panda_seen", True))
+      chosen = [(temp_metric, "temp"), (self._cpu_status if shown == "cpu" else self._panda_status, "vehicle")]
       if memory_metric is not None:
         chosen.append((memory_metric, "memory"))
     else:

@@ -6,6 +6,10 @@ Missing/stale/malformed telemetry is unavailable, never an invented zero.
 
 The two metric slots follow 0.9.7: the chip slot shows CPU or GPU, the memory slot shows RAM, storage left or storage
 used (one at a time, the first enabled in that order).
+
+Onroad the chip slot is replaced by the vehicle status box. That box can show CPU instead (SidebarVehicleSlot, a file
+choice saved by tapping it): the same CPU reading and colours as the offroad CPU box. Vehicle status is the default, and
+it always comes back while the panda is not seen ("NO PANDA"), whatever was chosen.
 """
 from __future__ import annotations
 
@@ -166,6 +170,45 @@ def cycle_memory(memory: str) -> dict:
 
 def cycle_temp(mode: str) -> dict:
   return temp_writes(_next(TEMP_CYCLE, mode))
+
+
+# --- onroad middle box: vehicle status or CPU (SidebarVehicleSlot) ---
+VEHICLE_SLOT_KEY = "SidebarVehicleSlot"
+VEHICLE_CYCLE = ("vehicle", "cpu")
+
+
+def vehicle_slot_choice(text) -> str:
+  """'cpu' only when exactly that is stored; anything else (nothing stored, junk, unreadable) is the vehicle status."""
+  if isinstance(text, (bytes, bytearray)):
+    text = text.decode("utf-8", "replace")
+  return "cpu" if isinstance(text, str) and text.strip() == "cpu" else "vehicle"
+
+
+def vehicle_slot_shown(choice: str, panda_seen: bool) -> str:
+  """What the onroad middle box shows: CPU only when chosen AND the panda is seen. A missing panda is a warning the
+  driver must not lose, so "NO PANDA" always takes the box back."""
+  return "cpu" if choice == "cpu" and panda_seen else "vehicle"
+
+
+def cycle_vehicle_slot(choice: str) -> str:
+  return _next(VEHICLE_CYCLE, choice)
+
+
+def read_vehicle_slot() -> str:
+  try:
+    from openpilot.common.bogpilot_toggles import read_choice
+    return vehicle_slot_choice(read_choice(VEHICLE_SLOT_KEY))
+  except Exception:
+    return "vehicle"
+
+
+def write_vehicle_slot(choice: str) -> bool:
+  try:
+    from openpilot.common.bogpilot_toggles import write_choice
+    write_choice(VEHICLE_SLOT_KEY, choice)
+    return True
+  except Exception:
+    return False
 
 
 def slot_flags_from_params(params) -> dict:

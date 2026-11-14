@@ -57,6 +57,8 @@ FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
 # key: (default, allowed values) for the few text-valued files
 FILE_CHOICES: dict[str, tuple[str, tuple[str, ...]]] = {
   "ConfidenceBallSide": ("left", ("left", "right")),
+  # Onroad sidebar middle box: the vehicle status (default, as before) or CPU usage. Saved by tapping the box.
+  "SidebarVehicleSlot": ("vehicle", ("vehicle", "cpu")),
 }
 
 # Data files and one-shot markers kept in the same directory (not toggles)

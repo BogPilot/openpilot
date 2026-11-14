@@ -297,7 +297,7 @@ class TestEdgeAndKeepout(unittest.TestCase):
     from openpilot.selfdrive.ui.bogpilot.phase3_system_utilities import shipping_defaults as ui_shipping
     from openpilot.system.bogpilot import toggle_reset as tr
     self.assertEqual(FILE_CHOICES["ConfidenceBallSide"][0], "left")
-    self.assertEqual(tr.FILE_CHOICE_RESET_KEYS, ("ConfidenceBallSide",))
+    self.assertIn("ConfidenceBallSide", tr.FILE_CHOICE_RESET_KEYS)
     for values in (tr.reset_defaults(), tr.shipping_defaults(), ui_shipping()):
       self.assertEqual(values["ConfidenceBallSide"], "left")
       self.assertIn(values["ConfidenceBall"], ("1", True))

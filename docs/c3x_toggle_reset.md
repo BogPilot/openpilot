@@ -31,7 +31,8 @@ No native import, Params construction, default IO path, migrations, reboot, or U
 Stock column comes from own daily 367e1fe registry, with approved C3X shipping
 PARAM_OVERRIDES. The ownership snapshot is explicit: future/unknown registry keys
 are not reset automatically. Audio stays audible (control=0, volumes=101), AOL and
-nudgeless off, screensaver off. Targeted file UI toggles reset; upload-rate, AP1
+nudgeless off, screensaver off. Targeted file UI toggles reset (text choices too: the confidence ball
+side goes back to Left, the onroad sidebar middle box to the vehicle status); upload-rate, AP1
 car-dependent toggles, markers, vehicle identity, credentials, calibration/learned
 values, runtime state, and other non-owned files remain untouched. Blank-default
 vehicle tuning/auth/data fields are not erased. No generic factory reset or normal
