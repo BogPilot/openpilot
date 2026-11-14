@@ -341,6 +341,27 @@ class TestUIStoreConsumer(unittest.TestCase):
     self.assertEqual(self.typed["QOLVisuals"], "0")
     self.assertEqual(self.typed["ShowCPU"], "0")   # a saved sidebar choice is left alone too
 
+  def test_blind_spot_rows_hidden_on_preap_only_and_nothing_written(self):
+    from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import BogPilotVisualsLayout, PREAP_HIDDEN, car_row_allowed
+    self.assertEqual(set(PREAP_HIDDEN), {"BlindSpotPath", "BlindSpotMetrics", "BSMFlameTracks"})
+    self.typed.update({"CustomUI": "1", "BorderMetrics": "1"})           # parents on, so the car is the only gate
+    before = dict(self.typed)
+    cars = {fp: SimpleNamespace(carFingerprint=fp) for fp in ("TESLA_PREAP_MODELS", "TESLA_AP1_MODELS", "TESLA_AP1_MODELX")}
+    level = mock.patch("openpilot.selfdrive.ui.bogpilot.tuning_level.row_visible", return_value=True)  # Tuning Level aside
+    level.start()
+    self.addCleanup(level.stop)
+    for fp, cp in [*cars.items(), (None, None)]:
+      lay = BogPilotVisualsLayout(store=self.store, cp_source=lambda cp=cp: cp)
+      for key in PREAP_HIDDEN:
+        self.assertEqual(lay._toggles[key].is_visible, fp != "TESLA_PREAP_MODELS", (fp, key))
+        self.assertEqual(car_row_allowed(key, cp), fp != "TESLA_PREAP_MODELS", (fp, key))
+      for key in ("AdjacentLeadsUI", "CustomUI", "BorderMetrics", "ConfidenceBall"):
+        self.assertTrue(lay._toggles[key].is_visible, (fp, key))      # every other row is unchanged
+        self.assertTrue(car_row_allowed(key, cp), (fp, key))
+    self.assertEqual(self.typed, before)                                 # no stored value written
+    for key in PREAP_HIDDEN:
+      self.assertFalse((Path(self.tmp) / key).exists(), key)
+
 
 class TestBsmBorderStillGated(unittest.TestCase):
   def test_border_metrics_parent_required(self):

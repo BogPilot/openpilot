@@ -90,6 +90,20 @@ CAMERA_KEY = "CameraView"
 CAMERA_DESCRIPTION = tr_noop("Which road camera the driving screen shows. Auto switches to the wide camera at low speed in "
                              "Experimental Mode, as stock openpilot does. Display only.")
 CAMERA_BUTTON_WIDTH = 230
+# Rows hidden on a Pre-AP Model S. It reports no blind spot data, so these never draw there; 0.9.7 hid them on a car
+# without blind spot data (visual_settings.cc:548-553 and :616 @04d560f3). Saved values are kept and nothing is written.
+# Same rule as the Speed Limit Controller rows (phase3_speed_control_settings.car_row_allowed).
+PREAP = "TESLA_PREAP_MODELS"
+PREAP_HIDDEN = ("BlindSpotPath", "BlindSpotMetrics", "BSMFlameTracks")
+CAR_GATED = frozenset(PREAP_HIDDEN)
+
+
+def car_row_allowed(key, CP) -> bool:
+  """CAR_GATED rows: hidden on a Pre-AP Model S only; shown on every other car and with no CarParams."""
+  if key not in CAR_GATED:
+    return True
+  return not (CP is not None and str(getattr(CP, "carFingerprint", "") or "") == PREAP)
+
 
 VISUAL_TOGGLES = _BALL + _EXISTING[:3] + _FLAME + _EXISTING[3:] + _NEW + _DEVELOPER
 VISUAL_KEYS = tuple(k for k, _, _ in VISUAL_TOGGLES)
@@ -132,9 +146,10 @@ def _store():
 
 
 class BogPilotVisualsLayout(Widget):
-  def __init__(self, store=None, keys=None):
+  def __init__(self, store=None, keys=None, cp_source=None):
     super().__init__()
     self._store = store if store is not None else _store()
+    self._cp_source = cp_source
     self._toggles = {}
     self._pickers = {}
     by_key = {}
@@ -144,6 +159,8 @@ class BogPilotVisualsLayout(Widget):
       item = toggle_item(lambda t=title: tr(t), lambda d=desc: tr(d), self._read(key),
                          callback=lambda state, k=key: self._write(k, state))
       attach_help(item, key)
+      if key in CAR_GATED and hasattr(item, "set_visible"):
+        item.set_visible(lambda k=key: car_row_allowed(k, self._cp()))
       self._toggles[key] = item
       by_key[key] = item
       if key == "DeveloperSidebar":
@@ -165,6 +182,16 @@ class BogPilotVisualsLayout(Widget):
     # a row the tree does not name is still offered (never silently lost), after the tree
     items += [item for key, item in by_key.items() if item not in items]
     self._scroller = Scroller(items, line_separator=True, spacing=0)
+
+  def _cp(self):
+    """The car's CarParams (offroad, from the last drive), or None."""
+    try:
+      if self._cp_source is not None:
+        return self._cp_source()
+      from openpilot.selfdrive.ui.ui_state import ui_state
+      return ui_state.CP
+    except Exception:
+      return None
 
   # ---- Developer Sidebar metric pickers (0.9.7: Metric #1 to #7) ----
   def _torque_steering(self):
