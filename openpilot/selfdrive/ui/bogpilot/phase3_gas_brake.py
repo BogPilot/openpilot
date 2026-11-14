@@ -241,7 +241,7 @@ def create_gas_brake_layout(store=None, cp_source=None, can_edit=None):
                                               enabled=lambda: self.cp.openpilotLongitudinalControl,
                                               icon=resolve_icon(GAS_BRAKE_SECTIONS.get(key, ""))), "group:" + key))
       # Same no-car rule as the AP1-only Speed Limit Controller entry above (root_entries: mounts.slc_supported(cp) is not
-      # False): with no CarParams yet the rows show greyed, hidden only on a known non-AP1 car. Gated button per D2.
+      # False): with no CarParams yet the rows show greyed, hidden only on a known non-AP1 car. The buttons are gated (gated_actions.py).
       # One value row [-] [value] [+] (was a text row plus a button row) and its own section reset row: same two rows,
       # same gates. As on the old rows, the row itself stays enabled (its help still opens); its buttons and the reset
       # are locked unless offroad with openpilot longitudinal (the same lock the old button row had).

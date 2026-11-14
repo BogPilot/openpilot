@@ -1,4 +1,4 @@
-"""BogPilot list actions that honour their own lock (D2, option 2: stock list_view.py stays byte-identical).
+"""BogPilot list actions that honour their own lock (the stock action classes in list_view.py stay unchanged).
 
 Stock v0.11.2 `system/ui/widgets/list_view.py` has two gaps the BogPilot settings panels hit while onroad:
 

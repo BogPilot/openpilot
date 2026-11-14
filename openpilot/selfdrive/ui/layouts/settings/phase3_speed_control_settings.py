@@ -518,7 +518,7 @@ def make_layout(CP, store, offroad, section=None, open_section=None):
           opts = choice_options(store, k)
           idx = [o[0] for o in opts].index(self.editor.choice(k))
           ov = [o[0] for o in opts]
-          # D2: lock the action (not only the ListItem) and show the stored choice, never a refused tap.
+          # Lock the action (not only the ListItem) and show the stored choice, never a refused tap.
           item = gated_multiple_button_item(title, desc + "<br><br>" + APPLIES, [o[1] for o in opts], idx, button_width=300,
                                             button_widths=[CHOICE_PILL_WIDTHS.get(o[1], 300) for o in opts],
                                             callback=lambda i, k=k, ov=ov: self._choose(k, ov[i]),

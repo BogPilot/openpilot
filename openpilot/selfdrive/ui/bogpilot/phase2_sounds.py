@@ -320,7 +320,7 @@ def create_volume_layout():
           callback=lambda index, key=key: self.on_button(key, index),
           selected_index=1,
           button_width=150,
-          enabled=ui_state.is_offroad,   # D2: lock the action too, so a locked tap cannot move the highlight
+          enabled=ui_state.is_offroad,   # lock the action too, so a locked tap cannot move the highlight
           default_text=lambda key=key: label(default_volume(key)),
           is_default=lambda key=key: is_default_volume(key),
           translate=tr,

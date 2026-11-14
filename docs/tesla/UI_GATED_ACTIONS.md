@@ -9,7 +9,7 @@ fold it into that file when the trees meet.
 ## Stock v0.11.2 list actions vs BogPilot settings rows
 
 Stock openpilot v0.11.2 (`f7db927c7`, `openpilot/system/ui/widgets/list_view.py`; the BogPilot copy keeps the
-`DualButtonAction` and `MultipleButtonAction` code byte-identical, BogPilot only adds `ListItem` help/level/indent):
+`DualButtonAction` and `MultipleButtonAction` code unchanged; BogPilot changes only `ListItem` (help key, Tuning Level gate, indent, closing the description when hidden, icon loading on first draw) and lets `button_item` take an icon):
 
 - `DualButtonAction` builds its two `Button`s enabled and never passes its own `enabled` to them. A `Button` gates
   touches on its own `enabled` (`system/ui/widgets/__init__.py`, `Widget.render`), so a dual row "locked" with
@@ -40,8 +40,8 @@ while onroad (rows 1-4, 6, 8, 9, 15, 17, 19), and rows 1, 17 and 19 could leave 
 a Param, because every BogPilot editor re-checks offroad/visibility at write time. That is unchanged: the gate here
 only adds refusals in front of the editors' own checks, so writes stay refused onroad by the same code as before.
 
-**Why a subclass, not a stock edit.** Maintainer decision: `system/ui/widgets/list_view.py` stays as upstream
-ships it (rebases carry no BogPilot hunk in the action classes). Cost: the subclasses rely on stock attribute names
+**Why a subclass, not a stock edit.** Maintainer decision: `system/ui/widgets/list_view.py` keeps the upstream
+action classes unchanged (BogPilot's edits there are only in `ListItem` and `button_item`, so rebases carry no BogPilot hunk in the action classes). Cost: the subclasses rely on stock attribute names
 (`left_button`, `right_button`, `button_width`, `selected_button`, `_click_callback`); the tests catch a rename.
 
 **Not in this change: a separate UI polish proposal.** That proposal edits stock `list_view.py` for its stepper, `button_spacing`
