@@ -189,7 +189,7 @@ Recorded disagreements only where the cited files were read. No speculation.
   (green / orange / red) is used only while ENGAGED. OVERRIDE uses the stock white-to-grey ball and DISENGAGED a
   slate-to-white ball (D-CB7), so the colour never reads as openpilot active; engagement is shown by the border. Missing
   model data: bottom position, stock red while engaged, white while disengaged.
-- Why: owner request (always visible), with the colour rule required by the safety review.
+- Why: maintainer request (always visible), with the colour rule required by the safety review.
 - Safety-relevant: display only; no control path reads it.
 - Tests: `test_confidence_ball.py` (always shown, never engaged palette when not engaged).
 - Credits: comma.ai openpilot (MIT); BogPilot 0.9.7.
@@ -208,7 +208,7 @@ Recorded disagreements only where the cited files were read. No speculation.
   confidence makes the low end the brightest and easiest to notice. Shaded top to bottom like stock: the bottom colour
   is the top colour times 82/255 per channel (`confidence_ball_logic.shade`), the ratio of the stock OVERRIDE ball,
   (255,255,255) to (82,82,82) (`mici/onroad/confidence_ball.py:68-70`, drawn by `draw_circle_gradient` at `:10-13`).
-  Owner choice after comparing flat and shaded renders. At confidence 0 the disengaged ball therefore has the same two
+  Maintainer choice after comparing flat and shaded renders. At confidence 0 the disengaged ball therefore has the same two
   colours as the OVERRIDE ball; the border still tells the two states apart.
 - Why: requested UI change (confidence readable while disengaged); display only.
 - Safety-relevant: display only; no control path reads it. Neither end is in the engaged palette.
@@ -216,7 +216,7 @@ Recorded disagreements only where the cited files were read. No speculation.
   unchanged; the native pixel test checks the drawn colour).
 - Credits: comma.ai openpilot (MIT); BogPilot 0.9.7.
 
-## Settings: gated list_view actions (D2)
+## Settings: gated list_view actions
 - Platforms: all (settings UI only).
 - Reference behavior: stock v0.11.2 dual- and multiple-button list actions stay enabled and accept taps even when the row is locked.
 - Our behavior: UI gated actions subclass the stock dual- and multiple-button actions. Stock `list_view.py` is unchanged. Locked rows are dimmed and ignore taps. The SLC and weather choice rows re-read the stored value. Unlocked rows behave as stock. Locked writes are still refused onroad by the existing editor checks.
@@ -250,7 +250,7 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Why: it was a beta-testing aid only; removed to keep the code simple. It also never ran on the device, because it checked carParams only on the first frame, before carParams arrives.
 - Kept: the on-screen bookmark (`bookmarkButton` + `userBookmark`) and `carState.bogpilot.spdCtrlLvr` (used by phase3_speed_control) with its bus-0 isolation test.
 - Safety-relevant: no; the module was UI-side and observe-only (no CAN TX, no panda, no car code).
-- History: last present at 06f7f9135 (docs/tesla/DIVERGENCES_beta_stalk_bookmark.md and its tests).
+- History: it had its own divergence note and tests, which were removed with it.
 
 ## SLC section reset on AP1 Model S returns to the AP1 profile
 - Platforms: AP1 Model S only (`CarModel` / `CarParamsPersistent` `TESLA_AP1_MODELS`, the AP1 profile's own `is_ap1()`). Pre-AP and AP1 Model X have their own entries below; other cars keep the general table.
@@ -478,7 +478,7 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
     stale `bogpilotCarState` or junk -> OP dusty blue. The same `SOURCE_HOLD_S` hold and share hysteresis apply. Leaving an
     OP lavender / rose colour takes at most `SOURCE_HOLD_S` plus one frame after the request ends: a change between the
     regen colours while it waits does not start the hold again (it did before, so the OP colour could stay up to 0.51 s).
-  - `ap1BrakePedalState` (requested, owner-approved; UI only): the stock `DI_brakePedalState` of DI_torque2 (0x118,
+  - `ap1BrakePedalState` (requested, maintainer-approved; UI only): the stock `DI_brakePedalState` of DI_torque2 (0x118,
     `tesla_ap1_can.dbc` SG_ at 36|2, VAL_ 0 OFF / 1 ON / 2 INVALID / 3 SNA), published by AP1 carstate in
     `carState.bogpilot` @40 and mirrored to `bogpilotCarState` @21 (custom.capnp). 3 (SNA) when the 100 Hz frame is older
     than 0.2 s, for junk values, and by default (Pre-AP, other cars). The car sets it ON while the iBooster is applied,
@@ -530,7 +530,7 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   byte 1 low nibble `brakeBoosterCounter` (+1 mod 16, high nibble always 0); bytes 2-3 `brakeRodStroke`, a unitless
   16-bit little-endian rod stroke. Evidence: every logged AP1 frame (about 6 M) passed that checksum with DLC 4; a replay
   window rechecked here gave 100 % checksum pass, no counter skips, 25.0 Hz, rest mode 174 and a peak of 5470.
-- Capture: derived from owner drive logs (AP1 Model S); the capture list (which drives) is kept privately by the maintainers.
+- Capture: derived from maintainer drive logs (AP1 Model S); the capture list (which drives) is kept privately by the maintainers.
 - Carstate: `CarState.deprecated.brake` = clamp((stroke - `BRAKE_STROKE_REST`) / (`BRAKE_STROKE_TOP` - REST), 0, 1) in
   `tesla_ap1/brake_level.py`, REST = 174 (the rest mode; 168 was also seen and clamps to 0), TOP = 5631 (21 x 256 + 255,
   the top of the hardest logged press). -1 (`BRAKE_LEVEL_MISSING`) when the frame is missing, older than 0.5 s or fails
@@ -562,7 +562,7 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 
 ## Conditional Experimental Mode removed
 - Reference behavior: BogPilot 0.9.7 ships Conditional Experimental Mode (CEM): the planner turns Experimental Mode on by itself when set conditions hold (speed, curves, leads, a predicted stop, a turn signal), publishes the reason in `CEStatus`, shows an onroad status badge, and the AP1 stalk hold flips the `CEStatus` override instead of Experimental Mode while CEM is on. Upstream 0.11.2 has no CEM.
-- Our behavior: CEM is removed on every car. The full port is kept unchanged on the `cem-preserve-0.11.2` branch (its `docs/tesla/CEM_PRESERVE_README.md` lists the files, params and call sites) for a possible 0.11.0 LTS port. On this branch:
+- Our behavior: CEM is removed on every car. The full port is maintained separately, with a list of its files, params and call sites, for a possible 0.11.0 LTS port. On this branch:
   - Settings: no "Conditional Experimental Mode" entry on the Gas / Brake page (`phase3_gas_brake.root_entries`, `phase3_long_accel_settings.gas_accel_entries`), and `ConditionalExperimental` is no longer one of the page's controls.
   - Planner: `phase3_long_accel.CEM_REMOVED` makes `Conditions.read` return None, so `LongAccelPort.update` never returns a conditional flag, `cem.red_light` stays off and the force-stop observer uses its own model filter, as it already did with CEM off. `publish_status` never writes `CEStatus`.
   - Stalk: `phase3_stalk_controls.cem_is_on` is always False, so the hold always flips the regular `ExperimentalMode`.
@@ -589,7 +589,7 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Settings > Visuals has a "Camera View" row (Auto / Standard / Wide) under Quality of Life Visuals (`layouts/settings/bogpilot_visuals.py`; `toggle_metadata.py` is still not rendered). Onroad, `augmented_road_view._switch_stream_if_needed` reads it through `camera_view.selected_view` (ParamStore, 2 s cache): Standard holds the narrow road camera, Wide the wide one (narrow if there is no wide stream), Auto is the upstream code above. Quality of Life Visuals off, a missing store or a read error means Auto. The setting is not tuning-level gated (the row is always shown under its parent).
 - Registered default: `CameraView` registers 0 (Auto, the stock behavior; 367e1fe registers 3, Wide), in `common/bogpilot_params.py`, the generated `params_keys_bogpilot.h`, `ui/bogpilot/bogpilot_defaults.py` and the feature spec. The manager stores it on first boot, so a fresh install of any car starts on Auto, and both settings resets write 0 (the shipping reset takes the registered default, the stock reset the stock 0). A value already saved on a device is kept: 2 stays Standard and 3 stays Wide, which includes a 3 stored by an earlier build's default on a car the AP1 profile does not cover (Pre-AP, Model X, non-Tesla). A saved 1 (Driver) still reads as Auto. The AP1 profile's one-time Auto write is unchanged.
 - The cabin camera is still shown in reverse (`QOLVisuals` and `DriverCamera`; `layouts/main.py` `_update_reverse_camera`, `bogpilot/reverse_camera.py`, `onroad/reverse_camera_view.py`) and from Settings > Device > Cabin Camera (PREVIEW). Neither reads `CameraView`.
-- Why: the owner asked for Driver to go from the onroad choices. The cabin view stays where it is used: in reverse and in the Settings preview.
+- Why: the maintainer asked for Driver to go from the onroad choices. The cabin view stays where it is used: in reverse and in the Settings preview.
 - Safety-relevant: no. Display only; nothing in controls or monitoring reads `CameraView`.
 - Tests: `openpilot/selfdrive/ui/tests/test_camera_view_options.py`, `openpilot/selfdrive/ui/tests/test_reverse_camera.py`.
 - Credits: BogPilot 0.9.7 / 367e1fe (options and codes), upstream openpilot 0.11.2 (Auto switching and its default), BogPilot (the wiring: Standard / Wide hold one stream, Driver aside).
@@ -603,7 +603,7 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   - Sport (2), the default: [3, 2.5, 2, 1.5, 1, .8, .6] over 0 / 5 / 10 / 15 / 20 / 25 / 40 m/s (`:105`). It is the registry default (`common/bogpilot_params.py:41` `AccelerationProfile` `2`) and the value the one-time legacy Tesla write uses (`common/bogpilot_ap1_profile.py:559`). Sport is higher than Standard and stock below 25 m/s and the same as both at 25 m/s and above.
   - Sport+ (3): [4, 4, 2] over 0 / 5 / 20 m/s (`:107`).
   - Human-Like Acceleration is on by default (`common/bogpilot_params.py:192`). It lowers that maximum at low set speeds and small speed errors (`phase3_long_accel.py:110-112`), so the cruise plan only goes above the stock cap where a large speed error allows it.
-- Why: the owner drove these cars on 0.9.7 with these profiles, so the legacy Tesla platforms keep that acceleration. It is intentional, not a planner regression: a Pre-AP planner's cruise acceleration goes past the stock cap during a large speed error.
+- Why: the maintainer drove these cars on 0.9.7 with these profiles, so the legacy Tesla platforms keep that acceleration. It is intentional, not a planner regression: a Pre-AP planner's cruise acceleration goes past the stock cap during a large speed error.
 - Safety-relevant: comfort only; it sets the cruise acceleration ceiling, not braking. Car code and panda are unchanged. Turning Longitudinal Tuning off (also what "Reset to stock" writes) returns these cars to the stock limit.
 - Tests: `openpilot/selfdrive/controls/tests/test_phase3_long_accel.py`; `openpilot/selfdrive/controls/tests/test_gas_brake_stop_defaults.py` keeps its stock-equality planner checks on a non-legacy car for this reason.
 - Credits: BogPilot 0.9.7 (`04d560f3e`, the profile tables); comma.ai openpilot (MIT) for the stock cruise limit.

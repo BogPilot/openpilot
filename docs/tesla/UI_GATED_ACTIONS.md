@@ -1,4 +1,4 @@
-# UI divergence D2: gated list actions for locked BogPilot settings rows
+# UI divergence: gated list actions for locked BogPilot settings rows
 
 Not a product. No warranty. Driver remains responsible. This note records a UI divergence; it changes no signal, CAN
 frame, panda check or control path, and invents no signal.
@@ -40,13 +40,13 @@ while onroad (rows 1-4, 6, 8, 9, 15, 17, 19), and rows 1, 17 and 19 could leave 
 a Param, because every BogPilot editor re-checks offroad/visibility at write time. That is unchanged: the gate here
 only adds refusals in front of the editors' own checks, so writes stay refused onroad by the same code as before.
 
-**Why a subclass, not a stock edit.** Owner decision D2 option 2: `system/ui/widgets/list_view.py` stays as upstream
+**Why a subclass, not a stock edit.** Maintainer decision: `system/ui/widgets/list_view.py` stays as upstream
 ships it (rebases carry no BogPilot hunk in the action classes). Cost: the subclasses rely on stock attribute names
 (`left_button`, `right_button`, `button_width`, `selected_button`, `_click_callback`); the tests catch a rename.
 
 **Not in this change: lane `ui-polish-t1361`.** That lane edits stock `list_view.py` for its stepper, `button_spacing`
 and shrink-to-fit labels. If the lane is ever revisited, those belong in `GatedMultipleButtonAction` (or a subclass of
-it) rather than in `list_view.py`. Revisiting it needs the owner's ask first.
+it) rather than in `list_view.py`. Revisiting it needs the maintainer's ask first.
 
 **Sources.** Stock openpilot v0.11.2 `f7db927c7` (`list_view.py`, `widgets/__init__.py`, `widgets/button.py`); BogPilot
 previous release baseline `27e82a496` panels (cited in the audit). Tinkla/BogGyver and NAP use the Qt UI and were not read for this; no
@@ -56,7 +56,7 @@ claim is made about them.
 
 BogPilot rc9 (`openpilot/selfdrive/ui/bogpilot/gated_actions.py`, `step_defaults.py`):
 
-- `gated_value_step_item` / `GatedValueStepAction(GatedMultipleButtonAction)`: one row `[leading] [-] [value] [+] [trailing]`, the Alert Volume layout. Lock, dim, ignored taps and hidden state are inherited unchanged from D2. The value button ignores taps. Minus is ASCII `-` (U+002D), because the Inter atlas has no U+2212.
+- `gated_value_step_item` / `GatedValueStepAction(GatedMultipleButtonAction)`: one row `[leading] [-] [value] [+] [trailing]`, the Alert Volume layout. Lock, dim, ignored taps and hidden state are inherited unchanged from the gated list actions. The value button ignores taps. Minus is ASCII `-` (U+002D), because the Inter atlas has no U+2212.
 - Default hint: a small grey `default: X` (row-description grey) under the value. X comes from the panel's existing default table. No default or param is defined here.
 - Changed highlight: an outline around the value while the stored value is not the default (numbers compare by value; an unknown value, including NaN, is not highlighted).
 - `reset_section_item`: one "Reset section to defaults" row per section, with no per-row Default button (option B). A tap opens a confirm dialog. Only a yes writes, and it writes only the section's own keys, through the section's own writer. The lock is checked at the tap and again at the yes. It is locked onroad like the other gated rows. It is shown only with its section (same parent switch and Tuning Level). If a write fails, the reset stops at that key and an OK dialog says so.
@@ -65,4 +65,4 @@ BogPilot rc9 (`openpilot/selfdrive/ui/bogpilot/gated_actions.py`, `step_defaults
 
 **Why diverge.** It gives one look for every tuning value row and makes non-default values visible, with no change to ranges, write paths, signals, CAN, panda or control. Stock `list_view.py` stays byte-identical (D2 option 2).
 
-**Sources.** BogPilot rc8 Alert Volume row (`phase2_sounds.py`) and D2 gated actions; stock openpilot v0.11.2 `list_view.py` / `confirm_dialog.py`. Tinkla/BogGyver and NAP use the Qt UI and were not read for this; no claim is made about them.
+**Sources.** BogPilot rc8 Alert Volume row (`phase2_sounds.py`) and the gated list actions; stock openpilot v0.11.2 `list_view.py` / `confirm_dialog.py`. Tinkla/BogGyver and NAP use the Qt UI and were not read for this; no claim is made about them.

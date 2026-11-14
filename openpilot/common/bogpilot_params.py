@@ -245,7 +245,7 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "MinimumBackupSize": ("PERSISTENT", "INT", None, None, None),
   "MinimumLaneChangeSpeed": ("PERSISTENT", "FLOAT", "20.0", 2, "20.0"),
   "Model": ("PERSISTENT", "STRING", "dark-souls_default", 1, "dark-souls_default"),
-  # BogPilot model downloader (system/bogpilot/models, see docs MODELS.md); not in the 367e1fe table
+  # BogPilot model downloader params (the downloader itself is not in this tree); not in the 367e1fe table
   "ModelCatalogCache": ("PERSISTENT", "STRING", None, None, None),
   "ModelCatalogRefresh": ("CLEAR_ON_MANAGER_START", "BOOL", None, None, None),
   "ModelCatalogURL": ("PERSISTENT", "STRING", None, None, None),
