@@ -339,6 +339,39 @@ class TestPreApVehicleRows(PedalCase):
     with mock.patch.object(ap1_runtime, "preap_aol_available", lambda cp: False, create=True):
       self.assertFalse(m.visible(pv.DOUBLE_PULL))
 
+  def test_radar_rows_preap_only_and_nosecone_only_while_radar_on(self):
+    from openpilot.selfdrive.ui.bogpilot import phase2_vehicle as pv
+    for cp in (preap_cp(), preap_cp(long_on=False)):
+      m = self.model(cp)
+      self.assertTrue(m.visible(pv.RADAR))
+      self.assertFalse(m.visible(pv.RADAR_NOSECONE))                  # main toggle off (default): sub-option hidden
+      self.assertFalse(m.read(pv.RADAR))
+      pp.set_bool(K.RADAR_ENABLED, True)
+      self.assertTrue(m.visible(pv.RADAR_NOSECONE))
+      pp.set_bool(K.RADAR_ENABLED, False)
+    pp.set_bool(K.RADAR_ENABLED, True)
+    for row in (pv.RADAR, pv.RADAR_NOSECONE):
+      self.assertFalse(self.model(ap1_cp()).visible(row), row)        # AP1 S: never shown, even with a stored value
+      self.assertFalse(self.model(None).visible(row), row)
+
+  def test_radar_rows_write_the_car_files_offroad_only(self):
+    from openpilot.selfdrive.ui.bogpilot import phase2_vehicle as pv
+    m = self.model(preap_cp())
+    self.assertFalse(os.path.exists(os.path.join(self.tmp, K.RADAR_ENABLED)))   # nothing written until a tap
+    self.assertTrue(m.write(pv.RADAR, True))
+    self.assertEqual(open(os.path.join(self.tmp, K.RADAR_ENABLED)).read(), "1")
+    self.assertTrue(m.write(pv.RADAR_NOSECONE, True))
+    self.assertTrue(m.read(pv.RADAR_NOSECONE))
+    onroad = self.model(preap_cp(), offroad=False)
+    self.assertFalse(onroad.enabled(pv.RADAR))
+    self.assertFalse(onroad.write(pv.RADAR, False))
+    self.assertTrue(pp.get_bool(K.RADAR_ENABLED))
+    self.assertFalse(self.model(ap1_cp()).write(pv.RADAR, False))
+    self.assertTrue(pp.get_bool(K.RADAR_ENABLED))
+    m.write(pv.RADAR, False)
+    self.assertFalse(m.visible(pv.RADAR_NOSECONE))                   # saved nosecone kept, row hidden again
+    self.assertTrue(pp.get_bool(K.RADAR_BEHIND_NOSECONE))
+
   def test_pedal_rows_hide_when_pedal_long_is_off_for_the_car(self):
     from openpilot.selfdrive.ui.bogpilot import phase2_vehicle as pv
     m = self.model(preap_cp(long_on=False))

@@ -123,6 +123,26 @@ class FeatureArchiveTests(unittest.TestCase):
     self.assertEqual(self.store.raw('NoLogging'),'1')
     self.assertEqual(self.store.raw('LocalLoggingDisableConsent'),'0')
 
+  def test_preap_radar_file_toggles_round_trip(self):
+    keys = ('TeslaRadarEnabled', 'TeslaRadarBehindNosecone')
+    from openpilot.common.bogpilot_toggles import FILE_TOGGLES
+    for k in keys:
+      self.assertEqual(f.FEATURE_SPECS[k]['source'], 'FILE_TOGGLES')
+      self.assertEqual(f.FEATURE_SPECS[k]['type'], 'BOOL')
+      self.assertIn(k, FILE_TOGGLES)                               # native_compatibility: supported as a file store
+    specs = {k: f.FEATURE_SPECS[k] for k in keys}
+    archive = f.FeatureArchive(self.prefs, lambda: dict(self.compat), self.root, specs=specs,
+                               defaults=lambda: {k: '0' for k in keys})
+    self.store.values.update({'TeslaRadarEnabled': '1', 'TeslaRadarBehindNosecone': '1'})
+    name = archive.backup()
+    self.assertEqual(json.loads((self.root / name).read_text())['values'], {k: '1' for k in keys})
+    self.store.values.update({'TeslaRadarEnabled': '0', 'TeslaRadarBehindNosecone': '0'})
+    archive.apply_preview(archive.preview(name))
+    self.assertEqual({k: self.store.raw(k) for k in keys}, {k: '1' for k in keys})
+    self.store.values.pop('TeslaRadarBehindNosecone')               # never set: restore brings back the saved value
+    archive.apply_preview(archive.preview(name))
+    self.assertEqual(self.store.raw('TeslaRadarBehindNosecone'), '1')
+
   def test_unrelated_archives_survive_delete_all(self):
     self.archive.backup()
     legacy=self.root/'old-system-backup.json'

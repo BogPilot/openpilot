@@ -324,6 +324,24 @@ class UtilitiesTest(unittest.TestCase):
     self.assertFalse(self.params.get_bool("GreenLightAlert"))
     self.assertTrue(marker.exists())
 
+  def test_reset_bogpilot_defaults_leaves_preap_radar_toggles(self):
+    # Owner rule: the radar toggles are backed up and restored, never reset.
+    act = self.actions()
+    for k in ("TeslaRadarEnabled", "TeslaRadarBehindNosecone"):
+      self.assertNotIn(k, b.shipping_defaults())
+      (self.file_root / k).write_text("1")
+
+    def fake_backup(params, *, file_root, backup_root, reason):
+      (Path(backup_root) / "receipt.json").write_text("{}")
+      return BackupReceipt()
+
+    import openpilot.system.bogpilot.settings_backup as sb
+    import openpilot.common.bogpilot_ap1_profile as ap1
+    with patch.object(sb, "backup_settings", fake_backup), patch.object(ap1, "clear_ap1_defaults_marker", lambda directory=None: None):
+      act.reset_bogpilot_defaults()
+    for k in ("TeslaRadarEnabled", "TeslaRadarBehindNosecone"):
+      self.assertEqual((self.file_root / k).read_text(), "1")
+
   def test_flash_panda_and_force_drive_state_are_not_offered(self):
     # Placeholders were hidden: nothing implements them, and this page must never flash or override the drive state.
     import inspect
