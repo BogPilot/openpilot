@@ -26,9 +26,9 @@ NEW_VISUAL_TOGGLES: tuple[tuple[str, str, str], ...] = (
   ("CustomUI", "Driving Screen Widgets",
    "Parent for blind-spot lane fill, pedals, and other custom driving-screen widgets. "
    "When off, those children stay hidden."),
-  ("BorderMetrics", "Status Border",
-   "Parent for blind-spot (and future torque/signal) status coloring on the screen border. "
-   "Required for Blind Spot Border."),
+  ("BorderMetrics", "Blind Spot Status Border",
+   "Only controls the red blind-spot half of the screen border; the engaged, override, disengaged, Traffic Mode "
+   "and lane-keep fault border colors always draw. Required for Blind Spot Border."),
   ("DynamicPedalsOnUI", "Dynamic Pedals",
    "When Pedals on Screen is on, fill the bars in proportion to acceleration and deceleration. "
    "Off hides the bars unless the Static pedal mode is set."),

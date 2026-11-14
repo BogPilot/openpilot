@@ -563,7 +563,7 @@ _add("BlindSpotPath", "Blind Spot Lane Fill",
      default="On", default_param="BlindSpotPath")
 _add("BlindSpotMetrics", "Blind Spot Border",
      "Turns the matching half of the screen border red while the blind spot monitor reports a vehicle.",
-     note="Needs Status Border. Only on cars that report blind spot data.",
+     note="Needs Blind Spot Status Border. Only on cars that report blind spot data.",
      default="On", default_param="BlindSpotMetrics")
 _add("BSMFlameTracks", "Bog to the Future",
      "Draws two burning tire tracks down the lane beside you, for 3 seconds, behind a car that passes you faster than 88 mph "
@@ -605,8 +605,12 @@ _add("QOLVisuals", "Quality of Life Visuals",
 _add("CustomUI", "Driving Screen Widgets",
      "Parent switch for the blind spot lane fill and the pedals on screen. When off, those stay hidden.",
      default="On", default_param="CustomUI")
-_add("BorderMetrics", "Status Border",
-     "Parent switch for status colors on the screen border. The Blind Spot Border needs it.",
+_add("BorderMetrics", "Blind Spot Status Border",
+     "Only controls the red blind-spot border: the half of the screen border on the side where the car's blind spot monitor "
+     "reports a vehicle. The other border colors always draw, on or off: green while engaged, gray while you override "
+     "openpilot, dark blue while disengaged, red while engaged in Traffic Mode, and the flashing lane-keep fault border.",
+     note="The Blind Spot Border needs it. Only on cars that report blind spot data. The lane-keep fault border and critical "
+          "alerts take the whole border over the blind-spot half.",
      default="On", default_param="BorderMetrics")
 _add("DynamicPedalsOnUI", "Dynamic Pedals",
      "When Pedals on Screen is on, the bars fill in proportion: the right bar with the gas pedal or openpilot's acceleration "
