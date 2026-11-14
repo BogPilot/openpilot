@@ -233,7 +233,7 @@ Recorded disagreements only where the cited files were read. No speculation.
 - Our behavior: the port follows the BogPilot / na-preap `AutopilotStatus` packing, not the Tinkla mid-frame packing, and not Model 3/Y `DAS_status` at 0x39b.
 - Why: keep the legacy 0x399 cluster status layout that matches both BogPilot revisions.
 - Safety-relevant: yes; cluster status, side-collision, and CSA bits.
-- Tests: see `can_rc8_noxnor_names.md` (layout compared at the cited DBC lines).
+- Tests: no automated test covers bits 27-36; the layout was compared against the cited DBC lines.
 - Credits: BogPilot bogpilot-tesla `04d560f3`; na-preap `568fea947`; Tinkla compared at opendbc `9c0b6fe3`.
 
 ## Gas press: level block, no panda edge drop
