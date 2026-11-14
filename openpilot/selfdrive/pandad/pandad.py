@@ -43,7 +43,11 @@ def panda_firmware_text(version, bootstub: bool = False, up_to_date: bool = True
 # answered within ALERT_AFTER_S, and cleared as soon as it is ready.
 COLD_START_WAIT_S = 10.0
 RETRY_WAIT_S = 3.0
-ALERT_AFTER_S = 2.0
+# Measured on 82 AP1 boots (wrapper start to ./pandad start, so the reset and firmware check are included): p50 0.72 s,
+# p90 2.98 s, then nothing between 3.02 s and 7.51 s; the 8 longer ones (p95 26.7 s, p99 82.0 s, max 87.7 s) are the slow
+# cold power-ups. At 2.0 s the alert showed on 16 of 82 boots, 8 of them normal starts. 6.0 s is twice the slowest
+# normal start and still below the quickest slow one.
+ALERT_AFTER_S = 6.0
 RETRY_BACKOFF_S = (0.5, 1.0, 2.0, 4.0)
 MISSING_BEFORE_RECOVER = 3
 CONNECTING_ALERT = "Offroad_ConnectingPanda"
