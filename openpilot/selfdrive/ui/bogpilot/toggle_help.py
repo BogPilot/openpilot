@@ -568,7 +568,7 @@ _add("PedalsOnUI", "Pedals on Screen",
      "Shows gas and brake pedal icons that light up with the car's acceleration. Shows measured acceleration, not pedal "
      "position or commanded braking.",
      note="Needs Driving Screen Widgets and openpilot longitudinal control.",
-     default="Off", default_param="PedalsOnUI")
+     default="On", default_param="PedalsOnUI")
 _add("ScreenRecorder", "Screen Recorder Button",
      "Shows a button on the driving screen that starts and stops a screen recording of what the UI draws.",
      note="Recordings are saved on the device in 5 minute segments. Recording will not start, or move on to a new segment, with "

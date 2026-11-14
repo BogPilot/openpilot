@@ -210,7 +210,7 @@ DEFAULT_ROWS: tuple[tuple[str, str, int, str], ...] = (
   ('PauseAOLOnBrake', '0', 1, '0'),
   ('PauseLateralOnSignal', '0', 1, '0'),
   ('PauseLateralSpeed', '0', 1, '0'),
-  ('PedalsOnUI', '0', 1, '0'),
+  ('PedalsOnUI', '1', 1, '0'),
   ('PersonalizeOpenpilot', '1', 0, '0'),
   ('PreferredSchedule', '2', 0, '0'),
   ('PromptDistractedVolume', '101', 2, '101'),

@@ -35,9 +35,9 @@ class StoreHarness:
 
 class TestDynamicPedalsOffHides(unittest.TestCase):
   def test_registry_default_dynamic_is_on(self):
-    # Default stays ON; PedalsOnUI still defaults Off so a fresh device hides until that parent is on.
+    # Default stays ON; PedalsOnUI also defaults On, so a fresh device shows the dynamic pedals (with CustomUI on).
     self.assertEqual(BOGPILOT_PARAMS["DynamicPedalsOnUI"][2], "1")
-    self.assertEqual(BOGPILOT_PARAMS["PedalsOnUI"][2], "0")
+    self.assertEqual(BOGPILOT_PARAMS["PedalsOnUI"][2], "1")
     self.assertEqual(BOGPILOT_PARAMS["StaticPedalsOnUI"][2], "0")
 
   def test_default_on_shows_dynamic_when_parent_is_on(self):

@@ -259,7 +259,7 @@
     {"PauseAOLOnBrake", {PERSISTENT, INT, "0"}},
     {"PauseLateralOnSignal", {PERSISTENT, BOOL, "0"}},
     {"PauseLateralSpeed", {PERSISTENT, INT, "0"}},
-    {"PedalsOnUI", {PERSISTENT, BOOL, "0"}},
+    {"PedalsOnUI", {PERSISTENT, BOOL, "1"}},
     {"PersonalizeOpenpilot", {PERSISTENT, BOOL, "1"}},
     {"PreferredSchedule", {PERSISTENT, INT, "2"}},
     {"PreviousSpeedLimit", {PERSISTENT, FLOAT}},

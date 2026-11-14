@@ -44,6 +44,9 @@ REF.update(REQUESTED_FPS_OFF)
 # Camera View registers Auto (the 367e1fe snapshot had Wide, 3); level and stock value unchanged.
 REQUESTED_CAMERA_AUTO = {"CameraView": ["0", 2, "0"]}
 REF.update(REQUESTED_CAMERA_AUTO)
+# Pedals on Screen registers on (the 367e1fe snapshot had it off); level and stock value unchanged.
+REQUESTED_PEDALS_ON = {"PedalsOnUI": ["1", 1, "0"]}
+REF.update(REQUESTED_PEDALS_ON)
 STOCK_011_KEYS = set(bp.BOGPILOT_STOCK_KEY_DEFAULTS)
 
 
@@ -62,6 +65,8 @@ def test_fixture_is_367e1fe():
   assert REF["SLCLookaheadLower"] == ["5", 2, "0"]
   assert RAW_REF["CameraView"] == ["3", 2, "0"]
   assert REF["CameraView"] == ["0", 2, "0"]
+  assert RAW_REF["PedalsOnUI"] == ["0", 1, "0"]
+  assert REF["PedalsOnUI"] == ["1", 1, "0"]
 
 
 @pytest.mark.parametrize("key", sorted(REF))
