@@ -13,4 +13,4 @@ In short, openpilot uses the car's existing APIs for the built-in [ADAS](https:/
 
 ## BogPilot comma 3X
 
-[Install / car detection / menu map](bogpilot_c3x.md) for AGNOS 19.9 (`bogpilot-c3x-donotuse`).
+[Install / car detection / menu map](bogpilot_c3x.md) for AGNOS 19.9 (`bogpilot-tesla`).

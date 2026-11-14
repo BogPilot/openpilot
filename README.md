@@ -19,7 +19,7 @@ CarModel / ForceFingerprint setting. Pre-AP is picked by CarModel / ForceFingerp
 with no Mobileye on bus 2.
 
 ### Testing status (be honest with yourself before you drive)
-- AP1 Model S: drive-tested by the owner on earlier builds of this line and bench-driven on this build; the owner
+- AP1 Model S: drive-tested by the maintainer on earlier builds of this line and bench-driven on this build; the maintainer
   reports everything working on this build. No other driver or car has tested it.
 - AP1 Model X and Pre-AP Model S: no engaged drive logs. The driver-override numbers were chosen from AP1 Model S
   driving and are unproven on those cars.
@@ -86,7 +86,7 @@ no shared history with this tree. Do not install the old branch on a comma 3X th
 - Only cars that report blind spot data (Tesla AP1).
 
 ### AP1 / legacy Tesla longitudinal tuning ported from 0.9.7
-On AP1 Model S / X and Pre-AP Model S, a one-time start-up write applies the profiles the owner drove on 0.9.7,
+On AP1 Model S / X and Pre-AP Model S, a one-time start-up write applies the profiles the maintainer drove on 0.9.7,
 without overwriting any setting you already changed:
 - Acceleration **Sport** (max 3.0 / 2.5 / 2.0 / 1.5 / 1.0 / 0.8 / 0.6 m/s² at 0 / 11 / 22 / 34 / 45 / 56 / 89 mph);
 - Deceleration **Eco+** (coasts more, brakes as softly as possible);

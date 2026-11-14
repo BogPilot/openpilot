@@ -2,6 +2,7 @@
 
 Synthetic deterministic open-loop replays only (no route log, no drive). BASELINE_LONG_PLANNER points at the 4f09d9ff
 longitudinal_planner.py so the fresh-install replay is compared bit-for-bit with the planner that is on the bench today.
+BogPilot baseline, not stock: longitudinal_planner.py differs from the stock import, so this stays on the BogPilot commit.
 """
 import importlib.util
 import os

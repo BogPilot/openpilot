@@ -597,8 +597,9 @@ _add("BorderMetrics", "Status Border",
      "Parent switch for status colors on the screen border. The Blind Spot Border needs it.",
      default="On", default_param="BorderMetrics")
 _add("DynamicPedalsOnUI", "Dynamic Pedals",
-     "When Pedals on Screen is on, each pedal icon's strength follows the car's measured acceleration: the gas pedal grows with "
-     "acceleration, and the brake grows with deceleration and is full at a standstill. Off hides the pedal overlay.",
+     "When Pedals on Screen is on, the bars fill in proportion: the right bar with the gas pedal or openpilot's acceleration "
+     "request, and the left bar with the car's deceleration (on Tesla AP1 it is half full at 2.0 m/s^2). Off hides the bars "
+     "unless the Static pedal mode is set, which shows each bar either full or empty.",
      default="On", default_param="DynamicPedalsOnUI")
 _add("LowerSpeedLimitsBox", "Lower Speed Limits Box",
      "Lower speed limits box (if obstructed by rear view mirror). Moves the top-left speed row (MAX, speed, and the "

@@ -32,6 +32,7 @@ import time
 
 HISTORICAL_REVISION = "04d560f3ece97797b8f1ee2f714e682e6d0ef40e"
 AUDITED_BASE = "c6582fc3efc1038b4e0e6bca8a6841b657e8ccf6"
+# BogPilot baseline, not stock: the sound settings code (including soundd.py) differs from the stock import, so this stays on the BogPilot commit.
 LANE_BASE = "4f09d9fffd92098ef1084247a2cff58e738d1675"
 BACKEND_COMMIT = "3d0bfa9b3b01c37d04e19cc36b2f05e29b891bfe"
 

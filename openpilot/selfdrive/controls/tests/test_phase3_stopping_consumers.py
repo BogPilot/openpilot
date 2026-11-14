@@ -176,6 +176,7 @@ class NativeRadarConsumerTests(unittest.TestCase):
   setUp = NativeConsumerTests.setUp
   tearDown = NativeConsumerTests.tearDown
   def baseline_radar(self):
+    # BogPilot baseline, not stock: radard.py differs from the stock import, so this stays on the BogPilot commit.
     source = Path(os.environ["BASELINE_RADARD"]).read_text() if "BASELINE_RADARD" in os.environ else subprocess.check_output(
       ["git", "show", "4f09d9fffd92098ef1084247a2cff58e738d1675:openpilot/selfdrive/controls/radard.py"], text=True)
     namespace = {"__name__": "phase3_native_stock_radard"}

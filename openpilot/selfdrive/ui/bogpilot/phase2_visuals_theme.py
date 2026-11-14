@@ -30,7 +30,8 @@ NEW_VISUAL_TOGGLES: tuple[tuple[str, str, str], ...] = (
    "Parent for blind-spot (and future torque/signal) status coloring on the screen border. "
    "Required for Blind Spot Border."),
   ("DynamicPedalsOnUI", "Dynamic Pedals",
-   "When Pedals on Screen is on, vary pedal icon strength with measured acceleration. Off hides the pedal overlay."),
+   "When Pedals on Screen is on, fill the bars in proportion to acceleration and deceleration. "
+   "Off hides the bars unless the Static pedal mode is set."),
   ("LowerSpeedLimitsBox", "Lower Speed Limits Box",
    "Lower speed limits box (if obstructed by rear view mirror). Moves the top-left speed row "
    "(MAX, speed, and the LIMIT tile) down to the slot below where the accel graph sits. Display only; file-backed."),

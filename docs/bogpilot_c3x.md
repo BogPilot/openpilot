@@ -1,6 +1,6 @@
 # BogPilot on comma 3X (AGNOS 19.9)
 
-**Status:** research / do-not-use candidate. Not a release product. Stationary
+**Status:** research candidate for `bogpilot-tesla`. Not a release product. Stationary
 offroad validation only unless a later note says otherwise. You are responsible
 for local laws and for staying attentive behind the wheel.
 
@@ -120,7 +120,7 @@ parent toggles that gate them.
 
 ## Known limits
 
-- Research / do-not-use: no claim of road or full-release acceptance from this doc
+- Research only: no claim of road or full-release acceptance from this doc
 - Missing menus on a fresh install are often **by design** of the active-only build, not a failed publish
 - No physical validation of alert audio, reverse camera or on-road behavior has been done; stationary offroad bench only
 - AP1 fingerprint needs the CAN signature (or developer `FINGERPRINT`); empty FW table
