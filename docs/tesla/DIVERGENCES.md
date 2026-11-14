@@ -193,8 +193,9 @@ Recorded disagreements only where the cited files were read. No speculation.
   effect the next time the car starts. With the radar toggle on, `radarUnavailable` is false, the Bosch parser
   reads bus 1 (`tesla_radar_bosch_generated`), and the safety param gains 256 (plus 128 only when the nosecone
   toggle is also on), through `flags_for_preap` (panda half above). Radar leads then feed radard, the pedal
-  planner and Human-Like Following (still the owner's Following toggle); Human-Like Lane Changes stays off by
-  default on Pre-AP. Toggle off: CarParams bytes and the safety param (96 / 32) are identical to the build before.
+  planner and Human-Like Following (still the owner's Following toggle). With the radar on at car start, Human-Like
+  Following and Human-Like Lane Changes default On (owner decision; unset values only, a saved Off is kept, nothing
+  is written to Params); with it off both are effectively Off. Toggle off: CarParams bytes and the safety param (96 / 32) are identical to the build before.
 - Divergences from NAP: (1) the nosecone bit is only sent with the radar bit (NAP sends it on its own; the panda
   ignores it without 256 anyway). (2) Fail closed when the radar is silent: with the toggle on and no radar cycle
   for 0.5 s, the radar interface publishes canError at 20 Hz instead of nothing, so radarState goes invalid and
@@ -217,6 +218,26 @@ Recorded disagreements only where the cited files were read. No speculation.
 - Credits: NAP (openpilot `e99f4dc75`, opendbc `cc39c7fa`), including the HWFail-only radar fault rule
   (`opendbc/car/tesla/radar_interface.py:85-88` @ `cc39c7fa`); Tinkla/BogGyver (`501c7de`) compared, including its
   PREAP SGUFail / nosecone SensorDirty rule (`selfdrive/car/tesla/radar_interface.py:89-111` @ `501c7de`).
+
+
+## Human-Like Lane Changes: onroad toggle and lane-change runtime disagree below Advanced (known item)
+- Platforms: every car with radar and openpilot longitudinal control (AP1 Model S, Pre-AP Model S with the Bosch
+  radar retrofit on). Pre-existing; not changed by this build.
+- Reference behavior: BogPilot 0.9.7 reads `HumanLaneChanges` above the tuning level gate, so its registry default On
+  applies at every level (`frogpilot/common/frogpilot_variables.py:1003` @ `04d560f3`).
+- Our behavior: the onroad toggle (`openpilot/common/bogpilot_onroad_toggles.py`, the :1003 line) follows 0.9.7 and
+  has no tuning-level or adoption-marker gate, so it reads On at the Minimal and Standard levels (L0/L1). The
+  lane-change runtime and the panel row (`read_settings`, `openpilot/selfdrive/controls/lib/phase3_lanechange.py`)
+  only honour the row at Advanced, Developer or an unconfirmed level, so at L0/L1 they read Off. The onroad value
+  only decides whether radard tracks the adjacent leads (`leadLeft` / `leadRight`); lane-change lead choice follows
+  `read_settings`. The AP1 Model S and a Pre-AP Model S started with the Bosch radar on default On in `read_settings`;
+  other cars need a row change (adoption marker).
+- Why: left as is so no driver-visible behavior changes outside the requested Pre-AP default; the onroad line is
+  shared by every car.
+- Safety-relevant: no. It only changes which radar tracks are computed and shown, not steering, gas or brake limits.
+- Tests: `openpilot/selfdrive/controls/tests/test_preap_radar_human_lane_changes.py` (180-case matrix: changes only
+  on Pre-AP with the radar on).
+- Credits: BogPilot 0.9.7 (`frogpilot_variables.py:998` and `:1003` @ `04d560f3`).
 
 
 ## Onroad UI: Blind Spot Border alone controls the red blind-spot half-border

@@ -64,9 +64,10 @@ def human_lane_changes_adopted(store) -> bool:
 
 
 # Human-Like Lane Changes is on without a row change on the AP1 Model S, as in 0.9.7 (HumanLaneChanges default on, read
-# with no marker: frogpilot_variables.py:1003 @04d560f3). Every other car keeps the marker rule. Pre-AP is marked
-# radar-unavailable unless the optional Bosch radar retrofit toggle (TeslaRadarEnabled, default Off) is on; with it on
-# it follows the marker rule. AP1 Model X (no openpilot longitudinal) stays off through read_settings' own gates.
+# with no marker: frogpilot_variables.py:1003 @04d560f3), and so is a Pre-AP Model S that started with the optional
+# Bosch radar retrofit on (TeslaRadarEnabled, default Off; preap_radar_on_at_start). Every other car keeps the marker
+# rule. Pre-AP without the retrofit is radar-unavailable and AP1 Model X has no openpilot longitudinal, so both stay
+# off through read_settings' own gates.
 HUMAN_LANE_CHANGES_DEFAULT_ON_FPS = frozenset({"TESLA_AP1_MODELS"})
 
 
@@ -83,7 +84,8 @@ def preap_radar_on_at_start(CP) -> bool:
 
 
 def human_lane_changes_default_on(CP) -> bool:
-  return CP is not None and str(getattr(CP, "carFingerprint", "") or "") in HUMAN_LANE_CHANGES_DEFAULT_ON_FPS
+  return CP is not None and (str(getattr(CP, "carFingerprint", "") or "") in HUMAN_LANE_CHANGES_DEFAULT_ON_FPS
+                             or preap_radar_on_at_start(CP))
 
 
 def turn_desires_adopted(store) -> bool:

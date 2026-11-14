@@ -51,7 +51,7 @@ DESCRIPTIONS = {
   "MinimumLaneChangeSpeed": "Lowest lane-change speed. The runtime retains a minimum safety floor of 20 mph (32.2 km/h).",
   "LaneDetectionWidth": "Prevent automatic lane changes into lanes narrower than the set width. Zero disables this additional width check.",
   "OneLaneChange": "Limit lane changes to one per turn-signal activation.",
-  "HumanLaneChanges": "Anticipate and track adjacent vehicles during lane changes. Requires radar and openpilot longitudinal control. On by default on an AP1 Model S; on other cars, off until you change this row.",
+  "HumanLaneChanges": "Anticipate and track adjacent vehicles during lane changes. Requires radar and openpilot longitudinal control. On by default on an AP1 Model S and on a Pre-AP Model S that started with the Bosch radar on; on other cars, off until you change this row.",
 }
 
 
