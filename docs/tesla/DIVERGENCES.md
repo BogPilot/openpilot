@@ -517,3 +517,17 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Safety-relevant: no. Display only; nothing in controls or monitoring reads `CameraView`.
 - Tests: `openpilot/selfdrive/ui/tests/test_camera_view_options.py`, `openpilot/selfdrive/ui/tests/test_reverse_camera.py`.
 - Credits: BogPilot 0.9.7 / 367e1fe (options and codes), upstream openpilot 0.11.2 (Auto switching and its default), BogPilot (the wiring: Standard / Wide hold one stream, Driver aside).
+
+## Longitudinal: legacy Tesla cruise accel uses the 0.9.7 acceleration profiles by default
+- Platforms: AP1 Model S, AP1 Model X and Pre-AP Model S (`openpilot/common/bogpilot_ap1_profile.py:552` `LEGACY_TESLA_PLATFORMS`). Every other car keeps the stock cruise limit unless the owner adopts the profiles in the Gas / Brake page.
+- Reference behavior: stock openpilot 0.11.2 caps cruise acceleration at [1.6, 1.2, .8, .6] m/s^2 over 0 / 10 / 25 / 40 m/s (`selfdrive/controls/lib/longitudinal_planner.py:32-33` `A_CRUISE_MAX_VALS` / `A_CRUISE_MAX_BP`). BogPilot 0.9.7 applies its acceleration profiles instead (`04d560f3e` `bogpilot_acceleration`).
+- Our behavior: on the legacy Tesla platforms the Acceleration / Deceleration / Human-Like group is live without a UI re-select (`selfdrive/controls/lib/phase3_long_accel.py:63-68` `profiles_default_on`, used by `profiles_adopted` at `:71-72`), while Longitudinal Tuning stays on (registry default `1`, `common/bogpilot_params.py:228`). The cruise maximum then comes from `Profiles.limits` (`phase3_long_accel.py:102-109`):
+  - Standard (0): [2, 1.6, .8, .6] over 0 / 10 / 25 / 40 m/s (`:109`).
+  - Eco (1): [2, 1.5, 1, .8, .6, .4, .2] over 0 / 5 / 10 / 15 / 20 / 25 / 40 m/s (`:103`).
+  - Sport (2), the default: [3, 2.5, 2, 1.5, 1, .8, .6] over 0 / 5 / 10 / 15 / 20 / 25 / 40 m/s (`:105`). It is the registry default (`common/bogpilot_params.py:41` `AccelerationProfile` `2`) and the value the one-time legacy Tesla write uses (`common/bogpilot_ap1_profile.py:559`). Sport is higher than Standard and stock below 25 m/s and the same as both at 25 m/s and above.
+  - Sport+ (3): [4, 4, 2] over 0 / 5 / 20 m/s (`:107`).
+  - Human-Like Acceleration is on by default (`common/bogpilot_params.py:192`). It lowers that maximum at low set speeds and small speed errors (`phase3_long_accel.py:110-112`), so the cruise plan only goes above the stock cap where a large speed error allows it.
+- Why: the owner drove these cars on 0.9.7 with these profiles, so the legacy Tesla platforms keep that acceleration. It is intentional, not a planner regression: a Pre-AP planner's cruise acceleration goes past the stock cap during a large speed error.
+- Safety-relevant: comfort only; it sets the cruise acceleration ceiling, not braking. Car code and panda are unchanged. Turning Longitudinal Tuning off (also what "Reset to stock" writes) returns these cars to the stock limit.
+- Tests: `openpilot/selfdrive/controls/tests/test_phase3_long_accel.py`; `openpilot/selfdrive/controls/tests/test_gas_brake_stop_defaults.py` keeps its stock-equality planner checks on a non-legacy car for this reason.
+- Credits: BogPilot 0.9.7 (`04d560f3e`, the profile tables); comma.ai openpilot (MIT) for the stock cruise limit.
