@@ -254,8 +254,8 @@ class RadarD:
                                          lead_threshold=self.lead_threshold)
       self.radar_state.leadTwo = get_lead(self.v_ego, self.ready, self.tracks, leads_v3[1], model_v_ego, self.lead_prob_filters[1].x, low_speed_override=False,
                                          lead_threshold=self.lead_threshold)
-      # Human adjacent preference: ONLY leadOne, and only when Phase3HumanLaneChangesEnabled
-      # adopted + settings.human. leadTwo keeps the in-lane match (never duplicated).
+      # Human adjacent preference: ONLY leadOne, and only when settings.human (Phase3HumanLaneChangesEnabled
+      # adopted, or on by default on the AP1 Model S). leadTwo keeps the in-lane match (never duplicated).
       if self.lane_change_settings is not None:
         try:
           preferred = human_lane_change_track(

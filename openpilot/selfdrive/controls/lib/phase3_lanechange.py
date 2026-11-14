@@ -7,8 +7,10 @@ adjacent-radar producer through human_lane_change_track BEFORE its AP1 filter.
 Activation (same rule as gasFollowSpeed Phase3*Enabled): Lane Changes / Human /
 TurnDesires consumers stay stock-equivalent until the user changes a row in the
 matching panel (configure() writes an adoption marker). Saved bench prefs such as
-NudgelessLaneChange=1 / HumanLaneChanges=1 never wake on first boot. Markers are
-never rewritten by reads; sysUtilities reset must clear them (see ACK constants).
+NudgelessLaneChange=1 never wake on first boot. One exception: Human-Like Lane
+Changes is on by default on the AP1 Model S (human_lane_changes_default_on, as in
+0.9.7); every other car keeps its marker rule. Markers are never rewritten by
+reads; sysUtilities reset must clear them (see ACK constants).
 """
 
 from __future__ import annotations
@@ -61,6 +63,16 @@ def human_lane_changes_adopted(store) -> bool:
   return _adopted(store, HUMAN_LANE_CHANGES_ACK)
 
 
+# Human-Like Lane Changes is on without a row change on the AP1 Model S, as in 0.9.7 (HumanLaneChanges default on, read
+# with no marker: frogpilot_variables.py:1003 @04d560f3). Every other car keeps the marker rule. Pre-AP (radar marked
+# unavailable) and AP1 Model X (no openpilot longitudinal) also stay off through read_settings' own gates.
+HUMAN_LANE_CHANGES_DEFAULT_ON_FPS = frozenset({"TESLA_AP1_MODELS"})
+
+
+def human_lane_changes_default_on(CP) -> bool:
+  return CP is not None and str(getattr(CP, "carFingerprint", "") or "") in HUMAN_LANE_CHANGES_DEFAULT_ON_FPS
+
+
 def turn_desires_adopted(store) -> bool:
   return _adopted(store, TURN_DESIRES_ACK)
 
@@ -97,7 +109,9 @@ def read_settings(store, CP=None) -> LaneChangeSettings:
 
   Without the matching Phase3*Enabled marker, saved ON prefs stay dormant and the
   runtime keeps the stock-equivalent path (manual torque LC, no nudgeless, no
-  Human lead substitution, no TurnDesires). Runtime keeps the stock 20mph floor.
+  Human lead substitution, no TurnDesires). Human-Like Lane Changes on the AP1
+  Model S is the exception: on by default (human_lane_changes_default_on).
+  Runtime keeps the stock 20mph floor.
   """
   level = store.tuning_level()
   invalid_number = False
@@ -141,7 +155,7 @@ def read_settings(store, CP=None) -> LaneChangeSettings:
     delay, width, minimum = 1.0, 0.0, STOCK_MIN_SPEED
 
   human = False
-  if human_lane_changes_adopted(store):
+  if human_lane_changes_adopted(store) or human_lane_changes_default_on(CP):
     human = bool(has_radar and has_long and boolean("LongitudinalTune", True) and boolean("HumanLaneChanges", True))
 
   turn_desires = False

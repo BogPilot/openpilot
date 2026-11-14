@@ -321,9 +321,9 @@ _add("HumanFollowing", "Human-Like Following",
      default="On", default_param="HumanFollowing")
 _add("HumanLaneChanges", "Human-Like Lane Changes",
      "Anticipates and tracks the cars in the next lane during a lane change, using the radar.",
-     note="Needs radar and openpilot longitudinal control, so the row is hidden on a car without radar. It stays off until you "
-          "change this row. " + _GB,
-     default="Off")
+     note="Needs radar and openpilot longitudinal control, so the row is hidden on a car without radar. On by default on an "
+          "AP1 Model S; on other cars it stays off until you change this row. " + _GB,
+     default="On", default_param="HumanLaneChanges")
 _add("LeadDetectionThreshold", "Lead Detection Confidence Threshold",
      "The driving model confidence, in percent, a vehicle needs before it counts as the lead car. Lower values detect leads "
      "sooner but may react to false leads; higher values are more conservative.",

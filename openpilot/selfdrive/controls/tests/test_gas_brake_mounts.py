@@ -271,6 +271,25 @@ def test_human_lane_change_row_appears_with_radar_and_writes_its_own_key(store):
   assert store.get_bool("HumanLaneChanges") is True
 
 
+def test_human_lane_change_row_is_on_by_default_on_the_ap1_model_s_and_a_tap_turns_it_off(store):
+  from openpilot.selfdrive.controls.lib.phase3_lanechange import read_settings
+  cp = make_cp(radar=True)                     # AP1 Model S: radar and openpilot longitudinal; Longitudinal Tuning starts on
+  page, _ = page_for(store, cp)
+  page.open_panel("profiles")
+  t = titles(page.panel)
+  assert t.index("Human-Like Lane Changes") == t.index("Human-Like Following") + 1
+  assert titled(page.panel, "Human-Like Lane Changes").action_item.toggle.get_state() is True
+  assert read_settings(store, cp).human is True
+  switch(page.panel, "Human-Like Lane Changes")
+  import time
+  for _ in range(50):                          # that row's own module writes without the blocking keyword
+    store.invalidate()
+    if not store.get_bool("HumanLaneChanges"):
+      break
+    time.sleep(0.02)
+  assert store.get_bool("HumanLaneChanges") is False
+  assert read_settings(store, cp).human is False
+
 def test_following_rows_follow_the_tuning_level_and_the_longitudinal_lock(store):
   page, flag = page_for(store, make_cp(long=False))
   page.open_panel("profiles")

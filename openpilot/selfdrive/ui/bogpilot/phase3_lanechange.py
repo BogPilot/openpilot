@@ -18,6 +18,7 @@ from openpilot.selfdrive.controls.lib.phase3_lanechange import (
   TURN_DESIRES_ACK,
   configure,
   human_lane_changes_adopted,
+  human_lane_changes_default_on,
   lane_change_adopted,
   read_settings,
   turn_desires_adopted,
@@ -50,17 +51,18 @@ DESCRIPTIONS = {
   "MinimumLaneChangeSpeed": "Lowest lane-change speed. The runtime retains a minimum safety floor of 20 mph (32.2 km/h).",
   "LaneDetectionWidth": "Prevent automatic lane changes into lanes narrower than the set width. Zero disables this additional width check.",
   "OneLaneChange": "Limit lane changes to one per turn-signal activation.",
-  "HumanLaneChanges": "Anticipate and track adjacent vehicles during lane changes. Requires radar and openpilot longitudinal control. Off until you change this row.",
+  "HumanLaneChanges": "Anticipate and track adjacent vehicles during lane changes. Requires radar and openpilot longitudinal control. On by default on an AP1 Model S; on other cars, off until you change this row.",
 }
 
 
-def display_bool(store, key: str) -> bool:
-  """Panel display: dormant groups show OFF so saved ON prefs are not implied active."""
+def display_bool(store, key: str, CP=None) -> bool:
+  """Panel display: dormant groups show OFF so saved ON prefs are not implied active. CP: the car, for the
+  groups that are on by default on one car type (Human-Like Lane Changes on the AP1 Model S)."""
   if key == "LaneChanges" and not lane_change_adopted(store):
     return True  # stock torque LC remains available
   if key in LANE_CHANGE_KEYS and not lane_change_adopted(store):
     return False
-  if key == "HumanLaneChanges" and not human_lane_changes_adopted(store):
+  if key == "HumanLaneChanges" and not (human_lane_changes_adopted(store) or human_lane_changes_default_on(CP)):
     return False
   if key == "TurnDesires" and not turn_desires_adopted(store):
     return False
@@ -276,7 +278,7 @@ def human_lane_change_item(store, CP=None, *, runtime_integrated=False, offroad=
   return toggle_item(
     lambda: tr(HUMAN_ROW[1]),
     lambda: tr(DESCRIPTIONS["HumanLaneChanges"]),
-    display_bool(store, "HumanLaneChanges"),
+    display_bool(store, "HumanLaneChanges", CP),
     callback=write,
     enabled=editable,
   )

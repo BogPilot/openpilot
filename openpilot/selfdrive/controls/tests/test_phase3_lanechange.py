@@ -35,6 +35,7 @@ from openpilot.selfdrive.controls.lib.phase3_lanechange import (
   configure,
   human_lane_change_track,
   human_lane_changes_adopted,
+  human_lane_changes_default_on,
   lane_change_adopted,
   read_settings,
   turn_desires_adopted,
@@ -300,6 +301,28 @@ class PolicyTests(unittest.TestCase):
     # Registry/saved HumanLaneChanges=1 stays dormant without adoption marker.
     self.assertFalse(read_settings(Store(HumanLaneChanges=True, LongitudinalTune=True), cp).human)
     self.assertTrue(read_settings(adopt_human(Store(HumanLaneChanges=True, LongitudinalTune=True)), cp).human)
+
+  def test_human_is_on_by_default_on_the_ap1_model_s_only(self):
+    ap1 = NS(carFingerprint="TESLA_AP1_MODELS", radarUnavailable=False, openpilotLongitudinalControl=True)
+    preap = NS(carFingerprint="TESLA_PREAP_MODELS", radarUnavailable=True, openpilotLongitudinalControl=True)
+    ap1x = NS(carFingerprint="TESLA_AP1_MODELX", radarUnavailable=False, openpilotLongitudinalControl=False)
+    fresh = Store(HumanLaneChanges=True, LongitudinalTune=True)          # registry default, no marker
+    saved_off = Store(HumanLaneChanges=False, LongitudinalTune=True)
+    self.assertTrue(human_lane_changes_default_on(ap1))
+    self.assertTrue(read_settings(fresh, ap1).human)
+    self.assertTrue(display_bool(fresh, "HumanLaneChanges", ap1))
+    self.assertFalse(read_settings(saved_off, ap1).human)                 # a saved off stays off
+    self.assertFalse(display_bool(saved_off, "HumanLaneChanges", ap1))
+    self.assertFalse(read_settings(Store(HumanLaneChanges=True, LongitudinalTune=False), ap1).human)
+    self.assertFalse(read_settings(Store(HumanLaneChanges=True, LongitudinalTune=True,
+                                         DisableOpenpilotLongitudinal=True), ap1).human)
+    for cp in (preap, ap1x):
+      self.assertFalse(human_lane_changes_default_on(cp), cp.carFingerprint)
+      self.assertFalse(read_settings(fresh, cp).human, cp.carFingerprint)
+      self.assertFalse(human_row_available(fresh, cp, runtime_integrated=True), cp.carFingerprint)
+    for cp in (preap, ap1x, None, NS(radarUnavailable=False, openpilotLongitudinalControl=True)):
+      self.assertFalse(display_bool(fresh, "HumanLaneChanges", cp))       # every other car: off until the row changes
+    self.assertFalse(read_settings(fresh).human)                          # no CarParams (desire_helper's reader)
 
   def test_turn_desires_default_parent_and_ui_integration_gate(self):
     self.assertFalse(read_settings(Store()).turn_desires)
