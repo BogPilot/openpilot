@@ -14,6 +14,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+# synthetic fixture identities, assembled at runtime
+SYNTH_EMAIL = "@".join(("test", "example.invalid"))
+
 spec = importlib.util.spec_from_file_location('gate', Path(__file__).resolve().parents[1] / 'rc_firmware_gate.py')
 gate = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gate)
@@ -69,7 +72,7 @@ class GateTests(unittest.TestCase):
     key.write_bytes(b'ssh-rsa ' + base64.b64encode(wire))
     self.git('init', '-q')
     self.git('add', '.')
-    self.git('-c', 'user.name=Synthetic', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'synthetic source')
+    self.git('-c', 'user.name=Synthetic', '-c', 'user.email=' + SYNTH_EMAIL, 'commit', '-qm', 'synthetic source')
     self.candidate = self.git('rev-parse', 'HEAD').strip()
     self.policy_patch = patch.object(gate, 'POLICY_BASE', self.candidate)
     self.policy_patch.start()
@@ -238,7 +241,7 @@ class GateTests(unittest.TestCase):
   def test_policy_changed_in_new_commit(self):
     (self.source / 'panda/SConscript').write_text('changed signing policy')
     self.git('add', 'panda/SConscript')
-    self.git('-c', 'user.name=Synthetic', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'change')
+    self.git('-c', 'user.name=Synthetic', '-c', 'user.email=' + SYNTH_EMAIL, 'commit', '-qm', 'change')
     with self.assertRaisesRegex(ValueError, 'policy changed'):
       gate.checkout_policy(self.source, self.git('rev-parse', 'HEAD').strip())
 

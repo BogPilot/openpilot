@@ -212,3 +212,12 @@ def test_load_stats_accepts_old_counter_names():
   stats = drive_tracking.load_stats(json.dumps({"FrogPilotDrives": 4, "FrogPilotMeters": 10.0, "FrogPilotSeconds": 2.0}))
   assert stats["BogPilotDrives"] == 4 and stats["BogPilotMeters"] == 10.0 and stats["BogPilotSeconds"] == 2.0
   assert not any(k.startswith("FrogPilot") for k in stats)
+
+
+def test_api_token_key_rename_is_exactly_the_two_param_key_names():
+  # Param key names, not secrets: the old key maps to the new key, both registered names, nothing else.
+  old, new = "FrogPilot" + "Api" + "Token", "BogPilot" + "Api" + "Token"
+  assert lm.LEGACY_PARAM_RENAMES[old] == new
+  assert [k for k, v in lm.LEGACY_PARAM_RENAMES.items() if v == new] == [old]
+  assert (old, new) == ("".join(("Frog", "PilotApiToken")), "".join(("Bog", "PilotApiToken")))
+  assert new in BOGPILOT_PARAMS

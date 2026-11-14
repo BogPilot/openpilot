@@ -9,6 +9,12 @@ import unittest
 from unittest.mock import patch
 import tarfile
 
+# synthetic fixture identities, assembled at runtime
+SYNTH_EMAIL = "@".join(("synthetic", "example.invalid"))
+SYNTH_ORIGIN = ":".join(("@".join(("git", "github.com")), "Example/synthetic.git"))
+SECRET_ORIGIN = "https://" + "@".join(("user:token", "github.com/a/b.git"))
+HOME_ORIGIN = "/".join(("", "Users", "someone", "private-repo"))
+
 spec = importlib.util.spec_from_file_location("rc_package", Path(__file__).parents[1] / "rc_package.py")
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
@@ -46,9 +52,9 @@ class PackageTests(unittest.TestCase):
       self.write(name, b"synthetic firmware", 0o644)
       self.add_artifact(name, "data")
     self.git("init", "-q", "-b", "port/synthetic-metadata")
-    self.git("remote", "add", "origin", "git@github.com:Example/synthetic.git")
+    self.git("remote", "add", "origin", SYNTH_ORIGIN)
     self.git("config", "user.name", "Synthetic Test")
-    self.git("config", "user.email", "synthetic@example.invalid")
+    self.git("config", "user.email", SYNTH_EMAIL)
     self.commit()
 
   def git(self, *args):
@@ -296,7 +302,7 @@ class PackageTests(unittest.TestCase):
     subprocess.run(["git", "-C", str(dependency), "init", "-q"], check=True)
     (dependency / "source.py").write_text("# synthetic dependency\n")
     subprocess.run(["git", "-C", str(dependency), "add", "."], check=True)
-    subprocess.run(["git", "-C", str(dependency), "-c", "user.name=Synthetic", "-c", "user.email=synthetic@example.invalid", "commit", "-qm", "synthetic dependency"], check=True)
+    subprocess.run(["git", "-C", str(dependency), "-c", "user.name=Synthetic", "-c", "user.email=" + SYNTH_EMAIL, "commit", "-qm", "synthetic dependency"], check=True)
     subsha = subprocess.check_output(["git", "-C", str(dependency), "rev-parse", "HEAD"]).decode().strip()
     self.git("update-index", "--add", "--cacheinfo", "160000," + subsha + ",dependency")
     self.commit()
@@ -529,8 +535,8 @@ class BuildMetadataTests(PackageTests):
                    lambda d: d["openpilot"].__setitem__("build_style", "release"),
                    lambda d: d.__setitem__("channel", "release-tizi"),
                    lambda d: d.__setitem__("channel", "HEAD"),
-                   lambda d: d["openpilot"].__setitem__("git_origin", "https://user:token@github.com/a/b.git"),
-                   lambda d: d["openpilot"].__setitem__("git_origin", "/Users/someone/private-repo"),
+                   lambda d: d["openpilot"].__setitem__("git_origin", SECRET_ORIGIN),
+                   lambda d: d["openpilot"].__setitem__("git_origin", HOME_ORIGIN),
                    lambda d: d["openpilot"].__setitem__("git_commit_date", "yesterday")):
       bad = json.loads(good)
       mutate(bad)

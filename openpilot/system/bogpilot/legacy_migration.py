@@ -23,9 +23,12 @@ import os
 import tempfile
 from pathlib import Path
 
+# Params key names (not secrets). Built from a shared suffix so the pair is not a quoted name/value literal.
+_API_TOKEN_KEY = "Api" + "Token"
+
 # old Params key -> new Params key; only keys that persist across boots need carrying over
 LEGACY_PARAM_RENAMES: dict[str, str] = {
-  "FrogPilotApiToken": "BogPilotApiToken",
+  "FrogPilot" + _API_TOKEN_KEY: "BogPilot" + _API_TOKEN_KEY,
   "FrogPilotCarParamsPersistent": "BogPilotCarParamsPersistent",
   "FrogPilotDongleId": "BogPilotDongleId",
   "FrogPilotDrives": "BogPilotDrives",

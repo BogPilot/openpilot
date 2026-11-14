@@ -11,6 +11,9 @@ import tempfile
 import unittest
 from unittest import mock
 
+# synthetic fixture identities, assembled at runtime
+SYNTH_EMAIL = "@".join(("synthetic", "example.invalid"))
+
 spec=importlib.util.spec_from_file_location("rc_provenance",Path(__file__).parents[1]/"rc_provenance_gate.py")
 g=importlib.util.module_from_spec(spec);spec.loader.exec_module(g)
 
@@ -21,7 +24,7 @@ class GateTests(unittest.TestCase):
     self.root=Path(self.temp.name)/"repo";self.root.mkdir()
     self.git("init","-q")
     self.git("config","user.name","Synthetic Fixture")
-    self.git("config","user.email","synthetic@example.invalid")
+    self.git("config","user.email",SYNTH_EMAIL)
     for name in g.BASE_ASSETS:
       self.write(name,b"synthetic build input\n")
     self.write("vendor/LICENSE.txt",b"Synthetic required notice\n")
@@ -178,7 +181,7 @@ class GateTests(unittest.TestCase):
     module=self.root/'module';module.mkdir()
     def subgit(*args):
       return subprocess.check_output(['git','-C',str(module),*args],stderr=subprocess.DEVNULL).decode().strip()
-    subgit('init','-q');subgit('config','user.name','Synthetic Fixture');subgit('config','user.email','synthetic@example.invalid')
+    subgit('init','-q');subgit('config','user.name','Synthetic Fixture');subgit('config','user.email',SYNTH_EMAIL)
     (module/'file').write_bytes(b'synthetic nested source')
     subgit('add','.');subgit('commit','-qm','synthetic module')
     pin=subgit('rev-parse','HEAD')

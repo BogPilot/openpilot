@@ -1,5 +1,5 @@
 import json
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -16,6 +16,13 @@ class FakeParams:
     return self.values.get(name)
   def get_bool(self, name):
     return bool(self.values.get(name, False))
+
+
+BASE = date(2026, 11, 7)   # fixed, deterministic reference day; fixture days are offsets from it
+
+
+def day(offset):
+  return (BASE + timedelta(days=offset)).isoformat()
 
 
 def stats(drives=3, meters=1609.344, seconds=7200):
@@ -50,24 +57,24 @@ def test_original_truncation_not_rounding():
 
 
 def test_week_local_window_and_future_zone_labels():
-  data = {"2026-10-31": dict(routes=100, meters=100000, seconds=100000),
-          "2026-11-01": dict(routes=2, meters=1609.344, seconds=3600),
-          "2026-11-07": dict(routes=3, meters=1609.344, seconds=3600),
-          "2026-11-08": dict(routes=1, meters=1609.344, seconds=3600),
+  data = {day(-7): dict(routes=100, meters=100000, seconds=100000),
+          day(-6): dict(routes=2, meters=1609.344, seconds=3600),
+          day(0): dict(routes=3, meters=1609.344, seconds=3600),
+          day(1): dict(routes=1, meters=1609.344, seconds=3600),
           "bad": dict(routes=999, meters=999, seconds=999)}
-  row = past_week_row(json.dumps(data), False, date(2026, 11, 7))
+  row = past_week_row(json.dumps(data), False, BASE)
   assert row.available and (row.drives, row.distance, row.hours) == (6, 3, 3)
 
 
 def test_week_invalid_in_range_not_silently_counted_zero():
-  row = past_week_row(json.dumps({"2026-11-07": {"routes": 1}}), False, date(2026, 11, 7))
+  row = past_week_row(json.dumps({day(0): {"routes": 1}}), False, BASE)
   assert not row.available
 
 
 def test_empty_recorded_history_and_old_only_history():
-  assert past_week_row("{}", False, date(2026, 11, 7)).drives == 0
-  assert past_week_row('{"2025-01-01":{}}', False, date(2026, 11, 7)).drives == 0
-  assert not past_week_row('{"bad":{}}', False, date(2026, 11, 7)).available
+  assert past_week_row("{}", False, BASE).drives == 0
+  assert past_week_row(json.dumps({day(-675): {}}), False, BASE).drives == 0
+  assert not past_week_row('{"bad":{}}', False, BASE).available
 
 
 def test_timezone_precedence(tmp_path):
@@ -79,11 +86,12 @@ def test_timezone_precedence(tmp_path):
 
 def test_dst_and_local_day_read_only(tmp_path):
   history = tmp_path / "DriveHistory"
-  raw = '{"2026-11-01":{"routes":2,"meters":2000,"seconds":3600}}'
+  raw = json.dumps({day(-6): {"routes": 2, "meters": 2000, "seconds": 3600}}, separators=(",", ":"))
   history.write_text(raw)
   p = FakeParams({"BogPilotStats": stats(), "Timezone": "America/New_York", "IsMetric": True})
-  # UTC Nov8 is still Nov7 locally, so Nov1 remains in the seven-day window.
-  rows = read_rows(p, history_path=history, timezone_path=tmp_path / "missing", now=datetime(2026, 11, 8, 2, tzinfo=UTC))
+  # 02:00 UTC on the day after BASE is still BASE locally (and the window spans the DST change), so day(-6) stays in.
+  now = datetime.combine(BASE + timedelta(days=1), time(2), tzinfo=UTC)
+  rows = read_rows(p, history_path=history, timezone_path=tmp_path / "missing", now=now)
   assert rows[0] == rows[2] and rows[1].drives == 2
   assert history.read_text() == raw
   assert p.values["BogPilotStats"] == stats()
