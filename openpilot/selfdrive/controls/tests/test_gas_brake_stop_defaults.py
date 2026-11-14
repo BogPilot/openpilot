@@ -297,7 +297,7 @@ def test_opening_the_page_and_every_subpanel_never_writes_a_preference_or_marker
 # ---------------------------------------------------------------------------------------------------
 def test_root_entries_cover_the_six_consumer_backed_groups_in_order(store):
   assert [(k, t) for k, t, _ in GB.root_entries(store)] == [
-    ("advanced", "Advanced Longitudinal Tuning"), ("conditional", "Conditional Experimental Mode"),
+    ("advanced", "Advanced Longitudinal Tuning"),   # no Conditional Experimental Mode: removed
     ("personalities", "Driving Personalities"), ("profiles", "Longitudinal Tuning"), ("qol", "Quality of Life"),
     ("slc", "Speed Limit Controller")]
 

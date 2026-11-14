@@ -459,7 +459,7 @@ def gas_accel_entries(open_panel, store=None, capabilities=Capabilities(), cp=No
     from openpilot.common.bogpilot_store import ParamStore
     store = ParamStore()
   items = []
-  for group in ("advanced", "conditional", "profiles"):
+  for group in ("advanced", "profiles"):   # no "conditional": Conditional Experimental Mode is removed
     parent, title, _ack, keys = GROUPS[group]
     if not any(store.honoured(key) for key in keys):
       continue

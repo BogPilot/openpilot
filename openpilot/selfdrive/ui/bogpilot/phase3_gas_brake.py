@@ -2,7 +2,6 @@
 
 Composes the two consumer-backed Gas / Brake lanes under ONE page:
   Advanced Longitudinal Tuning   Actuator Delay, Maximum Acceleration, Stop Acceleration, Stopping Rate
-  Conditional Experimental Mode  all CEM rows with a real consumer
   Driving Personalities          switch + MANAGE on this page; Aggressive / Standard / Relaxed on the next
   Longitudinal Tuning            Acceleration / Deceleration profile, Human-Like Acceleration, Human-Like Following,
                                  Human Lane Changes, Lead Detection Confidence Threshold
@@ -32,7 +31,7 @@ TAP_FROM_ZERO_DESC = (
 # Consumer-backed control IDs (feeds Page.controls so an empty page is omitted by the navigation).
 CONTROLS = ("LongitudinalActuatorDelay", "MaxDesiredAcceleration", "StopAccel", "StoppingDecelRate",
             "AccelerationProfile", "DecelerationProfile", "HumanAcceleration",
-            "ConditionalExperimental", "CustomPersonalities", "HumanFollowing", "HumanLaneChanges",
+            "CustomPersonalities", "HumanFollowing", "HumanLaneChanges",
             "LeadDetectionThreshold", "ForceStops", "IncreasedStoppedDistance", "WeatherPresets", "SpeedLimitController")
 
 # Capabilities of THIS build. Navigation/SLC/v9-prediction/gears/weather producers are NOT installed, and the
@@ -86,7 +85,7 @@ def root_entries(store, cp=None):
   cp: optional CarParams (or the live proxy). The Speed Limit Controller entry is hidden for a car its consumer does not
   drive (no inert row); with no CarParams yet it shows, greyed out, like the other longitudinal entries."""
   entries = []
-  for group in ("advanced", "conditional", "profiles"):
+  for group in ("advanced", "profiles"):   # no "conditional": Conditional Experimental Mode is removed
     parent, title, _ack, keys = GROUPS[group]
     if group == "profiles" and store.honoured(mounts.PERSONALITIES_KEY):
       entries.append(("personalities", mounts.PERSONALITIES_TITLE, mounts.personalities_description()))

@@ -4,7 +4,7 @@ Display only. Never changes ExperimentalMode, car controls, schemas or defaults.
 CEStatus meanings are the own04d560f3e speed/turn/stop/curve/lead icon categories.
 """
 from dataclasses import dataclass
-from openpilot.selfdrive.controls.lib.phase3_long_accel import CEM_ACK
+from openpilot.selfdrive.controls.lib.phase3_long_accel import CEM_ACK, CEM_REMOVED
 
 NAMES = {0: "Ready", 1: "Overridden", 2: "Experimental", 3: "Speed", 4: "Speed", 5: "Turn", 6: "Stop",
          7: "Turn", 8: "Curve", 9: "Lead", 10: "Lead", 11: "Stop", 12: "Stop", 13: "Experimental"}
@@ -22,6 +22,8 @@ HIDDEN = StatusView()
 
 
 def read_status(store, sm, now, drive_start, enabled):
+  if CEM_REMOVED:
+    return HIDDEN  # CEM removed: no badge, whatever ShowCEMStatus / CEStatus a device has saved
   try:
     if not (enabled and store.get_bool(CEM_ACK, False) and store.toggle_bool("ConditionalExperimental") and
             store.toggle_bool("ShowCEMStatus")):

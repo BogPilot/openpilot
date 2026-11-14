@@ -56,26 +56,21 @@ def test_cem_override_formula_matches_097():
   assert cem_stalk_override("4") == 1
 
 
-def test_cem_is_on_requires_toggle_and_adoption():
+def test_cem_is_on_is_always_off_now_that_cem_is_removed():
   assert not cem_is_on(Params())
   assert not cem_is_on(Params(ConditionalExperimental=True))
   assert not cem_is_on(Params(Phase3CEMEnabled=True))
-  assert cem_is_on(Params(ConditionalExperimental=True, Phase3CEMEnabled=True))
+  assert not cem_is_on(Params(ConditionalExperimental=True, Phase3CEMEnabled=True))
 
 
-def test_hold_with_cem_on_flips_cestatus_not_experimental_mode():
+def test_hold_with_saved_cem_on_toggles_experimental_mode_not_cestatus():
   p = Params(ExperimentalMode=False, ExperimentalModeConfirmed=True,
              ConditionalExperimental=True, Phase3CEMEnabled=True, CEStatus=0)
-  assert apply_experimental_toggle(p, cp(), cs(), True) is None
+  assert apply_experimental_toggle(p, cp(), cs(), True) is True
+  assert p.data["ExperimentalMode"] is True
+  assert apply_experimental_toggle(p, cp(), cs(), True) is False
   assert p.data["ExperimentalMode"] is False
-  assert p.data["CEStatus"] == 2
-  assert p.puts == [("CEStatus", 2, True)]
-  assert apply_experimental_toggle(p, cp(), cs(), True) is None
-  assert p.data["CEStatus"] == 0
-  p.data["CEStatus"] = 4
-  assert apply_experimental_toggle(p, cp(), cs(), True) is None
-  assert p.data["CEStatus"] == 1
-  assert p.data["ExperimentalMode"] is False
+  assert all(k != "CEStatus" for k, *_ in p.puts) and p.data["CEStatus"] == 0
 
 
 def test_hold_with_cem_off_still_toggles_experimental_mode():
@@ -109,21 +104,16 @@ def test_unconfirmed_alert_is_brief_and_names_settings():
   assert alert.audible_alert == log.SelfdriveState.AudibleAlert.none
 
 
-def test_publish_status_keeps_manual_cem_override():
-  store = Params(**{CEM_ACK: True})
+def test_publish_status_never_writes_cestatus_now_that_cem_is_removed():
+  store = Params(**{CEM_ACK: True, "CEStatus": 4})
   port = LongAccelPort.__new__(LongAccelPort)
   port.store = store
   port.cem = ConditionalMode()
   port._published_status = None
-  port.cem.status, port.cem.experimental = 1, False
-  port.publish_status()
-  assert store.data["CEStatus"] == 1
-  port.cem.status, port.cem.experimental = 2, True
-  port.publish_status()
-  assert store.data["CEStatus"] == 2
-  port.cem.status, port.cem.experimental = 4, False
-  port.publish_status()
-  assert store.data["CEStatus"] == 0
+  for status, experimental in ((1, False), (2, True), (4, False), (0, False)):
+    port.cem.status, port.cem.experimental = status, experimental
+    port.publish_status()
+  assert store.puts == [] and store.data["CEStatus"] == 4
 
 
 def test_twist_follow_off_does_not_write_personality():

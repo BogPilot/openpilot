@@ -265,6 +265,7 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Safety-relevant: no; settings defaults only. Car code and panda are unchanged.
 - Tests: `openpilot/common/tests/test_legacy_tesla_ce_off.py`, `openpilot/selfdrive/ui/tests/test_section_reset_parent.py`, `openpilot/selfdrive/ui/tests/test_slc_legacy_profile.py`, `openpilot/selfdrive/ui/bogpilot/tests/test_phase3_system_utilities.py`.
 - Credits: BogPilot bogpilot-tesla `367e1fe` (AP1 Model S profile value).
+- Superseded: Conditional Experimental Mode is now removed on every car (entry "Conditional Experimental Mode removed" below); these writes still run and stay harmless.
 
 ## pandad.py cold start: polled wait, reflash only when needed, "Connecting to panda..." alert
 - Platforms: all car types (the panda wrapper `openpilot/selfdrive/pandad/pandad.py` before `./pandad` starts).
@@ -473,3 +474,17 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Safety-relevant: no (display / tap position only).
 - Tests: `openpilot/selfdrive/ui/onroad/bogpilot/tests/test_record_button_placement.py`.
 - Credits: BogPilot (record button, personality cluster).
+
+## Conditional Experimental Mode removed
+- Reference behavior: BogPilot 0.9.7 ships Conditional Experimental Mode (CEM): the planner turns Experimental Mode on by itself when set conditions hold (speed, curves, leads, a predicted stop, a turn signal), publishes the reason in `CEStatus`, shows an onroad status badge, and the AP1 stalk hold flips the `CEStatus` override instead of Experimental Mode while CEM is on. Upstream 0.11.2 has no CEM.
+- Our behavior: CEM is removed on every car. The full port is kept unchanged on the `cem-preserve-0.11.2` branch (its `docs/tesla/CEM_PRESERVE_README.md` lists the files, params and call sites) for a possible 0.11.0 LTS port. On this branch:
+  - Settings: no "Conditional Experimental Mode" entry on the Gas / Brake page (`phase3_gas_brake.root_entries`, `phase3_long_accel_settings.gas_accel_entries`), and `ConditionalExperimental` is no longer one of the page's controls.
+  - Planner: `phase3_long_accel.CEM_REMOVED` makes `Conditions.read` return None, so `LongAccelPort.update` never returns a conditional flag, `cem.red_light` stays off and the force-stop observer uses its own model filter, as it already did with CEM off. `publish_status` never writes `CEStatus`.
+  - Stalk: `phase3_stalk_controls.cem_is_on` is always False, so the hold always flips the regular `ExperimentalMode`.
+  - Onroad: the CEM status badge (`phase3_cem_status.read_status`) is always hidden.
+  - Params: every `CE*` key, `CEStatus` and `ShowCEMStatus` stays registered and the `Phase3CEMEnabled` marker stays a known file key, so a value saved on a device, a restored backup, or a reset that writes `ConditionalExperimental` 0 stays harmless. Nothing reads them for driving.
+  - Regular Experimental Mode is unchanged: the toggle, the planner's model input (`selfdriveState.experimentalMode`), camera switching and the icons.
+- Why: the CEM port is not wanted on this build; it was already off on every legacy Tesla (entry "Conditional Experimental Mode off on every legacy Tesla" above).
+- Safety-relevant: no new behaviour. With the shipped legacy Tesla settings (CEM off) the planner inputs are identical before and after; with CEM saved on, Experimental Mode only follows the driver's own toggle.
+- Tests: `openpilot/selfdrive/ui/tests/test_cem_removed.py`, `openpilot/selfdrive/ui/tests/test_stalk_gaps.py`, `openpilot/selfdrive/controls/tests/test_gas_brake_mounts.py`, `openpilot/selfdrive/controls/tests/test_gas_brake_stop_defaults.py`; CEM behaviour tests in `test_phase3_long_accel.py` and `test_phase3_long_accel_settings.py` are skipped while `CEM_REMOVED` is set.
+- Credits: BogPilot (CEM port, kept on the preserve branch).

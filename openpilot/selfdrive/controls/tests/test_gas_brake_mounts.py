@@ -10,6 +10,7 @@ from opendbc.car.structs import car
 from openpilot.common.bogpilot_store import ParamStore
 from openpilot.common.params import Params
 from openpilot.selfdrive.controls.lib import phase3_following as F
+from openpilot.selfdrive.controls.lib.phase3_long_accel import CEM_REMOVED
 from openpilot.selfdrive.controls.lib.phase3_long_accel import PROFILE_ACK
 from openpilot.selfdrive.ui.bogpilot import phase3_gas_brake as GB
 from openpilot.selfdrive.ui.bogpilot.nesting import INDENT
@@ -110,7 +111,7 @@ def titles(widget):
 def test_root_entries_follow_the_097_order(store):
   cp = make_cp()
   assert [(k, t) for k, t, _ in GB.root_entries(store, cp)] == [
-    ("advanced", "Advanced Longitudinal Tuning"), ("conditional", "Conditional Experimental Mode"),
+    ("advanced", "Advanced Longitudinal Tuning"),   # no Conditional Experimental Mode: removed
     ("personalities", "Driving Personalities"), ("profiles", "Longitudinal Tuning"),
     ("qol", "Quality of Life"), ("slc", "Speed Limit Controller")]
 
@@ -344,6 +345,7 @@ def test_longitudinal_tuning_rows_and_human_lane_changes_sit_under_the_group_swi
   assert all(i.indent == INDENT for i in after)                 # its value and -1 / +1 rows too
 
 
+@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (kept on cem-preserve-0.11.2)")
 def test_conditional_experimental_children_nest_under_the_switch_and_their_own_parent(store):
   page, _ = page_for(store, make_cp())
   page.open_panel("conditional")

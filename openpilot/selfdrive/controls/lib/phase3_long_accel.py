@@ -29,6 +29,10 @@ CEM_KEYS = ("ConditionalExperimental", "CESpeed", "CESpeedLead", "CECurves", "CE
             "CEStopLights", "CELead", "CESlowerLead", "CEStoppedLead", "CENavigation",
             "CENavigationIntersections", "CENavigationTurns", "CENavigationLead", "CEModelStopTime",
             "CESignalSpeed", "CESignalLaneDetection", "ShowCEMStatus")
+# Conditional Experimental Mode is removed from this build (docs/tesla/DIVERGENCES.md "Conditional Experimental Mode
+# removed"; the full port is kept unchanged on the cem-preserve-0.11.2 branch). The CE* keys stay registered so a value
+# saved on a device, a backup restore or a reset that writes CE=0 stays harmless; nothing reads them for driving.
+CEM_REMOVED = True
 
 
 def configure(store, key, value):
@@ -152,6 +156,8 @@ class Conditions:
 
   @classmethod
   def read(cls, store):
+    if CEM_REMOVED:
+      return None
     if not store.get_bool(CEM_ACK, False) or not store.toggle_bool("ConditionalExperimental"):
       return None
     conversion = 1 / 3.6 if store.get_bool("IsMetric", False) else .44704
@@ -312,7 +318,10 @@ class LongAccelPort:
 
     Change-only writes avoid 20Hz persistent Params IO. Never clear another
     writer at startup when this port has not been explicitly adopted.
+    With CEM removed (CEM_REMOVED) CEStatus is never written.
     """
+    if CEM_REMOVED:
+      return
     if not self.store.get_bool(CEM_ACK, False) and self._published_status is None:
       return
     if self.cem.status in (1, 2):

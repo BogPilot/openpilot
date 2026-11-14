@@ -239,12 +239,14 @@ def twist_follow_on(cs):
   return bool(getattr(settings, "twist_follow", True))
 
 
+# Conditional Experimental Mode is removed from this build (docs/tesla/DIVERGENCES.md "Conditional Experimental Mode
+# removed"): the stalk hold always flips the regular ExperimentalMode, whatever CE* values a device has saved.
+CEM_REMOVED = True
+
+
 def cem_is_on(params):
-  """CEM is live only when the toggle is on and the panel has been adopted."""
-  try:
-    return bool(params.get_bool("ConditionalExperimental") and params.get_bool("Phase3CEMEnabled"))
-  except Exception:
-    return False
+  """Always False: CEM is removed (CEM_REMOVED). Saved ConditionalExperimental / Phase3CEMEnabled values are ignored."""
+  return False
 
 
 def cem_stalk_override(current):
