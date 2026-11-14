@@ -98,6 +98,8 @@ class CarState(CarStateBase):
     # Gas pedal
     gas = cp.vl["DI_torque1"]["DI_pedalPos"] / 100.0
     ret.gasPressed = gas > 0
+    # Pedal position 0..1 for the onroad pedal bars, in the deprecated CarState.gas slot (no schema change; see DIVERGENCES).
+    ret.deprecated.gas = min(max(float(gas), 0.0), 1.0)
 
     # Brake pedal
     ret.brakePressed = bool(cp.vl["BrakeMessage"]["driverBrakeStatus"] != 1)

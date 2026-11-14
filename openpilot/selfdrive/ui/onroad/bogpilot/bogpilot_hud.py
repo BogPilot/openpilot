@@ -294,7 +294,8 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
     self._bp_arc_btn = ArcTapButton(UI_CONFIG_BUTTON, UI_CONFIG_ICON)
     self._bp_rec_btn = RecordButton(_recorder)
     self._bp_extras = ExtrasPolicy()
-    self.bp_pedals = None             # (brake_opacity, gas_opacity) daily response, or None when hidden
+    self.bp_pedals = None             # pedals.Bars to draw, or None when hidden
+    self.bp_pedal_bars = PED.PedalBars()
     self.bp_extra_keepouts: list = []  # screen rects of the arc tap area, pedals and record button (lead labels avoid)
     self.bp_rhd = False
     self._bp_started_arc = None
@@ -348,7 +349,8 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
         cloudlog.exception("steering arc inputs failed; stock Experimental Mode button kept until the next drive")
         self.bp_arc_live = False
         self.bp_arc_failed = True
-    # pedals: daily response on measured carState.aEgo / standstill and bogpilotCarState.brakeLights
+    # pedal bars: carState (aEgo, vEgo, brakePressed, deprecated.gas = DI_pedalPos / 100), carControl accel while
+    # longActive, bogpilotCarState.brakeLights (Static mode only)
     self.bp_pedals = None
     pol, _rec = self._bp_extras.get(bool(getattr(ui_state, "has_longitudinal_control", False)))
     if pol.show:
@@ -362,7 +364,12 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
           lights = bool(psm["bogpilotCarState"].brakeLights)
       except (KeyError, AttributeError, TypeError):
         lights = False
-      self.bp_pedals = PED.daily_opacity(pol, float(cs.aEgo), bool(cs.standstill), lights)
+      long_active = bool(_fresh(sm, "carControl") and sm["carControl"].longActive)
+      op_accel = float(sm["carControl"].actuators.accel) if long_active else 0.0
+      cp = ui_state.CP
+      self.bp_pedals = self.bp_pedal_bars.update(pol, _fresh(sm, "carState"), now, cs.aEgo, cs.vEgo, bool(cs.standstill),
+                                                 bool(cs.brakePressed), lights, cs.deprecated.gas, op_accel, long_active,
+                                                 PED.platform_of(getattr(cp, "carFingerprint", "") if cp is not None else ""))
 
   def user_interacting(self) -> bool:
     return super().user_interacting() or self._bp_arc_btn.is_pressed or self._bp_rec_btn.is_pressed
@@ -431,13 +438,7 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
     widget_w = rect.width / scale
     if self.bp_pedals is not None:
       try:
-        rl.rl_push_matrix()
-        rl.rl_translatef(rect.x, rect.y, 0)
-        rl.rl_scalef(scale, scale, 1)
-        try:
-          PED.paint(widget_w, self.bp_rhd, *self.bp_pedals)
-        finally:
-          rl.rl_pop_matrix()
+        PED.paint(rect, scale, widget_w, self.bp_rhd, self.bp_pedals)
         x, y, w, h = PED.pedal_rect(widget_w, self.bp_rhd)
         self.bp_extra_keepouts.append(rl.Rectangle(rect.x + x * scale, rect.y + y * scale, w * scale, h * scale))
       except Exception:

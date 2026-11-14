@@ -353,3 +353,52 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Safety-relevant: no (display only; no planner, controls, panda, TX or cereal change). The NO PANDA warning keeps priority.
 - Tests: `openpilot/selfdrive/ui/tests/test_sidebar_vehicle_cpu_slot.py`.
 - Credits: BogPilot (sidebar metrics).
+
+## Onroad pedals: two bars (decel, accel) replace the pedal icons
+- Platforms: all legacy Tesla with openpilot longitudinal (UI, plus one carstate line per platform).
+- Reference behavior: daily's pedal icons (bogpilot-tesla paintPedalIcons): a brake and a gas pedal whose opacity follows
+  measured `aEgo` (Dynamic) or turns on / off (Static), in a 2 x 60 x 120 rect under the accel graph on the driver side.
+- Our behavior: in the same rect and under the same gate (openpilot longitudinal, CustomUI, Pedals on Screen, then
+  Dynamic / Static; neither hides it), two vertical bars at about 75 % opacity (fill alpha 191). RHD mirrors the
+  position and keeps the order (decel left, accel right), as daily did not swap the pedals.
+  - Right bar height: max(driver pedal, OP accel / `OP_ACCEL_FULL_SCALE`), 0..1. OP accel counts only while
+    `carControl.longActive` and fresh.
+  - Left bar height: measured decel max(0, -`aEgo`). There is no brake pressure or pedal travel signal on these cars, so
+    braking colours also show measured decel; none is invented.
+  - Decel scale: one constant `PEDAL_BAR_DECEL_SCALE_MODE` in `pedals.py`, default "A". A: every colour on
+    |`ACCEL_MIN`| = 3.5 m/s^2 (regen tops out near 1.5, so regen rarely passes about 45 %). B: regen colours on the
+    regen scale (`regen_scale`: AP1 regen estimate floored at `A_GENTLE_FLOOR`; Pre-AP |`REGEN_MAX`| = 1.5), braking
+    colours on 3.5. Set the constant to "B" to flip; no user toggle until a scale is chosen.
+- Colours: all in the `PEDAL_BAR_PALETTE` block of `pedals.py` (requested; replaces one look for OP and driver): driver gas (64,206,84) green; OP accel (163,190,140) sage, a lighter #9CAF88 that reads as clearly against
+  the bar track as the driver green; driver-side regen (90,205,255) blue; OP regen (122,155,191) dusty blue; brake
+  pedal (238,48,44) red; OP braking past regen (214,110,112) rose mix by default, or pure dusty rose (201,169,166) by
+  setting `PEDAL_BAR_OP_BRAKE_ROSE = "dusty_rose"`.
+- Colour source, one per bar, the driver wins: right bar green while the gas pedal is pressed, else sage while
+  `longActive` and OP accel > 0, else green. Left bar red while `brakePressed`; else rose (see the guess below); else
+  dusty blue while `longActive` and OP accel < 0; else blue (disengaged or no OP request).
+- AP1 only, GUESS: rose when OP's accel request is below minus the estimated regen capacity
+  (`regen_aware.regen_capacity(vEgo, P_NOMINAL_KW)`), i.e. OP asks for more than regen can give, so friction braking is
+  assumed. Not checked against a drive log. Below about 0.9 m/s the estimate is 0, so an OP standstill hold shows rose.
+  Absent on Pre-AP and unknown cars (their OP decel stays dusty blue).
+- Hysteresis: on / off deadbands (pedal 2 % on, 1 % off, the Pre-AP stock pressed threshold; OP accel 0.10 on, 0.05 off
+  m/s^2, mirrored for decel; regen capacity +/- 0.05 m/s^2), and a colour change needs `SOURCE_HOLD_S` = 0.25 s of
+  steady request. A change TO a pressed pedal or brake shows at once. An input that alternates every frame does not
+  change the colour more than once (tested).
+- Static mode keeps daily's on / off rule (decel bar full at standstill, on brake lights or aEgo < -0.25; accel bar full
+  when aEgo > 0.25) with the same colours. `brakeLights` is never set by the car code today, so that Static input never
+  fires; not changed here.
+- Stale or missing carState: both bars empty and the colour state resets; NaN / missing values read as 0.
+- Accel divisor: `OP_ACCEL_FULL_SCALE = interfaces.ACCEL_MAX` (2.0), the clip controlsd applies on every car
+  (`get_pid_accel_limits` in `interfaces.py`, used by `controlsd.py`, clipped in `longcontrol.py`; tesla_ap1 does not
+  override it). The Pre-AP spec value `vdas_constants.py` `ACCEL_MAX` = 2.5 is kept as a documented constant but is not
+  the divisor: OP accel never exceeds 2.0, so 2.5 would cap OP's bar at 80 %. A full bar means the most OP can command.
+- Driver pedal source: `CarState.deprecated.gas` = DI_pedalPos / 100 (0..1, clamped), set in `tesla_ap1/carstate.py` and
+  `tesla_ap1/preap/carstate.py`. The deprecated slot was chosen so the feature stays modular and easy to port with no
+  compiled schema change. Its one other reader in the tree is the desktop replay plot (`tools/replay/ui.py`, "gas"
+  trace), which now shows the real pedal value instead of 0. Nothing on the car reads it.
+- Not changed: the Pedals on Screen help text still describes "translucent gas and brake pedals".
+- Why: requested redesign of the onroad pedals (mockup approved, colours requested).
+- Safety-relevant: no (display only; no planner, controls, panda or TX change; carstate only fills an unused field).
+- Tests: `openpilot/selfdrive/ui/onroad/bogpilot/tests/test_pedal_bars.py`, `test_onroad_hud_features.py` (TestPedals),
+  `opendbc_repo/opendbc/car/tesla_ap1/tests/test_pedal_pos_published.py`.
+- Credits: BogPilot (pedals widget, regen estimate); stock openpilot (accel limits).

@@ -248,20 +248,13 @@ class TestPedals(unittest.TestCase):
     self.assertEqual(PED.daily_opacity(self.STA, 0.3, False, False), (0.25, 1.0))
     self.assertEqual(PED.daily_opacity(PED.PedalPolicy(show=True), -2.0, False, False), (1.0, 1.0))
 
-  def test_visual_mapping(self):
-    self.assertEqual(PED.strength(0.25), 0.0)
-    self.assertEqual(PED.strength(1.0), 1.0)
-    self.assertAlmostEqual(PED.strength(0.625), 0.5)
-    rest, strong = PED.visual(0.0, PED.BRAKE_DIM, PED.BRAKE_BRIGHT), PED.visual(1.0, PED.BRAKE_DIM, PED.BRAKE_BRIGHT)
-    self.assertLess(rest["fill_a"], 20)                     # nearly transparent at rest
-    self.assertLess(rest["edge_a"], 50)
-    self.assertGreater(strong["fill_a"], 220)
-    self.assertEqual(strong["fill_rgb"], PED.BRAKE_BRIGHT)
-    prev = -1
-    for k in (0.0, 0.25, 0.5, 0.75, 1.0):                   # opacity and brightness rise monotonically
-      v = PED.visual(k, PED.GAS_DIM, PED.GAS_BRIGHT)
-      self.assertGreater(v["fill_a"], prev)
-      prev = v["fill_a"]
+  def test_bar_fill_follows_inputs(self):
+    full = PED.PedalBars().update(self.DYN, True, 0.0, -PED.DECEL_FULL_SCALE, 20.0, False, True, False, 1.0, 0.0, False,
+                                  "ap1", mode="A")
+    self.assertEqual((full.decel, full.braking, full.accel), (1.0, True, 1.0))
+    self.assertEqual(PED.PedalBars().update(self.DYN, True, 0.0, 0.0, 20.0, False, False, False, 0.0, 0.0, False, "ap1"),
+                     PED.EMPTY)
+    self.assertEqual(PED.FILL_A, 191)                        # about 75 % opacity
 
   def test_policy_gate(self):
     class S:
@@ -281,12 +274,13 @@ class TestPedals(unittest.TestCase):
     static = dict(CustomUI=True, PedalsOnUI=True, DynamicPedalsOnUI=False, StaticPedalsOnUI=True)
     self.assertEqual(PED.policy_from_store(S(**static), True), PED.PedalPolicy(True, False, True))
 
-  def test_footprint_and_shapes_inside_daily_keepout(self):
+  def test_footprint_and_bars_inside_daily_keepout(self):
     self.assertEqual(PED.pedal_rect(2160, False), (30, 486, 120, 120))
     self.assertEqual(PED.pedal_rect(2160, True), (2010, 486, 120, 120))
-    for box, taper in ((PED.BRAKE_BOX, PED.BRAKE_TAPER), (PED.GAS_BOX, PED.GAS_TAPER)):
-      pts = PED.rounded_trapezoid(box, taper, PED.RADIUS)
-      self.assertTrue(all(0 <= x <= 120 and 0 <= y <= 120 for x, y in pts))
+    for rhd in (False, True):
+      fx, fy, fw, fh = PED.pedal_rect(2160, rhd)
+      for x, y, w, h in PED.bar_boxes(2160, rhd):
+        self.assertTrue(fx <= x and x + w <= fx + fw and fy <= y and y + h <= fy + fh)
 
 
 class FakeEncoder:

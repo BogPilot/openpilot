@@ -173,6 +173,8 @@ class PreApCarState(CarStateBase):
     # Matches NAP nap_conf.py:43 (PEDAL_DI_PRESSED = 2) and NAP preap/carstate.py:36-37
     # (gasPressed = DI_pedalPos > PEDAL_DI_PRESSED). di_gas itself is unchanged; calibration reads it.
     ret.gasPressed = self.di_gas > 0.02
+    # Pedal position 0..1 for the onroad pedal bars, in the deprecated CarState.gas slot (no schema change; see DIVERGENCES).
+    ret.deprecated.gas = min(max(float(self.di_gas), 0.0), 1.0)
     brake_message_pressed = bool(cp.vl["BrakeMessage"]["driverBrakeStatus"] != 1)
     di_brake_pressed = int(cp.vl["DI_torque2"].get("DI_brakePedal", 0) or 0) == 1
     self.real_brake_pressed = bool(di_brake_pressed or brake_message_pressed)
