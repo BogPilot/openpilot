@@ -328,4 +328,3 @@ static safety_config tesla_preap_init_config(uint16_t param) {
   return ret;
 }
 
-#include "opendbc/safety/modes/tesla_preap_radar.h"

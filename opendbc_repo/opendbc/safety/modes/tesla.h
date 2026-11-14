@@ -3,6 +3,7 @@
 #include "opendbc/safety/declarations.h"
 #include "opendbc/safety/modes/tesla_ap1.h"
 #include "opendbc/safety/modes/tesla_preap.h"
+#include "opendbc/safety/modes/tesla_preap_radar.h"
 
 static bool tesla_longitudinal = false;
 static bool tesla_stock_aeb = false;
@@ -377,6 +378,8 @@ static void tesla_rx_all_hook(const CANPacket_t *msg) {
     tesla_ap1_rx_all_hook(msg);
   } else if (tesla_preap) {
     tesla_preap_radar_rx_all(msg);
+  } else {
+    // Stock Tesla and other non-AP1, non-Pre-AP modes have no rx_all work.
   }
 }
 
