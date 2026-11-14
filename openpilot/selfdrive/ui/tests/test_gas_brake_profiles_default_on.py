@@ -1,4 +1,4 @@
-"""rc5: the Gas / Brake panel shows the profile group as the planner runs it (live by default on the legacy Tesla platforms)."""
+"""The Gas / Brake panel shows the profile group as the planner runs it (live by default on the legacy Tesla platforms)."""
 from types import SimpleNamespace as NS
 import pytest
 from openpilot.common.bogpilot_params import BOGPILOT_PARAMS

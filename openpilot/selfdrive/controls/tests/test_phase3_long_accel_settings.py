@@ -207,7 +207,7 @@ def test_all_owned_cem_nested_controls_have_real_actions_and_navigation_rows_are
   assert not Capabilities().navigation and not Capabilities().slc and not Capabilities().v9_prediction
 
 
-@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (kept on cem-preserve-0.11.2)")
+@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (the full port is maintained separately)")
 def test_real_cem_ui_callback_to_native_e2e_status_publisher_and_hud(store):
   store.put('CESpeed', 40)
   store.put('CEModelStopTime', 0)
@@ -282,7 +282,7 @@ def test_real_navigation_entry_callback_constructs_exact_factory_without_adoptin
   assert not store.get_bool(ADVANCED_ACK, False)
 
 
-@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (kept on cem-preserve-0.11.2)")
+@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (the full port is maintained separately)")
 def test_real_nested_slower_lead_callback_drives_native_cem_and_disable(store):
   for key in ('CESpeed', 'CESpeedLead', 'CEModelStopTime', 'CESignalSpeed'): store.put(key, 0)
   store.put_bool('CELead', True)
@@ -300,7 +300,7 @@ def test_real_nested_slower_lead_callback_drives_native_cem_and_disable(store):
   assert not p.long_accel.cem.experimental
 
 
-@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (kept on cem-preserve-0.11.2)")
+@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (the full port is maintained separately)")
 def test_real_simple_stop_light_callback_at_historical_lower_level(store):
   store.put('TuningLevel', 1)
   for key in ('CESpeed', 'CESpeedLead', 'CESignalSpeed'): store.put(key, 0)
@@ -318,7 +318,7 @@ def test_real_simple_stop_light_callback_at_historical_lower_level(store):
   assert not p.long_accel.cem.experimental
 
 
-@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (kept on cem-preserve-0.11.2)")
+@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (the full port is maintained separately)")
 def test_real_signal_nested_callback_uses_actual_native_lane_geometry(store):
   metric(store)
   store.put_bool('LaneChanges', True)
@@ -370,7 +370,7 @@ def test_explicit_units_hook_preserves_physical_saved_preferences_without_adopti
   assert store.get_int('CESignalSpeed') == 88
 
 
-@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (kept on cem-preserve-0.11.2)")
+@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (the full port is maintained separately)")
 def test_unwritten_speed_defaults_remain_mph_based_in_metric_without_seed_writes(store):
   from openpilot.selfdrive.controls.lib.phase3_long_accel import Conditions
   metric(store)

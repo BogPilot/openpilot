@@ -345,7 +345,7 @@ def test_longitudinal_tuning_rows_and_human_lane_changes_sit_under_the_group_swi
   assert all(i.indent == INDENT for i in after)                 # its value and -1 / +1 rows too
 
 
-@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (kept on cem-preserve-0.11.2)")
+@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (the full port is maintained separately)")
 def test_conditional_experimental_children_nest_under_the_switch_and_their_own_parent(store):
   page, _ = page_for(store, make_cp())
   page.open_panel("conditional")

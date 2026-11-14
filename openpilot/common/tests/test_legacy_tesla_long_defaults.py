@@ -1,4 +1,4 @@
-"""rc5 legacy Tesla long-tune defaults (the stored 0.9.7 Gas/Brake profiles and driving personalities): values and migration rule."""
+"""Legacy Tesla long-tune defaults (the stored 0.9.7 Gas/Brake profiles and driving personalities): values and migration rule."""
 import json
 from pathlib import Path
 import pytest

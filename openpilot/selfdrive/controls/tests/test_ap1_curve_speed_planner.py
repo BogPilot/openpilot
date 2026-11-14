@@ -382,7 +382,7 @@ MPH = 0.44704
 
 def test_hold_cap_while_filtered_curvature_drops():
   """CSC was holding ~14 mph in a tight curve; 6 s later the filtered curvature
-  had already dropped and rc6 released to the 30 mph SLC while the car was still at 14 mph.
+  had already dropped and an earlier build released to the 30 mph SLC while the car was still at 14 mph.
   The cap must stay until the hold expires."""
   p = planner()
   # Build a controlling cap on a tight right curve (κ ~ -0.064, v ~ 14 mph).
@@ -409,7 +409,7 @@ def test_hold_cap_while_filtered_curvature_drops():
 
 def test_hold_cap_on_mid_curve_reengage():
   """Resume at 10.7 mph; 3 s later the car was engaged in a κ ~ -0.036 corner
-  at 13.8 mph and rc6 left vPlan at the 30 mph SLC (CSC not controlling). Re-engage in
+  at 13.8 mph and an earlier build left vPlan at the 30 mph SLC (CSC not controlling). Re-engage in
   the curve must start the cap instead of the SLC."""
   p = planner()
   k = -0.036

@@ -46,7 +46,7 @@ def test_one_mph_tap_is_gentle():
 
 
 def test_there_is_no_extra_shape_floor_the_profile_or_the_stock_floor_decides():
-  # rc5: the temporary -0.875 shape floor is gone; with no profile the stock A_CRUISE_MIN (-1.2) applies
+  # The temporary -0.875 shape floor is gone; with no profile the stock A_CRUISE_MIN (-1.2) applies
   v = 30.0
   assert run(5.0, v, True, steps=2000) == pytest.approx(lp.A_CRUISE_MIN)
   assert run(5.0, v, False, steps=2000) == pytest.approx(lp.A_CRUISE_MIN)

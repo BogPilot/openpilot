@@ -72,7 +72,7 @@ AST service inventory in the report enumerates exact required modules. Missing o
 GPU/device-constrained imports stay BLOCKED, not skipped passes. Receipt counters
 are deliberately not inferred from human prose. These receipts are unsigned.
 
-## ION gate (required since rc4)
+## ION gate (required)
 
 `msgq_repo/SConscript` compiles `visionbuf_ion.cc` only if `/dev/ion` exists on the BUILD host, otherwise it silently
 compiles the shm `visionbuf.cc`; the comma's camera driver can only import ION dma-bufs, so camerad aborts. Two required checks:

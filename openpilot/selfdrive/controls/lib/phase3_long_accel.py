@@ -30,7 +30,7 @@ CEM_KEYS = ("ConditionalExperimental", "CESpeed", "CESpeedLead", "CECurves", "CE
             "CENavigationIntersections", "CENavigationTurns", "CENavigationLead", "CEModelStopTime",
             "CESignalSpeed", "CESignalLaneDetection", "ShowCEMStatus")
 # Conditional Experimental Mode is removed from this build (docs/tesla/DIVERGENCES.md "Conditional Experimental Mode
-# removed"; the full port is kept unchanged on the cem-preserve-0.11.2 branch). The CE* keys stay registered so a value
+# removed"; the full port is maintained separately). The CE* keys stay registered so a value
 # saved on a device, a backup restore or a reset that writes CE=0 stays harmless; nothing reads them for driving.
 CEM_REMOVED = True
 
@@ -61,7 +61,7 @@ def configure(store, key, value):
 
 
 def profiles_default_on(platform):
-  """rc5: the Acceleration/Deceleration/Human profile group is adopted without a UI re-select on the legacy Tesla
+  """The Acceleration/Deceleration/Human profile group is adopted without a UI re-select on the legacy Tesla
   platforms (AP1 Model S, AP1 Model X, Pre-AP Model S), the same default_on policy phase3_following uses (0.9.7: the
   stored values were always live). Every other car keeps the explicit-ACK rule. The user switches it off with the
   Longitudinal Tuning toggle (LongitudinalTune=0, also what "Reset to stock" writes); nothing is written here."""

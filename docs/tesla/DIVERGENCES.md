@@ -139,7 +139,7 @@ Recorded disagreements only where the cited files were read. No speculation.
   `test_model_3_y_and_ap1_still_lose_steering_on_a_brake_press`); `test_tesla_preap_pedal_brake.py` (the pedal side).
 - Credits: BogPilot (this port). NAP, BogPilot `bogpilot-na-preap` and Tinkla/BogGyver were compared; none has this latch.
 
-## Onroad UI: confidence ball on the big (C3X) driving screen (D-CB1)
+## Onroad UI: confidence ball on the big (C3X) driving screen
 - Platforms: all (onroad UI only; not the Tesla instrument cluster).
 - Reference behavior: stock 0.11.2 has the ball only on the comma four UI (`selfdrive/ui/mici/onroad/confidence_ball.py`);
   the big UI `selfdrive/ui/onroad/augmented_road_view.py` has none. BogPilot 0.9.7 adds it to the C3X Qt screen
@@ -153,7 +153,7 @@ Recorded disagreements only where the cited files were read. No speculation.
 - Tests: `openpilot/selfdrive/ui/onroad/bogpilot/tests/test_confidence_ball.py`.
 - Credits: comma.ai openpilot (MIT) for the original ball; BogPilot 0.9.7 for the C3X port.
 
-## Onroad UI: confidence ball drawn under alerts (D-CB2)
+## Onroad UI: confidence ball drawn under alerts
 - Reference behavior: BogPilot 0.9.7 raises the ball widget above `OnroadAlerts` (`onroad_home.cc`, `confidence_ball.h`
   `raise()`), so it can cover the edge of a full-screen alert.
 - Our behavior: every alert paints over the ball, and the ball is hidden while a full-screen alert is showing.
@@ -162,7 +162,7 @@ Recorded disagreements only where the cited files were read. No speculation.
 - Tests: `test_confidence_ball.py` (view order, full-alert order).
 - Credits: BogPilot 0.9.7.
 
-## Settings: confidence ball rows (D-CB3)
+## Settings: confidence ball rows
 - Reference behavior: BogPilot 0.9.7 has one Off / Left / Right control (`frogpilot/ui/qt/offroad/visual_settings.cc`).
 - Our behavior: two rows at the top of Appearance, "Confidence Ball" (on/off, default on) and "Confidence Ball Side"
   (Left / Right, default Left), same files `/data/params_bogpilot/ConfidenceBall` and `ConfidenceBallSide`;
@@ -172,7 +172,7 @@ Recorded disagreements only where the cited files were read. No speculation.
 - Tests: `test_confidence_ball.py`, `openpilot/selfdrive/ui/tests/test_bogpilot_nesting.py`.
 - Credits: BogPilot 0.9.7.
 
-## Onroad UI: confidence ball edge switch (D-CB4)
+## Onroad UI: confidence ball edge switch
 - Reference behavior: BogPilot 0.9.7 moves the ball to the other edge while the map panel covers its side.
 - Our behavior: 0.11.2 has no map panel here; the ball moves to the other edge while a blind-spot flame track burns on
   its side, and hides if both sides burn.
@@ -181,20 +181,20 @@ Recorded disagreements only where the cited files were read. No speculation.
 - Tests: `test_confidence_ball.py`.
 - Credits: BogPilot 0.9.7.
 
-## Onroad UI: confidence ball always shown, engaged palette only while engaged (D-CB6)
+## Onroad UI: confidence ball always shown, engaged palette only while engaged
 - Reference behavior: stock (`mici/onroad/confidence_ball.py`) and BogPilot 0.9.7 (`confidence_ball.h`) drive the ball to
   -0.5 while disengaged, so it slides out below the screen; 0.9.7 keeps the widget visible but the ball is off screen.
   0.9.7 uses the engaged palette for every status except disengaged / override.
 - Our behavior: shown in every state while the toggle is on; the height always follows the model. The engaged palette
   (green / orange / red) is used only while ENGAGED. OVERRIDE uses the stock white-to-grey ball and DISENGAGED a
-  slate-to-white ball (D-CB7), so the colour never reads as openpilot active; engagement is shown by the border. Missing
+  slate-to-white ball, so the colour never reads as openpilot active; engagement is shown by the border. Missing
   model data: bottom position, stock red while engaged, white while disengaged.
 - Why: maintainer request (always visible), with the colour rule required by the safety review.
 - Safety-relevant: display only; no control path reads it.
 - Tests: `test_confidence_ball.py` (always shown, never engaged palette when not engaged).
 - Credits: comma.ai openpilot (MIT); BogPilot 0.9.7.
 
-## Onroad UI: disengaged confidence ball goes from slate grey to white (D-CB7)
+## Onroad UI: disengaged confidence ball goes from slate grey to white
 - Reference behavior: stock (`mici/onroad/confidence_ball.py:72-74`) and BogPilot 0.9.7 (`confidence_ball.h:123`) draw
   the disengaged ball in one fixed dark gradient, (50,50,50) to (13,13,13), whatever the confidence; only its height moves.
 - Our behavior: the DISENGAGED ball is one flat colour that follows the smoothed confidence x: slate grey (112,128,144)
@@ -224,8 +224,8 @@ Recorded disagreements only where the cited files were read. No speculation.
 - Safety-relevant: no. UI only; no control or panda path.
 - Tests: `openpilot/selfdrive/ui/tests/test_bogpilot_gated_actions.py`.
 - Credits: stock v0.11.2; the locked-row audit of the previous release baseline. Full write-up: `docs/tesla/UI_GATED_ACTIONS.md`.
-- Value rows (rc9): the shared value row adds a grey default hint, a changed-value highlight and one confirmed "Reset section to defaults" row per section, built on the same gated actions. Credits: BogPilot rc8 Alert Volume row and stock v0.11.2 `list_view.py` / `confirm_dialog.py`. See "Value rows" in `docs/tesla/UI_GATED_ACTIONS.md`.
-- Steering Tuning (rc9): no per-row RESET. The Advanced and Quality of Life section Resets cover value rows only (numeric defaults from `numeric_rows`; `PauseLateralSpeed` default 0). Toggles stay out. Override Sensitivity is in neither section and has no reset. The unlabeled level-0 -/+ row for Pause Steering Below is hidden. Credits: BogPilot rc8 and stock v0.11.2. Details in `docs/tesla/UI_GATED_ACTIONS.md`.
+- Value rows: the shared value row adds a grey default hint, a changed-value highlight and one confirmed "Reset section to defaults" row per section, built on the same gated actions. Credits: BogPilot Alert Volume row and stock v0.11.2 `list_view.py` / `confirm_dialog.py`. See "Value rows" in `docs/tesla/UI_GATED_ACTIONS.md`.
+- Steering Tuning: no per-row RESET. The Advanced and Quality of Life section Resets cover value rows only (numeric defaults from `numeric_rows`; `PauseLateralSpeed` default 0). Toggles stay out. Override Sensitivity is in neither section and has no reset. The unlabeled level-0 -/+ row for Pause Steering Below is hidden. Credits: BogPilot and stock v0.11.2. Details in `docs/tesla/UI_GATED_ACTIONS.md`.
 
 ## Cluster / DBC: AP1 AutopilotStatus (0x399) bits 27-36 follow BogPilot, not Tinkla
 - Platforms: AP1 and pre-AP (legacy `tesla_ap1_can.dbc` `AutopilotStatus`, address 921 / 0x399, DLC 8).
@@ -572,7 +572,7 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Why: the CEM port is not wanted on this build; it was already off on every legacy Tesla (entry "Conditional Experimental Mode off on every legacy Tesla" above).
 - Safety-relevant: no new behaviour. With the shipped legacy Tesla settings (CEM off) the planner inputs are identical before and after; with CEM saved on, Experimental Mode only follows the driver's own toggle.
 - Tests: `openpilot/selfdrive/ui/tests/test_cem_removed.py`, `openpilot/selfdrive/ui/tests/test_stalk_gaps.py`, `openpilot/selfdrive/controls/tests/test_gas_brake_mounts.py`, `openpilot/selfdrive/controls/tests/test_gas_brake_stop_defaults.py`; CEM behaviour tests in `test_phase3_long_accel.py` and `test_phase3_long_accel_settings.py` are skipped while `CEM_REMOVED` is set.
-- Credits: BogPilot (CEM port, kept on the preserve branch).
+- Credits: BogPilot (CEM port, maintained separately).
 
 ## Sidebar home mark: ring top rebuilt from the mark's own bottom half
 - Reference behavior: the sidebar home button draws the BogPilot theme mark `bogpilot/button_home.png` (360 x 360) at HOME_BTN (180 x 180), scale 0.5, bilinear.

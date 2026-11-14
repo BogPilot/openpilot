@@ -5,7 +5,7 @@ BogPilot 0.11.2 restores the same gesture at 1.0 s. A brief tap is handled by
 the HUD and still cycles personalities; a hold must not also step.
 
 0.9.7 only let the hold toggle while longitudinal was active (or to leave Traffic
-Mode). rc5 kept that gate and the hold never registered on its drive: the
+Mode). An earlier build kept that gate and the hold never registered on its drive: the
 personality taps (205 to 242 s into the logged drive) all happened while openpilot was
 disengaged, and trafficModeEnabled stayed false. The gate is gone: Traffic Mode
 is a latch that only the planner and radard read, so toggling it while driving

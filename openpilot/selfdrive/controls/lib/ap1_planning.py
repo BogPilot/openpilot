@@ -13,7 +13,7 @@ AP1 = "TESLA_AP1_MODELS"
 # obstacle + Human/Eco+ limits); stock 0.11 cruise law is 1.0 m/s^2 per m/s with the -1.2 floor.
 AP1_CRUISE_GAIN = 0.30       # (m/s^2) per (m/s) of v_cruise - v_ego; 1.0 is the stock 0.11.2 law
 AP1_CRUISE_J_SCALE = 0.40    # scale on stock J_CRUISE_VALS (1.6/1.2/0.8/0.6 m/s^3 over 0/10/25/40 m/s)
-# rc5: the temporary -0.875 cruise decel floor (rc3/rc4 stand-in for 0.9.7 Eco+) is gone. The decel floor is owned by the
+# The temporary -0.875 cruise decel floor (an earlier stand-in for 0.9.7 Eco+) is gone. The decel floor is owned by the
 # Gas/Brake profile (Eco+ = ACCEL_MIN / 4 = -0.875, adopted by default on the legacy Tesla platforms) or, with the tune
 # off, by the stock A_CRUISE_MIN. Only the gain and the jerk scale stay: a replay of the 0.9.7 set-speed logs
 # shows profiles alone leave the plan jerk at the stock 1.3 m/s^3 (0.9.7: 0.49).

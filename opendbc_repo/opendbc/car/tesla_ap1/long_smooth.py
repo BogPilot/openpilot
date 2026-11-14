@@ -150,13 +150,13 @@ AP1_BRAKE_HARD_ACCEL = -2.0
 # [0, AP1_GAS_HANDOFF_MAX] (never a brake seed; never above the panda max of
 # +2.0), and only used at or above AP1_SLEW_MIN_SPEED.
 AP1_GAS_HANDOFF_MAX = 2.0
-# The post-rc3 rising cap (0.10 m/s^2, then 1 m/s^3) overwrote that seed: the first DAS accelMax after a
+# A rising cap from an earlier build (0.10 m/s^2, then 1 m/s^3) overwrote that seed: the first DAS accelMax after a
 # gas-handoff engage was 0.0 then 0.10, and lifting off at +1 m/s^2 made the DI regen (logged:
 # 0.7-1.9 mph dip, aEgo -0.8 to -1.4, motor -80 to -110 Nm). 0.9.7
 # (04d560f3 / 026cfb31) has the seed and no such cap — first active frame continues from measured aEgo and
 # slews down to a lower plan with the drive-release S-curve. Match that.
 #
-# rc5 also showed LongEngageGate holding longActive false for a few hundred ms after enable, and the
+# An earlier build also showed LongEngageGate holding longActive false for a few hundred ms after enable, and the
 # driver often easing off during that gap. Two extra rules so the seed is still there when long starts:
 # latch whenever the pedal is down (not only when enabled, so a press before CC.enabled counts), keep the
 # peak aEgo over AP1_GAS_SEED_WINDOW of the press (a tapering lift must not replace +1.1 with 0), and do

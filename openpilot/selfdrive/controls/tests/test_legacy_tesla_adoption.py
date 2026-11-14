@@ -1,4 +1,4 @@
-"""rc5: Gas/Brake profiles are live by default on the legacy Tesla platforms (no UI re-select), safety floors kept, and the
+"""Gas/Brake profiles are live by default on the legacy Tesla platforms (no UI re-select), safety floors kept, and the
 AP1 cruise shape is justified against the 0.9.7 set-speed logs (fixtures/h1_097_setspeed.json)."""
 import json
 import os
@@ -179,9 +179,9 @@ def test_shape_values_are_close_to_the_0_9_7_plan_and_far_from_the_stock_law():
   ev = list(_events().values())
   rms = lambda g, j: float(np.sqrt(np.mean([_replay(r, g, j)[0] ** 2 for r in ev])))
   here = rms(ap1_planning.AP1_CRUISE_GAIN, ap1_planning.AP1_CRUISE_J_SCALE)
-  assert here < 0.12                       # m/s^2 rms against the logged 0.9.7 plan (profiles + stock law: 0.29, stock rc3: 0.60)
+  assert here < 0.12                       # m/s^2 rms against the logged 0.9.7 plan (profiles + stock law: 0.29, an earlier stock build: 0.60)
   assert here < rms(1.0, 1.0) / 2.5
   # the best fit in a wide grid (gain .42, jerk .25: rms 0.074) is closer to the log, but a 0.25 jerk scale also slows launches
-  # from a stop and is two press events of evidence: kept at the rc4 values until a road check says otherwise
+  # from a stop and is two press events of evidence: kept at the earlier values until a road check says otherwise
   best = min(rms(g, j) for g in (0.20, 0.30, 0.34, 0.42) for j in (0.25, 0.40, 0.60))
   assert here <= best * 1.45

@@ -8,7 +8,7 @@ fold it into that file when the trees meet.
 
 ## Stock v0.11.2 list actions vs BogPilot settings rows
 
-Stock openpilot v0.11.2 (`f7db927c7`, `openpilot/system/ui/widgets/list_view.py`; the rc8 copy keeps the
+Stock openpilot v0.11.2 (`f7db927c7`, `openpilot/system/ui/widgets/list_view.py`; the BogPilot copy keeps the
 `DualButtonAction` and `MultipleButtonAction` code byte-identical, BogPilot only adds `ListItem` help/level/indent):
 
 - `DualButtonAction` builds its two `Button`s enabled and never passes its own `enabled` to them. A `Button` gates
@@ -21,7 +21,7 @@ Stock openpilot v0.11.2 (`f7db927c7`, `openpilot/system/ui/widgets/list_view.py`
 Stock panels are not affected in practice (`layouts/settings/device.py` re-checks `engaged` in its prompts;
 `toggles.py` and `developer.py` lock `action_item`).
 
-BogPilot rc8 (`openpilot/selfdrive/ui/bogpilot/gated_actions.py`):
+BogPilot (`openpilot/selfdrive/ui/bogpilot/gated_actions.py`):
 
 - `GatedDualButtonAction(DualButtonAction)`: each button's `enabled` follows the action's `enabled` every frame
   (dimmed and touch-gated), and both callbacks are wrapped so they do nothing while the action is locked.
@@ -44,25 +44,25 @@ only adds refusals in front of the editors' own checks, so writes stay refused o
 ships it (rebases carry no BogPilot hunk in the action classes). Cost: the subclasses rely on stock attribute names
 (`left_button`, `right_button`, `button_width`, `selected_button`, `_click_callback`); the tests catch a rename.
 
-**Not in this change: lane `ui-polish-t1361`.** That lane edits stock `list_view.py` for its stepper, `button_spacing`
-and shrink-to-fit labels. If the lane is ever revisited, those belong in `GatedMultipleButtonAction` (or a subclass of
+**Not in this change: a separate UI polish proposal.** That proposal edits stock `list_view.py` for its stepper, `button_spacing`
+and shrink-to-fit labels. If the proposal is ever revisited, those belong in `GatedMultipleButtonAction` (or a subclass of
 it) rather than in `list_view.py`. Revisiting it needs the maintainer's ask first.
 
 **Sources.** Stock openpilot v0.11.2 `f7db927c7` (`list_view.py`, `widgets/__init__.py`, `widgets/button.py`); BogPilot
 previous release baseline `27e82a496` panels (cited in the audit). Tinkla/BogGyver and NAP use the Qt UI and were not read for this; no
 claim is made about them.
 
-## Value rows: default hint, changed highlight, section reset (rc9 UI-unify M1)
+## Value rows: default hint, changed highlight, section reset
 
-BogPilot rc9 (`openpilot/selfdrive/ui/bogpilot/gated_actions.py`, `step_defaults.py`):
+BogPilot (`openpilot/selfdrive/ui/bogpilot/gated_actions.py`, `step_defaults.py`):
 
 - `gated_value_step_item` / `GatedValueStepAction(GatedMultipleButtonAction)`: one row `[leading] [-] [value] [+] [trailing]`, the Alert Volume layout. Lock, dim, ignored taps and hidden state are inherited unchanged from the gated list actions. The value button ignores taps. Minus is ASCII `-` (U+002D), because the Inter atlas has no U+2212.
 - Default hint: a small grey `default: X` (row-description grey) under the value. X comes from the panel's existing default table. No default or param is defined here.
 - Changed highlight: an outline around the value while the stored value is not the default (numbers compare by value; an unknown value, including NaN, is not highlighted).
 - `reset_section_item`: one "Reset section to defaults" row per section, with no per-row Default button (option B). A tap opens a confirm dialog. Only a yes writes, and it writes only the section's own keys, through the section's own writer. The lock is checked at the tap and again at the yes. It is locked onroad like the other gated rows. It is shown only with its section (same parent switch and Tuning Level). If a write fails, the reset stops at that key and an OK dialog says so.
 - First user: Alert Volume. Resets the 7 volume keys to `BOGPILOT_VOLUME_DEFAULTS` (Auto). It doesn't reset AlertVolumeControl or the PreMute restore files. The reset row uses the AlertVolumeControl Tuning Level (level 2, `bogpilot_defaults.py`).
-- Steering Tuning (`phase3_steering_tuning.py`): the same shared value row, grey default hint and changed highlight, and two section Reset rows (Advanced Lateral Tuning, Quality of Life). There are no per-row RESET buttons. Each section Reset covers the value rows only, matching Alert Volume: Advanced writes `SteerDelay` / `SteerFriction` / `SteerLatAccel` / `SteerRatio` back to the existing `numeric_rows` defaults (`controls/lib/phase3_steering_tuning.py:47-57`); Quality of Life writes `PauseLateralSpeed` back to its registry default 0 (`bogpilot_params.py:297`). Toggles stay out of both section Resets (Force Auto-Tune On/Off, Turn Signal Only, and the parent switches), as Alert Volume leaves the `AlertVolumeControl` switch out (`phase2_sounds.py:114-115,120,315`). Override Sensitivity keeps its hint (`SENSITIVITY_DEFAULT` 3, `opendbc tesla_ap1/override.py:77`) but is in neither section: it is shown only for legacy Teslas and has no parent toggle, so it cannot join Advanced (parent `AdvancedLateralTune`, level 3) or Quality of Life (parent `QOLLateral`, level 1) without changing gating. After the per-row RESET is removed it has no reset. Each reset row is shown only with its value rows and behind its parent toggle's Tuning Level. Locked keys are skipped; a refused write shows the failed-reset dialog. The unlabeled level-0 -/+ row that used to appear next to the hidden Pause Steering Below label is hidden (stricter). Credits: BogPilot rc8 and stock openpilot v0.11.2 `list_view.py` / `confirm_dialog.py`.
+- Steering Tuning (`phase3_steering_tuning.py`): the same shared value row, grey default hint and changed highlight, and two section Reset rows (Advanced Lateral Tuning, Quality of Life). There are no per-row RESET buttons. Each section Reset covers the value rows only, matching Alert Volume: Advanced writes `SteerDelay` / `SteerFriction` / `SteerLatAccel` / `SteerRatio` back to the existing `numeric_rows` defaults (`controls/lib/phase3_steering_tuning.py:47-57`); Quality of Life writes `PauseLateralSpeed` back to its registry default 0 (`bogpilot_params.py:297`). Toggles stay out of both section Resets (Force Auto-Tune On/Off, Turn Signal Only, and the parent switches), as Alert Volume leaves the `AlertVolumeControl` switch out (`phase2_sounds.py:114-115,120,315`). Override Sensitivity keeps its hint (`SENSITIVITY_DEFAULT` 3, `opendbc tesla_ap1/override.py:77`) but is in neither section: it is shown only for legacy Teslas and has no parent toggle, so it cannot join Advanced (parent `AdvancedLateralTune`, level 3) or Quality of Life (parent `QOLLateral`, level 1) without changing gating. After the per-row RESET is removed it has no reset. Each reset row is shown only with its value rows and behind its parent toggle's Tuning Level. Locked keys are skipped; a refused write shows the failed-reset dialog. The unlabeled level-0 -/+ row that used to appear next to the hidden Pause Steering Below label is hidden (stricter). Credits: BogPilot and stock openpilot v0.11.2 `list_view.py` / `confirm_dialog.py`.
 
 **Why diverge.** It gives one look for every tuning value row and makes non-default values visible, with no change to ranges, write paths, signals, CAN, panda or control. Stock `list_view.py` stays byte-identical (D2 option 2).
 
-**Sources.** BogPilot rc8 Alert Volume row (`phase2_sounds.py`) and the gated list actions; stock openpilot v0.11.2 `list_view.py` / `confirm_dialog.py`. Tinkla/BogGyver and NAP use the Qt UI and were not read for this; no claim is made about them.
+**Sources.** BogPilot Alert Volume row (`phase2_sounds.py`) and the gated list actions; stock openpilot v0.11.2 `list_view.py` / `confirm_dialog.py`. Tinkla/BogGyver and NAP use the Qt UI and were not read for this; no claim is made about them.

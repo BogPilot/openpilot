@@ -97,7 +97,7 @@ def test_advanced_range_and_nonfinite(delay, cap, expected):
   assert advanced_values(s, NS(longitudinalActuatorDelay=.25)) == (.25, None)
 
 
-@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (kept on cem-preserve-0.11.2)")
+@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (the full port is maintained separately)")
 def test_metric_conversion_and_hidden_speed_fallback_is_mph():
   s = Store(**{CEM_ACK: 1, 'ConditionalExperimental': 1, 'IsMetric': 1, 'CESpeed': 36})
   assert Conditions.read(s).below == 10
@@ -169,7 +169,7 @@ def test_real_cruise_consumer_profile_changes_output_and_preserves_braking():
   assert low == -.875
 
 
-@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (kept on cem-preserve-0.11.2)")
+@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (the full port is maintained separately)")
 def test_native_planner_cem_adds_real_e2e_candidate():
   p = planner(toggle=False)
   p.long_accel.store = Store(**{CEM_ACK: 1, 'ConditionalExperimental': 1, 'CESpeed': 40,
@@ -249,7 +249,7 @@ def test_native_profiles_change_real_output_not_metadata():
   assert outputs[1] == pytest.approx(1.7)
 
 
-@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (kept on cem-preserve-0.11.2)")
+@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (the full port is maintained separately)")
 def test_cem_model_observations_for_force_stop_contract():
   p = planner(toggle=False)
   p.long_accel.store = Store(**{CEM_ACK: 1, 'ConditionalExperimental': 1, 'CEModelStopTime': 3})
@@ -272,7 +272,7 @@ def test_old_v9_predicted_lead_never_assumed_for_current_model():
   assert predicted_lead_flags(lead, model, 15, 1.45, "v9", .95) == (False, False)
 
 
-@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (kept on cem-preserve-0.11.2)")
+@pytest.mark.skipif(CEM_REMOVED, reason="Conditional Experimental Mode is removed (the full port is maintained separately)")
 def test_native_cem_lane_width_requires_real_geometry_and_units():
   from openpilot.selfdrive.controls.lib.phase3_long_accel import lane_width
   lane = NS(x=[0, 10], y=[4, 4])

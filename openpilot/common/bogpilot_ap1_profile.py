@@ -526,7 +526,7 @@ def apply_legacy_slc_defaults_once(params=None, bogpilot_dir: Path | None = None
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# Legacy Tesla long-tune defaults (rc5): the stored 0.9.7 Gas/Brake profiles and driving personalities.
+# Legacy Tesla long-tune defaults: the stored 0.9.7 Gas/Brake profiles and driving personalities.
 #
 # Platforms: the three tesla_ap1 platforms (AP1 Model S, AP1 Model X, Pre-AP Model S). AP2 is not a platform in this
 # tree (values.py), so it receives nothing. Values are exactly what the 0.9.7 device stored (initData.params of the
