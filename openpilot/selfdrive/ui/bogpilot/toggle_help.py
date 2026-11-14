@@ -329,7 +329,9 @@ _add("HumanAcceleration", "Human-Like Acceleration",
 _add("HumanFollowing", "Human-Like Following",
      "Follows the way a person does: closes the gap behind a lead car that is pulling away, for quicker takeoffs, and adjusts "
      "the following distance for gentler braking.",
-     note="Needs the Longitudinal Tuning switch on, and takes effect on the next drive. " + _GB,
+     note="Needs the Longitudinal Tuning switch on, and takes effect on the next drive. On a Pre-AP Model S it also needs "
+          "the Bosch radar (the Pre-AP: Bosch Radar row in Vehicle Settings) on when the car starts; without it the row shows Off "
+          "and cannot be changed. A saved Off is kept. " + _GB,
      default="On", default_param="HumanFollowing")
 _add("HumanLaneChanges", "Human-Like Lane Changes",
      "Anticipates and tracks the cars in the next lane during a lane change, using the radar.",

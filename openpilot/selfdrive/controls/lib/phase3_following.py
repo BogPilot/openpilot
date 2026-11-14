@@ -65,6 +65,16 @@ AP1_PERSONALITY_RETRY_FRAMES = 10
 AP1_PERSONALITY_MAX_FRAMES = 300
 
 
+def human_following_default_on(CP) -> bool:
+  """Human-Like Following needs the radar. On a Pre-AP Model S that is the Bosch retrofit as it was at car start
+  (preap_radar_on_at_start), so with the retrofit off it is effectively off and the row reads Off; with it on, the
+  saved value applies (registry default On, an explicit Off is kept). Every other car is unchanged (True here)."""
+  from openpilot.selfdrive.controls.lib.phase3_lanechange import PREAP_FINGERPRINT, preap_radar_on_at_start
+  if CP is not None and str(getattr(CP, "carFingerprint", "") or "") == PREAP_FINGERPRINT:
+    return preap_radar_on_at_start(CP)
+  return True
+
+
 def _ack_for(key):
   for keys, ack in ((PERSONALITY_KEYS, PERSONALITY_ACK), (HUMAN_FOLLOWING_KEYS, HUMAN_FOLLOWING_ACK),
                     (LEAD_DETECTION_KEYS, LEAD_DETECTION_ACK)):
@@ -175,7 +185,7 @@ class FollowingToggles:
 
     longitudinal_tuning = op_long and store.toggle_bool("LongitudinalTune")
     if _group_on(store, HUMAN_FOLLOWING_ACK):
-      out["human_following"] = longitudinal_tuning and store.toggle_bool("HumanFollowing")
+      out["human_following"] = bool(longitudinal_tuning and store.toggle_bool("HumanFollowing") and human_following_default_on(CP))
     if _group_on(store, LEAD_DETECTION_ACK):
       key = "LeadDetectionThreshold"
       if longitudinal_tuning and store.honoured(key):

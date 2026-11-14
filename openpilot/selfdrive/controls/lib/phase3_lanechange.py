@@ -70,6 +70,18 @@ def human_lane_changes_adopted(store) -> bool:
 HUMAN_LANE_CHANGES_DEFAULT_ON_FPS = frozenset({"TESLA_AP1_MODELS"})
 
 
+PREAP_FINGERPRINT = "TESLA_PREAP_MODELS"
+
+
+def preap_radar_on_at_start(CP) -> bool:
+  """Pre-AP Model S whose Bosch radar retrofit toggle (TeslaRadarEnabled) was on when the car started.
+
+  CP.radarUnavailable is the car-start snapshot of that toggle (tesla_ap1 interface), so this never flips mid-drive
+  and never re-reads the file."""
+  return (CP is not None and str(getattr(CP, "carFingerprint", "") or "") == PREAP_FINGERPRINT
+          and not bool(getattr(CP, "radarUnavailable", True)))
+
+
 def human_lane_changes_default_on(CP) -> bool:
   return CP is not None and str(getattr(CP, "carFingerprint", "") or "") in HUMAN_LANE_CHANGES_DEFAULT_ON_FPS
 

@@ -14,7 +14,8 @@ import math
 from dataclasses import dataclass
 
 from openpilot.selfdrive.controls.lib.phase3_following import (PROFILES, PROFILE_SUFFIXES, STOCK_LEAD_PROB, configure,
-                                                              group_adopted, reset_personality)
+                                                              group_adopted, human_following_default_on,
+                                                              reset_personality)
 
 
 def tr_noop(s):
@@ -90,11 +91,13 @@ class FollowingEditor:
     return bool(getattr(self.CP, "openpilotLongitudinalControl", False)) if self.CP is not None else False
 
   def on(self, key):
-    """What the planner/radard actually do, not just what is stored: registry defaults and the AP1 profile may store
-    CustomPersonalities=1 / HumanFollowing=1, but the consumers stay on the stock path until the group is adopted
-    (first panel write), so an un-adopted toggle must read OFF in the panel."""
+    """What the planner/radard actually do, not just what is stored. Under the default_on policy every group is on, so
+    the stored value shows (under the adoption policy an un-adopted group reads OFF). Human-Like Following also reads
+    OFF on a Pre-AP Model S that started without the Bosch radar, as the runtime does (human_following_default_on)."""
     if key not in BY_KEY:   # owned by another lane (LongitudinalTune): plain stored value
       return bool(self.store.toggle_bool(key))
+    if key == "HumanFollowing" and not human_following_default_on(self.CP):
+      return False
     return bool(self.store.toggle_bool(key)) and group_adopted(self.store, key)
 
   def visible(self, key):
@@ -113,6 +116,8 @@ class FollowingEditor:
     return True
 
   def can_edit(self, key):
+    if key == "HumanFollowing" and not human_following_default_on(self.CP):
+      return False   # Pre-AP without the Bosch radar at start: shown Off and greyed, nothing to store
     return key in BY_KEY and bool(self.offroad()) and self.visible(key)
 
   def write(self, key, value):
