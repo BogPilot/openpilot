@@ -316,3 +316,21 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Safety-relevant: yes (planner speed target). Stricter than 0.9.7, Tinkla and NAP: the result is never above the previous rule's. No planner, panda, safety, TX or cereal change.
 - Tests: `opendbc/car/tesla_ap1/tests/test_ap1_speed_limit_base_map_guard.py` (function rules, unchanged four-argument callers over an input grid, real CANParser frames on Model S and X, staleness, other mux frames), `openpilot/selfdrive/controls/tests/test_phase3_slc_base_map_guard.py` (real CarState into Ap1SpeedControl: at or below 30 mph; the same frames without the guard reproduce 62; a real-Params variant).
 - Credits: BogPilot 0.9.7 and Tinkla/BogGyver (DBC definitions, source order and the fused-over-map check).
+
+## Steering: Override Sensitivity ships at 2, one step firmer than the unscaled level 3
+- Platforms: AP1 Model S, AP1 Model X, Pre-AP Model S (the only cars with the row).
+- Reference behavior: earlier builds of this port shipped level 3, the level whose numbers are the detector constants
+  (`override.py`: fire torque 2.0 Nm, torque with a fast wheel 1.0 Nm, fire rate 30 deg/s, release 1.0 Nm / 30 deg/s).
+- Our behavior: the default (`SENSITIVITY_DEFAULT`, `preap/params.py` DEFAULTS) is 2: scale 1.125, fire torque 2.25 Nm,
+  torque with a fast wheel 1.125 Nm, fire rate 31.875 deg/s, release 1.125 Nm / 31.875 deg/s. A missing or bad saved value
+  is also 2. What each level 1 to 5 means is unchanged (level 3 is still the unscaled numbers), and so are the clamps, the
+  hands flag, the angle error signal, the debounce counts and the panda limits; the panda does not read this setting.
+- Saved values: the setting is a file and no install profile, section Reset or full Reset writes it, so a device that
+  already saved a level (3 included) keeps it; only a device without the file reads the new default. No migration.
+- Why: requested default change.
+- Safety-relevant: driver override detection only; a higher torque threshold means a slightly firmer push to take over
+  (2.25 Nm, inside the existing 1.5 to 2.5 Nm clamp; level 1 already allowed 2.5 Nm).
+  The EPAS hands-on flag still counts as a takeover at any level, and the panda steering limits are unchanged.
+- Tests: `test_override_sensitivity.py`, `test_ap1_override_detector.py`, `test_override_sensitivity_row.py`,
+  `test_override_sensitivity_default_paths.py`.
+- Credits: BogPilot (driver-override detector).

@@ -480,16 +480,16 @@ _add("PauseLateralOnSignal", "Turn Signal Only",
 
 _add("OverrideSensitivity", "Override Sensitivity",
      "How hard you have to push the steering wheel for openpilot to let go and let you steer. 1 needs the hardest push, 5 the lightest, "
-     "and 3 is the standard feel. Steering gives control back as soon as it sees your push, and resumes by itself once you let go.",
+     "and the default is 2, a little firmer than 3. Steering gives control back as soon as it sees your push, and resumes by itself once you let go.",
      when="If steering lets go when you only meant to rest your hands (choose a lower number), or if you have to fight the wheel to "
           "take over (choose a higher number).",
      note="It cannot be turned off and it only moves the push needed within a safe range. The car's own hands-on detection "
           "always counts as taking over too. The safety limits on steering do not change. Only for the Tesla Model S and Model X "
           "with the original Autopilot hardware, and the Pre-AP Model S. " + _OFFROAD + " Applies the next drive.",
-     default="3 (the standard feel)", range="1 to 5")
+     default="2 (a little firmer than 3)", range="1 to 5")
 _add("OverrideSensitivityPreAp", "Override Sensitivity",
      "How hard you have to push the steering wheel for openpilot to let go and let you steer. 1 needs the hardest push, 5 the lightest, "
-     "and 3 is the standard feel. If steering lets go for a light push, it comes back by itself shortly after you let go. A firm "
+     "and the default is 2, a little firmer than 3. If steering lets go for a light push, it comes back by itself shortly after you let go. A firm "
      "takeover (or the car refusing a steering request) ends the session: release the stalk and pull it again to re-engage. "
      "On stock cruise, also cancel and pull once more to turn TACC back on. With the pedal, a fresh pull alone is enough. "
      "A held stalk never re-engages.",
@@ -498,7 +498,7 @@ _add("OverrideSensitivityPreAp", "Override Sensitivity",
      note="It cannot be turned off and it only moves the push needed within a safe range. A light push that only pauses steering comes back by itself. "
           "A firm takeover or a refused steering request ends the session until you release the stalk and pull it again. The safety limits on steering do not change. "
           "Only for the Pre-AP Model S. " + _OFFROAD + " Applies the next drive.",
-     default="3 (the standard feel)", range="1 to 5")
+     default="2 (a little firmer than 3)", range="1 to 5")
 
 
 def override_sensitivity_help_key(car_fingerprint=None):

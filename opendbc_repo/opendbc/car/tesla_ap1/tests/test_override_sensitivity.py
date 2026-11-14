@@ -1,4 +1,4 @@
-"""Override Sensitivity: five levels, default 3 (today's numbers), hard clamps, a bad or missing value is 3.
+"""Override Sensitivity: five levels, level 3 = the module constants, default 2, hard clamps, a bad or missing value is 2.
 
 Scales the driver-override torque and wheel-rate thresholds (and the matching release numbers). It never changes the hands flag, the angle
 error signal, the debounce frame counts, the hand-back hold, the EPAS gate or the panda limits, and there is no "off".
@@ -23,13 +23,16 @@ def save(tmp, text):
 
 # ---- the level table ---------------------------------------------------------------------------
 
-def test_default_is_three_and_three_is_todays_numbers():
-  assert ov.SENSITIVITY_DEFAULT == 3
+def test_default_is_two_and_three_is_todays_numbers():
+  assert ov.SENSITIVITY_DEFAULT == 2
+  assert ov.SENSITIVITY_BASE_LEVEL == 3
   t = ov.override_thresholds(3)
   assert t.as_tuple() == (ov.OVERRIDE_TORQUE_NM, ov.OVERRIDE_RATE_TORQUE_NM, ov.OVERRIDE_RATE_DPS, ov.QUIET_TORQUE_NM, ov.QUIET_RATE_DPS)
   assert t.as_tuple() == (2.0, 1.0, 30.0, 1.0, 30.0)
-  assert ov.DriverOverrideDetector().level == 3
-  assert ov.override_thresholds().as_tuple() == t.as_tuple()
+  assert ov.DriverOverrideDetector().level == 2
+  d = ov.override_thresholds()
+  assert d.as_tuple() == ov.override_thresholds(2).as_tuple() == (2.25, 1.125, 31.875, 1.125, 31.875)
+  assert d.torque_nm > t.torque_nm and d.rate_torque_nm > t.rate_torque_nm and d.rate_dps > t.rate_dps   # 2 = a firmer push than 3
 
 
 @pytest.mark.parametrize("level", sorted(TABLE))
@@ -82,10 +85,10 @@ def test_edited_base_numbers_cannot_escape_the_clamps(monkeypatch):
 
 @pytest.mark.parametrize("bad", [None, "", " ", "abc", "0", "6", "-1", "2.5", "3.0", "1e0", "٣", "0x3", "99999999999999999999", True, False,
                                  0, 6, -3, 2.5, float("nan"), float("inf"), [3], {"a": 1}, b"3"])
-def test_bad_values_fall_back_to_three(bad):
-  assert ov.sanitize_level(bad) == 3
-  assert ov.override_thresholds(bad).as_tuple() == ov.override_thresholds(3).as_tuple()
-  assert ov.DriverOverrideDetector(bad).level == 3
+def test_bad_values_fall_back_to_the_default(bad):
+  assert ov.sanitize_level(bad) == 2
+  assert ov.override_thresholds(bad).as_tuple() == ov.override_thresholds(2).as_tuple()
+  assert ov.DriverOverrideDetector(bad).level == 2
 
 
 @pytest.mark.parametrize("good,level", [(1, 1), (5, 5), ("2", 2), (" 4\n", 4), ("05", 5), (3.0, 3)])
@@ -94,18 +97,18 @@ def test_good_values_pass(good, level):
 
 
 def test_saved_value_is_read_from_the_file(_params_dir):
-  assert ov.read_sensitivity_level() == 3, "missing file"
-  for text, want in (("1", 1), ("5", 5), ("5\n", 5), ("0", 3), ("7", 3), ("junk", 3), ("", 3), ("2.5", 3)):
+  assert ov.read_sensitivity_level() == 2, "missing file"
+  for text, want in (("1", 1), ("3", 3), ("5", 5), ("5\n", 5), ("0", 2), ("7", 2), ("junk", 2), ("", 2), ("2.5", 2)):
     save(_params_dir, text)
     assert ov.read_sensitivity_level() == want, text
   (_params_dir / KEY).unlink()
   (_params_dir / KEY).mkdir()
-  assert ov.read_sensitivity_level() == 3, "unreadable"
+  assert ov.read_sensitivity_level() == 2, "unreadable"
 
 
 def test_not_a_compiled_param_key():
   # Car code cannot read Params; the value lives in a file the Steering Tuning page writes. The key must stay out of the compiled table.
-  assert KEY == "OverrideSensitivity" and params.DEFAULTS[KEY] == 3
+  assert KEY == "OverrideSensitivity" and params.DEFAULTS[KEY] == 2 == ov.SENSITIVITY_DEFAULT
 
 
 # ---- the detector at each level ----------------------------------------------------------------
@@ -164,10 +167,10 @@ def test_normal_driving_never_fires_at_any_level(level):
   assert set(run(det, 500, torque=-1.45, rate=-20.0, angle=5.0, cmd=7.5)) == {ov.SIGNAL_NONE}
 
 
-def test_level_three_matches_the_unleveled_detector_frame_for_frame():
+def test_the_unleveled_detector_is_the_default_level_frame_for_frame():
   import random
   rnd = random.Random(7)
-  a, b = ov.DriverOverrideDetector(), ov.DriverOverrideDetector(3)
+  a, b = ov.DriverOverrideDetector(), ov.DriverOverrideDetector(2)
   for _ in range(5000):
     args = (True, rnd.choice((0, 0, 0, 1, 3)), rnd.uniform(-4, 4), rnd.uniform(-90, 90), rnd.uniform(-30, 30),
             rnd.choice((None, rnd.uniform(-30, 30))))
@@ -178,8 +181,8 @@ def test_level_three_matches_the_unleveled_detector_frame_for_frame():
 
 @pytest.mark.parametrize("platform", PLATFORMS)
 def test_controllers_use_the_saved_level(platform, _params_dir):
-  assert Car(platform).ctl.ap1_override.level == 3, "nothing saved"
-  for text, want in (("1", 1), ("2", 2), ("4", 4), ("5", 5), ("bogus", 3), ("9", 3)):
+  assert Car(platform).ctl.ap1_override.level == 2, "nothing saved"
+  for text, want in (("1", 1), ("2", 2), ("3", 3), ("4", 4), ("5", 5), ("bogus", 2), ("9", 2)):
     save(_params_dir, text)
     assert Car(platform).ctl.ap1_override.level == want, text
 

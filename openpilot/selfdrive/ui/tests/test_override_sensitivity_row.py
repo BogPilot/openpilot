@@ -42,10 +42,12 @@ class TestOverrideSensitivityRow(MenuCase):
     self.store.invalidate()
     self.assertTrue(self.editor().visible(KEY))
 
-  def test_default_is_three_and_reads_back(self):
+  def test_default_is_two_and_reads_back(self):
     e = self.editor()
-    self.assertEqual(e.value(KEY), 3)
-    self.assertEqual(e.shown(KEY), "3 of 5")
+    self.assertEqual(e.value(KEY), 2)
+    self.assertEqual(e.shown(KEY), "2 of 5")
+    self.assertEqual(e.default(KEY), 2)
+    self.assertEqual(e.default_shown(KEY), "2")
     self.assertTrue(e.write(KEY, 5))
     self.assertEqual(e.value(KEY), 5)
     self.assertEqual(e.shown(KEY), "5 of 5")
@@ -75,7 +77,8 @@ class TestOverrideSensitivityRow(MenuCase):
   def test_steps_stop_at_the_ends(self):
     e = self.editor()
     self.assertTrue(e.step(KEY, 1))
-    self.assertEqual(e.value(KEY), 4)
+    self.assertEqual(e.value(KEY), 3)
+    self.assertTrue(e.step(KEY, 1))
     self.assertTrue(e.step(KEY, 1))
     self.assertFalse(e.step(KEY, 1))
     self.assertEqual(e.value(KEY), 5)
@@ -90,15 +93,15 @@ class TestOverrideSensitivityRow(MenuCase):
     self.assertTrue(self.file().exists())
     self.assertTrue(e.reset(KEY))
     self.assertFalse(self.file().exists())
-    self.assertEqual(e.value(KEY), 3)
+    self.assertEqual(e.value(KEY), 2)
 
   def test_a_bad_stored_value_shows_and_acts_as_the_default(self):
     e = self.editor()
     for text in ("", "0", "9", "abc", "2.5", "-1"):
       self.file().write_text(text)
       self.store.invalidate()
-      self.assertEqual(e.value(KEY), 3, text)
-      self.assertEqual(e.shown(KEY), "3 of 5", text)
+      self.assertEqual(e.value(KEY), 2, text)
+      self.assertEqual(e.shown(KEY), "2 of 5", text)
 
   def test_the_saved_file_is_what_the_car_code_reads(self):
     from opendbc.car.tesla_ap1 import override as ov
@@ -111,7 +114,7 @@ class TestOverrideSensitivityRow(MenuCase):
         self.assertTrue(e.write(KEY, level))
         self.assertEqual(ov.read_sensitivity_level(), level)
       e.reset(KEY)
-      self.assertEqual(ov.read_sensitivity_level(), 3)
+      self.assertEqual(ov.read_sensitivity_level(), 2)
     finally:
       params._params_dir = old
 
@@ -120,7 +123,7 @@ class TestOverrideSensitivityRow(MenuCase):
     from openpilot.selfdrive.ui.bogpilot import phase3_steering_tuning as st
     self.assertIs(st.sanitize_level, ov.sanitize_level)
     self.assertEqual(st.SENSITIVITY_LEVELS, (1, 2, 3, 4, 5))
-    self.assertEqual(st.SENSITIVITY_DEFAULT, 3)
+    self.assertEqual(st.SENSITIVITY_DEFAULT, 2)
 
   def test_help_entry_is_plain_and_ascii(self):
     from openpilot.selfdrive.ui.bogpilot.toggle_help import HELP
@@ -130,7 +133,7 @@ class TestOverrideSensitivityRow(MenuCase):
     self.assertNotIn("<", text)
     self.assertNotIn(">", text)
     self.assertEqual(entry.range, "1 to 5")
-    self.assertTrue(entry.default.startswith("3"))
+    self.assertTrue(entry.default.startswith("2"))
     for word in ("Nm", "deg", "panda", "EPAS"):
       self.assertNotIn(word, text, "plain help text")
 

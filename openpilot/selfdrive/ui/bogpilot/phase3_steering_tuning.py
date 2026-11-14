@@ -16,7 +16,7 @@ PAGE_TITLE = "Steering Tuning"
 # Controls that can be shown for at least one supported CP. Torque rows appear only for torque-controlled CPs.
 ACTIVE_CONTROLS = ("AdvancedLateralTune", "SteerDelay", "SteerRatio", "SteerFriction", "SteerLatAccel",
                    "ForceAutoTune", "ForceAutoTuneOff", "QOLLateral", "PauseLateralSpeed", "PauseLateralOnSignal", "OverrideSensitivity")
-# File-backed (not a compiled Params key): the Tesla AP1 and Pre-AP car code reads it once per drive. Levels 1 to 5, default 3.
+# File-backed (not a compiled Params key): the Tesla AP1 and Pre-AP car code reads it once per drive. Levels 1 to 5, default 2.
 OVERRIDE_SENSITIVITY = "OverrideSensitivity"
 LEGACY_TESLA_BRAND = "tesla_ap1"
 NUMERIC_ORDER = ("SteerDelay", "SteerFriction", "SteerLatAccel", "SteerRatio")
@@ -26,7 +26,7 @@ DESCRIPTIONS = {
   "SteerRatio": "Steering wheel angle to road wheel angle ratio. Unset keeps the auto-learned value. Takes effect next drive.",
   "SteerFriction": "Torque-controlled cars only. Compensates steering friction. Needs Force Auto-Tune Off where live tuning exists.",
   "SteerLatAccel": "Torque-controlled cars only. Maps steering torque to turning response. Needs Force Auto-Tune Off where live tuning exists.",
-  OVERRIDE_SENSITIVITY: "How hard you must push the wheel to take over steering. 1 needs the hardest push, 5 the lightest. 3 is the standard feel. Offroad only; applies next drive.",
+  OVERRIDE_SENSITIVITY: "How hard you must push the wheel to take over steering. 1 needs the hardest push, 5 the lightest. The default is 2, a little firmer than 3. Offroad only; applies next drive.",
 }
 
 

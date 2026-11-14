@@ -28,8 +28,8 @@ class PreApParamKeys:
   # Pre-AP NAP-style double-pull under Always On Lateral. Default ON.
   # File-backed: July params_pyx.so cannot store new Params keys.
   DOUBLE_PULL = "TeslaPreApDoublePull"
-  # Driver Override Sensitivity, 1 to 5 (default 3). File-backed and read by the car code once per drive (override.py); it is not a
-  # compiled Params key. A missing or bad value is 3.
+  # Driver Override Sensitivity, 1 to 5 (default 2, override.SENSITIVITY_DEFAULT). File-backed and read by the car code once per drive
+  # (override.py); it is not a compiled Params key. A missing or bad value is 2.
   OVERRIDE_SENSITIVITY = "OverrideSensitivity"
   # Runtime: pandad records the panda firmware version it found (and "Not found" with no panda) so the Vehicle screen can show it.
   PANDA_FIRMWARE = "PandaFirmwareVersion"
@@ -50,7 +50,7 @@ DEFAULTS = {
   PreApParamKeys.PEDAL_SEEN_TS: 0.0,
   PreApParamKeys.DOUBLE_PULL: True,
   PreApParamKeys.PANDA_FIRMWARE: "",
-  PreApParamKeys.OVERRIDE_SENSITIVITY: 3,
+  PreApParamKeys.OVERRIDE_SENSITIVITY: 2,
 }
 
 # Overridable in tests.

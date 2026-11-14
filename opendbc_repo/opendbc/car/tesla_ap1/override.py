@@ -23,9 +23,10 @@ at about 25 Hz and are held between samples, so a 3 frame debounce needs at most
 one fresh sample plus the hold of the previous one: it filters a single bad
 sample, not a real push.
 
-Override Sensitivity (a driver setting, levels 1 to 5, default 3) scales the torque and rate numbers above: level 3 is exactly the
-numbers in this file, a lower level needs a harder push, a higher level a lighter one. See override_thresholds(). The hands flag, the
-angle error signal, the debounce frame counts, the hold before resuming and the panda limits do not change with it.
+Override Sensitivity (a driver setting, levels 1 to 5, default 2) scales the torque and rate numbers above: level 3
+(SENSITIVITY_BASE_LEVEL) is exactly the numbers in this file, a lower level needs a harder push, a higher level a lighter one. See
+override_thresholds(). The shipped default is 2 (DIVERGENCES.md), one step firmer than 3: 2.25 Nm instead of 2.0 Nm. The hands flag,
+the angle error signal, the debounce frame counts, the hold before resuming and the panda limits do not change with it.
 
 `quiet` is the release test used for the hand-back: no hands flag, torque and
 wheel rate both low. The numbers were chosen from logged engaged Model S driving
@@ -74,7 +75,8 @@ QUIET_RATE_DPS = 30.0
 
 # ---- Override Sensitivity ---------------------------------------------------------------------
 
-SENSITIVITY_DEFAULT = 3
+SENSITIVITY_DEFAULT = 2        # shipped default, and the value for a missing or bad setting
+SENSITIVITY_BASE_LEVEL = 3     # the level whose numbers are the module constants above (scale 1.0); not the default
 SENSITIVITY_LEVELS = (1, 2, 3, 4, 5)
 # Level 1 is the least sensitive (hardest push to override), level 5 the most. Level 3 is the numbers above, unscaled.
 SENSITIVITY_SCALE = {1: 1.25, 2: 1.125, 3: 1.0, 4: 0.875, 5: 0.75}
@@ -106,7 +108,7 @@ def sanitize_level(value):
 
 
 def read_sensitivity_level():
-  """The saved level (file-backed Override Sensitivity), read once when a controller is built. Missing, unreadable or bad is 3."""
+  """The saved level (file-backed Override Sensitivity), read once when a controller is built. Missing, unreadable or bad is the default (2)."""
   try:
     return sanitize_level(params.get_str(params.PreApParamKeys.OVERRIDE_SENSITIVITY, ""))
   except Exception:

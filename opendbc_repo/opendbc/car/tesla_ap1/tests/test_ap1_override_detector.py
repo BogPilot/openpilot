@@ -31,14 +31,14 @@ def run(det, n, engaged=True, hands=0, torque=0.0, rate=0.0, angle=0.0, cmd=None
 # ---- detector ----------------------------------------------------------------------------------
 
 def test_quiet_driving_never_fires():
-  det = ov.DriverOverrideDetector()
+  det = ov.DriverOverrideDetector(ov.SENSITIVITY_BASE_LEVEL)   # the module constants (level 3), not the default
   # Normal engaged driving seen in logs: torque to 1.3 Nm, rate to 25 deg/s, command tracking within 3 deg.
   sig = run(det, 500, torque=1.3, rate=25.0, angle=5.0, cmd=7.5)
   assert set(sig) == {ov.SIGNAL_NONE}
 
 
 def test_torque_fires_on_the_third_frame_not_before():
-  det = ov.DriverOverrideDetector()
+  det = ov.DriverOverrideDetector(ov.SENSITIVITY_BASE_LEVEL)   # the module constants (level 3), not the default
   sig = run(det, 3, torque=-ov.OVERRIDE_TORQUE_NM)
   assert sig == [ov.SIGNAL_NONE, ov.SIGNAL_NONE, ov.SIGNAL_TORQUE]
   det.reset()
@@ -47,7 +47,7 @@ def test_torque_fires_on_the_third_frame_not_before():
 
 
 def test_rate_needs_torque_as_well():
-  det = ov.DriverOverrideDetector()
+  det = ov.DriverOverrideDetector(ov.SENSITIVITY_BASE_LEVEL)   # the module constants (level 3), not the default
   assert set(run(det, 50, rate=130.0, torque=0.4)) == {ov.SIGNAL_NONE}, "fast wheel with no driver torque is not an override"
   det.reset()
   sig = run(det, 2, rate=-ov.OVERRIDE_RATE_DPS, torque=ov.OVERRIDE_RATE_TORQUE_NM)
@@ -55,7 +55,7 @@ def test_rate_needs_torque_as_well():
 
 
 def test_angle_error_needs_a_command_and_motion_away_from_it():
-  det = ov.DriverOverrideDetector()
+  det = ov.DriverOverrideDetector(ov.SENSITIVITY_BASE_LEVEL)   # the module constants (level 3), not the default
   # command ahead by 6 deg, wheel moving away from it
   sig = run(det, 2, angle=0.0, cmd=6.0, rate=-ov.OVERRIDE_ERROR_RATE_DPS)
   assert sig == [ov.SIGNAL_NONE, ov.SIGNAL_ANGLE_ERROR]
@@ -68,20 +68,20 @@ def test_angle_error_needs_a_command_and_motion_away_from_it():
 
 
 def test_hands_flag_is_reported_first_and_instantly():
-  det = ov.DriverOverrideDetector()
+  det = ov.DriverOverrideDetector(ov.SENSITIVITY_BASE_LEVEL)   # the module constants (level 3), not the default
   assert run(det, 1, hands=2, torque=5.0) == [ov.SIGNAL_HANDS]
   assert run(det, 1, hands=3) == [ov.SIGNAL_HANDS]
 
 
 def test_not_engaged_clears_everything():
-  det = ov.DriverOverrideDetector()
+  det = ov.DriverOverrideDetector(ov.SENSITIVITY_BASE_LEVEL)   # the module constants (level 3), not the default
   run(det, 2, torque=5.0)
   assert det.update(False, 0, 5.0, 0.0, 0.0) == ov.SIGNAL_NONE
   assert run(det, 1, torque=5.0) == [ov.SIGNAL_NONE], "debounce restarts after a gap"
 
 
 def test_quiet_flag():
-  det = ov.DriverOverrideDetector()
+  det = ov.DriverOverrideDetector(ov.SENSITIVITY_BASE_LEVEL)   # the module constants (level 3), not the default
   det.update(True, 0, 0.3, 4.0, 0.0)
   assert det.quiet
   for kw in (dict(hands=1), dict(torque=1.2), dict(rate=45.0)):
