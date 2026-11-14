@@ -34,6 +34,8 @@ Colours (PEDAL_BAR_PALETTE), one source per bar; the driver wins:
          red; else OP dusty blue / human blue as before.
   Hysteresis: thresholds have an on / off deadband, and a source change waits SOURCE_HOLD_S of steady request, except a
   change TO an active driver input (pedal or brake), which shows at once; so an alternating input cannot flicker.
+  Leaving an OP brake colour (lavender / rose) waits SOURCE_HOLD_S from the first frame the request left it, even if the
+  request then moves between the regen colours, so it ends at most SOURCE_HOLD_S plus one frame after OP stops.
 Static (on / off, the daily rule): decel bar full when daily_opacity's brake is 1 (standstill, brakeLights or
   aEgo < -0.25), accel bar full when its gas is 1 (aEgo > 0.25); colours as above. brakeLights is never set by the car
   code today, so in practice the Static decel bar lights at standstill or when decelerating.
@@ -114,7 +116,8 @@ def bar_color(source: str):
 # ---- source thresholds and hysteresis ----
 PEDAL_ON, PEDAL_OFF = 0.02, 0.01        # pedal 0..1; 2 % = the Pre-AP stock pressed threshold (DI_pedalPos noise)
 OP_ACCEL_ON, OP_ACCEL_OFF = 0.10, 0.05  # m/s^2: OP counts as commanding accel (or decel, mirrored)
-SOURCE_HOLD_S = 0.25                    # steady request needed to change colour (not for a new driver input)
+SOURCE_HOLD_S = 0.25                    # steady request needed to change colour (not for a new driver input); also
+                                        # the longest an OP brake colour stays after OP stops braking (plus one frame)
 
 FILL_A = 191                 # about 75 % opacity (25 % transparent)
 TRACK_RGB, TRACK_A = (14, 17, 22), 96
@@ -323,8 +326,13 @@ class PedalBars:
       return want
     pend, since = self._pend[key]
     if pend != want:
-      self._pend[key] = (want, now)
-      return cur
+      # Leaving an OP brake colour: keep timing from the first frame the request left it while the target only moves
+      # between non-OP-brake colours (e.g. OP regen <-> human regen), so that move cannot restart the hold.
+      keep = cur in OP_BRAKING and pend is not None and pend not in OP_BRAKING and want not in OP_BRAKING
+      if not keep:
+        self._pend[key] = (want, now)
+        return cur
+      self._pend[key] = (want, since)
     if now - since >= SOURCE_HOLD_S:
       self._pend[key] = (None, 0.0)
       return want

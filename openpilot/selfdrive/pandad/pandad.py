@@ -43,10 +43,11 @@ def panda_firmware_text(version, bootstub: bool = False, up_to_date: bool = True
 # answered within ALERT_AFTER_S, and cleared as soon as it is ready.
 COLD_START_WAIT_S = 10.0
 RETRY_WAIT_S = 3.0
-# Measured on 82 AP1 boots (wrapper start to ./pandad start, so the reset and firmware check are included): p50 0.72 s,
-# p90 2.98 s, then nothing between 3.02 s and 7.51 s; the 8 longer ones (p95 26.7 s, p99 82.0 s, max 87.7 s) are the slow
-# cold power-ups. At 2.0 s the alert showed on 16 of 82 boots, 8 of them normal starts. 6.0 s is twice the slowest
-# normal start and still below the quickest slow one.
+# Measured on 82 boots of one AP1 car, 67 on 0.9.7 and 15 on 0.11.2 (wrapper start to ./pandad start, so the reset and
+# firmware check are included): p50 0.72 s, p90 2.98 s, then nothing between 3.02 s and 7.51 s; the 8 longer ones (p95
+# 26.7 s, p99 82.0 s, max 87.7 s) are the slow cold power-ups. On 0.11.2, 12 of the 15 boots started in 0.78 s or less
+# and the other 3 were slow cold power-ups (27 s to 88 s). At 2.0 s the alert showed on 16 of 82 boots, 8 of them normal
+# starts, all on 0.9.7. 6.0 s is twice the slowest normal start and still below the quickest slow one.
 ALERT_AFTER_S = 6.0
 RETRY_BACKOFF_S = (0.5, 1.0, 2.0, 4.0)
 MISSING_BEFORE_RECOVER = 3

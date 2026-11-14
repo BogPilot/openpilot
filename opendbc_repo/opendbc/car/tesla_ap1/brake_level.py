@@ -18,7 +18,8 @@ BRAKE_LEVEL_MISSING = -1.0
 
 # DI_torque2 (0x118) DI_brakePedalState, stock tesla_ap1_can.dbc (VAL_ 280: 0 OFF, 1 ON, 2 INVALID, 3 SNA). ON while the
 # iBooster is applied, by the driver or by the car for OP (drive logs: 100 % of OP frames with at least 1.8 m/s^2 of
-# friction decel, about 0.1 % with no OP and no pedal). Published for the onroad decel bar colour only.
+# friction decel; 6.3 % of frames with no OP and no pedal, at a standstill in the replayed drives, i.e. the car holding
+# itself). Published for the onroad decel bar colour only; the bar uses it only while OP long control is active.
 DI_BRAKE_STATE_ON = 1
 DI_BRAKE_STATE_SNA = 3
 DI_BRAKE_STATE_MAX_AGE_S = 0.2   # 100 Hz frame: older than this is published as SNA

@@ -366,6 +366,44 @@ class TestOpBrakeState(unittest.TestCase):
     self.assertEqual(step(None, 5).decel_src, PED.DECEL_OP_BRAKE)                 # 0.08 s < SOURCE_HOLD_S: holds
     self.assertEqual(step(None, 30).decel_src, PED.DECEL_OP_REGEN)
 
+  def linger(self, ops, dt):
+    """OP brake colour on, then DI_brakePedalState drops while the OP request cycles through `ops` (one per frame).
+    Returns the seconds from the first OFF frame to the first frame that no longer shows an OP brake colour."""
+    b, t = PED.PedalBars(), 0.0
+    def up(st, op, brake=False):
+      return b.update(DYN, True, t, -3.5, 10.0, False, brake, False, 0.0, op, True, "ap1", brake_level=0.3,
+                      motor_torque_nm=tq_for(1.0), brake_pedal_state=st)
+    for _ in range(int(1.0 / dt)):
+      t += dt
+      out = up(1, -3.5)
+    self.assertIn(out.decel_src, PED.OP_BRAKING)
+    t_on, i = t, 0
+    while True:
+      t += dt
+      out = up(0, ops[i % len(ops)])
+      i += 1
+      if out.decel_src not in PED.OP_BRAKING:
+        return t - t_on - dt
+      self.assertLess(t - t_on, 2.0)
+
+  def test_op_brake_colour_ends_within_the_hold_plus_one_frame(self):
+    for dt in (1 / 100, 1 / 60, 1 / 20):
+      for ops in ((-3.5,), (0.0,), (-3.5, 0.0), (-0.07, -0.2, 0.0), (0.0, -0.2), (-0.2, 0.0, 0.0)):
+        lag = self.linger(ops, dt)
+        self.assertGreaterEqual(lag, PED.SOURCE_HOLD_S - 1e-9, (dt, ops))     # still a hold, so no flicker
+        self.assertLessEqual(lag, PED.SOURCE_HOLD_S + dt + 1e-9, (dt, ops))   # never longer than the hold plus a frame
+
+  def test_no_op_colour_while_the_driver_presses(self):
+    b, t = PED.PedalBars(), 0.0
+    seq = [(1, False)] * 60 + [(1, True)] * 3 + [(1, False)] * 30 + [(0, True)] * 10 + [(1, True), (0, False)] * 20
+    for st, bp in seq:
+      t += 1 / 100
+      out = b.update(DYN, True, t, -3.5, 10.0, False, bp, False, 0.0, -3.5, True, "ap1", brake_level=0.3,
+                     motor_torque_nm=tq_for(1.0), brake_pedal_state=st)
+      if bp:
+        self.assertIn(out.decel_src, PED.HUMAN_BRAKING, (st, bp))
+        self.assertNotIn(out.decel_src, PED.OP_BRAKING, (st, bp))
+
   def test_preap_ignores_the_state(self):
     self.assertEqual(self.run_bars(plat="preap", state=1, a=-3.5).decel_src, PED.DECEL_OP_REGEN)
 
