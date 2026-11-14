@@ -102,6 +102,8 @@ BogPilot does not register with comma servers and does not upload driving data t
 
 ## Credits
 - comma.ai openpilot (MIT).
+- FrogPilot by FrogAi (James) and contributors (MIT); BogPilot forks FrogPilot's work.
+- Eric Brown (nworb-cire): imported OPGM / FrogPilot 0.9.7 history.
 - BogPilot 0.9.7 (`bogpilot-tesla`), Tinkla / BogGyver openpilot and NotAutopilot (NAP) are the Tesla references.
 - mapd map data by pfeiferj (MIT).
 - Beta tester **IRIT-able** (GitHub, fork `github.com/IRIT-able/bogpilot-openpilot`) found and fixed, on Nov 5 2026, the same

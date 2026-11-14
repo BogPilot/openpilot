@@ -61,7 +61,7 @@ select Model S or Model X by itself. Detection therefore works like this:
    detected different car. With no car attached and no saved choice, the result is
    still "no car / MOCK". Model X AP1 from this menu is lateral only, stock ACC, and unverified on a car.
 
-Model X AP2 is not a platform. AP2 needs the powertrain bus and a second panda, and the signed AP1 safety mode does not implement that path. Tinkla's AP2 Model X fingerprint dict is an identical copy of the AP1 Model X dict, so it cannot be told apart on CAN. PreAP remains unsupported.
+Model X AP2 is not a platform. AP2 needs the powertrain bus and a second panda, and the signed AP1 safety mode does not implement that path. Tinkla's AP2 Model X fingerprint dict is an identical copy of the AP1 Model X dict, so it cannot be told apart on CAN. Pre-AP Model S is supported but untested on a car: no engaged drive logs exist yet (see the README's testing status).
 
 If the device is on a bench **without** a car / harness, or CAN is incomplete,
 **"no car detected" / MOCK is expected** for this codepath. Vehicle Controls
@@ -88,7 +88,7 @@ UI -> store -> consumer test.
 - **Driving Controls**
   - Gas / Brake (needs openpilot longitudinal; edits only offroad): Advanced Longitudinal Tuning (actuator delay, max acceleration, Stop Acceleration and Stopping Rate; Stop Acceleration is limited to -0.5 m/s² or lower and Stopping Rate to 0.1 m/s³ or higher in the UI and again in LongControl, so a stale saved value is clamped; defaults equal stock stopping, and a saved 0.9.7 value stays dormant until you change that row), Conditional Experimental Mode, Longitudinal Tuning (acceleration/deceleration profile, Human-Like Acceleration), Quality of Life (force stop at detected stops, increased stopped distance). Everything is stock-equivalent until you explicitly turn a group on offroad; saved legacy values do not activate on their own. Turning a group on applies the values shown in its rows (for example Sport acceleration), so review them first
   - Settings reset (Utilities) restores the fresh-install table and clears all 13 Phase3 adoption markers, so gas/lane-change consumers return to stock until re-adopted.
-  - Steering Tuning: Advanced Lateral Tuning parent, Actuator Delay, Steer Ratio, Pause Steering Below, Turn Signal Only (all default OFF/unset = stock steering; friction / lateral-accel rows appear only on torque-controlled cars). Lane Changes (Driving Controls > Lane Changes: Lane Changes, Automatic Lane Changes, delay, minimum speed, minimum lane width, one change per signal) is registered; Automatic (nudgeless) and One-per-signal stay dormant until you change a row offroad (saved legacy values never activate on their own). Blind-spot SNA, stale (>1.5 s without a good 0x399 frame) or invalid data counts as OCCUPIED and blocks lane changes. Human-Like Lane Changes and Turn Desires have no menu row in this build and stay dormant. Speed Limit Controller is **not** in this build (held, see below)
+  - Steering Tuning: Advanced Lateral Tuning parent, Actuator Delay, Steer Ratio, Pause Steering Below, Turn Signal Only (all default OFF/unset = stock steering; friction / lateral-accel rows appear only on torque-controlled cars). Lane Changes (Driving Controls > Lane Changes: Lane Changes, Automatic Lane Changes, delay, minimum speed, minimum lane width, one change per signal) is registered; Automatic (nudgeless) and One-per-signal stay dormant until you change a row offroad (saved legacy values never activate on their own). Blind-spot SNA, stale (>1.5 s without a good 0x399 frame) or invalid data counts as OCCUPIED and blocks lane changes. Human-Like Lane Changes and Turn Desires have no menu row in this build and stay dormant. Speed Limit Controller is in this build under Driving Controls > Gas / Brake, for Tesla AP1 Model S / X and Pre-AP with openpilot longitudinal control: the set speed follows the dashboard speed limit plus the offset for that speed band, with Fallback Speed, Override Speed, source priority, limit confirmation and an optional map-data look-ahead toward a lower upcoming limit. It stays dormant (stock speed) until you change one of its rows offroad
 - **Vehicle Settings**
   - Car Selection (fallback only, see above)
   - Vehicle Controls: three AP1 toggles, only when fingerprint is `TESLA_AP1_MODELS` (Model X does not show these rows): Disable openpilot Longitudinal; Dash Cluster Integration; Earlier, Gentler Regen Stops
@@ -125,7 +125,7 @@ parent toggles that gate them.
 - AP1 fingerprint needs the CAN signature (or developer `FINGERPRINT`); empty FW table
 - Drive Stats producer needs extra verification before you rely on it
 - AOL core excluded; Model Selector paused; Goat Scream skipped
-- Telemetry: the tip's own cloud/uploader toggles default OFF and are audited by tests; no claim beyond what those tests prove (see README User Data section)
+- Telemetry: the tip's own cloud/uploader toggles default OFF and are audited by tests; no claim beyond what those tests prove (see the README's Privacy section)
 - Lineage note: Pre-AP signal definitions come from BogPilot 0.9.7, Tinkla / BogGyver and NotAutopilot (NAP). Tinkla and BogPilot's own code are primary; NotAutopilot is contrast / fill only
 
 ## After install checklist
