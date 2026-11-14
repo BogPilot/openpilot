@@ -449,6 +449,7 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   byte 1 low nibble `brakeBoosterCounter` (+1 mod 16, high nibble always 0); bytes 2-3 `brakeRodStroke`, a unitless
   16-bit little-endian rod stroke. Evidence: every logged AP1 frame (about 6 M) passed that checksum with DLC 4; a replay
   window rechecked here gave 100 % checksum pass, no counter skips, 25.0 Hz, rest mode 174 and a peak of 5470.
+- Capture: derived from owner drive logs (AP1 Model S); the capture list (which drives) is kept privately by the maintainers.
 - Carstate: `CarState.deprecated.brake` = clamp((stroke - `BRAKE_STROKE_REST`) / (`BRAKE_STROKE_TOP` - REST), 0, 1) in
   `tesla_ap1/brake_level.py`, REST = 174 (the rest mode; 168 was also seen and clamps to 0), TOP = 5631 (21 x 256 + 255,
   the top of the hardest logged press). -1 (`BRAKE_LEVEL_MISSING`) when the frame is missing, older than 0.5 s or fails
