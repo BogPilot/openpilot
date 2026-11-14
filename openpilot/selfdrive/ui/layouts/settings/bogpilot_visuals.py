@@ -40,7 +40,7 @@ _EXISTING = (
   ("OnroadDistanceButton", tr_noop("Driving Personality Button"),
    tr_noop("Show a button in the driver-side corner that shows and changes the driving personality.")),
   ("PedalsOnUI", tr_noop("Pedals on Screen"),
-   tr_noop("Show two bars: acceleration on the right in green, deceleration on the left in blue for regen and red for the brake.")),
+   tr_noop("Shows acceleration on the right bar (green) and deceleration on the left bar (blue for regen, red for brakes).")),
   ("DriverCamera", tr_noop("Show Driver Camera When In Reverse"),
    tr_noop("Show the driver camera feed when the vehicle is in reverse.")),
 )
