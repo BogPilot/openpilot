@@ -20,12 +20,17 @@ def git(root, *args):
 
 
 # Path parts, names and suffixes that are build outputs, not source.
-# Keep in sync with the repo, panda/ and opendbc_repo/ .gitignore patterns
-# for objects and coverage files. Inventory walks the filesystem (it has to
-# work in a source archive with no git), so gitignore is not consulted.
-_SKIP_PARTS = ('.git', '__pycache__', '.pytest_cache', 'obj')
-_SKIP_NAMES = ('.sconsign.dblite', 'compile_commands.json')
-_SKIP_SUFFIXES = ('.pyc', '.o', '.so', '.os', '.d', '.a', '.tmp', '.gcda', '.gcno')
+# Keep in sync with the repo, panda/, panda/tests/misra/ and opendbc_repo/
+# .gitignore patterns for objects, coverage files and MISRA/cppcheck dumps.
+# Inventory walks the filesystem (it has to work in a source archive with no
+# git), so gitignore is not consulted. Do not add a pattern that would drop a
+# tracked file in SCOPES or EXTRA (there is no tracked .log, .dump, .ctu-info,
+# .gcov, .profraw or .profdata in that set; coverage_table and checkers.txt stay).
+_SKIP_PARTS = ('.git', '__pycache__', '.pytest_cache', 'obj', 'coverage-out', 'cppcheck')
+_SKIP_NAMES = ('.sconsign.dblite', 'compile_commands.json',
+               '.output.log', 'cppcheck-addon-ctu-file-list', 'new_table', 'coverage.info')
+_SKIP_SUFFIXES = ('.pyc', '.o', '.so', '.os', '.d', '.a', '.tmp', '.gcda', '.gcno',
+                  '.log', '.dump', '.ctu-info', '.gcov', '.profraw', '.profdata')
 
 
 def _is_build_output(rel: Path) -> bool:

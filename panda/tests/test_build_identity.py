@@ -134,6 +134,43 @@ class IdentityTest(unittest.TestCase):
     for name in after_files:
       self.assertFalse(name.endswith(('.os', '.o', '.so', '.d', '.a', '.tmp', '.gcda', '.gcno')), name)
 
+  def test_misra_outputs_do_not_change_identity(self):
+    """A tree after panda/safety MISRA must hash the same as a clean checkout.
+
+    panda/tests/misra/test_misra.sh tees cppcheck into .output.log (gitignored
+    there). cppcheck also writes *.*.ctu-info and cppcheck-addon-ctu-file-list;
+    coverage runs write coverage-out/. Those sit under identity SCOPES, so
+    inventory must skip them. Tracked MISRA source (coverage_table, checkers.txt,
+    suppressions.txt) must still be counted.
+    """
+    before_files = m.inventory(self.root)
+    before = m.digest(before_files)
+    misra = self.root / 'panda/tests/misra'
+    misra.mkdir(parents=True, exist_ok=True)
+    (misra / '.output.log').write_text('cppcheck misra log')
+    (misra / 'checkers.txt.tmp').write_text('checkers tmp')
+    (misra / 'new_table').write_text('generated table')
+    (misra / 'cppcheck' / 'bin').mkdir(parents=True)
+    (misra / 'cppcheck' / 'bin' / 'cppcheck').write_text('extracted tool')
+    (self.root / 'panda' / 'board' / 'main.c.ctu-info').write_text('ctu')
+    (self.root / 'panda' / 'cppcheck-addon-ctu-file-list').write_text('ctu list')
+    (self.root / 'panda' / 'other.log').write_text('generic log')
+    (self.root / 'panda' / 'board' / 'foo.dump').write_text('dump')
+    cov = self.root / 'opendbc_repo/opendbc/safety/tests/coverage-out'
+    cov.mkdir(parents=True)
+    (cov / 'index.html').write_text('coverage')
+    (self.root / 'opendbc_repo/opendbc/safety/tests/coverage.info').write_text('lcov')
+    (self.root / 'opendbc_repo/opendbc/safety/tests/misra').mkdir(parents=True, exist_ok=True)
+    (self.root / 'opendbc_repo/opendbc/safety/tests/misra' / 'safety.ctu-info').write_text('ctu')
+    after_files = m.inventory(self.root)
+    self.assertEqual(before_files, after_files)
+    self.assertEqual(before, m.digest(after_files))
+    for name in after_files:
+      self.assertFalse(name.endswith(('.log', '.dump', '.ctu-info', '.gcov', '.profraw', '.profdata')), name)
+      self.assertNotEqual(Path(name).name, '.output.log')
+      self.assertNotIn('coverage-out', Path(name).parts)
+      self.assertNotIn('cppcheck', Path(name).parts)
+
 
 if __name__ == '__main__':
   unittest.main()
