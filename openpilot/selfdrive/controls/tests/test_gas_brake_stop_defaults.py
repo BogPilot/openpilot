@@ -18,7 +18,7 @@ from opendbc.car.structs import car
 from openpilot.common.bogpilot_store import ParamStore
 from openpilot.common.params import Params
 from openpilot.common.realtime import DT_CTRL, DT_MDL
-from openpilot.selfdrive.controls.lib.ap1_planning import AP1_CRUISE_J_SCALE
+from openpilot.selfdrive.controls.lib.ap1_planning import AP1_CRUISE_GAIN, AP1_CRUISE_J_SCALE
 from openpilot.selfdrive.controls.lib.longitudinal_planner import A_CRUISE_MAX_BP, J_CRUISE_VALS
 from openpilot.selfdrive.controls.lib.longcontrol import LongControl, LongCtrlState
 from openpilot.selfdrive.controls.lib.phase3_long_accel import (
@@ -269,6 +269,8 @@ def planner_ap1_cruise_shaping(prefs, name, prepare=None, frames=200):
   limit is stock x AP1_CRUISE_J_SCALE and its gain is lower. So AP1 equals stock x AP1_CRUISE_J_SCALE exactly only
   while both cruise terms are still on their jerk limit (the opening ramp, checked frame by frame); after that the gain
   differs, and what holds on every frame is the scaled jerk bound and the same stop decision."""
+  # Pin the values: the checks below scale by the imported constant, so a scale of 1.0 would pass as stock equality.
+  assert (AP1_CRUISE_J_SCALE, AP1_CRUISE_GAIN) == (0.40, 0.30)   # pinned: ap1_planning.py:14-15, intentional AP1 shaping
   p = planner(toggle=False)
   assert p.ap1_plan.active
   p.long_accel.store = production_store(prefs, name)
@@ -296,7 +298,7 @@ def planner_ap1_cruise_shaping(prefs, name, prepare=None, frames=200):
     assert p.output_should_stop == old.output_should_stop, tick
     assert not p.force_stop_result.forcing_stop
     assert not p.long_accel.cem.experimental
-  assert ramp >= 10, ramp   # stock stays on its jerk limit for the first 19 frames of this scenario
+  assert ramp >= 19, ramp   # stock stays on its jerk limit for the first 19 frames of this scenario (measured: 19)
 
 
 def test_fresh_install_planner_200_frames_equal_stock_real_params(prefs):

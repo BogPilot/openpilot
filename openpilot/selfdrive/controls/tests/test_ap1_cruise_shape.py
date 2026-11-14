@@ -16,6 +16,11 @@ def run(v_set, v, shape, prev=0.0, profile=None, e2e=False, steps=1, dt=0.05):
   return a
 
 
+def test_ap1_cruise_constants_are_pinned():
+  # The tests below use the imported constants; pin them so a changed value cannot pass silently.
+  assert (AP1_CRUISE_J_SCALE, AP1_CRUISE_GAIN) == (0.40, 0.30)   # pinned: ap1_planning.py:14-15, intentional AP1 shaping
+
+
 def test_default_is_the_stock_law_for_every_other_car():
   # shape off (the default argument): the stock proportional law, stock jerk, stock floor
   a = lp.get_cruise_accel(False, 15.0, 14.0, 0.0, 0.0, CP, 0.05, -0.3, True, None)
