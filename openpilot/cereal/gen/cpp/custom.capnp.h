@@ -1057,6 +1057,8 @@ public:
 
   inline float getAp1MotorRpm() const;
 
+  inline  ::uint8_t getAp1BrakePedalState() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -1147,6 +1149,9 @@ public:
 
   inline float getAp1MotorRpm();
   inline void setAp1MotorRpm(float value);
+
+  inline  ::uint8_t getAp1BrakePedalState();
+  inline void setAp1BrakePedalState( ::uint8_t value);
 
 private:
   ::capnp::_::StructBuilder _builder;
@@ -3524,6 +3529,20 @@ inline float BogPilotCarStateMsg::Builder::getAp1MotorRpm() {
 inline void BogPilotCarStateMsg::Builder::setAp1MotorRpm(float value) {
   _builder.setDataField<float>(
       ::capnp::bounded<4>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint8_t BogPilotCarStateMsg::Reader::getAp1BrakePedalState() const {
+  return _reader.getDataField< ::uint8_t>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, 3u);
+}
+
+inline  ::uint8_t BogPilotCarStateMsg::Builder::getAp1BrakePedalState() {
+  return _builder.getDataField< ::uint8_t>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, 3u);
+}
+inline void BogPilotCarStateMsg::Builder::setAp1BrakePedalState( ::uint8_t value) {
+  _builder.setDataField< ::uint8_t>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, value, 3u);
 }
 
 inline  ::cereal::BogPilotControlsState::AlertStatus BogPilotControlsState::Reader::getAlertStatus() const {

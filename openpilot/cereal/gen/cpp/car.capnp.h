@@ -5314,6 +5314,8 @@ public:
 
   inline bool getPreapSteerLatch() const;
 
+  inline  ::uint8_t getAp1BrakePedalState() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -5461,6 +5463,9 @@ public:
 
   inline bool getPreapSteerLatch();
   inline void setPreapSteerLatch(bool value);
+
+  inline  ::uint8_t getAp1BrakePedalState();
+  inline void setAp1BrakePedalState( ::uint8_t value);
 
 private:
   ::capnp::_::StructBuilder _builder;
@@ -11797,6 +11802,20 @@ inline bool BogPilotCarState::Builder::getPreapSteerLatch() {
 inline void BogPilotCarState::Builder::setPreapSteerLatch(bool value) {
   _builder.setDataField<bool>(
       ::capnp::bounded<173>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint8_t BogPilotCarState::Reader::getAp1BrakePedalState() const {
+  return _reader.getDataField< ::uint8_t>(
+      ::capnp::bounded<29>() * ::capnp::ELEMENTS, 3u);
+}
+
+inline  ::uint8_t BogPilotCarState::Builder::getAp1BrakePedalState() {
+  return _builder.getDataField< ::uint8_t>(
+      ::capnp::bounded<29>() * ::capnp::ELEMENTS, 3u);
+}
+inline void BogPilotCarState::Builder::setAp1BrakePedalState( ::uint8_t value) {
+  _builder.setDataField< ::uint8_t>(
+      ::capnp::bounded<29>() * ::capnp::ELEMENTS, value, 3u);
 }
 
 }  // namespace
