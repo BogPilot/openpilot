@@ -129,8 +129,11 @@ Recorded disagreements only where the cited files were read. No speculation.
   disengaged border `BORDER_COLORS[DISENGAGED]` (18,40,57) in `augmented_road_view.py`, and much lighter, so the ball
   still stands out on the border. No slate constant exists in the tree; the nearest stock grey, `COLORS.DISENGAGED`
   (145,155,149) in `hud_renderer.py`, is a lighter green grey and would leave less room between the two ends. White at low
-  confidence makes the low end the brightest and easiest to notice. Flat (no vertical gradient), so the colour reads as
-  one value.
+  confidence makes the low end the brightest and easiest to notice. Shaded top to bottom like stock: the bottom colour
+  is the top colour times 82/255 per channel (`confidence_ball_logic.shade`), the ratio of the stock OVERRIDE ball,
+  (255,255,255) to (82,82,82) (`mici/onroad/confidence_ball.py:68-70`, drawn by `draw_circle_gradient` at `:10-13`).
+  Owner choice after comparing flat and shaded renders. At confidence 0 the disengaged ball therefore has the same two
+  colours as the OVERRIDE ball; the border still tells the two states apart.
 - Why: requested UI change (confidence readable while disengaged); display only.
 - Safety-relevant: display only; no control path reads it. Neither end is in the engaged palette.
 - Tests: `test_confidence_ball.py` (TestDisengagedSlateToWhite: slate at high, white at low, monotonic, engaged colours

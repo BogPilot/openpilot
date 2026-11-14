@@ -14,9 +14,10 @@ Deliberate differences (docs/tesla/DIVERGENCES.md, onroad confidence ball):
     0 (bottom), so the ball is on screen in every state while the toggle is on.
   * Colours: the engaged palette (teal/green, yellow/orange, red) is used ONLY while the status is ENGAGED (the stock
     mici rule, confidence_ball.py:57). OVERRIDE uses the stock muted white-to-grey ball (mici :68-70, 0.9.7 :120-121).
-    DISENGAGED is NOT the stock dark ball (mici :72-74, 0.9.7 :123): it is one flat colour that follows confidence,
-    slate grey SLATE (112,128,144) at confidence 1 fading smoothly to WHITE (255,255,255) at confidence 0
-    (disengaged_color). Any other status keeps the stock dark ball. Engagement itself is shown by the border only.
+    DISENGAGED is NOT the stock dark ball (mici :72-74, 0.9.7 :123): its top colour follows confidence, slate grey
+    SLATE (112,128,144) at confidence 1 fading smoothly to WHITE (255,255,255) at confidence 0 (disengaged_color), and
+    it is shaded top to bottom like the stock OVERRIDE ball: bottom = top * 82/255 (shade). Any other status keeps the
+    stock dark ball. Engagement itself is shown by the border only.
     Missing model data reads as confidence 0: bottom position; red while engaged, white while disengaged.
 
 Settings (files under /data/params_bogpilot, written by the Appearance rows through the BogPilot store):
@@ -51,6 +52,9 @@ DARK = ((50, 50, 50, 255), (13, 13, 13, 255))
 # is green-grey and lighter, which would leave less room between the two ends.
 SLATE = (112, 128, 144, 255)
 WHITE = (255, 255, 255, 255)
+# DISENGAGED shading: the stock OVERRIDE ball's top-to-bottom ratio, (255,255,255) -> (82,82,82)
+# (mici/onroad/confidence_ball.py:68-70, drawn as a vertical gradient by draw_circle_gradient at :10-13).
+SHADE = 82 / 255
 ENGAGED_PALETTE = (GREEN, ORANGE, RED)   # never used unless the status is ENGAGED
 
 
@@ -84,8 +88,8 @@ def engaged_status(status_name: str) -> bool:
 
 
 def disengaged_color(x: float):
-  """Flat DISENGAGED ball colour: WHITE at confidence <= 0, SLATE at confidence >= 1, a straight per-channel blend in
-  between (each channel only moves one way as confidence rises)."""
+  """Top colour of the DISENGAGED ball: WHITE at confidence <= 0, SLATE at confidence >= 1, a straight per-channel blend
+  in between (each channel only moves one way as confidence rises)."""
   f = min(1.0, max(0.0, float(x)))
   return lerp_color(WHITE, SLATE, f)
 
@@ -101,7 +105,7 @@ def ball_colors(status_name: str, x: float):
     return OVERRIDE
   if status_name == "DISENGAGED":
     c = disengaged_color(x)
-    return (c, c)              # flat: top == bottom
+    return (c, shade(c))       # stock-style top-to-bottom shading
   return DARK
 
 
@@ -158,6 +162,11 @@ def circle_scanlines(radius: float = RADIUS):
     half = max(0.0, radius * radius - y * y) ** 0.5
     rows.append((i, half, (i + 0.5) / (2 * radius)))
   return rows
+
+
+def shade(color):
+  """Bottom colour for a shaded ball: each RGB channel * SHADE (the stock OVERRIDE ratio, mici :68-70), rounded; alpha kept."""
+  return tuple(int(round(ch * SHADE)) for ch in color[:3]) + tuple(color[3:])
 
 
 def lerp_color(top, bottom, f: float):

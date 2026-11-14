@@ -46,9 +46,10 @@ class TestMath(unittest.TestCase):
   def test_override_uses_the_stock_muted_ball_and_disengaged_the_slate_to_white_ball(self):
     # override: stock mici confidence_ball.py:68-70, 0.9.7 confidence_ball.h:120-121
     self.assertEqual(L.ball_colors("OVERRIDE", 0.9), ((255, 255, 255, 255), (82, 82, 82, 255)))
-    # disengaged: flat, slate grey at high confidence, white at low (DIVERGENCES.md); unknown statuses keep the stock dark ball
-    self.assertEqual(L.ball_colors("DISENGAGED", 1.0), ((112, 128, 144, 255), (112, 128, 144, 255)))
-    self.assertEqual(L.ball_colors("DISENGAGED", 0.0), ((255, 255, 255, 255), (255, 255, 255, 255)))
+    # disengaged: slate grey at high confidence, white at low, shaded top to bottom by 82/255 (DIVERGENCES.md);
+    # unknown statuses keep the stock dark ball
+    self.assertEqual(L.ball_colors("DISENGAGED", 1.0), ((112, 128, 144, 255), (36, 41, 46, 255)))
+    self.assertEqual(L.ball_colors("DISENGAGED", 0.0), ((255, 255, 255, 255), (82, 82, 82, 255)))
     self.assertEqual(L.ball_colors("LATERAL_ONLY", 0.9), ((50, 50, 50, 255), (13, 13, 13, 255)))
     # only ENGAGED counts as engaged (stock mici rule); anything unknown gets the dark ball
     self.assertTrue(L.engaged_status("ENGAGED"))
@@ -104,7 +105,7 @@ class TestAlwaysShown(unittest.TestCase):
     x = st.filter.x
     self.assertAlmostEqual(x, 0.95 * 0.95, places=2)
     c = L.disengaged_color(x)
-    self.assertEqual(L.ball_colors("DISENGAGED", x), (c, c))
+    self.assertEqual(L.ball_colors("DISENGAGED", x), (c, L.shade(c)))
     self.assertLess(L.ball_center_y(x, 1080), 140)                  # high: the height is shown, the colour is near slate
     self.assertTrue(all(abs(a - b) <= 15 for a, b in zip(c, L.SLATE, strict=True)), c)
 
@@ -133,7 +134,7 @@ class TestNeverEngagedPaletteWhenNotEngaged(unittest.TestCase):
         self.assertTrue(st.update(True, status, None, None))
       colors = L.ball_colors(status, st.filter.x)
       self.assertNotIn(colors, L.ENGAGED_PALETTE, status)
-      self.assertEqual(colors, (L.WHITE, L.WHITE) if status == "DISENGAGED" else L.OVERRIDE)   # no data: low confidence
+      self.assertEqual(colors, (L.WHITE, L.shade(L.WHITE)) if status == "DISENGAGED" else L.OVERRIDE)   # no data: low confidence
       self.assertAlmostEqual(L.ball_center_y(st.filter.x, 1080), 1080 - 30.0, delta=1.0)   # bottom
     st = L.ConfidenceBallState(lambda: True, lambda: False, lambda: 0.0, 0.05)
     for _ in range(100):
@@ -148,7 +149,7 @@ class TestNeverEngagedPaletteWhenNotEngaged(unittest.TestCase):
     self.assertEqual(L.ball_colors("ENGAGED", x), L.GREEN)
     st.update(True, "DISENGAGED", [0.0], [0.0])
     self.assertAlmostEqual(st.filter.x, x, places=2)                  # no slide on disengage
-    self.assertEqual(L.ball_colors("DISENGAGED", st.filter.x), (L.SLATE, L.SLATE))
+    self.assertEqual(L.ball_colors("DISENGAGED", st.filter.x), (L.SLATE, L.shade(L.SLATE)))
 
 
 class TestDisengagedSlateToWhite(unittest.TestCase):
@@ -159,9 +160,9 @@ class TestDisengagedSlateToWhite(unittest.TestCase):
     self.assertEqual(L.SLATE, (112, 128, 144, 255))
     self.assertEqual(L.WHITE, (255, 255, 255, 255))
     for x in (1.0, 1.2, 1.5, float("inf")):
-      self.assertEqual(L.ball_colors("DISENGAGED", x), (L.SLATE, L.SLATE), x)
+      self.assertEqual(L.ball_colors("DISENGAGED", x), (L.SLATE, L.shade(L.SLATE)), x)
     for x in (0.0, -0.2, -0.5, float("-inf")):
-      self.assertEqual(L.ball_colors("DISENGAGED", x), (L.WHITE, L.WHITE), x)
+      self.assertEqual(L.ball_colors("DISENGAGED", x), (L.WHITE, L.shade(L.WHITE)), x)
     self.assertEqual(L.disengaged_color(0.5), (184, 192, 200, 255))      # halfway: per-channel midpoint, rounded
 
   def test_monotonic_and_smooth(self):
@@ -169,7 +170,7 @@ class TestDisengagedSlateToWhite(unittest.TestCase):
     prev = None
     for x in xs:
       top, bottom = L.ball_colors("DISENGAGED", x)
-      self.assertEqual(top, bottom, x)                                      # flat ball
+      self.assertEqual(bottom, L.shade(top), x)                             # shaded: bottom = top * 82/255
       self.assertEqual(top[3], 255, x)
       if prev is not None:
         for c, p, lo in zip(top[:3], prev[:3], L.SLATE[:3], strict=True):
@@ -193,6 +194,51 @@ class TestDisengagedSlateToWhite(unittest.TestCase):
     for i in range(-100, 1101):
       c = L.disengaged_color(i / 1000.0)
       self.assertNotIn(c, engaged, i)
+
+
+class TestDisengagedShading(unittest.TestCase):
+  """Owner-approved stock shading for the DISENGAGED ball: bottom = top * 82/255 (the stock OVERRIDE ball's ratio,
+  mici/onroad/confidence_ball.py:68-70) at every confidence; ENGAGED and OVERRIDE unchanged."""
+
+  # mockup levels: disengage prob -> (top, bottom) colours and the hex sampled at cy - r + 3, cy, cy + r - 3
+  LEVELS = {"high": (0.0, ("#708090", "#24292E"), ("#6B7A8A", "#49545E", "#282D33")),
+            "mid": (1 - 0.5 ** 0.5, ("#B8C0C8", "#3B3E40"), ("#B0B8BF", "#787E83", "#414446")),
+            "low": (0.9, ("#FEFEFE", "#525252"), ("#F6F6F6", "#AAAAAA", "#5D5D5D"))}
+
+  @staticmethod
+  def hexs(c):
+    return "#%02X%02X%02X" % tuple(c[:3])
+
+  def test_shade_is_the_stock_override_ratio(self):
+    self.assertEqual(L.SHADE, 82 / 255)
+    self.assertEqual(L.shade(L.OVERRIDE[0]), L.OVERRIDE[1])
+    self.assertEqual(L.shade(L.SLATE), (36, 41, 46, 255))
+    for i in range(-100, 1101):
+      top, bottom = L.ball_colors("DISENGAGED", i / 1000.0)
+      self.assertEqual(bottom, tuple(int(round(ch * 82 / 255)) for ch in top[:3]) + (255,), i)
+      self.assertTrue(all(b <= t for t, b in zip(top, bottom, strict=True)), i)   # darker at the bottom
+
+  def test_levels_match_the_mockup(self):
+    for level, (prob, ends, samples) in self.LEVELS.items():
+      st = L.ConfidenceBallState(lambda: True, lambda: False, lambda: 1e9, 0.05)
+      for _ in range(300):
+        st.update(True, "DISENGAGED", [prob], [prob])
+      x = st.filter.x
+      top, bottom = L.ball_colors("DISENGAGED", x)
+      self.assertEqual((self.hexs(top), self.hexs(bottom)), ends, level)
+      cy = L.ball_center_y(x, 1080)
+      y0 = cy - L.RADIUS
+      for want, y in zip(samples, (cy - L.RADIUS + 3, cy, cy + L.RADIUS - 3), strict=True):
+        i = int(math.floor(int(y) + 0.5 - y0))           # the 1 px scanline covering pixel row int(y), or a neighbour
+        near = {self.hexs(L.lerp_color(top, bottom, (j + 0.5) / (2 * L.RADIUS))) for j in (i - 1, i, i + 1)}
+        self.assertIn(want, near, (level, y))
+
+  def test_engaged_and_override_unchanged(self):
+    for x in SWEEP:
+      self.assertEqual(L.ball_colors("OVERRIDE", x), ((255, 255, 255, 255), (82, 82, 82, 255)), x)
+      want = L.GREEN if x > 0.5 else L.ORANGE if x > 0.2 else L.RED
+      self.assertEqual(L.ball_colors("ENGAGED", x), want, x)
+      self.assertEqual(L.ball_colors("LATERAL_ONLY", x), L.DARK, x)
 
 
 class TestSettingsParsing(unittest.TestCase):
@@ -710,7 +756,7 @@ class TestViewOrder(ViewBase):
     v = self.view(self.composer(), status="DISENGAGED")
     self.run_frame(v)
     x, y, top, bottom = v._confidence_ball.last_draw
-    self.assertEqual((top, bottom), (L.WHITE, L.WHITE))                    # no data = confidence 0 = white
+    self.assertEqual((top, bottom), (L.WHITE, L.shade(L.WHITE)))           # no data = confidence 0 = white top
     self.assertAlmostEqual(y, 1080 - 30.0, delta=0.5)
 
   def test_full_screen_alert_keeps_the_plain_order_and_hides_the_ball(self):
@@ -1036,7 +1082,7 @@ class TestNative(NativeBase):
     self.assertLess(y + L.RADIUS, 1080)                                   # on screen, at the model's height (high here)
     self.assertLess(y, 140)
     self.assertEqual((top, bottom), L.ball_colors("DISENGAGED", ball.state.filter.x))
-    self.assertEqual(top, bottom)
+    self.assertEqual(bottom, L.shade(top))
     self.assertTrue(all(abs(a - b) <= 15 for a, b in zip(top, L.SLATE, strict=True)), top)   # high: near slate
     self.assertTrue(self.draw(ball, status="DISENGAGED", frames=200, sm={}))   # no model data: bottom, white
     self.assertAlmostEqual(ball.last_draw[1], 1080 - 30.0, delta=1.0)
@@ -1438,7 +1484,7 @@ class TestBallOnPixels(NativeBase):
   TestPixelsMatchPreChange. DISENGAGED and ENGAGED x left and right edge x high / mid / low model confidence (model data present,
   no flame track, no alert). The centre pixel (renderer.last_draw, Y flipped for the bottom-up texture) must equal EXACTLY the
   colour of the ball's own 1 px scanline at that pixel row, or of the adjacent scanline one row either way (the rows sit at
-  sub-pixel heights); no per-channel tolerance. Disengaged = flat slate (high) to white (low), engaged = the engaged palette. The ball is on the chosen
+  sub-pixel heights); no per-channel tolerance. Disengaged = slate (high) to white (low) shaded by 82/255, engaged = the engaged palette. The ball is on the chosen
   edge strip and the same strip on the other edge shows none of the ball's colours."""
 
   CONFIDENCE = {"high": 0.0, "mid": 0.5, "low": 0.9}   # disengage probability -> confidence 1.0 / 0.25 / 0.01
@@ -1495,6 +1541,7 @@ class TestBallOnPixels(NativeBase):
       y0 = cy - L.RADIUS
       rows = range(max(0, int(y0)), min(1080, int(y0 + 2 * L.RADIUS) + 1))
       pixels = {"centre": px(cx, cy), "up": px(cx, cy - 10), "down": px(cx, cy + 10),
+                "s_top": px(cx, cy - L.RADIUS + 3), "s_mid": px(cx, cy), "s_bottom": px(cx, cy + L.RADIUS - 3),
                 "opposite": [px(opp_cx, r) for r in rows]}
     finally:
       rl.unload_image(img)
@@ -1521,7 +1568,7 @@ class TestBallOnPixels(NativeBase):
           self.assertEqual((top, bottom), L.ball_colors(status.name, x), where)
           if status.name == "DISENGAGED":
             c = L.disengaged_color(x)
-            self.assertEqual((top, bottom), (c, c), where)
+            self.assertEqual((top, bottom), (c, L.shade(c)), where)
             if level == "high":
               self.assertEqual(top, L.SLATE, where)
           else:
@@ -1537,11 +1584,32 @@ class TestBallOnPixels(NativeBase):
           self.assertIn(p["down"], self.scanline(top, bottom, cy, cy + 10), (where, p["down"]))
           gradient = {L.lerp_color(top, bottom, (j + 0.5) / (2 * L.RADIUS)) for j in range(int(2 * L.RADIUS))}
           self.assertFalse(gradient & set(p["opposite"]), (where, "ball colour on the opposite edge"))
-    # engaged covered green, orange and red; disengaged: three different flat colours, lighter as confidence falls
+    # engaged covered green, orange and red; disengaged: three different shaded pairs, lighter as confidence falls
     self.assertEqual({pal for s, pal in seen if s == "ENGAGED"}, set(L.ENGAGED_PALETTE))
     dis = {pal for s, pal in seen if s == "DISENGAGED"}
     self.assertEqual(len(dis), 3)
-    self.assertIn((L.SLATE, L.SLATE), dis)
+    self.assertIn((L.SLATE, L.shade(L.SLATE)), dis)
+
+  # owner-approved shaded mockup: disengage prob -> (top, middle, bottom) sampled at cy - r + 3, cy, cy + r - 3
+  MOCKUP = {"high": (0.0, ("#6B7A8A", "#49545E", "#282D33")), "mid": (1 - 0.5 ** 0.5, ("#B0B8BF", "#787E83", "#414446")),
+            "low": (0.9, ("#F6F6F6", "#AAAAAA", "#5D5D5D"))}
+
+  def test_disengaged_shaded_pixels_match_the_mockup(self):
+    from openpilot.selfdrive.ui.onroad import augmented_road_view as arv
+    for level, (prob, want) in self.MOCKUP.items():
+      for right in (False, True):
+        ball, p = self.render(arv.UIStatus.DISENGAGED, right, prob)
+        got = tuple("#%02X%02X%02X" % c[:3] for c in (p["s_top"], p["s_mid"], p["s_bottom"]))
+        self.assertEqual(got, want, (level, right))
+
+  def test_engaged_and_override_pixels_unchanged(self):
+    from openpilot.selfdrive.ui.onroad import augmented_road_view as arv
+    for status, want in ((arv.UIStatus.ENGAGED, L.GREEN), (arv.UIStatus.OVERRIDE, L.OVERRIDE)):
+      ball, p = self.render(status, False, 0.0)
+      cx, cy, top, bottom = ball.last_draw
+      self.assertEqual((top, bottom), want, status.name)
+      for k, y in (("s_top", cy - L.RADIUS + 3), ("s_mid", cy), ("s_bottom", cy + L.RADIUS - 3)):
+        self.assertIn(p[k], self.scanline(top, bottom, cy, y), (status.name, k))
 
 
 if __name__ == "__main__":

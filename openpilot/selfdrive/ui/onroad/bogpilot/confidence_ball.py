@@ -3,8 +3,8 @@
 A small ball rides up and down a 60 px strip at the left edge (default) or right edge of the onroad view, covering the
 status border and the camera margin. Its height comes from the driving model's own disengage predictions and its
 colour from the UI status (see confidence_ball_logic for the exact math and colour rules). It is shown in every state
-while the toggle is on: engaged (stock colours), override (stock muted grey), disengaged (flat slate grey at high
-confidence fading to white at low, confidence_ball_logic.disengaged_color).
+while the toggle is on: engaged (stock colours), override (stock muted grey), disengaged (slate grey at high
+confidence fading to white at low, confidence_ball_logic.disengaged_color, shaded top to bottom like stock).
 
 Settings (Appearance page, through the BogPilot store; default ON, left edge, as in 0.9.7):
   /data/params_bogpilot/ConfidenceBall      off hides it
@@ -102,7 +102,9 @@ class ConfidenceBallRenderer:
 
   @staticmethod
   def _draw_ball(cx: float, cy: float, top, bottom) -> None:
-    """A vertical gradient clipped to a circle, as 1 px rows (no black corner ring, so it never paints over the camera)."""
+    """A vertical gradient clipped to a circle, as 1 px rows (no black corner ring, so it never paints over the camera).
+    Same top-to-bottom gradient as stock draw_circle_gradient (mici/onroad/confidence_ball.py:10-13), which paints
+    rl.draw_rectangle_gradient_v under a black ring; the rows here keep the camera visible around the ball."""
     y0 = cy - L.RADIUS
     for i, half, frac in L.circle_scanlines():
       if half <= 0:
