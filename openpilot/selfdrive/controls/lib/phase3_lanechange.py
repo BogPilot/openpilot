@@ -9,7 +9,8 @@ TurnDesires consumers stay stock-equivalent until the user changes a row in the
 matching panel (configure() writes an adoption marker). Saved bench prefs such as
 NudgelessLaneChange=1 never wake on first boot. One exception: Human-Like Lane
 Changes is on by default on the AP1 Model S (human_lane_changes_default_on, as in
-0.9.7); every other car keeps its marker rule. Markers are never rewritten by
+0.9.7) and on the Pre-AP Model S when its Bosch radar toggle was on at car start;
+every other car keeps its marker rule. Markers are never rewritten by
 reads; sysUtilities reset must clear them (see ACK constants).
 """
 
@@ -124,8 +125,9 @@ def read_settings(store, CP=None) -> LaneChangeSettings:
 
   Without the matching Phase3*Enabled marker, saved ON prefs stay dormant and the
   runtime keeps the stock-equivalent path (manual torque LC, no nudgeless, no
-  Human lead substitution, no TurnDesires). Human-Like Lane Changes on the AP1
-  Model S is the exception: on by default (human_lane_changes_default_on).
+  Human lead substitution, no TurnDesires). Human-Like Lane Changes is the
+  exception on the AP1 Model S, and on the Pre-AP Model S when its Bosch radar
+  toggle was on at car start: on by default (human_lane_changes_default_on).
   Runtime keeps the stock 20mph floor.
   """
   level = store.tuning_level()
