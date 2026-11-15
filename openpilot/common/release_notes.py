@@ -5,9 +5,8 @@ incoming build, not the running one. Missing or empty notes become an empty
 string so the UI can show a fallback.
 
 The stored notes are cut at a whole line, ending with an ellipsis item, when
-they would not fit the comma 3X update splash without scrolling. The splash
-scroll range is measured from the unwrapped text, so longer notes were cut off
-mid-line and their end could not be reached.
+they would not fit the comma 3X update splash without scrolling, so they show
+on one screen. The full section stays in RELEASES.md.
 """
 from __future__ import annotations
 

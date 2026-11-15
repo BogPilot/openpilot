@@ -857,9 +857,10 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   notes keep only the whole lines that fit, from the top, and end with a "..." item; an item that only introduces dropped
   sub-items is dropped with them. The full section stays in RELEASES.md. The 3X update alert sizes its scroll range
   and notes area from the wrapped notes as drawn, so every stored line is drawn and can be scrolled to.
-- Why: the notes are where a tester sees what changed. On the 3X splash the scroll range is measured from the
-  unwrapped text, so a long section was cut off mid-line and its end could not be scrolled to. The cut at a whole line
-  is our own addition; no reference does it.
+- Why: the notes are where a tester sees what changed. The stock 3X update alert measured its scroll range from the
+  unwrapped text, so a long section was cut off mid-line and its end could not be scrolled to. The alert now measures
+  the wrapped notes, and the cut keeps them on one screen. The cut at a whole line is our own addition; no reference
+  does it.
 - Safety-relevant: no (offroad UI only).
 - Tests: `openpilot/common/tests/test_release_notes.py`, `openpilot/selfdrive/ui/tests/test_update_whats_new.py`
   (the headless render checks measure the stored notes against the 1920 x 580 px notes area and the alert's scroll
