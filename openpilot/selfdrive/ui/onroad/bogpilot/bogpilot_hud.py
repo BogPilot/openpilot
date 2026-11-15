@@ -487,7 +487,7 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
     self.bp_c4_personality = None
     self._bp_traffic = None
     self._bp_c4_extras = ExtrasPolicy()
-    self._bp_c4_arrow = C4.LaneChangeArrow()
+    self._bp_c4_arrow = None         # c4_layout.LaneChangeArrow, made on the first comma 4 frame
     self._bp_c4_arrow_tex = None
     self.bp_c4_gauge = None          # c4_bars3.Bars3 to draw, or None when the pedal display is off
     self.bp_c4_arrow_dir = 0
@@ -512,6 +512,8 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
     # lane-change arrows and the stock turn intent: onroadEvents only (the blinkers are not read)
     names = [str(e.name) for e in sm["onroadEvents"]] if _fresh(sm, "onroadEvents") else []
     md = sm["modelV2"].meta.laneChangeDirection if _fresh(sm, "modelV2") else None
+    if self._bp_c4_arrow is None:
+      self._bp_c4_arrow = C4.LaneChangeArrow()
     self.bp_c4_arrow_dir = self._bp_c4_arrow.update(names, md)
     self._turn_intent._update_state()   # stock filters; its render moved over the personality button
     ss = sm["selfdriveState"] if _fresh(sm, "selfdriveState") else None
