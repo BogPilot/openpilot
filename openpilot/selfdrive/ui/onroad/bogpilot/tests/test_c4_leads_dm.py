@@ -12,7 +12,7 @@ from openpilot.selfdrive.ui.onroad.bogpilot import c4_leads as CL
 class TestLeadBox(unittest.TestCase):
   def test_scaled_from_wide_box(self):
     x0, y0, x1, y1 = C4.lead_box(238.0, 134.0, 40.0)
-    self.assertAlmostEqual(x1 - x0, 29.5015, places=3)       # approved mockup primary box width at 40 m
+    self.assertAlmostEqual(x1 - x0, 29.5015, places=3)       # design primary box width at 40 m
     self.assertAlmostEqual((y1 - y0) / (x1 - x0), 0.86)
     self.assertAlmostEqual((x0 + x1) / 2, 238.0)
 

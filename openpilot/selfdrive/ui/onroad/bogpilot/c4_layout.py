@@ -66,9 +66,9 @@ ARROW_TEX_SCALE = 0.7
 ARROW_TEX_W, ARROW_TEX_H = 73, 67
 ARROW_CORE_OFFSET = (14, 14)
 # What our arrows do while the stock lane-change alert (which draws its own arrow and text) is on screen:
-#   "overlap"  keep them at the owner's position (they sit inside the alert's text area)
+#   "overlap"  keep them at the design position (they sit inside the alert's text area)
 #   "hide"     hide them while the stock lane-change alert shows
-# Moving them clear of the alert needs a new position from the owner, so it is not offered here.
+# Moving them clear of the alert needs a new design position, so it is not offered here.
 ARROWS_WITH_STOCK_LC_ALERT = "overlap"
 ARROW_MODES = ("overlap", "hide")
 
@@ -81,7 +81,7 @@ BORDER_W = 3
 ARC_RAISE_PX = 10
 
 # What a take-control alert hides. One constant so the rule is easy to change. The lead boxes stay on (always on,
-# engaged or not, through every alert), as in the approved mockup's pixels.
+# engaged or not, through every alert), as in the design.
 TAKE_CONTROL_HIDES = frozenset({"pill", "gauge", "dm"})
 # Any other on-screen alert covers the top of the view: the pill, gauge and driver-monitor icon step aside.
 OTHER_ALERT_HIDES = frozenset({"pill", "gauge", "dm"})

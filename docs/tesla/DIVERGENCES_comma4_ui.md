@@ -25,7 +25,7 @@ Code: `openpilot/selfdrive/ui/onroad/bogpilot/c4_layout.py` (geometry, gate, vis
 - Our behavior: no wheel icon and no stock set-speed box. One pill at (6, 6)-(174, 58) holds the set speed (MAX),
   the current speed with its unit and the speed-limit tile (shown under the same speed-limit display policy as the
   3X). Nothing is drawn to the right of the pill. Take-control is shown on the personality button instead of the wheel.
-- Why: the approved comma 4 design; the 3X cluster does not fit 240 px.
+- Why: the comma 4 layout design; the 3X cluster does not fit 240 px.
 
 ### comma 4: the personality button is the personality indicator
 - Our behavior: a 40 px disc at (28, 212), lower left, with the BogPilot personality stripes from
