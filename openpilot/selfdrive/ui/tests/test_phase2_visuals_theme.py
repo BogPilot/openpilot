@@ -139,12 +139,13 @@ class TestCatalog(unittest.TestCase):
     self.assertEqual(len(AUDIT_KEYS), 21)
     self.assertEqual(len(NEW_VISUAL_KEYS) + len(OMITTED_KEYS), 21)
     self.assertEqual(set(AUDIT_KEYS), set(NEW_VISUAL_KEYS) | set(OMITTED_KEYS))
-    self.assertEqual(len(NEW_VISUAL_KEYS), 10)
-    self.assertEqual(len(OMITTED_KEYS), 11)                              # BorderMetrics: folded into Blind Spot Border
+    self.assertEqual(len(NEW_VISUAL_KEYS), 9)
+    self.assertEqual(len(OMITTED_KEYS), 12)                              # BorderMetrics: folded into Blind Spot Border
     self.assertIn("BorderMetrics", OMITTED_KEYS)
+    self.assertIn("DynamicPedalsOnUI", OMITTED_KEYS)                     # one pedal mode: the gauge has no Dynamic switch
     table = decision_table()
-    self.assertEqual(sum(1 for r in table if r["decision"] == "IMPLEMENT"), 10)
-    self.assertEqual(sum(1 for r in table if r["decision"] == "OMIT"), 11)
+    self.assertEqual(sum(1 for r in table if r["decision"] == "IMPLEMENT"), 9)
+    self.assertEqual(sum(1 for r in table if r["decision"] == "OMIT"), 12)
 
   def test_visuals_menu_includes_new_and_existing(self):
     from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import VISUAL_KEYS, EXISTING_VISUAL_KEYS
@@ -271,14 +272,14 @@ class TestUIStoreConsumer(unittest.TestCase):
     lay._write("QOLVisuals", True)
     lay._write("CustomUI", True)
     self.typed["BorderMetrics"] = "0"                                   # stored legacy parent: unread
-    lay._write("DynamicPedalsOnUI", True)
+    self.typed["DynamicPedalsOnUI"] = "0"                               # stored former pedal mode: unread
     lay._write("NavigationUI", True)
     lay._write("ShowSpeedLimits", True)
     snap = consumer_snapshot(self.store, longitudinal=True, has_bsm=True)
     self.assertTrue(snap["QOLVisuals_reverse"])
     self.assertTrue(snap["QOLVisuals_personality"])
     self.assertTrue(snap["CustomUI_pedals"])
-    self.assertTrue(snap["DynamicPedalsOnUI"])
+    self.assertNotIn("DynamicPedalsOnUI", snap)
     self.assertTrue(snap["BlindSpotMetrics_border"])
     self.assertNotIn("BorderMetrics", snap)
     self.assertTrue(snap["ShowSpeedLimits"])
@@ -287,13 +288,13 @@ class TestUIStoreConsumer(unittest.TestCase):
     lay._write("CustomUI", False)
     lay._write("BlindSpotMetrics", False)
     self.typed["BorderMetrics"] = "1"
-    lay._write("DynamicPedalsOnUI", False)
+    self.typed["DynamicPedalsOnUI"] = "1"
     lay._write("NavigationUI", False)
     snap = consumer_snapshot(self.store, longitudinal=True, has_bsm=True)
     self.assertFalse(snap["QOLVisuals_reverse"])
     self.assertFalse(snap["QOLVisuals_personality"])
     self.assertFalse(snap["CustomUI_pedals"])
-    self.assertFalse(snap["DynamicPedalsOnUI"])
+    self.assertNotIn("DynamicPedalsOnUI", snap)
     self.assertFalse(snap["BlindSpotMetrics_border"])
     self.assertFalse(snap["ShowSpeedLimits"])
 

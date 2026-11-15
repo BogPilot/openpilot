@@ -229,32 +229,15 @@ class TestSteeringArc(unittest.TestCase):
 
 
 class TestPedals(unittest.TestCase):
-  DYN = PED.PedalPolicy(show=True, dynamic=True)
-  STA = PED.PedalPolicy(show=True, static=True)
+  ON = PED.PedalPolicy(show=True)
 
-  def test_daily_dynamic_response_unchanged(self):
-    self.assertEqual(PED.daily_opacity(self.DYN, 0.0, False, False), (0.25, 0.25))   # rest
-    self.assertEqual(PED.daily_opacity(self.DYN, 0.0, True, False), (1.0, 0.25))     # standstill: brake held
-    self.assertEqual(PED.daily_opacity(self.DYN, -0.2, False, True), (0.25, 0.25))   # brake lights ignored in dynamic
-    self.assertEqual(PED.daily_opacity(self.DYN, -0.6, False, False), (0.6, 0.25))
-    self.assertEqual(PED.daily_opacity(self.DYN, -3.0, False, False), (1.0, 0.25))   # clamped like setOpacity
-    self.assertEqual(PED.daily_opacity(self.DYN, 0.5, False, False), (0.25, 0.5))
-    self.assertEqual(PED.daily_opacity(self.DYN, 2.0, False, False), (0.25, 1.0))
-
-  def test_daily_static_and_plain_response_unchanged(self):
-    self.assertEqual(PED.daily_opacity(self.STA, 0.0, False, False), (0.25, 0.25))
-    self.assertEqual(PED.daily_opacity(self.STA, 0.0, False, True), (1.0, 0.25))
-    self.assertEqual(PED.daily_opacity(self.STA, -0.3, False, False), (1.0, 0.25))
-    self.assertEqual(PED.daily_opacity(self.STA, 0.3, False, False), (0.25, 1.0))
-    self.assertEqual(PED.daily_opacity(PED.PedalPolicy(show=True), -2.0, False, False), (1.0, 1.0))
-
-  def test_bar_fill_follows_inputs(self):
-    full = PED.PedalBars().update(self.DYN, True, 0.0, -PED.DECEL_FULL_SCALE, 20.0, False, True, False, 1.0, 0.0, False,
-                                  "ap1")
-    self.assertEqual((full.decel, full.braking, full.accel), (1.0, True, 1.0))
-    self.assertEqual(PED.PedalBars().update(self.DYN, True, 0.0, 0.0, 20.0, False, False, False, 0.0, 0.0, False, "ap1"),
-                     PED.EMPTY)
-    self.assertEqual(PED.FILL_A, 191)                        # about 75 % opacity
+  def test_three_bars_follow_inputs(self):
+    g = PED.PedalGauge().update(self.ON, True, 0.0, "ap1", brake_pressed=True, brake_level=1.0, pedal_pos=1.0, op_accel=0.0,
+                                long_active=False, motor_torque_nm=-200.0, motor_rpm=6000.0, fingerprint="TESLA_AP1_MODELS")
+    self.assertEqual((g.brake, g.regen, g.accel), (1.0, 1.0, 1.0))
+    self.assertEqual(PED.PedalGauge().update(self.ON, True, 0.0, "ap1", brake_pressed=False, brake_level=0.0, pedal_pos=0.0,
+                                             op_accel=0.0, long_active=False), PED.G3.EMPTY3)
+    self.assertEqual(PED.G3.FILL_A, 191)                        # about 75 % opacity
 
   def test_policy_gate(self):
     class S:
@@ -264,23 +247,23 @@ class TestPedals(unittest.TestCase):
         return 3
       def toggle_bool(self, k, level=None):
         return self.v.get(k, False)
-    on = dict(CustomUI=True, PedalsOnUI=True, DynamicPedalsOnUI=True)
-    self.assertEqual(PED.policy_from_store(S(**on), True), PED.PedalPolicy(True, True, False))
+    on = dict(CustomUI=True, PedalsOnUI=True)
+    self.assertEqual(PED.policy_from_store(S(**on), True), self.ON)
     self.assertEqual(PED.policy_from_store(S(**on), False), PED.CLOSED)       # needs openpilot longitudinal
     self.assertFalse(PED.policy_from_store(S(PedalsOnUI=True), True).show)    # needs CustomUI
-    # Dynamic off and Static off hides, even when Pedals on Screen is on
-    neither = dict(CustomUI=True, PedalsOnUI=True, DynamicPedalsOnUI=False, StaticPedalsOnUI=False)
-    self.assertEqual(PED.policy_from_store(S(**neither), True), PED.CLOSED)
-    static = dict(CustomUI=True, PedalsOnUI=True, DynamicPedalsOnUI=False, StaticPedalsOnUI=True)
-    self.assertEqual(PED.policy_from_store(S(**static), True), PED.PedalPolicy(True, False, True))
+    # the old Dynamic / Static mode values no longer hide the gauge
+    self.assertEqual(PED.policy_from_store(S(**on, DynamicPedalsOnUI=False, StaticPedalsOnUI=False), True), self.ON)
 
   def test_footprint_and_bars_inside_daily_keepout(self):
-    self.assertEqual(PED.pedal_rect(2160, False), (30, 486, 120, 120))
-    self.assertEqual(PED.pedal_rect(2160, True), (2010, 486, 120, 120))
+    s = min(1.0, 2100 / 2160, 1020 / 1080)
+    ww = 2100 / s
     for rhd in (False, True):
-      fx, fy, fw, fh = PED.pedal_rect(2160, rhd)
-      for x, y, w, h in PED.bar_boxes(2160, rhd):
-        self.assertTrue(fx <= x and x + w <= fx + fw and fy <= y and y + h <= fy + fh)
+      fx, fy, fw, fh = PED.pedal_rect(ww, rhd, s)
+      self.assertEqual((fy, fw, fh), (486, 120, 120))
+      for x, y, w, h in PED.G3.bar_rects((fx, fy, fw, fh)):
+        self.assertTrue(fx <= x + 1e-9 and x + w <= fx + fw + 1e-9 and fy <= y and y + h <= fy + fh)
+    self.assertAlmostEqual(PED.pedal_rect(ww, False, s)[0], PED.COLUMN_CX / s - 60)
+    self.assertAlmostEqual(PED.pedal_rect(ww, True, s)[0], ww - PED.COLUMN_CX / s - 60)
 
 
 class FakeEncoder:

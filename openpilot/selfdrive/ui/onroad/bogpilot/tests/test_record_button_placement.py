@@ -47,8 +47,7 @@ def pill_and_band(content, s, rhd):
 
 
 def bars_screen(content, s, ww, rhd):
-  x, y, w, h = PED.pedal_rect(ww, rhd)
-  return (content.x + x * s, content.y + y * s, w * s, h * s)
+  return PED.screen_rect(content, s, ww, rhd)
 
 
 def overlap(a, b, margin=0.0):
@@ -158,6 +157,16 @@ class TestRecordButtonPlacement(unittest.TestCase):
     self.assertIn("hit = record_hit_rect(rect, scale, widget_w, self.bp_rhd)", src)
     self.assertIn("self._bp_rec_btn.render(hit)", src)
     self.assertNotIn("REC_CY", src)
+
+  def test_bars_share_the_record_column(self):
+    self.assertEqual(PED.COLUMN_CX, ST.REC_CX)
+    self.assertEqual(PED.COLUMN_CX, ST.DM_CORNER_OFF)
+    for c in LAYOUTS:
+      content, s, ww = layout(c)
+      for rhd in (False, True):
+        hit = ST.record_hit_rect(content, s, ww, rhd)
+        x, _y, w, _h = bars_screen(content, s, ww, rhd)
+        self.assertAlmostEqual(x + w / 2, hit.x + hit.width / 2, places=P)
 
   def test_no_overlaps_where_the_bars_show(self):
     for c in LAYOUTS:

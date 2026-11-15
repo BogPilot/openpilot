@@ -1,4 +1,5 @@
-"""Dynamic Pedals off hides the overlay (UI toggle -> store -> pedals consumer)."""
+"""Pedals on Screen is the one switch for the 3-bar pedal gauge (UI toggle -> store -> pedals consumer). The former
+Dynamic / Static mode keys stay registered (backup, restore, resets) but are not read or offered."""
 from __future__ import annotations
 
 import unittest
@@ -33,70 +34,50 @@ class StoreHarness:
     return self.store.raw(key)
 
 
-class TestDynamicPedalsOffHides(unittest.TestCase):
-  def test_registry_default_dynamic_is_on(self):
-    # Default stays ON; PedalsOnUI also defaults On, so a fresh device shows the dynamic pedals (with CustomUI on).
-    self.assertEqual(BOGPILOT_PARAMS["DynamicPedalsOnUI"][2], "1")
+class TestPedalsOnScreen(unittest.TestCase):
+  def test_registry_defaults(self):
     self.assertEqual(BOGPILOT_PARAMS["PedalsOnUI"][2], "1")
-    self.assertEqual(BOGPILOT_PARAMS["StaticPedalsOnUI"][2], "0")
+    # kept registered so a stored choice survives backup / restore; nothing reads them
+    self.assertIn("DynamicPedalsOnUI", BOGPILOT_PARAMS)
+    self.assertIn("StaticPedalsOnUI", BOGPILOT_PARAMS)
 
-  def test_default_on_shows_dynamic_when_parent_is_on(self):
-    # Unset DynamicPedalsOnUI follows the registry default (On). With Pedals on Screen on, the overlay is dynamic.
-    h = StoreHarness(CustomUI=True, PedalsOnUI=True)
-    self.assertIsNone(h.raw("DynamicPedalsOnUI"))
-    pol = h.policy(True)
-    self.assertTrue(pol.show)
-    self.assertTrue(pol.dynamic)
-    self.assertFalse(pol.static)
-    brake, gas = PED.daily_opacity(pol, 0.5, False, False)
-    self.assertGreater(gas, brake)
-
-  def test_saved_off_hides_even_if_pedals_on_screen_is_on(self):
-    h = StoreHarness(CustomUI=True, PedalsOnUI=True, DynamicPedalsOnUI=False, StaticPedalsOnUI=False)
-    pol = h.policy(True)
-    self.assertFalse(pol.show)
-    self.assertFalse(pol.dynamic)
-    self.assertFalse(pol.static)
-
-  def test_toggle_off_via_visuals_write_hides_consumer(self):
-    h = StoreHarness(CustomUI=True, PedalsOnUI=True, DynamicPedalsOnUI=True, StaticPedalsOnUI=False)
+  def test_default_shows_with_the_parent_on(self):
+    h = StoreHarness(CustomUI=True)
+    self.assertIsNone(h.raw("PedalsOnUI"))
     self.assertTrue(h.policy(True).show)
-    h.write("DynamicPedalsOnUI", False)
-    self.assertEqual(h.raw("DynamicPedalsOnUI"), "0")
-    pol = h.policy(True)
-    self.assertFalse(pol.show)
-    self.assertFalse(pol.dynamic)
 
-  def test_toggle_on_via_visuals_write_shows_dynamic(self):
+  def test_old_mode_values_do_not_hide_or_get_rewritten(self):
     h = StoreHarness(CustomUI=True, PedalsOnUI=True, DynamicPedalsOnUI=False, StaticPedalsOnUI=False)
+    self.assertTrue(h.policy(True).show)
+    self.assertEqual((h.raw("DynamicPedalsOnUI"), h.raw("StaticPedalsOnUI")), ("0", "0"))
+    h = StoreHarness(CustomUI=True, PedalsOnUI=True, DynamicPedalsOnUI=True, StaticPedalsOnUI=True)
+    self.assertEqual(h.policy(True), PED.PedalPolicy(show=True))
+
+  def test_toggle_via_visuals_write_hides_and_shows(self):
+    h = StoreHarness(CustomUI=True, PedalsOnUI=True)
+    self.assertTrue(h.policy(True).show)
+    h.write("PedalsOnUI", False)
+    self.assertEqual(h.raw("PedalsOnUI"), "0")
     self.assertFalse(h.policy(True).show)
-    h.write("DynamicPedalsOnUI", True)
-    self.assertEqual(h.raw("DynamicPedalsOnUI"), "1")
-    pol = h.policy(True)
-    self.assertTrue(pol.show)
-    self.assertTrue(pol.dynamic)
-    self.assertFalse(pol.static)
+    h.write("PedalsOnUI", True)
+    self.assertTrue(h.policy(True).show)
 
-  def test_static_saved_on_still_shows_when_dynamic_is_off(self):
-    h = StoreHarness(CustomUI=True, PedalsOnUI=True, DynamicPedalsOnUI=False, StaticPedalsOnUI=True)
-    pol = h.policy(True)
-    self.assertTrue(pol.show)
-    self.assertFalse(pol.dynamic)
-    self.assertTrue(pol.static)
+  def test_parent_off_or_no_longitudinal_hides(self):
+    self.assertFalse(StoreHarness(CustomUI=False, PedalsOnUI=True).policy(True).show)
+    self.assertFalse(StoreHarness(CustomUI=True, PedalsOnUI=True).policy(False).show)
 
-  def test_parent_off_or_no_longitudinal_still_hides(self):
-    h = StoreHarness(CustomUI=True, PedalsOnUI=False, DynamicPedalsOnUI=True)
-    self.assertFalse(h.policy(True).show)
-    h = StoreHarness(CustomUI=True, PedalsOnUI=True, DynamicPedalsOnUI=True)
-    self.assertFalse(h.policy(False).show)
-
-  def test_help_text_says_off_hides(self):
+  def test_help_and_menu(self):
     from openpilot.selfdrive.ui.bogpilot import toggle_help
-    entry = toggle_help.HELP["DynamicPedalsOnUI"]
-    self.assertIn("hides", entry.what.lower())
-    self.assertNotIn("full strength", entry.what.lower())
-    self.assertEqual(entry.default, "On")
-    self.assertEqual(entry.default_param, "DynamicPedalsOnUI")
+    from openpilot.selfdrive.ui.bogpilot import toggle_metadata as TM
+    self.assertNotIn("DynamicPedalsOnUI", toggle_help.HELP)
+    what = toggle_help.HELP["PedalsOnUI"].what.lower()
+    for word in ("three", "brake", "regen", "acceleration", "55 kw", "ibooster"):
+      self.assertIn(word, what)
+    params = {d.param for v in vars(TM).values() if isinstance(v, tuple) for d in v if isinstance(d, TM.ToggleDefinition)}
+    self.assertIn("BlindSpotPath", params)
+    self.assertIn("PedalsOnUI", params)
+    self.assertNotIn("DynamicPedalsOnUI", params)
+    self.assertNotIn("StaticPedalsOnUI", params)
 
   def test_visuals_write_matches_layout_method(self):
     import inspect

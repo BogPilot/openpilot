@@ -129,16 +129,15 @@ class TestAppearancePage(unittest.TestCase):
       self.layout._toggles["QOLVisuals"].action_item.set_state(state)
       self.assertEqual(cam.is_visible and cam.indent > 0, self.shown("QOLVisuals") and state, state)
 
-  def test_pedals_dynamic_needs_both_levels(self):
+  def test_pedals_is_one_leaf_under_custom_ui(self):
     t = self.layout._toggles
+    self.assertNotIn("DynamicPedalsOnUI", t)       # one pedal mode: no Dynamic / Static child row
+    self.assertNotIn("StaticPedalsOnUI", t)
     t["CustomUI"].action_item.set_state(True)
-    t["PedalsOnUI"].action_item.set_state(False)
-    self.assertFalse(t["DynamicPedalsOnUI"].is_visible)
-    t["PedalsOnUI"].action_item.set_state(True)
-    self.assertTrue(t["DynamicPedalsOnUI"].is_visible)
-    t["CustomUI"].action_item.set_state(False)     # the grandparent hides the leaf although PedalsOnUI is still on
-    self.assertFalse(t["DynamicPedalsOnUI"].is_visible)
-    self.assertGreater(t["DynamicPedalsOnUI"].indent, t["PedalsOnUI"].indent)
+    self.assertTrue(t["PedalsOnUI"].is_visible)
+    t["CustomUI"].action_item.set_state(False)
+    self.assertFalse(t["PedalsOnUI"].is_visible)
+    self.assertGreater(t["PedalsOnUI"].indent, t["CustomUI"].indent)
 
   def test_turning_a_parent_off_never_writes_its_children(self):
     self.layout._toggles["QOLVisuals"].action_item.set_state(False)

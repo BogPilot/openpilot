@@ -372,6 +372,26 @@ class TestPreApVehicleRows(PedalCase):
     self.assertFalse(m.visible(pv.RADAR_NOSECONE))                   # saved nosecone kept, row hidden again
     self.assertTrue(pp.get_bool(K.RADAR_BEHIND_NOSECONE))
 
+  def test_ibooster_row_is_preap_only_default_off_and_offroad_only(self):
+    from openpilot.selfdrive.ui.bogpilot import phase2_vehicle as pv
+    self.assertEqual(pv.IBOOSTER, K.HAS_IBOOSTER)
+    self.assertIs(pp.DEFAULTS[K.HAS_IBOOSTER], False)
+    for cp in (preap_cp(), preap_cp(long_on=False)):
+      m = self.model(cp)
+      self.assertTrue(m.visible(pv.IBOOSTER))
+      self.assertFalse(m.read(pv.IBOOSTER))                            # default Off
+    self.assertFalse(os.path.exists(os.path.join(self.tmp, K.HAS_IBOOSTER)))   # nothing written until a tap
+    self.assertFalse(self.model(ap1_cp()).visible(pv.IBOOSTER))       # AP1: factory iBooster, no row
+    self.assertFalse(self.model(None).visible(pv.IBOOSTER))
+    m = self.model(preap_cp())
+    self.assertTrue(m.write(pv.IBOOSTER, True))
+    self.assertEqual(open(os.path.join(self.tmp, K.HAS_IBOOSTER)).read(), "1")
+    self.assertTrue(m.read(pv.IBOOSTER))
+    self.assertFalse(self.model(preap_cp(), offroad=False).write(pv.IBOOSTER, False))
+    self.assertFalse(self.model(ap1_cp()).write(pv.IBOOSTER, False))
+    self.assertTrue(pp.get_bool(K.HAS_IBOOSTER))
+    self.assertIn("ibooster", pv.DESCRIPTIONS[pv.IBOOSTER].lower())
+
   def test_pedal_rows_hide_when_pedal_long_is_off_for_the_car(self):
     from openpilot.selfdrive.ui.bogpilot import phase2_vehicle as pv
     m = self.model(preap_cp(long_on=False))
