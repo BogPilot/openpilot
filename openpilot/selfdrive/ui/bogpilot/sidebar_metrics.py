@@ -7,6 +7,11 @@ Missing/stale/malformed telemetry is unavailable, never an invented zero.
 The two metric slots follow 0.9.7: the chip slot shows CPU or GPU, the memory slot shows RAM, storage left or storage
 used (one at a time, the first enabled in that order).
 
+The upper box is Temp (status / °C / °F) by default and can show Power instead (SidebarUpperSlot, a file choice saved
+by tapping it). Power is read from /sys/class/hwmon/hwmon1/power1_input (microwatts / 1e6, displayed as ``%.2f W``),
+with a fallback existence scan of hwmon*/power1_input when that path is missing or unreadable. A missing or unreadable
+file shows "--". The same choice applies offroad and onroad. Power is opt-in; a missing file keeps the current temp mode.
+
 Onroad the chip slot is replaced by the vehicle status box. That box can show CPU instead (SidebarVehicleSlot, a file
 choice saved by tapping it): the same CPU reading and colours as the offroad CPU box. Vehicle status is the default, and
 it always comes back while the panda is not seen ("NO PANDA"), whatever was chosen.
@@ -209,6 +214,144 @@ def write_vehicle_slot(choice: str) -> bool:
     return True
   except Exception:
     return False
+
+
+# --- upper box: temp modes or Power (SidebarUpperSlot); the same choice offroad and onroad ---
+UPPER_SLOT_KEY = "SidebarUpperSlot"
+UPPER_CYCLE = ("status", "celsius", "fahrenheit", "power")
+POWER_PATH = "/sys/class/hwmon/hwmon1/power1_input"
+POWER_SCAN_GLOB = "/sys/class/hwmon/hwmon*/power1_input"
+_POWER_CACHE: list = [None]
+
+
+def clear_power_path_cache() -> None:
+  _POWER_CACHE[0] = None
+
+
+def _power_text(raw) -> Reading:
+  if isinstance(raw, (bytes, bytearray)):
+    raw = raw.decode("utf-8", "replace")
+  if not isinstance(raw, str):
+    return Reading()
+  text = raw.strip()
+  if not text:
+    return Reading()
+  try:
+    microwatts = int(text, 10)
+  except ValueError:
+    return Reading()
+  if microwatts < 0:
+    return Reading()
+  try:
+    watts = microwatts / 1e6
+  except OverflowError:
+    return Reading()
+  if not math.isfinite(watts):
+    return Reading()
+  return Reading(f"{watts:.2f} W", "good")
+
+
+def _open_power_file(path: str, read):
+  if read is not None:
+    return read(path)
+  with open(path, encoding="utf-8") as f:
+    return f.read()
+
+
+def _try_power_path(path: str, read) -> Reading | None:
+  """A Reading if the path could be opened (including a '--' parse), or None if it could not."""
+  try:
+    raw = _open_power_file(path, read)
+  except (OSError, TypeError, ValueError):
+    return None
+  return _power_text(raw)
+
+
+def _scan_power_paths(scan_glob: str) -> list:
+  import glob
+  return sorted(p for p in glob.glob(scan_glob) if p)
+
+
+def power_reading(read=None, path: str = POWER_PATH, *, scan_glob: str = POWER_SCAN_GLOB, cache=None) -> Reading:
+  """Current power draw from sysfs microwatts, or '--' when unreadable.
+
+  Tries `path` first (hwmon1, the same path as hardware.get_current_power_draw). If that path is missing or
+  unreadable, scans scan_glob for the first readable power1_input (existence only; no chip name). The resolved
+  path is cached in `cache` (a one-element list; the module cache is used when cache is None). A later failure
+  of the cached path clears it and scans once more. Does not use read_param_file's default of 0, and does not
+  read deviceState.powerDrawW.
+  """
+  store = _POWER_CACHE if cache is None else cache
+  tried: set = set()
+
+  def from_path(candidate: str):
+    if not candidate or candidate in tried:
+      return None
+    tried.add(candidate)
+    got = _try_power_path(candidate, read)
+    if got is None:
+      return None
+    store[0] = candidate
+    return got
+
+  cached = store[0] if store else None
+  if cached:
+    got = from_path(cached)
+    if got is not None:
+      return got
+    store[0] = None
+
+  got = from_path(path)
+  if got is not None:
+    return got
+
+  if scan_glob:
+    for candidate in _scan_power_paths(scan_glob):
+      got = from_path(candidate)
+      if got is not None:
+        return got
+
+  if store:
+    store[0] = None
+  return Reading()
+
+
+def upper_slot_choice(text):
+  """Exact stored value, or None when nothing usable is stored (missing, junk, unreadable)."""
+  if isinstance(text, (bytes, bytearray)):
+    text = text.decode("utf-8", "replace")
+  if isinstance(text, str) and text.strip() in UPPER_CYCLE:
+    return text.strip()
+  return None
+
+
+def upper_slot_shown(choice, numerical: bool, fahrenheit: bool) -> str:
+  """What the upper box shows. Power only when that exact value is stored; otherwise the temp params."""
+  return "power" if choice == "power" else temp_mode(numerical, fahrenheit)
+
+
+def cycle_upper_slot(choice: str) -> str:
+  return _next(UPPER_CYCLE, choice)
+
+
+def read_upper_slot():
+  try:
+    from openpilot.common.bogpilot_toggles import toggle_path
+    path = toggle_path(UPPER_SLOT_KEY)
+    text = path.read_text(encoding="utf-8") if path.is_file() else None
+    return upper_slot_choice(text)
+  except Exception:
+    return None
+
+
+def write_upper_slot(choice: str) -> bool:
+  try:
+    from openpilot.common.bogpilot_toggles import write_choice
+    write_choice(UPPER_SLOT_KEY, choice)
+    return True
+  except Exception:
+    return False
+
 
 
 def slot_flags_from_params(params) -> dict:

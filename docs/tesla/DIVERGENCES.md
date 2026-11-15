@@ -588,6 +588,30 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Tests: `openpilot/selfdrive/ui/tests/test_sidebar_vehicle_cpu_slot.py`.
 - Credits: BogPilot (sidebar metrics).
 
+## Sidebar: the upper box can show Power
+- Platforms: all (UI only).
+- Reference behavior: the upper sidebar box is Temp only (GOOD / HIGH, or the number in °C or °F), tap-cycled, the same
+  offroad and onroad.
+- Our behavior: tapping that box also offers Power, on both the offroad and onroad sidebar screens, after status, celsius
+  and fahrenheit (`status -> celsius -> fahrenheit -> power -> status`). Power is the current draw from
+  `/sys/class/hwmon/hwmon1/power1_input` (microwatts / 1e6, displayed as `%.2f W`), white when valid and gray `--` when
+  the file is missing or unreadable, refreshed on the `deviceState` 2 Hz tick like Temp. `deviceState.powerDrawW` already
+  reads the same path in `hardware.py` (`get_current_power_draw`) but is not the display source, because a missing file
+  is published as 0 W. The hwmon index may differ per device; if `hwmon1` is missing or unreadable, an existence scan of
+  `hwmon*/power1_input` uses the first readable file (no invented chip name) and caches the path. Power is opt-in: the
+  default remains numeric Celsius, and a missing or unknown `SidebarUpperSlot` file keeps the current
+  `NumericalTemp` / `Fahrenheit` mode. Changing those Visuals toggles while Power is showing leaves Power and shows that
+  temp mode. While Power is showing, those two params stay at the last temp mode.
+- Saved values and resets: the choice is the file `SidebarUpperSlot` ("status", "celsius", "fahrenheit", or "power").
+  The full Reset (stock and shipping tables, the Utilities reset) writes "celsius", and the settings backup covers the
+  file. The sidebar has no menu rows, so no section Reset owns it, as with the other tap-to-choose sidebar boxes; the
+  AP1 install profile and the legacy speed-limit fill never write it, so a device without the file keeps its temp mode.
+- Why: requested so current power draw can be seen in the upper box offroad and onroad.
+- Safety-relevant: no (display only; no planner, controls, panda, TX or cereal change). A failed read never raises out
+  of the sidebar.
+- Tests: `openpilot/selfdrive/ui/tests/test_sidebar_power_slot.py`.
+- Credits: BogPilot (sidebar metrics; existing `get_current_power_draw` path).
+
 ## Onroad pedals: a 3-bar gauge (brake pedal, regen kW, accel request) replaces the pedal icons
 - Platforms: all legacy Tesla with openpilot longitudinal (UI, plus car-state inputs on AP1 Model S / X and Pre-AP).
 - Reference behavior: daily's pedal icons (bogpilot-tesla paintPedalIcons): a brake and a gas pedal whose opacity follows
