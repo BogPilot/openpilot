@@ -38,15 +38,20 @@ Recorded disagreements only where the cited files were read. No speculation.
 - Tests: `openpilot/selfdrive/controls/tests/test_ap1_curve_speed_planner.py`.
 - Credits: BogPilot 0.9.7.
 
-## Onroad UI: stock lead chevron with RedesignUI
+## Onroad UI: stock lead chevron never painted
 - Platforms: all (onroad UI only; not the Tesla instrument cluster).
-- Reference behavior: BogPilot 0.9.7 draws the lead chevron unless the user turns on `HideLeadMarker`.
-- Our behavior: with RedesignUI on, the stock chevron is not drawn; the lock-on box is the lead indicator
-  (`openpilot/selfdrive/ui/onroad/bogpilot/hud_compose.py`).
-- Why: avoid a duplicate or stale chevron under the lock-on box.
-- Safety-relevant: minor. Not a warning; stock warnings are not hidden.
-- Tests: `openpilot/selfdrive/ui/onroad/bogpilot/tests/test_hud_compose.py`.
-- Credits: BogPilot 0.9.7.
+- Reference behavior: stock openpilot 0.11.2 paints a yellow-glow / red lead chevron for leadOne and leadTwo
+  when openpilot longitudinal is available and radarState is present. BogPilot 0.9.7 draws that chevron unless
+  the user turns on `HideLeadMarker`. An earlier 0.11.2 port hid only leadOne while the redesign was on, and
+  still painted leadTwo.
+- Our behavior: the stock chevron is never painted, for any model, any setting, engaged or not, and under
+  alerts (`openpilot/selfdrive/ui/onroad/model_renderer.py`, `mici/onroad/model_renderer.py`, and
+  `onroad/bogpilot/bogpilot_model.py`). The lock-on and adjacent-lead boxes are unchanged.
+- Why: a leftover stock triangle could still sit under the lock-on box (leadTwo was always kept, and leadOne
+  was still painted when the redesign was off or the lock-on layer was not armed).
+- Safety-relevant: minor. Display only; not a warning; stock warnings are not hidden.
+- Tests: `openpilot/selfdrive/ui/onroad/bogpilot/tests/test_no_stock_chevron.py`, `test_hud_compose.py`.
+- Credits: BogPilot 0.9.7 (lock-on box as the lead indicator).
 
 ## Onroad UI: lead and adjacent-lead boxes engaged or not, and under alerts
 - Platforms: all (onroad UI only; comma 3X wide layout and comma 4).
