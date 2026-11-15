@@ -814,9 +814,12 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   radar was measured at 7.4-12.6 Hz depending on track count (about 12 Hz below 10 tracks, 7.4-7.8 Hz at 28-30
   tracks); the stock 8.0 Hz floor was raising commIssue in dense traffic while the radar was still publishing.
 - Measured basis for 6.69 Hz: across a 42-route, 14-day set of AP1 bench drives, the slowest 20-sample
-  FrequencyTracker average (the recent window radard checks) was 6.996 Hz, while engaged with 28 tracks. The
-  slowest 200-sample average was 7.602 Hz. 6.69 Hz leaves about 0.31 Hz of margin under the worst 20-sample
-  average. 6.69 Hz was chosen over 5.0 Hz (more margin) and 7.0 Hz (no margin). Replaying that set,
+  FrequencyTracker average was 6.996 Hz, while engaged with 28 tracks, and the slowest 200-sample average was
+  7.602 Hz. The tracker stays valid while either its 200-sample or its 20-sample average is in range
+  (`openpilot/cereal/messaging/__init__.py` `FrequencyTracker.valid`), so it goes invalid only when both
+  are below the floor. Taking the higher of the two windows, the worst value while engaged leaves about
+  1.25 Hz of margin above 6.69 Hz; the 20-sample window alone, at its worst, is about 0.31 Hz above it.
+  6.69 Hz was chosen over 5.0 Hz (more margin) and 7.0 Hz (no margin). Replaying that set,
   the stock 8.0 Hz floor raised 3 engaged invalid spans (8.24 s); 6.69 Hz and 5.0 Hz raised none.
 - Why: a healthy AP1 radar can sit between 7.0 and 8.0 Hz with a full track list, which is not a dropout. A
   sustained 6 Hz or slower stream still goes invalid (unlike ignoring the average-frequency check). A 0.5 s gap
