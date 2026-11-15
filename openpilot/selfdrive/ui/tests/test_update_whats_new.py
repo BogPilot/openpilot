@@ -97,5 +97,47 @@ class TestUpdateSplashRefresh(unittest.TestCase):
       self.assertFalse(hidden.refresh())
 
 
+# Notes area of the comma 3X update splash at 2160x1080: UpdateAlert's scroll panel is 640 px high and the
+# notes are inset 30 px on each side, so 580 px x 1920 px show without scrolling.
+SPLASH_NOTES_W, SPLASH_NOTES_H = 1920, 580
+
+
+@unittest.skipUnless(os.getenv("RAYLIB_BACKEND") == "headless", "requires authorized native headless render")
+class TestUpdateSplashFits(unittest.TestCase):
+  """Measured with the real fonts: the stored notes fit the 3X splash without scrolling."""
+  @classmethod
+  def setUpClass(cls):
+    with mock.patch("openpilot.common.hardware.comma.hardware.get_device_type", lambda: "tizi"):
+      import pyray as rl
+      from openpilot.system.ui.lib.application import gui_app
+      from openpilot.system.ui.widgets.html_render import HtmlRenderer
+      if not rl.is_window_ready():
+        gui_app._width, gui_app._height = 2160, 1080
+        gui_app._scaled_width, gui_app._scaled_height = int(2160 * gui_app._scale), int(1080 * gui_app._scale)
+        gui_app.init_window("update splash fit")
+    cls.HtmlRenderer = HtmlRenderer
+
+  def height(self, html: bytes) -> float:
+    r = self.HtmlRenderer(text="")
+    r.parse_html_content(html.decode("utf-8"))
+    return r.get_total_height(SPLASH_NOTES_W)
+
+  def test_tree_notes_fit_without_scrolling(self):
+    from openpilot.common.basedir import BASEDIR
+    self.assertLessEqual(self.height(latest_release_notes_html(BASEDIR)), SPLASH_NOTES_H)
+
+  def test_long_notes_are_cut_to_fit(self):
+    item = ("AP1: a temporary power steering fault (code 4) no longer locks out steering for the rest of the drive. "
+            "Steering resumes only when the car reports power steering available again and allows it")
+    long_notes = "What's new\n=======================\n" + "\n".join(f"* {i} {item}" for i in range(15))
+    short_notes = "What's new\n=======================\n" + "\n".join(f"* Item {i}" for i in range(6))
+    with tempfile.TemporaryDirectory() as td:
+      for name, text in (("long", long_notes), ("short", short_notes)):
+        folder = Path(td) / name
+        folder.mkdir()
+        (folder / "RELEASES.md").write_text(text, encoding="utf-8")
+        self.assertLessEqual(self.height(latest_release_notes_html(str(folder))), SPLASH_NOTES_H, msg=name)
+
+
 if __name__ == "__main__":
   unittest.main()

@@ -840,3 +840,26 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Safety-relevant: no. Settings and stats only; nothing in controls or panda changes.
 - Tests: `openpilot/system/manager/test/test_param_migration_clear_order.py`, `openpilot/system/bogpilot/tests/test_legacy_migration.py`.
 - Credits: BogPilot 0.9.7 (its FrogPilot* key names).
+
+## Update splash: what's-new notes from the incoming build, cut to fit the comma 3X splash
+- Platforms: comma 3X in this build (offroad update splash and the Software Install row). The comma 4 compact update
+  alert reads the same notes.
+- Reference behavior: BogPilot 0.9.7 `system/updated/updated.py` `parse_release_notes` keeps the first RELEASES.md
+  section of the incoming build in `UpdaterNewReleaseNotes`, and the Qt update alert shows it in a word-wrapped,
+  scrollable label (`selfdrive/ui/qt/widgets/offroad_alerts.cc` `UpdateAlert`). NAP has the same `parse_release_notes`,
+  and its compact update alert points to blog.comma.ai instead of showing notes
+  (`selfdrive/ui/mici/layouts/offroad_alerts.py`). Tinkla/BogGyver was not checked for this entry.
+- Our behavior: `openpilot/common/release_notes.py` reads the first RELEASES.md section, and
+  `openpilot/system/updated/updated.py` `parse_release_notes` stores it from the incoming build in
+  `UpdaterNewReleaseNotes` and from the running build in `UpdaterCurrentReleaseNotes`. A missing, empty or unreadable
+  file gives empty notes, so the splash shows its "No release notes available." fallback. The compact update alert shows
+  the notes instead of the blog link. When the section would not fit the comma 3X splash without scrolling, the stored
+  notes keep only the whole lines that fit, from the top, and end with a "…" item; an item that only introduces dropped
+  sub-items is dropped with them. The full section stays in RELEASES.md.
+- Why: the notes are where a tester sees what changed. On the 3X splash the scroll range is measured from the
+  unwrapped text, so a long section was cut off mid-line and its end could not be scrolled to. The cut at a whole line
+  is our own addition; no reference does it.
+- Safety-relevant: no (offroad UI only).
+- Tests: `openpilot/common/tests/test_release_notes.py`, `openpilot/selfdrive/ui/tests/test_update_whats_new.py`
+  (the headless render check measures the stored notes against the 1920 x 580 px notes area).
+- Credits: BogPilot 0.9.7 (incoming-build notes on the update alert); NAP (the same updater parse).

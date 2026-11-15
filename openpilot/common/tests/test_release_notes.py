@@ -10,6 +10,11 @@ from pathlib import Path
 
 from openpilot.common.basedir import BASEDIR
 from openpilot.common.release_notes import (
+  ELLIPSIS_ITEM,
+  SPLASH_BODY_PX,
+  SPLASH_CHARS_PER_LINE,
+  _item_px,
+  fit_release_notes_markdown,
   latest_release_notes_html,
   latest_release_notes_markdown,
   release_notes_plain,
@@ -36,6 +41,18 @@ Older section
 =======================
 * Should not appear
 """
+
+
+LONG_ITEM = ("Pre-AP with the Bosch radar retrofit and its toggle on (off by default): the panda now runs the radar gateway, "
+             "so the radar works instead of showing radar errors")
+LONG = "What's new\n=======================\n" + "\n".join(f"* Item {i}: {LONG_ITEM}" for i in range(12))
+NESTED = ("What's new\n=======================\n* " + LONG_ITEM + "\n* " + LONG_ITEM + "\n* Panda safety changes in the new firmware:\n"
+          + "\n".join(f"  * {LONG_ITEM}" for _ in range(4)))
+
+
+def body_px(md: str) -> int:
+  lines = md.split("\n")[2:]
+  return sum(_item_px(line.strip().lstrip("* "), SPLASH_CHARS_PER_LINE) for line in lines if line.strip())
 
 
 def write_releases(folder: Path, text: str) -> None:
@@ -112,6 +129,45 @@ class TestReleaseNotes(unittest.TestCase):
       self.assertIn("Three-bar pedal gauge", plain)
       self.assertNotIn("<h1>", plain)
       self.assertNotIn("<li>", plain)
+
+  def test_short_notes_are_not_cut(self):
+    md = INCOMING.split("\n\n", 1)[0]
+    self.assertEqual(fit_release_notes_markdown(md), md)
+
+  def test_long_notes_are_cut_at_a_whole_line_with_an_ellipsis(self):
+    cut = fit_release_notes_markdown(LONG)
+    lines = cut.split("\n")
+    self.assertEqual(lines[-1], ELLIPSIS_ITEM)
+    self.assertEqual(lines[:-1], LONG.split("\n")[:len(lines) - 1])  # whole original lines, in order, from the top
+    self.assertGreater(len(lines) - 3, 0)
+    self.assertLess(len(lines) - 3, 12)
+    self.assertLessEqual(body_px(cut), SPLASH_BODY_PX)
+    with tempfile.TemporaryDirectory() as td:
+      folder = Path(td) / "build"
+      write_releases(folder, LONG + "\n\nOlder section\n=======================\n* Should not appear\n")
+      stored = latest_release_notes_html(str(folder)).decode("utf-8")
+      self.assertIn("<h1>What's new</h1>", stored)
+      self.assertIn("<li>Item 0: ", stored)
+      self.assertTrue(stored.rstrip().endswith("<li>\u2026</li>\n</ul>"))
+      self.assertNotIn("Item 11", stored)
+      self.assertNotIn("Should not appear", stored)
+      # The full section is still what the markdown reader returns.
+      self.assertIn("Item 11", latest_release_notes_markdown(str(folder)))
+
+  def test_an_item_that_only_introduces_dropped_sub_items_is_dropped(self):
+    cut = fit_release_notes_markdown(NESTED)
+    self.assertNotIn("Panda safety changes", cut)
+    self.assertEqual(cut.split("\n")[-1], ELLIPSIS_ITEM)
+    self.assertLessEqual(body_px(cut), SPLASH_BODY_PX)
+
+  def test_tree_notes_are_stored_cut_to_the_splash(self):
+    md = latest_release_notes_markdown(BASEDIR)
+    stored = latest_release_notes_html(BASEDIR).decode("utf-8")
+    self.assertIn("<h1>What's new</h1>", stored)
+    self.assertIn(md.split("\n")[2].lstrip("* "), stored)  # the first item is always shown
+    self.assertLessEqual(body_px(fit_release_notes_markdown(md)), SPLASH_BODY_PX)
+    if body_px(md) > SPLASH_BODY_PX:
+      self.assertTrue(stored.rstrip().endswith("<li>\u2026</li>\n</ul>"))
 
   def test_tree_notes_describe_this_update(self):
     md = latest_release_notes_markdown(BASEDIR)
