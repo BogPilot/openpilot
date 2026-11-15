@@ -126,6 +126,31 @@ class TestUpdateSplashFits(unittest.TestCase):
     from openpilot.common.basedir import BASEDIR
     self.assertLessEqual(self.height(latest_release_notes_html(BASEDIR)), SPLASH_NOTES_H)
 
+  def test_update_alert_scroll_range_covers_every_notes_line(self):
+    # UpdateAlert renders the notes into its content height minus the 60 px inset, so that height must hold every
+    # laid-out line, also for notes that need scrolling.
+    import pyray as rl
+    from openpilot.common.basedir import BASEDIR
+    from openpilot.selfdrive.ui.widgets import offroad_alerts as oa
+    item = "AP1: a temporary power steering fault no longer locks out steering for the rest of the drive, " * 3
+    cases = {"long": ("<h1>What's new</h1>\n<ul>\n" + "".join(f"<li>{i} {item}</li>\n" for i in range(12)) + "</ul>").encode(),
+             "cut": latest_release_notes_html(BASEDIR)}
+
+    class P:
+      def __init__(self, notes):
+        self.notes = notes
+      def get_bool(self, key):
+        return key == "UpdateAvailable"
+      def get(self, key):
+        return self.notes if key == "UpdaterNewReleaseNotes" else None
+
+    for name, html in cases.items():
+      alert = oa.UpdateAlert()
+      alert.params = P(html)
+      self.assertTrue(alert.refresh())
+      alert.scroll_panel_rect = rl.Rectangle(0, 0, SPLASH_NOTES_W + 60, SPLASH_NOTES_H + 60)
+      self.assertGreaterEqual(alert.get_content_height() - 60, self.height(html), msg=name)
+
   def test_long_notes_are_cut_to_fit(self):
     item = ("AP1: a temporary power steering fault (code 4) no longer locks out steering for the rest of the drive. "
             "Steering resumes only when the car reports power steering available again and allows it")

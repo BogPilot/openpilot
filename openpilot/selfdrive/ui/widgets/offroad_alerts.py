@@ -352,12 +352,10 @@ class UpdateAlert(AbstractAlert):
     if not self.release_notes:
       return 100
 
-    if self._cached_content_height == 0:
-      self._wrapped_release_notes = self.release_notes
-      size = measure_text_cached(gui_app.font(FontWeight.NORMAL), self._wrapped_release_notes, AlertConstants.FONT_SIZE)
-      self._cached_content_height = max(size.y + 60, 100)
-
-    return self._cached_content_height
+    # Height of the notes as the HtmlRenderer lays them out (wrapped, at the notes width), plus the 30 px inset on
+    # each side. Measuring the raw HTML string under-counts wrapped lines, which cut the last lines off the splash.
+    notes_width = int(self.scroll_panel_rect.width - 60)
+    return max(self._html_renderer.get_total_height(notes_width) + 60, 100)
 
   def _render_content(self, content_rect: rl.Rectangle):
     notes_rect = rl.Rectangle(content_rect.x + 30, content_rect.y + 30, content_rect.width - 60, content_rect.height - 60)
