@@ -1,3 +1,12 @@
+BogPilot 0.11.2 for legacy Tesla (comma 3X, 2026-11-14)
+========================
+* Legacy Tesla Model S / X on openpilot 0.11.2, comma 3X on AGNOS 19.9 only
+* comma 3 with a Model S AP1: install bogpilot-tesla-0.9.7 instead
+* Model S AP1 drive-tested; Model X AP1 and Pre-AP Model S have no engaged drive logs yet; AP2 not supported yet
+* Bog to the Future, Pedals on Screen, confidence ball, blind spot lane fill and border
+* Override Sensitivity, stalk hold for Experimental Mode, 0.9.7 longitudinal tuning on legacy Teslas
+* Based on openpilot 0.11.2; upstream notes follow
+
 Version 0.11.2 (2026-10-14)
 =======================
 * New driving model
