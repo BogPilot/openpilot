@@ -9,6 +9,7 @@ from opendbc.car.tesla_ap1.brake_level import BRAKE_LEVEL_MAX_AGE_S, DI_BRAKE_ST
 from opendbc.car.tesla_ap1.cluster import CLUSTER_ADDRS, COUNTER_SIGNALS, MSG_NAMES
 from opendbc.car.tesla_ap1.hso import ap1_driver_input
 from opendbc.car.tesla_ap1.op_long_set_speed import OpLongSetSpeed
+from opendbc.car.tesla_ap1.pedal_signals import pedal_position
 from opendbc.car.tesla_ap1.cruise_set import cruise_set_scale, cruise_set_scale_fix_enabled
 from opendbc.car.tesla_ap1.stalk_follow import dtr_sample, follow_seconds, parse_stalk_raw
 from opendbc.car.tesla_ap1.phase3_stalk_controls import StalkControls
@@ -99,8 +100,9 @@ class CarState(CarStateBase):
     # Gas pedal
     gas = cp.vl["DI_torque1"]["DI_pedalPos"] / 100.0
     ret.gasPressed = gas > 0
-    # Pedal position 0..1 for the onroad pedal bars, in the deprecated CarState.gas slot (no schema change; see DIVERGENCES).
-    ret.deprecated.gas = min(max(float(gas), 0.0), 1.0)
+    # Pedal position 0..1 for the onroad pedal gauge, in the deprecated CarState.gas slot (no schema change; see DIVERGENCES).
+    # DI_pedalPos SNA (VAL_ 255, decoded 102 %) or out of range is published as -1 (missing), never as a full bar.
+    ret.deprecated.gas = pedal_position(cp.vl["DI_torque1"]["DI_pedalPos"])
 
     # Brake pedal
     ret.brakePressed = bool(cp.vl["BrakeMessage"]["driverBrakeStatus"] != 1)
@@ -307,10 +309,13 @@ class CarState(CarStateBase):
                                                       tap_from_zero_kph=tap_zero, pull=pull)
       fp_ret.ap1SpeedLimitUnknown = self.op_long_set.speed_limit_unknown
 
+    # 0x108 motor torque (Nm) and RPM, raw decoded values (SNA stays -1024 Nm / -32768 rpm). Published for Model S and
+    # Model X: the onroad pedal gauge's regen bar reads them on every legacy platform. The regen-aware stop shaping
+    # (regen_aware.py via ap1_planning) stays Model S only; it is gated on the fingerprint, not on these fields.
+    fp_ret.ap1MotorTorqueNm = float(cp.vl["DI_torque1"]["DI_torqueMotor"])
+    fp_ret.ap1MotorRpm = float(cp.vl["DI_torque1"]["DI_motorRPM"])
     if ap1_s:
-      # Model S only. Regen-aware stop braking inputs (regen_aware.py).
-      fp_ret.ap1MotorTorqueNm = float(cp.vl["DI_torque1"]["DI_torqueMotor"])
-      fp_ret.ap1MotorRpm = float(cp.vl["DI_torque1"]["DI_motorRPM"])
+      # Model S only. Regen-aware stop braking inputs (regen_aware.py): ambient temperature.
       amb = cp.vl.get("GTW_ESP1", {})
       amb_seen = getattr(cp, "ts_nanos", {}).get("GTW_ESP1", {}).get("GTW_ambientTemperature", 0)
       fp_ret.ap1AmbientTempC = float(amb["GTW_ambientTemperature"]) if amb_seen else float("nan")

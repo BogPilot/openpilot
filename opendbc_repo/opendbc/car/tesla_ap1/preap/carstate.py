@@ -24,6 +24,7 @@ from opendbc.car import Bus, DT_CTRL, structs
 from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.interfaces import CarStateBase
 from opendbc.car.tesla_ap1.hso import ap1_driver_input
+from opendbc.car.tesla_ap1.pedal_signals import pedal_position
 from opendbc.car.tesla_ap1.speed_limit import dashboard_speed_limit_ms, frame_fresh
 from opendbc.car.tesla_ap1.values import BUTTONS, CANBUS, DBC, DOORS, GEAR_MAP
 from opendbc.car.tesla_ap1.preap.calib import is_pedal_calibrated, pedal_can_bus
@@ -173,8 +174,9 @@ class PreApCarState(CarStateBase):
     # Matches NAP nap_conf.py:43 (PEDAL_DI_PRESSED = 2) and NAP preap/carstate.py:36-37
     # (gasPressed = DI_pedalPos > PEDAL_DI_PRESSED). di_gas itself is unchanged; calibration reads it.
     ret.gasPressed = self.di_gas > 0.02
-    # Pedal position 0..1 for the onroad pedal bars, in the deprecated CarState.gas slot (no schema change; see DIVERGENCES).
-    ret.deprecated.gas = min(max(float(self.di_gas), 0.0), 1.0)
+    # Pedal position 0..1 for the onroad pedal gauge (disengaged right bar), in the deprecated CarState.gas slot (no schema
+    # change; see DIVERGENCES). DI_pedalPos, not the Comma Pedal GAS_SENSOR. SNA / out of range is -1 (missing).
+    ret.deprecated.gas = pedal_position(cp.vl["DI_torque1"]["DI_pedalPos"])
     brake_message_pressed = bool(cp.vl["BrakeMessage"]["driverBrakeStatus"] != 1)
     di_brake_pressed = int(cp.vl["DI_torque2"].get("DI_brakePedal", 0) or 0) == 1
     self.real_brake_pressed = bool(di_brake_pressed or brake_message_pressed)
@@ -371,6 +373,12 @@ class PreApCarState(CarStateBase):
     fp_ret.ap1HandsOnLevel = max(0, min(255, int(self.hands_on_level or 0)))
     fp_ret.preapPedalDetected = bool(self.preap_pedal_detected)
     fp_ret.preapPedalCalibrated = bool(is_pedal_calibrated())
+    # 0x108 motor torque (Nm) and RPM for the onroad pedal gauge's regen bar, raw decoded (SNA stays -1024 Nm / -32768 rpm).
+    # Same DI_torque1 frame and signals as AP1 (tesla_ap1_can.dbc BO_ 264); the field names keep their AP1 prefix (no
+    # schema change). Nothing in Pre-AP controls reads them (regen_aware stop shaping is AP1 Model S only).
+    di_torque1 = cp.vl["DI_torque1"]
+    fp_ret.ap1MotorTorqueNm = float(di_torque1["DI_torqueMotor"])
+    fp_ret.ap1MotorRpm = float(di_torque1["DI_motorRPM"])
     fp_ret.preapPedalUnavailable = bool(self.pedal_unavailable)
     fp_ret.preapPedalFailCause = int(self.pedal_fail_cause) if self.pedal_unavailable else 0
     # Pedal longitudinal wanted but the Comma Pedal stream is missing, or its counter has not moved for PEDAL_TIMEOUT_MS (stale).
