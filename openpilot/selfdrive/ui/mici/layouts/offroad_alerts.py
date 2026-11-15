@@ -7,6 +7,7 @@ import time
 from dataclasses import dataclass
 from enum import IntEnum
 from openpilot.common.params import Params
+from openpilot.common.release_notes import release_notes_plain
 from openpilot.common.realtime import drop_realtime
 from openpilot.selfdrive.selfdrived.alertmanager import OFFROAD_ALERTS
 from openpilot.common.hardware import HARDWARE
@@ -259,7 +260,8 @@ class MiciOffroadAlerts(Scroller):
   def _params_worker(self):
     drop_realtime()
     while True:
-      self._pending_params = ({"UpdaterNewDescription": self.params.get("UpdaterNewDescription")} |
+      self._pending_params = ({"UpdaterNewDescription": self.params.get("UpdaterNewDescription"),
+                              "UpdaterNewReleaseNotes": self.params.get("UpdaterNewReleaseNotes")} |
                               {alert_data.key: self.params.get(alert_data.key) for alert_data in self.sorted_alerts})
       time.sleep(REFRESH_INTERVAL)
 
@@ -282,9 +284,15 @@ class MiciOffroadAlerts(Scroller):
           parts = new_desc.split(" / ")
           if len(parts) > 3:
             version, date = parts[0], parts[3]
-            version_string = f"\nopenpilot {version}, {date}\n"
+            version_string = f"BogPilot {version}, {date}. "
 
-        update_alert_data.text = f"Update available {version_string}. Click to update. Read the release notes at blog.comma.ai."
+        notes = release_notes_plain(pending_params.get("UpdaterNewReleaseNotes") or b"")
+        if notes:
+          update_alert_data.text = f"Update available. {version_string}Tap to update.\n\n{notes}"
+        elif version_string:
+          update_alert_data.text = f"Update available. {version_string}Tap to update."
+        else:
+          update_alert_data.text = "Update available. Tap to update."
         update_alert_data.visible = True
         active_count += 1
       else:
