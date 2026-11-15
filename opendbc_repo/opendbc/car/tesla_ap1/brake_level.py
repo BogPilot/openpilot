@@ -1,6 +1,7 @@
 """AP1 brake level from the 0x39D brake booster rod stroke (BrakeBoosterStroke in tesla_ap1_can.dbc).
 
-BogPilot divergence from drive-log evidence (no BogPilot / Tinkla / NAP definition; see DIVERGENCES.md). Display only:
+BogPilot divergence from drive-log evidence (no BogPilot / NAP definition; Tinkla's 0x39D layout differs and is not used;
+see DIVERGENCES.md). Display only:
 carstate publishes it in the deprecated CarState.brake slot for the onroad decel bar; nothing in controls reads it.
 """
 import math

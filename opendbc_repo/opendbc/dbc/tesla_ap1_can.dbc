@@ -45,6 +45,7 @@ BU_:
 	APP
 	DAS
 	XXX
+	iBooster
 
 VAL_TABLE_ StW_AnglHP_Spd 16383 "SNA" ;
 VAL_TABLE_ DI_aebFaultReason 15 "DI_AEB_FAULT_DAS_REQ_DI_UNAVAIL" 14 "DI_AEB_FAULT_ACCEL_REQ_INVALID" 13 "DI_AEB_FAULT_MIN_TIME_BTWN_EVENTS" 12 "DI_AEB_FAULT_ESP_MIA" 11 "DI_AEB_FAULT_ESP_FAULT" 10 "DI_AEB_FAULT_EPB_NOT_PARKED" 9 "DI_AEB_FAULT_ACCEL_OUT_OF_BOUNDS" 8 "DI_AEB_FAULT_PM_REQUEST" 7 "DI_AEB_FAULT_VEL_EST_ABNORMAL" 6 "DI_AEB_FAULT_DAS_SNA" 5 "DI_AEB_FAULT_DAS_CONTROL_MIA" 4 "DI_AEB_FAULT_SPEED_DELTA" 3 "DI_AEB_FAULT_EBR_FAULT" 2 "DI_AEB_FAULT_PM_MIA" 1 "DI_AEB_FAULT_EPB_MIA" 0 "DI_AEB_FAULT_NONE" ;
@@ -973,8 +974,8 @@ VAL_ 1364 Status 5 "FAULT_TIMEOUT" 4 "FAULT_STARTUP" 3 "FAULT_SCE" 2 "FAULT_SEND
 # Pre-AP panda has disable_forwarding. Never apply an ID-only filter.
 CM_ "0x32e (814) on bus 0 is PARK_sensorStatusFront (5 bytes, 4 Hz, front corner ultrasonics in cm, 255 = no reading). On bus 1 the same ID is RadarPoint10_A (8 bytes, ~16 Hz) in tesla_radar_bosch_generated. Never filter by ID alone.";
 CM_ "0x33e (830) on bus 0 is the rear park corners (5 bytes, 4 Hz). On bus 1 the same ID is RadarPoint15_B (8 bytes, ~16 Hz). Radar parsing is bus 1 only; Pre-AP panda disable_forwarding is on.";
-CM_ BO_ 1364 "Aftermarket iBooster swap on a Pre-AP car, chassis bus 0 (BogGyver opendbc 9c0b6fe tesla_can.dbc BO_ 1364, read by Tinkla's TinklaHasIBooster path). Parsed only when the Pre-AP iBooster toggle is on, for the onroad brake bar (display only). Parse only (never sent); the checksum and counter are not checked.";
-CM_ BO_ 925 "BogPilot divergence, from drive-log evidence: 0x39D (925) on chassis bus 0, 4 bytes, 25 Hz on AP1, the brake booster rod-stroke frame. No BogPilot, Tinkla or NAP definition exists. The 5-byte Model 3 IBST_status layout does not match these frames and is NOT used. Parse only (never sent).";
+CM_ BO_ 1364 "Aftermarket iBooster swap on a Pre-AP car, chassis bus 0 (BogGyver opendbc 9c0b6fe tesla_can.dbc BO_ 1364, read by Tinkla's TinklaHasIBooster path). Parsed only when the Pre-AP iBooster toggle is on, for the onroad brake bar (display only). All signals little-endian in bits 0-31 (bytes 0-3); byte 4 is undefined. The onroad bar uses BrakePedalPosition (20|12), Status (12|4) and BrakeOK (16|1). The frame rate is unknown (not documented in the references, no capture yet). Parse only (never sent); the checksum and counter are not checked.";
+CM_ BO_ 925 "BogPilot divergence, from drive-log evidence: 0x39D (925) on chassis bus 0, 4 bytes, 25 Hz on AP1, the brake booster rod-stroke frame. No BogPilot or NAP definition exists. Tinkla/BogGyver opendbc tesla_can.dbc defines BO_ 925 IBST_status (IBST_brakeInputStroke 20|10, x0.05, -0.5 mm); that layout differs from the 16|16 raw stroke used here and is unverified against our logs, so it is not used. The 5-byte Model 3 IBST_status layout does not match these frames and is NOT used. Parse only (never sent).";
 CM_ SG_ 925 brakeBoosterChecksum "(0x9D + 0x03 + byte 1 + byte 2 + byte 3) & 0xFF, the Tesla sum checksum; valid on every logged frame. Checked in tesla_ap1/brake_level.py (no parser checksum hook for this DBC).";
 CM_ SG_ 925 brakeBoosterCounter "Alive counter, +1 mod 16. The high nibble of byte 1 was always 0 in the logs and is not defined.";
 CM_ SG_ 925 brakeRodStroke "Unitless 16-bit little-endian rod stroke (bytes 2-3): about 174 at rest (168 seen), rises with pedal travel, highest seen 5470 (a firm press at a standstill). No calibrated unit. Normalized by BRAKE_STROKE_REST / BRAKE_STROKE_TOP in tesla_ap1/brake_level.py.";

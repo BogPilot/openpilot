@@ -21,8 +21,9 @@ ADDR = 0x554
 # Frame age that still counts as live. The frame rate is not documented in the references; 0.5 s matches the AP1 brake
 # level (brake_level.BRAKE_LEVEL_MAX_AGE_S). Provisional until a capture from a swapped car.
 IBOOSTER_MAX_AGE_S = 0.5
-# Pedal travel (mm) that fills the bar. PROVISIONAL: no capture from a swapped Pre-AP car exists yet, so this is the top
-# of the reference DBC range ([0|47] mm), i.e. the bar can never over-read. Tune from rlogs of a swapped car.
+# Pedal travel (mm) that fills the bar. PROVISIONAL: this is the DBC maximum of BrakePedalPosition ([0|47] mm), NOT a
+# measured full-pedal travel; no capture from a swapped Pre-AP car exists yet, so the bar can never over-read. Tune from
+# rlogs of a swapped car.
 IBOOSTER_PEDAL_FULL_MM = 47.0
 STATUS_NO_FAULT = 0
 

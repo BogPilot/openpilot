@@ -648,8 +648,10 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 
 ## AP1 brake booster rod stroke (0x39D) for the onroad decel bar
 - Platforms: AP1 Model S / X only (DBC, carstate). Pre-AP unchanged (its parser does not register the frame).
-- Reference behavior: no BogPilot, Tinkla or NAP definition of 0x39D on these cars. The only public layout for that ID is
-  the 5-byte Model 3 `IBST_status`, which does not match these frames and is not used.
+- Reference behavior: no BogPilot or NAP definition of 0x39D on these cars. Tinkla/BogGyver opendbc `tesla_can.dbc`
+  defines `BO_ 925 IBST_status` (4 bytes, `IBST_brakeInputStroke` 20|10, x0.05, -0.5 mm); that layout differs from the
+  16|16 raw stroke used here and is unverified against our logs, so it is not used. The 5-byte Model 3 `IBST_status`
+  layout does not match these frames and is not used either.
 - Our behavior (from drive-log evidence): `BrakeBoosterStroke` (0x39D) in `tesla_ap1_can.dbc`, chassis bus 0, 4 bytes,
   25 Hz. Byte 0 `brakeBoosterChecksum` = (0x9D + 0x03 + byte 1 + byte 2 + byte 3) & 0xFF (the Tesla sum checksum);
   byte 1 low nibble `brakeBoosterCounter` (+1 mod 16, high nibble always 0); bytes 2-3 `brakeRodStroke`, a unitless
