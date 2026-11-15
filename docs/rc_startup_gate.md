@@ -15,12 +15,12 @@ Base f5928f3b1. Only this new tool, its tests and this
 document are new. Production manager/reset/backup files unchanged.
 The UI contract was read from a work-in-progress base, not the final
 candidate. Do not certify this base as the final build. Assemble this tooling onto
-final primary candidate and pass its **full exact HEAD SHA** explicitly.
+the final release candidate and pass its **full exact HEAD SHA** explicitly.
 
 ## Real-native pending invocation
 
-While another job holds the VM lock, do not compete. After
-it releases the existing serialized VM lock, the operator must
+While another job holds the build lock, do not compete. After
+it releases the existing serialized build lock, the operator must
 acquire it using the existing protocol, sync final candidate + matching native
 outputs to an isolated tree, and run inside AGNOS19.9 build environment:
 

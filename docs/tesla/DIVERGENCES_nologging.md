@@ -19,7 +19,7 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
   `proclogd`, `journald` (0.11's `logcatd`) or `logmessaged` (swaglog files), and `helpers.save_bootlog()` writes no
   bootlog. A change while onroad stops them on the next manager cycle. With `NoLogging` off (the default) every
   predicate is the same as before. There is no stream encoder, uploader, athena or statsd in this tree.
-- Settings: the "Disable Logging" row was added in 97797feba in its 0.9.7 spot (Device Settings, after the shutdown
+- Settings: the "Disable Logging" row is in its 0.9.7 spot (Device Settings, after the shutdown
   timer), tuning level 2 ("Advanced"), shown only while its parent `DeviceManagement` is on. 0.9.7's confirmation
   dialog on enabling it (`device_settings.cc:168`, `setConfirmation(true, false)`) is ported: turning it ON shows the
   row title and its 0.9.7 warning text with Enable / Cancel every time; Cancel leaves it OFF; turning it OFF saves

@@ -119,7 +119,7 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
   `cluster_set_kph` do not clamp a small set back up to 8 kph. `cruise.py:111` `V_CRUISE_MIN` applies only on the
   non-pcmCruise button path, which AP1 openpilot long does not use.
 - Why: product decision, restoring Tinkla's vEgo latch (`ACC_module.py:154-158` @501c7de) without the 8 kph openpilot
-  floor on this rolling path. Replaces the previous "clamp-up to 8 kph, kept" note (`cc5c5c0bb`).
+  floor on this rolling path. Replaces an earlier "clamp-up to 8 kph, kept" note.
 - Tests: `test_moving_no_limit_vego_latch_no_event`, `test_rolling_engage_no_limit_latches_exact_vego` (0.5, 2, and
   7.9 kph) (`test_ap1_op_long_set_speed.py`).
 - Credits: Tinkla/BogGyver (vEgo latch).

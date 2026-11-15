@@ -26,11 +26,11 @@ Checks independently implemented (does not import panda/build_identity.py):
 
 Limits: manifests and compile commands are unsigned local build evidence, not
 host attestation. Gate cannot establish that somebody did not fabricate evidence
-or merely copy the first build into a second directory. The build coordinator must
+or merely copy the first build into a second directory. The release builder must
 execute and log both builds. This gate is not firmware safety certification,
 whole-system validation, device validation, or proof of safe road behavior.
 
-## Final recipe (track10 owns execution, not this track)
+## Final recipe (run by the firmware build step, not by this gate)
 
 Do not execute long builds before final source SHA is frozen. Existing DEBUG,
 ALLOW_DEBUG, signing and keys remain unchanged. No binary commits or device access.
@@ -57,7 +57,7 @@ printf '%s\n' "$FINAL" > "$OUT/final-source-commit"
 3. Transfer source tar and source-manifest.json to a NEW isolated VM build tree.
    Extract full tar (not just a symlink without its target); copy manifest as root
    `.panda-source.json`. Keep a separate extracted reference archive root. Never
-   manufacture .git metadata. Track10 acquires normal VM build lock atomically,
+   manufacture .git metadata. The firmware build step takes the normal build lock atomically,
    owns/reports liveness and releases in EXIT trap. Never steal another lock.
 4. In **agnos:19.9-build**, mount isolated tree at `/data/openpilot`, existing
    matching dependency venv read-only, matching `/opt/uv-python` read-only, and
@@ -110,6 +110,6 @@ python3 "$SOURCE/tools/bogpilot/rc_firmware_gate.py" \
   > "$OUT/firmware-gate-result.json"
 ```
 
-Expected final native result is unrun until track10 executes these steps; synthetic
+Expected final native result is unrun until the firmware build step runs; synthetic
 unit tests do not replace it. Gate source commit changes require a new export and
 build; do not relabel earlier artifacts as the new source.

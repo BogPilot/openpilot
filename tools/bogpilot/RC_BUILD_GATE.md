@@ -53,14 +53,14 @@ Evidence envelope schema 1:
 ```
 
 Required receipts: startup, firmware, package, controls, settings, ui, recorder,
-provenance, build, imports. No isolated-worker source SHA may stand in for final
-assembled SHA. Primary feature tip must be an ancestor of the final source.
+provenance, build, imports. No development-branch source SHA may stand in for the final
+assembled SHA. The UI feature tip must be an ancestor of the final source.
 All log/report paths are relative to explicit evidence root, checksummed, and
 source-bound: JSON reports identify candidate_sha/source_sha/source_commit, OR
 plain logs begin `RC_SOURCE_SHA=FULL40`. A prefixed JSON report's own identity and
 failure status are still checked. Old/failed JSON cannot be relabeled by a new
 header. JSON PASS is case-insensitive; failed/skipped/pending/unrun/xfail counters
-are not passing. For gate formats lacking identity, the coordinator must rerun on
+are not passing. For gate formats lacking identity, the release builder must rerun on
 final source with a source-prefixed log and truthful outcome; never relabel old
 results. Static gate's ordinary output is not a native build/import proof.
 
@@ -82,21 +82,21 @@ compiles the shm `visionbuf.cc`; the comma's camera driver can only import ION d
 2. The `build` receipt log must contain the line `/dev/ion present in container` (the inner build script prints it; the build
    container runs `touch /dev/ion` as root first; never on the device).
 
-## ONE final native session (coordinator recipe, NOT automatic execution)
+## ONE final native session (manual recipe, NOT automatic execution)
 
-1. Wait for explicit primary UI READY and native lock release. Assemble final UI,
+1. Wait for the UI branch to be ready and the native build lock to be free. Assemble final UI,
    gates and any authorized confirmed controls correction outside product branch.
-   Freeze exact full SHA; fast preflight first. Recorder fixes at feature477f08a9f
-   supersede earlier86ff failures, but rerun on final source. Controls lane-change
+   Freeze exact full SHA; fast preflight first. Later recorder fixes
+   supersede earlier recorder failures, but rerun on final source. Controls lane-change
    continuation gap is UNCONFIRMED until native gate runs. Package/provenance
    final exact inventory review must finish; no blanket privacy waivers.
-2. Firmware owner's `RC_FIRMWARE_GATE.md` owns identity export, archive/reference,
+2. `RC_FIRMWARE_GATE.md` owns identity export, archive/reference,
    narrow clean-repeat firmware commands and snapshots. Use that exact recipe.
-   Packaging owner supplies complete final artifact inventory. Do not duplicate
-   implementations or merge peers automatically. Keep native outputs out of Git.
-3. Claim native VM lock only after checking actual owner/liveness and final inputs.
+   The packaging step supplies the complete final artifact inventory. Do not duplicate
+   implementations or merge other branches automatically. Keep native outputs out of Git.
+3. Take the native build lock only after checking its holder is alive and the final inputs.
    If occupied, stop/publish pending; never overwrite or steal. Keep the lock for
-   the agreed session, release only if it still names your owner in an EXIT trap.
+   the agreed session, release only if it is still yours, in an EXIT trap.
    This tool itself NEVER reads/writes global locks or changes VM state.
 4. NEW isolated VM source tree from exact archive + generated firmware manifest;
    matching existing dependency environment. Inside `agnos:19.9-build`, use device

@@ -49,7 +49,7 @@ and shrink-to-fit labels. If the proposal is ever revisited, those belong in `Ga
 it) rather than in `list_view.py`. Revisiting it needs the maintainer's ask first.
 
 **Sources.** Stock openpilot v0.11.2 `f7db927c7` (`list_view.py`, `widgets/__init__.py`, `widgets/button.py`); BogPilot
-previous release baseline `27e82a496` panels (cited in the audit). Tinkla/BogGyver and NAP use the Qt UI and were not read for this; no
+previous 0.11.2 development baseline panels. Tinkla/BogGyver and NAP use the Qt UI and were not read for this; no
 claim is made about them.
 
 ## Value rows: default hint, changed highlight, section reset

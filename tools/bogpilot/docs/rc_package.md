@@ -89,13 +89,13 @@ Separate user approval and an audited deployment procedure are required later.
 ## Mandatory privacy evidence before bundling
 
 `verify` alone is a static package check, not privacy clearance. `bundle` also
-requires `--provenance-report PASSING_TRACK9_JSON --shipping-manifest EXACT_JSON`.
+requires `--provenance-report PASSING_GATE.json --shipping-manifest EXACT_JSON`.
 `bind_provenance` checks final candidate SHA/clean state, no findings, complete
 scanned-file counts and exact byte-for-byte shipping hash inventory. It records
-both evidence hashes. A worker exploratory audit or source-only report cannot
+both evidence hashes. An exploratory audit or source-only report cannot
 clear the package. Evidence inputs are unsigned local assertions, not signatures.
 
-Track9 exact review API is now supported: only source-catalogue-bound, individually
+The provenance gate's exact review API is supported: only source-catalogue-bound, individually
 reviewed internal links with matching payload/blob/target/representation attestations
 may ship as symlinks. No blanket link waiver or private credential waiver exists.
 Explicit exclusions change scope; never label excluded-source or a runtime overlay
@@ -103,13 +103,13 @@ as complete buildable source.
 The generated RC_PACKAGE.json records the accepted inventory/evidence hashes; it
 is reserved tool-generated metadata, not an extra unaudited source payload.
 
-## Exact reviewed-link/excluded-source adapter (track9 142b2451)
+## Exact reviewed-link/excluded-source adapter (provenance gate)
 
 API `verify(root, candidate, artifact_manifest, shipping_manifest=None)` reads
 explicit source_exclusions from the shipping manifest. Each exclusion must match
 the original source catalogue mode/blob and reason=private_or_build_host_only;
 required runtime/source paths and every tracked notice basename are protected.
-Only a passing track9 report can authorize exclusion policy (private/build-host
+Only a passing provenance-gate report can authorize exclusion policy (private/build-host
 names or its exact known nonshipping fixture blob). Static verify alone cannot
 approve that policy. Excluded source contents are not opened for packaging or
 rehashing; native/firmware gates remain responsible for their source manifest.
@@ -136,12 +136,12 @@ review; no path-wide or credential-content override is added here.
 
 1. Freeze the final clean source SHA and complete matching native/artifact manifest.
    Generate exact original catalogue and shipping manifest with approved explicit
-   exclusions; do not reuse the worker proof for final SHA.
+   exclusions; do not reuse an exploratory proof for the final SHA.
 2. Static inventory dry run may use `verify --shipping-manifest SHIPPING.json`
    without gate inputs; it reports provenance_gate_pass=false. API verify likewise
    produces deterministic shipping entries for the inventory-generation workflow.
-3. Run the assembled track9 gate on the frozen source/stage with that exact manifest
-   and exact review record; retain all notices (the reviewed worker had nine).
+3. Run the assembled provenance gate on the frozen source/stage with that exact manifest
+   and exact review record; retain all notices (the reviewed run had nine).
 4. Final static verification with privacy binding:
 
 ```
@@ -152,12 +152,12 @@ python3 tools/bogpilot/rc_package.py verify --root FINAL_TREE --candidate FULL_S
 ```
 
 5. Only after the integrator's native/build gates pass, use `bundle` with the same
-   arguments and a NEW external tar path. This tool does not acquire VM locks,
+   arguments and a NEW external tar path. This tool does not acquire build locks,
    build native artifacts, install, or certify hardware behavior.
 
-Adapter validation includes actual recorded worker consumable-schema binding
+Adapter validation includes actual recorded consumable-schema binding
 (6 links, 3 exclusions, 9 notices) and an independent tiny SYNTHETIC git tree passed
-through the actual track9 audit, adapter and tar round-trip. Neither constitutes
+through the actual provenance audit, adapter and tar round-trip. Neither constitutes
 final candidate attestation or a real native build. Final SHA/inventory/native run
 remain exclusively the integrator's responsibility.
 

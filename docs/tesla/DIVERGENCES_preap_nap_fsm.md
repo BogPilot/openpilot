@@ -60,7 +60,7 @@ Decision: follow NAP; a brake-held double pull at standstill engages FULL with t
   `tesla_preap.h:151`). A new brake press after engaging drops to steering only as before (T13).
 - openpilot: pedal (Pre-AP) cars lack DI STANDSTILL (carState.standstill is the DI STANDSTILL state, which a Comma Pedal car
   never reports), so the stock standstill-based brake rule would drop FULL on the held brake every frame. `selfdrived/preap_brake.py`
-  `PreapHeldBrake` (becd7c0c7, tightened to track the brake held since FULL entry) is the minimal exemption: Pre-AP fingerprint
+  `PreapHeldBrake` (tightened to track the brake held since FULL entry) is the minimal exemption: Pre-AP fingerprint
   only, preapFsmMode FULL only, the brake pressed on the frame before FULL entry and on every frame since, vEgo and vEgoRaw
   finite and < 0.1 m/s on every one of those frames. A release, a fresh press, any motion >= 0.1 m/s (filtered or raw) or a
   non-finite speed ends it and the stock rule applies; every other car (AP1, AP1 Model X) keeps the stock rule unchanged.

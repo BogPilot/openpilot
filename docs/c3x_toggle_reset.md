@@ -17,7 +17,7 @@ No native import, Params construction, default IO path, migrations, reboot, or U
 * Registered keys use typed `cpp2python` then blocking `put`; file-only keys never call
   Params, even if present in its compiled table. Uncompiled owned keys use the supplied
   file root. Only the active store is changed. Inactive fallback files for typed keys
-  are preserved because w5 does not archive them.
+  are preserved because the settings backup does not archive them.
 * Failed reset retains its request, rolls back in-memory snapshots best-effort, and
   returns an error stage (not private values). An incomplete rollback requires restoring
   the durable backup. Do not clear the flag or call a legacy reset implementation on failure.
@@ -28,7 +28,7 @@ No native import, Params construction, default IO path, migrations, reboot, or U
 
 ## Deliberate scope
 
-Stock column comes from own daily 367e1fe registry, with approved C3X shipping
+Stock column comes from the BogPilot 0.9.7 registry (`e493b5cb7`), with the C3X shipping
 PARAM_OVERRIDES. The ownership snapshot is explicit: future/unknown registry keys
 are not reset automatically. Audio stays audible (control=0, volumes=101), AOL and
 nudgeless off, screensaver off. Targeted file UI toggles reset (text choices too: the confidence ball
@@ -39,18 +39,18 @@ vehicle tuning/auth/data fields are not erased. No generic factory reset or norm
 DoToggleReset handler is added.
 
 Tests: pure Python unittest with a strict typed Params fake and temporary directories;
-not native Params/device/boot validation. Assembly must separately test w5 durable
-backup plus w10 startup ordering/failure/cache behavior using sandbox roots.
+not native Params/device/boot validation. The release build must separately test the durable
+settings backup plus the startup hook's ordering/failure/cache behavior using sandbox roots.
 
 ## Backup scope alignment
 
-Scope is bounded by w5 `946906c34820f232263208a5ee1f90701ca85b7c`: preserve
+Scope is bounded by the settings backup (`settings_backup.py`): preserve
 SearchInput, StartupMessageTop/Bottom, PreferredSchedule, UpdatedToggles and
 BlacklistedModels. The frozen backup-ownership fixture tests every reset target
-is covered (and verifies actual peer ownership too when installed at assembly).
-Non-file-only settings use the compiled native owner when present, matching w5;
+is covered (and verifies the backup module's ownership too when it is installed).
+Non-file-only settings use the compiled native owner when present, matching the settings backup;
 only FILE_ONLY_UI_KEYS force file storage. No inactive native fallback file is
-modified or removed: such bytes were not archived by w5. Do not subsequently
+modified or removed: such bytes were not archived by the settings backup. Do not subsequently
 restore inactive fallback/cache values or reapply AP1 defaults over this reset.
 
 Adapter: `backup=lambda: backup_settings(params, file_root=file_root,
