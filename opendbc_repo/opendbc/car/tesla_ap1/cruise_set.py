@@ -1,7 +1,8 @@
 """AP1 DI_cruiseSet scale correction (file-backed, default ON).
 
-Ported from BogPilot `bogpilot-tesla-cruise-half-fix` (06180370a, 0d7a29610, ec39be533; 0.9.7 layout,
-selfdrive/car/tesla/cruise_set.py). tesla_ap1_can.dbc declares DI_state.DI_cruiseSet (0x368, bit 32, 9 bits)
+Originally developed on the 0.9.7 line (archived and removed), in selfdrive/car/tesla/cruise_set.py
+(opt-in x2, default ON when the file is missing, scale set once in CarState.__init__).
+tesla_ap1_can.dbc declares DI_state.DI_cruiseSet (0x368, bit 32, 9 bits)
 with factor 0.5. On AP1 the raw value is whole display units, so the decoded value is half of the set.
 The DBC factor is kept; carstate.py multiplies the decoded value by cruise_set_scale().
 

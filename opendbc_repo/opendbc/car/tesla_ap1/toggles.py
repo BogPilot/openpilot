@@ -160,7 +160,7 @@ def disable_openpilot_long(stored: str | bytes | None = None, paths=None) -> boo
   return _as_text(stored).lower() in ("1", "true", "on")
 
 
-# AP1 stalk tip rounding (AP1TipRoundSet; BogPilot bogpilot-tesla-ic-discovery f0be1ee66 semantics). File-backed, default ON:
+# AP1 stalk tip rounding (AP1TipRoundSet). Originally developed on the 0.9.7 line (archived and removed). File-backed, default ON:
 # /data/params_bogpilot/AP1TipRoundSet. A missing, empty or unreadable file means ON; only an explicit 0/false/off turns it off, so a
 # value saved earlier (either way) is preserved and a fresh install is on. When on, Ap1RaiseHoldoff rounds the software set to a whole
 # display unit (km/h when IsMetric, else mph) before a +-1 / next-5 / prev-5 tip, so a 14.8 mph tip-engage latch + full tip up gives

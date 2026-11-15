@@ -1,4 +1,4 @@
-"""DI_cruiseSet x2 scale correction (cruise_set.py, ported from BogPilot 06180370a / 0d7a29610 / ec39be533)."""
+"""DI_cruiseSet x2 scale correction (cruise_set.py: default ON x2; originally developed on the 0.9.7 line, archived and removed)."""
 from types import SimpleNamespace
 
 import pytest

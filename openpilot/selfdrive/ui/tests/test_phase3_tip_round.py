@@ -13,7 +13,8 @@ from openpilot.selfdrive.ui.bogpilot.phase3_stalk_controls import DESCRIPTIONS, 
 KMH = CV.KPH_TO_MS
 
 
-# ---- pure helpers (BogPilot bogpilot-tesla-ic-discovery f0be1ee66 semantics) ----
+# ---- pure helpers (round the set to a whole display unit before +-1 / next-5 / prev-5;
+# originally developed on the 0.9.7 line (archived and removed)) ----
 def test_next_prev_5_round_whole_mph():
   assert next_5_ms(14.8 * MPH, round_whole=True) == pytest.approx(20 * MPH)   # 14.8 -> 15 -> 20
   assert prev_5_ms(15.2 * MPH, round_whole=True) == pytest.approx(10 * MPH)   # 15.2 -> 15 -> 10
