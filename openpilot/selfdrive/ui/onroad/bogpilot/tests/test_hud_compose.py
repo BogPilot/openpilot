@@ -492,7 +492,7 @@ class TestTrafficAndLoader(unittest.TestCase):
 
 
 class TestModelDeferral(unittest.TestCase):
-  def test_primary_deferred_secondary_kept(self):
+  def test_stock_chevron_never_painted(self):
     drawn = []
 
     class Base:
@@ -507,18 +507,19 @@ class TestModelDeferral(unittest.TestCase):
                                               "ui_state": None, "draw_polygon": None, "np": None, "rl": None})
     m = ns["BogPilotModelRenderer"]()
     m._draw_lead_indicator()
-    self.assertEqual(drawn, [0, 1])                    # default: stock, both markers
-    drawn.clear()
+    self.assertEqual(drawn, [])                        # default: no stock marker
+    self.assertIsNone(m.bp_pending_primary)
     m.bp_defer_primary_lead = True
     m._draw_lead_indicator()
-    self.assertEqual(drawn, [1])                       # leadTwo keeps its stock marker
-    self.assertEqual(m.bp_pending_primary.n, 0)
+    self.assertEqual(drawn, [])                        # still none when the defer flag is set
+    self.assertIsNone(m.bp_pending_primary)
     self.assertEqual(len(m._lead_vehicles), 2)
+    m.bp_pending_primary = m._lead_vehicles[0]
     m.bp_flush_primary_lead()
-    self.assertEqual(drawn, [1, 0])
+    self.assertEqual(drawn, [])                        # flush is a no-op
     self.assertIsNone(m.bp_pending_primary)
     m.bp_flush_primary_lead()
-    self.assertEqual(drawn, [1, 0])                    # flush is one-shot
+    self.assertEqual(drawn, [])
 
 
 class TestCallSites(unittest.TestCase):
