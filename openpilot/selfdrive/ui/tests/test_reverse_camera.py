@@ -108,7 +108,7 @@ def test_read_gear_freshness():
 def test_registered_param_and_ap1_profile_value():
   from openpilot.common.bogpilot_params import BOGPILOT_PARAMS
   from openpilot.common.params import Params
-  assert BOGPILOT_PARAMS["DriverCamera"][:3] == ("PERSISTENT", "BOOL", "0")
+  assert BOGPILOT_PARAMS["DriverCamera"][:3] == ("PERSISTENT", "BOOL", "1")  # on by default (docs/tesla/DIVERGENCES.md)
   assert BOGPILOT_PARAMS["QOLVisuals"][:3] == ("PERSISTENT", "BOOL", "1")
   Params().check_key("DriverCamera")
   src = Path(__import__("openpilot.common.bogpilot_ap1_profile", fromlist=["x"]).__file__).read_text()
