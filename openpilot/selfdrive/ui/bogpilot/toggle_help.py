@@ -607,7 +607,9 @@ _add("DriverCamera", "Show Driver Camera When In Reverse",
      "Shows the driver camera feed while the car is in reverse, after the car has been in reverse for half a second, and returns "
      "to the road view when you leave reverse.",
      note="Needs Quality of Life Visuals. Alerts still draw on top of the camera view.",
-     default="Off", default_param="DriverCamera")
+     # On only through the first-install default (openpilot/common/bogpilot_fresh_defaults.py); the registered
+     # default is still "0", so there is no default_param to compare against.
+     default="On for new installs (Off after Reset toggles to default)")
 # Camera View: BogPilot 0.9.7 wording (frogpilot/ui/qt/offroad/visual_settings.cc:118). Help text carries no tags (see _clean),
 # so the bold first sentence of the 0.9.7 description is plain text here.
 _add("CameraView", "Camera View",

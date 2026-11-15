@@ -154,6 +154,19 @@ def before_defaults(params, *, file_root: Path | None = None,
   except Exception as exc:
     # Keep the request and original settings under the reset module's transaction.
     result.errors.append(f"reset: {type(exc).__name__}")
+  # First-install defaults (Driver Camera in Reverse on, Experimental Mode confirmed and starting in Chill).
+  # Must run before manager_init writes the registered defaults: the fresh-install check reads HasAcceptedTerms
+  # unset, and that loop is what sets it. Upgrades and explicit values are never changed. No event is recorded.
+  # A pending, failed or partial toggle reset is never a fresh install: its originals must stay untouched.
+  if result.profile_suppressed or any(e.startswith("reset") for e in result.errors):
+    return result
+  fresh = _optional("openpilot.common.bogpilot_fresh_defaults", result)
+  apply_fresh = getattr(fresh, "apply_fresh_install_defaults", None)
+  if apply_fresh is not None:
+    try:
+      apply_fresh(params)
+    except Exception as exc:
+      result.errors.append(f"fresh-defaults: {type(exc).__name__}")
   return result
 
 

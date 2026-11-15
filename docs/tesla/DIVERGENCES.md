@@ -890,3 +890,36 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   (the headless render checks measure the stored notes against the 1920 x 580 px notes area and the alert's scroll
   range against the wrapped notes).
 - Credits: BogPilot 0.9.7 (incoming-build notes on the update alert); NAP (the same updater parse).
+
+## First install: Driver Camera in Reverse on, Experimental Mode confirmed and starting in Chill
+- Platforms: all at install time (the car is not known yet). The stalk switch it enables works only on the AP1 Model S
+  with openpilot longitudinal; elsewhere the confirmation does nothing.
+- Reference behavior: BogPilot 0.9.7 ships `DriverCamera` off and `ExperimentalModeConfirmed` off (the 367e1fe default
+  table, `openpilot/common/tests/fixtures/bogpilot_defaults_367e1fe.json`). In NAP, and in this tree before this change,
+  `ExperimentalModeConfirmed` is written only by the Experimental Mode confirmation dialog in settings
+  (`selfdrive/ui/layouts/settings/toggles.py`). NAP has no `DriverCamera` key and no first-install default for these
+  keys. Tinkla/BogGyver was not checked for this entry.
+- Our behavior: `openpilot/common/bogpilot_fresh_defaults.py` runs from `bogpilot_startup.before_defaults`, before
+  `manager_init` writes the registered defaults. It acts only when `HasAcceptedTerms` is unset, which is true only on a
+  device that has never booted this software. That same boot's default loop stores `HasAcceptedTerms`, so no later boot
+  and no upgrade counts as fresh. Each of these keys is then written only if it is still unset:
+  - `DriverCamera` on.
+  - `ExperimentalModeConfirmed` on.
+  - `ExperimentalMode` off, so driving starts in Chill. `LongitudinalPersonality` keeps its Standard default.
+  An explicit ON or OFF, and every upgraded device, is left alone. The registered `DriverCamera` default stays "0", so
+  the prebuilt `libparams_c.so` is unchanged. As a result "Reset toggles to default" still sets it off, and the help
+  row says so.
+- Why: maintainer decision for the next build. The camera shows in reverse from the first drive, and the stalk hold-pull /
+  hold-push switches between Chill and Experimental on the first drive. Before this, `apply_experimental_toggle`
+  (`opendbc_repo/opendbc/car/tesla_ap1/phase3_stalk_controls.py`) ignored the hold and raised
+  `experimentalModeUnconfirmed` until the settings dialog had been accepted once.
+- Divergence from our own rule: the AP1 profile never writes `ExperimentalModeConfirmed`
+  (`openpilot/common/bogpilot_ap1_profile.py:92`, `NEVER_PROFILE_KEYS`). This first-install default is the one
+  maintainer-approved exception. On a new install the Experimental Mode confirmation dialog is treated as already accepted. Upgrades keep
+  the dialog until it is accepted.
+- Safety-relevant: no change to controls, the panda or CAN. The stalk switch still requires `experimental_supported(cp)`
+  (AP1 Model S, not dashcam, openpilot longitudinal), `selfdrived` still drops `ExperimentalMode` without openpilot
+  longitudinal, and the settings toggle stays disabled there. The driver remains responsible; Experimental Mode is
+  still alpha.
+- Tests: `openpilot/common/tests/test_bogpilot_fresh_defaults.py`.
+- Credits: BogPilot 0.9.7 (the default table); NAP (the dialog-only confirmation).
