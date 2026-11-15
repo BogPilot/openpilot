@@ -495,6 +495,13 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
     self.bp_c4_rec = False           # record button shown (ScreenRecorder toggle, same rule as the wide layout)
     self._bp_c4_leads = None         # c4_leads.Comma4Leads, made on the first comma 4 frame
     self._bp_c4_lead_policy = None   # hud_compose.PolicyToggles (HideLeadMarker, AdjacentLeadsUI)
+    self._bp_c4_arc = None           # steering_arc.ArcState for the comma 4 arc, made on the first comma 4 frame
+    self._bp_c4_arc_t = -1.0
+    self._bp_c4_arc_started = None
+    self.bp_c4_arc_ok = False        # False: the stock torque bar is drawn instead
+    self.bp_c4_bsm = None            # (left, right) border halves in BSM red, or None
+    self._bp_c4_bsm_next = -1.0
+    self._bp_c4_bsm_on = False
 
   def _update_state(self):
     super()._update_state()
@@ -507,6 +514,71 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
         cloudlog.exception("comma 4 layout inputs failed")
         self.bp_c4_gauge = None
         self.bp_c4_arrow_dir = 0
+      self._bp_c4_update_arc()
+      self._bp_c4_update_bsm()
+
+  def _bp_c4_update_arc(self):
+    """BogPilot steering arc state (same inputs and 20 Hz rate as the wide arc). Any failure keeps the stock torque bar
+    until the next drive."""
+    sm, now = ui_state.sm, time.monotonic()
+    if self._bp_c4_arc is None:
+      self._bp_c4_arc = ARC.ArcState()
+    if self._bp_c4_arc_started != ui_state.started_frame:
+      self._bp_c4_arc_started = ui_state.started_frame
+      self._bp_c4_arc.reset()
+      self._bp_c4_arc_failed = False
+    if getattr(self, "_bp_c4_arc_failed", False):
+      self.bp_c4_arc_ok = False
+      return
+    if not all(_fresh(sm, n) for n in ("controlsState", "carState", "carControl")):
+      self.bp_c4_arc_ok = False
+      self._bp_c4_arc.reset()
+      return
+    if now - self._bp_c4_arc_t < 1.0 / ARC.UPDATE_HZ:
+      return
+    self._bp_c4_arc_t = now
+    try:
+      vp = sm["vehicleParameters"] if _fresh(sm, "vehicleParameters") else None
+      co = sm["carOutput"] if _fresh(sm, "carOutput") else None
+      cp = ui_state.CP
+      max_lat = float(cp.maxLateralAccel) if cp is not None else ARC.DEFAULT_MAX_LAT_ACCEL
+      exp = bool(_fresh(sm, "selfdriveState") and sm["selfdriveState"].experimentalMode)
+      self._bp_c4_arc.update(ARC.inputs_from_messages(sm["controlsState"], sm["carState"], sm["carControl"], co, vp,
+                                                      max_lat, ui_state.status.value, exp))
+      self.bp_c4_arc_ok = True
+    except Exception:
+      cloudlog.exception("comma 4 steering arc inputs failed; stock torque bar kept until the next drive")
+      self.bp_c4_arc_ok = False
+      self._bp_c4_arc_failed = True
+
+  def _bp_c4_update_bsm(self):
+    """Blind-spot border halves: same rule as the wide layout (has_bsm and (BlindSpotMetrics or DebugMode); a
+    full-screen or critical alert keeps the whole border)."""
+    self.bp_c4_bsm = None
+    try:
+      from openpilot.selfdrive.ui.onroad.bogpilot.bsm_state import blindspots, has_bsm
+      from openpilot.selfdrive.ui.onroad.bogpilot import c4_arc as C4A
+      now = time.monotonic()
+      if now >= self._bp_c4_bsm_next:
+        self._bp_c4_bsm_next = now + 2.0
+        try:
+          s = getattr(self, "_bp_c4_bsm_store", None)
+          if s is None:
+            from openpilot.common.bogpilot_store import ParamStore
+            s = self._bp_c4_bsm_store = ParamStore()
+          level = s.tuning_level()
+          self._bp_c4_bsm_on = bool(s.toggle_bool("BlindSpotMetrics", level) or s.get_bool("DebugMode", False))
+        except Exception:
+          self._bp_c4_bsm_on = False
+      sm = ui_state.sm
+      ss = sm["selfdriveState"] if _fresh(sm, "selfdriveState") else None
+      left, right = blindspots(sm, ui_state.started_frame, now)
+      self.bp_c4_bsm = C4A.bsm_halves(left, right, has_bsm(getattr(ui_state, "CP", None)), self._bp_c4_bsm_on,
+                                      ss is not None and str(ss.alertSize) == "full",
+                                      ss is not None and str(ss.alertStatus) == "critical")
+    except Exception:
+      cloudlog.exception("comma 4 BSM border inputs failed")
+      self.bp_c4_bsm = None
 
   def _bp_c4_update(self):
     sm = ui_state.sm
@@ -563,10 +635,10 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
     self.bp_c4_layout = dict(getattr(self, "bp_c4_lead_layout", {}) or {})
     if self.bp_c4:
       self.bp_c4_layout["dm icon"] = C4.DM_ICON if getattr(self, "bp_c4_dm_drawn", False) else None
-    super()._render(rect)
-    if self.bp_c4:
+      self._bp_render_c4_stock(rect)
       self._bp_render_c4(rect)
       return
+    super()._render(rect)
     if toggles.get("RedesignUI") and self._can_draw_top_icons:
       draw_cluster(self, rect, mici=True)
     if self._can_draw_top_icons:
@@ -588,6 +660,32 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
                           unit="KM/H" if ui_state.is_metric else "MPH", engaged=bool(self._engaged),
                           show_limit=bool(lim.show_limit), limit=str(lim.limit))
 
+  def _bp_render_c4_stock(self, rect):
+    """The stock mici HUD order with the comma 4 changes: the BogPilot arc on the stock torque-bar geometry (raised)
+    instead of the torque bar, the model-source warnings kept, no set-speed box and no wheel icon."""
+    from openpilot.selfdrive.ui.onroad.bogpilot import c4_arc as C4A
+    drawn = False
+    if self.bp_c4_arc_ok and self._bp_c4_arc is not None:
+      try:
+        self.bp_c4_layout.update(C4A.paint(self._bp_c4_arc, rect))
+        drawn = True
+      except Exception:
+        cloudlog.exception("comma 4 steering arc paint failed; stock torque bar kept until the next drive")
+        self.bp_c4_arc_ok = False
+        self._bp_c4_arc_failed = True
+    if not drawn:
+      self._torque_bar.render(rect)
+    self.bp_c4_layout["arc"] = "bogpilot" if drawn else "stock"
+    self._draw_model_source(rect)
+
+  def _bp_c4_border(self, rect, traffic):
+    from openpilot.selfdrive.ui.onroad.bogpilot import c4_arc as C4A
+    longitudinal = bool(getattr(ui_state, "has_longitudinal_control", False))
+    colour = C4A.border_colour(ui_state.status.value, bool(traffic) and bool(self._engaged) and longitudinal)
+    self.bp_c4_layout["border_colour"] = colour
+    self.bp_c4_layout["bsm"] = self.bp_c4_bsm
+    self.bp_c4_layout.update(C4A.paint_border(rect, colour, self.bp_c4_bsm))
+
   def _bp_render_c4(self, rect):
     """comma 4 BogPilot layout (device type mici only). Screen = the content rect's origin; positions from c4_layout."""
     ox, oy = rect.x, rect.y
@@ -595,9 +693,10 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
     lay["content_rect"] = (rect.x, rect.y, rect.x + rect.width, rect.y + rect.height)
     vis = C4.visibility(alert_shown=not self._can_draw_top_icons, take_control=bool(self._show_wheel_critical))
     lay["visibility"] = {k: getattr(vis, k) for k in ("pill", "gauge", "dm", "leads", "take_control")}
+    data, traffic = self._bp_c4_personality()
+    self._bp_c4_border(rect, traffic)
     if vis.pill:
       lay.update(C4P.paint_pill(self._bp_c4_pill_inputs(), ox, oy))
-    data, traffic = self._bp_c4_personality()
     self.bp_c4_personality = None if data is None else data.personality
     lay["personality"] = self.bp_c4_personality
     if vis.gauge and self.bp_c4_gauge is not None:
