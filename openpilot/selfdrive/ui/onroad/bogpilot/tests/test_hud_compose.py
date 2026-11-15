@@ -334,6 +334,21 @@ class TestGatingGeometry(Base):
     self.assertIsNone(f.personality_rect)
     self.assertIn(self.rect.t(), [k.t() for k in f.keepouts])
 
+  def test_lead_keepouts_leave_out_only_the_alert(self):
+    alert = FakeAlert(self.calls, alert=SimpleNamespace(size=MID))
+    alert.current_plan = lambda rect: SimpleNamespace(mode="banner", rect=(248, 534, 1732, 245))
+    c = self.composer(alert=alert)
+    c.render(self.rect)
+    f = c.frame
+    keep, lead = [k.t() for k in f.keepouts], [k.t() for k in f.lead_keepouts]
+    self.assertIn((248, 534, 1732, 245), keep)
+    self.assertNotIn((248, 534, 1732, 245), lead)
+    self.assertEqual(sorted(lead + [(248, 534, 1732, 245)]), sorted(keep))
+    self.assertIn(f.stock_dm_rect.t(), lead)
+    c = self.composer()
+    c.render(self.rect)
+    self.assertEqual([k.t() for k in c.frame.lead_keepouts], [k.t() for k in c.frame.keepouts])
+
   def test_banner_plan_rect_used_when_present(self):
     alert = FakeAlert(self.calls, alert=SimpleNamespace(size=MID))
     alert.current_plan = lambda rect: SimpleNamespace(mode="banner", rect=(248, 534, 1732, 245))

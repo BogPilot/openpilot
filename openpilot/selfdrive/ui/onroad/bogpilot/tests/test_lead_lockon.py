@@ -49,7 +49,7 @@ class TestLeadLockOn(unittest.TestCase):
                        _path_offset_z=1.2, _rect=rect(0, 0, 2160, 1080),
                        _car_space_transform=[[0, 1, 0], [0, 0, 1], [1, 0, 0]],
                        _map_to_screen=Mock(return_value=(1080., 650.)))
-    self.flags = dict(enabled=True, engaged=True, longitudinal=True)
+    self.flags = dict(enabled=True, longitudinal=True)
 
   def update(self, **kw):
     return self.lock.update(self.renderer, self.sm, 50, **dict(self.flags, **kw))
@@ -60,6 +60,27 @@ class TestLeadLockOn(unittest.TestCase):
     self.renderer._map_to_screen.assert_called_once_with(30., -2., 1.7)
     self.assertEqual(target.box, self.style.lead_lock_box(1080., 650., 30., 2160., 1080., 0))
     self.assertEqual((target.d_rel, target.v_rel, target.v_ego), (30, -3, 20))
+
+  def test_engagement_is_not_a_gate(self):
+    for engaged in (True, False):
+      with self.subTest(engaged=engaged):
+        target = self.update(engaged=engaged)
+        self.assertIsNotNone(target)
+        self.assertEqual((target.d_rel, target.v_rel), (30, -3))
+    self.assertIsNotNone(self.lock.update(self.renderer, self.sm, 50, enabled=True, longitudinal=True))
+
+  def test_disengaged_still_fails_closed_without_a_real_lead(self):
+    self.sm["radarState"].leadOne.present = False
+    self.assertIsNone(self.update(engaged=False))
+    self.setUp()
+    self.sm.valid["radarState"] = False
+    self.assertIsNone(self.update(engaged=False))
+    self.setUp()
+    self.sm.recv_time["radarState"] = self.now - 0.6
+    self.assertIsNone(self.update(engaged=False))
+    self.setUp()
+    self.renderer._map_to_screen.return_value = (-50., 650.)
+    self.assertIsNone(self.update(engaged=False))
 
   def test_hide_lead_marker(self):
     self.assertIsNotNone(self.update())
@@ -75,8 +96,18 @@ class TestLeadLockOn(unittest.TestCase):
     self.assertFalse(layer.enabled(frame))
     frame.keepouts = []
     frame.full_alert = True
-    self.assertFalse(layer.enabled(frame))
+    self.assertTrue(layer.enabled(frame))           # drawn under a full-screen alert (the alert paints on top)
     frame.full_alert = False
+    frame.engaged = False
+    self.assertTrue(layer.enabled(frame))           # disengaged: still drawn
+    frame.engaged = True
+    frame.keepouts = [self.lock.target.box]         # an alert rect over the box ...
+    frame.lead_keepouts = []                        # ... is not a box keepout
+    self.assertTrue(layer.enabled(frame))
+    frame.lead_keepouts = [self.lock.target.box]    # the HUD / DM / pill still are
+    self.assertFalse(layer.enabled(frame))
+    del frame.lead_keepouts
+    frame.keepouts = []
     frame.hide_lead_marker = True
     self.assertFalse(layer.enabled(frame))
     frame.hide_lead_marker = False

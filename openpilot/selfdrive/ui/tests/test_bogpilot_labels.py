@@ -163,6 +163,9 @@ class TestRuntimeTypes(unittest.TestCase):
     self.assertEqual(layer.lead.speed,"41");self.assertEqual(layer.personality.label,"Standard")
     frame.now=11;layer.update(frame);self.assertIsNone(layer.lead);self.assertIsNone(layer.personality)
     frame.now=10;layer.update(frame);frame.full_alert=True;layer.update(frame)
+    # the lead label follows the lead box under a full-screen alert; the personality pill does not
+    self.assertEqual(layer.lead.speed,"41");self.assertIsNone(layer.personality)
+    frame.full_alert=False;frame.redesign=False;layer.update(frame)
     self.assertIsNone(layer.lead);self.assertIsNone(layer.personality)
 
 if __name__ == '__main__': unittest.main()

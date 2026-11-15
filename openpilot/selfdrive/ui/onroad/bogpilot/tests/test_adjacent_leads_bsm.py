@@ -146,9 +146,11 @@ class TestAdjacentLeads(unittest.TestCase):
   def test_gates(self):
     self.update(adjacent=False)
     self.assertEqual(self.lock.adjacent, [])
-    for kw in ({"engaged": False}, {"longitudinal": False}, {"enabled": False}, {"hide_marker": True}):
+    for kw in ({"longitudinal": False}, {"enabled": False}, {"hide_marker": True}):
       self.update(**kw)
       self.assertEqual(self.lock.adjacent, [], kw)
+    self.update(engaged=False)                                  # engagement is not a condition
+    self.assertEqual([a.side for a in self.lock.adjacent], [0])
 
   def test_paint_colour_rhd_and_primary_suppression(self):
     self.update()
@@ -169,6 +171,11 @@ class TestAdjacentLeads(unittest.TestCase):
                             is_metric=False, keepouts=[], label_keepouts=[], rhd=False)
     self.assertTrue(layer.enabled(frame))
     self.assertIsNone(layer.draw(frame))                # composer then flushes any stock leadOne chevron
+    self.assertEqual(self.lock.adjacent_painted, [0])
+    frame.engaged = False                               # disengaged and under a full-screen alert: still drawn
+    frame.full_alert = True
+    self.assertTrue(layer.enabled(frame))
+    self.assertIsNone(layer.draw(frame))
     self.assertEqual(self.lock.adjacent_painted, [0])
     frame.adjacent_leads = False
     self.assertFalse(layer.enabled(frame))
