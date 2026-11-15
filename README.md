@@ -1,6 +1,6 @@
 # BogPilot for legacy Tesla Model S / X (openpilot 0.11.2 base)
 
-Branch: `bogpilot-tesla` (openpilot 0.11.2 base, comma 3X on AGNOS 19.9).
+Branch: `bogpilot-tesla` (openpilot 0.11.2 base, comma 3X on AGNOS 19.9). Release tag: `bogpilot-tesla-c3x-0.11.2`.
 
 BogPilot is a community fork. It is not a comma product. You are always responsible for driving: keep your hands on the
 wheel and your eyes on the road, and be ready to take over at any time.
@@ -36,7 +36,7 @@ with no Mobileye on bus 2.
   reports everything working on this build. No other driver or car has tested it.
 - AP1 Model X and Pre-AP Model S: no engaged drive logs. The driver-override numbers were chosen from AP1 Model S
   driving and are unproven on those cars.
-- Panda safety changes since commit `15baccd4f`, the bench-driven build: the optional Pre-AP Bosch radar gateway
+- Panda safety changes since commit `a4296aee`, the bench-driven build: the optional Pre-AP Bosch radar gateway
   (`opendbc_repo/opendbc/safety/modes/tesla_preap_radar.h`, with small hooks in `tesla.h` and `tesla_preap.h`; off unless
   safety flag 256 is set) and its tests, one added Pre-AP pedal/brake test, and the panda source identity check
   (`panda/build_identity.py`). The AP1 safety path is unchanged. The radar gateway has no drive logs.
@@ -61,11 +61,12 @@ with this tree. Do not install it on a comma 3X that is already on AGNOS 19.9.
 - Auto is stock openpilot 0.11.2 switching: in Experimental Mode with a wide stream, wide below 11 mph, narrow above
   22 mph, otherwise narrow. Standard always shows the narrow road camera; Wide always the wide one.
 - The old "Driver" choice is gone; a saved Driver value reads as Auto. The cabin camera still shows in reverse.
-- Registered default 0 (Auto). Settings > Visuals, under Quality of Life Visuals (default On).
+- Registered default 0 (Auto). BogPilot > Appearance, under Quality of Life Visuals (default On).
 
 ### Accel / decel bars (Pedals on Screen; default: **On**)
 - Two vertical bars replace the 0.9.7 pedal icons: decel on the left, accel on the right. They show when openpilot
-  longitudinal is active, Driving Screen Widgets is on (default On) and Pedals on Screen is on (default **On**).
+  longitudinal is active, Driving Screen Widgets is on (default On), Pedals on Screen is on (default **On**) and Dynamic
+  Pedals is on (default On). All three are under BogPilot > Appearance.
 - AP1 decel bar: total braking decel on one scale. **2.0 m/s² fills 50 %**, 3.5 m/s² fills 100 %.
 - Colours:
   - regen (you, or nobody, braking with regen): **blue**; OP regen decel: dusty blue;

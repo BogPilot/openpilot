@@ -1,5 +1,8 @@
 # Release-tizi raylib onroad adapter
 
+> Development note, kept for reference. It describes this piece of work at the time it was written, not the
+> released build. For what the release does, see `README.md` and `docs/bogpilot_c3x.md`.
+
 Base: release-tizi/release-mici `f7db927c7` (0.11.2, AGNOS 19.9).
 This is source-only work, not a prebuilt, device install or validated release.
 

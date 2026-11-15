@@ -1,5 +1,8 @@
 # C3X release-candidate startup acceptance gate
 
+> Development note, kept for reference. It describes this piece of work at the time it was written, not the
+> released build. For what the release does, see `README.md` and `docs/bogpilot_c3x.md`.
+
 Scope: settings lifecycle, NOT full operating-system boot, device validation,
 closed-loop actuation, firmware validation, or release promotion. No manager_init,
 manager.main/thread, hardware processes, registration, network or live settings IO.
@@ -91,5 +94,5 @@ PYTHONPATH=$PWD python -m pytest -q \
 
 Limits: no real power cut/fsync failure certification, no private vehicle data,
 no automatic recovery/restore, no data-retention policy change. Native VM run and
-final candidate SHA acceptance are pending while primary owns the VM lock. No
+final candidate SHA acceptance were not part of this note. No
 production data mutation, product push, flash or binary commits.

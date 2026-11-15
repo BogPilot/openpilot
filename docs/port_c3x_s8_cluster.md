@@ -1,5 +1,8 @@
 # C3X/C4 raylib cluster layout + hide-accel
 
+> Development note, kept for reference. It describes this piece of work at the time it was written, not the
+> released build. For what the release does, see `README.md` and `docs/bogpilot_c3x.md`.
+
 Base: release-tizi `f7db927c7` (0.11.2 / AGNOS 19.9), on top of the onroad
 adapter (`ec9b1aeb8`) and shipping-defaults (`6d6ca84f0`) cherry-picks.
 Source-only; no pyray render, device install or drive test.
@@ -25,7 +28,7 @@ of frame rate; cleared on drive start or stale carState. Settings row:
 `read_csc_status` takes only a fresh (<= 0.5 s), valid, current-drive
 `bogpilotPlan` from an optional SubMaster created only when the service is in
 SERVICE_LIST. Stock release-tizi never shows CSC. No planner or csc-straight
-import. Dormant until a real `bogpilotPlan` publisher exists.
+import. In the release, `plannerd` publishes `bogpilotPlan`.
 
 ## Cherry-pick note
 

@@ -1,5 +1,8 @@
 # C3X startup lifecycle and sandbox smoke
 
+> Development note, kept for reference. It describes this piece of work at the time it was written, not the
+> released build. For what the release does, see `README.md` and `docs/bogpilot_c3x.md`.
+
 Local startup integration; **not device/boot/road validation**. No native outputs
 changed. CSC implementation and public replay evidence are unchanged.
 
@@ -98,7 +101,7 @@ recorded from actual matching build; this checker cannot prove an untrusted buil
 manifest or substitute for real compilation/link tests. w7 source identity suite
 runs if present. Native firmware outputs must be rebuilt by the assembly owner;
 this Python-only branch changes no prebuilt output. Real native/combined tests
-remain pending; no VM lock was acquired by this worker.
+were not run for this note.
 
 Unchanged native Params regression could not collect on this host (missing zmq);
 unchanged CSC unit suite could not collect (missing setproctitle). Neither was
