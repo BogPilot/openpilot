@@ -236,15 +236,20 @@ class TestSidebar(unittest.TestCase):
     self.assertEqual(s._slot_memory, "memory")
     self.assertEqual(writes, {"ShowMemoryUsage": True, "ShowStorageLeft": False, "ShowStorageUsed": False})
 
-  def test_tap_in_the_temperature_box_cycles_status_celsius_fahrenheit(self):
+  def test_tap_in_the_temperature_box_cycles_status_celsius_fahrenheit_power(self):
     m, s, writes, tap = self.tapper({"ShowCPU": "1", "ShowMemoryUsage": "1"})   # numerical temperature unset in this fake = off
     self.assertEqual(s._temp_mode, "status")
+    self.assertEqual(s._slot_upper, "status")
     tap(100, 338 + 60)
-    self.assertEqual(s._temp_mode, "celsius")
+    self.assertEqual((s._temp_mode, s._slot_upper), ("celsius", "celsius"))
     tap(100, 338 + 60)
+    self.assertEqual((s._temp_mode, s._slot_upper), ("fahrenheit", "fahrenheit"))
+    tap(100, 338 + 60)
+    # Power keeps the last temp-mode params; the next tap returns to status.
+    self.assertEqual(s._slot_upper, "power")
     self.assertEqual(s._temp_mode, "fahrenheit")
     tap(100, 338 + 60)
-    self.assertEqual(s._temp_mode, "status")
+    self.assertEqual((s._temp_mode, s._slot_upper), ("status", "status"))
 
   def test_the_cycle_starts_from_what_is_stored_not_from_zero(self):
     m, s, writes, tap = self.tapper({"ShowGPU": "1", "ShowMemoryUsage": "1", "NumericalTemp": "1", "Fahrenheit": "1"})
@@ -252,7 +257,8 @@ class TestSidebar(unittest.TestCase):
     tap(100, 496 + 60)
     self.assertEqual(s._slot_chip, "cpu")
     tap(100, 338 + 60)
-    self.assertEqual(s._temp_mode, "status")
+    self.assertEqual(s._slot_upper, "power")
+    self.assertEqual(s._temp_mode, "fahrenheit")
 
   def test_onroad_the_vehicle_box_flips_to_cpu_and_the_others_cycle(self):
     from openpilot.common import bogpilot_toggles as bt

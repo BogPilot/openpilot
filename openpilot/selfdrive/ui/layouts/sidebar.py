@@ -3,11 +3,12 @@ from dataclasses import dataclass
 from collections.abc import Callable
 from openpilot.cereal import log
 from openpilot.common.params import Params
-from openpilot.selfdrive.ui.bogpilot.sidebar_metrics import (device_readings, metric_visibility_from_params, slot_choices,
+from openpilot.selfdrive.ui.bogpilot.sidebar_metrics import (Reading, device_readings, metric_visibility_from_params, slot_choices,
                                                               slot_flags_from_params, chip_reading, storage_reading, data_usage_gb,
-                                                              IpReader, cycle_chip, cycle_memory, cycle_temp, temp_mode,
-                                                              read_vehicle_slot, write_vehicle_slot, cycle_vehicle_slot,
-                                                              vehicle_slot_shown)
+                                                              IpReader, cycle_chip, cycle_memory, temp_mode, temp_writes,
+                                                              power_reading, read_upper_slot, write_upper_slot, cycle_upper_slot,
+                                                              upper_slot_shown, read_vehicle_slot, write_vehicle_slot,
+                                                              cycle_vehicle_slot, vehicle_slot_shown)
 from openpilot.selfdrive.ui.onroad.bogpilot.overlay_gate import OverlayGate
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app, FontWeight, MousePos, FONT_SCALE
@@ -73,6 +74,7 @@ class Sidebar(Widget):
     super().__init__()
     self._params = Params()
     self._offroad_temp_status = MetricData(tr_noop("TEMP"), "--", Colors.GRAY)
+    self._power_status = MetricData(tr_noop("POWER"), "--", Colors.GRAY)
     self._cpu_status = MetricData(tr_noop("CPU"), "--", Colors.GRAY)
     self._ram_status = MetricData(tr_noop("RAM"), "--", Colors.GRAY)
     self._net_type = NETWORK_TYPES[NetworkType.none]
@@ -85,7 +87,7 @@ class Sidebar(Widget):
     self._panda_status = MetricData(tr_noop("VEHICLE"), tr_noop("ONLINE"), Colors.GOOD)
     self._recording_audio = False
     self._hw_args = (None, False)        # (deviceState, fresh) of the last metrics update, to redraw at once after a tap
-    self._metric_hits: list = []         # (rect, kind) of the boxes drawn last frame; kind is "temp", "chip", "memory" or "vehicle"
+    self._metric_hits: list = []         # (rect, kind) of the boxes drawn last frame; kind is "temp" (upper box), "chip", "memory" or "vehicle"
 
     # Load BogPilot home mark at native PNG resolution (360x360). Forcing a CPU
     # image_resize down to HOME_BTN (180) then drawing with GPU bilinear double-filters
@@ -161,10 +163,35 @@ class Sidebar(Widget):
     self._show_memory = show_memory
     self._numerical_temp = numerical_temp
     self._temp_mode = temp_mode(numerical_temp, fahrenheit)
+    # Upper box (offroad and onroad): Power only when SidebarUpperSlot is exactly "power". A Visuals change of
+    # NumericalTemp / Fahrenheit while Power is showing leaves Power and shows that temp mode.
+    stored_upper = read_upper_slot()
+    shown_upper = upper_slot_shown(stored_upper, numerical_temp, fahrenheit)
+    if shown_upper == "power":
+      snapshot = getattr(self, "_power_temp_mode", None)
+      if snapshot is None:
+        self._power_temp_mode = self._temp_mode
+        self._slot_upper = "power"
+      elif self._temp_mode != snapshot:
+        write_upper_slot(self._temp_mode)
+        self._power_temp_mode = None
+        self._slot_upper = self._temp_mode
+      else:
+        self._slot_upper = "power"
+    else:
+      self._power_temp_mode = None
+      self._slot_upper = self._temp_mode
     readings = device_readings(device_state, fresh=fresh, fahrenheit=fahrenheit)
     colors = {"good": Colors.GOOD, "warning": Colors.WARNING, "danger": Colors.DANGER, "unknown": Colors.GRAY}
     for metric, reading in zip((self._offroad_temp_status, self._cpu_status, self._ram_status), readings, strict=True):
       metric.update(metric.label, reading.value, colors[reading.level])
+    if not hasattr(self, "_power_status"):
+      self._power_status = MetricData(tr_noop("POWER"), "--", Colors.GRAY)
+    try:
+      power = power_reading() if not hasattr(self, "_power_read") else self._power_read()
+    except Exception:
+      power = Reading()
+    self._power_status.update(self._power_status.label, power.value, colors.get(power.level, Colors.GRAY))
     # chip slot: CPU or GPU; memory slot: RAM, storage left or storage used (0.9.7). CPU and RAM keep their slots by default.
     flags = slot_flags_from_params(self._params) | {"ShowCPU": show_cpu, "ShowMemoryUsage": show_memory}
     self._slot_chip, self._slot_memory = slot_choices(flags)
@@ -233,7 +260,18 @@ class Sidebar(Widget):
     elif kind == "memory":
       writes = cycle_memory(getattr(self, "_slot_memory", "memory"))
     elif kind == "temp":
-      writes = cycle_temp(getattr(self, "_temp_mode", "celsius"))
+      # Upper box, offroad and onroad: status -> celsius -> fahrenheit -> power -> status.
+      current = getattr(self, "_slot_upper", getattr(self, "_temp_mode", "celsius"))
+      nxt = cycle_upper_slot(current)
+      if nxt == "power":
+        if write_upper_slot("power"):
+          self._slot_upper = "power"
+          self._power_temp_mode = getattr(self, "_temp_mode", "celsius")
+        self._update_hardware_metrics(self._hw_args[0], fresh=self._hw_args[1])
+        return
+      writes = temp_writes(nxt)
+      write_upper_slot(nxt)
+      self._power_temp_mode = None
     elif kind == "vehicle":
       # onroad middle box: vehicle status <-> CPU, saved as a file choice (SidebarVehicleSlot). While "NO PANDA" holds
       # the box a tap is ignored and nothing is written, so the driver's choice comes back with the panda.
@@ -326,8 +364,12 @@ class Sidebar(Widget):
     memory_metric = {"memory": self._ram_status, "storage_left": extra.get("storage_left"),
                      "storage_used": extra.get("storage_used")}.get(memory)
     slots = (338, 496, 654)
-    # The temperature box shows GOOD / HIGH or the number in C or F, onroad as well as offroad, as saved by tapping it.
-    temp_metric = self._offroad_temp_status if numerical_temp else self._temp_status
+    # The upper box shows GOOD / HIGH, the number in C or F, or Power, onroad as well as offroad, as saved by tapping it.
+    slot_upper = getattr(self, "_slot_upper", "celsius" if numerical_temp else "status")
+    if slot_upper == "power":
+      temp_metric = getattr(self, "_power_status", MetricData(tr_noop("POWER"), "--", Colors.GRAY))
+    else:
+      temp_metric = self._offroad_temp_status if slot_upper != "status" else self._temp_status
     if ui_state.started:
       # The middle box is the vehicle status, or CPU when the driver tapped it to CPU (SidebarVehicleSlot). "NO PANDA"
       # always takes it back, so a missing panda is never hidden.
