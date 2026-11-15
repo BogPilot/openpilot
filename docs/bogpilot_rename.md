@@ -50,20 +50,25 @@ Renamed Params keys that persist across boots:
 `FrogPilotMinutes`, `FrogPilotStats`, `FrogPilotTelemetry` (each now `BogPilot...`). The other renamed keys are cleared on
 every manager start, so there is nothing to carry over for them.
 
-`openpilot/system/bogpilot/legacy_migration.py` copies the old values to the new keys once. It runs at the start of
-`bogpilot_startup.before_defaults`, before registered defaults are applied.
+`openpilot/system/bogpilot/legacy_migration.py` copies the old values to the new keys once. `manager_init` runs it
+through `bogpilot_startup.before_clear`, before its first `clear_all`: the old names are not registered keys any more, so
+`clear_all` deletes their files from the Params directory as unknown names. That is also before registered defaults are
+applied. `bogpilot_startup.before_defaults` runs it again after the clears (a no-op once the done marker exists), which
+still finds values kept only under `/data/params_bogpilot`.
 
 * Reads the old value from the real Params directory first, then from `/data/params_bogpilot/<OldKey>`.
 * Writes the new key to real Params when the params library knows it, otherwise to `/data/params_bogpilot/<NewKey>`.
-* Copy only: the old key is never deleted or rewritten, so a downgrade finds its settings.
+* Copy only: the migration never deletes or rewrites the old key. The old files in the Params directory are still
+  removed by the manager's `clear_all` right after the copy, as for any unknown name; copies under
+  `/data/params_bogpilot` stay.
 * A new key that already holds a value is never overwritten. Running again changes nothing.
 * The stats JSON also contained counters named `FrogPilotDrives`, `FrogPilotMeters` and `FrogPilotSeconds`; these are
   renamed inside the copy, every other counter is carried over untouched. `drive_tracking.load_stats` also accepts the
   old counter names.
 * A failure on one key never stops the others and never raises into the manager. The done marker
   (`/data/params_bogpilot/BogPilotRenameMigrated1`) is written only when every key settled, so a partial run is retried
-  on the next boot, and once the marker exists the migration does not run again (a value the user cleared later is not
-  brought back).
+  on the next boot (by then only from `/data/params_bogpilot`), and once the marker exists the migration does not run
+  again (a value the user cleared later is not brought back).
 
 `/data/params_bogpilot` itself, and the other file-backed names under it, are unchanged.
 

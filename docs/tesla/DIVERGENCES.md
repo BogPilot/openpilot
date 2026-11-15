@@ -803,3 +803,12 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   in `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_bosch_radar.py`.
 - Credits: BogPilot 0.9.7 (controlsd.py radarState `ignore_avg_freq`); Tinkla/BogGyver (radard.py radar-timed
   SubMaster); NAP (radard.py excluding liveTracks from all_checks); measured AP1 Bosch rate.
+
+## Settings: values saved under the pre-rename FrogPilot* key names are carried over before the manager clears params
+- Platforms: all (manager startup, settings storage only).
+- Reference behavior: BogPilot 0.9.7 registers the FrogPilot-prefixed keys itself (`common/params.cc`: `FrogPilotApiToken`, `FrogPilotStats`, `FrogPilotDrives` and the rest), so nothing is renamed or migrated.
+- Our behavior: those keys are registered here under BogPilot-prefixed names. On the first boot after an update, `openpilot/system/manager/manager.py` `manager_init` calls `bogpilot_startup.before_clear` before any `clear_all`. It copies the 8 persistent old values (table `LEGACY_PARAM_RENAMES` in `openpilot/system/bogpilot/legacy_migration.py`) to the new names, reading the old names as plain files; they are never registered. `clear_all` then removes the old files as unknown names, as before. A new key that already holds a value is never overwritten, the 4 old clear-on-start keys (`FrogPilotCarParams`, `FrogPilotToggles`, `FrogPilotTogglesUpdated`, `FrogPilotTuningLevels`) are not carried over, and other unknown files are still deleted. `before_defaults` runs the same migration again (a no-op once its done marker exists) for values kept only under the BogPilot file store. Only key names and exception types are logged, never values.
+- Why: the migration used to run after `clear_all`, which had already deleted the old files, so stats, the dongle id and the API token saved under the old names were lost unless a copy was in the file store.
+- Safety-relevant: no. Settings and stats only; nothing in controls or panda changes.
+- Tests: `openpilot/system/manager/test/test_param_migration_clear_order.py`, `openpilot/system/bogpilot/tests/test_legacy_migration.py`.
+- Credits: BogPilot 0.9.7 / FrogPilot (the old key names).
