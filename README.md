@@ -5,6 +5,15 @@ Branch: `bogpilot-tesla` (openpilot 0.11.2 base, comma 3X on AGNOS 19.9).
 BogPilot is a community fork. It is not a comma product. You are always responsible for driving: keep your hands on the
 wheel and your eyes on the road, and be ready to take over at any time.
 
+> [!IMPORTANT]
+> **`bogpilot-tesla` is currently comma 3X only.** Install URL for comma 3X: `installer.comma.ai/BogPilot/bogpilot-tesla`
+>
+> **comma 3 owners: do not install `bogpilot-tesla`.** comma does not officially support AGNOS 19.9 on comma 3 hardware.
+> If you have a comma 3 and a Model S AP1, use the `bogpilot-tesla-0.9.7` branch (AGNOS 10.1, which runs on the comma 3):
+> `installer.comma.ai/BogPilot/bogpilot-tesla-0.9.7`
+>
+> A 0.11.0 / AGNOS 17.2 LTS version will be backported from 0.11.2 once the full legacy Tesla integration is complete in v0.11.2.
+
 [![BogPilot on a legacy Model S (replay, signs and plates blurred).](docs/media/bogpilot_ui_replay_poster.png)](https://github.com/user-attachments/assets/bd31ac4c-b7e6-4b28-ac7b-2f897dcfb026)
 
 *BogPilot on a legacy Model S (replay, signs and plates blurred). Click the picture for the video.*
@@ -107,7 +116,7 @@ BogPilot does not register with comma servers and does not upload driving data t
 - comma.ai openpilot (MIT).
 - FrogPilot by FrogAi (James) and contributors (MIT); BogPilot forks FrogPilot's work.
 - Eric Brown (nworb-cire): imported OPGM / FrogPilot 0.9.7 history.
-- BogPilot 0.9.7 (`bogpilot-tesla`), Tinkla / BogGyver openpilot and NotAutopilot (NAP) are the Tesla references.
+- BogPilot 0.9.7 (`bogpilot-tesla-0.9.7`), Tinkla / BogGyver openpilot and NotAutopilot (NAP) are the Tesla references.
 - mapd map data by pfeiferj (MIT).
 - Beta tester **IRIT-able** (GitHub, fork `github.com/IRIT-able/bogpilot-openpilot`) found and fixed, on Nov 5 2026, the same
   Pre-AP problems that BogPilot's Pre-AP work fixes: the Comma Pedal sensor bit layout (GAS_SENSOR state and counter nibbles),
