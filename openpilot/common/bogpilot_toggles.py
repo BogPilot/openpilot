@@ -55,6 +55,8 @@ FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
   # Pre-AP Bosch radar retrofit (tesla_ap1/preap/params.py). Default OFF. Backed up and restored; never reset.
   "TeslaRadarEnabled": (False, "Pre-AP Bosch radar retrofit"),
   "TeslaRadarBehindNosecone": (False, "Pre-AP Bosch radar behind the nosecone"),
+  # Pre-AP iBooster swap (tesla_ap1/preap/params.py). Default OFF. Display only. Backed up and restored; never reset.
+  "TeslaHasIBooster": (False, "Pre-AP iBooster swap brake bar"),
 }
 
 # key: (default, allowed values) for the few text-valued files

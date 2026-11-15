@@ -18,12 +18,14 @@ CLUSTER = "EnableICIntegration"
 REGEN = "RegenComfortBrake"
 RADAR = "TeslaRadarEnabled"
 RADAR_NOSECONE = "TeslaRadarBehindNosecone"
+IBOOSTER = "TeslaHasIBooster"
 TITLES = {LONG: "Disable openpilot Longitudinal Control",
           CLUSTER: "Tesla AP1: Dash Cluster Integration",
           REGEN: "Tesla AP1: Earlier, Gentler Regen Stops",
           DOUBLE_PULL: "Pre-AP: Double Pull to Engage Pedal Longitudinal",
           RADAR: "Pre-AP: Bosch Radar",
-          RADAR_NOSECONE: "Pre-AP: Radar Behind Nosecone"}
+          RADAR_NOSECONE: "Pre-AP: Radar Behind Nosecone",
+          IBOOSTER: "Pre-AP: iBooster Swap"}
 # Pre-AP wording for the shared Disable row (AP1 keeps the stock text).
 PREAP_LONG_TITLE = "Disable Pedal Longitudinal"
 PREAP_LONG_DESCRIPTION = ("Turn on to disable Comma Pedal longitudinal (steering only). Leave it off so BogPilot can control your speed through a "
@@ -53,6 +55,9 @@ DESCRIPTIONS = {
          "Takes effect the next time the car starts.",
   RADAR_NOSECONE: "Turn on if the radar is mounted behind the nosecone. Shown while Bosch Radar is on. "
                   "Takes effect the next time the car starts.",
+  IBOOSTER: "Turn on only if the car has an aftermarket iBooster fitted on the chassis bus. The brake bar on the driving screen "
+            "then follows how far the brake pedal is pressed instead of showing full or empty. Display only. "
+            "Takes effect the next time the car starts.",
 }
 
 
@@ -101,6 +106,8 @@ class VehicleSettings:
       return preap_params.aol_available()
     if key == RADAR:
       return is_preap(cp)              # Pre-AP retrofit only; AP1 has its own radar and never shows the row
+    if key == IBOOSTER:
+      return is_preap(cp)              # Pre-AP swap only; AP1 cars have the factory iBooster (0x39D brake level)
     if key == RADAR_NOSECONE:
       # Sub-option: shown only while the main radar toggle is On (NotAutopilot nap.py:160-175@e99f4dc75 has both rows).
       from opendbc.car.tesla_ap1.preap import params as preap_params
@@ -161,7 +168,7 @@ class VehicleSettings:
   def read(self, key):
     if key == LONG:
       return self.toggles.disable_openpilot_long(paths=(self.file_dir / LONG, self.params_file))
-    if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE):
+    if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE, IBOOSTER):
       from opendbc.car.tesla_ap1.preap import params as preap_params
       return preap_params.get_bool(key)
     # Missing/unreadable files have the consumer's default-on semantics.
@@ -180,7 +187,7 @@ class VehicleSettings:
     if not self.enabled(key):
       return False
     state = bool(state)
-    if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE):
+    if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE, IBOOSTER):
       from opendbc.car.tesla_ap1.preap import params as preap_params
       preap_params.set_bool(key, state)
       return True

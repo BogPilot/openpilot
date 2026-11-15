@@ -36,7 +36,8 @@
     "Phase3StopAccelEnabled",
     "Phase3StoppingRateEnabled",
     "TeslaRadarEnabled",
-    "TeslaRadarBehindNosecone"
+    "TeslaRadarBehindNosecone",
+    "TeslaHasIBooster"
   ],
   "setting_keys": [
     "AccelerationPath",

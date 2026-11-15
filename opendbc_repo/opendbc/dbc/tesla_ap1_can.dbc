@@ -947,6 +947,20 @@ BO_ 1362 GAS_SENSOR: 6 INTERCEPTOR
  SG_ CHECKSUM : 47|8@0+ (1,0) [0|3] "" EON
 
 VAL_ 1362 STATE 5 "FAULT_TIMEOUT" 4 "FAULT_STARTUP" 3 "FAULT_SCE" 2 "FAULT_SEND" 1 "FAULT_BAD_CHECKSUM" 0 "NO_FAULT" ;
+
+BO_ 1364 ECU_BrakeStatus: 5 iBooster
+ SG_ DriverBrakeApplied : 17|1@1+ (1,0) [0|1] ""  EON
+ SG_ BrakePedalPosition : 20|12@1+ (0.015625,-5) [0|47] "mm"  EON
+ SG_ BrakeApplied : 18|1@1+ (1,0) [0|1] ""  EON
+ SG_ BrakeOK : 16|1@1+ (1,0) [0|1] ""  EON
+ SG_ Status : 12|4@1+ (1,0) [0|15] ""  EON
+ SG_ Brake_Counter : 8|4@1+ (1,0) [0|15] ""  EON
+ SG_ Brake_Checksum : 0|8@1+ (1,0) [0|255] ""  EON
+
+VAL_ 1364 DriverBrakeApplied 1 "Yes" 0 "No" ;
+VAL_ 1364 BrakeApplied 1 "Yes" 0 "No" ;
+VAL_ 1364 BrakeOK 1 "Yes" 0 "No" ;
+VAL_ 1364 Status 5 "FAULT_TIMEOUT" 4 "FAULT_STARTUP" 3 "FAULT_SCE" 2 "FAULT_SEND" 1 "FAULT_BAD_CHECKSUM" 0 "NO_FAULT" ;
 # CAN ID clashes (bus 0 vs bus 1). These IDs are intentionally not given BO_
 # definitions here: this DBC is the chassis map (bus 0). Adding a BO_ for a
 # 5-byte park frame at the same ID as the 8-byte radar track would be easy to
@@ -959,6 +973,7 @@ VAL_ 1362 STATE 5 "FAULT_TIMEOUT" 4 "FAULT_STARTUP" 3 "FAULT_SCE" 2 "FAULT_SEND"
 # Pre-AP panda has disable_forwarding. Never apply an ID-only filter.
 CM_ "0x32e (814) on bus 0 is PARK_sensorStatusFront (5 bytes, 4 Hz, front corner ultrasonics in cm, 255 = no reading). On bus 1 the same ID is RadarPoint10_A (8 bytes, ~16 Hz) in tesla_radar_bosch_generated. Never filter by ID alone.";
 CM_ "0x33e (830) on bus 0 is the rear park corners (5 bytes, 4 Hz). On bus 1 the same ID is RadarPoint15_B (8 bytes, ~16 Hz). Radar parsing is bus 1 only; Pre-AP panda disable_forwarding is on.";
+CM_ BO_ 1364 "Aftermarket iBooster swap on a Pre-AP car, chassis bus 0 (BogGyver opendbc 9c0b6fe tesla_can.dbc BO_ 1364, read by Tinkla's TinklaHasIBooster path). Parsed only when the Pre-AP iBooster toggle is on, for the onroad brake bar (display only). Parse only (never sent); the checksum and counter are not checked.";
 CM_ BO_ 925 "BogPilot divergence, from drive-log evidence: 0x39D (925) on chassis bus 0, 4 bytes, 25 Hz on AP1, the brake booster rod-stroke frame. No BogPilot, Tinkla or NAP definition exists. The 5-byte Model 3 IBST_status layout does not match these frames and is NOT used. Parse only (never sent).";
 CM_ SG_ 925 brakeBoosterChecksum "(0x9D + 0x03 + byte 1 + byte 2 + byte 3) & 0xFF, the Tesla sum checksum; valid on every logged frame. Checked in tesla_ap1/brake_level.py (no parser checksum hook for this DBC).";
 CM_ SG_ 925 brakeBoosterCounter "Alive counter, +1 mod 16. The high nibble of byte 1 was always 0 in the logs and is not defined.";

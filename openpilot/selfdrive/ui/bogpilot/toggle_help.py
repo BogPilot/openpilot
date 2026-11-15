@@ -174,6 +174,13 @@ _add("TeslaRadarBehindNosecone", "Pre-AP: Radar Behind Nosecone",
      when="If your retrofit radar sits behind the nosecone.",
      note="Shown only while Bosch Radar is on. Takes effect the next time the car starts. " + _OFFROAD,
      default="Off")
+_add("TeslaHasIBooster", "Pre-AP: iBooster Swap",
+     "For a Pre-AP Model S with an aftermarket iBooster. On: the brake bar of Pedals on Screen follows how far the brake pedal is "
+     "pressed, read from the iBooster. Off: the bar is full while the brake is pressed and empty otherwise. If the iBooster "
+     "stops reporting, the bar stays empty. Display only: braking, engagement and safety are unchanged.",
+     when="Only if an iBooster is fitted and connected to the chassis bus.",
+     note="Pre-AP Model S only. Takes effect the next time the car starts. " + _OFFROAD,
+     default="Off")
 _add("PedalStatus", "Comma Pedal",
      "Live status of the Comma Pedal. Not detected: the car has not heard the pedal lately (also shown with the car off). Needs "
      "calibration: the pedal is heard but not calibrated, so pedal longitudinal stays off. Recalibrate: the saved pedal scale is out of "

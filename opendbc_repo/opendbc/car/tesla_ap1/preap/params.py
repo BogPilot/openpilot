@@ -37,6 +37,10 @@ class PreApParamKeys:
   # Default OFF, Pre-AP only, read once when the car starts (CarParams + safety flags). Nosecone is a sub-option of Enabled.
   RADAR_ENABLED = "TeslaRadarEnabled"
   RADAR_BEHIND_NOSECONE = "TeslaRadarBehindNosecone"
+  # Aftermarket iBooster swap (Tinkla TinklaHasIBooster, selfdrive/car/tesla/carstate.py:115@501c7de). Default OFF, Pre-AP
+  # only, read once when the car starts. Display only: the onroad brake bar follows 0x554 BrakePedalPosition instead of
+  # the binary brake press. NotAutopilot's NAPiBoosterEnabled (nap_params.py:31@e99f4dc75) is defined there but unused.
+  HAS_IBOOSTER = "TeslaHasIBooster"
 
 
 # Safe defaults (match NotAutopilot DEFAULT_CONFIG).
@@ -57,6 +61,7 @@ DEFAULTS = {
   PreApParamKeys.OVERRIDE_SENSITIVITY: 2,
   PreApParamKeys.RADAR_ENABLED: False,
   PreApParamKeys.RADAR_BEHIND_NOSECONE: False,
+  PreApParamKeys.HAS_IBOOSTER: False,
 }
 
 # Overridable in tests.

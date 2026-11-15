@@ -2193,6 +2193,15 @@ FEATURE_SPECS = json.loads(r'''{
     "title": "\"Taco Bell Run\" Torque Hack",
     "type": "BOOL"
   },
+  "TeslaHasIBooster": {
+    "declared_default": "0",
+    "max": null,
+    "min": null,
+    "source": "FILE_TOGGLES",
+    "step": null,
+    "title": "Pre-AP: iBooster Swap",
+    "type": "BOOL"
+  },
   "TeslaRadarBehindNosecone": {
     "declared_default": "0",
     "max": null,

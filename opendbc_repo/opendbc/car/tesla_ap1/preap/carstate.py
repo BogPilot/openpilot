@@ -35,6 +35,7 @@ PANDA_GAS_PRESSED_DBC = 650 * 0.0507968128 - 22.85856576
 # that block is the expected panda refusal, not a reason to drop speed control. Blocks outside the window still demote.
 TX_BLOCK_PRESS_IGNORE_MS = 300
 from opendbc.car.tesla_ap1.preap.cruise import SPD_CTRL_CANCEL, SPD_CTRL_MAIN, is_preap_cancel_echo, pedal_cruise_available
+from opendbc.car.tesla_ap1.preap import ibooster as IBST
 from opendbc.car.tesla_ap1.preap.engagement import Decision, PreAPEngagement, preap_epas_refusing, preap_steer_drop
 from opendbc.car.tesla_ap1.preap.params import PreApParamKeys, get_bool  # noqa: F401
 from opendbc.car.tesla_ap1.preap.pedal_feedback import PedalFeedback
@@ -50,6 +51,8 @@ class PreApCarState(CarStateBase):
     self.button_states = {button.event_type: False for button in BUTTONS}
     self.pedal_long = bool(CP.openpilotLongitudinalControl)
     self.pedal_bus = pedal_can_bus()
+    # iBooster swap toggle, read once when the car starts (get_can_parsers reads the same key for the 0x554 subscription).
+    self.has_ibooster = bool(get_bool(PreApParamKeys.HAS_IBOOSTER))
     # tesla_preap.h:20, :276: tesla_preap_pedal_bus starts at -1 and is latched by the first 0x552 (:128-135).
     self._preap_pedal_bus_latched = False
     self.preap_pedal_bus_mismatch = False
@@ -181,6 +184,13 @@ class PreApCarState(CarStateBase):
     di_brake_pressed = int(cp.vl["DI_torque2"].get("DI_brakePedal", 0) or 0) == 1
     self.real_brake_pressed = bool(di_brake_pressed or brake_message_pressed)
     ret.brakePressed = self.real_brake_pressed
+    # Brake level 0..1 for the onroad pedal gauge, in the deprecated CarState.brake slot (no schema change; display only):
+    # binary from the press above, or with the iBooster swap toggle the 0x554 pedal position (missing / stale / fault -> -1).
+    # brakePressed itself never changes with the toggle.
+    if self.has_ibooster:
+      ret.deprecated.brake = IBST.ibooster_brake_level(cp.vl.get(IBST.MSG), frame_fresh(cp, IBST.MSG, IBST.IBOOSTER_MAX_AGE_S))
+    else:
+      ret.deprecated.brake = IBST.binary_brake_level(self.real_brake_pressed)
     if self.pedal_long and self.preap_pedal_detected:
       ret.gasPressed = bool(self.pedal.gas_pressed)
 
@@ -403,6 +413,9 @@ class PreApCarState(CarStateBase):
       ("UI_driverAssistMapData", OPTIONAL),
       ("UI_gpsVehicleSpeed", OPTIONAL),
     ]
+    if get_bool(PreApParamKeys.HAS_IBOOSTER):
+      # iBooster swap: 0x554 on bus 0, frequency 0 like Tinkla (carstate.py:653-662@501c7de), so canValid never depends on it.
+      messages.append((IBST.MSG, OPTIONAL))
     cam_messages = []
     # Listen on bus 0 and bus 2 so the first 0x552 can latch, as tesla_preap.h:297-298 does.
     messages.append(("GAS_SENSOR", OPTIONAL))
