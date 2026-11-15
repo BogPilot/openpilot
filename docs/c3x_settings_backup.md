@@ -6,8 +6,8 @@ backup_root=Path("/cache/bogpilot/settings-backups"), reason="startup")` returns
 merely that a result object exists. Error is exception type only, never values.
 `read_snapshot(path)` validates and returns a document, never restores settings.
 
-Startup owner calls before reset, migrations and default initialization, while
-writers/processes are quiescent. Reset owner receives a zero-argument closure:
+The startup code calls it before reset, migrations and default initialization, while
+writers/processes are quiescent. The reset code receives a zero-argument closure:
 
 ```python
 backup=lambda: backup_settings(params, file_root=data_root / "params_bogpilot",

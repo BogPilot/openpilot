@@ -8,7 +8,7 @@ wheel and your eyes on the road, and be ready to take over at any time.
 > [!IMPORTANT]
 > **`bogpilot-tesla` is currently comma 3X only.** Install URL for comma 3X: `installer.comma.ai/BogPilot/bogpilot-tesla`
 >
-> **comma 3 owners: do not install `bogpilot-tesla`.** comma does not officially support AGNOS 19.9 on comma 3 hardware.
+> **On a comma 3, do not install `bogpilot-tesla`.** comma does not officially support AGNOS 19.9 on comma 3 hardware.
 > If you have a comma 3 and a Model S AP1, use the `bogpilot-tesla-0.9.7` branch (AGNOS 10.1, which runs on the comma 3):
 > `installer.comma.ai/BogPilot/bogpilot-tesla-0.9.7`
 >

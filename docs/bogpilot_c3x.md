@@ -24,7 +24,7 @@ installer.comma.ai/BogPilot/bogpilot-tesla
 
 ### Wrong-branch warning
 
-- **comma 3 owners: do not install `bogpilot-tesla`.** comma does not officially support AGNOS 19.9 on comma 3
+- **On a comma 3, do not install `bogpilot-tesla`.** comma does not officially support AGNOS 19.9 on comma 3
   hardware. With a comma 3 and a Model S AP1, use `installer.comma.ai/BogPilot/bogpilot-tesla-0.9.7` (AGNOS 10.1).
 - The older 0.9.7 / AGNOS 10.1 line on `bogpilot-tesla-0.9.7` has **no shared history** with this tree. Installing it
   on a comma 3X that is already on AGNOS 19.9 will not give you this feature set and reflashes the OS down to 10.1.

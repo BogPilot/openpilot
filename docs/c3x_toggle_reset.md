@@ -6,9 +6,9 @@ No native import, Params construction, default IO path, migrations, reboot, or U
 
 ## Startup/backup contract
 
-* Startup owner calls serially before registered defaults initialization and before daemons.
+* The startup code calls it serially before registered defaults initialization and before daemons.
 * Only typed `DoToggleResetStock=True` authorizes reset. Unknown/missing request is a no-op.
-* Backup owner supplies a synchronous closure taking no arguments, returning a truthy
+* The backup code supplies a synchronous closure taking no arguments, returning a truthy
   receipt **only after durable preservation of the original typed Params and file store**.
   A missing closure, false result or exception fails before setting mutation. This branch
   does not implement or claim verification of the separate backup dependency.
@@ -48,7 +48,7 @@ Scope is bounded by the settings backup (`settings_backup.py`): preserve
 SearchInput, StartupMessageTop/Bottom, PreferredSchedule, UpdatedToggles and
 BlacklistedModels. The frozen backup-ownership fixture tests every reset target
 is covered (and verifies the backup module's ownership too when it is installed).
-Non-file-only settings use the compiled native owner when present, matching the settings backup;
+Non-file-only settings use the compiled native store when present, matching the settings backup;
 only FILE_ONLY_UI_KEYS force file storage. No inactive native fallback file is
 modified or removed: such bytes were not archived by the settings backup. Do not subsequently
 restore inactive fallback/cache values or reapply AP1 defaults over this reset.
