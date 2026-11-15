@@ -1,5 +1,6 @@
 What's new
 =======================
+* Fixes an onroad crash on git installs. New: comma 4 UI, comma 3X sidebar Power
 * Fixes the comma 3X getting stuck on the BogPilot splash screen after installing
 * Rebuilt the prebuilt params library and the services built with it (pandad, camerad, loggerd, encoderd and bootlog) from the current source
 * Rebuilt the panda firmware from the current safety code. The panda updates itself automatically on the first start after updating, which takes about 10 seconds
