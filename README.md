@@ -1,12 +1,21 @@
 # BogPilot
 
+> [!IMPORTANT]
+> **This is `bogpilot-tesla-0.9.7`, the FrogPilot 0.9.7 / AGNOS 10.1 line, for comma 3 owners with a Model S AP1.**
+> Install URL: `installer.comma.ai/BogPilot/bogpilot-tesla-0.9.7`
+>
+> The current release, BogPilot on openpilot 0.11.2 / AGNOS 19.9, is on `bogpilot-tesla` and is **comma 3X only**:
+> `installer.comma.ai/BogPilot/bogpilot-tesla`. comma 3 owners should not install `bogpilot-tesla`, since comma doesn't
+> officially support AGNOS 19.9 on comma 3 hardware. A 0.11.0 / AGNOS 17.2 LTS version will be backported from 0.11.2
+> once the full legacy Tesla integration is complete in v0.11.2.
+
 BogPilot is an MIT-licensed research fork of FrogPilot, **Tesla Model S AP1 focused for now**. AP1 support is a fresh port built from BogGyver's Tinkla project, the long-standing AP1 reference. It does not reuse Model 3/Y code.
 
 We're looking for rlogs from other legacy Teslas — **Pre-AP, Model X AP1, and Model S/X AP2** — so we can expand fingerprints and integration.
 
 **Not a product. No warranty. The driver remains responsible. Comply with local law.** It has been road-tested on an AP1 Model S with a comma 3X.
 
-> **AGNOS note:** This branch is pinned to AGNOS 10.1. If your comma runs a newer AGNOS (NotAutopilot and other 0.10.x/0.11.x forks use 12.x to 19.x), the first boot will reflash the operating system down to 10.1. That takes about 10 minutes, so keep it powered. Your settings and drives are normally kept, but back up first. Branches pinned to newer AGNOS for installs with no reflash are being coded and tested now: `bogpilot-tesla-agnos-17.2` (in testing) and `bogpilot-tesla-agnos-19.9` (in development).
+> **AGNOS note:** This branch is pinned to AGNOS 10.1. If your comma runs a newer AGNOS (NotAutopilot and other 0.10.x/0.11.x forks use 12.x to 19.x), the first boot will reflash the operating system down to 10.1. That takes about 10 minutes, so keep it powered. Your settings and drives are normally kept, but back up first. The openpilot 0.11.2 / AGNOS 19.9 build for the comma 3X is released on `bogpilot-tesla` (see the note at the top).
 
 ## UI demo
 
@@ -55,7 +64,7 @@ The full stalk map is in `docs/tesla/STALK.md`. Every place this tree knowingly 
 - `ap1-driving-milestone-2` (2026-10-05): model-path cluster lanes, FCW engage fix, grey override border, 0.5 s resume hold.
 - `ap1-driving-milestone-1` (2026-10-04): first AP1 drive with openpilot steering, chassis longitudinal, hands-on pause/resume, and stalk follow profiles.
 
-## Since milestone 4 (on `bogpilot-tesla`)
+## Since milestone 4 (on this branch)
 
 - **Blind spot (AP1):** read from the stock Autopilot status frame `0x399`, so the standard lane-change block, "Car Detected in Blindspot" alert and FrogPilot's blind spot path work. Read-only; nothing new is sent.
 - **Onroad UI redesign** (Tesla-style, on by default; file toggle `RedesignUI`): speed row with MAX / speed / posted-limit tile and offset badge, steering arc (tap toggles Experimental Mode; shows driver steering), 10 s accel graph, lead box coloured by time gap with lead speed and distance tags, adjacent-lane lead speeds, and blind-spot lane fill.
@@ -67,24 +76,24 @@ The full stalk map is in `docs/tesla/STALK.md`. Every place this tree knowingly 
 - **AP1 recommended toggles:** applied once when the car is set to Tesla AP1 Model S; owner changes are kept.
 - **Other:** BogPilot boot logo; GPS is optional (no engage block without a modem, no "Poor GPS" banner, GPS assist data without a SIM); experimental HEVC + state stream to a computer on the same Wi-Fi (toggle `HevcStream`).
 
-### On test branches (not on `bogpilot-tesla` yet)
+### On test branches (not on this branch)
 
-- `bogpilot-tesla-cem-upload-ui`: CEM status next to the no-GPS slot, an on-screen upload-rate readout with pending backlog and ETA, and an offroad upload card (Mbps). Also: look-ahead curve brake that lands on the curve speed (Tesla only), Always On Lateral override fix for an LKAS Fault and AOL held off at parking speed, radar-only close-lead hold under a confident camera lead, quick-twist personality fix, standstill engage brake hold, and a fix for policy-head `lead_prob` being squashed twice.
+- `bogpilot-tesla-cem-upload-ui` (no longer published): CEM status next to the no-GPS slot, an on-screen upload-rate readout with pending backlog and ETA, and an offroad upload card (Mbps). Also: look-ahead curve brake that lands on the curve speed (Tesla only), Always On Lateral override fix for an LKAS Fault and AOL held off at parking speed, radar-only close-lead hold under a confident camera lead, quick-twist personality fix, standstill engage brake hold, and a fix for policy-head `lead_prob` being squashed twice.
 - `bogpilot-tesla-upload-ui`: upload card splits pending into Logs and HEVC rows, each with an ETA.
 - `bogpilot-tesla-route-stream` / `-route-stream-telemetry`: all of the above plus state-stream telemetry (rate, gaps and Wi-Fi summary every 60 s, no positions) and lead radar track IDs for smoother lead display.
-- `bogpilot-tesla-bog-theme`: **The Bog**, the device web UI re-themed in BogPilot greys with the BogPilot emblem. A re-imagining of Aidenir's **The Pond**.
+- `bogpilot-tesla-bog-theme` (no longer published): **The Bog**, the device web UI re-themed in BogPilot greys with the BogPilot emblem. A re-imagining of Aidenir's **The Pond**.
 
 ## Install
 
 ```
-1. On the comma 3X setup screen, choose Custom Software.
-2. Enter: installer.comma.ai/BogPilot/bogpilot-tesla
+1. On the comma 3 setup screen, choose Custom Software.
+2. Enter: installer.comma.ai/BogPilot/bogpilot-tesla-0.9.7
    (a test branch: installer.comma.ai/BogPilot/<branch name>)
 3. Wait for the download and install to finish.
 4. Reboot.
 ```
 
-The main branch includes the SLC / stalk cruise work, the milestone 4 longitudinal smoothing and the additions above. Longitudinal control needs the DEBUG panda firmware that this branch builds. Do not enter `frogpilot.download`, which installs upstream FrogPilot.
+This branch includes the SLC / stalk cruise work, the milestone 4 longitudinal smoothing and the additions above. Longitudinal control needs the DEBUG panda firmware that this branch builds. Do not enter `frogpilot.download`, which installs upstream FrogPilot.
 
 A sister AP1 port built on sunnypilot lives on `BogPilot/sunnypilot` branch `sunny-tesla`. It has not been road-tested.
 
@@ -286,9 +295,10 @@ And lots more! From safety enhancements to personalization options, **FrogPilot*
 ------
 | Branch                     | Install&nbsp;URL          | Description                                            | Recommended&nbsp;For     |
 |----------------------------|---------------------------|--------------------------------------------------------|--------------------------|
-| bogpilot-tesla             | `installer.comma.ai/BogPilot/bogpilot-tesla` | Main BogPilot branch (AP1 milestone 4: SLC / stalk cruise work plus longitudinal smoothing). | AP1 research, maintainer-driven |
-| bogpilot-tesla-slc-raise   | `installer.comma.ai/BogPilot/bogpilot-tesla-slc-raise` | Testing branch for the SLC / stalk cruise and longitudinal smoothing work, merged into bogpilot-tesla at milestone 4. Use main. | Not needed |
-| bogpilot-tesla-cluster     | `installer.comma.ai/BogPilot/bogpilot-tesla-cluster` | Older AP1 cluster work branch. Behind bogpilot-tesla; use main. | Not needed |
+| bogpilot-tesla-0.9.7       | `installer.comma.ai/BogPilot/bogpilot-tesla-0.9.7` | This branch: the 0.9.7 / AGNOS 10.1 line (AP1 milestone 4: SLC / stalk cruise work plus longitudinal smoothing). | comma 3 with a Model S AP1 |
+| bogpilot-tesla             | `installer.comma.ai/BogPilot/bogpilot-tesla` | Current release: openpilot 0.11.2 / AGNOS 19.9. comma 3X only. | comma 3X |
+| bogpilot-tesla-slc-raise   | `installer.comma.ai/BogPilot/bogpilot-tesla-slc-raise` | Testing branch for the SLC / stalk cruise and longitudinal smoothing work, merged at milestone 4. No longer published. | Not needed |
+| bogpilot-tesla-cluster     | `installer.comma.ai/BogPilot/bogpilot-tesla-cluster` | Older AP1 cluster work branch. No longer published. | Not needed |
 | FrogPilot                  | upstream FrogPilot only   | Upstream FrogPilot release name. Still accepted here.  | Not this fork            |
 | FrogPilot&#8209;Staging    | upstream FrogPilot only   | Upstream beta. Not a BogPilot channel.                 | Not this fork            |
 | FrogPilot&#8209;Testing    | upstream FrogPilot only   | Upstream alpha. Not a BogPilot channel.                | Not this fork            |
@@ -298,7 +308,7 @@ And lots more! From safety enhancements to personalization options, **FrogPilot*
 🧰 How to Install
 ------
 
-See **Install** at the top of this page: `installer.comma.ai/BogPilot/bogpilot-tesla`. Do not enter `frogpilot.download` (or `staging.` / `testing.`), which install upstream FrogPilot.
+See **Install** above: `installer.comma.ai/BogPilot/bogpilot-tesla-0.9.7` on a comma 3, or `installer.comma.ai/BogPilot/bogpilot-tesla` for the 0.11.2 release on a comma 3X. Do not enter `frogpilot.download` (or `staging.` / `testing.`), which install upstream FrogPilot.
 
 🐞 Bug Reports / Feature Requests
 ------
