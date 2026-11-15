@@ -20,6 +20,7 @@ from openpilot.selfdrive.ui.onroad.bogpilot import speed_limit_display as SL
 from openpilot.selfdrive.ui.onroad.bogpilot import steering_arc as ARC
 from openpilot.selfdrive.ui.onroad.bogpilot import phase3_cem_status as CEM
 from openpilot.selfdrive.ui.onroad.bogpilot import pedals as PED
+from openpilot.selfdrive.ui.onroad.bogpilot import c4_layout as C4
 from openpilot.selfdrive.ui.onroad.bogpilot import developer_hud_logic as DEV
 from openpilot.selfdrive.ui.onroad.bogpilot import developer_hud as DEVP
 from openpilot.selfdrive.ui.onroad.bogpilot import fps_counter as FPS
@@ -477,20 +478,36 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
   def __init__(self):
     super().__init__()
     self._bp_init()
+    self.bp_c4 = False
+    self.bp_c4_layout = {}
 
   def _update_state(self):
     super()._update_state()
     self._bp_update()
+    self.bp_c4 = C4.comma4_device(ui_state.sm)
 
   def _draw_set_speed(self, rect):
-    if not toggles.get("RedesignUI"):
+    if not toggles.get("RedesignUI") and not self.bp_c4:
       super()._draw_set_speed(rect)
+
+  def _draw_steering_wheel(self, rect):
+    # comma 4 layout: no stock wheel icon (its turn-intent arrows are replaced by the lane-change arrows)
+    if not self.bp_c4:
+      super()._draw_steering_wheel(rect)
 
   def _render(self, rect):
     # Preserve torque bar, model-source warnings, steer-required icon and turn
     # intent. Do not paint the redesign over the stock alert's reserved space.
+    self.bp_c4_layout = {}
     super()._render(rect)
+    if self.bp_c4:
+      self._bp_render_c4(rect)
+      return
     if toggles.get("RedesignUI") and self._can_draw_top_icons:
       draw_cluster(self, rect, mici=True)
     if self._can_draw_top_icons:
       draw_cem_status(self, rect)
+
+  def _bp_render_c4(self, rect):
+    """comma 4 BogPilot layout (device type mici only)."""
+    self.bp_c4_layout["content_rect"] = (rect.x, rect.y, rect.x + rect.width, rect.y + rect.height)
