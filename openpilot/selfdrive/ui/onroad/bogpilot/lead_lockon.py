@@ -240,7 +240,7 @@ def _box_keepouts(frame):
 class LeadLockOnLayer:
   """w9 composer adapter. Raw current renderer and SubMaster are required.
 
-  enabled() validates placement before claiming the stock lead-chevron slot. Boxes are drawn under every alert
+  enabled() validates placement before painting the lock-on box. Boxes are drawn under every alert
   (the alert is painted after them, on top); they keep clear of the HUD, the DM and the pill, not of the alert
   (frame.lead_keepouts). Speed labels still keep clear of the alert (label_keepouts).
   C4 projection is supported by the core, but compact integration stays opt-in.
@@ -283,8 +283,8 @@ class LeadLockOnLayer:
     return self._primary_ok(frame) or bool(self.lock.adjacent)
 
   def draw(self, frame):
-    """Adjacent boxes first (daily order: left, right, then leadOne); returns the PRIMARY box or None so the
-    composer still flushes the stock leadOne chevron when the lock-on itself is not painted."""
+    """Adjacent boxes first (daily order: left, right, then leadOne); returns the PRIMARY box or None.
+    The stock lead chevron is never painted, whether or not the lock-on itself is painted."""
     primary = self.lock.target.box if self._primary_ok(frame) else None
     ego = self.lock.target.v_ego if self.lock.target is not None else float(frame.sm["carState"].vEgo)
     self.lock.paint_adjacent(frame.model_renderer, keepouts=_box_keepouts(frame),

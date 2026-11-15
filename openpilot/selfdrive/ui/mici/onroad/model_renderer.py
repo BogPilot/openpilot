@@ -378,13 +378,9 @@ class ModelRenderer(Widget):
         draw_polygon(self._rect, path_pts, gradient=gradient)
 
   def _draw_lead_indicator(self):
-    # Draw lead vehicles if available
-    for lead in self._lead_vehicles:
-      if not lead.glow or not lead.chevron:
-        continue
-
-      rl.draw_triangle_fan(lead.glow, len(lead.glow), rl.Color(218, 202, 37, 255))
-      rl.draw_triangle_fan(lead.chevron, len(lead.chevron), rl.Color(201, 34, 49, lead.fill_alpha))
+    # The stock lead chevron is never painted. Geometry is still computed for callers;
+    # the lock-on box is the on-road lead indicator when the redesign is on.
+    return
 
   @staticmethod
   def _get_path_length_idx(pos_x_array: np.ndarray, path_height: float) -> int:

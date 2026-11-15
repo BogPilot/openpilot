@@ -22,35 +22,19 @@ class BlindspotOverlay:
     self._flames = FlameTracks()
     self._bsm_policy = BsmPolicy()
     self.bp_bsm_shown = (False, False)   # sides whose red lane fill was painted this frame (tests / evidence)
-    # w9 composition: while a lock-on layer may replace the primary marker, the stock leadOne chevron is held back
-    # (computed by the stock code, not drawn) and painted by bp_flush_primary_lead() if the lock-on does not paint.
-    # leadTwo always keeps its stock marker.
+    # Stock lead chevrons (leadOne and leadTwo) are never painted. The lock-on box is the
+    # lead indicator when the redesign is on; otherwise there is no stock triangle.
+    # bp_defer_primary_lead and bp_flush_primary_lead stay as a no-op API so older callers
+    # cannot paint a deferred chevron.
     self.bp_defer_primary_lead = False
     self.bp_pending_primary = None
 
   def _draw_lead_indicator(self):
     self.bp_pending_primary = None
-    if not self.bp_defer_primary_lead:
-      return super()._draw_lead_indicator()
-    leads = self._lead_vehicles
-    try:
-      self._lead_vehicles = leads[1:]
-      super()._draw_lead_indicator()
-    finally:
-      self._lead_vehicles = leads
-    if leads and leads[0].glow and leads[0].chevron:
-      self.bp_pending_primary = leads[0]
+    return
 
   def bp_flush_primary_lead(self):
-    primary, self.bp_pending_primary = self.bp_pending_primary, None
-    if primary is None:
-      return
-    leads = self._lead_vehicles
-    try:
-      self._lead_vehicles = [primary]
-      super()._draw_lead_indicator()
-    finally:
-      self._lead_vehicles = leads
+    self.bp_pending_primary = None
 
   def _overlay_offset(self):
     return np.zeros(2, dtype=np.float32)
