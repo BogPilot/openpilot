@@ -78,8 +78,9 @@ _DEVELOPER = (
 # share /data/params_bogpilot/ConfidenceBall. Default on (0.9.7: no file = shown); top of the page, every tuning level.
 _BALL = (("ConfidenceBall", tr_noop("Confidence Ball"),
           tr_noop("Show a small ball on the edge of the driving screen whose height follows how confident the driving model "
-                  "is. While openpilot is engaged it is green, orange or red; otherwise it stays dark grey (white to grey while "
-                  "you override). Display only.")),)
+                  "is. While openpilot is engaged it is green, orange or red. While you override it is white with a grey shade. "
+                  "While openpilot is off it is slate grey when the model is sure and fades to white when it is not. "
+                  "Display only.")),)
 # 0.9.7 had Off / Left / Right in one control: the on/off row above plus this Left / Right row (ConfidenceBallSide, default Left).
 SIDE_KEY = "ConfidenceBallSide"
 SIDE_CHOICES = ("left", "right")
