@@ -1,12 +1,22 @@
 What's new
 =======================
+* Fixes the comma 3X getting stuck on the BogPilot splash screen after installing
+* Rebuilt the prebuilt params library and the services built with it (pandad, camerad, loggerd, encoderd and bootlog) from the current source
+* Rebuilt the panda firmware from the current safety code. The panda updates itself automatically on the first start after updating, which takes about 10 seconds
+* Panda safety changes in the new firmware:
+  * Pre-AP: a hard steering takeover or a power steering refusal now ends the session in the panda too, matching what the screen already showed. Pull the stalk again to re-engage
+  * Pre-AP: holding the stalk through a takeover no longer re-engages. Release the stalk and pull it again
+  * Pre-AP with a comma pedal: the panda reads the gas pedal only from the CAN bus it first sees the pedal on
+  * Pre-AP with the Bosch radar retrofit and its toggle on (off by default): the panda now runs the radar gateway, so the radar works instead of showing radar errors
+  * AP1: a temporary power steering fault (code 4) no longer locks out steering for the rest of the drive. Steering resumes only when the car reports power steering available again and allows it
+  * The panda checks the Pre-AP brake message at the car's 50 Hz rate, with no visible change
+  * A new panda hook reads every incoming CAN message on legacy Teslas, with no visible change by itself
 * Three-bar pedal gauge showing brake, regen power, and acceleration
 * Toggle for Pre-AP cars that have swapped in an iBooster
 * Lead and nearby-lead boxes stay visible on the comma 3X, including under alerts
 * iBooster comments in the car signal database
 * Fewer false TAKE CONTROL alerts from the AP1 radar in heavy traffic
 * The stock lead triangle is no longer drawn
-* Fixes a crash on the BogPilot splash on some installs (rebuilt prebuilt libraries)
 * Settings saved under the old FrogPilot names now carry over to BogPilot on the first start after updating
 
 BogPilot 0.11.2 for legacy Tesla (comma 3X, 2026-11-14)
