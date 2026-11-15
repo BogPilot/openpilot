@@ -63,6 +63,16 @@ class TestSpeedLabel(unittest.TestCase):
     self.assertEqual(C4.label_size(20, 20), (20 + 2 * 6, 23))
 
 
+class TestTurnIntentKeepout(unittest.TestCase):
+  def test_bbox(self):
+    self.assertEqual(tuple(round(v, 6) for v in C4.turn_intent_bbox(0.0)), C4.turn_intent_rect())
+    b = C4.turn_intent_bbox(30.0)
+    self.assertGreater(b[2], C4.turn_intent_rect()[2])        # rotated clockwise: swings right and down
+    r, _ = C4.speed_label_rect((47.5, 132.2, 80.1, 160.2), 37, 23, keepouts=[C4.turn_intent_bbox(0.0)],
+                               alert_zone=C4.ALERT_TEXT_ZONE)
+    self.assertGreaterEqual(r[0], C4.turn_intent_rect()[2] + C4.LABEL_SLIDE_MARGIN)
+
+
 class FakeLock:
   def __init__(self, target, adjacent):
     self._t, self.adjacent, self.kw = target, adjacent, None

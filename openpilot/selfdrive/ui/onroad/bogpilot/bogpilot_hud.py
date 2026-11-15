@@ -654,6 +654,9 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
         keepouts += ([C4.gauge_rect()] if gauge_on else []) + [C4.PILL, C4.DM_ICON]
       if C4.arrow_visible(self.bp_c4_arrow_dir, self.bp_c4_lc_alert and alert_shown):
         keepouts.append(C4.arrow_core_rect(self.bp_c4_arrow_dir))
+      ti = self._turn_intent
+      if ti._turn_intent_alpha_filter.x > 1e-2:
+        keepouts.append(C4.turn_intent_bbox(ti._turn_intent_rotation_filter.x))
       zone, side_mode = self._bp_c4_alert(alert_shown)
       self.bp_c4_lead_layout = C4P.paint_leads(leads, v_ego, keepouts, zone, side_mode, ox, oy)
     except Exception:

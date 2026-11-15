@@ -283,3 +283,17 @@ def speed_label_rect(box, lw, lh, keepouts=(), alert_zone=None, side_mode=False,
 
 def _offset(r, ox, oy):
   return (r[0] + ox, r[1] + oy, r[2] + ox, r[3] + oy)
+
+
+def turn_intent_bbox(rotation_deg: float):
+  """Screen bbox of the stock turn intent over the personality button after its rotation about the button centre
+  (raylib: positive = clockwise on screen). Speed labels keep clear of it."""
+  x0, y0, x1, y1 = turn_intent_rect()
+  a = math.radians(rotation_deg)
+  ca, sa = math.cos(a), math.sin(a)
+  xs, ys = [], []
+  for x, y in ((x0, y0), (x1, y0), (x0, y1), (x1, y1)):
+    dx, dy = x - PERSONALITY_CX, y - PERSONALITY_CY
+    xs.append(PERSONALITY_CX + dx * ca - dy * sa)
+    ys.append(PERSONALITY_CY + dx * sa + dy * ca)
+  return (min(xs), min(ys), max(xs), max(ys))
