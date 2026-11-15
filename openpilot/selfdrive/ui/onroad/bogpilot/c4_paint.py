@@ -7,7 +7,8 @@ import pyray as rl
 
 from openpilot.selfdrive.ui.onroad.bogpilot import c4_layout as C4
 from openpilot.selfdrive.ui.onroad.bogpilot.style import (C, W, MUTED, ACTUAL_GREEN, draw_text_in_rect_centred, fill_circle,
-                                                           fill_rounded, panel, rect_lrtb, stroke_circle, stroke_rounded)
+                                                           fill_rounded, panel, rect_lrtb, stroke_circle, stroke_rounded,
+                                                           text_width)
 
 PILL_FILL = C(14, 17, 22, 190)            # wide-layout record / panel fill
 PILL_STROKE = C(255, 255, 255, 40)
@@ -32,6 +33,12 @@ GAUGE_TRACK_R, GAUGE_FILL_R, GAUGE_INSET = 3, 2, 2
 # record button (wide-layout paint_record_button colours)
 REC_FILL, REC_RING, REC_DOT = C(14, 17, 22, 190), C(255, 255, 255, 60), C(225, 60, 60, 240)
 REC_SQUARE = C(225, 60, 60, 235)
+
+# lead boxes and speed labels
+LEAD_SHADOW = C(0, 0, 0, 60)
+LABEL_BG_PRIMARY, LABEL_BG_ADJ = C(20, 22, 26, 190), C(20, 22, 26, 165)
+LABEL_INK_PRIMARY = C(255, 255, 255, 255)
+ACCENTS = {"red": C(255, 0, 0, 255), "amber": C(255, 188, 0, 255)}
 
 
 @dataclass(frozen=True)
@@ -193,3 +200,58 @@ def paint_record_button(status: str, pulse: float, ox: float = 0.0, oy: float = 
     elif status == "error":
       rl.draw_ring(rl.Vector2(cx, cy), r * 0.62, r * 0.72, 0, 360, 32, rl.Color(255, 176, 32, 235))
   return {"record button": _o(C4.record_rect(), ox, oy)}
+
+
+def paint_lead_box(box, color):
+  """Thin rounded ring with a soft shadow and thick corner legs (the wide layout's lock box, drawn at comma 4 size)."""
+  x0, y0, x1, y1 = box
+  w, h = x1 - x0, y1 - y0
+  stroke_rounded(rect_lrtb(x0 - 1, y0 - 1, x1 + 1, y1 + 1), 3, 3.0, LEAD_SHADOW)
+  stroke_rounded(rect_lrtb(x0, y0, x1, y1), 2, 1.0, color)
+  lw, lh = w * 0.30, h * 0.30
+  for ax, ay, sx, sy in ((x0, y0, 1, 1), (x1, y0, -1, 1), (x0, y1, 1, -1), (x1, y1, -1, -1)):
+    rl.draw_line_ex(rl.Vector2(ax, ay), rl.Vector2(ax + sx * lw, ay), 2.0, color)
+    rl.draw_line_ex(rl.Vector2(ax, ay), rl.Vector2(ax, ay + sy * lh), 2.0, color)
+
+
+def label_ink(color, adjacent):
+  if not adjacent:
+    return LABEL_INK_PRIMARY
+  return C(min(255, color.r + 70), min(255, color.g + 70), min(255, color.b + 70), 240)
+
+
+def label_text_width(text, px):
+  return text_width(text, px, W.BOLD)
+
+
+def paint_speed_label(r, text, px, ink, bg, accent=None):
+  x0, y0, x1, y1 = r
+  fill_rounded(rect_lrtb(x0, y0, x1, y1), (y1 - y0) / 2, bg)
+  draw_text_in_rect_centred(text, rect_lrtb(x0, y0, x1, y1), px, ink, W.BOLD)
+  if accent in ACCENTS:
+    tw = label_text_width(text, px)
+    cx = (x0 + x1) / 2
+    fill_rounded(rect_lrtb(cx - tw / 2, y1 - 4, cx + tw / 2, y1 - 2), 1, ACCENTS[accent])
+
+
+def paint_leads(leads, v_ego, keepouts=(), alert_zone=None, side_mode=False, ox=0.0, oy=0.0):
+  """Lead boxes (adjacent first, then the primary) and their speed labels. Returns the rects drawn."""
+  from openpilot.selfdrive.ui.onroad.bogpilot.c4_leads import Comma4LeadStyle
+  out = {}
+  for ld in leads:
+    adjacent = ld.key != "primary"
+    color = Comma4LeadStyle.lead_distance_color(ld.d_rel, adjacent, v_ego)
+    paint_lead_box(ld.box, color)
+    name = f"lead box (adjacent {ld.key})" if adjacent else "lead box (primary)"
+    out[name] = tuple(ld.box)
+    if not ld.speed:
+      continue
+    px = C4.SPEED_PX_ADJ if adjacent else C4.SPEED_PX_PRIMARY
+    lw, lh = C4.label_size(label_text_width(ld.speed, px), px)
+    local = (ld.box[0] - ox, ld.box[1] - oy, ld.box[2] - ox, ld.box[3] - oy)
+    r, where = C4.speed_label_rect(local, lw, lh, keepouts, alert_zone, side_mode, ld.key)
+    r = _o(r, ox, oy)
+    paint_speed_label(r, ld.speed, px, label_ink(color, adjacent), LABEL_BG_ADJ if adjacent else LABEL_BG_PRIMARY,
+                      None if adjacent else ld.accent)
+    out[(f"adjacent {ld.key} speed label" if adjacent else "lead speed label") + ("" if where == "above" else f" ({where})")] = r
+  return out

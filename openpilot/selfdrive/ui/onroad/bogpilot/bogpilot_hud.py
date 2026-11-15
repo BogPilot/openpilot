@@ -493,6 +493,8 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
     self.bp_c4_arrow_dir = 0
     self.bp_c4_lc_alert = False      # the stock lane-change alert is on screen
     self.bp_c4_rec = False           # record button shown (ScreenRecorder toggle, same rule as the wide layout)
+    self._bp_c4_leads = None         # c4_leads.Comma4Leads, made on the first comma 4 frame
+    self._bp_c4_lead_policy = None   # hud_compose.PolicyToggles (HideLeadMarker, AdjacentLeadsUI)
 
   def _update_state(self):
     super()._update_state()
@@ -558,7 +560,9 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
   def _render(self, rect):
     # Preserve torque bar, model-source warnings, steer-required icon and turn
     # intent. Do not paint the redesign over the stock alert's reserved space.
-    self.bp_c4_layout = {}
+    self.bp_c4_layout = dict(getattr(self, "bp_c4_lead_layout", {}) or {})
+    if self.bp_c4:
+      self.bp_c4_layout["dm icon"] = C4.DM_ICON if getattr(self, "bp_c4_dm_drawn", False) else None
     super()._render(rect)
     if self.bp_c4:
       self._bp_render_c4(rect)
@@ -610,6 +614,59 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
     ti = self._turn_intent
     lay.update(C4P.paint_turn_intent(ti._txt_turn_intent_left, ti._txt_turn_intent_right, ti._turn_intent_direction,
                                      ti._turn_intent_alpha_filter.x, ti._turn_intent_rotation_filter.x, ox, oy))
+
+  def _bp_c4_alert(self, alert_shown):
+    """(alert zone or None, userPrompt) for the stock alert on screen this frame (full-screen alerts cover everything
+    and move nothing)."""
+    if not alert_shown:
+      return None, False
+    sm = ui_state.sm
+    ss = sm["selfdriveState"] if _fresh(sm, "selfdriveState") else None
+    size = str(ss.alertSize) if ss is not None else ""
+    status = str(ss.alertStatus) if ss is not None else ""
+    return (None if size == "full" else C4.ALERT_TEXT_ZONE), status == "userPrompt"
+
+  def bp_c4_render_leads(self, model_renderer, alert_shown):
+    """Lead and adjacent-lead boxes with their speeds (comma 4 only), engaged or not. Drawn in the camera view under
+    the alerts and the HUD."""
+    if not self.bp_c4:
+      return
+    try:
+      from openpilot.selfdrive.ui.onroad.bogpilot.c4_leads import Comma4Leads
+      from openpilot.selfdrive.ui.onroad.bogpilot.hud_compose import PolicyToggles
+      if self._bp_c4_leads is None:
+        self._bp_c4_leads = Comma4Leads()
+        self._bp_c4_lead_policy = PolicyToggles()
+      pol = self._bp_c4_lead_policy.get()
+      longitudinal = bool(getattr(ui_state, "has_longitudinal_control", False))
+      vis = C4.visibility(alert_shown=alert_shown, take_control=False)
+      gauge_on = vis.gauge and self.bp_c4_gauge is not None
+      rect = model_renderer._rect
+      ox, oy = rect.x, rect.y
+      gauge = C4._offset(C4.gauge_rect(), ox, oy) if gauge_on else None
+      leads, v_ego = self._bp_c4_leads.update(model_renderer, ui_state.sm, ui_state.started_frame,
+                                              longitudinal=longitudinal,
+                                              adjacent=bool(longitudinal and pol.get("adjacent_leads", False)),
+                                              hide_marker=bool(pol.get("hide_lead_marker", True)),
+                                              metric=bool(ui_state.is_metric), gauge=gauge)
+      keepouts = []
+      if not alert_shown:
+        keepouts += ([C4.gauge_rect()] if gauge_on else []) + [C4.PILL, C4.DM_ICON]
+      if C4.arrow_visible(self.bp_c4_arrow_dir, self.bp_c4_lc_alert and alert_shown):
+        keepouts.append(C4.arrow_core_rect(self.bp_c4_arrow_dir))
+      zone, side_mode = self._bp_c4_alert(alert_shown)
+      self.bp_c4_lead_layout = C4P.paint_leads(leads, v_ego, keepouts, zone, side_mode, ox, oy)
+    except Exception:
+      cloudlog.exception("comma 4 lead boxes failed")
+      self.bp_c4_lead_layout = {}
+
+  def bp_c4_dm(self, should_draw, alert_shown, screen_rect):
+    """Driver-monitor icon on the comma 4: the stock rule for when it shows, moved to the top right, and stepping
+    aside during alerts with the pill and gauge. Returns (should_draw, x, y)."""
+    vis = C4.visibility(alert_shown=alert_shown, take_control=False)
+    x, y = C4.dm_position()
+    self.bp_c4_dm_drawn = bool(should_draw and vis.dm)
+    return self.bp_c4_dm_drawn, screen_rect.x + x, screen_rect.y + y
 
   def bp_c4_render_side(self, screen_rect):
     """Side-panel part of the comma 4 layout (outside the camera view's clip): the record button."""

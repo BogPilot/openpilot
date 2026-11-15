@@ -8,6 +8,7 @@ All rects are (x0, y0, x1, y1) in screen pixels with x1 / y1 exclusive.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 COMMA4_DEVICE_TYPES = frozenset({"mici"})
@@ -23,8 +24,19 @@ PILL_DIVIDER_X = 54
 PILL_SET_CX, PILL_SPEED_CX = 30, 92
 PILL_LIMIT = (134, 10, 168, 54)
 
-# Driver-monitor icon, top right of the camera view.
+# Driver-monitor icon, top right of the camera view. The stock DriverStateRenderer (60 px) is centred on this 56 px spot.
 DM_ICON = (414, 8, 470, 64)
+DM_STOCK_SIZE = 60
+
+# Lead boxes: the wide layout's lock box scaled from its 2100 px design width to the camera view; speed labels above
+# the box (24 px primary, 20 px adjacent), no distance label.
+LEAD_SCALE = VIEW_W / 2100.0
+LEAD_EDGE = 8
+SPEED_PX_PRIMARY, SPEED_PX_ADJ = 24, 20
+LABEL_GAP, LABEL_SLIDE_MARGIN = 3, 2
+# Area the stock (non-full) alert text can cover; a label that would land in it moves below its box, or beside it
+# during take-control style (userPrompt) alerts.
+ALERT_TEXT_ZONE = (4, 0, 472, 118)
 
 # Personality button (also the personality indicator): 40 px disc, far lower left, 48 x 48 tap target.
 PERSONALITY_CX, PERSONALITY_CY = 28, 212
@@ -210,3 +222,64 @@ def visibility(alert_shown: bool, take_control: bool) -> Visibility:
   hidden = TAKE_CONTROL_HIDES if take_control else (OTHER_ALERT_HIDES if alert_shown else frozenset())
   return Visibility("pill" not in hidden, "gauge" not in hidden, "dm" not in hidden, "leads" not in hidden,
                     bool(take_control))
+
+
+def dm_position():
+  """Top-left for the stock 60 px DriverStateRenderer so it is centred on DM_ICON."""
+  cx, cy = (DM_ICON[0] + DM_ICON[2]) / 2, (DM_ICON[1] + DM_ICON[3]) / 2
+  return cx - DM_STOCK_SIZE / 2, cy - DM_STOCK_SIZE / 2
+
+
+def lead_box(cx, cy, d_rel, max_x=VIEW_W, max_y=SCREEN_H, min_x=0.0, gauge=None):
+  """Lead lock box (x0, y0, x1, y1) for a lead whose road contact point is (cx, cy): the wide layout's lead_lock_box
+  scaled by LEAD_SCALE. With the gauge on screen the box never covers the gauge column."""
+  sz = min(30.0, max(15.0, 750.0 / (d_rel / 3.0 + 30.0))) * 2.35 * LEAD_SCALE
+  w = sz * 3.2
+  h = w * 0.86
+  bottom = min(cy + h * 0.1, max_y - LEAD_EDGE)
+  if gauge is not None and bottom - h < gauge[3] and gauge[1] < bottom:
+    min_x = max(min_x, gauge[2] + 1 - LEAD_EDGE)   # box edge 1 px clear of the gauge's last column
+  lo, hi = min_x + w / 2 + LEAD_EDGE, max_x - w / 2 - LEAD_EDGE
+  x = min(max(cx, lo), hi) if lo <= hi else (lo + hi) / 2
+  return (x - w / 2, bottom - h, x + w / 2, bottom)
+
+
+def label_size(text_w, px):
+  """(width, height) of a speed label with its padding."""
+  pad = int(math.floor(px * 0.32 + 0.5))
+  return text_w + 2 * pad, int(math.floor(px * 1.15 + 0.5))
+
+
+def _hits(r, rects, m=0.0):
+  return [k for k in rects if r[0] - m < k[2] and k[0] < r[2] + m and r[1] - m < k[3] and k[1] < r[3] + m]
+
+
+def speed_label_rect(box, lw, lh, keepouts=(), alert_zone=None, side_mode=False, side="primary", view_w=VIEW_W):
+  """Where a lead speed label goes: centred above its box (sliding right past keepouts); if that lands in the alert
+  zone, below the box, or beside it (outer side; the primary to the right) during userPrompt alerts."""
+  cx = (box[0] + box[2]) / 2
+  hi = max(LEAD_EDGE, view_w - LEAD_EDGE - lw)
+
+  def above_or_below(y1):
+    x0 = min(max(cx - lw / 2, LEAD_EDGE), view_w - LEAD_EDGE - lw)
+    for _ in range(8):
+      hs = _hits((x0, y1 - lh, x0 + lw, y1), keepouts, LABEL_SLIDE_MARGIN)
+      if not hs:
+        break
+      x0 = max(k[2] for k in hs) + LABEL_SLIDE_MARGIN + 1
+    x0 = min(max(x0, LEAD_EDGE), hi)
+    return (x0, y1 - lh, x0 + lw, y1)
+
+  r = above_or_below(box[1] - LABEL_GAP)
+  if alert_zone is None or not _hits(r, (alert_zone,)):
+    return r, "above"
+  if side_mode:
+    cy = max((box[1] + box[3]) / 2, alert_zone[3] + 2 + lh / 2)
+    lx = box[0] - LABEL_GAP - lw / 2 if side == "left" else box[2] + LABEL_GAP + lw / 2
+    x0 = min(max(lx - lw / 2, LEAD_EDGE), hi)
+    return (x0, cy - lh / 2, x0 + lw, cy + lh / 2), "beside"
+  return above_or_below(box[3] + LABEL_GAP + lh), "below"
+
+
+def _offset(r, ox, oy):
+  return (r[0] + ox, r[1] + oy, r[2] + ox, r[3] + oy)
