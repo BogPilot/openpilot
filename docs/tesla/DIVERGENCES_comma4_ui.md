@@ -64,6 +64,11 @@ Code: `openpilot/selfdrive/ui/onroad/bogpilot/c4_layout.py` (geometry, gate, vis
 - Our behavior: the shared lock-on core (`lead_lockon.LeadLockOn`) scaled to the comma 4 view draws the lead and the
   adjacent-lead boxes, engaged or not, with the lead speed above the box and no distance label. The adjacent boxes are
   sized by the core (distance and lateral offset), which differs from the design's fixed sizes by up to 1-2 px.
+- Gate: the one shared gate in the core (see "Onroad UI: lead and adjacent-lead boxes engaged or not, and under
+  alerts" in `DIVERGENCES.md`): engagement is not a condition and there is no alert term; openpilot longitudinal,
+  `HideLeadMarker` and `AdjacentLeadsUI` come from the same policy reader as the 3X. The comma 4 differs only in
+  having no RedesignUI switch (its layout is always the BogPilot one), and in drawing the boxes from the comma 4 view
+  (the composer's lead layer stays off on this device).
 - Labels keep clear of the gauge, the turn-intent arrow's rotated footprint and one alert text zone (4, 0)-(472, 118):
   a label that would sit under a stock alert moves below its box (the design kept it above in the driver-distracted
   frame, 9.7 px higher).

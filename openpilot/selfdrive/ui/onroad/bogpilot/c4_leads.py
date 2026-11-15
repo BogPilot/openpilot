@@ -1,6 +1,8 @@
 """comma 4 lead boxes: the shared lock-on core (lead_lockon.LeadLockOn: validated radar leadOne and
 bogpilotRadarState.leadLeft / leadRight, stock calibrated projection, fail closed) with the box scaled to the comma 4,
-plus the speed labels (absolute lead speed, no distance). Shown engaged or not."""
+plus the speed labels (absolute lead speed, no distance). The show / hide gate is the core's (engaged or not,
+no alert term; HideLeadMarker, AdjacentLeadsUI and openpilot longitudinal from the caller); the comma 4 layout only
+adds its placement and keepouts."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -49,11 +51,11 @@ class Comma4Leads:
     self.lock = lock if lock is not None else LeadLockOn(style=self.style)
 
   def update(self, model_renderer, sm, started_frame, *, longitudinal, adjacent, hide_marker, metric, gauge):
-    """Leads to draw this frame, adjacent left / right first, then the primary. Engagement is not a condition."""
+    """Leads to draw this frame, adjacent left / right first, then the primary. enabled=True: the comma 4 layout is
+    always the BogPilot layout (no RedesignUI switch on this device); engagement is left to the core."""
     self.style.gauge = gauge
-    target = self.lock.update(model_renderer, sm, started_frame, enabled=True, engaged=True,
-                              longitudinal=longitudinal, local=True, hide_marker=hide_marker, adjacent=adjacent,
-                              metric=metric)
+    target = self.lock.update(model_renderer, sm, started_frame, enabled=True, longitudinal=longitudinal, local=True,
+                              hide_marker=hide_marker, adjacent=adjacent, metric=metric)
     out = []
     for a in self.lock.adjacent:
       b = a.box

@@ -95,7 +95,7 @@ class TestComma4Leads(unittest.TestCase):
     lead_one = NS(present=True, dRel=40.0, vLead=27.7, vRel=-1.3, radar=True)
     sm = {"radarState": NS(leadOne=lead_one), "carState": NS(vEgo=29.0)}
     out, v = leads.update(None, sm, 0, longitudinal=True, adjacent=True, hide_marker=False, metric=False, gauge=None)
-    self.assertEqual(lock.kw["engaged"], True)
+    self.assertNotIn("engaged", lock.kw)          # the core's gate decides; engagement is not a condition there
     self.assertEqual(lock.kw["enabled"], True)
     self.assertEqual(lock.kw["local"], True)
     self.assertEqual([d.key for d in out], ["left", "right", "primary"])
@@ -103,6 +103,11 @@ class TestComma4Leads(unittest.TestCase):
     self.assertEqual(out[2].accent, "amber")
     self.assertEqual(out[1].speed, "")
     self.assertEqual(v, 29.0)
+
+  def test_core_owns_the_engagement_gate(self):
+    import inspect
+    from openpilot.selfdrive.ui.onroad.bogpilot.lead_lockon import LeadLockOn
+    self.assertIsNone(inspect.signature(LeadLockOn.update).parameters["engaged"].default)
 
   def test_style_box_uses_gauge(self):
     st = CL.Comma4LeadStyle()
