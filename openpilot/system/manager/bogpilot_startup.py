@@ -28,19 +28,12 @@ def _optional(name: str, result: StartupResult):
     return None
 
 
-def before_defaults(params, *, file_root: Path | None = None,
-                    backup: Callable | None = None, reset: Callable | None = None,
-                    cache_root: Path | None = None) -> StartupResult:
-  """After manager transient clears, before defaults. No reset implementation here.
+def _rename_migration(params, directory: Path, result: StartupResult) -> None:
+  """One-time carry-over of values saved under the pre-rename key names. Never raises, never blocks boot.
 
-  reset_requested MUST inspect its own explicit request and require a durable backup
-  receipt before mutation. Never substitute a truthy sentinel for a missing backup.
-  Called again on manager restart; transaction idempotency belongs to the modules.
+  Must run before registered defaults are applied (a default would make the new key look already set).
+  Only key names and exception types are reported; values (one is an API token) are never logged.
   """
-  result = StartupResult()
-  directory = Path(file_root or os.getenv("BOGPILOT_PARAMS_DIR", "/data/params_bogpilot"))
-  # One-time carry-over of values saved under the pre-rename key names. Must run before registered defaults are
-  # applied (a default would make the new key look already set) and never blocks boot.
   migration = _optional("openpilot.system.bogpilot.legacy_migration", result)
   migrate = getattr(migration, "migrate_legacy_params", None)
   done = getattr(migration, "migration_done", None)
@@ -53,6 +46,35 @@ def before_defaults(params, *, file_root: Path | None = None,
         result.errors.extend(f"rename-migration: {e}" for e in moved["errors"])
     except Exception as exc:
       result.errors.append(f"rename-migration: {type(exc).__name__}")
+
+
+def before_clear(params, *, file_root: Path | None = None) -> StartupResult:
+  """Before manager_init's clear_all. Only the rename carry-over runs here.
+
+  The pre-rename FrogPilot* names (BogPilot 0.9.7 / FrogPilot key names) are not registered keys any more, so
+  clear_all unlinks their files under the params dir as unknown. Copy them to the BogPilot* names first. The
+  old names are read as plain files by the migration and are never registered or written.
+  """
+  result = StartupResult()
+  directory = Path(file_root or os.getenv("BOGPILOT_PARAMS_DIR", "/data/params_bogpilot"))
+  _rename_migration(params, directory, result)
+  return result
+
+
+def before_defaults(params, *, file_root: Path | None = None,
+                    backup: Callable | None = None, reset: Callable | None = None,
+                    cache_root: Path | None = None) -> StartupResult:
+  """After manager transient clears, before defaults. No reset implementation here.
+
+  reset_requested MUST inspect its own explicit request and require a durable backup
+  receipt before mutation. Never substitute a truthy sentinel for a missing backup.
+  Called again on manager restart; transaction idempotency belongs to the modules.
+  """
+  result = StartupResult()
+  directory = Path(file_root or os.getenv("BOGPILOT_PARAMS_DIR", "/data/params_bogpilot"))
+  # Normally already done by before_clear; this pass still serves values kept only under the BogPilot file
+  # store, and retries if the pre-clear pass reported an error.
+  _rename_migration(params, directory, result)
   try:
     known = {k.decode() if isinstance(k, bytes) else k for k in params.all_keys()}
     result.profile_suppressed = "DoToggleResetStock" in known and params.get_bool("DoToggleResetStock")

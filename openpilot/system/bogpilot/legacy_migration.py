@@ -13,8 +13,10 @@ Rules (each is covered by tests):
   * a failure on one key never stops the others and never raises into the manager
   * the done marker (a file under the BogPilot params dir) is written only when every key is settled
 
-Called from system.manager.bogpilot_startup.before_defaults, i.e. before registered defaults are applied, so a
-default can not make the new key look "already set".
+Called from system.manager.bogpilot_startup.before_clear, i.e. before manager_init's clear_all: the old names are
+not registered keys, so clear_all deletes their files under the params dir as unknown. That is also before
+registered defaults are applied, so a default can not make the new key look "already set". before_defaults runs
+it again (a no-op once the done marker exists) for values kept only under the BogPilot file store.
 """
 from __future__ import annotations
 

@@ -19,7 +19,7 @@ from openpilot.system.manager.local_identity import local_dongle_id
 from openpilot.common.swaglog import cloudlog, add_file_handler
 from openpilot.common.version import get_build_metadata
 from openpilot.common.hardware.hw import Paths
-from openpilot.system.manager.bogpilot_startup import before_defaults, after_defaults
+from openpilot.system.manager.bogpilot_startup import before_clear, before_defaults, after_defaults
 
 
 def manager_init() -> None:
@@ -28,6 +28,12 @@ def manager_init() -> None:
   build_metadata = get_build_metadata()
 
   params = Params()
+  # Values saved under the pre-rename FrogPilot* key names (BogPilot 0.9.7 / FrogPilot) are copied to their
+  # BogPilot* names first: the old names are no longer registered, so clear_all below deletes their files.
+  pre_clear = before_clear(params)
+  for error in pre_clear.errors:
+    cloudlog.warning(f"BogPilot startup: {error}")
+
   params.clear_all(ParamKeyFlag.CLEAR_ON_MANAGER_START)
   params.clear_all(ParamKeyFlag.CLEAR_ON_ONROAD_TRANSITION)
   params.clear_all(ParamKeyFlag.CLEAR_ON_OFFROAD_TRANSITION)
