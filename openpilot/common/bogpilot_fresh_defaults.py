@@ -16,8 +16,9 @@ Values:
 - ExperimentalModeConfirmed = on, only while FRESH_INSTALL_CONFIRM_EXPERIMENTAL is True. It lets the AP1 stalk hold
   (opendbc tesla_ap1/phase3_stalk_controls.py apply_experimental_toggle) switch modes on the first drive without
   the settings confirmation dialog first. The stock dialog (selfdrive/ui/layouts/settings/toggles.py; NAP has the
-  same) is otherwise the only writer. The AP1 profile never writes this key (bogpilot_ap1_profile.py
-  NEVER_PROFILE_KEYS); this first-install default is the documented exception (docs/tesla/DIVERGENCES.md).
+  same) is otherwise the only writer. The AP1 profile does not carry this key either (it is in
+  bogpilot_ap1_profile.py NEVER_PROFILE_KEYS, device bookkeeping); this write is outside the profile and is
+  documented in docs/tesla/DIVERGENCES.md.
   Set the switch to False to keep the dialog on new installs too.
 
 Driver Camera in Reverse is not written here: its registered default is "1" (params_keys_bogpilot.h), which the

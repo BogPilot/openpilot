@@ -900,6 +900,12 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   tree before this change, `ExperimentalModeConfirmed` is written only by the Experimental Mode confirmation dialog in
   settings (`selfdrive/ui/layouts/settings/toggles.py`). NAP has no `DriverCamera` key and no first-install default for
   these keys. Tinkla/BogGyver was not checked for this entry.
+- Upstream: the openpilot 0.11.2 snapshot this tree is based on has the keys from before upstream #39043:
+  `ExperimentalMode` with no default (Chill) and `ExperimentalModeConfirmed` set by the settings dialog
+  (`openpilot/common/params_keys.h:43-44`, unchanged here). Upstream #39043 later made Experimental Mode default on and
+  removed the confirmation. This tree does not follow it. BogPilot commits 1eceba064 (registry default off),
+  1949ab37f (AP1 profile exclusion), b01ff8563 and fce00b1dd (stalk hold gate and the "confirm in Settings" alert) use
+  the key.
 - Our behavior:
   - Driver Camera in Reverse: `DriverCamera` registers default "1" and stock value "1"
     (`openpilot/common/bogpilot_params.py`, `params_keys_bogpilot.h`, so the prebuilt `libparams_c.so` and the services
@@ -916,10 +922,10 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   hold-pull / hold-push switches between Chill and Experimental on the first drive. Without the confirmation,
   `apply_experimental_toggle` (`opendbc_repo/opendbc/car/tesla_ap1/phase3_stalk_controls.py`) ignores the hold and
   raises `experimentalModeUnconfirmed` until the settings dialog has been accepted once.
-- Divergence from our own rule: the AP1 profile never writes `ExperimentalModeConfirmed`
-  (`openpilot/common/bogpilot_ap1_profile.py:92`, `NEVER_PROFILE_KEYS`). This first-install default is the one
-  maintainer-approved exception. On a new install the Experimental Mode confirmation dialog is treated as already
-  accepted. Upgrades keep the dialog until it is accepted.
+- AP1 profile: `openpilot/common/bogpilot_ap1_profile.py:92` lists `ExperimentalModeConfirmed` in `NEVER_PROFILE_KEYS`
+  (device bookkeeping), so the AP1 profile never carries it. That is unchanged. The first-install write is outside the
+  profile. On a new install the Experimental Mode confirmation dialog is treated as already accepted. Upgrades keep the
+  dialog until it is accepted.
 - Safety-relevant: no change to controls, the panda or CAN. The stalk switch still requires `experimental_supported(cp)`
   (AP1 Model S, not dashcam, openpilot longitudinal), `selfdrived` still drops `ExperimentalMode` without openpilot
   longitudinal, and the settings toggle stays disabled there. The driver remains responsible; Experimental Mode is
