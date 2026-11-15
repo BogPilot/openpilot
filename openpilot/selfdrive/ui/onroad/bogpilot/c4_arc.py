@@ -150,11 +150,11 @@ def paint_border(rect, colour, bsm):
       if not on:
         continue
       x0 = rect.x + (0 if i == 0 else half)
+      bx0 = rect.x if i == 0 else rect.x + rect.width - BSM_EDGE_W
+      rl.draw_rectangle_rec(rl.Rectangle(bx0, rect.y, BSM_EDGE_W, rect.height), C(*BSM_EDGE_BAR))   # under the border
       rl.begin_scissor_mode(int(x0), int(rect.y), int(math.ceil(half)), int(rect.height))
       stroke_rounded(ring, radius - w / 2, w, C(*BSM_RED))
       rl.end_scissor_mode()
-      bx0 = rect.x if i == 0 else rect.x + rect.width - BSM_EDGE_W
-      rl.draw_rectangle_rec(rl.Rectangle(bx0, rect.y, BSM_EDGE_W, rect.height), C(*BSM_EDGE_BAR))
       out[f"BSM border ({'left' if i == 0 else 'right'} half)"] = (x0, rect.y, x0 + half, rect.y + rect.height)
       out[f"BSM edge bar ({'left' if i == 0 else 'right'})"] = (bx0, rect.y, bx0 + BSM_EDGE_W, rect.y + rect.height)
     rl.begin_scissor_mode(int(rect.x), int(rect.y), int(rect.width), int(rect.height))   # the view's own clip

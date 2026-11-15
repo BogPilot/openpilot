@@ -105,6 +105,8 @@ class TestBorder(unittest.TestCase):
     self.assertEqual(sc[-1][1], (int(VIEW.x), int(VIEW.y), int(VIEW.width), int(VIEW.height)))   # view clip restored
     bars = [c for c in calls if c[0] == "bar"]
     self.assertEqual(bars, [("bar", (VIEW.x, VIEW.y, 5, VIEW.height), A.BSM_EDGE_BAR)])
+    order = [c[0] if c[0] != "stroke" else c[4] for c in calls if c[0] in ("bar", "stroke")]
+    self.assertEqual(order, [A.BORDER_ENGAGED, "bar", A.BSM_RED])   # the edge bar sits under the red half
     self.assertIn("BSM border (left half)", out)
 
   def test_bsm_shown_when_disengaged(self):
