@@ -2,8 +2,12 @@ What's new
 =======================
 * Three-bar pedal gauge showing brake, regen power, and acceleration
 * Toggle for Pre-AP cars that have swapped in an iBooster
-* Lead and nearby-lead boxes stay visible, including under alerts
+* Lead and nearby-lead boxes stay visible on the comma 3X, including under alerts
 * iBooster comments in the car signal database
+* Fewer false TAKE CONTROL alerts from the AP1 radar in heavy traffic
+* The stock lead triangle is no longer drawn
+* Fixes a crash on the BogPilot splash on some installs (rebuilt prebuilt libraries)
+* Settings saved under the old FrogPilot names now carry over to BogPilot on the first start after updating
 
 BogPilot 0.11.2 for legacy Tesla (comma 3X, 2026-11-14)
 ========================
