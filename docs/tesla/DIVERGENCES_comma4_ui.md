@@ -54,7 +54,7 @@ Code: `openpilot/selfdrive/ui/onroad/bogpilot/c4_layout.py` (geometry, gate, vis
   is a stock alert, so the pill, gauge, driver-monitor icon and lead boxes step aside while it shows (see "what hides
   during alerts").
 - Divergence from the design: the design had green arrows under the pill (left) and the driver-monitor icon (right)
-  during a lane change. Removed by the maintainer decision of 2026-11-15: the stock arrows cover it, and a second
+  during a lane change. Removed by the maintainer decision: the stock arrows cover it, and a second
   pair overlapped the stock alert on this small screen. The 3X is unchanged.
 
 ### comma 4: record button in the side panel
@@ -83,7 +83,7 @@ Code: `openpilot/selfdrive/ui/onroad/bogpilot/c4_layout.py` (geometry, gate, vis
   hide; during take-control the orange personality button is left on its own. Each rule is its own constant
   (`TAKE_CONTROL_HIDES`, `OTHER_ALERT_HIDES`). Comma 4 only: the 3X keeps its boxes under alerts.
 - Divergence from the design: the design kept the lead boxes visible during take-control. Changed by the maintainer
-  decision of 2026-11-15: safety alerts take over the custom elements on this small screen.
+  decision: safety alerts take over the custom elements on this small screen.
 - Divergence from the shared gate: the 3X and the shared lock-on core draw the boxes under every alert; the comma 4
   layout adds the alert term.
 
