@@ -1,6 +1,6 @@
 # Legacy Tesla (0.11.x): divergences from the reference forks
 
-References: BogPilot 0.9.7 (`bogpilot-tesla`, `04d560f3e`), Tinkla / BogGyver openpilot (`501c7de91b59`) and
+References: BogPilot 0.9.7 (`bogpilot-tesla-0.9.7`, `04d560f3e`), Tinkla / BogGyver openpilot (`501c7de91b59`) and
 NotAutopilot (NAP, `e99f4dc75088`). Each entry records where this tree behaves differently from them and why.
 Recorded disagreements only where the cited files were read. No speculation.
 
@@ -376,12 +376,12 @@ Recorded disagreements only where the cited files were read. No speculation.
 
 ## Cluster / DBC: AP1 AutopilotStatus (0x399) bits 27-36 follow BogPilot, not Tinkla
 - Platforms: AP1 and pre-AP (legacy `tesla_ap1_can.dbc` `AutopilotStatus`, address 921 / 0x399, DLC 8).
-- Reference behavior: BogPilot bogpilot-tesla `04d560f3` and na-preap `568fea947` `tesla_can.dbc:669` `AutopilotStatus` are byte-identical to this tree's `tesla_ap1_can.dbc:674` (every start|len@endian, sign, scale, and signal name; packing at `:675-700`). In bits 27-36 that layout is `DAS_summonFwdLeashReached` 28|1, `DAS_summonRvsLeashReached` 29|1, `DAS_sideCollisionAvoid` 30|2, `DAS_sideCollisionWarning` 32|2, `DAS_sideCollisionInhibit` 34|1, `DAS_csaState` 35|2 (all Intel `@1+`). Tinkla opendbc `9c0b6fe3` `tesla_can.dbc:649` uses the same address under the name `DAS_status`, but bits 27-36 differ (`DAS_lssState` 29|3, shifted side-collision, and no `DAS_csaState` at 35|2).
+- Reference behavior: BogPilot bogpilot-tesla-0.9.7 `04d560f3` and na-preap `568fea947` `tesla_can.dbc:669` `AutopilotStatus` are byte-identical to this tree's `tesla_ap1_can.dbc:674` (every start|len@endian, sign, scale, and signal name; packing at `:675-700`). In bits 27-36 that layout is `DAS_summonFwdLeashReached` 28|1, `DAS_summonRvsLeashReached` 29|1, `DAS_sideCollisionAvoid` 30|2, `DAS_sideCollisionWarning` 32|2, `DAS_sideCollisionInhibit` 34|1, `DAS_csaState` 35|2 (all Intel `@1+`). Tinkla opendbc `9c0b6fe3` `tesla_can.dbc:649` uses the same address under the name `DAS_status`, but bits 27-36 differ (`DAS_lssState` 29|3, shifted side-collision, and no `DAS_csaState` at 35|2).
 - Our behavior: the port follows the BogPilot / na-preap `AutopilotStatus` packing, not the Tinkla mid-frame packing, and not Model 3/Y `DAS_status` at 0x39b.
 - Why: keep the legacy 0x399 cluster status layout that matches both BogPilot revisions.
 - Safety-relevant: yes; cluster status, side-collision, and CSA bits.
 - Tests: no automated test covers bits 27-36; the layout was compared against the cited DBC lines.
-- Credits: BogPilot bogpilot-tesla `04d560f3`; na-preap `568fea947`; Tinkla compared at opendbc `9c0b6fe3`.
+- Credits: BogPilot bogpilot-tesla-0.9.7 `04d560f3`; na-preap `568fea947`; Tinkla compared at opendbc `9c0b6fe3`.
 
 ## Gas press: level block, no panda edge drop
 Panda safety does not end the session when the accelerator is pressed. While the pedal is pressed, longitudinal commands are blocked (longitudinal allowed = controls allowed and gas not pressed). Steering control continues, and controls come back without a new engage once the pedal is released. Ending the session on a gas press is a host-side option, the disengage-on-accelerator setting, which is off by default.
@@ -401,35 +401,35 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 
 ## SLC section reset on AP1 Model S returns to the AP1 profile
 - Platforms: AP1 Model S only (`CarModel` / `CarParamsPersistent` `TESLA_AP1_MODELS`, the AP1 profile's own `is_ap1()`). Pre-AP and AP1 Model X have their own entries below; other cars keep the general table.
-- Reference behavior: BogPilot bogpilot-tesla `367e1fe` has no per-section reset. Its one-time AP1 Model S profile (`selfdrive/car/tesla/ap1_defaults.py`, ported here as `openpilot/common/bogpilot_ap1_profile.py`) runs again after "Reset toggles to default", so a full reset on that car lands on the profile values.
+- Reference behavior: BogPilot bogpilot-tesla-0.9.7 `e493b5cb7` has no per-section reset. Its one-time AP1 Model S profile (`selfdrive/car/tesla/ap1_defaults.py`, ported here as `openpilot/common/bogpilot_ap1_profile.py`) runs again after "Reset toggles to default", so a full reset on that car lands on the profile values.
 - Our behavior: the Speed Limit Controller section resets on AP1 Model S write the AP1 profile's values, read from the profile itself: Offset1-7 4/5/5/5/7/8/10 mph (converted and rounded to km/h on a metric device, 6/8/8/8/11/13/16), Override Max Set Speed (2), Priority 1 Dashboard, Priority 3 Navigation, Look-ahead 5 s, Show Speed Limit Offset off. Priority 2 is not in the profile and resets to its table default (Map Data). The row hints show the same values. The Visual Settings page gets a reset row on AP1 Model S for Show Speed Limit Offset. The same car-type table now supplies the whole AP1 profile (not only the SLC keys) so other section resets on this car also return to the profile; see the entry below.
 - Structure: the panel picks a reset profile by car type (`SLC_RESET_PROFILES` in `phase3_speed_control_settings.py`); adding another car type is one entry.
 - Unchanged: the AP1 profile, the general defaults table and its resets on other cars, and saved values (the profile still writes only once per device, and only keys at the table default). `is_ap1()` is unchanged.
 - Why: a section reset matches what a full reset already gives on AP1 Model S.
 - Safety-relevant: no; settings UI only. Car code and panda are unchanged.
 - Tests: `openpilot/selfdrive/ui/tests/test_slc_ap1_section_reset.py`, `openpilot/selfdrive/controls/tests/test_slc_ap1_section_reset_panel.py`.
-- Credits: BogPilot bogpilot-tesla `367e1fe` (AP1 Model S profile values and the re-apply after reset).
+- Credits: BogPilot bogpilot-tesla-0.9.7 `e493b5cb7` (AP1 Model S profile values and the re-apply after reset).
 
 ## AP1 Model S section resets return to the AP1 profile
 - Platforms: AP1 Model S only (the AP1 profile's own `is_ap1()`). AP1 Model X and Pre-AP keep the rows below (SLC values only).
-- Reference behavior: BogPilot bogpilot-tesla `367e1fe` has no per-section reset. Its one-time AP1 Model S profile runs again after "Reset toggles to default", so a full reset on that car lands on the profile values.
+- Reference behavior: BogPilot bogpilot-tesla-0.9.7 `e493b5cb7` has no per-section reset. Its one-time AP1 Model S profile runs again after "Reset toggles to default", so a full reset on that car lands on the profile values.
 - Our behavior: every section reset on AP1 Model S writes the AP1 profile's value for every key that both the reset writes and the profile sets, read from the profile itself (unit-aware where the profile is). The section defaults are built first, then the car-type overrides; the section's own switch takes the profile value when the profile sets one. So Conditional Experimental Mode resets to off (the profile's 0, not the shipped 1), Curve Detected Ahead to on, Longitudinal Tuning's deceleration profile to Eco+, and the Relaxed following distance to 2.0 s. Keys the profile does not list keep the shipped or catalog default. A Conditional Experimental Mode child that is hidden (navigation rows, until a navigation producer is connected) is left alone until it is shown.
 - Precedence: this is a change from the earlier rule that a section's own switch always reset to the shipped default, with the car-type table applying only to SLC rows. The Pre-AP and AP1 Model X rows of the table are unchanged: they supply the legacy SLC profile and, from the entry "Conditional Experimental Mode off on every legacy Tesla" below, Conditional Experimental Mode off; no other AP1 profile key.
 - Unchanged: `is_ap1()`, the AP1 profile itself, and section resets on every other car type.
 - Why: a section reset matches what a full reset already gives on AP1 Model S.
 - Safety-relevant: no; settings UI only. Car code and panda are unchanged.
 - Tests: `openpilot/selfdrive/ui/tests/test_section_reset_parent.py`, `openpilot/selfdrive/ui/tests/test_slc_ap1_section_reset.py`.
-- Credits: BogPilot bogpilot-tesla `367e1fe` (AP1 Model S profile values and the re-apply after reset).
+- Credits: BogPilot bogpilot-tesla-0.9.7 `e493b5cb7` (AP1 Model S profile values and the re-apply after reset).
 
 ## Pre-AP Model S SLC defaults use the AP1 speed settings
 - Platforms: Pre-AP Model S only (`TESLA_PREAP_MODELS`, through the legacy SLC profile in `openpilot/common/bogpilot_ap1_profile.py`). `is_ap1()` is unchanged; AP1 Model S keeps its own profile.
-- Reference behavior: BogPilot bogpilot-tesla `367e1fe` sets these speed settings only in its AP1 Model S profile (`selfdrive/car/tesla/ap1_defaults.py`); Pre-AP gets the general table there.
+- Reference behavior: BogPilot bogpilot-tesla-0.9.7 `e493b5cb7` sets these speed settings only in its AP1 Model S profile (`selfdrive/car/tesla/ap1_defaults.py`); Pre-AP gets the general table there.
 - Our behavior: the one-time legacy SLC profile on Pre-AP adds the AP1 profile's Offset1-7 (4/5/5/5/7/8/10 mph; 6/8/8/8/11/13/16 km/h on a metric device, same conversion and rounding) and Override Max Set Speed (2), read from the AP1 profile (nothing copied). Its priorities (Dashboard / Map Data / Navigation) and look-ahead are unchanged. Fallback is not written; its table default (Previous Limit) already matches AP1. No AP1-only display key (Show Speed Limit Offset) is added. The SLC section resets and row hints on Pre-AP return the same legacy profile values (a Pre-AP entry in `SLC_RESET_PROFILES`).
 - Upgrades: the profile writes once per device (`LegacySlcDefaultsApplied2` marker) and only keys still at the table default (or the settings UI's km/h conversion of it). A device from an earlier build has only the earlier `LegacySlcDefaultsApplied` marker (it was offered the priorities and look-ahead only): it is offered the keys added since (Offset1-7 and Override) once, with the same still-at-default rule, and its priorities and look-ahead are left as they are. A device with the new marker keeps its current values; Reset BogPilot Settings clears both markers, so the next start applies the whole profile again. Known limit: a driver who explicitly picked the table value of an added key (for example Override 1, gas latches) after the earlier build cannot be told apart from an untouched device and is moved to the profile value once.
 - Why: the AP1 speed settings are known to work well and Pre-AP uses the same SLC.
 - Safety-relevant: no; settings defaults only. Car code and panda are unchanged.
 - Tests: `openpilot/selfdrive/ui/tests/test_slc_legacy_profile.py`, `openpilot/selfdrive/ui/tests/test_slc_ap1_section_reset.py`.
-- Credits: BogPilot bogpilot-tesla `367e1fe` (AP1 profile speed values).
+- Credits: BogPilot bogpilot-tesla-0.9.7 `e493b5cb7` (AP1 profile speed values).
 
 ## Pre-AP Model S Speed Limit Controller page without the map source rows
 - Platforms: Pre-AP Model S with the pedal (`TESLA_PREAP_MODELS` with openpilot longitudinal control). AP1 Model S keeps its page unchanged; AP1 Model X has no openpilot longitudinal control and gets no page.
@@ -442,22 +442,22 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 
 ## AP1 Model X SLC defaults match the AP1 Model S
 - Platforms: AP1 Model X only (`TESLA_AP1_MODELX`, through the legacy SLC profile in `openpilot/common/bogpilot_ap1_profile.py`). `is_ap1()` is unchanged and stays Model S only.
-- Reference behavior: BogPilot bogpilot-tesla `367e1fe` has no AP1 Model X platform; its SLC settings come from the AP1 Model S profile (`selfdrive/car/tesla/ap1_defaults.py`).
+- Reference behavior: BogPilot bogpilot-tesla-0.9.7 `e493b5cb7` has no AP1 Model X platform; its SLC settings come from the AP1 Model S profile (`selfdrive/car/tesla/ap1_defaults.py`).
 - Our behavior: the one-time legacy SLC profile on AP1 Model X adds the AP1 Model S profile's SLC settings and nothing else (`AP1_SLC_KEYS`, read from the profile, nothing copied): Offset1-7 4/5/5/5/7/8/10 mph (6/8/8/8/11/13/16 km/h on a metric device), Override Max Set Speed (2), priorities Dashboard / Map Data / Navigation, look-ahead 5 s lower / 0 higher, Show Speed Limit Offset off. No other AP1 profile key (themes, personalities, Conditional Experimental Mode and so on) is written on the X. The SLC section resets and row hints on the X return the same values (an AP1 Model X entry in `SLC_RESET_PROFILES`, with a Visual Settings reset row).
 - Upgrades: same one-time path and markers as Pre-AP. An X from an earlier build (earlier marker only) is offered the keys added since (Offset1-7, Override, Show Speed Limit Offset) once, still-at-default only; an X with the new marker keeps its current values; Reset BogPilot Settings clears both markers, so the next start applies the whole profile again.
 - Why: the X uses the same SLC as the AP1 Model S, whose values are known to work well.
 - Safety-relevant: no; settings defaults only. Car code and panda are unchanged.
 - Tests: `openpilot/selfdrive/ui/tests/test_slc_legacy_profile.py`, `openpilot/selfdrive/ui/tests/test_slc_ap1_section_reset.py`.
-- Credits: BogPilot bogpilot-tesla `367e1fe` (AP1 Model S profile SLC values).
+- Credits: BogPilot bogpilot-tesla-0.9.7 `e493b5cb7` (AP1 Model S profile SLC values).
 
 ## "Offset Set Speed by:" row hidden on every car
 - Platforms: all car types.
-- Reference behavior: BogPilot bogpilot-tesla `367e1fe` lists the Set Speed offset (`SetSpeedOffset`) as a numeric row for cars without stock cruise control and with openpilot longitudinal.
+- Reference behavior: BogPilot bogpilot-tesla-0.9.7 `e493b5cb7` lists the Set Speed offset (`SetSpeedOffset`) as a numeric row for cars without stock cruise control and with openpilot longitudinal.
 - Our behavior: the row is never shown, on any car type. Nothing in this tree reads `SetSpeedOffset` while driving (controls, planner, car controller, longitudinal and speed limit code), so changing it did nothing; the speed limit offsets (Offset1-7) set the offset instead. The setting itself and its default (0) are kept, so saved values, backups and resets are unchanged and nothing is migrated.
 - Why: a setting that does nothing should not be offered.
 - Safety-relevant: no; settings UI only.
 - Tests: `openpilot/selfdrive/ui/tests/test_set_speed_offset_hidden.py`.
-- Credits: BogPilot bogpilot-tesla `367e1fe` (the original row).
+- Credits: BogPilot bogpilot-tesla-0.9.7 `e493b5cb7` (the original row).
 
 ## "Reset section to defaults" resets the whole section, its switch included
 - Platforms: all car types.
@@ -493,13 +493,13 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 
 ## Conditional Experimental Mode off on every legacy Tesla
 - Platforms: AP1 Model S, AP1 Model X and Pre-AP Model S (`openpilot/common/bogpilot_ap1_profile.py` `LEGACY_TESLA_PLATFORMS`). AP2 is not a platform in this tree, so nothing changes for it here. Every other car type is unchanged.
-- Reference behavior: BogPilot ships Conditional Experimental Mode on (registry default `1`); the AP1 Model S profile from bogpilot-tesla `367e1fe` turns it off on that car only.
+- Reference behavior: BogPilot ships Conditional Experimental Mode on (registry default `1`); the AP1 Model S profile from bogpilot-tesla-0.9.7 `e493b5cb7` turns it off on that car only.
 - Our behavior: Conditional Experimental Mode is off on every legacy Tesla in three places. Default: a one-time write at start-up (`apply_legacy_tesla_ce_off_once`, marker `LegacyTeslaCEOffApplied`) turns it off while the key is unset or still at the registry default; on an AP1 Model S whose AP1 profile already ran, only an unset key is written. Section reset: the Conditional Experimental Mode section reset writes its switch off (the car-type reset tables now carry `ConditionalExperimental` 0 for the AP1 Model X and Pre-AP rows; the AP1 Model S row already had it from the profile); the section's other rows keep their shipped defaults on the X and Pre-AP. Full reset: "Reset BogPilot Settings to Defaults" writes it off right after the shipped table, and clears the marker so the next start writes it again; "Reset to stock" already uses the stock value (off).
 - Why: Conditional Experimental Mode does not work on these cars yet.
 - Known limit: a driver who turned it on before this change cannot be told apart from an untouched device and is moved to off once; turning it on again afterwards is kept.
 - Safety-relevant: no; settings defaults only. Car code and panda are unchanged.
 - Tests: `openpilot/common/tests/test_legacy_tesla_ce_off.py`, `openpilot/selfdrive/ui/tests/test_section_reset_parent.py`, `openpilot/selfdrive/ui/tests/test_slc_legacy_profile.py`, `openpilot/selfdrive/ui/bogpilot/tests/test_phase3_system_utilities.py`.
-- Credits: BogPilot bogpilot-tesla `367e1fe` (AP1 Model S profile value).
+- Credits: BogPilot bogpilot-tesla-0.9.7 `e493b5cb7` (AP1 Model S profile value).
 - Superseded: Conditional Experimental Mode is now removed on every car (entry "Conditional Experimental Mode removed" below); these writes still run and stay harmless.
 
 ## pandad.py cold start: polled wait, reflash only when needed, "Connecting to panda..." alert
@@ -740,15 +740,15 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 
 ## Onroad Camera View: Auto, Standard and Wide (no Driver)
 - Platforms: all car types (UI only).
-- Reference behavior: BogPilot 0.9.7 / 367e1fe offers Camera View Auto, Driver, Standard and Wide (`CameraView` 0, 1, 2, 3). Driver (1) shows the cabin camera as the onroad view. Its Auto switches to the wide camera below 10 m/s and back above 15 m/s. Upstream openpilot 0.11.2 has no setting; it always does what Auto does here, with 5 m/s and 10 m/s.
+- Reference behavior: BogPilot 0.9.7 / `e493b5cb7` offers Camera View Auto, Driver, Standard and Wide (`CameraView` 0, 1, 2, 3). Driver (1) shows the cabin camera as the onroad view. Its Auto switches to the wide camera below 10 m/s and back above 15 m/s. Upstream openpilot 0.11.2 has no setting; it always does what Auto does here, with 5 m/s and 10 m/s.
 - Our behavior: the options are Auto, Standard and Wide (`toggle_metadata.py` CameraView, with a `value_map` so the stored codes stay 0, 2 and 3). Driver is not offered. A saved 1, or any value that is not 0, 2 or 3, reads as Auto through `selfdrive/ui/bogpilot/camera_view.normalize`; nothing is written back. Auto is upstream 0.11.2 unchanged (`onroad/augmented_road_view.py` `WIDE_CAM_MAX_SPEED` 5.0 m/s, `ROAD_CAM_MIN_SPEED` 10.0 m/s, only in Experimental Mode and with the wide stream available, current stream kept in between; narrow otherwise).
-- Settings > Visuals has a "Camera View" row (Auto / Standard / Wide) under Quality of Life Visuals (`layouts/settings/bogpilot_visuals.py`; `toggle_metadata.py` is still not rendered). Onroad, `augmented_road_view._switch_stream_if_needed` reads it through `camera_view.selected_view` (ParamStore, 2 s cache): Standard holds the narrow road camera, Wide the wide one (narrow if there is no wide stream), Auto is the upstream code above. Quality of Life Visuals off, a missing store or a read error means Auto. The setting is not tuning-level gated (the row is always shown under its parent).
-- Registered default: `CameraView` registers 0 (Auto, the stock behavior; 367e1fe registers 3, Wide), in `common/bogpilot_params.py`, the generated `params_keys_bogpilot.h`, `ui/bogpilot/bogpilot_defaults.py` and the feature spec. The manager stores it on first boot, so a fresh install of any car starts on Auto, and both settings resets write 0 (the shipping reset takes the registered default, the stock reset the stock 0). A value already saved on a device is kept: 2 stays Standard and 3 stays Wide, which includes a 3 stored by an earlier build's default on a car the AP1 profile does not cover (Pre-AP, Model X, non-Tesla). A saved 1 (Driver) still reads as Auto. The AP1 profile's one-time Auto write is unchanged.
+- BogPilot > Appearance has a "Camera View" row (Auto / Standard / Wide) under Quality of Life Visuals (`layouts/settings/bogpilot_visuals.py`; `toggle_metadata.py` is still not rendered). Onroad, `augmented_road_view._switch_stream_if_needed` reads it through `camera_view.selected_view` (ParamStore, 2 s cache): Standard holds the narrow road camera, Wide the wide one (narrow if there is no wide stream), Auto is the upstream code above. Quality of Life Visuals off, a missing store or a read error means Auto. The setting is not tuning-level gated (the row is always shown under its parent).
+- Registered default: `CameraView` registers 0 (Auto, the stock behavior; `e493b5cb7` registers 3, Wide), in `common/bogpilot_params.py`, the generated `params_keys_bogpilot.h`, `ui/bogpilot/bogpilot_defaults.py` and the feature spec. The manager stores it on first boot, so a fresh install of any car starts on Auto, and both settings resets write 0 (the shipping reset takes the registered default, the stock reset the stock 0). A value already saved on a device is kept: 2 stays Standard and 3 stays Wide, which includes a 3 stored by an earlier build's default on a car the AP1 profile does not cover (Pre-AP, Model X, non-Tesla). A saved 1 (Driver) still reads as Auto. The AP1 profile's one-time Auto write is unchanged.
 - The cabin camera is still shown in reverse (`QOLVisuals` and `DriverCamera`; `layouts/main.py` `_update_reverse_camera`, `bogpilot/reverse_camera.py`, `onroad/reverse_camera_view.py`) and from Settings > Device > Cabin Camera (PREVIEW). Neither reads `CameraView`.
 - Why: the maintainer asked for Driver to go from the onroad choices. The cabin view stays where it is used: in reverse and in the Settings preview.
 - Safety-relevant: no. Display only; nothing in controls or monitoring reads `CameraView`.
 - Tests: `openpilot/selfdrive/ui/tests/test_camera_view_options.py`, `openpilot/selfdrive/ui/tests/test_reverse_camera.py`.
-- Credits: BogPilot 0.9.7 / 367e1fe (options and codes), upstream openpilot 0.11.2 (Auto switching and its default), BogPilot (the wiring: Standard / Wide hold one stream, Driver aside).
+- Credits: BogPilot 0.9.7 / `e493b5cb7` (options and codes), upstream openpilot 0.11.2 (Auto switching and its default), BogPilot (the wiring: Standard / Wide hold one stream, Driver aside).
 
 ## Longitudinal: legacy Tesla cruise accel uses the 0.9.7 acceleration profiles by default
 - Platforms: AP1 Model S, AP1 Model X and Pre-AP Model S (`openpilot/common/bogpilot_ap1_profile.py:552` `LEGACY_TESLA_PLATFORMS`). Every other car keeps the stock cruise limit unless the driver adopts the profiles in the Gas / Brake page.

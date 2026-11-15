@@ -1,12 +1,15 @@
 # Release-tizi raylib onroad adapter
 
+> Development note, kept for reference. It describes this piece of work at the time it was written, not the
+> released build. For what the release does, see `README.md` and `docs/bogpilot_c3x.md`.
+
 Base: release-tizi/release-mici `f7db927c7` (0.11.2, AGNOS 19.9).
 This is source-only work, not a prebuilt, device install or validated release.
 
 ## Included
 
 - Reuses standalone `redesign.py`, `style.py`, `flame_tracks.py`, trigger logic
-  and original trigger tests from the prior 19.9 integration `23f47f903`.
+  and original trigger tests from the prior 19.9 integration work.
 - Wires both actual entry paths: `onroad/augmented_road_view.py` for C3X and
   `mici/onroad/augmented_road_view.py` for C4. No Qt code/binaries.
 - Narrow HUD subclasses replace speed/MAX with the BogPilot speed capsule.

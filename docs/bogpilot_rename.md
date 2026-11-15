@@ -73,6 +73,5 @@ device still tracking a branch with that name keeps its behaviour.
 ## Build outputs
 
 The tracked C++ bindings in `openpilot/cereal/gen/cpp` and `openpilot/cereal/services.h` are regenerated from the current
-schema. Compiled artifacts that are also tracked (`libparams_c.so`, `pandad`, `loggerd`, `camerad`, ...) were built from
-the old names and must be rebuilt before a release: until then a device has the old Params key table (the params file
-store covers the renamed keys) and `loggerd` still logs the old service names.
+schema. The compiled artifacts that are also tracked (`libparams_c.so`, `pandad`, `loggerd`, `camerad`, ...) are rebuilt
+from the new names in this release, so the device's Params key table and the logged service names are the BogPilot ones.

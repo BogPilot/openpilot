@@ -1,6 +1,6 @@
 # Source/provenance/privacy release gate
 
-Run on the clean **final assembled source commit**, not a worker base. No installation,
+Run on the clean **final assembled source commit**, not a development base. No installation,
 network, history rewriting, authorship editing, license editing or native builds occur.
 This is separate from firmware signatures/repeatability and archive/runtime completeness.
 
@@ -150,5 +150,5 @@ Output explicitly declares `source_scope: cataloged_source_with_explicit_exclusi
 and preserves each exclusion's path_id/mode/blob/reason. This is NOT a complete-source
 archive or an overlay pretending to be full source. Packaging must retain catalogue
 and exclusions in metadata and verify runtime completeness separately. Final source
-commit/inventory freeze and rerun are mandatory; worker proof artifacts are not final
+commit/inventory freeze and rerun are mandatory; development proof artifacts are not final
 clearance. Existing DEBUG/signing policy and all license/author notices stay unchanged.

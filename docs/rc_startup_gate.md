@@ -1,5 +1,8 @@
 # C3X release-candidate startup acceptance gate
 
+> Development note, kept for reference. It describes this piece of work at the time it was written, not the
+> released build. For what the release does, see `README.md` and `docs/bogpilot_c3x.md`.
+
 Scope: settings lifecycle, NOT full operating-system boot, device validation,
 closed-loop actuation, firmware validation, or release promotion. No manager_init,
 manager.main/thread, hardware processes, registration, network or live settings IO.
@@ -12,12 +15,12 @@ Base f5928f3b1. Only this new tool, its tests and this
 document are new. Production manager/reset/backup files unchanged.
 The UI contract was read from a work-in-progress base, not the final
 candidate. Do not certify this base as the final build. Assemble this tooling onto
-final primary candidate and pass its **full exact HEAD SHA** explicitly.
+the final release candidate and pass its **full exact HEAD SHA** explicitly.
 
 ## Real-native pending invocation
 
-While another job holds the VM lock, do not compete. After
-it releases the existing serialized VM lock, the operator must
+While another job holds the build lock, do not compete. After
+it releases the existing serialized build lock, the operator must
 acquire it using the existing protocol, sync final candidate + matching native
 outputs to an isolated tree, and run inside AGNOS19.9 build environment:
 
@@ -91,5 +94,5 @@ PYTHONPATH=$PWD python -m pytest -q \
 
 Limits: no real power cut/fsync failure certification, no private vehicle data,
 no automatic recovery/restore, no data-retention policy change. Native VM run and
-final candidate SHA acceptance are pending while primary owns the VM lock. No
+final candidate SHA acceptance were not part of this note. No
 production data mutation, product push, flash or binary commits.

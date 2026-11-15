@@ -4,7 +4,7 @@ The lane-change settings in this build, where each one came from in BogPilot 0.9
 
 ## Settings and their BogPilot 0.9.7 origin
 
-Reference: existing repository's own `04d560f3` (0.9.7 bogpilot-tesla), not an upstream/newer fork.
+Reference: existing repository's own `04d560f3` (0.9.7, now `bogpilot-tesla-0.9.7`), not an upstream/newer fork.
 
 In the BogPilot 0.9.7 reference tree (`04d560f3`), `frogpilot/ui/qt/offroad/lateral_settings.cc` / `.h` define these rows, and `frogpilot/ui/qt/offroad/longitudinal_settings.cc` defines Human-Like Lane Changes:
 
