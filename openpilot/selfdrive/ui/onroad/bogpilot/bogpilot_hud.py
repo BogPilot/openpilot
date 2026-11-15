@@ -486,12 +486,8 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
     self.bp_c4_personality = None
     self._bp_traffic = None
     self._bp_c4_extras = ExtrasPolicy()
-    self._bp_c4_arrow = None         # c4_layout.LaneChangeArrow, made on the first comma 4 frame
-    self._bp_c4_arrow_tex = None
     self.bp_c4_gauge = None          # pedal_gauge3.Gauge3 to draw, or None when the pedal display is off
     self._bp_c4_pedals = None        # pedals.PedalGauge (shared inputs, colour-source hysteresis, regen smoothing)
-    self.bp_c4_arrow_dir = 0
-    self.bp_c4_lc_alert = False      # the stock lane-change alert is on screen
     self.bp_c4_rec = False           # record button shown (ScreenRecorder toggle, same rule as the wide layout)
     self._bp_c4_leads = None         # c4_leads.Comma4Leads, made on the first comma 4 frame
     self._bp_c4_lead_policy = None   # hud_compose.PolicyToggles (HideLeadMarker, AdjacentLeadsUI)
@@ -513,7 +509,6 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
       except Exception:
         cloudlog.exception("comma 4 layout inputs failed")
         self.bp_c4_gauge = None
-        self.bp_c4_arrow_dir = 0
       self._bp_c4_update_arc()
       self._bp_c4_update_bsm()
 
@@ -583,16 +578,9 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
   def _bp_c4_update(self):
     sm = ui_state.sm
     now = time.monotonic()
-    # lane-change arrows and the stock turn intent: onroadEvents only (the blinkers are not read)
-    names = [str(e.name) for e in sm["onroadEvents"]] if _fresh(sm, "onroadEvents") else []
-    md = sm["modelV2"].meta.laneChangeDirection if _fresh(sm, "modelV2") else None
-    if self._bp_c4_arrow is None:
-      self._bp_c4_arrow = C4.LaneChangeArrow()
-    self.bp_c4_arrow_dir = self._bp_c4_arrow.update(names, md)
-    self._turn_intent._update_state()   # stock filters; its render moved over the personality button
-    ss = sm["selfdriveState"] if _fresh(sm, "selfdriveState") else None
-    alert_type = str(ss.alertType) if ss is not None else ""
-    self.bp_c4_lc_alert = alert_type.startswith(("preLaneChange", "laneChange"))
+    # lane changes: the stock alert draws its own turn-signal arrows; the stock turn intent (its filters run on the
+    # lane-change events) is drawn over the personality button
+    self._turn_intent._update_state()
     # three-bar gauge, shown under the same pedal display toggles as the wide layout's pedal bars
     pol, rec = self._bp_c4_extras.get(bool(getattr(ui_state, "has_longitudinal_control", False)))
     self.bp_c4_rec = bool(rec)
@@ -630,7 +618,7 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
       super()._draw_set_speed(rect)
 
   def _draw_steering_wheel(self, rect):
-    # comma 4 layout: no stock wheel icon (its turn-intent arrows are replaced by the lane-change arrows)
+    # comma 4 layout: no stock wheel icon (its turn intent is drawn over the personality button instead)
     if not self.bp_c4:
       super()._draw_steering_wheel(rect)
 
@@ -706,12 +694,6 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
     lay["personality"] = self.bp_c4_personality
     if vis.gauge and self.bp_c4_gauge is not None:
       lay.update(C4P.paint_gauge(self.bp_c4_gauge, ox, oy))
-    lay["arrow_dir"] = self.bp_c4_arrow_dir
-    lay["stock_lc_alert"] = self.bp_c4_lc_alert
-    if C4.arrow_visible(self.bp_c4_arrow_dir, self.bp_c4_lc_alert and not self._can_draw_top_icons):
-      if self._bp_c4_arrow_tex is None:
-        self._bp_c4_arrow_tex = gui_app.texture("icons_mici/onroad/turn_signal_left.png", C4.ARROW_TEX_W, C4.ARROW_TEX_H)
-      lay.update(C4P.paint_arrow(self._bp_c4_arrow_tex, self.bp_c4_arrow_dir, ox, oy))
     lay.update(C4P.paint_personality_button(self.bp_c4_personality, traffic, vis.take_control, ox, oy))
     ti = self._turn_intent
     lay.update(C4P.paint_turn_intent(ti._txt_turn_intent_left, ti._txt_turn_intent_right, ti._turn_intent_direction,
@@ -757,8 +739,6 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
       keepouts = []
       if not alert_shown:
         keepouts += ([C4.gauge_rect()] if gauge_on else []) + [C4.PILL, C4.DM_ICON]
-      if C4.arrow_visible(self.bp_c4_arrow_dir, self.bp_c4_lc_alert and alert_shown):
-        keepouts.append(C4.arrow_core_rect(self.bp_c4_arrow_dir))
       ti = self._turn_intent
       if ti._turn_intent_alpha_filter.x > 1e-2:
         keepouts.append(C4.turn_intent_bbox(ti._turn_intent_rotation_filter.x))

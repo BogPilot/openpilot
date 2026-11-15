@@ -46,13 +46,16 @@ Code: `openpilot/selfdrive/ui/onroad/bogpilot/c4_layout.py` (geometry, gate, vis
   2 px edge, 75 % fill) instead of the design's lighter track; the colours are the shared palette (the same hex values
   as the design). Kept so the comma 4 and the 3X use one gauge.
 
-### comma 4: lane-change arrows from lane-change events only
-- Reference behavior: the stock comma 4 shows the turn intent on the wheel icon from `preLaneChange*` / `laneChange`.
-- Our behavior: a green stock turn-signal arrow under the pill (left) or under the driver-monitor icon (right), only
-  while `preLaneChangeLeft/Right` or `laneChange` is in `onroadEvents` (direction from the event or
-  `modelV2.meta.laneChangeDirection`). The blinkers are not read.
-- The stock lane-change alert is on screen at the same moments and the left arrow overlaps it. Default
-  `ARROWS_WITH_STOCK_LC_ALERT = "overlap"` (both drawn); `"hide"` hides the arrows while that alert shows.
+### comma 4: no custom lane-change arrows, the stock alert's arrows are used
+- Reference behavior: the stock comma 4 lane-change alert (`preLaneChangeLeft/Right`, `laneChange`) draws its own
+  blinking turn-signal arrow with the alert text, and the stock turn intent turns on the wheel icon.
+- Our behavior: the comma 4 layout draws no lane-change arrow of its own; the stock alert and its arrows are left to
+  show lane changes. The stock turn intent is still drawn, over the personality button (see the personality button entry). The alert
+  is a stock alert, so the pill, gauge, driver-monitor icon and lead boxes step aside while it shows (see "what hides
+  during alerts").
+- Divergence from the design: the design had green arrows under the pill (left) and the driver-monitor icon (right)
+  during a lane change. Removed by the maintainer decision of 2026-11-15: the stock arrows cover it, and a second
+  pair overlapped the stock alert on this small screen. The 3X is unchanged.
 
 ### comma 4: record button in the side panel
 - Our behavior: the BogPilot record ring scaled to a 40 px disc at (508, 212), in the stock side panel under the

@@ -55,22 +55,7 @@ REC_CX, REC_CY = SCREEN_W - 28, 212
 REC_D = 40
 REC_SRC_D = 124                              # style.REC_DIAMETER (wide layout)
 
-# Lane-change arrows (green, during preLaneChange / laneChange only): visible core rects under the pill (left) and
-# centred under the driver-monitor icon (right), the rows the lead speed labels use.
-ARROW_CORE_W, ARROW_CORE_H = 46, 39
-ARROW_Y0 = 68
-ARROW_LEFT_X0 = 8
-ARROW_RIGHT_CX = (DM_ICON[0] + DM_ICON[2]) / 2
-# Stock icons_mici/onroad/turn_signal_left.png (104 x 96) drawn at 0.7: 73 x 67, visible core offset (14, 14).
-ARROW_TEX_SCALE = 0.7
-ARROW_TEX_W, ARROW_TEX_H = 73, 67
-ARROW_CORE_OFFSET = (14, 14)
-# What our arrows do while the stock lane-change alert (which draws its own arrow and text) is on screen:
-#   "overlap"  keep them at the design position (they sit inside the alert's text area)
-#   "hide"     hide them while the stock lane-change alert shows
-# Moving them clear of the alert needs a new design position, so it is not offered here.
-ARROWS_WITH_STOCK_LC_ALERT = "overlap"
-ARROW_MODES = ("overlap", "hide")
+# Lane changes: no custom arrows; the stock lane-change alert draws its own turn-signal arrows.
 
 # Stock turn intent (white, from the same lane-change events) drawn over the personality button the way stock draws it
 # over the wheel: centred on the button, bottom 5 px above it, rotated about the button centre, at 44 x 18.
@@ -163,57 +148,12 @@ def in_rect(r, x, y) -> bool:
   return r[0] <= x < r[2] and r[1] <= y < r[3]
 
 
-def arrow_tex_origin(direction: int):
-  """Top-left of the 73 x 67 texture so its visible core lands on arrow_core_rect (the right arrow is the left one
-  mirrored, so its core offset is measured from the texture's right edge)."""
-  core = arrow_core_rect(direction)
-  ox = core[0] - (ARROW_CORE_OFFSET[0] if direction < 0 else ARROW_TEX_W - ARROW_CORE_OFFSET[0] - ARROW_CORE_W)
-  return ox, core[1] - ARROW_CORE_OFFSET[1]
-
-
-def arrow_visible(direction: int, stock_lc_alert_shown: bool, mode: str = None) -> bool:
-  mode = ARROWS_WITH_STOCK_LC_ALERT if mode is None else mode
-  if direction == 0:
-    return False
-  return not (mode == "hide" and stock_lc_alert_shown)
-
-
 def turn_intent_rect():
   """Unrotated stock turn-intent rect over the personality button."""
   r = PERSONALITY_D / 2
   x0 = PERSONALITY_CX - TURN_INTENT_W / 2
   y1 = PERSONALITY_CY - r - TURN_INTENT_GAP
   return (x0, y1 - TURN_INTENT_H, x0 + TURN_INTENT_W, y1)
-
-
-def arrow_core_rect(direction: int):
-  """direction -1 left, +1 right."""
-  x0 = ARROW_LEFT_X0 if direction < 0 else ARROW_RIGHT_CX - ARROW_CORE_W / 2
-  return (x0, ARROW_Y0, x0 + ARROW_CORE_W, ARROW_Y0 + ARROW_CORE_H)
-
-
-class LaneChangeArrow:
-  """Arrow direction from the lane-change events only (the blinkers are NOT read), like the stock turn intent:
-  preLaneChangeLeft / preLaneChangeRight set the direction; laneChange keeps the last pre direction; anything else
-  clears it. Returns -1, +1 or 0 (hidden)."""
-
-  def __init__(self):
-    self.direction = 0
-
-  def update(self, event_names, model_direction=None) -> int:
-    """event_names: onroadEvents names this frame. model_direction: modelV2.meta.laneChangeDirection ("left" /
-    "right" / "none"), used only when laneChange arrives without a pre frame."""
-    names = {str(n) for n in event_names}
-    left, right = "preLaneChangeLeft" in names, "preLaneChangeRight" in names
-    if left or right:
-      self.direction = -1 if left else 1
-    elif "laneChange" in names:
-      if self.direction == 0:
-        md = str(model_direction)
-        self.direction = -1 if md == "left" else 1 if md == "right" else 0
-    else:
-      self.direction = 0
-    return self.direction
 
 
 @dataclass(frozen=True)

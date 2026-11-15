@@ -1,5 +1,5 @@
-"""comma 4 layout: the shared three-bar gauge in the comma 4 spot, lane-change arrow placement and modes, the stock turn intent over
-the personality button, and the record button (geometry, painter, tap). Headless: draw calls are recorded."""
+"""comma 4 layout: the shared three-bar gauge in the comma 4 spot, no custom lane-change arrows (the stock alert draws
+them), the stock turn intent over the personality button, and the record button (geometry, painter, tap). Headless: draw calls are recorded."""
 import math
 import unittest
 from types import SimpleNamespace as NS
@@ -53,30 +53,50 @@ class TestGaugePainter(unittest.TestCase):
     self.assertEqual(st["colours"][2], list(G3.GAUGE3_PALETTE[(G3.ACCEL, G3.OP)]))
 
 
-class TestArrows(unittest.TestCase):
-  def test_texture_origin_puts_core_on_spot(self):
-    self.assertEqual(C4.arrow_tex_origin(-1), (8 - 14, 68 - 14))
-    self.assertEqual(C4.arrow_core_rect(1), (419.0, 68, 465.0, 107))
-    self.assertEqual(C4.arrow_tex_origin(1), (419.0 - 13, 54))
+class TestNoCustomArrows(unittest.TestCase):
+  """Lane changes on the comma 4 use the stock alert's turn-signal arrows: the comma 4 layer has no arrow of its own."""
 
-  def test_modes(self):
-    self.assertEqual(C4.ARROWS_WITH_STOCK_LC_ALERT, "overlap")
-    self.assertTrue(C4.arrow_visible(-1, True))
-    self.assertFalse(C4.arrow_visible(-1, True, "hide"))
-    self.assertTrue(C4.arrow_visible(1, False, "hide"))
-    self.assertFalse(C4.arrow_visible(0, False))
-    self.assertIn(C4.ARROWS_WITH_STOCK_LC_ALERT, C4.ARROW_MODES)
+  def test_no_arrow_api(self):
+    for name in ("LaneChangeArrow", "arrow_core_rect", "arrow_tex_origin", "arrow_visible", "ARROWS_WITH_STOCK_LC_ALERT"):
+      self.assertFalse(hasattr(C4, name), name)
+    self.assertFalse(hasattr(C4P, "paint_arrow"))
 
-  def test_arrow_painter_mirrors_right(self):
-    rec, ps = recording([], ["draw_texture_pro"])
-    tex = NS(width=73, height=67)
-    run(ps, C4P.paint_arrow, tex, -1)
-    run(ps, C4P.paint_arrow, tex, 1)
-    l, r = rec.named("draw_texture_pro")
-    self.assertGreater(l[1][1].width, 0)
-    self.assertLess(r[1][1].width, 0)
-    self.assertEqual((r[1][2].x, r[1][2].y, r[1][2].width, r[1][2].height), (406.0, 54, 73, 67))
+  def render_lane_change(self, direction):
+    from openpilot.selfdrive.ui.onroad.bogpilot import bogpilot_hud as H
+    painted = []
 
+    def rec(name):
+      return lambda *a, **k: painted.append((name, a)) or {}
+    ti = NS(_txt_turn_intent_left="L", _txt_turn_intent_right="R", _turn_intent_direction=direction,
+            _turn_intent_alpha_filter=NS(x=1.0), _turn_intent_rotation_filter=NS(x=0.0))
+    hud = NS(bp_c4_layout={}, _can_draw_top_icons=False, _show_wheel_critical=False, bp_c4_gauge=object(),
+             _bp_c4_personality=lambda: (NS(personality=1), False), _bp_c4_border=lambda *a: None,
+             _bp_c4_pill_inputs=lambda: None, _turn_intent=ti)
+    names = ("paint_pill", "paint_gauge", "paint_personality_button", "paint_turn_intent", "paint_lead_box",
+             "paint_speed_label", "paint_leads", "paint_record_button")
+    with mock.patch.multiple(C4P, **{n: rec(n) for n in names}), \
+         mock.patch.object(H.gui_app, "texture", side_effect=AssertionError("no texture is loaded for an arrow")):
+      H.BogPilotMiciHudRenderer._bp_render_c4(hud, NS(x=0.0, y=0.0, width=476.0, height=240.0))
+    return hud, painted
+
+  def test_lane_change_draws_no_custom_arrow(self):
+    for direction in (-1, 1):
+      hud, painted = self.render_lane_change(direction)
+      drawn = [n for n, _ in painted]
+      # the stock lane-change alert is on screen: pill and gauge step aside, only the button and the stock turn intent
+      self.assertEqual(drawn, ["paint_personality_button", "paint_turn_intent"])
+      self.assertFalse([k for k in hud.bp_c4_layout if "arrow" in str(k)])
+      self.assertNotIn("arrow_dir", hud.bp_c4_layout)
+
+  def test_mici_hud_has_no_arrow_state(self):
+    import inspect
+    from openpilot.selfdrive.ui.onroad.bogpilot import bogpilot_hud as H
+    src = inspect.getsource(H.BogPilotMiciHudRenderer)
+    for name in ("bp_c4_arrow", "LaneChangeArrow", "turn_signal_left", "paint_arrow"):
+      self.assertNotIn(name, src)
+
+
+class TestTurnIntent(unittest.TestCase):
   def test_turn_intent_over_button(self):
     self.assertEqual(C4.turn_intent_rect(), (6.0, 169.0, 50.0, 187.0))
     rec, ps = recording([], ["draw_texture_pro"])

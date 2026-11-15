@@ -134,15 +134,6 @@ def paint_gauge(g, ox: float = 0.0, oy: float = 0.0):
                           "src": [g.brake_src, g.regen_src, g.accel_src]}}
 
 
-def paint_arrow(tex, direction: int, ox: float = 0.0, oy: float = 0.0):
-  """Green stock turn-signal arrow at the comma 4 arrow spot (left under the pill, right under the DM icon)."""
-  tx, ty = C4.arrow_tex_origin(direction)
-  src = rl.Rectangle(0, 0, tex.width if direction < 0 else -tex.width, tex.height)
-  rl.draw_texture_pro(tex, src, rl.Rectangle(ox + tx, oy + ty, C4.ARROW_TEX_W, C4.ARROW_TEX_H), rl.Vector2(0, 0), 0.0,
-                      rl.WHITE)
-  return {f"lane-change arrow ({'left' if direction < 0 else 'right'}, core)": _o(C4.arrow_core_rect(direction), ox, oy)}
-
-
 def paint_turn_intent(tex_left, tex_right, direction: int, alpha: float, rotation: float, ox: float = 0.0, oy: float = 0.0):
   """Stock TurnIntent arrow over the personality button (stock filter values), rotated about the button centre."""
   if alpha <= 1e-2:

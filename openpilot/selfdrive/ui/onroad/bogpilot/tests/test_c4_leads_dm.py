@@ -170,7 +170,7 @@ class TestLeadsUnderAlerts(unittest.TestCase):
         return leads, 29.0
     hud = NS(bp_c4=True, bp_c4_lead_layout={"stale": 1}, _bp_c4_leads=Leads(),
              _bp_c4_lead_policy=NS(get=lambda: {"adjacent_leads": True, "hide_lead_marker": False}),
-             bp_c4_gauge=None, bp_c4_arrow_dir=0, bp_c4_lc_alert=False,
+             bp_c4_gauge=None,
              _turn_intent=NS(_turn_intent_alpha_filter=NS(x=0.0), _turn_intent_rotation_filter=NS(x=0.0)),
              _bp_c4_alert=lambda shown: (C4.ALERT_TEXT_ZONE if shown else None, False))
     return hud, calls

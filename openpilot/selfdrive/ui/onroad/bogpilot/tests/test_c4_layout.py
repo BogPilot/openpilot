@@ -1,4 +1,4 @@
-"""comma 4 layout: device gate, element positions, lane-change arrow and visibility rules, the shared three-bar gauge in the comma 4 spot."""
+"""comma 4 layout: device gate, element positions and visibility rules (no custom lane-change arrows), the shared three-bar gauge in the comma 4 spot."""
 import unittest
 from types import SimpleNamespace as NS
 
@@ -63,19 +63,9 @@ class TestPositions(unittest.TestCase):
     self.assertAlmostEqual(w, 0.967741, places=5)
     self.assertAlmostEqual(dot, 7.6, places=6)
 
-  def test_arrows_under_pill_and_dm(self):
-    left, right = C4.arrow_core_rect(-1), C4.arrow_core_rect(1)
-    self.assertEqual(left, (8, 68, 54, 107))
-    self.assertEqual(right, (419.0, 68, 465.0, 107))
-    self.assertGreater(left[1], C4.PILL[3])
-    self.assertGreater(right[1], C4.DM_ICON[3])
-    self.assertAlmostEqual((right[0] + right[2]) / 2, (C4.DM_ICON[0] + C4.DM_ICON[2]) / 2)
-    for r in (left, right):
-      self.assertFalse(overlap(r, C4.gauge_rect()))
-
   def test_no_overlaps(self):
     rects = {"pill": C4.PILL, "dm": C4.DM_ICON, "gauge": C4.gauge_rect(), "button": C4.personality_rect(),
-             "rec": C4.record_rect(), "arrowL": C4.arrow_core_rect(-1), "arrowR": C4.arrow_core_rect(1)}
+             "rec": C4.record_rect()}
     names = list(rects)
     for i, a in enumerate(names):
       for b in names[i + 1:]:
@@ -83,28 +73,6 @@ class TestPositions(unittest.TestCase):
     for k, r in rects.items():
       if k != "rec":
         self.assertLessEqual(r[2], C4.VIEW_W, k)
-
-
-class TestLaneChangeArrow(unittest.TestCase):
-  def test_events_only(self):
-    a = C4.LaneChangeArrow()
-    self.assertEqual(a.update([]), 0)
-    self.assertEqual(a.update(["preLaneChangeLeft"]), -1)
-    self.assertEqual(a.update(["laneChange"]), -1)
-    self.assertEqual(a.update([]), 0)
-    self.assertEqual(a.update(["preLaneChangeRight"]), 1)
-    self.assertEqual(a.update(["laneChange"]), 1)
-
-  def test_lane_change_without_pre_uses_model_direction(self):
-    a = C4.LaneChangeArrow()
-    self.assertEqual(a.update(["laneChange"], "right"), 1)
-    a = C4.LaneChangeArrow()
-    self.assertEqual(a.update(["laneChange"], "none"), 0)
-
-  def test_blinker_alone_shows_nothing(self):
-    # the arrow takes event names only; a blinker never produces one of these events by itself
-    a = C4.LaneChangeArrow()
-    self.assertEqual(a.update(["steerSaturated", "driverDistracted2"]), 0)
 
 
 class TestVisibility(unittest.TestCase):
