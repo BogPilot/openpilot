@@ -1,10 +1,10 @@
 """AP1 cluster lane placement (0x239 DAS_lanes C0..C3). Display only.
 
-Ported from BogPilot 0.9.7 bogpilot-tesla-ic-discovery selfdrive/car/tesla/ic_lanes.py
+Originally developed on the 0.9.7 line (archived and removed), in selfdrive/car/tesla/ic_lanes.py
 (lane fix only; the 1 Hz shadow log and the lead "snap" log are not ported, they
 only logged and needed a radarState SubMaster that opendbc cannot own).
 
-Default ON for AP1, same as the 0.9.7 test branch: a missing
+Default ON for AP1, as in that original 0.9.7 work: a missing
 /data/params_bogpilot/ICLanes means "lanes". The file can hold:
   (missing / empty / anything else), 1 / true / on / lanes / snap
               Engaged 0x239 path from openpilot's lane lines, in the cluster's
