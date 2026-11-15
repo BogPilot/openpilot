@@ -172,6 +172,14 @@ class TestGeometry(unittest.TestCase):
       self.assertTrue(10.0 - 1e-9 <= x <= 40.0 + 1e-9 and top - 1e-9 <= y <= 120.0 + 1e-9)
     self.assertAlmostEqual(min(p[1] for p in G3.fill_polygon(inner, 1.0)), 20.0)
 
+  def test_outline_snaps_to_pixel_centres(self):
+    pts = G3.outline_points(G3.fill_polygon((103.11, 492.78, 26.44, 105.78), 0.6))
+    self.assertTrue(pts)
+    for x, y in pts:
+      self.assertEqual((x % 1.0, y % 1.0), (0.5, 0.5))
+    self.assertEqual(min(x for x, _ in pts), 103.5)          # the left edge lands on pixel column 103
+    self.assertEqual(G3.outline_points([]), [])
+
   def test_inner_rect_scales_inset(self):
     self.assertEqual(G3.inner_rect((0, 0, 36, 120), 1.0), (4, 4, 28, 112))
     self.assertEqual(G3.inner_rect((0, 0, 36, 120), 0.5), (2, 2, 32, 116))

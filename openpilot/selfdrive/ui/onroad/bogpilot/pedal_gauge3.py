@@ -216,6 +216,12 @@ def fill_polygon(inner, frac: float, n: int = 6):
   return out
 
 
+def outline_points(poly):
+  """The fill outline snapped to pixel centres (floor + 0.5), so a 1 px line always lights one pixel column / row. At a
+  fractional x (for example 103.1 on 3X) an unsnapped vertical 1 px line can miss every pixel centre and vanish."""
+  return [(math.floor(x) + 0.5, math.floor(y) + 0.5) for x, y in poly]
+
+
 def inner_rect(bar, scale: float = 1.0):
   x, y, w, h = bar
   i = INSET * scale
@@ -234,7 +240,8 @@ def paint_gauge3(rect, g: Gauge3, scale: float = 1.0) -> None:
     fill_convex(poly, rl.Color(*rgb, FILL_A))
     if len(poly) >= 3:
       line = rl.Color(*OUTLINE_RGB, OUTLINE_A)
-      for k in range(len(poly)):
-        p, q = poly[k], poly[(k + 1) % len(poly)]
+      pts = outline_points(poly)
+      for k in range(len(pts)):
+        p, q = pts[k], pts[(k + 1) % len(pts)]
         rl.draw_line_ex(rl.Vector2(*p), rl.Vector2(*q), OUTLINE_PX, line)
     rl.draw_rectangle_rounded_lines_ex(outer, ROUND, 10, EDGE_PX, rl.Color(*EDGE_RGB, EDGE_A))
