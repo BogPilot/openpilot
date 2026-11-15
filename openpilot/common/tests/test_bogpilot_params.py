@@ -47,6 +47,9 @@ REF.update(REQUESTED_CAMERA_AUTO)
 # Pedals on Screen registers on (the 367e1fe snapshot had it off); level and stock value unchanged.
 REQUESTED_PEDALS_ON = {"PedalsOnUI": ["1", 1, "0"]}
 REF.update(REQUESTED_PEDALS_ON)
+# Driver Camera When In Reverse registers on, stock value on too (the 367e1fe snapshot had both off); level unchanged.
+REQUESTED_DRIVER_CAMERA_ON = {"DriverCamera": ["1", 1, "1"]}
+REF.update(REQUESTED_DRIVER_CAMERA_ON)
 STOCK_011_KEYS = set(bp.BOGPILOT_STOCK_KEY_DEFAULTS)
 
 
@@ -67,6 +70,8 @@ def test_fixture_is_367e1fe():
   assert REF["CameraView"] == ["0", 2, "0"]
   assert RAW_REF["PedalsOnUI"] == ["0", 1, "0"]
   assert REF["PedalsOnUI"] == ["1", 1, "0"]
+  assert RAW_REF["DriverCamera"] == ["0", 1, "0"]
+  assert REF["DriverCamera"] == ["1", 1, "1"]
 
 
 @pytest.mark.parametrize("key", sorted(REF))

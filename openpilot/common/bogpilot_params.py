@@ -8,6 +8,8 @@ BogPilot policy overrides on top of the 367e1fe BogPilot table:
   HolidayThemes default "0" (off); TuningLevel default "0" + Confirmed "0" (fresh-install unset).
   CameraView default "0" (Auto, the stock road camera switching; 367e1fe registers 3, Wide).
   PedalsOnUI default "1" (Pedals on Screen on; 367e1fe registers 0).
+  DriverCamera default "1" and stock "1" (Driver Camera When In Reverse on, also after Reset toggles to default;
+  367e1fe registers 0/0). docs/tesla/DIVERGENCES.md, "First install" entry.
 Border/Sidebar metrics + LowerSpeedLimitsBox at Minimal (shipping defaults); Model UI widths stay Advanced.
 Unconfirmed TuningLevel still reads as 3 at runtime via ParamStore.tuning_level(); AP1 profile no longer locks TuningLevel (shipping defaults).
 
@@ -143,7 +145,7 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "DownloadableSounds": ("PERSISTENT", "STRING", None, None, None),
   "DownloadableWheels": ("PERSISTENT", "STRING", None, None, None),
   "DownloadAllModels": ("CLEAR_ON_MANAGER_START", "BOOL", None, None, None),
-  "DriverCamera": ("PERSISTENT", "BOOL", "0", 1, "0"),
+  "DriverCamera": ("PERSISTENT", "BOOL", "1", 1, "1"),
   "DynamicPathWidth": ("PERSISTENT", "BOOL", "0", 2, "0"),
   "DynamicPedalsOnUI": ("PERSISTENT", "BOOL", "1", 1, "0"),
   "EngageVolume": ("PERSISTENT", "INT", "101", 2, "101"),

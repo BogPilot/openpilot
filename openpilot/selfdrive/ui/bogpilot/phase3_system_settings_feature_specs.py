@@ -630,7 +630,7 @@ FEATURE_SPECS = json.loads(r'''{
     "type": "INT"
   },
   "DriverCamera": {
-    "declared_default": "0",
+    "declared_default": "1",
     "max": null,
     "min": null,
     "source": "BOGPILOT_PARAMS",

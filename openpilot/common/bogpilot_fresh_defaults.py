@@ -1,4 +1,4 @@
-"""First-install defaults for Driver Camera in Reverse and Experimental Mode. Never applied on an upgrade.
+"""First-install Experimental Mode defaults. Never applied on an upgrade.
 
 Runs from bogpilot_startup.before_defaults, i.e. before manager_init writes the registered (compiled) defaults
 (openpilot/system/manager/manager.py, "set unset params to their default value"). At that point:
@@ -11,39 +11,45 @@ Runs from bogpilot_startup.before_defaults, i.e. before manager_init writes the 
   is needed, and a boot interrupted before that loop just retries the same unset-only writes.
 
 Values:
-- DriverCamera = on. The compiled default stays "0" (params_keys_bogpilot.h, from the BogPilot 0.9.7
-  367e1fe table), so libparams_c.so is unchanged; "Reset toggles to default" still resets it to off.
-- ExperimentalModeConfirmed = on, so the AP1 stalk hold (opendbc tesla_ap1/phase3_stalk_controls.py
-  apply_experimental_toggle) switches modes on the first drive without the settings confirmation dialog first.
-  The stock dialog (selfdrive/ui/layouts/settings/toggles.py; NAP has the same) is otherwise the only writer.
-  The AP1 profile never writes this key (bogpilot_ap1_profile.py NEVER_PROFILE_KEYS); this maintainer-chosen
-  first-install default is the documented exception (docs/tesla/DIVERGENCES.md).
 - ExperimentalMode = off: the drive mode starts in Chill. LongitudinalPersonality keeps its compiled default
   (Standard / Regular).
+- ExperimentalModeConfirmed = on, only while FRESH_INSTALL_CONFIRM_EXPERIMENTAL is True. It lets the AP1 stalk hold
+  (opendbc tesla_ap1/phase3_stalk_controls.py apply_experimental_toggle) switch modes on the first drive without
+  the settings confirmation dialog first. The stock dialog (selfdrive/ui/layouts/settings/toggles.py; NAP has the
+  same) is otherwise the only writer. The AP1 profile never writes this key (bogpilot_ap1_profile.py
+  NEVER_PROFILE_KEYS); this first-install default is the documented exception (docs/tesla/DIVERGENCES.md).
+  Set the switch to False to keep the dialog on new installs too.
+
+Driver Camera in Reverse is not written here: its registered default is "1" (params_keys_bogpilot.h), which the
+default loop applies to any unset key.
 
 Longitudinal availability is not touched here: the stalk switch still needs experimental_supported(cp)
 (AP1 Model S with openpilot longitudinal), and selfdrived drops ExperimentalMode without openpilot longitudinal.
 """
 from __future__ import annotations
 
+# Single switch for pre-confirming Experimental Mode on a fresh install (the stalk switch works on the first drive).
+FRESH_INSTALL_CONFIRM_EXPERIMENTAL = True
+
 FRESH_INSTALL_KEY = "HasAcceptedTerms"
-FRESH_INSTALL_DEFAULTS: tuple[tuple[str, bool], ...] = (
-  ("DriverCamera", True),
-  ("ExperimentalModeConfirmed", True),
-  ("ExperimentalMode", False),
-)
+
+
+def fresh_install_defaults(confirm_experimental: bool | None = None) -> tuple[tuple[str, bool], ...]:
+  confirm = FRESH_INSTALL_CONFIRM_EXPERIMENTAL if confirm_experimental is None else confirm_experimental
+  values = (("ExperimentalMode", False),)
+  return values + ((("ExperimentalModeConfirmed", True),) if confirm else ())
 
 
 def is_fresh_install(params) -> bool:
   return params.get(FRESH_INSTALL_KEY) is None
 
 
-def apply_fresh_install_defaults(params) -> list[str]:
+def apply_fresh_install_defaults(params, confirm_experimental: bool | None = None) -> list[str]:
   """Returns the keys written. Any upgrade (HasAcceptedTerms already stored) gets nothing."""
   if not is_fresh_install(params):
     return []
   written: list[str] = []
-  for key, value in FRESH_INSTALL_DEFAULTS:
+  for key, value in fresh_install_defaults(confirm_experimental):
     if params.get(key) is None:
       params.put_bool(key, value, block=True)
       written.append(key)

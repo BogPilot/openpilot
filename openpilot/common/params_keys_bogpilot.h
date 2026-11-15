@@ -106,7 +106,7 @@
     {"DownloadableSounds", {PERSISTENT, STRING}},
     {"DownloadableWheels", {PERSISTENT, STRING}},
     {"DownloadAllModels", {CLEAR_ON_MANAGER_START, BOOL}},
-    {"DriverCamera", {PERSISTENT, BOOL, "0"}},
+    {"DriverCamera", {PERSISTENT, BOOL, "1"}},
     {"DynamicPathWidth", {PERSISTENT, BOOL, "0"}},
     {"DynamicPedalsOnUI", {PERSISTENT, BOOL, "1"}},
     {"EngageVolume", {PERSISTENT, INT, "101"}},

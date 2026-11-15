@@ -96,7 +96,7 @@ DEFAULT_ROWS: tuple[tuple[str, str, int, str], ...] = (
   ('DiscordUsername', '', 0, ''),
   ('DisengageVolume', '101', 2, '101'),
   ('DistanceButtonControl', '1', 2, '0'),
-  ('DriverCamera', '0', 1, '0'),
+  ('DriverCamera', '1', 1, '1'),
   ('DynamicPathWidth', '0', 2, '0'),
   ('DynamicPedalsOnUI', '1', 1, '0'),
   ('EngageVolume', '101', 2, '101'),
