@@ -48,6 +48,26 @@ Recorded disagreements only where the cited files were read. No speculation.
 - Tests: `openpilot/selfdrive/ui/onroad/bogpilot/tests/test_hud_compose.py`.
 - Credits: BogPilot 0.9.7.
 
+## Onroad UI: lead and adjacent-lead boxes engaged or not, and under alerts
+- Platforms: all (onroad UI only; comma 3X wide layout and comma 4).
+- Reference behavior: BogPilot daily `annotated_camera.cc` draws leadOne and the adjacent leads (`leadLeft` /
+  `leadRight`) whenever openpilot longitudinal is available, radarState is from this drive and `HideLeadMarker` is
+  off; engagement is not a condition, and the alerts are painted over them. The earlier 0.11.2 port also required
+  the car to be engaged and skipped the boxes under a full-screen alert.
+- Our behavior: the boxes and the lead speed labels are drawn engaged or disengaged, and under every alert size (the
+  alert is still painted last, on top). The boxes keep clear of the HUD, the driver monitor and the personality
+  button but not of the alert; the speed labels still keep clear of the alert. Unchanged gates: RedesignUI,
+  openpilot longitudinal, `HideLeadMarker` (default off) and `AdjacentLeadsUI` (default on). Unchanged data checks:
+  fresh valid radarState / bogpilotRadarState / modelV2 / carState / selfdriveState / calibration, a present lead
+  with finite distance, and a clean on-screen calibrated projection. No lead means no box. The personality button
+  stays hidden under a full-screen alert. The gate lives in the shared core (`lead_lockon.LeadLockOn`), so every
+  layout that uses it behaves the same.
+- Why: the maintainer wants the lead and adjacent-lead boxes always on, engaged or not.
+- Safety-relevant: minor. Display only; alerts are still drawn on top and nothing in controls reads it.
+- Tests: `openpilot/selfdrive/ui/onroad/bogpilot/tests/test_lead_lockon.py`, `test_adjacent_leads_bsm.py`,
+  `test_hud_compose.py`; `openpilot/selfdrive/ui/tests/test_bogpilot_labels.py`.
+- Credits: BogPilot (drawLead gating and order).
+
 ## Panda safety (Pre-AP): stalk message 0x45 (STW_ACTN_RQ) is cancel-only on TX
 - Platforms: Pre-AP Model S (`TESLA_FLAG_PREAP` on SAFETY_TESLA, `opendbc_repo/opendbc/safety/modes/tesla_preap.h`).
 - Reference behavior: NAP (opendbc `cc39c7fa252e`) `opendbc/safety/modes/tesla_preap.h` whitelists 0x45 on bus 0
