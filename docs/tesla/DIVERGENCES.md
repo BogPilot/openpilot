@@ -854,7 +854,7 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   `UpdaterNewReleaseNotes` and from the running build in `UpdaterCurrentReleaseNotes`. A missing, empty or unreadable
   file gives empty notes, so the splash shows its "No release notes available." fallback. The compact update alert shows
   the notes instead of the blog link. When the section would not fit the comma 3X splash without scrolling, the stored
-  notes keep only the whole lines that fit, from the top, and end with a "…" item; an item that only introduces dropped
+  notes keep only the whole lines that fit, from the top, and end with a "..." item; an item that only introduces dropped
   sub-items is dropped with them. The full section stays in RELEASES.md.
 - Why: the notes are where a tester sees what changed. On the 3X splash the scroll range is measured from the
   unwrapped text, so a long section was cut off mid-line and its end could not be scrolled to. The cut at a whole line

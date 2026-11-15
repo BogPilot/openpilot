@@ -39,7 +39,7 @@ SPLASH_BODY_PX = 443          # 580 px of notes below the 136 px heading
 SPLASH_ITEM_PX = 12
 SPLASH_LINE_PX = 51
 SPLASH_CHARS_PER_LINE = 80
-ELLIPSIS_ITEM = "* \u2026"
+ELLIPSIS_ITEM = "* ..."  # ASCII: the UI font has no U+2026 glyph, so a real ellipsis would draw an empty item
 
 
 def _item_px(text: str, chars_per_line: int) -> int:
@@ -55,7 +55,7 @@ def fit_release_notes_markdown(md: str, body_px: int = SPLASH_BODY_PX,
   """
   lines = md.split("\n")
   head = 2 if len(lines) > 1 and lines[1].startswith("===") else 0
-  budget = body_px - _item_px("\u2026", chars_per_line)  # room is kept for the ellipsis item
+  budget = body_px - _item_px(ELLIPSIS_ITEM[2:], chars_per_line)  # room is kept for the ellipsis item
   kept, used, cut = lines[:head], 0, False
   for line in lines[head:]:
     text = line.strip()

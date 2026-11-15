@@ -148,11 +148,16 @@ class TestReleaseNotes(unittest.TestCase):
       stored = latest_release_notes_html(str(folder)).decode("utf-8")
       self.assertIn("<h1>What's new</h1>", stored)
       self.assertIn("<li>Item 0: ", stored)
-      self.assertTrue(stored.rstrip().endswith("<li>\u2026</li>\n</ul>"))
+      self.assertTrue(stored.rstrip().endswith("<li>...</li>\n</ul>"))
       self.assertNotIn("Item 11", stored)
       self.assertNotIn("Should not appear", stored)
       # The full section is still what the markdown reader returns.
       self.assertIn("Item 11", latest_release_notes_markdown(str(folder)))
+
+  def test_ellipsis_item_is_plain_ascii(self):
+    # The UI font has no U+2026 glyph; the item must still draw.
+    self.assertTrue(ELLIPSIS_ITEM.isascii())
+    self.assertEqual(ELLIPSIS_ITEM, "* ...")
 
   def test_an_item_that_only_introduces_dropped_sub_items_is_dropped(self):
     cut = fit_release_notes_markdown(NESTED)
@@ -167,7 +172,7 @@ class TestReleaseNotes(unittest.TestCase):
     self.assertIn(md.split("\n")[2].lstrip("* "), stored)  # the first item is always shown
     self.assertLessEqual(body_px(fit_release_notes_markdown(md)), SPLASH_BODY_PX)
     if body_px(md) > SPLASH_BODY_PX:
-      self.assertTrue(stored.rstrip().endswith("<li>\u2026</li>\n</ul>"))
+      self.assertTrue(stored.rstrip().endswith("<li>...</li>\n</ul>"))
 
   def test_tree_notes_describe_this_update(self):
     md = latest_release_notes_markdown(BASEDIR)
