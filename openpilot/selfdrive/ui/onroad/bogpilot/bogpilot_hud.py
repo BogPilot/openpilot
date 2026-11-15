@@ -22,7 +22,6 @@ from openpilot.selfdrive.ui.onroad.bogpilot import phase3_cem_status as CEM
 from openpilot.selfdrive.ui.onroad.bogpilot import pedals as PED
 from openpilot.selfdrive.ui.onroad.bogpilot import c4_layout as C4
 from openpilot.selfdrive.ui.onroad.bogpilot import c4_paint as C4P
-from openpilot.selfdrive.ui.onroad.bogpilot import c4_bars3 as B3
 from openpilot.selfdrive.ui.onroad.bogpilot import lead_labels as LL
 from openpilot.selfdrive.ui.onroad.bogpilot import developer_hud_logic as DEV
 from openpilot.selfdrive.ui.onroad.bogpilot import developer_hud as DEVP
@@ -489,7 +488,8 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
     self._bp_c4_extras = ExtrasPolicy()
     self._bp_c4_arrow = None         # c4_layout.LaneChangeArrow, made on the first comma 4 frame
     self._bp_c4_arrow_tex = None
-    self.bp_c4_gauge = None          # c4_bars3.Bars3 to draw, or None when the pedal display is off
+    self.bp_c4_gauge = None          # pedal_gauge3.Gauge3 to draw, or None when the pedal display is off
+    self._bp_c4_pedals = None        # pedals.PedalGauge (shared inputs, colour-source hysteresis, regen smoothing)
     self.bp_c4_arrow_dir = 0
     self.bp_c4_lc_alert = False      # the stock lane-change alert is on screen
     self.bp_c4_rec = False           # record button shown (ScreenRecorder toggle, same rule as the wide layout)
@@ -597,7 +597,11 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
     pol, rec = self._bp_c4_extras.get(bool(getattr(ui_state, "has_longitudinal_control", False)))
     self.bp_c4_rec = bool(rec)
     self.bp_c4_gauge = None
-    if pol.show:
+    if self._bp_c4_pedals is None:
+      self._bp_c4_pedals = PED.PedalGauge()
+    if not pol.show:
+      self._bp_c4_pedals.reset()
+    else:
       cs = sm["carState"]
       motor_tq = motor_rpm = brake_state = None
       psm = self._plan_sm()
@@ -612,13 +616,14 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
         motor_tq = motor_rpm = brake_state = None
       long_active = bool(_fresh(sm, "carControl") and sm["carControl"].longActive)
       cp = ui_state.CP
-      self.bp_c4_gauge = B3.bars3(fresh=_fresh(sm, "carState"), a_ego=cs.aEgo, v_ego=cs.vEgo,
-                                  brake_pressed=bool(cs.brakePressed), gas_pressed=bool(cs.gasPressed),
-                                  pedal_pos=cs.deprecated.gas,
-                                  op_accel=float(sm["carControl"].actuators.accel) if long_active else 0.0,
-                                  long_active=long_active, motor_torque_nm=motor_tq, motor_rpm=motor_rpm,
-                                  brake_pedal_state=brake_state,
-                                  model=PED.platform_of(getattr(cp, "carFingerprint", "") if cp is not None else ""))
+      fp = getattr(cp, "carFingerprint", "") if cp is not None else ""
+      # same inputs as the wide layout's gauge (bogpilot_hud BogPilotHudRenderer._bp_update_features)
+      self.bp_c4_gauge = self._bp_c4_pedals.update(pol, _fresh(sm, "carState"), now, PED.platform_of(fp),
+                                                   brake_pressed=bool(cs.brakePressed), brake_level=cs.deprecated.brake,
+                                                   pedal_pos=cs.deprecated.gas,
+                                                   op_accel=float(sm["carControl"].actuators.accel) if long_active else 0.0,
+                                                   long_active=long_active, motor_torque_nm=motor_tq, motor_rpm=motor_rpm,
+                                                   brake_pedal_state=brake_state, fingerprint=fp)
 
   def _draw_set_speed(self, rect):
     if not toggles.get("RedesignUI") and not self.bp_c4:
@@ -700,9 +705,7 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
     self.bp_c4_personality = None if data is None else data.personality
     lay["personality"] = self.bp_c4_personality
     if vis.gauge and self.bp_c4_gauge is not None:
-      lay.update(C4P.paint_gauge(self.bp_c4_gauge, C4.gauge_rect(), ox, oy))
-      lay["gauge_state"] = {"fills": list(self.bp_c4_gauge.fills), "colours": [list(c) for c in self.bp_c4_gauge.colours],
-                            "regen_kw": self.bp_c4_gauge.regen_kw}
+      lay.update(C4P.paint_gauge(self.bp_c4_gauge, ox, oy))
     lay["arrow_dir"] = self.bp_c4_arrow_dir
     lay["stock_lc_alert"] = self.bp_c4_lc_alert
     if C4.arrow_visible(self.bp_c4_arrow_dir, self.bp_c4_lc_alert and not self._can_draw_top_icons):

@@ -46,8 +46,8 @@ PERSONALITY_STRIPE_W, PERSONALITY_STRIPE_H, PERSONALITY_STRIPE_PITCH = 18, 4, 8
 
 # Three-bar pedal gauge, hard left directly above the personality button: brake | regen | accel.
 GAUGE_X0, GAUGE_Y0 = 8, 112
-GAUGE_BAR_W, GAUGE_BAR_GAP, GAUGE_H = 12, 2, 76
-REGEN_FULL_SCALE_KW = 55.0
+GAUGE_BAR_W, GAUGE_BAR_GAP, GAUGE_H = 12, 2, 76   # pedal_gauge3 36 / 6 proportions at 40 px wide
+GAUGE_SCALE = 0.5                                  # pedal_gauge3 design scale here: fill inset 4 * 0.5 = 2 px
 
 # Record button: the wide-layout paint_record_button look scaled to a 40 px disc, lower right in the side panel
 # (same inset from the right and bottom as the personality button has from the left and bottom).
@@ -112,6 +112,12 @@ def comma4_device(sm, fallback_device_type=None) -> bool:
 def gauge_rect():
   w = 3 * GAUGE_BAR_W + 2 * GAUGE_BAR_GAP
   return (GAUGE_X0, GAUGE_Y0, GAUGE_X0 + w, GAUGE_Y0 + GAUGE_H)
+
+
+def gauge_xywh():
+  """gauge_rect() as (x, y, w, h), the pedal_gauge3 painter's rect."""
+  x0, y0, x1, y1 = gauge_rect()
+  return (x0, y0, x1 - x0, y1 - y0)
 
 
 def gauge_bar_rects():

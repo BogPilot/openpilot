@@ -26,10 +26,6 @@ CRIT_TOP, CRIT_BOTTOM = (255, 200, 1), (255, 114, 0)
 CRIT_RIM, CRIT_STRIPE = C(255, 255, 255, 120), C(255, 255, 255, 255)
 EXCL_RED, EXCL_BORDER = C(224, 32, 42, 255), C(255, 255, 255, 255)
 
-# three-bar gauge: translucent track with a 1 px white outline, fill inset 2 px
-GAUGE_TRACK, GAUGE_OUTLINE = C(255, 255, 255, 34), C(255, 255, 255, 90)
-GAUGE_TRACK_R, GAUGE_FILL_R, GAUGE_INSET = 3, 2, 2
-
 # record button (wide-layout paint_record_button colours)
 REC_FILL, REC_RING, REC_DOT = C(14, 17, 22, 190), C(255, 255, 255, 60), C(225, 60, 60, 240)
 REC_SQUARE = C(225, 60, 60, 235)
@@ -128,32 +124,14 @@ def paint_personality_button(personality: int | None, traffic_mode: bool, take_c
   return out
 
 
-def gauge_bar_rects(rect, n=3):
-  """Split a gauge rect (x0, y0, x1, y1) into n equal bars separated by C4.GAUGE_BAR_GAP."""
-  x0, y0, x1, y1 = rect
-  gap = C4.GAUGE_BAR_GAP
-  bw = (x1 - x0 - gap * (n - 1)) / n
-  return tuple((x0 + i * (bw + gap), y0, x0 + i * (bw + gap) + bw, y1) for i in range(n))
-
-
-def paint_gauge(state, rect, ox: float = 0.0, oy: float = 0.0):
-  """Three-bar gauge (brake | regen | accel) from a gauge state (fills + colours) in rect. Returns the bar rects and
-  the fill rects drawn."""
-  out = {"3-bar gauge": _o(rect, ox, oy)}
-  fills = []
-  for i, (bar, frac, rgb) in enumerate(zip(gauge_bar_rects(_o(rect, ox, oy)), state.fills, state.colours)):
-    bx0, by0, bx1, by1 = bar
-    fill_rounded(rect_lrtb(bx0, by0, bx1, by1), GAUGE_TRACK_R, GAUGE_TRACK)
-    stroke_rounded(rect_lrtb(bx0, by0, bx1, by1), GAUGE_TRACK_R, 1.0, GAUGE_OUTLINE)
-    if frac > 0.0:
-      ih = (by1 - by0 - 2 * GAUGE_INSET) * min(1.0, frac)
-      f = (bx0 + GAUGE_INSET, by1 - GAUGE_INSET - ih, bx1 - GAUGE_INSET, by1 - GAUGE_INSET)
-      fill_rounded(rect_lrtb(*f), GAUGE_FILL_R, C(*rgb, 255))
-      fills.append(f)
-    else:
-      fills.append(None)
-  out["gauge fills"] = fills
-  return out
+def paint_gauge(g, ox: float = 0.0, oy: float = 0.0):
+  """The shared 3-bar pedal gauge (pedal_gauge3.paint_gauge3, pedal_gauge3.Gauge3) in the comma 4 gauge spot."""
+  from openpilot.selfdrive.ui.onroad.bogpilot import pedal_gauge3 as G3
+  x, y, w, h = C4.gauge_xywh()
+  G3.paint_gauge3((x + ox, y + oy, w, h), g, C4.GAUGE_SCALE)
+  return {"3-bar gauge": _o(C4.gauge_rect(), ox, oy),
+          "gauge_state": {"fills": [g.brake, g.regen, g.accel], "colours": [list(c[1]) for c in g.segments()],
+                          "src": [g.brake_src, g.regen_src, g.accel_src]}}
 
 
 def paint_arrow(tex, direction: int, ox: float = 0.0, oy: float = 0.0):

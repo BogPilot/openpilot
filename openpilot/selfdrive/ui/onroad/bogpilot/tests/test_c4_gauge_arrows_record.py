@@ -1,4 +1,4 @@
-"""comma 4 layout: three-bar gauge state + painter, lane-change arrow placement and modes, the stock turn intent over
+"""comma 4 layout: the shared three-bar gauge in the comma 4 spot, lane-change arrow placement and modes, the stock turn intent over
 the personality button, and the record button (geometry, painter, tap). Headless: draw calls are recorded."""
 import math
 import unittest
@@ -6,7 +6,7 @@ from types import SimpleNamespace as NS
 from unittest import mock
 
 from openpilot.selfdrive.ui.onroad.bogpilot import c4_layout as C4
-from openpilot.selfdrive.ui.onroad.bogpilot import c4_bars3 as B3
+from openpilot.selfdrive.ui.onroad.bogpilot import pedal_gauge3 as G3
 from openpilot.selfdrive.ui.onroad.bogpilot import c4_paint as C4P
 
 
@@ -39,52 +39,18 @@ def run(ps, fn, *a, **k):
       p.stop()
 
 
-class TestGaugeState(unittest.TestCase):
-  def test_contract_negative_regen_full_scale(self):
-    s = B3.gauge_state(B3.GaugeInputs(regen_kw=-27.5))
-    self.assertAlmostEqual(s.regen, 0.5)
-    self.assertEqual(B3.gauge_state(B3.GaugeInputs(regen_kw=-80.0)).regen, 1.0)
-    self.assertEqual(B3.gauge_state(B3.GaugeInputs(regen_kw=12.0)).regen, 0.0)        # drive power is not regen
-    self.assertAlmostEqual(B3.gauge_state(B3.GaugeInputs(regen_kw=-30.0, regen_full_scale_kw=-60.0)).regen, 0.5)
-    self.assertEqual(B3.gauge_state(B3.GaugeInputs(regen_kw=float("nan"))).regen, 0.0)
-    self.assertEqual(B3.GaugeInputs().regen_full_scale_kw, -55.0)
-
-  def test_fills_and_colours(self):
-    s = B3.gauge_state(B3.GaugeInputs(friction=0.25, regen_kw=-11.0, accel=0.7, engaged=True, friction_src=B3.OP,
-                                      accel_src=B3.DRIVER))
-    self.assertEqual(s.fills, (0.25, 0.2, 0.7))
-    self.assertEqual(s.colours, (B3.BRAKE_RGB[B3.OP], B3.REGEN_RGB[B3.OP], B3.ACCEL_RGB[B3.DRIVER]))
-    d = B3.gauge_state(B3.GaugeInputs())
-    self.assertEqual(d.colours, (B3.BRAKE_RGB[B3.DRIVER], B3.REGEN_RGB[B3.DRIVER], B3.ACCEL_RGB[B3.DRIVER]))
-    self.assertEqual(B3.gauge_state(B3.GaugeInputs(friction=3.0, accel=-1.0)).fills[::2], (1.0, 0.0))
-
-  def test_missing_motor_inputs_fail_closed(self):
-    b = B3.bars3(fresh=True, a_ego=-1.0, v_ego=20.0, brake_pressed=False, gas_pressed=False, pedal_pos=0.0,
-                 op_accel=0.0, long_active=True, motor_torque_nm=None, motor_rpm=None, brake_pedal_state=None)
-    self.assertEqual((b.regen, b.regen_kw), (0.0, 0.0))
-
-  def test_stale_signals_empty(self):
-    self.assertEqual(B3.inputs_from_signals(fresh=False, a_ego=-3, v_ego=20, brake_pressed=True, gas_pressed=True,
-                                            pedal_pos=1, op_accel=1, long_active=True, motor_torque_nm=-200,
-                                            motor_rpm=6000, brake_pedal_state=1, model="m"), B3.GaugeInputs(model="m"))
-
-
 class TestGaugePainter(unittest.TestCase):
-  def test_bars_track_outline_and_fill(self):
-    rec, ps = recording(["fill_rounded", "stroke_rounded"])
-    s = B3.gauge_state(B3.GaugeInputs(friction=0.5, regen_kw=0.0, accel=1.0))
-    out = run(ps, C4P.paint_gauge, s, C4.gauge_rect())
-    self.assertEqual(C4P.gauge_bar_rects(C4.gauge_rect()), C4.gauge_bar_rects())
+  def test_shared_painter_in_the_comma4_spot(self):
+    calls = []
+    g = G3.gauge_state(0.5, -11.0, 1.0, True, accel_by_op=True)
+    with mock.patch.object(G3, "paint_gauge3", lambda rect, gg, scale=1.0: calls.append((rect, gg, scale))):
+      out = C4P.paint_gauge(g)
+    self.assertEqual(calls, [((8, 112, 40, 76), g, C4.GAUGE_SCALE)])
     self.assertEqual(out["3-bar gauge"], (8, 112, 48, 188))
-    outlines = rec.named("stroke_rounded")
-    self.assertEqual(len(outlines), 3)
-    self.assertTrue(all(c[1][2] == 1.0 and (c[1][3].r, c[1][3].g, c[1][3].b) == (255, 255, 255) for c in outlines))
-    b, r, a = out["gauge fills"]
-    self.assertIsNone(r)
-    self.assertEqual(b, (10, 188 - 2 - 36, 18, 186))
-    self.assertEqual(a, (38, 114, 46, 186))
-    fills = [c for c in rec.named("fill_rounded") if c[1][2].a == 255]
-    self.assertEqual([(c[1][2].r, c[1][2].g, c[1][2].b) for c in fills], [B3.BRAKE_RGB[B3.DRIVER], B3.ACCEL_RGB[B3.DRIVER]])
+    st = out["gauge_state"]
+    self.assertEqual(st["src"], [G3.DRIVER, G3.OP, G3.OP])
+    self.assertAlmostEqual(st["fills"][1], 0.2)
+    self.assertEqual(st["colours"][2], list(G3.GAUGE3_PALETTE[(G3.ACCEL, G3.OP)]))
 
 
 class TestArrows(unittest.TestCase):

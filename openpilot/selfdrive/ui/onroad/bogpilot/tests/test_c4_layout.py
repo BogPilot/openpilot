@@ -1,10 +1,9 @@
-"""comma 4 layout: device gate, element positions, lane-change arrow and visibility rules, three-bar gauge inputs."""
-import math
+"""comma 4 layout: device gate, element positions, lane-change arrow and visibility rules, the shared three-bar gauge in the comma 4 spot."""
 import unittest
 from types import SimpleNamespace as NS
 
 from openpilot.selfdrive.ui.onroad.bogpilot import c4_layout as C4
-from openpilot.selfdrive.ui.onroad.bogpilot import c4_bars3 as B3
+from openpilot.selfdrive.ui.onroad.bogpilot import pedal_gauge3 as G3
 
 
 def overlap(a, b):
@@ -129,52 +128,24 @@ class TestVisibility(unittest.TestCase):
     self.assertTrue(v.leads)
 
 
-def b3(**kw):
-  base = dict(fresh=True, a_ego=0.0, v_ego=29.0, brake_pressed=False, gas_pressed=False, pedal_pos=0.0, op_accel=0.0,
-              long_active=False, motor_torque_nm=0.0, motor_rpm=6000.0, brake_pedal_state=0)
-  base.update(kw)
-  return B3.bars3(**base)
+class TestSharedGauge(unittest.TestCase):
+  """The comma 4 gauge is the shared pedal_gauge3 gauge (state, colours, painter) in the comma 4 spot."""
 
+  def test_palette_is_the_t4_colours(self):
+    P = G3.GAUGE3_PALETTE
+    self.assertEqual((P[(G3.BRAKE, G3.DRIVER)], P[(G3.BRAKE, G3.OP)]), ((0xC6, 0x28, 0x28), (0xB5, 0x83, 0x8D)))
+    self.assertEqual((P[(G3.REGEN, G3.DRIVER)], P[(G3.REGEN, G3.OP)]), ((0x2E, 0x8B, 0xFF), (0x8F, 0xB3, 0xE0)))
+    self.assertEqual((P[(G3.ACCEL, G3.DRIVER)], P[(G3.ACCEL, G3.OP)]), ((0x3D, 0xDC, 0x97), (0x5E, 0x8A, 0x72)))
 
-class TestBars3(unittest.TestCase):
-  def test_stale_empty(self):
-    self.assertEqual(b3(fresh=False, motor_torque_nm=-200.0), B3.EMPTY)
+  def test_shared_bar_split_matches_the_comma4_bars(self):
+    bars = [(x, y, x + w, y + h) for x, y, w, h in G3.bar_rects(C4.gauge_xywh())]
+    for a, b in zip(bars, C4.gauge_bar_rects(), strict=True):
+      for u, v in zip(a, b, strict=True):
+        self.assertAlmostEqual(u, v)
 
-  def test_regen_kw_scale(self):
-    b = b3(motor_torque_nm=-75.0)
-    kw = 75.0 * 6000.0 * 2 * math.pi / 60 / 1000
-    self.assertAlmostEqual(b.regen_kw, -kw, places=4)
-    self.assertAlmostEqual(b.regen, min(1.0, kw / 55.0), places=6)
-    self.assertEqual(b3(motor_torque_nm=-500.0).regen, 1.0)
-    self.assertEqual(b3(motor_torque_nm=50.0).regen, 0.0)
-    self.assertEqual(b3(motor_torque_nm=-1024.0).regen, 0.0)     # SNA
-    self.assertEqual(b3(motor_torque_nm=float("nan")).regen, 0.0)
-
-  def test_regen_colour_follows_long_active(self):
-    self.assertEqual(b3(long_active=False).regen_src, B3.DRIVER)
-    self.assertEqual(b3(long_active=True).regen_src, B3.OP)
-
-  def test_brake_needs_ibooster(self):
-    self.assertEqual(b3(a_ego=-3.0, motor_torque_nm=-30.0).brake, 0.0)       # regen only: no friction bar
-    b = b3(a_ego=-3.0, motor_torque_nm=-30.0, brake_pressed=True)
-    self.assertGreater(b.brake, 0.0)
-    self.assertEqual(b.brake_src, B3.DRIVER)
-    o = b3(a_ego=-3.0, motor_torque_nm=-30.0, long_active=True, brake_pedal_state=1)
-    self.assertGreater(o.brake, 0.0)
-    self.assertEqual(o.brake_src, B3.OP)
-    self.assertEqual(b3(brake_pressed=True, v_ego=0.0).brake, 1.0)
-
-  def test_accel_source(self):
-    self.assertEqual(b3(pedal_pos=0.4, gas_pressed=True).accel_src, B3.DRIVER)
-    o = b3(long_active=True, op_accel=1.0)
-    self.assertEqual(o.accel_src, B3.OP)
-    self.assertAlmostEqual(o.accel, 0.5)
-    self.assertEqual(b3(op_accel=1.0).accel, 0.0)                          # OP accel only while longActive
-
-  def test_colours(self):
-    self.assertEqual(B3.BRAKE_RGB, {B3.DRIVER: (0xC6, 0x28, 0x28), B3.OP: (0xB5, 0x83, 0x8D)})
-    self.assertEqual(B3.REGEN_RGB, {B3.DRIVER: (0x2E, 0x8B, 0xFF), B3.OP: (0x8F, 0xB3, 0xE0)})
-    self.assertEqual(B3.ACCEL_RGB, {B3.DRIVER: (0x3D, 0xDC, 0x97), B3.OP: (0x5E, 0x8A, 0x72)})
+  def test_regen_full_scale(self):
+    self.assertEqual(G3.regen_full_scale_kw("TESLA_AP1_MODELS"), -55.0)
+    self.assertAlmostEqual(G3.gauge_state(0, -27.5, 0, False).regen, 0.5)
 
 
 if __name__ == "__main__":
