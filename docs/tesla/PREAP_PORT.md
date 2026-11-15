@@ -141,10 +141,10 @@ Some CAN IDs are reused for two different messages, one on the chassis bus (bus 
 
 | ID | Bus 0 (chassis, `tesla_ap1_can`) | Bus 1 (radar, `tesla_radar_bosch_generated`) |
 |---|---|---|
-| 0x32e (814) | PARK_sensorStatusFront — 5 bytes, 4 Hz, front corner ultrasonic distances in cm (255 = no reading) | RadarPoint10_A — 8 bytes, ~16 Hz, Bosch radar track 10 |
-| 0x33e (830) | rear park corners — 5 bytes, 4 Hz | RadarPoint15_B — 8 bytes, ~16 Hz |
+| 0x32e (814) | PARK_sensorStatusFront — 5 bytes, 4 Hz, front corner ultrasonic distances in cm (255 = no reading) | RadarPoint10_A — 8 bytes, measured 7.4-12.6 Hz depending on track count, Bosch radar track 10 |
+| 0x33e (830) | rear park corners — 5 bytes, 4 Hz | RadarPoint15_B — 8 bytes, measured 7.4-12.6 Hz depending on track count |
 
-The AP1 / Pre-AP radar interface builds a `CANParser` on `CANBUS.radar` (bus 1) only, so it never reads the chassis park frames. The Pre-AP panda sets `disable_forwarding`, so those chassis frames are not forwarded onto the radar bus either. There is no radar glitch from this clash today.
+The radar rates are the measured Bosch radar cycle; the radar parser still lists 16 Hz for these frames so its point timeout is unchanged (`opendbc_repo/opendbc/car/tesla_ap1/radar_interface.py` `get_radar_can_parser`). The AP1 / Pre-AP radar interface builds a `CANParser` on `CANBUS.radar` (bus 1) only, so it never reads the chassis park frames. The Pre-AP panda sets `disable_forwarding`, so those chassis frames are not forwarded onto the radar bus either. There is no radar glitch from this clash today.
 
 Do not apply an ID-only filter for 0x32e or 0x33e. That would drop a real radar track (`RadarPoint10_A` / `RadarPoint15_B`). The chassis DBC does not yet define the park frames; they are noted here so coverage maps and future DBC work do not treat bus-0 0x32e as radar.
 
