@@ -56,6 +56,10 @@ def _overlaps(a, b):
 class LeadLockOn:
   """Only latest validated radar leadOne; fail closed on missing data or geometry.
 
+  Drawn engaged or not (BogPilot daily drawLead has no engagement term): ``engaged`` is accepted for callers and
+  ignored. The remaining gates are the redesign switch, openpilot longitudinal, the user's HideLeadMarker and the
+  data checks (fresh services, a present lead, finite geometry, a clean on-screen projection).
+
   ``local`` distinguishes mici's camera-local projection from tizi's screen
   projection. No default dimensions or guessed camera coordinates are used.
   ``style`` exists for headless tests; production uses the already ported painter.
@@ -80,11 +84,11 @@ class LeadLockOn:
     return bool(sm.valid[service] and sm.alive[service] and sm.recv_frame[service] > started_frame
                 and math.isfinite(age) and 0 <= age <= max_age)
 
-  def update(self, renderer, sm, started_frame, *, enabled, engaged, longitudinal, local=False, hide_marker=False,
+  def update(self, renderer, sm, started_frame, *, enabled, longitudinal, engaged=None, local=False, hide_marker=False,
              adjacent=False, metric=False):
     self.target = None
     self.adjacent = []
-    if hide_marker or not (enabled and engaged and longitudinal):
+    if hide_marker or not (enabled and longitudinal):   # engagement is not a condition
       return None
     try:
       now = self.clock()
@@ -227,10 +231,18 @@ class LeadLockOn:
     return list(self.adjacent_painted)
 
 
+def _box_keepouts(frame):
+  """Box reservations: hud_compose's lead_keepouts (everything but the alert), else the full keepouts."""
+  k = getattr(frame, "lead_keepouts", None)
+  return k if k is not None else getattr(frame, "keepouts", ())
+
+
 class LeadLockOnLayer:
   """w9 composer adapter. Raw current renderer and SubMaster are required.
 
-  enabled() validates placement before claiming the stock lead-chevron slot.
+  enabled() validates placement before claiming the stock lead-chevron slot. Boxes are drawn under every alert
+  (the alert is painted after them, on top); they keep clear of the HUD, the DM and the pill, not of the alert
+  (frame.lead_keepouts). Speed labels still keep clear of the alert (label_keepouts).
   C4 projection is supported by the core, but compact integration stays opt-in.
   """
   name = "lead_lockon"
@@ -247,7 +259,7 @@ class LeadLockOnLayer:
 
   def update(self, frame):
     self.reset()
-    if getattr(frame, "full_alert", False) or getattr(frame, "mici", False):
+    if getattr(frame, "mici", False):
       return
     renderer, sm = getattr(frame, "model_renderer", None), getattr(frame, "sm", None)
     if renderer is None or sm is None:
@@ -264,7 +276,7 @@ class LeadLockOnLayer:
       return False
     box = target.box
     footprint = self.lock.style.rect(box.x - 24, box.y - 24, box.width + 48, box.height + 48)
-    return not any(_overlaps(footprint, k) for k in getattr(frame, "keepouts", ()))
+    return not any(_overlaps(footprint, k) for k in _box_keepouts(frame))
 
   def enabled(self, frame):
     self.update(frame)
@@ -275,12 +287,12 @@ class LeadLockOnLayer:
     composer still flushes the stock leadOne chevron when the lock-on itself is not painted."""
     primary = self.lock.target.box if self._primary_ok(frame) else None
     ego = self.lock.target.v_ego if self.lock.target is not None else float(frame.sm["carState"].vEgo)
-    self.lock.paint_adjacent(frame.model_renderer, keepouts=getattr(frame, "keepouts", ()),
+    self.lock.paint_adjacent(frame.model_renderer, keepouts=_box_keepouts(frame),
                              label_keepouts=getattr(frame, "label_keepouts", ()), rhd=bool(getattr(frame, "rhd", False)),
                              v_ego=ego, primary=primary)
     if primary is None:
       return None
-    return self.lock.paint(frame.model_renderer, self.lock.target, keepouts=getattr(frame, "keepouts", ()))
+    return self.lock.paint(frame.model_renderer, self.lock.target, keepouts=_box_keepouts(frame))
 
 
 def make_layer(mici=False):

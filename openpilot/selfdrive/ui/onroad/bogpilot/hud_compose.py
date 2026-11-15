@@ -181,6 +181,7 @@ class HudFrame:
   personality_rect: object = None
   keepouts: list = field(default_factory=list)
   label_keepouts: list = field(default_factory=list)
+  lead_keepouts: list = None     # lead / adjacent-lead boxes: keepouts without the alert (drawn under it)
   dm_keepouts: list = field(default_factory=list)
   lead_label_box: object = None
   dm_relocated: bool = False
@@ -323,7 +324,8 @@ class HudComposer:
 
   def _keepouts(self, f, ss_ok):
     """Screen-space reservations.
-    keepouts        everything incl. the DM and pill reservations (lead lock-on)
+    keepouts        everything incl. the DM and pill reservations
+    lead_keepouts   keepouts without the alert: lead boxes are drawn under every alert (the alert paints on top)
     dm_keepouts     everything except the DM's own reservation (kept for the unused w2 relocation API)
     label_keepouts  everything except the pill's own reservation (w3), always including the stock DM corner
     the DM is always the stock corner renderer, so the display-only personality pill sits beside it (driver
@@ -337,6 +339,7 @@ class HudComposer:
         base.extend(k for k in (self.extra_keepouts(rect) or ()) if k is not None)
       except Exception:
         cloudlog.exception("hud_compose: extra keepouts failed")
+    no_alert = list(base)
     ar = self._alert_rect(f)
     if ar is not None:
       base.append(ar)
@@ -361,6 +364,7 @@ class HudComposer:
     extra = [band] if band is not None else []
     f.base_keepouts, f.stock_dm_rect, f.personality_rect = base, dm, pill
     f.keepouts = base + [dm] + extra
+    f.lead_keepouts = no_alert + [dm] + extra
     f.dm_keepouts = base + extra
     f.label_keepouts = base + [dm]
     f.dm_personality_visible = pill is not None

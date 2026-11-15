@@ -168,7 +168,9 @@ class LabelLayer:
     self.personality = None
 
   def enabled(self, frame):
-    return bool(frame.redesign and not frame.mici and not frame.full_alert)
+    # Lead labels follow the lead box, engaged or not and under alerts (their keepouts include the alert);
+    # the personality pill stays hidden under a full-screen alert.
+    return bool(frame.redesign and not frame.mici)
 
   def update(self, frame):
     # Stateless replacement every frame: no stale labels survive a disabled gate.
@@ -180,7 +182,7 @@ class LabelLayer:
     start = getattr(frame, "drive_start", math.inf)
     if getattr(frame, "lead_info", False):
       self.lead = read_lead_labels(sm, now, start, frame.started_frame, frame.is_metric)
-    if frame.longitudinal and getattr(frame, "onroad_distance_button", False):
+    if frame.longitudinal and getattr(frame, "onroad_distance_button", False) and not getattr(frame, "full_alert", False):
       self.personality = read_personality(sm, now, start, frame.started_frame,
                                           getattr(frame, "traffic_mode", None))
 
