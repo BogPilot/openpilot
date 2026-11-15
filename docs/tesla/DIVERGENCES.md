@@ -769,3 +769,27 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Safety-relevant: no. Display only; nothing in controls reads it.
 - Tests: `openpilot/selfdrive/ui/onroad/bogpilot/tests/test_flame_trail_from_car.py`, `test_flame_tracks_logic.py`, `test_adjacent_leads_bsm.py`, `test_release_adapters.py`.
 - Credits: BogPilot (`bsm_flame_tracks.h`: trigger, burn timing, track geometry and palette); BogPilot (anchor on the passing car, down-lane direction).
+
+## radard: AP1 Bosch radarTracks frequency floor is 5.0 Hz
+- Platforms: AP1 Model S and AP1 Model X only (`is_ap1_family`). Pre-AP and every other car stay at the stock 8.0 Hz floor.
+- Reference behavior: none of the three references puts an average-rate floor on the Bosch radar. BogPilot 0.9.7
+  excludes `radarState` from controlsd's avg-freq check (`selfdrive/controls/controlsd.py:117`) and drives radard
+  from the radar itself. Tinkla/BogGyver radard cannot check average frequency because the radar sets the timing
+  (`selfdrive/controls/radard.py:199`). NAP excludes `liveTracks` from `all_checks` because it arrives at radar
+  rate, 8 Hz for Bosch, not the 20 Hz SubMaster (`selfdrive/controls/radard.py:233-236`).
+- Our behavior: radard keeps the SubMaster alive window (0.5 s), `valid`, max 24 Hz, `canError`, `radarFault`,
+  the CANParser timeouts and the Pre-AP fail-closed path unchanged. On AP1 only, it lowers the radarTracks
+  FrequencyTracker `min_freq` from 8.0 Hz to `AP1_RADARTRACKS_MIN_FREQ_HZ` (5.0 Hz), a lower-only override in
+  SubMaster. `cereal/services.py` is not changed, so the alive window stays 0.5 s for every car. The AP1 Bosch
+  radar was measured at 7.4-12.6 Hz depending on track count (about 12 Hz below 10 tracks, 7.4-7.8 Hz at 28-30
+  tracks); the stock 8.0 Hz floor was raising commIssue in dense traffic while the radar was still publishing.
+- Why: a healthy AP1 radar can sit between 7.4 and 8.0 Hz with a full track list, which is not a dropout. A
+  sustained 2-4 Hz stream still goes invalid (unlike ignoring the average-frequency check). A 0.5 s gap is
+  still a fail.
+- Safety-relevant: yes, a liveness check. The 5.0 Hz floor is stricter than all three references, which have
+  no radar rate floor. Panda safety is unchanged.
+- Tests: `openpilot/cereal/messaging/tests/test_min_freq_override.py`,
+  `openpilot/selfdrive/controls/tests/test_ap1_radartracks_min_freq.py`; Pre-AP missing-radar canError remains
+  in `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_bosch_radar.py`.
+- Credits: BogPilot 0.9.7 (controlsd.py radarState `ignore_avg_freq`); Tinkla/BogGyver (radard.py radar-timed
+  SubMaster); NAP (radard.py excluding liveTracks from all_checks); measured AP1 Bosch rate.
