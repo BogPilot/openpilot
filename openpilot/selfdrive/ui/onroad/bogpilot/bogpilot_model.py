@@ -99,10 +99,47 @@ class BlindspotOverlay:
     self.bp_bsm_shown = (shown[0], shown[1])
     adj = adjacent_leads(sm, ui_state.started_frame, now) if fresh else [(False, 0.0)] * 2
     inputs = [FlameSideInput(shown[i], adj[i][0], adj[i][1]) for i in range(2)]
+    # Flame tracks start at the passing car: hand over each side's adjacent lead screen point (None = not cleanly
+    # projectable, which makes the flames fall back to the base tracks) and the road view.
+    self._flames.targets = self._bp_adjacent_points(sm, adj) if fresh else [None, None]
+    r = getattr(self, "_rect", None)
+    self._flames.view = None if r is None else (float(r.x), float(r.y), float(r.width), float(r.height))
     if not fresh:
       # Reset animation state across dropped car state / drive transitions.
       self._flames.trigger.update(0, False, inputs)
     self._flames.update_and_paint(inputs, lanes)
+
+  def _bp_adjacent_points(self, sm, adj):
+    """(x, y) screen point of each fresh adjacent lead at (dRel, -yRel, path road height), else None. Fails closed.
+
+    Same calibrated projection and checks as LeadLockOn._project_box (lead_lockon.py): only leads that adjacent_leads()
+    reports fresh, inside the model path's observed range and in front of the camera."""
+    out = [None, None]
+    try:
+      points = self._path.raw_points
+      if len(points) < 2:
+        return out
+      xs = [float(p[0]) for p in points]
+      radar = sm["bogpilotRadarState"]
+      for side, lead in enumerate((radar.leadLeft, radar.leadRight)):
+        if not adj[side][0]:
+          continue
+        d, y = float(lead.dRel), float(lead.yRel)
+        if not (np.isfinite(d) and np.isfinite(y)) or d <= 0 or not xs[0] <= d <= xs[-1]:
+          continue
+        idx = max(i for i, x in enumerate(xs) if x <= d)
+        z = float(points[idx][2]) + float(self._path_offset_z)
+        transform = self._car_space_transform
+        depth = sum(float(transform[2][i]) * value for i, value in enumerate((d, -y, z)))
+        if not np.isfinite(depth) or depth <= 1e-6:
+          continue
+        p = self._map_to_screen(d, -y, z)
+        if p is None or not all(np.isfinite(float(c)) for c in p):
+          continue
+        out[side] = np.asarray(p, dtype=np.float32)[:2] + self._overlay_offset()
+    except (AttributeError, KeyError, IndexError, TypeError, ValueError, OverflowError):
+      return [None, None]
+    return out
 
 
 def extend_to_bottom(poly, bottom):
