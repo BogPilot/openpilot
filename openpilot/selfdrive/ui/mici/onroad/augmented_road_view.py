@@ -198,6 +198,9 @@ class AugmentedRoadView(CameraView):
   def _handle_mouse_release(self, mouse_pos: MousePos):
     # Don't trigger click callback if bookmark was triggered
     if not self._bookmark_icon.interacting():
+      # comma 4 BogPilot layout: the personality button takes its own taps
+      if self._hud_renderer.bp_c4_handle_tap(mouse_pos.x - self._rect.x, mouse_pos.y - self._rect.y):
+        return
       super()._handle_mouse_release(mouse_pos)
 
   def _render(self, _):

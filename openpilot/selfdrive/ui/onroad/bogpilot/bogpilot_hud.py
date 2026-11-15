@@ -21,6 +21,8 @@ from openpilot.selfdrive.ui.onroad.bogpilot import steering_arc as ARC
 from openpilot.selfdrive.ui.onroad.bogpilot import phase3_cem_status as CEM
 from openpilot.selfdrive.ui.onroad.bogpilot import pedals as PED
 from openpilot.selfdrive.ui.onroad.bogpilot import c4_layout as C4
+from openpilot.selfdrive.ui.onroad.bogpilot import c4_paint as C4P
+from openpilot.selfdrive.ui.onroad.bogpilot import lead_labels as LL
 from openpilot.selfdrive.ui.onroad.bogpilot import developer_hud_logic as DEV
 from openpilot.selfdrive.ui.onroad.bogpilot import developer_hud as DEVP
 from openpilot.selfdrive.ui.onroad.bogpilot import fps_counter as FPS
@@ -480,6 +482,8 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
     self._bp_init()
     self.bp_c4 = False
     self.bp_c4_layout = {}
+    self.bp_c4_personality = None
+    self._bp_traffic = None
 
   def _update_state(self):
     super()._update_state()
@@ -508,6 +512,54 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
     if self._can_draw_top_icons:
       draw_cem_status(self, rect)
 
+  def _bp_c4_personality(self):
+    sm, now = ui_state.sm, time.monotonic()
+    if self._bp_traffic is None:
+      from openpilot.selfdrive.ui.onroad.bogpilot.hud_compose import TrafficModeReader
+      self._bp_traffic = TrafficModeReader()
+    traffic = self._bp_traffic.read(now, self._bp_drive_start)
+    data = LL.read_personality(sm, now, self._bp_drive_start, ui_state.started_frame, bool(traffic))
+    return data, bool(traffic)
+
+  def _bp_c4_pill_inputs(self):
+    speed_set = display_set_speed(self, mici=True)
+    lim = getattr(self, "bp_limit", SL.HIDDEN)
+    return C4P.PillInputs(set_speed=str(round(speed_set)) if self.is_cruise_set else "\u2013", speed=str(round(self.speed)),
+                          unit="KM/H" if ui_state.is_metric else "MPH", engaged=bool(self._engaged),
+                          show_limit=bool(lim.show_limit), limit=str(lim.limit))
+
   def _bp_render_c4(self, rect):
-    """comma 4 BogPilot layout (device type mici only)."""
-    self.bp_c4_layout["content_rect"] = (rect.x, rect.y, rect.x + rect.width, rect.y + rect.height)
+    """comma 4 BogPilot layout (device type mici only). Screen = the content rect's origin; positions from c4_layout."""
+    ox, oy = rect.x, rect.y
+    lay = self.bp_c4_layout
+    lay["content_rect"] = (rect.x, rect.y, rect.x + rect.width, rect.y + rect.height)
+    vis = C4.visibility(alert_shown=not self._can_draw_top_icons, take_control=bool(self._show_wheel_critical))
+    lay["visibility"] = {k: getattr(vis, k) for k in ("pill", "gauge", "dm", "leads", "take_control")}
+    if vis.pill:
+      lay.update(C4P.paint_pill(self._bp_c4_pill_inputs(), ox, oy))
+    data, traffic = self._bp_c4_personality()
+    self.bp_c4_personality = None if data is None else data.personality
+    lay["personality"] = self.bp_c4_personality
+    lay.update(C4P.paint_personality_button(self.bp_c4_personality, traffic, vis.take_control, ox, oy))
+
+  def bp_c4_handle_tap(self, x, y, write=None) -> bool:
+    """Personality button tap on the comma 4 (same step as the wide layout: Relaxed -> Standard -> Aggressive ->
+    Relaxed, ignored in Traffic Mode). Returns True when the tap was the button's."""
+    if not self.bp_c4:
+      return False
+    t = C4.personality_tap_rect()
+    if not (t[0] <= x < t[2] and t[1] <= y < t[3]):
+      return False
+    data, traffic = self._bp_c4_personality()
+    if traffic or data is None:
+      return True
+    new = (int(data.personality) + 2) % 3
+    try:
+      if write is None:
+        from openpilot.common.params import Params
+        Params().put("LongitudinalPersonality", int(new))
+      else:
+        write("LongitudinalPersonality", int(new))
+    except Exception:
+      cloudlog.exception("comma 4 personality write failed")
+    return True
