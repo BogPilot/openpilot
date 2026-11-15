@@ -839,4 +839,4 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Why: the migration used to run after `clear_all`, which had already deleted the old files, so stats, the dongle id and the API token saved under the old names were lost unless a copy was in the file store.
 - Safety-relevant: no. Settings and stats only; nothing in controls or panda changes.
 - Tests: `openpilot/system/manager/test/test_param_migration_clear_order.py`, `openpilot/system/bogpilot/tests/test_legacy_migration.py`.
-- Credits: BogPilot 0.9.7 / FrogPilot (the old key names).
+- Credits: BogPilot 0.9.7 (its FrogPilot* key names).

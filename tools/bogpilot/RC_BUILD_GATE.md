@@ -113,8 +113,8 @@ export PYTHONPATH=/data/openpilot:/data/openpilot/opendbc_repo
 
    Record real exit status, exact image/compiler/environment and source archive
    hash. Full SCons direct invocation cannot be skipped by an old `prebuilt` marker.
-   Preserve full output log. Firmware clean-repeat snapshots happen within this
-   SAME session per owner3 recipe, not duplicate full-system builds.
+   Preserve full output log. Firmware clean-repeat snapshots happen
+   in the same session, not duplicate full-system builds.
 5. Import probes/tests are NOT device boot. Use isolated container HOME,
    PARAMS_ROOT, BOGPILOT_PARAMS_DIR, LOG_ROOT, cache paths; never real /data or /cache
    settings. For host compatibility use a distinct PC-configured import scratch
