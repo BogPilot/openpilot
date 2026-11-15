@@ -164,6 +164,31 @@ Recorded disagreements only where the cited files were read. No speculation.
   `test_model_3_y_and_ap1_still_lose_steering_on_a_brake_press`); `test_tesla_preap_pedal_brake.py` (the pedal side).
 - Credits: BogPilot (this port). NAP, BogPilot `bogpilot-na-preap` and Tinkla/BogGyver were compared; none has this latch.
 
+## Panda safety (Pre-AP): BrakeMessage (0x20A) RX-check rate is 50 Hz
+- Platforms: Pre-AP Model S (`TESLA_FLAG_PREAP` on SAFETY_TESLA, `opendbc_repo/opendbc/safety/modes/tesla_preap.h`).
+- Reference behavior: NAP (opendbc `cc39c7fa`) `opendbc/safety/modes/tesla_preap.h` lists 0x20a at 50U in both RX-check
+  tables (lines 599 and 615). BogPilot `bogpilot-na-preap` (`568fea947`) `panda/board/safety/safety_tesla_preap.h` is the
+  same (lines 103 and 114, `.frequency = 50U`). Tinkla/BogGyver (panda `f7751e4`) `panda/board/safety/safety_tesla.h` uses
+  `expected_timestep = 20000U` for BrakeMessage in the AP and Pre-AP tables (lines 128 and 219), commented `(50Hz)`.
+  BogPilot 0.9.7 (`bogpilot-tesla-0.9.7`, `04d560f3e`) `panda/board/safety/safety_tesla.h` lists 0x20a at 50U (lines 86 and
+  96); it has no Pre-AP panda mode. The DBC (`opendbc_repo/opendbc/dbc/tesla_can.dbc` and `tesla_ap1_can.dbc`, `BO_ 522
+  BrakeMessage`) does not record a cycle time. No capture rate is cited here.
+- Our behavior: both Pre-AP RX-check tables, with and without the pedal flag, expect BrakeMessage (0x20A) at 50 Hz
+  (`tesla_preap.h` lines 305 and 319). The AP1 table already uses the same 50U value (`tesla_ap1.h` line 335). An earlier
+  Pre-AP table used 25U for 0x20a in both arrays.
+- Why: 50 Hz is the rate in NAP, BogPilot na-preap, Tinkla/BogGyver and BogPilot 0.9.7. The earlier 25U expected rate was
+  lower than all four of those tables.
+- Safety-relevant: yes, but the lag fault is unchanged. `safety_tick` (`opendbc_repo/opendbc/safety/safety.h` lines
+  326-349) marks a message lagging when the time since the last frame exceeds `SAFETY_MAX(timestep * MAX_MISSED_MSGS,
+  1e6)` with `MAX_MISSED_MSGS = 10` (lines 328 and 337-338). `timestep` is `1e6 / frequency`, so the 10-message window is
+  400 ms at 25 Hz and 200 ms at 50 Hz; both are below 1 s, so the lag threshold stays 1 s. A missing 0x20A still trips
+  after 1 s and clears `controls_allowed` (lines 343-345). The 50 Hz expected rate is therefore stricter in the 10-miss
+  term, and neutral for the lag fault that actually fires. The separate `frequency < 10` invalid check (lines 341-342)
+  also still passes. There is no additional inter-arrival window on RX.
+- Tests: none that assert the 0x20A frequency field. Existing Pre-AP RX tests still send BrakeMessage.
+- Credits: NAP (opendbc `cc39c7fa`); BogPilot `bogpilot-na-preap` (`568fea947`); Tinkla/BogGyver (panda `f7751e4`);
+  BogPilot 0.9.7 (`04d560f3e`).
+
 ## Panda safety (Pre-AP): optional Bosch radar gateway, off by default
 - Platforms: Pre-AP Model S only (`TESLA_FLAG_PREAP` on SAFETY_TESLA, `opendbc_repo/opendbc/safety/modes/tesla_preap.h`
   and `tesla_preap_radar.h`). AP1 and stock Tesla modes ignore flags 128 and 256.
