@@ -816,7 +816,7 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Measured basis for 6.69 Hz: across a 42-route, 14-day set of AP1 bench drives, the slowest 20-sample
   FrequencyTracker average (the recent window radard checks) was 6.996 Hz, while engaged with 28 tracks. The
   slowest 200-sample average was 7.602 Hz. 6.69 Hz leaves about 0.31 Hz of margin under the worst 20-sample
-  average. The owner chose 6.69 Hz over 5.0 Hz (more margin) and 7.0 Hz (no margin). Replaying that set,
+  average. 6.69 Hz was chosen over 5.0 Hz (more margin) and 7.0 Hz (no margin). Replaying that set,
   the stock 8.0 Hz floor raised 3 engaged invalid spans (8.24 s); 6.69 Hz and 5.0 Hz raised none.
 - Why: a healthy AP1 radar can sit between 7.0 and 8.0 Hz with a full track list, which is not a dropout. A
   sustained 6 Hz or slower stream still goes invalid (unlike ignoring the average-frequency check). A 0.5 s gap
