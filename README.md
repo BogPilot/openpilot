@@ -5,18 +5,18 @@ Branch: `bogpilot-tesla` (openpilot 0.11.2 base, comma 3X on AGNOS 19.9).
 BogPilot is a community fork. It is not a comma product. You are always responsible for driving: keep your hands on the
 wheel and your eyes on the road, and be ready to take over at any time.
 
-[![BogPilot on a legacy Model S (replay, signs and plates blurred).](docs/media/bogpilot_ui_replay_poster.png)](VIDEO_ATTACHMENT_URL_PLACEHOLDER)
+[![BogPilot on a legacy Model S (replay, signs and plates blurred).](docs/media/bogpilot_ui_replay_poster.png)](https://github.com/user-attachments/assets/bd31ac4c-b7e6-4b28-ac7b-2f897dcfb026)
 
-*BogPilot on a legacy Model S (replay, signs and plates blurred). Click the picture for the video. `VIDEO_ATTACHMENT_URL_PLACEHOLDER` is a placeholder that is replaced with the video link when this is published.*
+*BogPilot on a legacy Model S (replay, signs and plates blurred). Click the picture for the video.*
 
 ## Supported cars
 
 | Car | Platform | Lateral | Longitudinal | Tested on a car? |
 |---|---|---|---|---|
+| Model S, Pre-Autopilot (2012-14) | `TESLA_PREAP_MODELS` | yes, through the Pre-AP safety flag | only with a Comma Pedal | No: no Pre-AP logs exist yet |
 | Model S, Autopilot 1 (2014-16) | `TESLA_AP1_MODELS` | yes | openpilot long | **Yes**: the only drive-tested car (see "Testing status") |
 | Model X, Autopilot 1 (2016) | `TESLA_AP1_MODELX` | yes | stock cruise only, lateral-only | No engaged logs yet |
-| Model S, Pre-Autopilot (2012-14) | `TESLA_PREAP_MODELS` | yes, through the Pre-AP safety flag | only with a Comma Pedal | No: no Pre-AP logs exist yet |
-| Model S / X, Autopilot 2 | none | - | - | **Not supported**: AP2 is not a platform in this tree |
+| Model S / X, Autopilot 2 | none | - | - | **Not supported yet**: planned for a future release once we have AP2 rlogs |
 
 Car detection: AP1 cars have no firmware-version rows, so they are picked by their CAN signature or by the
 CarModel / ForceFingerprint setting. Pre-AP is picked by CarModel / ForceFingerprint, or detected from a Comma Pedal
@@ -41,8 +41,8 @@ Requirements: comma 3X on AGNOS 19.9, a harness for your car.
 2. After install, confirm Settings > Software shows branch `bogpilot-tesla` and the device is on AGNOS 19.9.
 3. Connect the harness and the car. Vehicle settings appear once the car is detected.
 
-Note: until this release is published, the `bogpilot-tesla` branch holds the older 0.9.7 / AGNOS 10.1 line, which has
-no shared history with this tree. Do not install the old branch on a comma 3X that is already on AGNOS 19.9.
+Note: the previous 0.9.7 / AGNOS 10.1 line is preserved on branch `bogpilot-tesla-0.9.7`. It has no shared history
+with this tree. Do not install it on a comma 3X that is already on AGNOS 19.9.
 
 ## Features and defaults
 
