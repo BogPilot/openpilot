@@ -265,6 +265,7 @@ class AugmentedRoadView(CameraView):
     # Custom UI extension point - add custom overlays here
     # Use self._content_rect for positioning within camera bounds
     self._confidence_ball.render(self.rect)
+    self._hud_renderer.bp_c4_render_side(self.rect)   # comma 4 BogPilot layout only (no-op elsewhere)
 
     self._bookmark_icon.render(self.rect)
 

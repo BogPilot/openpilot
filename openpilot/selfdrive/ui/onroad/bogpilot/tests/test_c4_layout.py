@@ -119,6 +119,10 @@ class TestVisibility(unittest.TestCase):
       self.assertEqual(getattr(v, k), k not in C4.TAKE_CONTROL_HIDES, k)
     self.assertTrue(v.take_control)
 
+  def test_leads_stay_on_through_take_control(self):
+    self.assertTrue(C4.visibility(True, True).leads)
+    self.assertEqual(C4.TAKE_CONTROL_HIDES, C4.OTHER_ALERT_HIDES)
+
   def test_other_alert(self):
     v = C4.visibility(True, False)
     self.assertFalse(v.pill or v.gauge or v.dm)
@@ -139,7 +143,7 @@ class TestBars3(unittest.TestCase):
   def test_regen_kw_scale(self):
     b = b3(motor_torque_nm=-75.0)
     kw = 75.0 * 6000.0 * 2 * math.pi / 60 / 1000
-    self.assertAlmostEqual(b.regen_kw, kw, places=4)
+    self.assertAlmostEqual(b.regen_kw, -kw, places=4)
     self.assertAlmostEqual(b.regen, min(1.0, kw / 55.0), places=6)
     self.assertEqual(b3(motor_torque_nm=-500.0).regen, 1.0)
     self.assertEqual(b3(motor_torque_nm=50.0).regen, 0.0)

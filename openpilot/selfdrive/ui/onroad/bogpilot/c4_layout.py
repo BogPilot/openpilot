@@ -37,8 +37,9 @@ GAUGE_X0, GAUGE_Y0 = 8, 112
 GAUGE_BAR_W, GAUGE_BAR_GAP, GAUGE_H = 12, 2, 76
 REGEN_FULL_SCALE_KW = 55.0
 
-# Record button: the wide-layout paint_record_button idle look scaled to a 40 px disc in the side panel.
-REC_CX, REC_CY = 508, 212
+# Record button: the wide-layout paint_record_button look scaled to a 40 px disc, lower right in the side panel
+# (same inset from the right and bottom as the personality button has from the left and bottom).
+REC_CX, REC_CY = SCREEN_W - 28, 212
 REC_D = 40
 REC_SRC_D = 124                              # style.REC_DIAMETER (wide layout)
 
@@ -48,13 +49,28 @@ ARROW_CORE_W, ARROW_CORE_H = 46, 39
 ARROW_Y0 = 68
 ARROW_LEFT_X0 = 8
 ARROW_RIGHT_CX = (DM_ICON[0] + DM_ICON[2]) / 2
+# Stock icons_mici/onroad/turn_signal_left.png (104 x 96) drawn at 0.7: 73 x 67, visible core offset (14, 14).
+ARROW_TEX_SCALE = 0.7
+ARROW_TEX_W, ARROW_TEX_H = 73, 67
+ARROW_CORE_OFFSET = (14, 14)
+# What our arrows do while the stock lane-change alert (which draws its own arrow and text) is on screen:
+#   "overlap"  keep them at the owner's position (they sit inside the alert's text area)
+#   "hide"     hide them while the stock lane-change alert shows
+# Moving them clear of the alert needs a new position from the owner, so it is not offered here.
+ARROWS_WITH_STOCK_LC_ALERT = "overlap"
+ARROW_MODES = ("overlap", "hide")
+
+# Stock turn intent (white, from the same lane-change events) drawn over the personality button the way stock draws it
+# over the wheel: centred on the button, bottom 5 px above it, rotated about the button centre, at 44 x 18.
+TURN_INTENT_W, TURN_INTENT_H, TURN_INTENT_GAP = 44, 18, 5
 
 # Engagement border on the camera view edge; the blind-spot side's half turns red.
 BORDER_W = 3
 ARC_RAISE_PX = 10
 
-# What a take-control alert hides. One constant so the rule is easy to change.
-TAKE_CONTROL_HIDES = frozenset({"leads", "pill", "gauge", "dm"})
+# What a take-control alert hides. One constant so the rule is easy to change. The lead boxes stay on (always on,
+# engaged or not, through every alert), as in the approved mockup's pixels.
+TAKE_CONTROL_HIDES = frozenset({"pill", "gauge", "dm"})
 # Any other on-screen alert covers the top of the view: the pill, gauge and driver-monitor icon step aside.
 OTHER_ALERT_HIDES = frozenset({"pill", "gauge", "dm"})
 
@@ -112,9 +128,43 @@ def record_rect():
 
 def record_ring():
   """(ring radius, ring stroke width, dot radius): paint_record_button idle (rr = d / 2 - 2, stroke 3, dot d * 0.19)
-  with the pixel constants scaled by REC_D / REC_SRC_D."""
+  with the pixel constants scaled by REC_D / REC_SRC_D. The dark fill has radius rr."""
   k = REC_D / REC_SRC_D
   return REC_D / 2 - 2 * k, 3 * k, REC_D * 0.19
+
+
+def record_ring_recording():
+  """(ring radius, glow stroke width, square side, square corner radius): paint_record_button recording branch
+  (rr = d / 2 - 3, stroke 5, square d * 0.35 with radius 7), scaled the same way."""
+  k = REC_D / REC_SRC_D
+  return REC_D / 2 - 3 * k, 5 * k, REC_D * 0.35, 7 * k
+
+
+def in_rect(r, x, y) -> bool:
+  return r[0] <= x < r[2] and r[1] <= y < r[3]
+
+
+def arrow_tex_origin(direction: int):
+  """Top-left of the 73 x 67 texture so its visible core lands on arrow_core_rect (the right arrow is the left one
+  mirrored, so its core offset is measured from the texture's right edge)."""
+  core = arrow_core_rect(direction)
+  ox = core[0] - (ARROW_CORE_OFFSET[0] if direction < 0 else ARROW_TEX_W - ARROW_CORE_OFFSET[0] - ARROW_CORE_W)
+  return ox, core[1] - ARROW_CORE_OFFSET[1]
+
+
+def arrow_visible(direction: int, stock_lc_alert_shown: bool, mode: str = None) -> bool:
+  mode = ARROWS_WITH_STOCK_LC_ALERT if mode is None else mode
+  if direction == 0:
+    return False
+  return not (mode == "hide" and stock_lc_alert_shown)
+
+
+def turn_intent_rect():
+  """Unrotated stock turn-intent rect over the personality button."""
+  r = PERSONALITY_D / 2
+  x0 = PERSONALITY_CX - TURN_INTENT_W / 2
+  y1 = PERSONALITY_CY - r - TURN_INTENT_GAP
+  return (x0, y1 - TURN_INTENT_H, x0 + TURN_INTENT_W, y1)
 
 
 def arrow_core_rect(direction: int):

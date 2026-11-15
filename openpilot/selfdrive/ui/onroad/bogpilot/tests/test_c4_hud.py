@@ -125,7 +125,7 @@ class TestTapAndGate(unittest.TestCase):
 
   def fake(self, c4=True, pers=2, traffic=False):
     data = None if pers is None else LL.PersonalityData(pers, traffic, "x")
-    return NS(bp_c4=c4, _bp_c4_personality=lambda: (data, traffic))
+    return NS(bp_c4=c4, bp_c4_rec=False, _bp_c4_personality=lambda: (data, traffic))
 
   def tap(self, hud, x, y):
     writes = []

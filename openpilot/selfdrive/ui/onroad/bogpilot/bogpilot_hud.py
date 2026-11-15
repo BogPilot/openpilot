@@ -22,6 +22,7 @@ from openpilot.selfdrive.ui.onroad.bogpilot import phase3_cem_status as CEM
 from openpilot.selfdrive.ui.onroad.bogpilot import pedals as PED
 from openpilot.selfdrive.ui.onroad.bogpilot import c4_layout as C4
 from openpilot.selfdrive.ui.onroad.bogpilot import c4_paint as C4P
+from openpilot.selfdrive.ui.onroad.bogpilot import c4_bars3 as B3
 from openpilot.selfdrive.ui.onroad.bogpilot import lead_labels as LL
 from openpilot.selfdrive.ui.onroad.bogpilot import developer_hud_logic as DEV
 from openpilot.selfdrive.ui.onroad.bogpilot import developer_hud as DEVP
@@ -30,6 +31,7 @@ from openpilot.selfdrive.ui.onroad.bogpilot import overlay_gate as OVG
 from openpilot.selfdrive.ui.onroad.bogpilot.style import record_hit_rect
 from openpilot.selfdrive.ui.onroad.exp_button import ExpButton
 from openpilot.system.ui.widgets import Widget
+from openpilot.system.ui.lib.application import gui_app
 from openpilot.selfdrive.ui.onroad.bogpilot.file_toggles import toggles
 from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
 
@@ -484,11 +486,63 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
     self.bp_c4_layout = {}
     self.bp_c4_personality = None
     self._bp_traffic = None
+    self._bp_c4_extras = ExtrasPolicy()
+    self._bp_c4_arrow = C4.LaneChangeArrow()
+    self._bp_c4_arrow_tex = None
+    self.bp_c4_gauge = None          # c4_bars3.Bars3 to draw, or None when the pedal display is off
+    self.bp_c4_arrow_dir = 0
+    self.bp_c4_lc_alert = False      # the stock lane-change alert is on screen
+    self.bp_c4_rec = False           # record button shown (ScreenRecorder toggle, same rule as the wide layout)
 
   def _update_state(self):
     super()._update_state()
     self._bp_update()
     self.bp_c4 = C4.comma4_device(ui_state.sm)
+    if self.bp_c4:
+      try:
+        self._bp_c4_update()
+      except Exception:
+        cloudlog.exception("comma 4 layout inputs failed")
+        self.bp_c4_gauge = None
+        self.bp_c4_arrow_dir = 0
+
+  def _bp_c4_update(self):
+    sm = ui_state.sm
+    now = time.monotonic()
+    # lane-change arrows and the stock turn intent: onroadEvents only (the blinkers are not read)
+    names = [str(e.name) for e in sm["onroadEvents"]] if _fresh(sm, "onroadEvents") else []
+    md = sm["modelV2"].meta.laneChangeDirection if _fresh(sm, "modelV2") else None
+    self.bp_c4_arrow_dir = self._bp_c4_arrow.update(names, md)
+    self._turn_intent._update_state()   # stock filters; its render moved over the personality button
+    ss = sm["selfdriveState"] if _fresh(sm, "selfdriveState") else None
+    alert_type = str(ss.alertType) if ss is not None else ""
+    self.bp_c4_lc_alert = alert_type.startswith(("preLaneChange", "laneChange"))
+    # three-bar gauge, shown under the same pedal display toggles as the wide layout's pedal bars
+    pol, rec = self._bp_c4_extras.get(bool(getattr(ui_state, "has_longitudinal_control", False)))
+    self.bp_c4_rec = bool(rec)
+    self.bp_c4_gauge = None
+    if pol.show:
+      cs = sm["carState"]
+      motor_tq = motor_rpm = brake_state = None
+      psm = self._plan_sm()
+      try:
+        if psm is not None and "bogpilotCarState" in getattr(psm, "data", psm) and psm.valid["bogpilotCarState"] and \
+           psm.alive["bogpilotCarState"] and now - psm.recv_time["bogpilotCarState"] <= SL.LIMIT_STALE_S and \
+           psm.recv_time["bogpilotCarState"] >= self._bp_drive_start:
+          bcs = psm["bogpilotCarState"]
+          motor_tq, motor_rpm = float(bcs.ap1MotorTorqueNm), float(bcs.ap1MotorRpm)
+          brake_state = int(bcs.ap1BrakePedalState)
+      except (KeyError, AttributeError, TypeError, ValueError):
+        motor_tq = motor_rpm = brake_state = None
+      long_active = bool(_fresh(sm, "carControl") and sm["carControl"].longActive)
+      cp = ui_state.CP
+      self.bp_c4_gauge = B3.bars3(fresh=_fresh(sm, "carState"), a_ego=cs.aEgo, v_ego=cs.vEgo,
+                                  brake_pressed=bool(cs.brakePressed), gas_pressed=bool(cs.gasPressed),
+                                  pedal_pos=cs.deprecated.gas,
+                                  op_accel=float(sm["carControl"].actuators.accel) if long_active else 0.0,
+                                  long_active=long_active, motor_torque_nm=motor_tq, motor_rpm=motor_rpm,
+                                  brake_pedal_state=brake_state,
+                                  model=PED.platform_of(getattr(cp, "carFingerprint", "") if cp is not None else ""))
 
   def _draw_set_speed(self, rect):
     if not toggles.get("RedesignUI") and not self.bp_c4:
@@ -540,13 +594,45 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
     data, traffic = self._bp_c4_personality()
     self.bp_c4_personality = None if data is None else data.personality
     lay["personality"] = self.bp_c4_personality
+    if vis.gauge and self.bp_c4_gauge is not None:
+      lay.update(C4P.paint_gauge(self.bp_c4_gauge, C4.gauge_rect(), ox, oy))
+      lay["gauge_state"] = {"fills": list(self.bp_c4_gauge.fills), "colours": [list(c) for c in self.bp_c4_gauge.colours],
+                            "regen_kw": self.bp_c4_gauge.regen_kw}
+    lay["arrow_dir"] = self.bp_c4_arrow_dir
+    lay["stock_lc_alert"] = self.bp_c4_lc_alert
+    if C4.arrow_visible(self.bp_c4_arrow_dir, self.bp_c4_lc_alert and not self._can_draw_top_icons):
+      if self._bp_c4_arrow_tex is None:
+        self._bp_c4_arrow_tex = gui_app.texture("icons_mici/onroad/turn_signal_left.png", C4.ARROW_TEX_W, C4.ARROW_TEX_H)
+      lay.update(C4P.paint_arrow(self._bp_c4_arrow_tex, self.bp_c4_arrow_dir, ox, oy))
     lay.update(C4P.paint_personality_button(self.bp_c4_personality, traffic, vis.take_control, ox, oy))
+    ti = self._turn_intent
+    lay.update(C4P.paint_turn_intent(ti._txt_turn_intent_left, ti._txt_turn_intent_right, ti._turn_intent_direction,
+                                     ti._turn_intent_alpha_filter.x, ti._turn_intent_rotation_filter.x, ox, oy))
+
+  def bp_c4_render_side(self, screen_rect):
+    """Side-panel part of the comma 4 layout (outside the camera view's clip): the record button."""
+    if not self.bp_c4 or not self.bp_c4_rec:
+      return
+    try:
+      rec = _recorder()
+      status = rec.status if rec.status in ("recording", "starting", "error") else "idle"
+      pulse = 0.5 + 0.5 * math.sin(time.monotonic() * 3.14159)
+      self.bp_c4_layout.update(C4P.paint_record_button(status, pulse, screen_rect.x, screen_rect.y))
+      self.bp_c4_layout["record_status"] = status
+    except Exception:
+      cloudlog.exception("comma 4 record button failed")
 
   def bp_c4_handle_tap(self, x, y, write=None) -> bool:
     """Personality button tap on the comma 4 (same step as the wide layout: Relaxed -> Standard -> Aggressive ->
     Relaxed, ignored in Traffic Mode). Returns True when the tap was the button's."""
     if not self.bp_c4:
       return False
+    if self.bp_c4_rec and C4.in_rect(C4.record_rect(), x, y):
+      try:
+        (write or (lambda *_: _recorder().toggle()))("ScreenRecorderToggle", None)
+      except Exception:
+        cloudlog.exception("screen recorder toggle failed")
+      return True
     t = C4.personality_tap_rect()
     if not (t[0] <= x < t[2] and t[1] <= y < t[3]):
       return False

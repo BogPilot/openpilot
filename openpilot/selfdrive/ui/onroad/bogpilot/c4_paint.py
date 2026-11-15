@@ -7,7 +7,7 @@ import pyray as rl
 
 from openpilot.selfdrive.ui.onroad.bogpilot import c4_layout as C4
 from openpilot.selfdrive.ui.onroad.bogpilot.style import (C, W, MUTED, ACTUAL_GREEN, draw_text_in_rect_centred, fill_circle,
-                                                           fill_rounded, panel, rect_lrtb, stroke_circle)
+                                                           fill_rounded, panel, rect_lrtb, stroke_circle, stroke_rounded)
 
 PILL_FILL = C(14, 17, 22, 190)            # wide-layout record / panel fill
 PILL_STROKE = C(255, 255, 255, 40)
@@ -24,6 +24,14 @@ TRAFFIC = C(232, 70, 80)                  # redesign.paint_personality Traffic M
 CRIT_TOP, CRIT_BOTTOM = (255, 200, 1), (255, 114, 0)
 CRIT_RIM, CRIT_STRIPE = C(255, 255, 255, 120), C(255, 255, 255, 255)
 EXCL_RED, EXCL_BORDER = C(224, 32, 42, 255), C(255, 255, 255, 255)
+
+# three-bar gauge: translucent track with a 1 px white outline, fill inset 2 px
+GAUGE_TRACK, GAUGE_OUTLINE = C(255, 255, 255, 34), C(255, 255, 255, 90)
+GAUGE_TRACK_R, GAUGE_FILL_R, GAUGE_INSET = 3, 2, 2
+
+# record button (wide-layout paint_record_button colours)
+REC_FILL, REC_RING, REC_DOT = C(14, 17, 22, 190), C(255, 255, 255, 60), C(225, 60, 60, 240)
+REC_SQUARE = C(225, 60, 60, 235)
 
 
 @dataclass(frozen=True)
@@ -111,3 +119,77 @@ def paint_personality_button(personality: int | None, traffic_mode: bool, take_c
       fill_rounded(rect_lrtb(*b), 3, EXCL_RED)
     out["take-control !"] = (ex - 5, ey0 - 2, ex + 5, ey0 + 30)
   return out
+
+
+def gauge_bar_rects(rect, n=3):
+  """Split a gauge rect (x0, y0, x1, y1) into n equal bars separated by C4.GAUGE_BAR_GAP."""
+  x0, y0, x1, y1 = rect
+  gap = C4.GAUGE_BAR_GAP
+  bw = (x1 - x0 - gap * (n - 1)) / n
+  return tuple((x0 + i * (bw + gap), y0, x0 + i * (bw + gap) + bw, y1) for i in range(n))
+
+
+def paint_gauge(state, rect, ox: float = 0.0, oy: float = 0.0):
+  """Three-bar gauge (brake | regen | accel) from a gauge state (fills + colours) in rect. Returns the bar rects and
+  the fill rects drawn."""
+  out = {"3-bar gauge": _o(rect, ox, oy)}
+  fills = []
+  for i, (bar, frac, rgb) in enumerate(zip(gauge_bar_rects(_o(rect, ox, oy)), state.fills, state.colours)):
+    bx0, by0, bx1, by1 = bar
+    fill_rounded(rect_lrtb(bx0, by0, bx1, by1), GAUGE_TRACK_R, GAUGE_TRACK)
+    stroke_rounded(rect_lrtb(bx0, by0, bx1, by1), GAUGE_TRACK_R, 1.0, GAUGE_OUTLINE)
+    if frac > 0.0:
+      ih = (by1 - by0 - 2 * GAUGE_INSET) * min(1.0, frac)
+      f = (bx0 + GAUGE_INSET, by1 - GAUGE_INSET - ih, bx1 - GAUGE_INSET, by1 - GAUGE_INSET)
+      fill_rounded(rect_lrtb(*f), GAUGE_FILL_R, C(*rgb, 255))
+      fills.append(f)
+    else:
+      fills.append(None)
+  out["gauge fills"] = fills
+  return out
+
+
+def paint_arrow(tex, direction: int, ox: float = 0.0, oy: float = 0.0):
+  """Green stock turn-signal arrow at the comma 4 arrow spot (left under the pill, right under the DM icon)."""
+  tx, ty = C4.arrow_tex_origin(direction)
+  src = rl.Rectangle(0, 0, tex.width if direction < 0 else -tex.width, tex.height)
+  rl.draw_texture_pro(tex, src, rl.Rectangle(ox + tx, oy + ty, C4.ARROW_TEX_W, C4.ARROW_TEX_H), rl.Vector2(0, 0), 0.0,
+                      rl.WHITE)
+  return {f"lane-change arrow ({'left' if direction < 0 else 'right'}, core)": _o(C4.arrow_core_rect(direction), ox, oy)}
+
+
+def paint_turn_intent(tex_left, tex_right, direction: int, alpha: float, rotation: float, ox: float = 0.0, oy: float = 0.0):
+  """Stock TurnIntent arrow over the personality button (stock filter values), rotated about the button centre."""
+  if alpha <= 1e-2:
+    return {}
+  tex = tex_right if direction == 1 else tex_left
+  r = C4.turn_intent_rect()
+  cx, cy = ox + C4.PERSONALITY_CX, oy + C4.PERSONALITY_CY
+  src = rl.Rectangle(0, 0, tex.width, tex.height)
+  dest = rl.Rectangle(cx, cy, C4.TURN_INTENT_W, C4.TURN_INTENT_H)
+  origin = rl.Vector2(C4.TURN_INTENT_W / 2, C4.PERSONALITY_CY - r[1])
+  rl.draw_texture_pro(tex, src, dest, origin, rotation, rl.Color(255, 255, 255, int(255 * min(1.0, alpha))))
+  return {"turn intent (over button)": _o(r, ox, oy)}
+
+
+def paint_record_button(status: str, pulse: float, ox: float = 0.0, oy: float = 0.0):
+  """comma 4 record button: paint_record_button scaled to C4.REC_D. status: "idle", "starting", "recording", "error"
+  (screen_recorder.status). Returns its rect."""
+  cx, cy = ox + C4.REC_CX, oy + C4.REC_CY
+  if status == "recording":
+    rr, sw, sq, sr = C4.record_ring_recording()
+    glow = C(225, 60, 60, int(255 * (0.4 + 0.6 * max(0.0, min(1.0, pulse)))))
+    fill_circle(cx, cy, rr, REC_FILL)
+    stroke_circle(cx, cy, rr, sw, glow)
+    fill_rounded(rl.Rectangle(cx - sq / 2, cy - sq / 2, sq, sq), sr, REC_SQUARE)
+  else:
+    rr, sw, dot = C4.record_ring()
+    fill_circle(cx, cy, rr, REC_FILL)
+    stroke_circle(cx, cy, rr, sw, REC_RING)
+    fill_circle(cx, cy, dot, REC_DOT)
+    r = C4.REC_D / 2
+    if status == "starting":
+      rl.draw_ring(rl.Vector2(cx, cy), r * 0.62, r * 0.70, 0, 360, 32, rl.Color(225, 60, 60, int(90 + 120 * pulse)))
+    elif status == "error":
+      rl.draw_ring(rl.Vector2(cx, cy), r * 0.62, r * 0.72, 0, 360, 32, rl.Color(255, 176, 32, 235))
+  return {"record button": _o(C4.record_rect(), ox, oy)}
