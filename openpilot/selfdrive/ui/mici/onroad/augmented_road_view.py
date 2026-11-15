@@ -198,6 +198,9 @@ class AugmentedRoadView(CameraView):
   def _handle_mouse_release(self, mouse_pos: MousePos):
     # Don't trigger click callback if bookmark was triggered
     if not self._bookmark_icon.interacting():
+      # comma 4 BogPilot layout: the personality button takes its own taps
+      if self._hud_renderer.bp_c4_handle_tap(mouse_pos.x - self._rect.x, mouse_pos.y - self._rect.y):
+        return
       super()._handle_mouse_release(mouse_pos)
 
   def _render(self, _):
@@ -243,8 +246,13 @@ class AugmentedRoadView(CameraView):
     # Hide DMoji when disengaged unless AlwaysOnDM is enabled
     should_draw_dmoji = (not self._hud_renderer.drawing_top_icons() and
                          (ui_state.status != UIStatus.DISENGAGED or ui_state.always_on_dm))
+    dm_x, dm_y = self._rect.x + 16, self._rect.y + 10
+    if self._hud_renderer.bp_c4:
+      # comma 4 BogPilot layout: lead boxes under the HUD; the DM icon moves to the top right
+      self._hud_renderer.bp_c4_render_leads(self._model_renderer, alert_to_render is not None)
+      should_draw_dmoji, dm_x, dm_y = self._hud_renderer.bp_c4_dm(should_draw_dmoji, alert_to_render is not None, self._rect)
     self._driver_state_renderer.set_should_draw(should_draw_dmoji)
-    self._driver_state_renderer.set_position(self._rect.x + 16, self._rect.y + 10)
+    self._driver_state_renderer.set_position(dm_x, dm_y)
     self._driver_state_renderer.render()
 
     self._hud_renderer.set_can_draw_top_icons(alert_to_render is None)
@@ -262,6 +270,7 @@ class AugmentedRoadView(CameraView):
     # Custom UI extension point - add custom overlays here
     # Use self._content_rect for positioning within camera bounds
     self._confidence_ball.render(self.rect)
+    self._hud_renderer.bp_c4_render_side(self.rect)   # comma 4 BogPilot layout only (no-op elsewhere)
 
     self._bookmark_icon.render(self.rect)
 

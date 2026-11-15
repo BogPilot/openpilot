@@ -20,6 +20,9 @@ from openpilot.selfdrive.ui.onroad.bogpilot import speed_limit_display as SL
 from openpilot.selfdrive.ui.onroad.bogpilot import steering_arc as ARC
 from openpilot.selfdrive.ui.onroad.bogpilot import phase3_cem_status as CEM
 from openpilot.selfdrive.ui.onroad.bogpilot import pedals as PED
+from openpilot.selfdrive.ui.onroad.bogpilot import c4_layout as C4
+from openpilot.selfdrive.ui.onroad.bogpilot import c4_paint as C4P
+from openpilot.selfdrive.ui.onroad.bogpilot import lead_labels as LL
 from openpilot.selfdrive.ui.onroad.bogpilot import developer_hud_logic as DEV
 from openpilot.selfdrive.ui.onroad.bogpilot import developer_hud as DEVP
 from openpilot.selfdrive.ui.onroad.bogpilot import fps_counter as FPS
@@ -27,6 +30,7 @@ from openpilot.selfdrive.ui.onroad.bogpilot import overlay_gate as OVG
 from openpilot.selfdrive.ui.onroad.bogpilot.style import record_hit_rect
 from openpilot.selfdrive.ui.onroad.exp_button import ExpButton
 from openpilot.system.ui.widgets import Widget
+from openpilot.system.ui.lib.application import gui_app
 from openpilot.selfdrive.ui.onroad.bogpilot.file_toggles import toggles
 from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
 
@@ -477,20 +481,318 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
   def __init__(self):
     super().__init__()
     self._bp_init()
+    self.bp_c4 = False
+    self.bp_c4_layout = {}
+    self.bp_c4_personality = None
+    self._bp_traffic = None
+    self._bp_c4_extras = ExtrasPolicy()
+    self.bp_c4_gauge = None          # pedal_gauge3.Gauge3 to draw, or None when the pedal display is off
+    self._bp_c4_pedals = None        # pedals.PedalGauge (shared inputs, colour-source hysteresis, regen smoothing)
+    self.bp_c4_rec = False           # record button shown (ScreenRecorder toggle, same rule as the wide layout)
+    self._bp_c4_leads = None         # c4_leads.Comma4Leads, made on the first comma 4 frame
+    self._bp_c4_lead_policy = None   # hud_compose.PolicyToggles (HideLeadMarker, AdjacentLeadsUI)
+    self._bp_c4_arc = None           # steering_arc.ArcState for the comma 4 arc, made on the first comma 4 frame
+    self._bp_c4_arc_t = -1.0
+    self._bp_c4_arc_started = None
+    self.bp_c4_arc_ok = False        # False: the stock torque bar is drawn instead
+    self.bp_c4_bsm = None            # (left, right) border halves in BSM red, or None
+    self._bp_c4_bsm_next = -1.0
+    self._bp_c4_bsm_on = False
 
   def _update_state(self):
     super()._update_state()
     self._bp_update()
+    self.bp_c4 = C4.comma4_device(ui_state.sm)
+    if self.bp_c4:
+      try:
+        self._bp_c4_update()
+      except Exception:
+        cloudlog.exception("comma 4 layout inputs failed")
+        self.bp_c4_gauge = None
+      self._bp_c4_update_arc()
+      self._bp_c4_update_bsm()
+
+  def _bp_c4_update_arc(self):
+    """BogPilot steering arc state (same inputs and 20 Hz rate as the wide arc). Any failure keeps the stock torque bar
+    until the next drive."""
+    sm, now = ui_state.sm, time.monotonic()
+    if self._bp_c4_arc is None:
+      self._bp_c4_arc = ARC.ArcState()
+    if self._bp_c4_arc_started != ui_state.started_frame:
+      self._bp_c4_arc_started = ui_state.started_frame
+      self._bp_c4_arc.reset()
+      self._bp_c4_arc_failed = False
+    if getattr(self, "_bp_c4_arc_failed", False):
+      self.bp_c4_arc_ok = False
+      return
+    if not all(_fresh(sm, n) for n in ("controlsState", "carState", "carControl")):
+      self.bp_c4_arc_ok = False
+      self._bp_c4_arc.reset()
+      return
+    if now - self._bp_c4_arc_t < 1.0 / ARC.UPDATE_HZ:
+      return
+    self._bp_c4_arc_t = now
+    try:
+      vp = sm["vehicleParameters"] if _fresh(sm, "vehicleParameters") else None
+      co = sm["carOutput"] if _fresh(sm, "carOutput") else None
+      cp = ui_state.CP
+      max_lat = float(cp.maxLateralAccel) if cp is not None else ARC.DEFAULT_MAX_LAT_ACCEL
+      exp = bool(_fresh(sm, "selfdriveState") and sm["selfdriveState"].experimentalMode)
+      self._bp_c4_arc.update(ARC.inputs_from_messages(sm["controlsState"], sm["carState"], sm["carControl"], co, vp,
+                                                      max_lat, ui_state.status.value, exp))
+      self.bp_c4_arc_ok = True
+    except Exception:
+      cloudlog.exception("comma 4 steering arc inputs failed; stock torque bar kept until the next drive")
+      self.bp_c4_arc_ok = False
+      self._bp_c4_arc_failed = True
+
+  def _bp_c4_update_bsm(self):
+    """Blind-spot border halves: same rule as the wide layout (has_bsm and (BlindSpotMetrics or DebugMode); a
+    full-screen or critical alert keeps the whole border)."""
+    self.bp_c4_bsm = None
+    try:
+      from openpilot.selfdrive.ui.onroad.bogpilot.bsm_state import blindspots, has_bsm
+      from openpilot.selfdrive.ui.onroad.bogpilot import c4_arc as C4A
+      now = time.monotonic()
+      if now >= self._bp_c4_bsm_next:
+        self._bp_c4_bsm_next = now + 2.0
+        try:
+          s = getattr(self, "_bp_c4_bsm_store", None)
+          if s is None:
+            from openpilot.common.bogpilot_store import ParamStore
+            s = self._bp_c4_bsm_store = ParamStore()
+          level = s.tuning_level()
+          self._bp_c4_bsm_on = bool(s.toggle_bool("BlindSpotMetrics", level) or s.get_bool("DebugMode", False))
+        except Exception:
+          self._bp_c4_bsm_on = False
+      sm = ui_state.sm
+      ss = sm["selfdriveState"] if _fresh(sm, "selfdriveState") else None
+      left, right = blindspots(sm, ui_state.started_frame, now)
+      self.bp_c4_bsm = C4A.bsm_halves(left, right, has_bsm(getattr(ui_state, "CP", None)), self._bp_c4_bsm_on,
+                                      ss is not None and str(ss.alertSize) == "full",
+                                      ss is not None and str(ss.alertStatus) == "critical")
+    except Exception:
+      cloudlog.exception("comma 4 BSM border inputs failed")
+      self.bp_c4_bsm = None
+
+  def _bp_c4_update(self):
+    sm = ui_state.sm
+    now = time.monotonic()
+    # lane changes: the stock alert draws its own turn-signal arrows; the stock turn intent (its filters run on the
+    # lane-change events) is drawn over the personality button
+    self._turn_intent._update_state()
+    # three-bar gauge, shown under the same pedal display toggles as the wide layout's pedal bars
+    pol, rec = self._bp_c4_extras.get(bool(getattr(ui_state, "has_longitudinal_control", False)))
+    self.bp_c4_rec = bool(rec)
+    self.bp_c4_gauge = None
+    if self._bp_c4_pedals is None:
+      self._bp_c4_pedals = PED.PedalGauge()
+    if not pol.show:
+      self._bp_c4_pedals.reset()
+    else:
+      cs = sm["carState"]
+      motor_tq = motor_rpm = brake_state = None
+      psm = self._plan_sm()
+      try:
+        if psm is not None and "bogpilotCarState" in getattr(psm, "data", psm) and psm.valid["bogpilotCarState"] and \
+           psm.alive["bogpilotCarState"] and now - psm.recv_time["bogpilotCarState"] <= SL.LIMIT_STALE_S and \
+           psm.recv_time["bogpilotCarState"] >= self._bp_drive_start:
+          bcs = psm["bogpilotCarState"]
+          motor_tq, motor_rpm = float(bcs.ap1MotorTorqueNm), float(bcs.ap1MotorRpm)
+          brake_state = int(bcs.ap1BrakePedalState)
+      except (KeyError, AttributeError, TypeError, ValueError):
+        motor_tq = motor_rpm = brake_state = None
+      long_active = bool(_fresh(sm, "carControl") and sm["carControl"].longActive)
+      cp = ui_state.CP
+      fp = getattr(cp, "carFingerprint", "") if cp is not None else ""
+      # same inputs as the wide layout's gauge (bogpilot_hud BogPilotHudRenderer._bp_update_features)
+      self.bp_c4_gauge = self._bp_c4_pedals.update(pol, _fresh(sm, "carState"), now, PED.platform_of(fp),
+                                                   brake_pressed=bool(cs.brakePressed), brake_level=cs.deprecated.brake,
+                                                   pedal_pos=cs.deprecated.gas,
+                                                   op_accel=float(sm["carControl"].actuators.accel) if long_active else 0.0,
+                                                   long_active=long_active, motor_torque_nm=motor_tq, motor_rpm=motor_rpm,
+                                                   brake_pedal_state=brake_state, fingerprint=fp)
 
   def _draw_set_speed(self, rect):
-    if not toggles.get("RedesignUI"):
+    if not toggles.get("RedesignUI") and not self.bp_c4:
       super()._draw_set_speed(rect)
+
+  def _draw_steering_wheel(self, rect):
+    # comma 4 layout: no stock wheel icon (its turn intent is drawn over the personality button instead)
+    if not self.bp_c4:
+      super()._draw_steering_wheel(rect)
 
   def _render(self, rect):
     # Preserve torque bar, model-source warnings, steer-required icon and turn
     # intent. Do not paint the redesign over the stock alert's reserved space.
+    self.bp_c4_layout = dict(getattr(self, "bp_c4_lead_layout", {}) or {})
+    if self.bp_c4:
+      self.bp_c4_layout["dm icon"] = C4.DM_ICON if getattr(self, "bp_c4_dm_drawn", False) else None
+      self._bp_render_c4_stock(rect)
+      self._bp_render_c4(rect)
+      return
     super()._render(rect)
     if toggles.get("RedesignUI") and self._can_draw_top_icons:
       draw_cluster(self, rect, mici=True)
     if self._can_draw_top_icons:
       draw_cem_status(self, rect)
+
+  def _bp_c4_personality(self):
+    sm, now = ui_state.sm, time.monotonic()
+    if self._bp_traffic is None:
+      from openpilot.selfdrive.ui.onroad.bogpilot.hud_compose import TrafficModeReader
+      self._bp_traffic = TrafficModeReader()
+    traffic = self._bp_traffic.read(now, self._bp_drive_start)
+    data = LL.read_personality(sm, now, self._bp_drive_start, ui_state.started_frame, bool(traffic))
+    return data, bool(traffic)
+
+  def _bp_c4_pill_inputs(self):
+    speed_set = display_set_speed(self, mici=True)
+    lim = getattr(self, "bp_limit", SL.HIDDEN)
+    return C4P.PillInputs(set_speed=str(round(speed_set)) if self.is_cruise_set else "\u2013", speed=str(round(self.speed)),
+                          unit="KM/H" if ui_state.is_metric else "MPH", engaged=bool(self._engaged),
+                          show_limit=bool(lim.show_limit), limit=str(lim.limit))
+
+  def _bp_render_c4_stock(self, rect):
+    """The stock mici HUD order with the comma 4 changes: the BogPilot arc on the stock torque-bar geometry (raised)
+    instead of the torque bar, the model-source warnings kept, no set-speed box and no wheel icon."""
+    from openpilot.selfdrive.ui.onroad.bogpilot import c4_arc as C4A
+    drawn = False
+    if self.bp_c4_arc_ok and self._bp_c4_arc is not None:
+      try:
+        self.bp_c4_layout.update(C4A.paint(self._bp_c4_arc, rect))
+        drawn = True
+      except Exception:
+        cloudlog.exception("comma 4 steering arc paint failed; stock torque bar kept until the next drive")
+        self.bp_c4_arc_ok = False
+        self._bp_c4_arc_failed = True
+    if not drawn:
+      self._torque_bar.render(rect)
+    self.bp_c4_layout["arc"] = "bogpilot" if drawn else "stock"
+    self._draw_model_source(rect)
+
+  def _bp_c4_border(self, rect, traffic):
+    from openpilot.selfdrive.ui.onroad.bogpilot import c4_arc as C4A
+    longitudinal = bool(getattr(ui_state, "has_longitudinal_control", False))
+    colour = C4A.border_colour(ui_state.status.value, bool(traffic) and bool(self._engaged) and longitudinal)
+    self.bp_c4_layout["border_colour"] = colour
+    self.bp_c4_layout["bsm"] = self.bp_c4_bsm
+    self.bp_c4_layout.update(C4A.paint_border(rect, colour, self.bp_c4_bsm))
+
+  def _bp_render_c4(self, rect):
+    """comma 4 BogPilot layout (device type mici only). Screen = the content rect's origin; positions from c4_layout."""
+    ox, oy = rect.x, rect.y
+    lay = self.bp_c4_layout
+    lay["content_rect"] = (rect.x, rect.y, rect.x + rect.width, rect.y + rect.height)
+    vis = C4.visibility(alert_shown=not self._can_draw_top_icons, take_control=bool(self._show_wheel_critical))
+    lay["visibility"] = {k: getattr(vis, k) for k in ("pill", "gauge", "dm", "leads", "take_control")}
+    data, traffic = self._bp_c4_personality()
+    self._bp_c4_border(rect, traffic)
+    if vis.pill:
+      lay.update(C4P.paint_pill(self._bp_c4_pill_inputs(), ox, oy))
+    self.bp_c4_personality = None if data is None else data.personality
+    lay["personality"] = self.bp_c4_personality
+    if vis.gauge and self.bp_c4_gauge is not None:
+      lay.update(C4P.paint_gauge(self.bp_c4_gauge, ox, oy))
+    lay.update(C4P.paint_personality_button(self.bp_c4_personality, traffic, vis.take_control, ox, oy))
+    ti = self._turn_intent
+    lay.update(C4P.paint_turn_intent(ti._txt_turn_intent_left, ti._txt_turn_intent_right, ti._turn_intent_direction,
+                                     ti._turn_intent_alpha_filter.x, ti._turn_intent_rotation_filter.x, ox, oy))
+
+  def _bp_c4_alert(self, alert_shown):
+    """(alert zone or None, userPrompt) for the stock alert on screen this frame (full-screen alerts cover everything
+    and move nothing)."""
+    if not alert_shown:
+      return None, False
+    sm = ui_state.sm
+    ss = sm["selfdriveState"] if _fresh(sm, "selfdriveState") else None
+    size = str(ss.alertSize) if ss is not None else ""
+    status = str(ss.alertStatus) if ss is not None else ""
+    return (None if size == "full" else C4.ALERT_TEXT_ZONE), status == "userPrompt"
+
+  def bp_c4_render_leads(self, model_renderer, alert_shown):
+    """Lead and adjacent-lead boxes with their speeds (comma 4 only), engaged or not. Drawn in the camera view under
+    the HUD; hidden while a stock alert is on screen (C4.visibility, the rule that also hides the pill, gauge and DM)."""
+    if not self.bp_c4:
+      return
+    if not C4.visibility(alert_shown=alert_shown, take_control=False).leads:
+      self.bp_c4_lead_layout = {}
+      return
+    try:
+      from openpilot.selfdrive.ui.onroad.bogpilot.c4_leads import Comma4Leads
+      from openpilot.selfdrive.ui.onroad.bogpilot.hud_compose import PolicyToggles
+      if self._bp_c4_leads is None:
+        self._bp_c4_leads = Comma4Leads()
+        self._bp_c4_lead_policy = PolicyToggles()
+      pol = self._bp_c4_lead_policy.get()
+      longitudinal = bool(getattr(ui_state, "has_longitudinal_control", False))
+      vis = C4.visibility(alert_shown=alert_shown, take_control=False)
+      gauge_on = vis.gauge and self.bp_c4_gauge is not None
+      rect = model_renderer._rect
+      ox, oy = rect.x, rect.y
+      gauge = C4._offset(C4.gauge_rect(), ox, oy) if gauge_on else None
+      leads, v_ego = self._bp_c4_leads.update(model_renderer, ui_state.sm, ui_state.started_frame,
+                                              longitudinal=longitudinal,
+                                              adjacent=bool(longitudinal and pol.get("adjacent_leads", False)),
+                                              hide_marker=bool(pol.get("hide_lead_marker", True)),
+                                              metric=bool(ui_state.is_metric), gauge=gauge)
+      keepouts = []
+      if not alert_shown:
+        keepouts += ([C4.gauge_rect()] if gauge_on else []) + [C4.PILL, C4.DM_ICON]
+      ti = self._turn_intent
+      if ti._turn_intent_alpha_filter.x > 1e-2:
+        keepouts.append(C4.turn_intent_bbox(ti._turn_intent_rotation_filter.x))
+      zone, side_mode = self._bp_c4_alert(alert_shown)
+      self.bp_c4_lead_layout = C4P.paint_leads(leads, v_ego, keepouts, zone, side_mode, ox, oy)
+    except Exception:
+      cloudlog.exception("comma 4 lead boxes failed")
+      self.bp_c4_lead_layout = {}
+
+  def bp_c4_dm(self, should_draw, alert_shown, screen_rect):
+    """Driver-monitor icon on the comma 4: the stock rule for when it shows, moved to the top right, and stepping
+    aside during alerts with the pill and gauge. Returns (should_draw, x, y)."""
+    vis = C4.visibility(alert_shown=alert_shown, take_control=False)
+    x, y = C4.dm_position()
+    self.bp_c4_dm_drawn = bool(should_draw and vis.dm)
+    return self.bp_c4_dm_drawn, screen_rect.x + x, screen_rect.y + y
+
+  def bp_c4_render_side(self, screen_rect):
+    """Side-panel part of the comma 4 layout (outside the camera view's clip): the record button."""
+    if not self.bp_c4 or not self.bp_c4_rec:
+      return
+    try:
+      rec = _recorder()
+      status = rec.status if rec.status in ("recording", "starting", "error") else "idle"
+      pulse = 0.5 + 0.5 * math.sin(time.monotonic() * 3.14159)
+      self.bp_c4_layout.update(C4P.paint_record_button(status, pulse, screen_rect.x, screen_rect.y))
+      self.bp_c4_layout["record_status"] = status
+    except Exception:
+      cloudlog.exception("comma 4 record button failed")
+
+  def bp_c4_handle_tap(self, x, y, write=None) -> bool:
+    """Personality button tap on the comma 4 (same step as the wide layout: Relaxed -> Standard -> Aggressive ->
+    Relaxed, ignored in Traffic Mode). Returns True when the tap was the button's."""
+    if not self.bp_c4:
+      return False
+    if self.bp_c4_rec and C4.in_rect(C4.record_rect(), x, y):
+      try:
+        (write or (lambda *_: _recorder().toggle()))("ScreenRecorderToggle", None)
+      except Exception:
+        cloudlog.exception("screen recorder toggle failed")
+      return True
+    t = C4.personality_tap_rect()
+    if not (t[0] <= x < t[2] and t[1] <= y < t[3]):
+      return False
+    data, traffic = self._bp_c4_personality()
+    if traffic or data is None:
+      return True
+    new = (int(data.personality) + 2) % 3
+    try:
+      if write is None:
+        from openpilot.common.params import Params
+        Params().put("LongitudinalPersonality", int(new))
+      else:
+        write("LongitudinalPersonality", int(new))
+    except Exception:
+      cloudlog.exception("comma 4 personality write failed")
+    return True
