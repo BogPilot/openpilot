@@ -1,3 +1,10 @@
+What's new
+=======================
+* Three-bar pedal gauge showing brake, regen power, and acceleration
+* Toggle for Pre-AP cars that have swapped in an iBooster
+* Lead and nearby-lead boxes stay visible, including under alerts
+* iBooster comments in the car signal database
+
 Version 0.11.2 (2026-10-14)
 =======================
 * New driving model
