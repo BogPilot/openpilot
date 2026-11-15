@@ -1,4 +1,4 @@
-"""AP1 Bosch radarTracks 5.0 Hz floor: fingerprints, rate, gaps, and error invalidation."""
+"""AP1 Bosch radarTracks 6.69 Hz floor: fingerprints, rate, gaps, and error invalidation."""
 import inspect
 
 import pytest
@@ -79,11 +79,12 @@ OTHER_FPS = (
 
 
 @pytest.mark.parametrize("fp", AP1_FPS)
-def test_ap1_family_gets_5hz_floor(fp):
+def test_ap1_family_gets_6_69hz_floor(fp):
+  assert AP1_RADARTRACKS_MIN_FREQ_HZ == 6.69
   assert is_ap1_family(fp)
   assert radar_tracks_min_freq(fp) == {"radarTracks": AP1_RADARTRACKS_MIN_FREQ_HZ}
   sm = make_sm(fp)
-  assert sm.freq_tracker['radarTracks'].min_freq == 5.0
+  assert sm.freq_tracker['radarTracks'].min_freq == 6.69
   assert sm.freq_tracker['radarTracks'].max_freq == STOCK_MAX
   assert RADAR_ALIVE_S == 0.5
 
@@ -98,7 +99,7 @@ def test_preap_and_other_cars_stay_at_8hz(fp):
   assert RADAR_ALIVE_S == 0.5
 
 
-# ---- sustained rates on AP1 (5.0 Hz floor) ----
+# ---- sustained rates on AP1 (6.69 Hz floor) ----
 
 @pytest.mark.parametrize("hz", [7.0, 7.5])
 def test_ap1_7_and_75_hz_stay_valid(hz):
@@ -108,8 +109,8 @@ def test_ap1_7_and_75_hz_stay_valid(hz):
   assert ok and inv is None, f"{hz} Hz should stay valid for {HOLD_S}s; first_invalid={inv}"
 
 
-@pytest.mark.parametrize("hz", [4.0, 2.0])
-def test_ap1_4_and_2_hz_go_invalid_within_40s(hz):
+@pytest.mark.parametrize("hz", [6.0, 4.0, 2.0])
+def test_ap1_6_4_and_2_hz_go_invalid_within_40s(hz):
   sm = make_sm(CAR.TESLA_AP1_MODELS)
   t = warmup(sm)
   t, ok, inv = drive(sm, t, 40.0, hz)

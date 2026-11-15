@@ -171,9 +171,11 @@ def is_ap1_family(candidate) -> bool:
 
 # AP1 Bosch radarTracks publish at the radar's own cycle, measured 7.4-12.6 Hz
 # depending on track count (about 12 Hz below 10 tracks, 7.4-7.8 Hz at 28-30
-# tracks). The stock FrequencyTracker floor is 8.0 Hz (0.8 x half of the 20 Hz
-# service). radard applies this lower-only override on AP1 Model S and Model X.
-AP1_RADARTRACKS_MIN_FREQ_HZ = 5.0
+# tracks). The slowest 20-sample FrequencyTracker average measured on 14 days of
+# AP1 drives was 6.996 Hz, so 6.69 Hz leaves about 0.31 Hz of margin. The stock
+# FrequencyTracker floor is 8.0 Hz (0.8 x half of the 20 Hz service). radard
+# applies this lower-only override on AP1 Model S and Model X.
+AP1_RADARTRACKS_MIN_FREQ_HZ = 6.69
 
 
 DBC = CAR.create_dbc_map()
