@@ -8,7 +8,6 @@ the asynchronous-Params readback race this file is about. Stock baselines are th
 import os
 from types import SimpleNamespace as NS
 from pathlib import Path
-import subprocess
 
 import numpy as np
 import pytest
@@ -76,12 +75,14 @@ def make_cp(long=True):
   return cp
 
 
+BASELINE_DIR = Path(__file__).resolve().parent / "fixtures" / "stopping_baseline"
+
+
 def stock_class(env, git_path, name):
   path = os.environ.get(env)
-  # BogPilot baseline, not stock: longitudinal_planner.py differs from the stock import, so this stays on the BogPilot commit.
-  # longcontrol.py is identical at both commits.
-  source = Path(path).read_text() if path else subprocess.check_output(
-    ["git", "show", f"4f09d9fffd92098ef1084247a2cff58e738d1675:{git_path}"], text=True)
+  # BogPilot baseline, not stock: a byte-exact copy of the BogPilot source from before the stop rows were added,
+  # committed under fixtures/stopping_baseline (see its README.md), so the check needs no git history.
+  source = Path(path).read_text() if path else (BASELINE_DIR / (Path(git_path).name + ".txt")).read_text()
   namespace = {"__name__": name}
   exec(compile(source, name + ".py", "exec"), namespace)
   return namespace
