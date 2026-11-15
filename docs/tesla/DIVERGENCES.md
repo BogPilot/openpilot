@@ -568,88 +568,62 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Tests: `openpilot/selfdrive/ui/tests/test_sidebar_vehicle_cpu_slot.py`.
 - Credits: BogPilot (sidebar metrics).
 
-## Onroad pedals: two bars (decel, accel) replace the pedal icons
-- Platforms: all legacy Tesla with openpilot longitudinal (UI, plus one carstate line per platform).
+## Onroad pedals: a 3-bar gauge (brake pedal, regen kW, accel request) replaces the pedal icons
+- Platforms: all legacy Tesla with openpilot longitudinal (UI, plus car-state inputs on AP1 Model S / X and Pre-AP).
 - Reference behavior: daily's pedal icons (bogpilot-tesla paintPedalIcons): a brake and a gas pedal whose opacity follows
   measured `aEgo` (Dynamic) or turns on / off (Static), in a 2 x 60 x 120 rect under the accel graph on the driver side.
-- Our behavior: in the same rect and under the same gate (openpilot longitudinal, CustomUI, Pedals on Screen, then
-  Dynamic / Static; neither hides it), two vertical bars at about 75 % opacity (fill alpha 191). RHD mirrors the
-  position and keeps the order (decel left, accel right), as daily did not swap the pedals.
-  - Right bar height: max(driver pedal, OP accel / `OP_ACCEL_FULL_SCALE`), 0..1. OP accel counts only while
-    `carControl.longActive` and fresh.
-  - Left bar height, AP1 (`ap1_decel_height`, requested; replaces the two-half layout): total braking decel
-    max(0, -`aEgo`) (regen + friction; `aEgo` is carstate's own filtered value, no extra smoothing) on ONE continuous
-    scale. 0 .. `AP1_BAR_REGEN_REF` = 2.0 m/s^2 fills 0 .. 50 %, 2.0 .. `AP1_BAR_TOP` = 3.5 m/s^2 fills 50 .. 100 %
-    (past the top pegs). The 50 % anchor is fixed (the p95 of no-pedal decel over all speeds, 1.96 m/s^2), so weaker
-    regen (low-speed fade, high speed) reads lower and a press adds on top with no jump. The top stays 3.5: driver
-    braking decel is p99 3.2 m/s^2 in the AP1 drive logs.
-  - Left bar height, Pre-AP / other (`decel_fill_legacy`, unchanged behavior): bottom half = measured decel on
-    `regen_scale` (Pre-AP |`REGEN_MAX`| = 1.5); a brake press is 50 % + 50 % of the measured decel past it, up to 3.5.
-- Colours: all in the `PEDAL_BAR_PALETTE` block of `pedals.py` (requested; replaces one look for OP and driver): driver gas (64,206,84) green; OP accel (163,190,140) sage, a lighter #9CAF88 that reads as clearly against
-  the bar track as the driver green; driver-side regen (90,205,255) blue; OP regen (122,155,191) dusty blue; brake
-  pedal (238,48,44) red; OP braking past regen (214,110,112) rose mix by default, or pure dusty rose (201,169,166) by
-  setting `PEDAL_BAR_OP_BRAKE_ROSE = "dusty_rose"`.
-- Colour source, one per bar, the driver wins: right bar green while the gas pedal is pressed, else sage while
-  `longActive` and OP accel > 0, else green. Left bar red while `brakePressed`; else rose (see the guess below); else
-  dusty blue while `longActive` and OP accel < 0; else blue (disengaged or no OP request).
-  - AP1 colour model (requested): AP1 has NO car-side regen / friction blending. Any iBooster application, driver or
-    OP, adds friction braking at once and regen runs in parallel; no car-decided split is modelled. Friction =
-    max(0, measured decel - regen being applied) and exists only while the iBooster is applied: with no press and no
-    OP iBooster command the bar is blue whatever the decel. Regen being applied = the live motor regen from
-    DI_torqueMotor (0x108; `bogpilotCarState.ap1MotorTorqueNm`, set in `tesla_ap1/carstate.py`, converted with
-    `regen_aware.regen_decel_from_torque`, read only), else the measured table below. Share = friction / decel.
-  - Driver brake pressed: bright violet (176,124,255) #B07CFF while regen supplies the majority, red above
-    `SHARE_RED_ABOVE` = 0.55, violet again below `SHARE_VIOLET_BELOW` = 0.45, the colour holds between (a new press
-    inside the band takes the nearer side). Below 0.3 m/s (holding the car) red. No level (0x39D frame missing / stale
-    / bad checksum) -> red. The colour keys off `brakePressed` only; the rod stroke can lag the bit (about 3-10 % of
-    unpressed frames are above rest), so a stroke without it changes nothing.
-  - OP: muted lavender (154,134,184) #9A86B8 / rose by the same share ONLY while OP is applying the iBooster:
-    longActive AND `bogpilotCarState.ap1BrakePedalState` == ON AND NOT `brakePressed` (`op_ibooster_applied`; a driver
-    press always wins and shows violet / red). Being past regen capacity alone never triggers it. OFF, INVALID, SNA, a
-    stale `bogpilotCarState` or junk -> OP dusty blue. The same `SOURCE_HOLD_S` hold and share hysteresis apply. Leaving an
-    OP lavender / rose colour takes at most `SOURCE_HOLD_S` plus one frame after the request ends: a change between the
-    regen colours while it waits does not start the hold again (it did before, so the OP colour could stay up to 0.51 s).
-  - `ap1BrakePedalState` (requested, maintainer-approved; UI only): the stock `DI_brakePedalState` of DI_torque2 (0x118,
-    `tesla_ap1_can.dbc` SG_ at 36|2, VAL_ 0 OFF / 1 ON / 2 INVALID / 3 SNA), published by AP1 carstate in
-    `carState.bogpilot` @40 and mirrored to `bogpilotCarState` @21 (custom.capnp). 3 (SNA) when the 100 Hz frame is older
-    than 0.2 s, for junk values, and by default (Pre-AP, other cars). The car sets it ON while the iBooster is applied,
-    by the driver or for OP: in the AP1 drive logs, under OP longitudinal with no driver brake, it is ON in about 15 %
-    of frames at 0.4 m/s^2 of estimated friction decel, 61 % at 1.0, 94 % at 1.4 and 100 % from 1.8, and in about 0.1 %
-    of frames with no OP and no pedal. Only the onroad decel bar reads it (pedals.py via bogpilot_hud.py); nothing in
-    controls, the planner, carcontroller or safety does, and `brakePressed` still comes from BrakeMessage only.
-  - Fallback regen table (`AP1_REGEN_V` / `AP1_REGEN_A`, used only when the torque is missing / SNA): p99 of the
-    motor-torque regen decel with no pedal (brake and gas released, no OP longitudinal, rod at rest; grade-free) over
-    2,119 AP1 drive logs, 1 m/s bins below 10 m/s then 5 m/s: 0.24 at 0-1 m/s, 0.32 at 1-2, 0.88 at 2-3, 1.38 at
-    3-4, 1.52 at 4-9, 1.50 at 9-10, 1.38 at 10-15, 0.92 at 15-20, 0.80 at 20-25, 0.78 at 25-30, 0.44 at 30-35.
-  - Height anchor: total decel with no pedal is higher than motor regen alone (drag, grade): p95 1.96 m/s^2 over all
-    speeds, which is the 50 % point (`AP1_BAR_REGEN_REF` = 2.0), so plain regen peaks near half the bar.
-  - The control estimate `regen_aware.regen_capacity` (used by the AP1 planner) is NOT changed and not used by the
-    bars on AP1. At the nominal power it is 0 below about 0.9 m/s, 1.6 at 5-8 m/s, then falls with 1/v (1.03 at
-    12.5, 0.57 at 22.5 m/s), under the measured regen above 10 m/s; that is why the former bar pegged at 50 % in plain
-    regen.
-- AP1 only, GUESS: friction is inferred (measured decel minus motor regen); drag and grade count as friction while
-  the pedal is pressed. Absent on Pre-AP and unknown cars (their OP decel stays dusty blue).
-- Hysteresis: on / off deadbands (pedal 2 % on, 1 % off, the Pre-AP stock pressed threshold; OP accel 0.10 on, 0.05 off
-  m/s^2, mirrored for decel; the AP1 friction share 0.45 / 0.55), and a colour change needs `SOURCE_HOLD_S` = 0.25 s of
-  steady request. A change TO a pressed pedal or brake shows at once. An input that alternates every frame does not
-  change the colour more than once (tested).
-- Static mode keeps daily's on / off rule (decel bar full at standstill, on brake lights or aEgo < -0.25; accel bar full
-  when aEgo > 0.25) with the same colours. `brakeLights` is never set by the car code today, so that Static input never
-  fires; not changed here.
-- Stale or missing carState: both bars empty and the colour state resets; NaN / missing values read as 0.
+  Tinkla and NAP have no pedal gauge.
+- Our behavior: three vertical bars, 36 / 6 / 36 / 6 / 36 design px in the old 120 x 120 footprint, fill alpha 191 with a
+  1 px white outline around each filled segment. RHD mirrors the position and keeps the order. One behaviour, gated by
+  openpilot longitudinal, CustomUI and Pedals on Screen (`pedals.policy_from_store`).
+  - LEFT, friction brake pedal only: `CarState.deprecated.brake`, 0..1, set by the car state (AP1: the 0x39D rod stroke
+    level, section below; Pre-AP: 1.0 / 0.0 from `brakePressed`, or the iBooster swap pedal position, section below).
+    Negative = missing -> empty. It is never `aEgo` and never a residual such as max(0, -aEgo - regen).
+  - CENTER, regen power: kW = DI_torqueMotor (Nm) x DI_motorRPM x pi / 30000 from DI_torque1 (0x108,
+    `tesla_ap1_can.dbc` SG_ DI_torqueMotor 16|13@1- (0.25), DI_motorRPM 32|16@1- (1)), the same mechanical power as
+    `regen_aware.regen_power_kw`, kept signed. Regen is negative; the bar fills from 0 to the per-model full scale
+    (`REGEN_FULLSCALE_KW_AP1_S`, `_AP1_X`, `_PREAP` = -55 kW each, `pedal_gauge3.py`). Drive power, SNA (-1024 Nm,
+    -32768 rpm), NaN or a stale `bogpilotCarState` -> empty (fail closed).
+  - RIGHT, acceleration request: the driver's DI_pedalPos (`CarState.deprecated.gas`) while pressed, else OP's
+    `carControl.actuators.accel` / `OP_ACCEL_FULL_SCALE` while `longActive`. The driver's pedal wins.
+- Colours (`GAUGE3_PALETTE`, requested): driver / not controlling speed: brake #C62828, regen #2E8BFF, accel #3DDC97;
+  openpilot: brake #B5838D, regen #8FB3E0, accel #5E8A72. Regen uses the openpilot colour while `longActive`; accel while
+  OP's request drives the bar; brake only on AP1 while OP applies the iBooster (`longActive` AND
+  `bogpilotCarState.ap1BrakePedalState` == ON AND NOT `brakePressed`, `op_ibooster_applied`). A driver press always
+  wins. A colour change needs `SOURCE_HOLD_S` = 0.25 s of steady request, except a change to an active driver input.
+  The former blended / share colours (violet, lavender, rose) and the decel scales are removed.
+- Regen deadband and smoothing (proposal, UI only): below `REGEN_DEADBAND_KW` = 1 kW of regen the bar is empty (the
+  torque decode is within about 1 Nm, about 0.5 kW at highway motor speed); `RegenSmoother` is a first-order low-pass with
+  `REGEN_TAU_S` = 0.15 s, reset by a missing sample or a gap over 1 s. Peak regen seen in AP1 drive logs is about 26 kW,
+  so plain regen reads about half the bar at -55 kW full scale.
+- Dynamic / Static removed: `DynamicPedalsOnUI` and `StaticPedalsOnUI` are no longer read or shown (no child rows, no
+  help entry; `phase2_visuals_theme.OMITTED` lists the Dynamic key). Both stay registered, and backup, restore and the
+  toggle resets still carry them, so a stored choice survives a downgrade.
+- Placement (requested): the footprint is centred on the record / personality column (`pedals.COLUMN_CX` =
+  `style.REC_CX` = 126 screen px from the driver-side content edge) at the old height: on the 3X content rect
+  (30, 30, 2100, 1020), screen x 99.3 .. 212.7, y 489.0 .. 602.3. `pedal_rect(widget_w, rhd, scale)` returns it in design
+  space; the HUD keepout uses the same rect (`pedals.screen_rect`).
+- Shared state function (for other screens): `pedal_gauge3.gauge_state(brake_frac, regen_kw, accel_frac, engaged, *,
+  full_scale_kw, brake_by_op, accel_by_op, deadband_kw) -> Gauge3` and `paint_gauge3(rect, g, scale)`. The module does
+  not import pyray at import time; only the painter does.
 - Accel divisor: `OP_ACCEL_FULL_SCALE = interfaces.ACCEL_MAX` (2.0), the clip controlsd applies on every car
-  (`get_pid_accel_limits` in `interfaces.py`, used by `controlsd.py`, clipped in `longcontrol.py`; tesla_ap1 does not
-  override it). The Pre-AP spec value `vdas_constants.py` `ACCEL_MAX` = 2.5 is kept as a documented constant but is not
-  the divisor: OP accel never exceeds 2.0, so 2.5 would cap OP's bar at 80 %. A full bar means the most OP can command.
-- Driver pedal source: `CarState.deprecated.gas` = DI_pedalPos / 100 (0..1, clamped), set in `tesla_ap1/carstate.py` and
-  `tesla_ap1/preap/carstate.py`. The deprecated slot was chosen so the feature stays modular and easy to port with no
-  compiled schema change. Its one other reader in the tree is the desktop replay plot (`tools/replay/ui.py`, "gas"
-  trace), which now shows the real pedal value instead of 0. Nothing on the car reads it.
-- Not changed: the Pedals on Screen help text still describes "translucent gas and brake pedals".
-- Why: requested redesign of the onroad pedals (mockup approved, colours requested).
-- Safety-relevant: no (display only; no planner, controls, panda or TX change; carstate only fills an unused field).
-- Tests: `openpilot/selfdrive/ui/onroad/bogpilot/tests/test_pedal_bars.py`, `test_onroad_hud_features.py` (TestPedals),
-  `opendbc_repo/opendbc/car/tesla_ap1/tests/test_pedal_pos_published.py`.
+  (`get_pid_accel_limits` in `interfaces.py`); tesla_ap1 does not override it, so a full bar is the most OP can command.
+- Driver pedal source: `CarState.deprecated.gas` = DI_pedalPos / 100, set in `tesla_ap1/carstate.py` and
+  `tesla_ap1/preap/carstate.py` via `tesla_ap1/pedal_signals.py`. DI_pedalPos SNA (raw 255, 102 %) or anything outside
+  0..100 % is -1 (missing) and the bar reads 0; before, SNA clamped to a full bar. `gasPressed` is unchanged. The
+  deprecated slot keeps the feature modular with no compiled schema change; the desktop replay plot
+  (`tools/replay/ui.py`, "gas") is its one other reader.
+- Motor torque and RPM on every legacy platform: `bogpilotCarState.ap1MotorTorqueNm` / `ap1MotorRpm` (field names keep
+  the ap1 prefix; no schema change) are now filled on AP1 Model X and Pre-AP too, from the same 0x108 signals (Pre-AP
+  uses the same chassis DBC). The AP1 planner's regen estimate runs only on `TESLA_AP1_MODELS` (`ap1_planning.py`), so
+  publishing the fields on X and Pre-AP changes no control path.
+- Stale or missing carState: all bars empty and the colour state resets.
+- Why: requested redesign of the onroad pedals (bars, colours and placement chosen by the maintainers).
+- Safety-relevant: no (display only; no planner, controls, panda or TX change; the car state only fills unused fields).
+- Tests: `openpilot/selfdrive/ui/onroad/bogpilot/tests/test_pedal_gauge3.py`, `test_pedal_bars.py`,
+  `test_onroad_hud_features.py` (TestPedals), `test_record_button_placement.py`;
+  `openpilot/selfdrive/ui/tests/test_pedals_toggle.py`; `opendbc_repo/opendbc/car/tesla_ap1/tests/test_pedal_gauge_signals.py`,
+  `test_pedal_pos_published.py`.
 - Credits: BogPilot (pedals widget, regen estimate); stock openpilot (accel limits).
 
 ## AP1 brake booster rod stroke (0x39D) for the onroad decel bar
@@ -669,12 +643,36 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   also start checking the existing DAS frames; not done). Registered with frequency 0, so a car without the frame does
   not trip `canValid`. The deprecated slot avoids a compiled schema change; nothing else reads it.
 - Not known: no calibrated unit (pressure or mm), and a panic / ABS stop may exceed TOP (the bar then pegs).
-- Why: requested. The decel bar uses it only as a freshness / sanity input (missing or stale -> red while pressed);
-  the bar height and colour come from the measured decel split.
+- Why: requested. The 3-bar gauge's left (brake pedal) bar height is this level; missing or stale leaves it empty.
 - Safety-relevant: no. Receive only, display only: no controls, planner, panda safety or TX change; the panda safety
   modes do not reference 0x39D.
 - Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_ap1_brake_booster_stroke.py`, `test_pedal_bars.py`.
 - Credits: drive-log evidence (BogPilot); Tesla sum checksum as in opendbc's Tesla checksum helper.
+
+## Pre-AP iBooster swap (0x554) for the onroad brake bar
+- Platforms: Pre-AP Model S only, with the new Vehicle Controls toggle "Pre-AP: iBooster Swap" (`TeslaHasIBooster`,
+  file-backed in the Pre-AP params, default off; hidden on AP1, which has the factory iBooster and 0x39D).
+- Reference behavior: Tinkla / BogGyver openpilot `501c7de` `selfdrive/car/tesla/carstate.py` lines 115, 212-215 and
+  653-662: with `TinklaHasIBooster` it subscribes ECU_BrakeStatus on bus 0 with frequency 0 and sets the panda iBooster
+  flag, but `ret.brake` stays 0, so the level is never shown. Layout from BogGyver opendbc `9c0b6fe` `tesla_can.dbc`
+  lines 917-924 and 1380-1383: BO_ 1364 ECU_BrakeStatus, 5 bytes; BrakePedalPosition 20|12@1+ (0.015625,-5) [0|47] mm,
+  BrakeOK 16, DriverBrakeApplied 17, BrakeApplied 18, Status 12|4, Brake_Counter 8|4, Brake_Checksum 0|8.
+  NAP `e99f4dc75` `nap_params.py` lines 31-32 define `NAPiBoosterEnabled` and `NAPBrakeFactor`, but nothing reads them;
+  neither is used or migrated here.
+- Our behavior: the same message, copied without changes, in `tesla_ap1_can.dbc` (BO_ 1364 plus its VAL_ lines). With the
+  toggle off the brake bar is binary (1.0 while pressed). With it on, `preap/carstate.py` adds ECU_BrakeStatus to the
+  chassis parser as OPTIONAL (no `canValid` effect) and the bar is clamp(BrakePedalPosition /
+  `IBOOSTER_PEDAL_FULL_MM`, 0, 1) (`preap/ibooster.py`). Missing, older than `IBOOSTER_MAX_AGE_S` = 0.5 s, BrakeOK = 0 or
+  Status != 0 -> -1 (empty bar). `brakePressed` still comes from BrakeMessage / DI_brakePedal only. The checksum is not
+  checked (display only; the parser has no checksum hook for this DBC).
+- Provisional: `IBOOSTER_PEDAL_FULL_MM` = 47 (the top of the reference DBC range) and the 0.5 s age, until a capture from
+  a swapped car exists.
+- Not done: no panda flag, panda safety or TX change (Tinkla's `FLAG_TESLA_HAS_IBOOSTER` is not ported).
+- Why: requested, so a Pre-AP car with an iBooster swap shows a proportional brake bar.
+- Safety-relevant: no. Receive only, display only; the message is parsed only with the toggle on.
+- Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_pedal_gauge_signals.py`,
+  `openpilot/selfdrive/ui/tests/test_preap_pedal_cal.py` (vehicle row), `test_phase3_system_feature_archive.py`.
+- Credits: Tinkla / BogGyver (message layout, TinklaHasIBooster).
 
 ## Onroad record button: one fixed spot between the pedal bars and the personality label
 - Platforms: all (UI only).

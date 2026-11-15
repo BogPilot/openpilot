@@ -1,7 +1,7 @@
 """BogPilot 3-bar pedal gauge: the shared state function, colours and a rect-based painter.
 
 Pure Python at import (no pyray), so any HUD (3X, comma 4) and the unit tests can use the state part; only
-paint_gauge3() imports pyray, when it draws. The 3X HUD adapter is pedals.py (inputs, colour-source hysteresis, Option A
+paint_gauge3() imports pyray, when it draws. The 3X HUD adapter is pedals.py (inputs, colour-source hysteresis, column
 placement); a different screen passes its own rect to paint_gauge3().
 
 Bars, left to right (the order is kept on RHD):

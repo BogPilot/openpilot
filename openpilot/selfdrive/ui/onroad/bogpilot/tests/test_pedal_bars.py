@@ -1,5 +1,5 @@
 """3X pedal gauge adapter (pedals.py): gate (one mode), per-bar inputs, driver wins, colour-source hysteresis, Pre-AP
-binary and iBooster brake bar, regen smoothing, fail closed, and the Option A footprint (headless)."""
+binary and iBooster brake bar, regen smoothing, fail closed, and the column footprint (headless)."""
 import inspect
 import unittest
 
