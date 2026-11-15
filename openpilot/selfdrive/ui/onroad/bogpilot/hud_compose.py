@@ -1,7 +1,7 @@
 """C3X onroad HUD composition (wave-2 w9): draws the component adapters in the right order.
 
 w9 owns this file and the call sites in onroad/augmented_road_view.py. Component modules belong to their owners:
-  w1 lead_lockon.make_layer   primary-lead lock-on box (replaces only the stock leadOne chevron)
+  w1 lead_lockon.make_layer   primary-lead lock-on box (the stock lead chevron is never painted)
   w3 lead_labels.make_layer   lead speed/distance labels and the personality pill (display only, replaces nothing)
   w2 driver_monitor.make_layer relocated stock driver-monitor renderer (replaces the stock DM icon while it is enabled)
   w4 alert_banner.BogPilotAlertRenderer, a drop-in AlertRenderer (native alert source; redesign banner for small and mid)
@@ -9,7 +9,7 @@ A missing module is not an error: its slot keeps the stock element. Nothing here
 field comes from the current drive's messages or from an existing setting resolved by its tuning-level policy.
 
 Order with RedesignUI ON (inside the content scissor):
-  model (path, lanes, stock leadTwo) -> lead lock-on (or the deferred stock leadOne chevron) -> HUD cluster
+  model (path, lanes; no stock lead chevron) -> lead lock-on -> HUD cluster
   (speed capsule with LIMIT tile, accel graph, CSC slot, steering arc, pedals, record button) -> labels and
   personality -> driver monitor -> alert LAST.
 With RedesignUI OFF the stock order and renderers run unchanged: model -> hud -> alert -> driver_state.
@@ -465,9 +465,9 @@ class HudComposer:
       self.order.append("adjacent_leads")
     if box is not None:
       self.order.append("lead_lockon")
-    # RedesignUI is on in this path. Never draw the stock leadOne chevron: not on the
-    # first frames, not when lock-on has not yet claimed the slot, and not when
-    # hide_lead_marker fail-closes. The lock-on box or nothing.
+    # The stock lead chevron is never painted (leadOne or leadTwo), including on the
+    # first frames, when lock-on has not claimed the slot, and when hide_lead_marker
+    # fail-closes. The lock-on box or nothing.
     f.lead_label_box = box
 
     self.hud.render(rect)
