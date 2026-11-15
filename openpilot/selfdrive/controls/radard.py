@@ -13,6 +13,7 @@ from openpilot.common.realtime import DT_MDL, Priority, config_realtime_process
 from openpilot.common.swaglog import cloudlog
 from openpilot.common.simple_kalman import KF1D
 from opendbc.car.tesla_ap1.lead_filter import Ap1LeadGlitchFilter
+from opendbc.car.tesla_ap1.values import AP1_RADARTRACKS_MIN_FREQ_HZ, is_ap1_family
 
 try:  # optional Human Lane Changes consumer; import failure = stock radar behaviour
   from openpilot.selfdrive.controls.lib.phase3_lanechange import LaneChangeSettingsReader, human_lane_change_track, valid_vision_lead
@@ -299,6 +300,13 @@ class RadarD:
     pm.send("radarState", radar_msg)
 
 
+def radar_tracks_min_freq(fingerprint) -> dict[str, float] | None:
+  """Lower-only radarTracks FrequencyTracker floor for AP1 Bosch (Model S and X)."""
+  if is_ap1_family(fingerprint):
+    return {"radarTracks": AP1_RADARTRACKS_MIN_FREQ_HZ}
+  return None
+
+
 # fuses camera and radar data for best lead detection
 def main() -> None:
   from openpilot.selfdrive.controls.lib.bogpilot_radar import SERVICES as BOGPILOT_RADAR_SERVICES, BogPilotRadar
@@ -310,7 +318,8 @@ def main() -> None:
   cloudlog.info("radard got CarParams")
 
   # *** setup messaging
-  sm = messaging.SubMaster(['modelV2', 'carState', 'radarTracks'], poll='modelV2')
+  sm = messaging.SubMaster(['modelV2', 'carState', 'radarTracks'], poll='modelV2',
+                           min_freq=radar_tracks_min_freq(CP.carFingerprint))
   pm = messaging.PubMaster(['radarState', *BOGPILOT_RADAR_SERVICES])
 
   lead_threshold = .5

@@ -6,9 +6,11 @@ from opendbc.car.tesla_ap1.values import CANBUS, DBC, is_preap
 
 NUM_POINTS = 32
 TRIGGER_MSG = 878  # RadarPoint31_B
-# Pre-AP retrofit, fail closed: card calls update() at 100 Hz and the radar cycles at about 16 Hz. With no radar cycle
-# for 0.5 s, publish a canError RadarData at 20 Hz (the RadarInterfaceBase rate) instead of nothing, so radard marks
-# radarState invalid and selfdrived raises its radar CAN error / commIssue (no engage, soft disable).
+# Pre-AP retrofit, fail closed: card calls update() at 100 Hz and the radar cycles at
+# the measured 7.4-12.6 Hz, depending on track count. With no radar cycle for 0.5 s,
+# publish a canError RadarData at 20 Hz (the RadarInterfaceBase rate) instead of nothing,
+# so radard marks radarState invalid and selfdrived raises its radar CAN error / commIssue
+# (no engage, soft disable).
 PREAP_MISSING_RADAR_FRAMES = 50
 PREAP_MISSING_RADAR_PUBLISH_DIV = 5
 
@@ -20,7 +22,9 @@ def get_radar_can_parser(CP):
   for i in range(NUM_POINTS):
     messages.extend([(f'RadarPoint{i}_A', 16), (f'RadarPoint{i}_B', 16)])
   # CANBUS.radar is bus 1. 0x32e / 0x33e on this bus are RadarPoint10_A /
-  # RadarPoint15_B (8 bytes, ~16 Hz). The same IDs on the chassis bus (bus 0)
+  # RadarPoint15_B (8 bytes, measured 7.4-12.6 Hz depending on track count;
+  # the parser still lists 16 Hz so the 0.625 s point timeout is unchanged).
+  # The same IDs on the chassis bus (bus 0)
   # are 5-byte park-assist frames (front / rear corner ultrasonics at 4 Hz,
   # 255 = no reading). CANParser skips src != self.bus, and the Pre-AP panda
   # has disable_forwarding, so those chassis frames never reach this parser.
