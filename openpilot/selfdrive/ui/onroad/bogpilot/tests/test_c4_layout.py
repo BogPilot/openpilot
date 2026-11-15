@@ -118,14 +118,15 @@ class TestVisibility(unittest.TestCase):
       self.assertEqual(getattr(v, k), k not in C4.TAKE_CONTROL_HIDES, k)
     self.assertTrue(v.take_control)
 
-  def test_leads_stay_on_through_take_control(self):
-    self.assertTrue(C4.visibility(True, True).leads)
+  def test_alerts_hide_the_leads_too(self):
+    self.assertFalse(C4.visibility(True, True).leads)
+    self.assertFalse(C4.visibility(True, False).leads)
+    self.assertTrue(C4.visibility(False, False).leads)
     self.assertEqual(C4.TAKE_CONTROL_HIDES, C4.OTHER_ALERT_HIDES)
 
   def test_other_alert(self):
     v = C4.visibility(True, False)
-    self.assertFalse(v.pill or v.gauge or v.dm)
-    self.assertTrue(v.leads)
+    self.assertFalse(v.pill or v.gauge or v.dm or v.leads)
 
 
 class TestSharedGauge(unittest.TestCase):

@@ -154,5 +154,51 @@ class TestDriverMonitorIcon(unittest.TestCase):
     self.assertEqual(H.BogPilotMiciHudRenderer.bp_c4_dm(hud, False, False, scr)[0], False)   # stock: hidden when disengaged
 
 
+class TestLeadsUnderAlerts(unittest.TestCase):
+  """comma 4: a stock alert on screen hides the lead / adjacent-lead boxes and their speeds; no alert draws them
+  through the shared lock-on gate; the 3X renderer has no comma 4 lead path."""
+
+  def fake(self):
+    from openpilot.selfdrive.ui.onroad.bogpilot.c4_leads import LeadDraw
+    calls = []
+    leads = [LeadDraw("left", (50.0, 130.0, 84.0, 159.0), 24.0, "68", None),
+             LeadDraw("primary", (223.0, 112.0, 253.0, 137.0), 40.0, "62", None)]
+
+    class Leads:
+      def update(self, *a, **k):
+        calls.append(("update", k))
+        return leads, 29.0
+    hud = NS(bp_c4=True, bp_c4_lead_layout={"stale": 1}, _bp_c4_leads=Leads(),
+             _bp_c4_lead_policy=NS(get=lambda: {"adjacent_leads": True, "hide_lead_marker": False}),
+             bp_c4_gauge=None, bp_c4_arrow_dir=0, bp_c4_lc_alert=False,
+             _turn_intent=NS(_turn_intent_alpha_filter=NS(x=0.0), _turn_intent_rotation_filter=NS(x=0.0)),
+             _bp_c4_alert=lambda shown: (C4.ALERT_TEXT_ZONE if shown else None, False))
+    return hud, calls
+
+  def run_leads(self, alert_shown):
+    from openpilot.selfdrive.ui.onroad.bogpilot import bogpilot_hud as H
+    hud, calls = self.fake()
+    painted = []
+    with mock.patch.object(C4P, "paint_leads", lambda leads, *a, **k: painted.append(leads) or {"lead box (primary)": (0, 0, 1, 1)}):
+      H.BogPilotMiciHudRenderer.bp_c4_render_leads(hud, NS(_rect=NS(x=0.0, y=0.0)), alert_shown)
+    return hud, calls, painted
+
+  def test_alert_hides_lead_and_adjacent_boxes(self):
+    hud, calls, painted = self.run_leads(True)
+    self.assertEqual((calls, painted), ([], []))
+    self.assertEqual(hud.bp_c4_lead_layout, {})
+
+  def test_no_alert_draws_them(self):
+    hud, calls, painted = self.run_leads(False)
+    self.assertEqual(len(calls), 1)
+    self.assertEqual([d.key for d in painted[0]], ["left", "primary"])
+    self.assertIn("lead box (primary)", hud.bp_c4_lead_layout)
+
+  def test_3x_renderer_has_no_comma4_lead_path(self):
+    from openpilot.selfdrive.ui.onroad.bogpilot import bogpilot_hud as H
+    self.assertFalse(hasattr(H.BogPilotHudRenderer, "bp_c4_render_leads"))
+    self.assertFalse(hasattr(H.BogPilotHudRenderer, "bp_c4_dm"))
+
+
 if __name__ == "__main__":
   unittest.main()

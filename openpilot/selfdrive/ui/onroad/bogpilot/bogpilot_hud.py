@@ -730,8 +730,11 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
 
   def bp_c4_render_leads(self, model_renderer, alert_shown):
     """Lead and adjacent-lead boxes with their speeds (comma 4 only), engaged or not. Drawn in the camera view under
-    the alerts and the HUD."""
+    the HUD; hidden while a stock alert is on screen (C4.visibility, the rule that also hides the pill, gauge and DM)."""
     if not self.bp_c4:
+      return
+    if not C4.visibility(alert_shown=alert_shown, take_control=False).leads:
+      self.bp_c4_lead_layout = {}
       return
     try:
       from openpilot.selfdrive.ui.onroad.bogpilot.c4_leads import Comma4Leads

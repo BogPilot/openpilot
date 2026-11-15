@@ -58,7 +58,7 @@ Code: `openpilot/selfdrive/ui/onroad/bogpilot/c4_layout.py` (geometry, gate, vis
 - Our behavior: the BogPilot record ring scaled to a 40 px disc at (508, 212), in the stock side panel under the
   confidence ball. Shown and tapped under the same screen-recorder rule as the 3X.
 
-### comma 4: lead and adjacent-lead boxes always on, speeds only
+### comma 4: lead and adjacent-lead boxes engaged or not, speeds only
 - Reference behavior: stock comma 4 draws no lead chevron; BogPilot 3X shows the lock-on boxes with speed and distance
   under its lead-marker policy.
 - Our behavior: the shared lock-on core (`lead_lockon.LeadLockOn`) scaled to the comma 4 view draws the lead and the
@@ -68,15 +68,21 @@ Code: `openpilot/selfdrive/ui/onroad/bogpilot/c4_layout.py` (geometry, gate, vis
   alerts" in `DIVERGENCES.md`): engagement is not a condition and there is no alert term; openpilot longitudinal,
   `HideLeadMarker` and `AdjacentLeadsUI` come from the same policy reader as the 3X. The comma 4 differs only in
   having no RedesignUI switch (its layout is always the BogPilot one), and in drawing the boxes from the comma 4 view
-  (the composer's lead layer stays off on this device).
+  (the composer's lead layer stays off on this device). On top of the shared gate the comma 4 hides the boxes and
+  their speeds while a stock alert is on screen (next entry).
 - Labels keep clear of the gauge, the turn-intent arrow's rotated footprint and one alert text zone (4, 0)-(472, 118):
   a label that would sit under a stock alert moves below its box (the design kept it above in the driver-distracted
   frame, 9.7 px higher).
 
 ### comma 4: what hides during alerts
-- Our behavior: during any stock alert the pill, the gauge and the driver-monitor icon hide (the stock rule that hides
-  the top icons). The lead boxes stay, including during take-control. Each rule is its own constant
-  (`TAKE_CONTROL_HIDES`, `OTHER_ALERT_HIDES`).
+- Our behavior: during any stock alert (the stock alert-shown condition that also hides the top icons, take-control
+  included) the pill, the gauge, the driver-monitor icon and the lead / adjacent-lead boxes with their speed labels
+  hide; during take-control the orange personality button is left on its own. Each rule is its own constant
+  (`TAKE_CONTROL_HIDES`, `OTHER_ALERT_HIDES`). Comma 4 only: the 3X keeps its boxes under alerts.
+- Divergence from the design: the design kept the lead boxes visible during take-control. Changed by the maintainer
+  decision of 2026-11-15: safety alerts take over the custom elements on this small screen.
+- Divergence from the shared gate: the 3X and the shared lock-on core draw the boxes under every alert; the comma 4
+  layout adds the alert term.
 
 ### comma 4: driver-monitor icon top right, stock AlwaysOnDM rule kept
 - Our behavior: the stock driver-monitor icon (60 px, centred on the design's 56 px spot at (414, 8)-(470, 64)) moves

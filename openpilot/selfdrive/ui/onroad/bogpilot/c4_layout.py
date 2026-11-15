@@ -80,11 +80,12 @@ TURN_INTENT_W, TURN_INTENT_H, TURN_INTENT_GAP = 44, 18, 5
 BORDER_W = 3
 ARC_RAISE_PX = 10
 
-# What a take-control alert hides. One constant so the rule is easy to change. The lead boxes stay on (always on,
-# engaged or not, through every alert), as in the design.
-TAKE_CONTROL_HIDES = frozenset({"pill", "gauge", "dm"})
-# Any other on-screen alert covers the top of the view: the pill, gauge and driver-monitor icon step aside.
-OTHER_ALERT_HIDES = frozenset({"pill", "gauge", "dm"})
+# What a take-control alert hides. One constant so the rule is easy to change. On this small screen the alert takes
+# over: the pill, gauge, driver-monitor icon and the lead / adjacent-lead boxes with their speeds step aside, and the
+# take-control personality button is left on its own.
+TAKE_CONTROL_HIDES = frozenset({"pill", "gauge", "dm", "leads"})
+# Any other on-screen alert (the same stock alert-shown condition) hides the same set.
+OTHER_ALERT_HIDES = frozenset({"pill", "gauge", "dm", "leads"})
 
 
 def is_comma4(device_type) -> bool:
