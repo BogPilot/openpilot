@@ -294,8 +294,8 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
     self._bp_arc_btn = ArcTapButton(UI_CONFIG_BUTTON, UI_CONFIG_ICON)
     self._bp_rec_btn = RecordButton(_recorder)
     self._bp_extras = ExtrasPolicy()
-    self.bp_pedals = None             # pedals.Bars to draw, or None when hidden
-    self.bp_pedal_bars = PED.PedalBars()
+    self.bp_pedals = None             # pedal_gauge3.Gauge3 to draw, or None when hidden
+    self.bp_pedal_bars = PED.PedalGauge()
     self.bp_extra_keepouts: list = []  # screen rects of the arc tap area, pedals and record button (lead labels avoid)
     self.bp_rhd = False
     self._bp_started_arc = None
@@ -349,35 +349,37 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
         cloudlog.exception("steering arc inputs failed; stock Experimental Mode button kept until the next drive")
         self.bp_arc_live = False
         self.bp_arc_failed = True
-    # pedal bars: carState (aEgo, vEgo, brakePressed, deprecated.gas = DI_pedalPos / 100), carControl accel while
-    # longActive, bogpilotCarState.brakeLights (Static mode only)
+    # 3-bar pedal gauge (pedals.py / pedal_gauge3.py): carState (brakePressed, deprecated.brake = brake level,
+    # deprecated.gas = DI_pedalPos / 100), carControl accel while longActive, bogpilotCarState motor torque and RPM (regen
+    # kW, every legacy platform) and DI_brakePedalState (AP1, openpilot braking colour). aEgo is not an input.
     self.bp_pedals = None
     pol, _rec = self._bp_extras.get(bool(getattr(ui_state, "has_longitudinal_control", False)))
     if pol.show:
       cs = sm["carState"]
-      lights = False
       motor_tq = None
+      motor_rpm = None
       brake_state = None
       psm = self._plan_sm()
       try:
         if psm is not None and "bogpilotCarState" in getattr(psm, "data", psm) and psm.valid["bogpilotCarState"] and \
            psm.alive["bogpilotCarState"] and now - psm.recv_time["bogpilotCarState"] <= SL.LIMIT_STALE_S and \
            psm.recv_time["bogpilotCarState"] >= self._bp_drive_start:
-          lights = bool(psm["bogpilotCarState"].brakeLights)
-          motor_tq = float(psm["bogpilotCarState"].ap1MotorTorqueNm)   # live regen for the decel bar colour (AP1)
+          motor_tq = float(psm["bogpilotCarState"].ap1MotorTorqueNm)      # 0x108 DI_torqueMotor, Nm
+          motor_rpm = float(psm["bogpilotCarState"].ap1MotorRpm)          # 0x108 DI_motorRPM
           brake_state = int(psm["bogpilotCarState"].ap1BrakePedalState)   # iBooster applied (AP1), bar colour only
       except (KeyError, AttributeError, TypeError, ValueError):
-        lights = False
         motor_tq = None
+        motor_rpm = None
         brake_state = None
       long_active = bool(_fresh(sm, "carControl") and sm["carControl"].longActive)
       op_accel = float(sm["carControl"].actuators.accel) if long_active else 0.0
       cp = ui_state.CP
-      self.bp_pedals = self.bp_pedal_bars.update(pol, _fresh(sm, "carState"), now, cs.aEgo, cs.vEgo, bool(cs.standstill),
-                                                 bool(cs.brakePressed), lights, cs.deprecated.gas, op_accel, long_active,
-                                                 PED.platform_of(getattr(cp, "carFingerprint", "") if cp is not None else ""),
-                                                 brake_level=cs.deprecated.brake, motor_torque_nm=motor_tq,
-                                                 brake_pedal_state=brake_state)
+      fp = getattr(cp, "carFingerprint", "") if cp is not None else ""
+      self.bp_pedals = self.bp_pedal_bars.update(pol, _fresh(sm, "carState"), now, PED.platform_of(fp),
+                                                 brake_pressed=bool(cs.brakePressed), brake_level=cs.deprecated.brake,
+                                                 pedal_pos=cs.deprecated.gas, op_accel=op_accel, long_active=long_active,
+                                                 motor_torque_nm=motor_tq, motor_rpm=motor_rpm,
+                                                 brake_pedal_state=brake_state, fingerprint=fp)
 
   def user_interacting(self) -> bool:
     return super().user_interacting() or self._bp_arc_btn.is_pressed or self._bp_rec_btn.is_pressed
@@ -447,8 +449,7 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
     if self.bp_pedals is not None:
       try:
         PED.paint(rect, scale, widget_w, self.bp_rhd, self.bp_pedals)
-        x, y, w, h = PED.pedal_rect(widget_w, self.bp_rhd)
-        self.bp_extra_keepouts.append(rl.Rectangle(rect.x + x * scale, rect.y + y * scale, w * scale, h * scale))
+        self.bp_extra_keepouts.append(rl.Rectangle(*PED.screen_rect(rect, scale, widget_w, self.bp_rhd)))
       except Exception:
         cloudlog.exception("pedal paint failed")
         self.bp_pedals = None

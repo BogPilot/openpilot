@@ -591,10 +591,11 @@ _add("OnroadDistanceButton", "Driving Personality Button",
      note="Needs Quality of Life Visuals and openpilot longitudinal control.",
      default="On", default_param="OnroadDistanceButton")
 _add("PedalsOnUI", "Pedals on Screen",
-     "Shows two vertical bars on the driving screen. The right bar is acceleration, in green: it fills with the gas pedal or "
-     "with openpilot's acceleration request. The left bar is deceleration: blue for regen and red for the brake. On Tesla AP1 "
-     "a brake press shows violet while regen does most of the slowing, the bar turns lavender or rose while openpilot is "
-     "applying the brake, and the halfway mark is 2.0 m/s^2 of deceleration.",
+     "Shows three vertical bars on the driving screen. Left: the brake pedal, red, or mauve while openpilot is braking. Middle: "
+     "regen power from the motor, blue, or light blue while openpilot controls your speed; full at 55 kW. Right: acceleration, "
+     "mint for the accelerator pedal or dark green for openpilot's request; your pedal always wins. On a Pre-AP Model S the "
+     "brake bar is full while the brake is pressed, or follows the pedal with Pre-AP: iBooster Swap on. A bar stays empty when "
+     "its signal is not available.",
      note="Needs Driving Screen Widgets and openpilot longitudinal control.",
      default="On", default_param="PedalsOnUI")
 _add("ScreenRecorder", "Screen Recorder Button",
@@ -618,11 +619,6 @@ _add("QOLVisuals", "Quality of Life Visuals",
 _add("CustomUI", "Driving Screen Widgets",
      "Parent switch for the blind spot lane fill and the pedals on screen. When off, those stay hidden.",
      default="On", default_param="CustomUI")
-_add("DynamicPedalsOnUI", "Dynamic Pedals",
-     "When Pedals on Screen is on, the bars fill in proportion: the right bar with the gas pedal or openpilot's acceleration "
-     "request, and the left bar with the car's deceleration (on Tesla AP1 it is half full at 2.0 m/s^2). Off hides the bars "
-     "unless the Static pedal mode is set, which shows each bar either full or empty.",
-     default="On", default_param="DynamicPedalsOnUI")
 _add("LowerSpeedLimitsBox", "Lower Speed Limits Box",
      "Lower speed limits box (if obstructed by rear view mirror). Moves the top-left speed row (MAX, speed, and the "
      "LIMIT tile) down to the slot below where the accel graph sits, so it stays readable under a rear-view mirror. "

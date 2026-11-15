@@ -2523,28 +2523,10 @@ APPEARANCE_TOGGLES = (
   ToggleDefinition(
     title=("Gas / Brake Pedal Indicators"),
     param="PedalsOnUI",
-    button_labels=["Dynamic", "Static"],
-    button_options=["DynamicPedalsOnUI", "StaticPedalsOnUI"],
     car_params=["openpilot_longitudinal"],
-    description=("<b>On-screen gas and brake indicators.</b><br><br><b>Dynamic</b>: Opacity changes according to how much openpilot is accelerating or braking<br><b>Static</b>: Full when active, dim when not"),
+    description=("<b>On-screen brake, regen and acceleration bars</b> that follow the pedals, the motor's regen power and "
+                 "openpilot's requests."),
     parent_param="CustomUI",
-    toggle_type=ToggleType.BUTTON_TOGGLE,
-    tuning_level=1,
-  ),
-  ToggleDefinition(
-    title=("Dynamic"),
-    param="DynamicPedalsOnUI",
-    car_params=["openpilot_longitudinal"],
-    description=("<b>Show dynamic pedal indicator intensity based on acceleration/braking amount.</b>"),
-    parent_param="PedalsOnUI",
-    tuning_level=1,
-  ),
-  ToggleDefinition(
-    title=("Static"),
-    param="StaticPedalsOnUI",
-    car_params=["openpilot_longitudinal"],
-    description=("<b>Show static pedal indicators that are full when active and dim when inactive.</b>"),
-    parent_param="PedalsOnUI",
     tuning_level=1,
   ),
   ToggleDefinition(

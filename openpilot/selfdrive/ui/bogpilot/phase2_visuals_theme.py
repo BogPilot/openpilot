@@ -26,9 +26,6 @@ NEW_VISUAL_TOGGLES: tuple[tuple[str, str, str], ...] = (
   ("CustomUI", "Driving Screen Widgets",
    "Parent for blind-spot lane fill, pedals, and other custom driving-screen widgets. "
    "When off, those children stay hidden."),
-  ("DynamicPedalsOnUI", "Dynamic Pedals",
-   "When Pedals on Screen is on, fill the bars in proportion to acceleration and deceleration. "
-   "Off hides the bars unless the Static pedal mode is set."),
   ("LowerSpeedLimitsBox", "Lower Speed Limits Box",
    "Lower speed limits box (if obstructed by rear view mirror). Moves the top-left speed row "
    "(MAX, speed, and the LIMIT tile) down to the slot below where the accel graph sits. Display only; file-backed."),
@@ -85,6 +82,9 @@ OMITTED: tuple[tuple[str, str], ...] = (
    "0.9.7 SI formatting for developer metrics; no UseSI reader in raylib UI (developer metric overlays absent)."),
   ("BorderMetrics",
    "0.9.7 Status Border parent; folded into Blind Spot Border, which alone draws the red blind-spot half-border. "
+   "The stored value is kept (backup, restore and resets still carry it) but nothing reads it."),
+  ("DynamicPedalsOnUI",
+   "Former Dynamic / Static pedal mode. The 3-bar pedal gauge has one behaviour, gated by Pedals on Screen alone. "
    "The stored value is kept (backup, restore and resets still carry it) but nothing reads it."),
 )
 
@@ -180,7 +180,6 @@ def consumer_snapshot(store: Any, *, longitudinal: bool = True, has_bsm: bool = 
   snap["CustomUI"] = bool(b("CustomUI"))
   ped = pedal_policy(store, longitudinal)
   snap["CustomUI_pedals"] = bool(ped.show)
-  snap["DynamicPedalsOnUI"] = bool(ped.dynamic)
   snap["BlindSpotMetrics_border"] = bool(b("BlindSpotMetrics") and has_bsm)
   lay = layout_from_toggles(lambda k: bool(store.get_bool(k)))
   snap["LowerSpeedLimitsBox"] = bool(lay.lower_speed_box)

@@ -5,7 +5,7 @@ Leaf rows already on feae:
   PedalsOnUI, DriverCamera. (The Screen Recorder button is under System Settings > Device Controls > Screen Settings.)
 
 visualsTheme adds parent / peer gates that earlier builds had ON but were unregistered:
-  QOLVisuals, CustomUI, DynamicPedalsOnUI, LowerSpeedLimitsBox, NavigationUI, ShowSpeedLimits.
+  QOLVisuals, CustomUI, LowerSpeedLimitsBox, NavigationUI, ShowSpeedLimits.
 
 Developer overlays: DeveloperHUD (onroad Developer HUD panel), FPSCounter, DeveloperSidebar (with its seven metric pickers,
 shown while it is on) and ShowIP. The sidebar's CPU / GPU, RAM / storage and temperature contents are not rows: a tap on
@@ -40,7 +40,7 @@ _EXISTING = (
   ("OnroadDistanceButton", tr_noop("Driving Personality Button"),
    tr_noop("Show a button in the driver-side corner that shows and changes the driving personality.")),
   ("PedalsOnUI", tr_noop("Pedals on Screen"),
-   tr_noop("Shows acceleration on the right bar (green) and deceleration on the left bar (blue for regen, red for brakes).")),
+   tr_noop("Shows the brake pedal on the left bar, regen power in the middle and acceleration on the right.")),
   ("DriverCamera", tr_noop("Show Driver Camera When In Reverse"),
    tr_noop("Show the driver camera feed when the vehicle is in reverse.")),
 )
@@ -127,7 +127,7 @@ TREE = (
   ("ConfidenceBall", ()),
   (SIDE_KEY, ()),
   ("QOLVisuals", (("DriverCamera", ()), (CAMERA_KEY, ()), ("OnroadDistanceButton", ()))),
-  ("CustomUI", (("BlindSpotPath", ()), ("PedalsOnUI", (("DynamicPedalsOnUI", ()),)))),
+  ("CustomUI", (("BlindSpotPath", ()), ("PedalsOnUI", ()))),
   ("BSMFlameTracks", ()),
   ("AdjacentLeadsUI", ()),
   ("BlindSpotMetrics", ()),
