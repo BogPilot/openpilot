@@ -215,7 +215,8 @@ class Car:
     can_list = can_capnp_to_list(can_strs)
     if getattr(self, "preap_vin_read", None) is not None:
       # Read Radar VIN button: radar UDS replies (0x651, bus 1) for this step only (opendbc tesla_ap1/preap/radar_vin_read.py).
-      self.preap_vin_read_rx = [m for _, msgs in can_list for m in msgs if m.address == 0x651 and m.src == 1]
+      # can_capnp_to_list gives (nanos, [(address, dat, src), ...]) plain tuples (selfdrive/pandad/pandad_api_impl.py).
+      self.preap_vin_read_rx = [CanData(addr, dat, src) for _, msgs in can_list for addr, dat, src in msgs if addr == 0x651 and src == 1]
 
     if self.ap1_model is not None:
       self.ap1_model.update(0)
