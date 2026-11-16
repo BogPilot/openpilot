@@ -176,6 +176,13 @@ class Car:
     # Pre-AP with pedal (pcmCruise=False): 0.9.7 SetSpeedLimit engage set from a fresh posted limit.
     self.preap_engage_set_limit = None
     self.preap_tx_blocked_prev = None
+    self.preap_vin_read = None
+    self.preap_vin_read_rx = []
+    if self.CP.carFingerprint == "TESLA_PREAP_MODELS":
+      from opendbc.car.tesla_ap1.preap.radar_vin_read import RadarVinReadRunner
+      from opendbc.car.tesla_ap1.safety_flags import FLAG_TESLA_PREAP_RADAR_EMULATION
+      param = int(self.CP.safetyConfigs[-1].safetyParam) if len(self.CP.safetyConfigs) else 0
+      self.preap_vin_read = RadarVinReadRunner(bool(param & FLAG_TESLA_PREAP_RADAR_EMULATION))
     if self.CP.brand == "tesla_ap1" and self.CP.carFingerprint == "TESLA_PREAP_MODELS" and not self.CP.pcmCruise:
       from openpilot.selfdrive.controls.lib.phase3_speed_control import PreapEngageSetLimit
       self.preap_engage_set_limit = PreapEngageSetLimit(self.CP)
@@ -206,6 +213,9 @@ class Car:
 
     can_strs = messaging.drain_sock_raw(self.can_sock, wait_for_one=True)
     can_list = can_capnp_to_list(can_strs)
+    if getattr(self, "preap_vin_read", None) is not None:
+      # Read Radar VIN button: radar UDS replies (0x651, bus 1) for this step only (opendbc tesla_ap1/preap/radar_vin_read.py).
+      self.preap_vin_read_rx = [m for _, msgs in can_list for m in msgs if m.address == 0x651 and m.src == 1]
 
     if self.ap1_model is not None:
       self.ap1_model.update(0)
@@ -345,6 +355,12 @@ class Car:
       # send car controls over can
       now_nanos = self.can_log_mono_time if REPLAY else int(time.monotonic() * 1e9)
       self.last_actuators_output, can_sends = self.CI.apply(CC, now_nanos)
+      if getattr(self, "preap_vin_read", None) is not None:
+        # Manual, disengaged-only, read-only F190 (never started here by itself). Engaged = openpilot enabled, lateral active,
+        # the panda reporting controls allowed, or no valid pandaStates (fail closed); any of them stops the read at once.
+        panda_ok = bool(self.sm.valid["pandaStates"]) and not any(ps.controlsAllowed for ps in self.sm["pandaStates"])
+        engaged = bool(CC.enabled) or bool(CC.latActive) or not panda_ok
+        can_sends = list(can_sends) + self.preap_vin_read.update(getattr(self, "preap_vin_read_rx", []), time.monotonic(), engaged)
       self.pm.send('sendcan', can_list_to_can_capnp(can_sends, msgtype='sendcan', valid=CS.canValid))
 
       self.CC_prev = CC

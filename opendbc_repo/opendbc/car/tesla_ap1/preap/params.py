@@ -38,6 +38,15 @@ class PreApParamKeys:
   # Default OFF, Pre-AP only, read once when the car starts (CarParams + safety flags). Nosecone is a sub-option of Enabled.
   RADAR_ENABLED = "TeslaRadarEnabled"
   RADAR_BEHIND_NOSECONE = "TeslaRadarBehindNosecone"
+  # Donor VIN for a salvage Bosch radar (17 letters / digits; empty = this car). Set by the Read Radar VIN button or by hand.
+  # Read once when the car starts, sent to the panda on 0x560 only (preap/radar_donor.py). A /data/params_bogpilot file, not an
+  # openpilot Params key, so it is never in initData / rlog params; never logged, not in settings backups or the settings dump.
+  # NAP NAPRadarDonorVin (nap_params.py @ opendbc 5dbe36d37); NAP's automatic F190 read is not ported.
+  RADAR_DONOR_VIN = "TeslaRadarDonorVin"
+  # Read Radar VIN button (preap/radar_vin_read.py): request flag set by the UI, cleared by the reader; status words only
+  # (never the VIN). Neither is backed up.
+  RADAR_READ_VIN = "TeslaRadarReadVin"
+  RADAR_VIN_READ_STATUS = "TeslaRadarVinReadStatus"
   # Aftermarket iBooster swap (Tinkla TinklaHasIBooster, selfdrive/car/tesla/carstate.py:115@501c7de). Default OFF, Pre-AP
   # only, read once when the car starts. Display only: the onroad brake bar follows 0x554 BrakePedalPosition instead of
   # the binary brake press. NotAutopilot's NAPiBoosterEnabled (nap_params.py:31@e99f4dc75) is defined there but unused.
@@ -63,6 +72,9 @@ DEFAULTS = {
   PreApParamKeys.OVERRIDE_SENSITIVITY: 2,
   PreApParamKeys.RADAR_ENABLED: False,
   PreApParamKeys.RADAR_BEHIND_NOSECONE: False,
+  PreApParamKeys.RADAR_DONOR_VIN: "",
+  PreApParamKeys.RADAR_READ_VIN: False,
+  PreApParamKeys.RADAR_VIN_READ_STATUS: "",
   PreApParamKeys.HAS_IBOOSTER: False,
 }
 

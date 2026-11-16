@@ -19,6 +19,10 @@ REGEN = "RegenComfortBrake"
 RADAR = "TeslaRadarEnabled"
 RADAR_NOSECONE = "TeslaRadarBehindNosecone"
 IBOOSTER = "TeslaHasIBooster"
+RADAR_READ_VIN = "TeslaRadarReadVin"
+RADAR_READ_VIN_TITLE = "Pre-AP: Read Radar VIN"
+RADAR_READ_VIN_DESCRIPTION = ("Reads the VIN stored in the retrofit radar (read only) and saves it as the donor VIN, used from the next car start. "
+                              "Car on, in Park, not engaged.")
 TITLES = {LONG: "Disable openpilot Longitudinal Control",
           CLUSTER: "Tesla AP1: Dash Cluster Integration",
           REGEN: "Tesla AP1: Earlier, Gentler Regen Stops",
@@ -112,6 +116,9 @@ class VehicleSettings:
       # Sub-option: shown only while the main radar toggle is On (NotAutopilot nap.py:160-175@e99f4dc75 has both rows).
       from opendbc.car.tesla_ap1.preap import params as preap_params
       return is_preap(cp) and preap_params.get_bool(RADAR)
+    if key == RADAR_READ_VIN:
+      from opendbc.car.tesla_ap1.preap import params as preap_params
+      return is_preap(cp) and preap_params.get_bool(RADAR)
     if key in (BUILD_INFO, PANDA_FIRMWARE):
       return is_preap(cp)              # read-only support info: shown for every Pre-AP car, pedal longitudinal on or off
     if key in (PEDAL_STATUS, PEDAL_CALIBRATE):
@@ -123,6 +130,39 @@ class VehicleSettings:
     if key == PEDAL_CALIBRATE:
       return self.visible(key) and self.calibrate_allowed()
     return self.visible(key) and bool(self.offroad())
+
+  # ---- Pre-AP Read Radar VIN (opendbc tesla_ap1/preap/radar_vin_read.py) ----
+  def read_vin_blocked(self, started, engaged):
+    """Why the button cannot start a read now, or None. Started = car on (the reader runs in card)."""
+    if not self.visible(RADAR_READ_VIN):
+      return "Turn on Bosch Radar first."
+    if engaged:
+      return "Disengage first."
+    if not started:
+      return "Turn the car on (in Park) first."
+    return None
+
+  def request_read_vin(self, started, engaged):
+    reason = self.read_vin_blocked(started, engaged)
+    if reason is None:
+      from opendbc.car.tesla_ap1.preap import params as preap_params
+      preap_params.set_str(preap_params.PreApParamKeys.RADAR_VIN_READ_STATUS, "")
+      preap_params.set_bool(preap_params.PreApParamKeys.RADAR_READ_VIN, True)
+    return reason
+
+  def read_vin_status(self):
+    from opendbc.car.tesla_ap1.preap import params as preap_params
+    if preap_params.get_bool(preap_params.PreApParamKeys.RADAR_READ_VIN):
+      return "READING"
+    status = preap_params.get_str(preap_params.PreApParamKeys.RADAR_VIN_READ_STATUS).strip()
+    return status[:24].upper() if status else "READ"
+
+  def donor_vin_text(self):
+    """Device UI only (owner OK): the saved donor VIN, or Not set. Never logged."""
+    from opendbc.car.tesla_ap1.preap import params as preap_params
+    from opendbc.car.tesla_ap1.preap.radar_donor import normalize_radar_donor_vin
+    vin = normalize_radar_donor_vin(preap_params.get_str(preap_params.PreApParamKeys.RADAR_DONOR_VIN))
+    return vin or "Not set"
 
   # ---- Pre-AP pedal rows ----
   def calibrate_allowed(self):
@@ -255,6 +295,11 @@ def create_vehicle_settings_layout(params=None):
       self.rows[PEDAL_CALIBRATE] = self.calibrate_row
       self.rows[BUILD_INFO] = self.build_row
       self.rows[PANDA_FIRMWARE] = self.panda_row
+      self.read_vin_row = button_item(lambda: tr(RADAR_READ_VIN_TITLE), lambda: tr(self.model.read_vin_status()),
+                                      lambda: tr(RADAR_READ_VIN_DESCRIPTION) + " " + tr("Donor VIN:") + " " + self.model.donor_vin_text(),
+                                      callback=self.start_read_vin, enabled=lambda: self.model.visible(RADAR_READ_VIN))
+      attach_help(self.read_vin_row, RADAR_READ_VIN, extra=lambda: tr("Donor VIN:") + " " + self.model.donor_vin_text())
+      self.rows[RADAR_READ_VIN] = self.read_vin_row
       # An empty or short page says why (no car / wrong car / longitudinal control off) instead of showing nothing.
       from openpilot.selfdrive.ui.bogpilot import menu_locks
       from openpilot.selfdrive.ui.bogpilot.vehicle_settings import disable_long_effective
@@ -291,6 +336,21 @@ def create_vehicle_settings_layout(params=None):
           session = cal.PedalCalSession(moving=self.model.moving)
           gui_app.push_widget(cal.create_calibration_screen(session))
       gui_app.push_widget(cal.create_intro_dialog(started))
+
+    def start_read_vin(self):
+      """Read Radar VIN pressed: refused while engaged / car off / radar off, else a confirm, then the request file."""
+      reason = self.model.read_vin_blocked(ui_state.started, ui_state.engaged)
+      if reason:
+        gui_app.push_widget(alert_dialog(tr(reason)))
+        return
+
+      def confirmed(result):
+        if result == DialogResult.CONFIRM:
+          later = self.model.request_read_vin(ui_state.started, ui_state.engaged)   # live guards rechecked
+          if later:
+            gui_app.push_widget(alert_dialog(tr(later)))
+      gui_app.push_widget(ConfirmDialog(tr("Read the VIN stored in the radar? Read only: nothing is written to the radar."),
+                                        tr("Read"), callback=confirmed))
 
     def set_value(self, key, state):
       if not self.model.enabled(key):

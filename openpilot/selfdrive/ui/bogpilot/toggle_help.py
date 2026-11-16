@@ -174,6 +174,13 @@ _add("TeslaRadarBehindNosecone", "Pre-AP: Radar Behind Nosecone",
      when="If your retrofit radar sits behind the nosecone.",
      note="Shown only while Bosch Radar is on. Takes effect the next time the car starts. " + _OFFROAD,
      default="Off")
+_add("TeslaRadarReadVin", "Pre-AP: Read Radar VIN",
+     "Reads the VIN stored in the retrofit Bosch radar (the car it came from) and saves it as the donor VIN. From the next car start "
+     "the panda then shows the radar that VIN, so a salvage radar does not fault on a VIN mismatch. Read only: it never writes to "
+     "the radar, never reprograms it and never flashes it. The saved VIN is shown under this row on this device only; it is not "
+     "uploaded or logged.",
+     when="Once after fitting a salvage radar, if the radar reports a VIN fault. Leave it alone if the radar works.",
+     note="Car on, in Park, openpilot not engaged, Bosch Radar on. Engaging stops the read. Restart the car afterwards.")
 _add("TeslaHasIBooster", "Pre-AP: iBooster Swap",
      "For a Pre-AP Model S with an aftermarket iBooster. On: the brake bar of Pedals on Screen follows how far the brake pedal is "
      "pressed, read from the iBooster. Off: the bar is full while the brake is pressed and empty otherwise. If the iBooster "
