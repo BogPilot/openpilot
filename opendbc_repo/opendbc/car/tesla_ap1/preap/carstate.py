@@ -75,7 +75,7 @@ class PreApCarState(CarStateBase):
     self.preap_pedal_detected = False
     self.preap_pedal_raw = None
     self._preap_pedal_last_idx = None
-    self._pedal_seen_write = 0.0   # wall time of the last PedalSeenTs write (1 s throttle)
+    self._pedal_seen_write = float('-inf')   # time.monotonic() of the last heartbeat write (1 s throttle)
     self.pedal = PedalFeedback()
     self.pedal_interceptor_value = 0.0
     self.di_gas = 0.0
@@ -127,11 +127,13 @@ class PreApCarState(CarStateBase):
     try:
       set_bool(PreApParamKeys.PEDAL_DETECTED, detected)
       if detected:
-        # Heartbeat for the UI: PedalDetected is a latched file and stays True after the car stops.
-        wall = time.time()
-        if wall - self._pedal_seen_write >= 1.0:
-          set_float(PreApParamKeys.PEDAL_SEEN_TS, wall)
-          self._pedal_seen_write = wall
+        # Heartbeat for the UI: PedalDetected is a latched file and stays True after the car stops. The throttle runs on
+        # time.monotonic(), so a wall-clock jump (GPS/NTP time set) cannot stop the writes.
+        mono = time.monotonic()
+        if mono - self._pedal_seen_write >= 1.0:
+          set_float(PreApParamKeys.PEDAL_SEEN_TS, time.time())
+          set_float(PreApParamKeys.PEDAL_SEEN_MONO, mono)
+          self._pedal_seen_write = mono
     except OSError:
       pass   # fresh device / read-only /data must not stop card
 

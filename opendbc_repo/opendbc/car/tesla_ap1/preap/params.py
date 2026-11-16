@@ -25,6 +25,7 @@ class PreApParamKeys:
   PEDAL_DETECTED = "PedalDetected"      # runtime mirror for UI status line
   PEDAL_CALIB_STAGE = "PedalCalibStage"  # runtime: "", coast, coast_ok, saved, failed (the car publishes, the UI reads)
   PEDAL_SEEN_TS = "PedalSeenTs"          # runtime: wall-clock heartbeat while the pedal is heard (UI status goes stale without it)
+  PEDAL_SEEN_MONO = "PedalSeenMono"      # runtime: the same heartbeat on time.monotonic() (survives a wall-clock jump)
   # Pre-AP NAP-style double-pull under Always On Lateral. Default ON.
   # File-backed: July params_pyx.so cannot store new Params keys.
   DOUBLE_PULL = "TeslaPreApDoublePull"
@@ -56,6 +57,7 @@ DEFAULTS = {
   PreApParamKeys.PEDAL_DETECTED: False,
   PreApParamKeys.PEDAL_CALIB_STAGE: "",
   PreApParamKeys.PEDAL_SEEN_TS: 0.0,
+  PreApParamKeys.PEDAL_SEEN_MONO: 0.0,
   PreApParamKeys.DOUBLE_PULL: True,
   PreApParamKeys.PANDA_FIRMWARE: "",
   PreApParamKeys.OVERRIDE_SENSITIVITY: 2,

@@ -941,10 +941,13 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   check (`frogpilot/ui/qt/offroad/vehicle_settings.cc:611`). Until this change 0.11.2 did the same, plus a `PedalSeenTs`
   heartbeat, from `PreApCarController._update_detection_and_calib`.
 - Our behavior: `PreApCarState._mirror_pedal_status`
-  (`opendbc_repo/opendbc/car/tesla_ap1/preap/carstate.py`) writes `PedalDetected` every update and `PedalSeenTs` at most
-  once a second, right after the GAS_SENSOR (0x552) detection and its 0.5 s IDX timeout. The CarController no longer
-  writes either file; the driver-press calibration still runs there. The row still needs `PedalDetected` and a
-  `PedalSeenTs` under 3 s old (`calib.pedal_live`). A write error is ignored, as before.
+  (`opendbc_repo/opendbc/car/tesla_ap1/preap/carstate.py`) writes `PedalDetected` every update and the heartbeat at most
+  once a second, right after the GAS_SENSOR (0x552) detection and its 0.5 s IDX timeout. The heartbeat is `PedalSeenTs`
+  (wall clock) plus `PedalSeenMono` (`time.monotonic()`), and the once-a-second throttle runs on `time.monotonic()`. The
+  CarController no longer writes these files; the driver-press calibration still runs there. The row still needs
+  `PedalDetected` and a heartbeat under 3 s old (`calib.pedal_live`); either stamp counts, so a wall-clock jump (the
+  device setting its time from GPS or the network) neither stops the writes nor hides a live pedal. A write error is
+  ignored, as before.
 - Why: card runs CarState whenever the car is started, but the CarController only runs when openpilot is controlling
   the car. With the "Enable openpilot" toggle off, a passive or dashcam start, or controlsd not up, the files were never
   written, so a pedal that was on the bus and counting showed "Not detected" and Calibrate stayed greyed out. A replay
@@ -953,6 +956,7 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   the panda safety mode and every TX are unchanged; nothing reads these files for control.
 - Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_pedal_status_mirror.py` (written with no CarController,
   bus 0 and 2, iBooster toggle on and off; no pedal and a stuck counter stay Not detected; a pedal that stops goes Not
-  detected; the 3 s staleness; the 1 s heartbeat throttle; a read-only params dir; the controller no longer writes),
+  detected; the 3 s staleness; the 1 s heartbeat throttle; wall-clock jumps back and forward; a read-only params dir;
+  the controller no longer writes),
   `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_pedal.py` (calibration unchanged).
 - Credits: BogPilot 0.9.7 (the `PedalDetected` mirror and the settings row).

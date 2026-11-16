@@ -294,11 +294,20 @@ def set_stage(stage: str) -> None:
     set_str(PreApParamKeys.PEDAL_CALIB_STAGE, stage)
 
 
-def pedal_live(now: float | None = None) -> bool:
-  """True when the car process has heard the pedal in the last PEDAL_LIVE_S seconds (the PedalDetected file alone goes stale offroad)."""
+def pedal_live(now: float | None = None, mono_now: float | None = None) -> bool:
+  """True when the car process has heard the pedal in the last PEDAL_LIVE_S seconds (the PedalDetected file alone goes stale offroad).
+
+  Either heartbeat counts: the wall-clock PedalSeenTs, or PedalSeenMono on time.monotonic() (one clock for every process
+  since boot), so a wall-clock jump between the write and the read does not hide a live pedal."""
+  if not pedal_detected():
+    return False
   seen = get_float(PreApParamKeys.PEDAL_SEEN_TS)
   now = time.time() if now is None else now
-  return bool(pedal_detected() and seen > 0.0 and 0.0 <= (now - seen) <= PEDAL_LIVE_S)
+  if seen > 0.0 and 0.0 <= (now - seen) <= PEDAL_LIVE_S:
+    return True
+  seen_mono = get_float(PreApParamKeys.PEDAL_SEEN_MONO)
+  mono_now = time.monotonic() if mono_now is None else mono_now
+  return bool(seen_mono > 0.0 and 0.0 <= (mono_now - seen_mono) <= PEDAL_LIVE_S)
 
 
 def current_pedal_transform() -> tuple[float, float]:

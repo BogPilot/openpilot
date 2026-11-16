@@ -21,14 +21,19 @@ STEP_S = 0.01   # card.py rate
 
 
 class _Clock:
+  """Wall clock (time.time) and monotonic clock (time.monotonic) advance together; the wall clock can also jump."""
   def __init__(self):
-    self.t = 1_000_000.0
+    self.t = 1_700_000_000.0
+    self.m = 500_000.0
 
   def time(self):
     return self.t
 
   def monotonic(self):
-    return self.t
+    return self.m
+
+  def live(self, dt=0.0, dm=None):
+    return calib.pedal_live(self.t + dt, self.m + (dt if dm is None else dm))
 
 
 @pytest.fixture(autouse=True)
@@ -61,6 +66,7 @@ class _Car:
   def run(self, steps, pedal_bus=2, idx_moves=True):
     for _ in range(steps):
       self.clk.t += STEP_S
+      self.clk.m += STEP_S
       self.nanos += int(STEP_S * 1e9)
       frames = []
       for n, v in self.base.items():
@@ -88,7 +94,7 @@ def test_status_is_written_with_no_controller(_env, ibooster, bus):
   car.run(200, pedal_bus=bus)
   assert car.cs.preap_pedal_detected
   assert params.get_bool(PreApParamKeys.PEDAL_DETECTED)
-  assert calib.pedal_live(_env.t)
+  assert _env.live()
 
 
 @pytest.mark.parametrize("ibooster", [False, True])
@@ -96,7 +102,7 @@ def test_no_pedal_or_a_stuck_counter_is_not_detected(_env, ibooster):
   car = _Car(_env, ibooster)
   car.run(200, pedal_bus=None)
   assert not params.get_bool(PreApParamKeys.PEDAL_DETECTED)
-  assert not calib.pedal_live(_env.t)
+  assert not _env.live()
   car2 = _Car(_env, ibooster)
   car2.run(200, pedal_bus=2, idx_moves=False)   # IDX never changes after the first frame: times out
   assert not car2.cs.preap_pedal_detected
@@ -110,15 +116,15 @@ def test_a_pedal_that_stops_goes_not_detected(_env):
   car.run(200, pedal_bus=None)   # 2 s of silence: the 0.5 s IDX timeout clears it
   assert not car.cs.preap_pedal_detected
   assert not params.get_bool(PreApParamKeys.PEDAL_DETECTED)
-  assert not calib.pedal_live(_env.t)
+  assert not _env.live()
 
 
 def test_the_ui_goes_stale_3_s_after_the_car_process_stops(_env):
   car = _Car(_env)
   car.run(200, pedal_bus=2)
-  seen = params.get_float(PreApParamKeys.PEDAL_SEEN_TS)
-  assert calib.pedal_live(seen + calib.PEDAL_LIVE_S - 0.1)
-  assert not calib.pedal_live(seen + calib.PEDAL_LIVE_S + 0.1)   # PedalDetected stays latched, the heartbeat does not
+  age = _env.t - params.get_float(PreApParamKeys.PEDAL_SEEN_TS)
+  assert _env.live(calib.PEDAL_LIVE_S - 0.1 - age)
+  assert not _env.live(calib.PEDAL_LIVE_S + 0.1)   # PedalDetected stays latched, the heartbeat does not
 
 
 def test_the_heartbeat_is_throttled_to_once_a_second(_env, monkeypatch):
@@ -130,6 +136,26 @@ def test_the_heartbeat_is_throttled_to_once_a_second(_env, monkeypatch):
   ts = [v for k, v in writes if k == PreApParamKeys.PEDAL_SEEN_TS]
   assert 4 <= len(ts) <= 6
   assert all(b - a >= 1.0 - 1e-6 for a, b in zip(ts, ts[1:], strict=False))
+
+
+@pytest.mark.parametrize("jump_s", [-3600.0, -2.0, 3600.0])
+def test_a_wall_clock_jump_does_not_stop_the_heartbeat_or_hide_a_live_pedal(_env, monkeypatch, jump_s):
+  writes = []
+  real = cs_mod.set_float
+  monkeypatch.setattr(cs_mod, "set_float", lambda k, v: (writes.append((k, v)), real(k, v)))
+  car = _Car(_env)
+  car.run(200, pedal_bus=2)
+  before = len(writes)
+  _env.t += jump_s   # GPS / NTP sets the wall clock; time.monotonic() does not move
+  car.run(300, pedal_bus=2)   # 3 s more
+  mono = [v for k, v in writes[before:] if k == PreApParamKeys.PEDAL_SEEN_MONO]
+  assert 2 <= len(mono) <= 4   # still about once a second
+  assert _env.live()
+  # The reader alone: a wall stamp from before a backward jump (negative age) still reads live on the monotonic stamp.
+  params.set_float(PreApParamKeys.PEDAL_SEEN_TS, _env.t + 3600.0)
+  assert _env.live()
+  # ... and a stale monotonic stamp with no fresh wall stamp does not.
+  assert not _env.live(dt=0.0, dm=calib.PEDAL_LIVE_S + 0.1)
 
 
 def test_a_read_only_params_dir_does_not_stop_carstate(_env, monkeypatch):
