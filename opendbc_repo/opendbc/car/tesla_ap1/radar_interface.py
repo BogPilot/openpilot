@@ -2,6 +2,7 @@
 from opendbc.can import CANParser
 from opendbc.car import Bus, structs
 from opendbc.car.interfaces import RadarInterfaceBase
+from opendbc.car.tesla_ap1.preap_radar_filters import SguFailHold
 from opendbc.car.tesla_ap1.values import CANBUS, DBC, is_preap
 
 NUM_POINTS = 32
@@ -42,6 +43,7 @@ class RadarInterface(RadarInterfaceBase):
     self.updated_messages = set()
     self.preap = is_preap(CP.carFingerprint)
     self.frames_without_radar = 0
+    self.sgu_fail_hold = SguFailHold() if self.preap else None
 
   def update(self, can_strings):
     if self.rcp is None:
@@ -74,6 +76,14 @@ class RadarInterface(RadarInterfaceBase):
       fault = radar_status['RADC_HWFail'] or radar_status['RADC_SGUFail'] or radar_status['RADC_SensorDirty']
     if fault:
       ret.errors.radarFault = True
+
+    if self.sgu_fail_hold is not None and self.sgu_fail_hold.update(bool(radar_status['RADC_SGUFail']), can_strings[-1][0] * 1e-9):
+      # Pre-AP: SGUFail held -> camera only, with no fault and no alert. Tinkla and NAP keep the points instead
+      # (selfdrive/car/tesla/radar_interface.py:89-111 @ 501c7de; opendbc/car/tesla/radar_interface.py:85-88 @ cc39c7fa).
+      # docs/tesla/DIVERGENCES_preap_radar_filters.md (1).
+      self.pts.clear()
+      self.updated_messages.clear()
+      return ret
 
     for i in range(self.num_points):
       msg_a = self.rcp.vl[f'RadarPoint{i}_A']
