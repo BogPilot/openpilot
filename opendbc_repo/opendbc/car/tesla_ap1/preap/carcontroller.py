@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from opendbc.can import CANPacker
 from opendbc.car import Bus
+from opendbc.car.carlog import carlog
 from opendbc.car.interfaces import CarControllerBase
 from opendbc.car.tesla_ap1.actuator_plan import apply_std_steer_angle_limits
 from opendbc.car.tesla_ap1.engage_ramp import Ap1EngageSteerRamp
@@ -23,9 +24,9 @@ from opendbc.car.tesla_ap1.override import DriverOverrideDetector, read_sensitiv
 from opendbc.car.tesla_ap1.teslacan import TeslaCAN
 from opendbc.car.tesla_ap1.values import CANBUS, DBC, CarControllerParams
 from opendbc.car.tesla_ap1.preap.calib import (
-  COAST_DI_MAX, COAST_FRAMES, COAST_RAW_QUIET, PRESS_DI_MIN, PRESS_RAW_DELTA, PRESS_RELEASE_FRAMES, PRESS_WINDOW_FRAMES,
-  STAGE_COAST, STAGE_COAST_OK, STAGE_IDLE, STAGE_FAILED, STAGE_SAVED, apply_calibration_result, compute_calibration_from_press, fail_calibration, press_peak,
-  is_pedal_calibrated, pedal_can_bus, pedal_long_allowed, set_stage,
+  COAST_FRAMES, PRESS_DI_FULL, PRESS_DI_MIN, PRESS_DI_ONSET, PRESS_NOT_FULL, PRESS_RELEASE_FRAMES, PRESS_WINDOW_FRAMES,
+  STAGE_COAST, STAGE_COAST_OK, STAGE_IDLE, apply_calibration_result, coast_steady, compute_calibration_onset, fail_calibration,
+  is_pedal_calibrated, pedal_can_bus, pedal_long_allowed, rest_stats, set_stage,
 )
 from opendbc.car.tesla_ap1.preap.long_controller import PreAPLongController
 from opendbc.car.tesla_ap1.preap.params import PreApParamKeys, get_bool, get_str
@@ -44,11 +45,7 @@ class PreApCarController(CarControllerBase):
     self.pedal_bus = pedal_can_bus()
     self.stock_cc = StockCCSpoofer()
     self.long_ctrl = PreAPLongController(self.pedal_counter, pedal_can_bus)
-    self._calib_coast = None
-    self._calib_press = None
-    self._calib_press_samples: list[float] | None = None
-    self._calib_press_low = 0
-    self._calib_coast_samples: list[float] = []
+    self._reset_calib_capture()
     # Driver override: the EPAS hands flag plus the independent detector (override.py), with the same resume hold as AP1.
     self.ap1_yield = Ap1DriverYield()
     self.ap1_override = DriverOverrideDetector(read_sensitivity_level())   # Override Sensitivity, read once per drive
@@ -62,18 +59,29 @@ class PreApCarController(CarControllerBase):
 
   # ---- pedal calibration (driver press only; the panda is never unlocked for it) ----
   def _reset_calib_capture(self) -> None:
-    self._calib_coast = None
-    self._calib_press = None
-    self._calib_press_samples = None
+    self._calib_rest: dict[str, float] | None = None   # rest window stats (calib.rest_stats) once step 1 passed
+    self._calib_coast_samples: list[float] = []
+    self._calib_onset: float | None = None             # pedal reading at the first frame with DI_pedalPos >= 0.4 %
+    self._calib_press_frames = 0
     self._calib_press_low = 0
-    self._calib_coast_samples = []
+    self._calib_press_peak_di = 0.0
+
+  def _finish_calib(self, result: dict) -> None:
+    if result.get("ok"):
+      apply_calibration_result(result)
+    else:
+      fail_calibration(str(result.get("reason") or "validation failed"))
+    carlog.info("preap pedal calibration: " + ", ".join(f"{k}={v:.3f}" if isinstance(v, float) else f"{k}={v}" for k, v in result.items()))
+    self._reset_calib_capture()
 
   def _update_detection_and_calib(self, CS) -> bool:
     """Run the armed driver-press calibration from CS samples (PedalDetected / PedalSeenTs are written by PreApCarState).
 
-    Coast only after the interceptor is quiet and DI gas is near zero. A press starts when DI gas rises with the interceptor; it is
-    measured until the driver lets go (or the window ends) and the deepest held reading is what is saved (calib.press_peak).
-    Small-span / out-of-window / too-short captures are rejected (fail_calibration) instead of writing Ready.
+    Step 1: a COAST_FRAMES rest window while the car reads DI_pedalPos = 0, accepted on its medians (calib.coast_steady), not max-min.
+    Step 2: the pedal reading at the first frame with DI_pedalPos >= 0.4 % (onset) and at the first frame with DI_pedalPos >= 99.6 % (full);
+    calib.compute_calibration_onset turns them into zero / factor (zero never below the rest noise floor) or a failure reason.
+    A press that goes back to DI 0 without passing PRESS_DI_MIN is a twitch and is ignored; a real press that is let go, or that does not
+    reach full throttle within PRESS_WINDOW_FRAMES, fails with PRESS_NOT_FULL. Nothing is written unless the whole capture passes.
     """
     detected = bool(getattr(CS, "preap_pedal_detected", False))
     if get_bool(PreApParamKeys.PEDAL_CALIB_ARMED) and detected:
@@ -81,36 +89,33 @@ class PreApCarController(CarControllerBase):
       di_gas = float(getattr(CS, "di_gas", 0.0) or 0.0)   # DI_pedalPos / 100 (CarState.gas does not exist in 0.11.2)
       if raw is not None:
         raw_f = float(raw)
-        if self._calib_coast is None:
+        if self._calib_rest is None:
           set_stage(STAGE_COAST)
-          if di_gas <= COAST_DI_MAX:
+          if di_gas < PRESS_DI_ONSET:
             self._calib_coast_samples.append(raw_f)
             self._calib_coast_samples = self._calib_coast_samples[-COAST_FRAMES:]
-            if len(self._calib_coast_samples) >= COAST_FRAMES:
-              span = max(self._calib_coast_samples) - min(self._calib_coast_samples)
-              if span <= COAST_RAW_QUIET:
-                self._calib_coast = sum(self._calib_coast_samples) / len(self._calib_coast_samples)
-                set_stage(STAGE_COAST_OK)
+            if coast_steady(self._calib_coast_samples):
+              self._calib_rest = rest_stats(self._calib_coast_samples)
+              set_stage(STAGE_COAST_OK)
           else:
             self._calib_coast_samples = []
-        elif self._calib_press is None:
-          if self._calib_press_samples is None:
-            # a driver press (interceptor over coast + PRESS_RAW_DELTA with the car seeing gas) starts the capture
-            if (raw_f > float(self._calib_coast) + PRESS_RAW_DELTA) and (di_gas >= PRESS_DI_MIN):
-              self._calib_press_samples = [raw_f]
-              self._calib_press_low = 0
-          else:
-            # keep every reading until the driver lets go (or the window ends), then save the deepest held point of the press
-            self._calib_press_samples.append(raw_f)
-            self._calib_press_low = 0 if raw_f > float(self._calib_coast) + PRESS_RAW_DELTA else self._calib_press_low + 1
-            if self._calib_press_low >= PRESS_RELEASE_FRAMES or len(self._calib_press_samples) >= PRESS_WINDOW_FRAMES:
-              self._calib_press = press_peak(self._calib_coast, self._calib_press_samples)
-              result = compute_calibration_from_press(self._calib_coast, self._calib_press_samples)
-              if result.get("ok"):
-                apply_calibration_result(result)
-              else:
-                fail_calibration(str(result.get("reason") or "validation failed"))
-              self._reset_calib_capture()
+        elif self._calib_onset is None:
+          if di_gas >= PRESS_DI_ONSET:
+            self._calib_onset = raw_f
+            self._calib_press_frames = 1
+            self._calib_press_low = 0
+            self._calib_press_peak_di = di_gas
+        else:
+          self._calib_press_frames += 1
+          self._calib_press_peak_di = max(self._calib_press_peak_di, di_gas)
+          self._calib_press_low = self._calib_press_low + 1 if di_gas < PRESS_DI_ONSET else 0
+          if di_gas >= PRESS_DI_FULL:
+            self._finish_calib(compute_calibration_onset(self._calib_rest, self._calib_onset, raw_f))
+          elif self._calib_press_low >= PRESS_RELEASE_FRAMES and self._calib_press_peak_di < PRESS_DI_MIN:
+            self._calib_onset = None                     # a twitch, not a press: wait for the real one
+          elif self._calib_press_low >= PRESS_RELEASE_FRAMES or self._calib_press_frames >= PRESS_WINDOW_FRAMES:
+            self._finish_calib({"ok": 0.0, "reason": PRESS_NOT_FULL, "onset_raw": float(self._calib_onset),
+                                "peak_di": float(self._calib_press_peak_di)})
     else:
       self._reset_calib_capture()
       if get_str(PreApParamKeys.PEDAL_CALIB_STAGE) in (STAGE_COAST, STAGE_COAST_OK):

@@ -85,18 +85,18 @@ def _armed_after_coast(coast=0.8):
   params.set_bool(params.PreApParamKeys.PEDAL_CALIB_ARMED, True)
   for _ in range(calib.COAST_FRAMES + 2):
     cc._update_detection_and_calib(_cs(coast, 0.0))
-  assert cc._calib_coast is not None
+  assert cc._calib_rest is not None
   return cc
 
 
-def _press(cc, levels, gas=0.9):
-  for raw in levels:
+def _feed(cc, pairs):
+  for raw, gas in pairs:
     cc._update_detection_and_calib(_cs(raw, gas))
 
 
-def _release(cc, coast=0.8):
-  for _ in range(calib.PRESS_RELEASE_FRAMES):
-    cc._update_detection_and_calib(_cs(coast, 0.0))
+def _press(onset=3.0, full=107.0):
+  """Onset reading where the car first reports 0.4 %, a rise, then the reading where it first reports 99.6 %."""
+  return [(onset, 0.004), (onset + 20.0, 0.2), (onset + 60.0, 0.6), (full, 0.996)]
 
 
 def _saved_factor():
@@ -106,121 +106,48 @@ def _saved_factor():
 def test_capture_state_machine_driver_press_only():
   cc = _controller()
   params.set_bool(params.PreApParamKeys.PEDAL_CALIB_ARMED, True)
-  # foot off: quiet interceptor and DI gas ~0 for COAST_FRAMES
+  # foot off: the car reads DI 0 for a whole rest window
   for _ in range(calib.COAST_FRAMES + 2):
     cc._update_detection_and_calib(_cs(0.8, 0.0))
-  assert cc._calib_coast is not None and params.get_bool(params.PreApParamKeys.PEDAL_CALIB_ARMED)
-  # press: interceptor rises together with DI gas; it is measured until the driver lets go
-  for _ in range(30):
-    cc._update_detection_and_calib(_cs(107.0, 0.9))
-  assert params.get_bool(params.PreApParamKeys.PEDAL_CALIB_ARMED), "still measuring while the foot is down"
+  assert cc._calib_rest is not None and params.get_bool(params.PreApParamKeys.PEDAL_CALIB_ARMED)
+  # press: nothing is saved before the car reads full throttle
+  _feed(cc, _press()[:3])
+  assert params.get_bool(params.PreApParamKeys.PEDAL_CALIB_ARMED), "still measuring until the car reads full throttle"
   assert not calib.is_pedal_calibrated()
-  _release(cc)
+  _feed(cc, _press()[3:])
   assert not params.get_bool(params.PreApParamKeys.PEDAL_CALIB_ARMED)
   assert calib.is_pedal_calibrated()
+  assert params.get_float(params.PreApParamKeys.PEDAL_CALIB_ZERO) == pytest.approx(3.0)        # the DI-onset reading, not the rest 0.8
+  assert _saved_factor() == pytest.approx(100.0 / (107.0 - 3.0), rel=1e-6)
+  assert params.get_float(params.PreApParamKeys.PEDAL_CALIB_MIN) == pytest.approx(0.8)          # rest mean, Tinkla TeslaPedalCalibMin
 
 
-def test_twitch_does_not_calibrate_and_noisy_coast_never_starts():
-  cc = _controller()
-  params.set_bool(params.PreApParamKeys.PEDAL_CALIB_ARMED, True)
-  for i in range(calib.COAST_FRAMES * 3):          # noisy interceptor: span > COAST_RAW_QUIET, never "coast"
-    cc._update_detection_and_calib(_cs(0.0 + (i % 2) * 5.0, 0.0))
-  assert cc._calib_coast is None
-  cc = _controller()
-  for _ in range(calib.COAST_FRAMES + 2):
-    cc._update_detection_and_calib(_cs(0.8, 0.0))
-  cc._update_detection_and_calib(_cs(7.0, 0.9))    # 5-count twitch (< PRESS_RAW_DELTA): ignored
-  assert not calib.is_pedal_calibrated() and cc._calib_press is None
+def test_twitch_does_not_calibrate():
+  cc = _armed_after_coast()
+  _feed(cc, [(7.0, 0.012)] + [(0.8, 0.0)] * calib.PRESS_RELEASE_FRAMES)   # the car saw 1.2 % and went back to 0: ignored
+  assert not calib.is_pedal_calibrated() and cc._calib_onset is None
+  assert params.get_bool(params.PreApParamKeys.PEDAL_CALIB_ARMED) and not params.get_str(params.PreApParamKeys.PEDAL_CALIB_MESSAGE)
 
 
 def test_press_without_di_gas_is_ignored_and_small_span_fails_with_a_message():
-  cc = _controller()
-  params.set_bool(params.PreApParamKeys.PEDAL_CALIB_ARMED, True)
-  for _ in range(calib.COAST_FRAMES + 2):
-    cc._update_detection_and_calib(_cs(0.8, 0.0))
+  cc = _armed_after_coast()
   cc._update_detection_and_calib(_cs(60.0, 0.0))   # interceptor moved but the car did not see gas: not a driver press
-  assert cc._calib_press is None
-  _press(cc, [11.0] * 12, gas=0.2)                 # real press, span 10.2 -> factor 9.8
-  _release(cc)                                     # ... rejected once the driver lets go, message surfaces
+  assert cc._calib_onset is None
+  _feed(cc, [(1.2, 0.004), (6.0, 0.5), (11.4, 0.996)])   # real press, span 10.2 -> factor 9.8
   assert not calib.is_pedal_calibrated()
-  assert params.get_str(params.PreApParamKeys.PEDAL_CALIB_MESSAGE)
+  assert params.get_str(params.PreApParamKeys.PEDAL_CALIB_MESSAGE).startswith("Pedal scale 9.8")
   assert calib.pedal_status(detected=True) == calib.STATUS_FAILED
-
-
-# ---- the saved value is the DEEPEST held point of the press, not the first sample over the threshold ----
-def test_a_slow_press_saves_the_deepest_point_not_the_first_sample_over_the_threshold():
-  cc = _armed_after_coast()
-  ramp = [12.0, 20.0, 35.0, 55.0, 80.0, 100.0, 107.0]
-  _press(cc, [r for r in ramp for _ in range(3)] + [107.0] * 20)
-  _release(cc)
-  assert calib.is_pedal_calibrated()
-  assert _saved_factor() == pytest.approx(100.0 / (107.0 - 0.8), rel=1e-6)     # the old first-sample capture would have used 12.0 (scale 8.9)
-  assert params.get_float(params.PreApParamKeys.PEDAL_CALIB_MAX) == pytest.approx(107.0)
-
-
-def test_the_deepest_point_is_used_even_when_the_driver_eases_off_before_letting_go():
-  cc = _armed_after_coast()
-  _press(cc, [60.0] * 10 + [110.0] * 12 + [90.0] * 15 + [40.0] * 5)
-  _release(cc)
-  assert _saved_factor() == pytest.approx(100.0 / (110.0 - 0.8), rel=1e-6)
-
-
-@pytest.mark.parametrize("spike_len", [1, 2, 3, 7])
-def test_a_noise_spike_shorter_than_the_hold_is_rejected(spike_len):
-  assert spike_len < calib.PRESS_HOLD_SAMPLES
-  cc = _armed_after_coast()
-  _press(cc, [100.0] * 15 + [180.0] * spike_len + [100.0] * 15)
-  _release(cc)
-  assert _saved_factor() == pytest.approx(100.0 / (100.0 - 0.8), rel=1e-6)     # the spike is ignored
-
-
-def test_a_reading_held_for_the_hold_count_is_the_deepest_point():
-  cc = _armed_after_coast()
-  _press(cc, [100.0] * 15 + [115.0] * calib.PRESS_HOLD_SAMPLES + [100.0] * 15)
-  _release(cc)
-  assert _saved_factor() == pytest.approx(100.0 / (115.0 - 0.8), rel=1e-6)
-
-
-def test_a_press_too_short_to_measure_fails_with_a_plain_message_and_changes_nothing():
-  cc = _armed_after_coast()
-  _press(cc, [107.0] * (calib.PRESS_HOLD_SAMPLES - 1))
-  _release(cc)
-  assert not calib.is_pedal_calibrated() and not params.get_bool(params.PreApParamKeys.PEDAL_CALIB_ARMED)
-  assert params.get_str(params.PreApParamKeys.PEDAL_CALIB_MESSAGE) == calib.PRESS_TOO_SHORT
-  assert "too short" in calib.PRESS_TOO_SHORT and "factor" not in calib.PRESS_TOO_SHORT.lower()
-  assert calib.pedal_status(detected=True) == calib.STATUS_FAILED
-
-
-def test_the_capture_ends_after_the_window_if_the_foot_stays_down():
-  cc = _armed_after_coast()
-  _press(cc, [107.0] * (calib.PRESS_WINDOW_FRAMES - 1))
-  assert params.get_bool(params.PreApParamKeys.PEDAL_CALIB_ARMED)
-  _press(cc, [107.0])
-  assert not params.get_bool(params.PreApParamKeys.PEDAL_CALIB_ARMED) and calib.is_pedal_calibrated()
-  assert _saved_factor() == pytest.approx(100.0 / (107.0 - 0.8), rel=1e-6)
 
 
 def test_nothing_is_saved_while_the_press_is_still_being_measured_and_a_disarm_or_lost_pedal_saves_nothing():
   cc = _armed_after_coast()
-  _press(cc, [107.0] * 40)
+  _feed(cc, _press()[:3] * 10)
   assert not calib.is_pedal_calibrated()
   params.set_bool(params.PreApParamKeys.PEDAL_CALIB_ARMED, False)             # Cancel / timeout / screen closed
-  _press(cc, [107.0] * 5)
-  _release(cc)
-  assert not calib.is_pedal_calibrated() and cc._calib_press_samples is None
+  _feed(cc, _press())
+  assert not calib.is_pedal_calibrated() and cc._calib_onset is None
   cc = _armed_after_coast()
-  _press(cc, [107.0] * 40)
+  _feed(cc, _press()[:3])
   cc._update_detection_and_calib(SimpleNamespace(preap_pedal_detected=False, preap_pedal_raw=None, out=SimpleNamespace(), di_gas=0.0))
-  _release(cc)
+  _feed(cc, _press()[3:])
   assert not calib.is_pedal_calibrated()
-
-
-def test_a_brief_dip_does_not_end_the_press_but_a_real_release_does():
-  cc = _armed_after_coast()
-  _press(cc, [107.0] * 10)
-  for _ in range(calib.PRESS_RELEASE_FRAMES - 1):
-    cc._update_detection_and_calib(_cs(0.8, 0.0))
-  _press(cc, [120.0] * 12)                                                    # back on the pedal before the release count was reached
-  assert params.get_bool(params.PreApParamKeys.PEDAL_CALIB_ARMED)
-  _release(cc)
-  assert _saved_factor() == pytest.approx(100.0 / (120.0 - 0.8), rel=1e-6)

@@ -201,9 +201,10 @@ class TestSession(PedalCase):
     self.heard()                              # the car refreshes its heartbeat every second
     scr = s.tick()
     self.assertEqual(scr.phase, cal.PRESS)
-    self.car(107.0, 0.9, n=20)
-    self.assertEqual(s.tick().phase, cal.PRESS)           # still measuring while the foot is down
-    self.car(0.8, 0.0, n=calib.PRESS_RELEASE_FRAMES)       # let go: the deepest point is saved
+    self.car(3.0, 0.004)                      # the car first reports throttle: this reading is the zero
+    self.car(50.0, 0.5, n=20)
+    self.assertEqual(s.tick().phase, cal.PRESS)           # still measuring until the car reads full throttle
+    self.car(107.0, 0.996)                    # full throttle: saved (scale 100 / (107 - 3))
     scr = s.tick()
     self.assertEqual(scr.phase, cal.SAVED)
     self.assertTrue(0.9 < scr.factor < 1.0)
@@ -217,8 +218,8 @@ class TestSession(PedalCase):
     s = self.session()
     s.begin()
     self.car(0.8, 0.0, n=calib.COAST_FRAMES + 2)
-    self.car(11.0, 0.2, n=12)                 # span 10.2 -> factor 9.8: rejected by the car once the driver lets go
-    self.car(0.8, 0.0, n=calib.PRESS_RELEASE_FRAMES)
+    self.car(1.2, 0.004)                      # onset reading 1.2 ...
+    self.car(11.4, 0.996)                     # ... full at 11.4: span 10.2 -> factor 9.8, rejected by the car
     scr = s.tick()
     self.assertEqual(scr.phase, cal.FAIL)
     self.assertIn("Pedal scale 9.8", scr.detail)

@@ -2,10 +2,13 @@
 
 Driver-press capture only (no commanded gas; never unlock panda for calib).
 Credit: NotAutopilot (NAP) nap_conf @ e99f4dc75 (opendbc cc39c7fa), via BogPilot 0.9.7 na-preap 568fea947 calib.py. User-facing product name: BogPilot.
+The saved zero follows Tinkla calibratePedal.py (BogGyver/openpilot tesla_unity_dev @ 501c7de): PedalCalibZero is the pedal reading where the car
+first reports throttle, PedalCalibMin is the resting mean (see the step 2 notes below).
 """
 from __future__ import annotations
 
 import math
+import statistics
 import time
 
 from opendbc.car.tesla_ap1.preap.pedal_can import PEDAL_ENABLED_COMMAND_LIMIT, accel_command_to_raw
@@ -79,33 +82,82 @@ def calibration_in_window(calib_zero: float, factor: float) -> bool:
     return False
   return FACTOR_MIN <= factor <= FACTOR_MAX
 
-# Coast: interceptor quiet AND car DI gas near zero.
-COAST_RAW_QUIET = 1.0          # max-min over the quiet window
-COAST_DI_MAX = 0.02            # DI_pedalPos/100
-COAST_FRAMES = 20              # ~0.4 s at 50 Hz
+# ---- Step 1, feet off: the rest window ----
+# Taken only while the car reads DI_pedalPos = 0 (Tinkla calibratePedal.py:318-323 stops while di_gas > 0). The window is long and is judged by
+# its medians, not by max-min: a Comma Pedal sensor can be noisy at rest (a tester's pedal read 0x552 raw 433 to 485 with the foot off, 2.64
+# DBC units peak to peak), which the old "max-min <= 1.0 over 20 frames" test only let through by luck.
+COAST_FRAMES = 200             # ~2 s at the 100 Hz controller (Tinkla averages 100 pedal frames, ~2 s at 50 Hz: :210, :340-347)
+COAST_DRIFT_MAX = 1.0          # |median of the first half - median of the second half|: the reading is not drifting (DBC units)
+COAST_P2P_MAX = 10.0           # peak-to-peak sanity cap (about 10 % of a full press): above it the pedal is moving, not resting
+# Noise floor for the saved zero: the 99th percentile of the rest window plus a small margin. One 0x552 count is 0.0508 DBC units.
+NOISE_FLOOR_PCT = 99.0
+NOISE_FLOOR_MARGIN = 0.25      # ~5 raw counts
 
-# Press: interceptor rises with a real DI gas increase (not a 5-count twitch). The press starts the capture; the value saved is the DEEPEST
-# held point of the whole press (not the first sample over the threshold): samples are collected until the driver lets go or the window ends.
-PRESS_RAW_DELTA = 10.0         # must clear MIN_SPAN with room
-PRESS_DI_MIN = 0.05            # DI fraction while pressing
-PRESS_RELEASE_FRAMES = 10      # consecutive frames back under coast + PRESS_RAW_DELTA = the driver let go (~0.1 s at the 100 Hz controller)
-PRESS_WINDOW_FRAMES = 300      # the capture ends this long after the press began even if the foot stays down (~3 s)
-PRESS_HOLD_SAMPLES = 8         # a level only counts as the deepest point if the press stayed at or above it for this many samples (~80 ms)
+# ---- Step 2, driver press ----
+# Zero = the pedal reading at the first frame the car reports throttle: DI_pedalPos >= 0.4 % (its first step, scale 0.4). Tinkla saves the pedal
+# value where DI first goes above 0 (calibratePedal.py:362-364), fine-tuned to DI 0.4 % (:396-399), as TeslaPedalCalibZero (:444); the rest
+# mean is only TeslaPedalCalibMin (:340-347, :436). NAP nap_conf.py:282-302 has the same meaning. Tinkla sweeps a commanded value; here the
+# driver presses (the panda is never unlocked for calibration), so the sensor reading at those frames is used instead (documented divergence).
+# Max = the pedal reading at the first frame with DI_pedalPos >= 99.6 % (Tinkla :354, fine-tuned :390, TeslaPedalCalibMax :440).
+# Factor = 100 / (max - zero) (Tinkla :401; NAP nap_conf.py:302).
+PRESS_DI_ONSET = 0.004 - 1e-6  # di_gas is DI_pedalPos / 100; the small tolerance only absorbs float rounding of the 0.4 % step
+PRESS_DI_FULL = 0.996 - 1e-6
+PRESS_DI_MIN = 0.05            # a press that went back to DI 0 without passing this was a twitch: ignored, the next press is measured
+PRESS_RELEASE_FRAMES = 10      # consecutive DI 0 frames = the driver let go (~0.1 s at the 100 Hz controller)
+PRESS_WINDOW_FRAMES = 500      # from the onset the car must read full throttle within this (~5 s), or the press fails
 
-PRESS_TOO_SHORT = ("The accelerator press was too short to measure. Press the pedal fully, hold it down for a moment, "
-                   "then let go and try again.")
+PRESS_NOT_FULL = ("The accelerator was not pressed all the way down. Press it slowly to the floor, then let go and try again.")
+ONSET_BELOW_REST = ("The car saw the accelerator before the Comma Pedal reading moved. Check the Comma Pedal wiring and try again.")
 
 
-def press_peak(coast_raw: float, samples) -> float | None:
-  """The deepest point of a press that was held: the PRESS_HOLD_SAMPLES-th highest reading over coast + PRESS_RAW_DELTA.
+def percentile(samples, pct: float) -> float:
+  """Nearest-rank percentile (no interpolation): the smallest sample with at least pct % of the samples at or below it."""
+  vals = sorted(float(v) for v in samples)
+  k = max(1, math.ceil(pct / 100.0 * len(vals)))
+  return vals[k - 1]
 
-  A noise spike shorter than PRESS_HOLD_SAMPLES readings cannot be the answer, because a higher level only counts when at least that many
-  readings reached it. None when the press never stayed over the threshold that long.
+
+def rest_stats(samples) -> dict[str, float]:
+  """Mean, median, p99 and peak-to-peak of a rest window."""
+  vals = [float(v) for v in samples]
+  return {
+    "mean": float(statistics.fmean(vals)),
+    "median": float(statistics.median(vals)),
+    "p99": float(percentile(vals, NOISE_FLOOR_PCT)),
+    "p2p": float(max(vals) - min(vals)),
+    "n": float(len(vals)),
+  }
+
+
+def coast_steady(samples) -> bool:
+  """A full rest window whose two half medians agree within COAST_DRIFT_MAX and whose peak-to-peak is under COAST_P2P_MAX."""
+  vals = [float(v) for v in samples]
+  if len(vals) < COAST_FRAMES:
+    return False
+  half = len(vals) // 2
+  drift = abs(statistics.median(vals[:half]) - statistics.median(vals[half:]))
+  return drift <= COAST_DRIFT_MAX and (max(vals) - min(vals)) <= COAST_P2P_MAX
+
+
+def noise_floor(rest: dict[str, float]) -> float:
+  return float(rest["p99"]) + NOISE_FLOOR_MARGIN
+
+
+def zero_from_onset(rest: dict[str, float], onset_raw: float) -> tuple[float | None, bool, str]:
+  """(zero, clamped, reason). The DI-onset reading is the zero, but never below the rest noise floor:
+  - onset >= floor: zero = onset (Tinkla parity)
+  - rest mean <= onset < floor: zero = floor (clamped), so the gasPressed cut (zero + 1/factor) stays above the resting noise
+  - onset < rest mean: the car saw throttle while the pedal read below its own resting level; fail (wiring / sensor problem)
   """
-  deep = sorted((float(s) for s in samples if float(s) > float(coast_raw) + PRESS_RAW_DELTA), reverse=True)
-  if len(deep) < PRESS_HOLD_SAMPLES:
-    return None
-  return deep[PRESS_HOLD_SAMPLES - 1]
+  onset = float(onset_raw)
+  floor = noise_floor(rest)
+  if not math.isfinite(onset):
+    return None, False, ONSET_BELOW_REST
+  if onset >= floor:
+    return onset, False, "ok"
+  if onset >= float(rest["mean"]):
+    return floor, True, "ok"
+  return None, False, ONSET_BELOW_REST
 
 
 def transform_di_to_pedal(val: float, pedal_zero: float, pedal_factor: float) -> float:
@@ -166,19 +218,29 @@ def compute_calibration(coast_raw: float, pressed_raw: float) -> dict[str, float
   return result
 
 
-def compute_calibration_from_press(coast_raw: float, press_samples) -> dict[str, float]:
-  """Like compute_calibration, but from every reading of the press: the saved value is the deepest held point (press_peak)."""
-  peak = press_peak(coast_raw, press_samples)
-  if peak is None:
+def compute_calibration_onset(rest: dict[str, float], onset_raw: float, full_raw: float) -> dict[str, float]:
+  """A driver-press capture: zero from the DI-onset reading (zero_from_onset), factor = 100 / (full - zero).
+
+  PedalCalibMin is the rest mean and PedalCalibMax the full-throttle reading (Tinkla TeslaPedalCalibMin / Max); both are informational, only
+  PedalCalibZero and PedalCalibFactor drive gasPressed and the pedal command. ok=0 with a reason when anything fails; nothing is saved then.
+  """
+  zero, clamped, reason = zero_from_onset(rest, onset_raw)
+  extra = {"rest_mean": float(rest["mean"]), "rest_p99": float(rest["p99"]), "rest_p2p": float(rest["p2p"]),
+           "noise_floor": noise_floor(rest), "onset_raw": float(onset_raw), "full_raw": float(full_raw), "zero_clamped": float(clamped)}
+  if zero is None:
     return {
-      "pedal_calib_zero": float(coast_raw),
+      "pedal_calib_zero": float(rest["mean"]),
       "pedal_calib_factor": float(DEFAULTS[PreApParamKeys.PEDAL_CALIB_FACTOR]),
       "pedal_calib_min": float(DEFAULTS[PreApParamKeys.PEDAL_CALIB_MIN]),
       "pedal_calib_max": float(DEFAULTS[PreApParamKeys.PEDAL_CALIB_MAX]),
       "ok": 0.0,
-      "reason": PRESS_TOO_SHORT,
-    }
-  return compute_calibration(coast_raw, peak)
+      "reason": reason,
+    } | extra
+  result = compute_calibration(zero, full_raw)
+  if result.get("ok"):
+    result["pedal_calib_min"] = float(rest["mean"])
+    result["pedal_calib_max"] = float(full_raw)
+  return result | extra
 
 
 def is_pedal_calibrated(done: bool | None = None, zero: float | None = None,

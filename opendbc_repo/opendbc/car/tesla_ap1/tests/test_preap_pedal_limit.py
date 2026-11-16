@@ -174,11 +174,18 @@ def test_failure_reasons_use_plain_driver_words():
   assert cases[3] == "The pedal idle reading is too high. Check the Comma Pedal wiring and try again."
 
 
-def test_a_spike_does_not_become_the_saved_press_end_to_end():
-  # one deep sample in an otherwise 100-level press must not set the scale (it would have saved 0.55 and been rejected as noise)
-  samples = [100.0] * 20 + [190.0] + [100.0] * 20
-  res = calib.compute_calibration_from_press(0.8, samples)
-  assert res["ok"] and res["pedal_calib_factor"] == pytest.approx(100.0 / 99.2, rel=1e-6)
+@pytest.mark.parametrize("onset", [1.1, 4.0, 12.0])
+@pytest.mark.parametrize("scale", [0.8201, 0.9416, 1.7, 3.0])
+def test_a_di_onset_calibration_never_exceeds_the_panda_cap_end_to_end(onset, scale):
+  # the zero is now the DI-onset reading (higher than the old rest zero); the frames still never pass the shared limit
+  rest = calib.rest_stats([0.8] * calib.COAST_FRAMES)
+  res = calib.compute_calibration_onset(rest, onset, onset + 100.0 / scale)
+  assert calib.apply_calibration_result(res) and calib.is_pedal_calibrated()
+  assert params.get_float(params.PreApParamKeys.PEDAL_CALIB_ZERO) == pytest.approx(onset)
+  c = PedalCommandCounter()
+  for di in (PEDAL_DI_MIN, 0.0, 30.0, 60.0, 89.9, max(PEDAL_MAX_VALUES)):
+    frame = create_pedal_command(di_to_pedal(di), 1, c)
+    assert _raw_of(frame) <= PEDAL_ENABLED_RAW_LIMIT < PANDA_MAX_ENABLED_RAW_GAS_CMD
 
 
 def test_failure_reason_survives_the_ui_message_limit():
