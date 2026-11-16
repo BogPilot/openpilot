@@ -242,7 +242,8 @@ Recorded disagreements only where the cited files were read. No speculation.
   only, and "Pre-AP: Radar Behind Nosecone" only while the radar toggle is on; both are offroad edits and take
   effect the next time the car starts. With the radar toggle on, `radarUnavailable` is false, the Bosch parser
   reads bus 1 (`tesla_radar_bosch_generated`), and the safety param gains 256 (plus 128 only when the nosecone
-  toggle is also on), through `flags_for_preap` (panda half above). Radar leads then feed radard, the pedal
+  toggle is also on), through `flags_for_preap` (panda half above). Flag 128 no longer picks the radar position: that is
+  the Radar Donor Type setting, sent in 0x560 (`DIVERGENCES_preap_radar_donor_vin.md` section 4). Radar leads then feed radard, the pedal
   planner and Human-Like Following (still the driver's Following toggle). With the radar on at car start, Human-Like
   Following and Human-Like Lane Changes default On (maintainer decision; unset values only, a saved Off is kept, nothing
   is written to Params); with it off both are effectively Off. Toggle off: CarParams bytes and the safety param (96 / 32) are identical to the build before.

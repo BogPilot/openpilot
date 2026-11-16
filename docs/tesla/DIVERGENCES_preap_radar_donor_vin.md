@@ -38,9 +38,19 @@ checksum); BogPilot na-preap `c68fda744`; Tinkla/BogGyver `501c7de`.
   radar on (safety param 480 = 32 | 64 | 128 | 256) sent 1. Tinkla sets 1 for its behind-nosecone flag; na-preap the same.
 - NAP `f00c8cb9` takes the position from 0x560 record 0 (its Donor Radar Position setting, 0 pre-facelift S, 1 post-facelift S,
   2 Model X, default 0) and keeps the nosecone flag only as a leftover bit.
-- Now: the panda takes the position from 0x560 (as NAP), and the host sends 1 with the Radar Behind Nosecone toggle and 0 without,
-  so every car sends the same value as before. The references disagree on what the field means (mounting vs donor car type), so
-  the value is not changed here.
+- The references disagree on what the field means. Tinkla `501c7de` (`safety_tesla.h:1355-1357`, its behind-nosecone flag) and
+  na-preap treat it as the mounting: 1 behind the nosecone. NAP `@7eb09d2a7` treats it as the donor car type: `NAPRadarPosition`
+  (`nap_conf.py:41,256-261`, default 0), shown as 0 pre-facelift Model S, 1 facelift Model S, 2 Model X (sunnypilot
+  `nap.py:287-288`).
+- Now (as NAP): a separate Radar Donor Type setting (`TeslaRadarDonorType`, /data/params_bogpilot, 0 / 1 / 2, default 0, a bad
+  value is 0) goes in 0x560 record 0, and the panda takes the position from 0x560. The nosecone toggle and flag 128 no longer
+  pick the value (the panda init value from flag 128 is replaced by record 0 before the gateway opens). No panda C change was
+  needed for this: the panda already took position from 0x560. The Radar Behind Nosecone toggle still sets flag 128, but nothing
+  reads it any more except that replaced init value, so it has no effect on the car (NAP keeps its nosecone bit as a leftover too).
+  The comment above the 0x560 check in `tesla_preap.h` (record 0 position "1 with flag 128") is now out of date; it is left as is
+  so the panda C source does not change.
+- Behavior change: before, a nosecone install with the radar on (480) sent 1; with the default it now sends 0. A car whose radar
+  wants 1 must pick "Model S facelift". Same disengaged-only rule as the rest of 0x560.
 
 ## 5. Radar UDS: read-only F190 and the Read Radar VIN button
 - Panda: {0x641, bus 1, 8} on the TX list; the tx hook allows only NAP's six exact frames (tester present, default and extended
@@ -51,8 +61,12 @@ checksum); BogPilot na-preap `c68fda744`; Tinkla/BogGyver `501c7de`.
   0x501 vinValidity alarm). It starts only from Vehicle Settings > "Pre-AP: Read Radar VIN" (car on, not engaged, radar on).
   Engaging, lateral, the panda reporting controls allowed, or missing pandaStates stop it at once.
 - The VIN read is stored only in `TeslaRadarDonorVin` and used from the next car start. It is shown on the device under the button
-  only. It is never logged, never in the status text (NAP `card.py:216` puts it there; not ported), not an openpilot Params key (so
-  never in the initData params snapshot), and not in settings backups or the settings dump.
-- Note: raw CAN in rlogs is unchanged by this: the car's own VIN is on 0x405 on every Tesla, and the radar's 0x651 reply and the
-  panda's 0x2B9 frames are raw bus-1 traffic.
+  only. It is kept out of log text (carlog / cloudlog / print), crash reports, the status text (NAP `card.py:216` puts it there;
+  not ported), openpilot Params (so never in the initData params snapshot), settings backups and the settings dump. It IS present
+  in raw CAN in the drive logs, as below. Accepted by the owner: the donor VIN in raw CAN is treated like the car's own VIN on
+  0x405, so the 0x560 path is kept and the panda does not store it any other way.
+- Raw CAN in the drive logs does carry VIN bytes. The car's own VIN is on 0x405 on every Tesla. The radar's 0x651 reply and the
+  panda's 0x2B9 frames are raw bus-1 traffic. The host's 0x560 frames, which carry the donor VIN, are logged in `sendcan`
+  (`cereal/services.py:39`, logged), and the panda consumes each one and returns it as a rejected echo in `can` (src + 0xC0;
+  `panda/board/drivers/can_common.h:169-175`, `selfdrive/pandad/panda.cc:265-266`).
 - Not ported: NAP's radar VIN-learn tool (`vin_learn_radar.py`), which reprograms the radar.
