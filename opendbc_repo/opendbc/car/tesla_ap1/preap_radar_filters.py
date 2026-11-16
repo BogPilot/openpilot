@@ -6,6 +6,11 @@ Measured basis and references: docs/tesla/DIVERGENCES_preap_radar_filters.md.
 """
 from collections import deque
 
+# (4) Bosch point gate: Tinkla/BogGyver selfdrive/car/tesla/radar_interface.py:12-13,129-135 @ 501c7de
+# (BOSCH_MAX_DIST, OBJECT_MIN_PROBABILITY) and NotAutopilot opendbc car/tesla/radar_interface.py:105-109 @ cc39c7fa.
+BOSCH_MAX_DIST = 250.0         # m, RadarPoint LongDist
+OBJECT_MIN_PROBABILITY = 50.0  # %, RadarPoint ProbExist
+
 # (1) SGUFail hold: camera only once RADC_SGUFail has been set for SGUFAIL_HOLD_S of CAN time; radar points come back
 # after it has been clear for SGUFAIL_RELEASE_S. At the slowest measured radar rate (7.4 Hz) 1.0 s is 7 radar cycles.
 SGUFAIL_HOLD_S = 1.0
@@ -17,6 +22,10 @@ STUCK_MAX_SPAN_M = 0.2      # max - min dRel over the window
 STUCK_MAX_ABS_VREL = 0.13   # m/s on every sample (two LongSpeed steps of 0.0625)
 STUCK_MIN_EGO_DV = 3.0      # m/s, ego speed change over the window
 STUCK_RELEASE_SPAN_M = 0.5  # a flagged track is released once its range moves this much in the window
+
+
+def bosch_point_valid(long_dist: float, prob_exist: float) -> bool:
+  return 0.0 < long_dist <= BOSCH_MAX_DIST and prob_exist >= OBJECT_MIN_PROBABILITY
 
 
 class SguFailHold:

@@ -49,3 +49,16 @@ Model S / Model X behavior is unchanged. Code: `opendbc_repo/opendbc/car/tesla_a
   camera. AP1 keeps the override.
 - Data: on the Pre-AP drive all 2022 low-speed-override lead frames were fixed tracks. On AP1 the override provides a
   large share of real leads at low speed (34 % of radar-lead frames would be lost there), so it stays on for AP1.
+
+## (4) Bosch point gate: range and ProbExist
+- Reference: Tinkla (`selfdrive/car/tesla/radar_interface.py:12-13,129-135` @ `501c7de`) and NAP
+  (`opendbc/car/tesla/radar_interface.py:105-109` @ `cc39c7fa`) drop a point with LongDist <= 0 or > 250 m or ProbExist
+  < 50 %. Tinkla and NAP do this on every Bosch car.
+- Ours: the same gate on Pre-AP only. AP1 keeps every tracked point as before.
+- Data: on the Pre-AP drive it removes the three short-lived low-ProbExist tracks (3 to 19 %) and none of the fixed
+  tracks (96.875 %). AP1 as if it ran there: 1.35 % of radar-lead frames change (222 engaged lead frames lost), so it
+  is not applied to AP1.
+
+## Combined (all four)
+- Pre-AP drive: radar-lead frames on the four fixed tracks 3964 -> 0; camera leads replaced by a fixed track
+  1941 -> 0; all four longActive spans lose their fixed-track lead.

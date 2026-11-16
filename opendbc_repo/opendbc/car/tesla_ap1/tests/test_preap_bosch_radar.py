@@ -115,7 +115,7 @@ def test_ap1_unchanged_by_toggles(long_paths):
 def frames(sgu, trigger=True):
   packer = CANPacker(DBC[CAR.TESLA_PREAP_MODELS][Bus.radar])
   out = [packer.make_can_msg("TeslaRadarSguInfo", 1, sgu),
-         packer.make_can_msg("RadarPoint0_A", 1, {"Tracked": 1, "Meas": 1, "Index": 1, "LongDist": 40.0}),
+         packer.make_can_msg("RadarPoint0_A", 1, {"Tracked": 1, "Meas": 1, "Index": 1, "LongDist": 40.0, "ProbExist": 96.875}),
          packer.make_can_msg("RadarPoint0_B", 1, {"Index2": 1})]
   if trigger:
     out.append(packer.make_can_msg("RadarPoint31_B", 1, {}))

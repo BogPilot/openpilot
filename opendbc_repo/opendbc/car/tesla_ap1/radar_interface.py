@@ -2,7 +2,7 @@
 from opendbc.can import CANParser
 from opendbc.car import Bus, structs
 from opendbc.car.interfaces import RadarInterfaceBase
-from opendbc.car.tesla_ap1.preap_radar_filters import SguFailHold
+from opendbc.car.tesla_ap1.preap_radar_filters import SguFailHold, bosch_point_valid
 from opendbc.car.tesla_ap1.values import CANBUS, DBC, is_preap
 
 NUM_POINTS = 32
@@ -91,6 +91,12 @@ class RadarInterface(RadarInterfaceBase):
       if msg_a['Index'] != msg_b['Index2']:
         continue
       if not msg_a['Tracked']:
+        if i in self.pts:
+          del self.pts[i]
+        continue
+      if self.preap and not bosch_point_valid(msg_a['LongDist'], msg_a['ProbExist']):
+        # Pre-AP: LongDist <= 0 or > 250 m or ProbExist < 50 %. Tinkla selfdrive/car/tesla/radar_interface.py:129-135 @ 501c7de,
+        # NAP opendbc/car/tesla/radar_interface.py:105-109 @ cc39c7fa (both on every Bosch car; AP1 keeps every point here).
         if i in self.pts:
           del self.pts[i]
         continue
