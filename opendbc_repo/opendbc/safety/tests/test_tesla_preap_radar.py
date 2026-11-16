@@ -160,7 +160,8 @@ class RadarCase(unittest.TestCase):
     self.assertEqual(l.set_safety_hooks(SAFETY_TESLA, self.PARAM), 0)
     l.init_tests()
     l.set_timer(1_000_000)
-    # blank VIN: GTW opens, no substitution (ignored when flag 256 is off). Position as the host sends it: 1 with flag 128.
+    # blank VIN: GTW opens, no substitution (ignored when flag 256 is off). Position comes from the 0x560 donor type; this
+    # sends 1 with flag 128 only to keep these expected bytes (the host no longer derives it from flag 128).
     send_donor_config(position=1 if (self.PARAM & NOSE) else 0)
     l.safety_can_send_log_reset()
 
@@ -366,7 +367,7 @@ class TestRadarNosecone(RadarCase):
     frames = self.rx(0x398, src)
     self.assertEqual(len(frames), 1)
     self.assertEqual(frames[0][3], expected_2a9(src, position=1))
-    self.assertEqual(frames[0][3].hex(), "4005000010000010")  # position 1 = byte 4 bit 4 (tesla_preap.h:276 flag 128)
+    self.assertEqual(frames[0][3].hex(), "4005000010000010")  # position 1 = byte 4 bit 4 (from 0x560 donor type 1; flag 128 no longer picks it)
     self.assertNotEqual(frames[0][3], expected_2a9(src, position=0))
 
   def test_simple_readdr_unchanged(self):

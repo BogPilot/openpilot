@@ -229,8 +229,9 @@ static bool tesla_preap_radar_donor_active(void) {
 
 // NAP preap_apply_radar_vin_msg() (tesla_preap.h:199-228). Records 0..2 only, DLC 8 (TX list). Stricter than NAP:
 // ignored without flag 256 and while engaged or armed, so the radar contract cannot change mid-engagement.
-// Record 0 also carries the 0x2A9 position (bits 1-2, 0..2) and EPAS type (bits 3-5), as in NAP f00c8cb9; the host sends
-// position 1 with flag 128 and 0 without, and EPAS 0, so the radar sees the same values as before this change.
+// Record 0 also carries the 0x2A9 position (bits 1-2, 0..2) and EPAS type (bits 3-5), as in NAP f00c8cb9. The host sends
+// the Radar Donor Type as the position (0 pre-facelift S, 1 facelift S, 2 Model X; NAP NAPRadarPosition) and EPAS 0;
+// flag 128 (behind nosecone) no longer picks the position.
 static void tesla_preap_radar_apply_vin_msg(const CANPacket_t *msg) {
   if (tesla_preap_radar_emulation && !controls_allowed && !tesla_preap_steer_armed && (GET_LEN(msg) == 8U)) {
     const uint8_t rec = msg->data[0];
@@ -372,6 +373,8 @@ static safety_config tesla_preap_init_config(uint16_t param) {
   tesla_preap_pedal = GET_FLAG(param, TESLA_FLAG_PREAP_PEDAL);
   // Radar GTW only when flag 256 is set. Flag 128 without 256 is a no-op.
   tesla_preap_radar_emulation = GET_FLAG(param, TESLA_FLAG_PREAP_RADAR_EMULATION);
+  // Initial value only: the gateway stays closed until 0x560 record 0 arrives, which sets the position from the host's Radar
+  // Donor Type, so flag 128 no longer picks the position the radar sees.
   tesla_preap_radar_position = (tesla_preap_radar_emulation && GET_FLAG(param, TESLA_FLAG_PREAP_RADAR_BEHIND_NOSECONE)) ? 1 : 0;
   tesla_preap_radar_epas_type = 0;
   tesla_preap_radar_vin_complete = 0U;
