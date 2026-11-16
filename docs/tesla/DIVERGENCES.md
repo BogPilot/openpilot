@@ -259,6 +259,8 @@ Recorded disagreements only where the cited files were read. No speculation.
   HWFail, SGUFail and SensorDirty. A CAN error or a silent radar still fails closed as in (2).
   (4) Radar point filters on Pre-AP (stuck tracks, no low-speed radar-only lead, range and ProbExist gate; SGUFail
   stays ignored): `docs/tesla/DIVERGENCES_preap_radar_filters.md`.
+  (5) Donor VIN, the 0x560 config gate, the 0x2A9 byte-7 fix, radar position and the Read Radar VIN button:
+  `docs/tesla/DIVERGENCES_preap_radar_donor_vin.md`.
 - Backup and resets (maintainer decision): both keys are in the durable settings backup and Toggle Backups (restore),
   and are not in Reset to Stock or Reset to Defaults, so a reset never turns the retrofit off.
 - Why: drivers moving from NAP have the retrofit; off by default leaves every other Pre-AP car unchanged.

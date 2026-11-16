@@ -1,0 +1,58 @@
+# Pre-AP Bosch radar: donor VIN, config gate, 0x2A9 byte 7, Read Radar VIN
+
+References: NAP `naponsp-alpha-prebuilt` `7eb09d2a7` (opendbc `5dbe36d37`, panda `a8f6ff22d`), NAP commits `347ac59b` /
+`edd064aa` (donor VIN + F190), `604b9c49` (config gate), `f00c8cb9` (position from the donor config), `a2cdda8e` (no byte-7
+checksum); BogPilot na-preap `c68fda744`; Tinkla/BogGyver `501c7de`.
+
+## 1. 0x2A9 byte 7 (now matches all references)
+- Before: the panda overwrote 0x2A9 byte 7 with an address + data byte sum (ported from NAP `cc39c7fa`), which also changed
+  GTW_autopilot and the other byte-7 bits.
+- Now: no checksum. Byte 7 = (car 0x398 byte 7 & 0xCF) | 0x10, i.e. GTW_autopilot = 1. Bosch BO_681 is "all fixed bytes, no
+  checksum" (`opendbc/dbc/generator/tesla/tesla_radar_bosch.py:158,249`). Same as NAP `a2cdda8e`
+  (`opendbc/safety/modes/tesla_preap.h:346-367` @ `5dbe36d37`), na-preap `c68fda744` and Tinkla (`safety_tesla.h:462-484`).
+
+## 2. Host 0x560 donor config and the config gate (NAP, one rule stricter)
+- 0x560 is host to panda only: on the TX list as {0x560, bus 0, 8}, the tx hook consumes it and returns false, so it never goes
+  on the car. Three records: 0 = useRadar, position (0..2), EPAS type, VIN[0:3]; 1 = VIN[3:10]; 2 = VIN[10:17]
+  (NAP `tesla_preap.h:199-228`, `teslacan.py:83-97`).
+- Gate (NAP `604b9c49`, `tesla_preap.h:178-184`): with flag 256 the panda sends no radar-bus GTW frame until all three records
+  have arrived with useRadar set. All donor state is cleared on every safety init.
+- Stricter than NAP: 0x560 is ignored without flag 256 and while controls are allowed or the steering latch is armed, so the radar
+  contract cannot change mid-engagement (NAP accepts it at any time).
+- Host stream (ours): one record every 10 frames, only with flag 256, only while openpilot is disengaged and the car is not in
+  Drive. NAP streams it all the time. Reason: the panda counts every consumed 0x560 as a blocked TX
+  (`panda/board/drivers/can_common.h:169`), and the Pre-AP pull FSM reads a blocked TX as a pedal refusal and drops FULL to
+  steering only (`selfdrive/car/card.py`, `tesla_ap1/preap/carstate.py`). The car starts in Park, so the config is complete about
+  0.3 s after start. Limit: if the panda re-inits its safety mode while the car is in Drive, the radar stays silent until the
+  car is next out of Drive.
+
+## 3. Donor VIN substitution (NAP)
+- `TeslaRadarDonorVin` (BogPilot params dir, empty by default). Empty = 17 spaces = this car: no substitution, the car's own
+  0x405 VIN records reach the radar on 0x2B9 as before.
+- With a donor VIN: 0x405 records 0x10 / 0x11 / 0x12 go to the radar on 0x2B9 with the donor VIN, and 0x2A9 declares 4WD when
+  donor VIN character 8 is '2' or '4' (NAP `tesla_preap.h:346-389`). Still firmware-originated on bus 1 only; host 0x2B9 / 0x2A9
+  stay blocked; nothing is forwarded (`disable_forwarding` stays on).
+
+## 4. Radar position
+- Before: position = 1 when flags 256 and 128 are both set (`tesla_preap.h:276` @ `8636c8044`), so a nosecone install with the
+  radar on (safety param 480 = 32 | 64 | 128 | 256) sent 1. Tinkla sets 1 for its behind-nosecone flag; na-preap the same.
+- NAP `f00c8cb9` takes the position from 0x560 record 0 (its Donor Radar Position setting, 0 pre-facelift S, 1 post-facelift S,
+  2 Model X, default 0) and keeps the nosecone flag only as a leftover bit.
+- Now: the panda takes the position from 0x560 (as NAP), and the host sends 1 with the Radar Behind Nosecone toggle and 0 without,
+  so every car sends the same value as before. The references disagree on what the field means (mounting vs donor car type), so
+  the value is not changed here.
+
+## 5. Radar UDS: read-only F190 and the Read Radar VIN button
+- Panda: {0x641, bus 1, 8} on the TX list; the tx hook allows only NAP's six exact frames (tester present, default and extended
+  session, read DID F190, flow control, tester present without reply), only with flag 256 and only while controls are not
+  allowed and the steering latch is not armed (NAP `tesla_preap.h:137-172`; NAP also checks its lateral-only flag, we check the
+  latch). No write, routine or security access frame can pass. 0x641 on bus 0 / 2 and any other UDS address stay blocked.
+- Host: NAP's F190 reader (`radar_donor_vin.py`) without its Commissioner: no automatic start (NAP starts a read by itself on the
+  0x501 vinValidity alarm). It starts only from Vehicle Settings > "Pre-AP: Read Radar VIN" (car on, not engaged, radar on).
+  Engaging, lateral, the panda reporting controls allowed, or missing pandaStates stop it at once.
+- The VIN read is stored only in `TeslaRadarDonorVin` and used from the next car start. It is shown on the device under the button
+  only. It is never logged, never in the status text (NAP `card.py:216` puts it there; not ported), not an openpilot Params key (so
+  never in the initData params snapshot), and not in settings backups or the settings dump.
+- Note: raw CAN in rlogs is unchanged by this: the car's own VIN is on 0x405 on every Tesla, and the radar's 0x651 reply and the
+  panda's 0x2B9 frames are raw bus-1 traffic.
+- Not ported: NAP's radar VIN-learn tool (`vin_learn_radar.py`), which reprograms the radar.
