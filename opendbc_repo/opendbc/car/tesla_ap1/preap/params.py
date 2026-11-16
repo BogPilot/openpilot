@@ -40,9 +40,14 @@ class PreApParamKeys:
   RADAR_BEHIND_NOSECONE = "TeslaRadarBehindNosecone"
   # Donor VIN for a salvage Bosch radar (17 letters / digits; empty = this car). Set by the Read Radar VIN button or by hand.
   # Read once when the car starts, sent to the panda on 0x560 only (preap/radar_donor.py). A /data/params_bogpilot file, not an
-  # openpilot Params key, so it is never in initData / rlog params; never logged, not in settings backups or the settings dump.
+  # openpilot Params key, so it is never in initData / rlog params; kept out of log text, crash reports, settings backups and the
+  # settings dump. Raw CAN in drive logs does carry it (the host 0x560 frames in sendcan and their rejected echo in can).
   # NAP NAPRadarDonorVin (nap_params.py @ opendbc 5dbe36d37); NAP's automatic F190 read is not ported.
   RADAR_DONOR_VIN = "TeslaRadarDonorVin"
+  # Donor radar car type sent to the panda in 0x560 record 0 (the 0x2A9 position field): 0 pre-facelift Model S (default),
+  # 1 facelift Model S, 2 Model X. NAP NAPRadarPosition (nap_conf.py:41,256-261; sunnypilot nap.py:287-288 @ 7eb09d2a7).
+  # Separate from Radar Behind Nosecone. Read once when the car starts; a missing or bad value is 0.
+  RADAR_DONOR_TYPE = "TeslaRadarDonorType"
   # Read Radar VIN button (preap/radar_vin_read.py): request flag set by the UI, cleared by the reader; status words only
   # (never the VIN). Neither is backed up.
   RADAR_READ_VIN = "TeslaRadarReadVin"
@@ -73,6 +78,7 @@ DEFAULTS = {
   PreApParamKeys.RADAR_ENABLED: False,
   PreApParamKeys.RADAR_BEHIND_NOSECONE: False,
   PreApParamKeys.RADAR_DONOR_VIN: "",
+  PreApParamKeys.RADAR_DONOR_TYPE: 0,
   PreApParamKeys.RADAR_READ_VIN: False,
   PreApParamKeys.RADAR_VIN_READ_STATUS: "",
   PreApParamKeys.HAS_IBOOSTER: False,
@@ -156,6 +162,16 @@ def get_int(key: str, default: int | None = None) -> int:
 
 def set_int(key: str, value: int) -> None:
   _write_text(key, str(int(value)))
+
+
+RADAR_DONOR_TYPES = (0, 1, 2)   # pre-facelift Model S, facelift Model S, Model X
+
+
+def radar_donor_type() -> int:
+  """TeslaRadarDonorType as 0, 1 or 2; anything else (missing, bad, out of range) is 0, the NAP default. Exact text only, so a
+  bad file ("inf", "1.5") can never raise or round into a valid type."""
+  text = _read_text(PreApParamKeys.RADAR_DONOR_TYPE)
+  return int(text) if text in ("0", "1", "2") else 0
 
 
 def get_str(key: str, default: str | None = None) -> str:

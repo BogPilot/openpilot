@@ -29,10 +29,10 @@ from opendbc.car.tesla_ap1.preap.calib import (
   is_pedal_calibrated, pedal_can_bus, pedal_long_allowed, rest_stats, set_stage,
 )
 from opendbc.car.tesla_ap1.preap.long_controller import PreAPLongController
-from opendbc.car.tesla_ap1.preap.params import PreApParamKeys, get_bool, get_str
+from opendbc.car.tesla_ap1.preap.params import PreApParamKeys, get_bool, get_str, radar_donor_type
 from opendbc.car.tesla_ap1.preap.pedal_can import PedalCommandCounter
 from opendbc.car.tesla_ap1.preap.radar_donor import RadarDonorStream
-from opendbc.car.tesla_ap1.safety_flags import FLAG_TESLA_PREAP_RADAR_BEHIND_NOSECONE, FLAG_TESLA_PREAP_RADAR_EMULATION
+from opendbc.car.tesla_ap1.safety_flags import FLAG_TESLA_PREAP_RADAR_EMULATION
 from opendbc.car.tesla_ap1.preap.stock_cc_spoofer import StockCCSpoofer
 
 
@@ -59,12 +59,13 @@ class PreApCarController(CarControllerBase):
     self.ap1_ramp = Ap1EngageSteerRamp()
     self.ap1_cmd_deg = None   # angle of the last ANGLE frame sent, None when the last frame was not an active command
     # Bosch radar donor config (0x560, host to panda only). Follows the safety param the panda was set with, so it is sent only
-    # when the panda's radar gateway (flag 256) is on. The donor VIN is read once per drive and never logged.
+    # when the panda's radar gateway (flag 256) is on. The donor VIN and donor type are read once per drive; the VIN is kept out of
+    # log text. The position field is the donor type (NAP NAPRadarPosition), not the nosecone flag.
     configs = list(getattr(CP, "safetyConfigs", None) or [])
     safety_param = int(configs[-1].safetyParam) if configs else 0
     radar_on = bool(safety_param & FLAG_TESLA_PREAP_RADAR_EMULATION)
     self.radar_donor = RadarDonorStream(radar_on, get_str(PreApParamKeys.RADAR_DONOR_VIN) if radar_on else "",
-                                        1 if (radar_on and (safety_param & FLAG_TESLA_PREAP_RADAR_BEHIND_NOSECONE)) else 0)
+                                        radar_donor_type() if radar_on else 0)
 
   # ---- pedal calibration (driver press only; the panda is never unlocked for it) ----
   def _reset_calib_capture(self) -> None:

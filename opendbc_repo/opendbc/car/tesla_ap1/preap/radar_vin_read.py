@@ -6,8 +6,8 @@ gateway on (flag 256) and only while disengaged; engaging (or the panda reportin
 nothing more is sent. The panda independently allows only NAP's read-only 0x641 frames on bus 1 while disengaged.
 
 The VIN read is stored ONLY in TeslaRadarDonorVin (a /data/params_bogpilot file, not an openpilot Params key, so it is never
-in initData / rlog params, and it is excluded from settings backups and the settings dump). It is never logged (carlog /
-cloudlog / print) and never put into the status text; the device UI may show it from the param. It is used as the donor VIN
+in initData / rlog params, and it is excluded from settings backups and the settings dump). It is never written to log text
+(carlog / cloudlog / print) and never put into the status text; the device UI may show it from the param. It is used as the donor VIN
 from the next car start.
 
 NAP reference: openpilot/selfdrive/car/card.py:207-220,338-362 and radar_donor_vin.py @ naponsp-alpha-prebuilt 7eb09d2a7.
@@ -73,7 +73,7 @@ class RadarVinReadRunner:
     rx = [p for p in can_packets if p.address == RADAR_UDS_RX and p.src == RADAR_UDS_BUS]
     out = self.reader.update(rx, now)
     if out.vin and not self.stored:
-      # Stored as soon as F190 decodes (NAP test_commissioner_stores_vin_as_soon_as_f190_decodes); never logged.
+      # Stored as soon as F190 decodes (NAP test_commissioner_stores_vin_as_soon_as_f190_decodes); kept out of log text.
       self.params.set_str(PreApParamKeys.RADAR_DONOR_VIN, out.vin)
       self.stored = True
     if out.state in _DONE:

@@ -80,25 +80,51 @@ def test_stream_only_with_flag_256_disengaged_not_in_drive():
   assert len(_run(RadarDonorStream(True, "", 0), 30, gear=GEAR.reverse)) == 3
 
 
-def test_stream_position_matches_flag_128_and_blank_vin_is_spaces():
-  s = RadarDonorStream(True, "", 1)
-  r0, r1, r2 = _run(s, 30)
-  assert (r0.dat[2] >> 1) & 3 == 1 and (r0.dat[2] >> 3) & 7 == 0 and r0.dat[2] & 1 == 1
-  assert r0.dat[5:] == b"   " and r1.dat[1:] == b" " * 7 and r2.dat[1:] == b" " * 7
-  assert not s.donor_active
+def test_stream_position_is_donor_type_and_blank_vin_is_spaces():
+  for want in (0, 1, 2):
+    s = RadarDonorStream(True, "", want)
+    r0, r1, r2 = _run(s, 30)
+    assert (r0.dat[2] >> 1) & 3 == want and (r0.dat[2] >> 3) & 7 == 0 and r0.dat[2] & 1 == 1
+    assert r0.dat[5:] == b"   " and r1.dat[1:] == b" " * 7 and r2.dat[1:] == b" " * 7
+    assert not s.donor_active
+  for bad in (3, -1, 7, None, True):
+    assert RadarDonorStream(True, "", bad).position == 0, bad
+
+
+@pytest.mark.parametrize("text, want", (("0", 0), ("1", 1), ("2", 2), ("3", 0), ("-1", 0), ("x", 0), ("1.5", 0), ("inf", 0), ("nan", 0), ("", 0),
+                                        (None, 0)))
+def test_radar_donor_type_param(tmp_path, text, want):
+  if text is not None:
+    (tmp_path / PreApParamKeys.RADAR_DONOR_TYPE).write_text(text)
+  assert params.radar_donor_type() == want
+  assert params.DEFAULTS[PreApParamKeys.RADAR_DONOR_TYPE] == 0
 
 
 def test_carcontroller_streams_from_safety_param(tmp_path):
   from opendbc.car.tesla_ap1.preap.carcontroller import PreApCarController
   from opendbc.car.tesla_ap1.values import CAR, DBC
   (tmp_path / PreApParamKeys.RADAR_DONOR_VIN).write_text(VIN)
-  for param, want_on, want_pos in ((480, True, 1), (32 | 64 | 256, True, 0), (32 | 64 | 128, False, 0), (32 | 64, False, 0)):
+
+  def make(param):
     CP = SimpleNamespace(carFingerprint=CAR.TESLA_PREAP_MODELS, openpilotLongitudinalControl=True,
                          safetyConfigs=[SimpleNamespace(safetyParam=param)])
-    ctl = PreApCarController(DBC[CAR.TESLA_PREAP_MODELS], CP)
+    return PreApCarController(DBC[CAR.TESLA_PREAP_MODELS], CP)
+
+  # No donor type set: position 0 (NAP default) even with the nosecone flag 128 (480 used to send 1).
+  for param, want_on in ((480, True), (32 | 64 | 256, True), (32 | 64 | 128, False), (32 | 64, False)):
+    ctl = make(param)
     assert ctl.radar_donor.radar_emulation is want_on, param
-    assert ctl.radar_donor.position == want_pos, param
+    assert ctl.radar_donor.position == 0, param
     assert ctl.radar_donor.donor_active is want_on, param
+  # The donor type picks the position, with or without flag 128; radar off always sends nothing (position 0).
+  for text, want in (("1", 1), ("2", 2), ("0", 0), ("5", 0)):
+    (tmp_path / PreApParamKeys.RADAR_DONOR_TYPE).write_text(text)
+    for param in (480, 32 | 64 | 256):
+      ctl = make(param)
+      assert ctl.radar_donor.position == want, (text, param)
+      r0 = _run(ctl.radar_donor, 30)[0]
+      assert (r0.dat[2] >> 1) & 3 == want, (text, param)
+    assert make(32 | 64 | 128).radar_donor.position == 0, text
 
 
 # ---- Read Radar VIN runner (button path only) ----

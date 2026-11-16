@@ -170,17 +170,26 @@ _add("TeslaRadarEnabled", "Pre-AP: Bosch Radar",
      note="Pre-AP Model S only. Takes effect the next time the car starts. " + _OFFROAD,
      default="Off")
 _add("TeslaRadarBehindNosecone", "Pre-AP: Radar Behind Nosecone",
-     "Tells the radar it is mounted behind the nosecone. Only the mounting position the panda reports to the radar changes.",
+     "Marks the retrofit radar as mounted behind the nosecone. It no longer changes what the radar is told: the panda now "
+     "takes that from Radar Donor Type, as in NAP, which keeps this flag only as a leftover.",
      when="If your retrofit radar sits behind the nosecone.",
      note="Shown only while Bosch Radar is on. Takes effect the next time the car starts. " + _OFFROAD,
      default="Off")
 _add("TeslaRadarReadVin", "Pre-AP: Read Radar VIN",
      "Reads the VIN stored in the retrofit Bosch radar (the car it came from) and saves it as the donor VIN. From the next car start "
      "the panda then shows the radar that VIN, so a salvage radar does not fault on a VIN mismatch. Read only: it never writes to "
-     "the radar, never reprograms it and never flashes it. The saved VIN is shown under this row on this device only; it is not "
-     "uploaded or logged.",
+     "the radar, never reprograms it and never flashes it. The saved VIN is shown under this row on this device. It is kept out "
+     "of log text, crash reports, settings and backups, but the raw radar CAN messages in drive logs contain it, as they "
+     "already contain the car's own VIN.",
      when="Once after fitting a salvage radar, if the radar reports a VIN fault. Leave it alone if the radar works.",
      note="Car on, in Park, openpilot not engaged, Bosch Radar on. Engaging stops the read. Restart the car afterwards.")
+_add("TeslaRadarDonorType", "Pre-AP: Radar Donor Type",
+     "The car the retrofit Bosch radar came from: Model S before the facelift (the default), Model S after it, or Model X. "
+     "The panda tells the radar this car type, so a salvage radar matches the car it was built for.",
+     when="If the radar reports a position or configuration fault and you know which car it came from.",
+     note="Shown only while Bosch Radar is on. Press to step through the three types. Takes effect the next time the car starts. "
+          + _OFFROAD,
+     default="Model S pre-facelift")
 _add("TeslaHasIBooster", "Pre-AP: iBooster Swap",
      "For a Pre-AP Model S with an aftermarket iBooster. On: the brake bar of Pedals on Screen follows how far the brake pedal is "
      "pressed, read from the iBooster. Off: the bar is full while the brake is pressed and empty otherwise. If the iBooster "

@@ -1,7 +1,7 @@
 """Read the VIN already stored in a Tesla Bosch radar (UDS 0x22 F190), read only.
 
 Started only by the "Read Radar VIN" button (radar_vin_read.py), only while disengaged; it never starts by itself.
-The VIN it reads is stored only in the TeslaRadarDonorVin file param and is never logged.
+The VIN it reads is stored only in the TeslaRadarDonorVin file param and kept out of log text (raw CAN still carries it).
 The panda allows only these exact 0x641 frames, on bus 1, with flag 256, while disengaged (tesla_preap.h).
 It never writes F190, never runs a routine, never asks for security access, never flashes firmware.
 

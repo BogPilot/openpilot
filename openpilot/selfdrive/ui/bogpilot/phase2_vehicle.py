@@ -20,6 +20,11 @@ RADAR = "TeslaRadarEnabled"
 RADAR_NOSECONE = "TeslaRadarBehindNosecone"
 IBOOSTER = "TeslaHasIBooster"
 RADAR_READ_VIN = "TeslaRadarReadVin"
+RADAR_DONOR_TYPE = "TeslaRadarDonorType"
+RADAR_DONOR_TYPE_TITLE = "Pre-AP: Radar Donor Type"
+RADAR_DONOR_TYPE_DESCRIPTION = ("The car the retrofit radar came from: Model S before the facelift, Model S after it, or Model X. "
+                                "Press to change. Takes effect the next time the car starts.")
+RADAR_DONOR_TYPE_NAMES = ("Model S pre-facelift", "Model S facelift", "Model X")
 RADAR_READ_VIN_TITLE = "Pre-AP: Read Radar VIN"
 RADAR_READ_VIN_DESCRIPTION = ("Reads the VIN stored in the retrofit radar (read only) and saves it as the donor VIN, used from the next car start. "
                               "Car on, in Park, not engaged.")
@@ -58,6 +63,7 @@ DESCRIPTIONS = {
          "pedal longitudinal and Human-Like Following. If the radar does not answer, openpilot will not engage and shows an alert. "
          "Takes effect the next time the car starts.",
   RADAR_NOSECONE: "Turn on if the radar is mounted behind the nosecone. Shown while Bosch Radar is on. "
+                  "It no longer changes what the radar is told; Radar Donor Type does that. "
                   "Takes effect the next time the car starts.",
   IBOOSTER: "Turn on only if the car has an aftermarket iBooster fitted on the chassis bus. The brake bar on the driving screen "
             "then follows how far the brake pedal is pressed instead of showing full or empty. Display only. "
@@ -116,7 +122,7 @@ class VehicleSettings:
       # Sub-option: shown only while the main radar toggle is On (NotAutopilot nap.py:160-175@e99f4dc75 has both rows).
       from opendbc.car.tesla_ap1.preap import params as preap_params
       return is_preap(cp) and preap_params.get_bool(RADAR)
-    if key == RADAR_READ_VIN:
+    if key in (RADAR_READ_VIN, RADAR_DONOR_TYPE):
       from opendbc.car.tesla_ap1.preap import params as preap_params
       return is_preap(cp) and preap_params.get_bool(RADAR)
     if key in (BUILD_INFO, PANDA_FIRMWARE):
@@ -157,8 +163,25 @@ class VehicleSettings:
     status = preap_params.get_str(preap_params.PreApParamKeys.RADAR_VIN_READ_STATUS).strip()
     return status[:24].upper() if status else "READ"
 
+  # ---- Pre-AP Radar Donor Type (NAP NAPRadarPosition): 0 / 1 / 2, offroad only ----
+  def donor_type(self):
+    from opendbc.car.tesla_ap1.preap import params as preap_params
+    return preap_params.radar_donor_type()
+
+  def donor_type_text(self):
+    return RADAR_DONOR_TYPE_NAMES[self.donor_type()]
+
+  def next_donor_type(self):
+    """Pressed: the next type (0 -> 1 -> 2 -> 0). Refused unless visible and offroad. Returns the stored value or None."""
+    if not self.enabled(RADAR_DONOR_TYPE):
+      return None
+    from opendbc.car.tesla_ap1.preap import params as preap_params
+    value = (self.donor_type() + 1) % 3
+    preap_params.set_int(preap_params.PreApParamKeys.RADAR_DONOR_TYPE, value)
+    return value
+
   def donor_vin_text(self):
-    """Device UI only (owner OK): the saved donor VIN, or Not set. Never logged."""
+    """Device UI only: the saved donor VIN, or Not set. Kept out of log text."""
     from opendbc.car.tesla_ap1.preap import params as preap_params
     from opendbc.car.tesla_ap1.preap.radar_donor import normalize_radar_donor_vin
     vin = normalize_radar_donor_vin(preap_params.get_str(preap_params.PreApParamKeys.RADAR_DONOR_VIN))
@@ -300,6 +323,11 @@ def create_vehicle_settings_layout(params=None):
                                       callback=self.start_read_vin, enabled=lambda: self.model.visible(RADAR_READ_VIN))
       attach_help(self.read_vin_row, RADAR_READ_VIN, extra=lambda: tr("Donor VIN:") + " " + self.model.donor_vin_text())
       self.rows[RADAR_READ_VIN] = self.read_vin_row
+      self.donor_type_row = button_item(lambda: tr(RADAR_DONOR_TYPE_TITLE), lambda: tr(self.model.donor_type_text()).upper(),
+                                        lambda: tr(RADAR_DONOR_TYPE_DESCRIPTION),
+                                        callback=self.model.next_donor_type, enabled=lambda: self.model.enabled(RADAR_DONOR_TYPE))
+      attach_help(self.donor_type_row, RADAR_DONOR_TYPE)
+      self.rows[RADAR_DONOR_TYPE] = self.donor_type_row
       # An empty or short page says why (no car / wrong car / longitudinal control off) instead of showing nothing.
       from openpilot.selfdrive.ui.bogpilot import menu_locks
       from openpilot.selfdrive.ui.bogpilot.vehicle_settings import disable_long_effective

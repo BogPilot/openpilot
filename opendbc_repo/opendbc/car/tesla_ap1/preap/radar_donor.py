@@ -7,11 +7,12 @@ so a salvage radar sees the car it came from. Empty (the default) = 17 spaces = 
 
 Layout: NAP opendbc/car/tesla/preap/teslacan.py:83-97 (create_radar_vin_msg, the Tinkla 0.6.6 packing) and
 nap_conf.py:46-52 (normalize_radar_donor_vin) @ opendbc 5dbe36d37 (openpilot naponsp-alpha-prebuilt 7eb09d2a7).
-Record 0 also carries the 0x2A9 radar position and EPAS type, which the panda applies (NAP f00c8cb9). Position is 1 with the
-Radar Behind Nosecone toggle (flag 128) and 0 without, EPAS 0: the same values the panda sent before this change.
+Record 0 also carries the 0x2A9 radar position and EPAS type, which the panda applies (NAP f00c8cb9). Position is the Radar
+Donor Type setting (TeslaRadarDonorType: 0 pre-facelift Model S, 1 facelift Model S, 2 Model X, default 0, as NAP
+NAPRadarPosition), not the Radar Behind Nosecone toggle. EPAS 0.
 Divergence (docs/tesla/DIVERGENCES.md): the stream is sent only while disengaged and not in Drive, because the panda counts every
 consumed 0x560 as a blocked TX and the Pre-AP pull FSM treats a blocked TX as a pedal refusal. NAP streams it at 10 Hz all the time.
-Never log the VIN.
+Never log the VIN. Raw CAN still carries it: these frames are in sendcan and come back as rejected echoes in can.
 """
 from __future__ import annotations
 
@@ -59,7 +60,7 @@ class RadarDonorStream:
   def __init__(self, radar_emulation: bool, donor_vin: str, position: int):
     self.radar_emulation = bool(radar_emulation)
     self.vin = normalize_radar_donor_vin(donor_vin)
-    self.position = 1 if position else 0
+    self.position = position if type(position) is int and position in (0, 1, 2) else 0
     self.idx = 0
 
   @property
