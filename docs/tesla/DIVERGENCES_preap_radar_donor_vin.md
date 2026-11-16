@@ -45,10 +45,10 @@ checksum); BogPilot na-preap `c68fda744`; Tinkla/BogGyver `501c7de`.
 - Now (as NAP): a separate Radar Donor Type setting (`TeslaRadarDonorType`, /data/params_bogpilot, 0 / 1 / 2, default 0, a bad
   value is 0) goes in 0x560 record 0, and the panda takes the position from 0x560. The nosecone toggle and flag 128 no longer
   pick the value (the panda init value from flag 128 is replaced by record 0 before the gateway opens). No panda C change was
-  needed for this: the panda already took position from 0x560. The Radar Behind Nosecone toggle still sets flag 128, but nothing
-  reads it any more except that replaced init value, so it has no effect on the car (NAP keeps its nosecone bit as a leftover too).
-  The comment above the 0x560 check in `tesla_preap.h` (record 0 position "1 with flag 128") is now out of date; it is left as is
-  so the panda C source does not change.
+  needed for this: the panda already took position from 0x560 (only its comments were updated to say so).
+- Radar Behind Nosecone is hidden from Vehicle Settings (owner decision), since it has no effect on the car any more. Its stored
+  value (`TeslaRadarBehindNosecone`) is kept as is, not deleted or migrated: it still sets flag 128, which nothing reads except
+  the replaced init value (NAP keeps its nosecone bit as a leftover too). Divergence from NAP and Tinkla, which both show it.
 - Behavior change: before, a nosecone install with the radar on (480) sent 1; with the default it now sends 0. A car whose radar
   wants 1 must pick "Model S facelift". Same disengaged-only rule as the rest of 0x560.
 
