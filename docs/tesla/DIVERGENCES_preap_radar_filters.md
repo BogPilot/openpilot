@@ -31,3 +31,12 @@ Model S / Model X behavior is unchanged. Code: `opendbc_repo/opendbc/car/tesla_a
   (0.5 s), 114 (1.0 s), 131 (2.0 s), 181 (5.0 s); 97 of them come before SGUFail was first set. AP1 as if it ran there:
   196 lead frames (all parked at power-up, 0 engaged). Revisit with more Pre-AP drives.
 - Divergence: stricter than Tinkla and NAP, which both keep using the points while SGUFail is set.
+
+## (2) Stuck tracks: range fixed while ego speed changes
+- Reference: none. Tinkla, NAP and 0.9.7 use every tracked point; this is new BogPilot behavior.
+- Ours: radard drops a track when, over the last 5 s, its dRel moved <= 0.2 m, |vRel| <= 0.13 m/s on every sample, and
+  ego speed changed by >= 3 m/s. The track is released when its range moves > 0.5 m within the window or it goes away.
+- Data: on the Pre-AP drive this filter alone leaves 251 fixed-track lead frames (the first 20 s, before ego speed
+  had changed by 3 m/s), and removes all 1941 frames where a fixed track had replaced a camera lead. AP1 as if it ran
+  there: 0 lead frames lost on 536 replayed segments (813 held). An earlier 3 s / 0.15 m std detector without the
+  vRel test flagged 18 AP1 tracks and lost 1.5 % of AP1 radar-lead frames.

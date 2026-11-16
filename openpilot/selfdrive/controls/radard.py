@@ -13,7 +13,8 @@ from openpilot.common.realtime import DT_MDL, Priority, config_realtime_process
 from openpilot.common.swaglog import cloudlog
 from openpilot.common.simple_kalman import KF1D
 from opendbc.car.tesla_ap1.lead_filter import Ap1LeadGlitchFilter
-from opendbc.car.tesla_ap1.values import AP1_RADARTRACKS_MIN_FREQ_HZ, is_ap1_family
+from opendbc.car.tesla_ap1.preap_radar_filters import StuckTrackFilter
+from opendbc.car.tesla_ap1.values import AP1_RADARTRACKS_MIN_FREQ_HZ, is_ap1_family, is_preap
 
 try:  # optional Human Lane Changes consumer; import failure = stock radar behaviour
   from openpilot.selfdrive.controls.lib.phase3_lanechange import LaneChangeSettingsReader, human_lane_change_track, valid_vision_lead
@@ -186,8 +187,10 @@ def get_lead(v_ego: float, ready: bool, tracks: dict[int, Track], lead_msg: capn
 
 class RadarD:
   def __init__(self, delay: float = 0.0, ap1_lead_filter: bool = False, stopping_runtime=None, lane_change_settings=None,
-               lead_threshold: float = .5):
+               lead_threshold: float = .5, preap: bool = False):
     self.lead_threshold = lead_threshold
+    # Pre-AP Bosch retrofit only: docs/tesla/DIVERGENCES_preap_radar_filters.md (2). None everywhere else.
+    self.stuck_filter = StuckTrackFilter() if preap else None
     self.stopping_runtime = stopping_runtime
     self.lane_change_settings = lane_change_settings
     self.ap1_lead_filters = [Ap1LeadGlitchFilter(DT_MDL) for _ in range(2)] if ap1_lead_filter else None
@@ -213,6 +216,11 @@ class RadarD:
       self.last_v_ego_frame = sm.recv_frame['carState']
 
     ar_pts = {pt.trackId: [pt.dRel, pt.yRel, pt.vRel] for pt in rr.points}
+    if self.stuck_filter is not None:
+      # Pre-AP: drop a track whose range stays fixed while ego speed changes (no reference has this; DIVERGENCES (2))
+      t = sm.logMonoTime['modelV2'] * 1e-9
+      self.stuck_filter.prune(ar_pts.keys())
+      ar_pts = {k: p for k, p in ar_pts.items() if not self.stuck_filter.update(k, p[0], p[2], self.v_ego, t)}
 
     # *** remove missing points from meta data ***
     for ids in list(self.tracks.keys()):
@@ -342,7 +350,7 @@ def main() -> None:
     cloudlog.exception("radard: lane change settings unavailable; stock behaviour")
     lane_settings = None
   RD = RadarD(CP.radarDelay, ap1_lead_filter=CP.carFingerprint == "TESLA_AP1_MODELS", stopping_runtime=stopping,
-              lane_change_settings=lane_settings, lead_threshold=lead_threshold)
+              lane_change_settings=lane_settings, lead_threshold=lead_threshold, preap=is_preap(CP.carFingerprint))
   BP = BogPilotRadar(CP)
 
   while 1:
