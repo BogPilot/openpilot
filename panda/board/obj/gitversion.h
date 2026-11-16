@@ -1,4 +1,4 @@
 #pragma once
 
 extern const uint8_t gitversion[62];
-const uint8_t gitversion[62] = "DEV-98c4635381f5d6cb1eef24e6ad622a535670e8db-c-44ab6e00-DEBUG";
+const uint8_t gitversion[62] = "DEV-92a6e4c571988cd250c616be1bcfdd525d1a9bd9-c-207bb3aa-DEBUG";
