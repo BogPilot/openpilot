@@ -84,7 +84,7 @@ def calibration_in_window(calib_zero: float, factor: float) -> bool:
 
 # ---- Step 1, feet off: the rest window ----
 # Taken only while the car reads DI_pedalPos = 0 (Tinkla calibratePedal.py:318-323 stops while di_gas > 0). The window is long and is judged by
-# its medians, not by max-min: a Comma Pedal sensor can be noisy at rest (a tester's pedal read 0x552 raw 433 to 485 with the foot off, 2.64
+# its medians, not by max-min: a Comma Pedal sensor can be noisy at rest (a real pedal read 0x552 raw 433 to 485 with the foot off, 2.64
 # DBC units peak to peak), which the old "max-min <= 1.0 over 20 frames" test only let through by luck.
 COAST_FRAMES = 200             # ~2 s at the 100 Hz controller (Tinkla averages 100 pedal frames, ~2 s at 50 Hz: :210, :340-347)
 COAST_DRIFT_MAX = 1.0          # |median of the first half - median of the second half|: the reading is not drifting (DBC units)

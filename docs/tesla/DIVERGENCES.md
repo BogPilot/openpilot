@@ -1011,7 +1011,7 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   sweep, because the panda is never unlocked for calibration; there is no fine-tuning or 10-point validation pass; the noise floor and the
   median rest check are ours.
 - Why: gasPressed with a Comma Pedal is pedal_to_di(reading) > 2, i.e. reading > zero + 1/factor (NAP `preap/carstate.py:158-159`,
-  `pedal_feedback.py:56-57`). With the zero at the resting mean, that cut sat inside the rest noise: a tester's pedal read 0x552 raw 433
+  `pedal_feedback.py:56-57`). With the zero at the resting mean, that cut sat inside the rest noise: a real pedal read 0x552 raw 433
   to 485 with the foot off, and gasPressed flickered True on about one carState in seven at rest. With the zero at or above the floor the
   cut is at least 1/factor above the rest p99.
 - Not changed: no gasPressed debounce; DI_pedalPos is not a gasPressed source; the panda (`tesla_preap.h`, its raw > 650 gas test and the
