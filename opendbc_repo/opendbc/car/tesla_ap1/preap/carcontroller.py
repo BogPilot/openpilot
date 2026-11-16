@@ -28,11 +28,9 @@ from opendbc.car.tesla_ap1.preap.calib import (
   is_pedal_calibrated, pedal_can_bus, pedal_long_allowed, set_stage,
 )
 from opendbc.car.tesla_ap1.preap.long_controller import PreAPLongController
-from opendbc.car.tesla_ap1.preap.params import PreApParamKeys, get_bool, get_str, set_bool, set_float
+from opendbc.car.tesla_ap1.preap.params import PreApParamKeys, get_bool, get_str
 from opendbc.car.tesla_ap1.preap.pedal_can import PedalCommandCounter
 from opendbc.car.tesla_ap1.preap.stock_cc_spoofer import StockCCSpoofer
-
-import time
 
 
 class PreApCarController(CarControllerBase):
@@ -51,7 +49,6 @@ class PreApCarController(CarControllerBase):
     self._calib_press_samples: list[float] | None = None
     self._calib_press_low = 0
     self._calib_coast_samples: list[float] = []
-    self._last_seen_write = 0.0
     # Driver override: the EPAS hands flag plus the independent detector (override.py), with the same resume hold as AP1.
     self.ap1_yield = Ap1DriverYield()
     self.ap1_override = DriverOverrideDetector(read_sensitivity_level())   # Override Sensitivity, read once per drive
@@ -72,20 +69,13 @@ class PreApCarController(CarControllerBase):
     self._calib_coast_samples = []
 
   def _update_detection_and_calib(self, CS) -> bool:
-    """Mirror PedalDetected; run the armed driver-press calibration from CS samples.
+    """Run the armed driver-press calibration from CS samples (PedalDetected / PedalSeenTs are written by PreApCarState).
 
     Coast only after the interceptor is quiet and DI gas is near zero. A press starts when DI gas rises with the interceptor; it is
     measured until the driver lets go (or the window ends) and the deepest held reading is what is saved (calib.press_peak).
     Small-span / out-of-window / too-short captures are rejected (fail_calibration) instead of writing Ready.
     """
     detected = bool(getattr(CS, "preap_pedal_detected", False))
-    set_bool(PreApParamKeys.PEDAL_DETECTED, detected)
-    if detected:
-      # Heartbeat for the UI: PedalDetected is a latched file and stays True after the car stops.
-      wall = time.time()
-      if wall - self._last_seen_write >= 1.0:
-        set_float(PreApParamKeys.PEDAL_SEEN_TS, wall)
-        self._last_seen_write = wall
     if get_bool(PreApParamKeys.PEDAL_CALIB_ARMED) and detected:
       raw = getattr(CS, "preap_pedal_raw", None)
       di_gas = float(getattr(CS, "di_gas", 0.0) or 0.0)   # DI_pedalPos / 100 (CarState.gas does not exist in 0.11.2)

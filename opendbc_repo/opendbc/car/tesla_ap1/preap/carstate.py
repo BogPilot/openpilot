@@ -37,7 +37,7 @@ TX_BLOCK_PRESS_IGNORE_MS = 300
 from opendbc.car.tesla_ap1.preap.cruise import SPD_CTRL_CANCEL, SPD_CTRL_MAIN, is_preap_cancel_echo, pedal_cruise_available
 from opendbc.car.tesla_ap1.preap import ibooster as IBST
 from opendbc.car.tesla_ap1.preap.engagement import Decision, PreAPEngagement, preap_epas_refusing, preap_steer_drop
-from opendbc.car.tesla_ap1.preap.params import PreApParamKeys, get_bool  # noqa: F401
+from opendbc.car.tesla_ap1.preap.params import PreApParamKeys, get_bool, set_bool, set_float  # noqa: F401
 from opendbc.car.tesla_ap1.preap.pedal_feedback import PedalFeedback
 
 OPTIONAL = float('nan')   # 0.9.7 frequency 0 (never marks the message missing)
@@ -75,6 +75,7 @@ class PreApCarState(CarStateBase):
     self.preap_pedal_detected = False
     self.preap_pedal_raw = None
     self._preap_pedal_last_idx = None
+    self._pedal_seen_write = 0.0   # wall time of the last PedalSeenTs write (1 s throttle)
     self.pedal = PedalFeedback()
     self.pedal_interceptor_value = 0.0
     self.di_gas = 0.0
@@ -117,6 +118,22 @@ class PreApCarState(CarStateBase):
   # openpilot raises buttonEnable only from the pull decision (up/down tips must not engage: the panda arms on a pull).
   def update_button_enable(self, buttonEvents):
     return bool(self.pedal_long and self._enable_request)
+
+  def _mirror_pedal_status(self) -> None:
+    """Display only: the Vehicle Controls "Comma Pedal" row reads these files (calib.pedal_live). They are written here,
+    from the CAN stream, so the row is right even when the CarController never runs (openpilot toggle off, passive or
+    dashcam, controlsd not up). Calibration stays in the controller. Nothing here feeds control, the panda or any TX."""
+    detected = bool(self.preap_pedal_detected)
+    try:
+      set_bool(PreApParamKeys.PEDAL_DETECTED, detected)
+      if detected:
+        # Heartbeat for the UI: PedalDetected is a latched file and stays True after the car stops.
+        wall = time.time()
+        if wall - self._pedal_seen_write >= 1.0:
+          set_float(PreApParamKeys.PEDAL_SEEN_TS, wall)
+          self._pedal_seen_write = wall
+    except OSError:
+      pass   # fresh device / read-only /data must not stop card
 
   def update(self, can_parsers) -> structs.CarState:
     cp = can_parsers[Bus.chassis]
@@ -170,6 +187,7 @@ class PreApCarState(CarStateBase):
     # A pedal that stops talking is no longer "detected" (UI status and cruise availability follow).
     if self.preap_pedal_detected and self.pedal_timeout and not len(idx_all):
       self.preap_pedal_detected = False
+    self._mirror_pedal_status()
 
     # Gas / brake
     self.di_gas = cp.vl["DI_torque1"]["DI_pedalPos"] / 100.0   # CarState.gas is gone in 0.11.2; the calibration reads this
