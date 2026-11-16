@@ -233,7 +233,8 @@ def create_vehicle_settings_layout(params=None):
     def __init__(self):
       super().__init__()
       self.model = VehicleSettings(params if params is not None else Params(), lambda: ui_state.CP, ui_state.is_offroad)
-      self.model.moving_fn = lambda: bool(ui_state.started and not getattr(ui_state.sm["carState"], "standstill", True))
+      # Speed and gear, not carState.standstill: on Pre-AP that is the DI cruise standstill state (see cal.car_moving).
+      self.model.moving_fn = lambda: cal.car_state_moving(ui_state.started, ui_state.sm["carState"])
       self._status_cache = (0.0, "")
       self.rows = {key: toggle_item(lambda k=key: tr(self.model.title(k)), lambda k=key: tr(self.model.description(k)), False,
                                    callback=lambda state, k=key: self.set_value(k, state),

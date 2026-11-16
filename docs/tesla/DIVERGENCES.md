@@ -960,3 +960,26 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   the controller no longer writes),
   `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_pedal.py` (calibration unchanged).
 - Credits: BogPilot 0.9.7 (the `PedalDetected` mirror and the settings row).
+
+## Pre-AP Calibrate Pedal: parked means Park and below 0.1 m/s, not carState.standstill
+- Platforms: Pre-AP Model S only (Settings > Vehicle Controls "Calibrate Pedal" button and the guided calibration screen).
+- Reference behavior: BogPilot 0.9.7 has no parked check in the UI. The Calibrate button is always enabled and only shows a
+  "Park, foot off the pedal" confirmation before arming (`frogpilot/ui/qt/offroad/vehicle_settings.cc:284-294`), and the
+  0.9.7 CarController capture does not check speed or gear (`selfdrive/car/tesla/preap/carcontroller.py:72-114`).
+- Our behavior: with the car on, Calibrate is enabled only while the car is in Park and `|vEgo|` is below 0.1 m/s
+  (`openpilot/selfdrive/ui/bogpilot/preap_pedal_cal.py`, `car_moving` / `car_state_moving`; wired in
+  `openpilot/selfdrive/ui/bogpilot/phase2_vehicle.py`). Any other gear, including an unknown gear, or a missing or
+  non-finite speed blocks it with the existing "Put the car in Park first" message, and a running calibration is cancelled
+  without writing anything. Offroad, a heard pedal still allows it, as before. The gear is compared with the car structs
+  `GearShifter` enum.
+- Why: the gate used to read `carState.standstill`. On Pre-AP that is the DI cruise STANDSTILL state, not a speed test
+  (`opendbc_repo/opendbc/car/tesla_ap1/preap/carstate.py:241`, from fce00b1dd), so it is False in Park with cruise off.
+  The page then treated a parked car as moving, and Calibrate stayed greyed out whenever the car was on, even with the
+  pedal heard and the row showing "Needs calibration".
+- Safety-relevant: no for control. UI only: `carState.standstill`, the pedal command (0x551), the panda safety mode and
+  every TX are unchanged. The gate stays stricter than 0.9.7 (Park and stopped, checked before and during calibration).
+- Tests: `openpilot/selfdrive/ui/tests/test_preap_pedal_cal_moving.py` (Park at rest with cruise off allowed; 2 m/s blocked;
+  drive, neutral, reverse and unknown at rest blocked; offroad allowed; pedal not heard blocked with the existing message;
+  the session stops when the car leaves Park; real carState messages, built and read back; the real page with its own
+  wiring under headless raylib).
+- Credits: BogPilot 0.9.7 (the calibration flow and the "Park, foot off the pedal" instruction).

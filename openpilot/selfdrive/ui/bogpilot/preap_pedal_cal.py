@@ -13,6 +13,7 @@ and never write a calibration value. The calibration logic itself (coast frames,
 """
 from __future__ import annotations
 
+import math
 import time
 from dataclasses import dataclass
 
@@ -96,6 +97,43 @@ def blocked_reason(live: bool, moving: bool) -> str:
     return ("The Comma Pedal is not being heard. Turn the car on in Park with the pedal connected, "
             "then try again. Pedal CAN bus 2 is the usual install.")
   return ""
+
+
+# Below this speed (m/s) the car counts as stopped for the calibration gate (the same 0.1 m/s that AP1 CarState uses for standstill).
+STOPPED_V_EGO = 0.1
+
+
+def car_moving(started: bool, v_ego, gear) -> bool:
+  """True when calibration must not start or must stop: onroad and either rolling or not in Park.
+
+  carState.standstill is deliberately not used. On Pre-AP it is the DI STANDSTILL cruise state
+  (opendbc_repo/opendbc/car/tesla_ap1/preap/carstate.py:241, from fce00b1dd), not a speed test, so it is False in Park
+  with cruise off and would block calibration whenever the car is on. `gear` is the carState.gearShifter enum and is
+  compared with the GearShifter enum from the car structs. An unknown gear, or a missing or non-finite speed, counts as
+  moving. Offroad (not started) is never moving, as before.
+  """
+  if not started:
+    return False
+  try:
+    speed = abs(float(v_ego))
+  except (TypeError, ValueError):
+    return True
+  if not math.isfinite(speed) or speed >= STOPPED_V_EGO:
+    return True
+  return not _is_park(gear)
+
+
+def _is_park(gear) -> bool:
+  from opendbc.car.structs import car
+  try:
+    return bool(gear == car.CarState.GearShifter.park)
+  except Exception:
+    return False
+
+
+def car_state_moving(started: bool, car_state) -> bool:
+  """`car_moving` for a carState message (what the Vehicle Settings page and the calibration session use)."""
+  return car_moving(started, getattr(car_state, "vEgo", None), getattr(car_state, "gearShifter", None))
 
 
 @dataclass(frozen=True)
