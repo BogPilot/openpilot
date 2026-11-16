@@ -119,9 +119,9 @@ class VehicleSettings:
     if key == IBOOSTER:
       return is_preap(cp)              # Pre-AP swap only; AP1 cars have the factory iBooster (0x39D brake level)
     if key == RADAR_NOSECONE:
-      # Sub-option: shown only while the main radar toggle is On (NotAutopilot nap.py:160-175@e99f4dc75 has both rows).
-      from opendbc.car.tesla_ap1.preap import params as preap_params
-      return is_preap(cp) and preap_params.get_bool(RADAR)
+      # Hidden: the radar position now comes from Radar Donor Type (NAP NAPRadarPosition), so this row has no effect.
+      # The stored TeslaRadarBehindNosecone value is kept as is (not deleted or migrated); it still only sets flag 128.
+      return False
     if key in (RADAR_READ_VIN, RADAR_DONOR_TYPE):
       from opendbc.car.tesla_ap1.preap import params as preap_params
       return is_preap(cp) and preap_params.get_bool(RADAR)

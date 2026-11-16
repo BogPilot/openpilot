@@ -342,15 +342,15 @@ class TestPreApVehicleRows(PedalCase):
     with mock.patch.object(ap1_runtime, "preap_aol_available", lambda cp: False, create=True):
       self.assertFalse(m.visible(pv.DOUBLE_PULL))
 
-  def test_radar_rows_preap_only_and_nosecone_only_while_radar_on(self):
+  def test_radar_rows_preap_only_and_nosecone_always_hidden(self):
     from openpilot.selfdrive.ui.bogpilot import phase2_vehicle as pv
     for cp in (preap_cp(), preap_cp(long_on=False)):
       m = self.model(cp)
       self.assertTrue(m.visible(pv.RADAR))
-      self.assertFalse(m.visible(pv.RADAR_NOSECONE))                  # main toggle off (default): sub-option hidden
+      self.assertFalse(m.visible(pv.RADAR_NOSECONE))                  # hidden: Radar Donor Type picks the position now
       self.assertFalse(m.read(pv.RADAR))
       pp.set_bool(K.RADAR_ENABLED, True)
-      self.assertTrue(m.visible(pv.RADAR_NOSECONE))
+      self.assertFalse(m.visible(pv.RADAR_NOSECONE))                  # still hidden with the radar on
       pp.set_bool(K.RADAR_ENABLED, False)
     pp.set_bool(K.RADAR_ENABLED, True)
     for row in (pv.RADAR, pv.RADAR_NOSECONE):
@@ -363,7 +363,9 @@ class TestPreApVehicleRows(PedalCase):
     self.assertFalse(os.path.exists(os.path.join(self.tmp, K.RADAR_ENABLED)))   # nothing written until a tap
     self.assertTrue(m.write(pv.RADAR, True))
     self.assertEqual(open(os.path.join(self.tmp, K.RADAR_ENABLED)).read(), "1")
-    self.assertTrue(m.write(pv.RADAR_NOSECONE, True))
+    self.assertFalse(m.write(pv.RADAR_NOSECONE, True))               # hidden row: no write
+    self.assertFalse(os.path.exists(os.path.join(self.tmp, K.RADAR_BEHIND_NOSECONE)))
+    pp.set_bool(K.RADAR_BEHIND_NOSECONE, True)                         # a value saved by an earlier build
     self.assertTrue(m.read(pv.RADAR_NOSECONE))
     onroad = self.model(preap_cp(), offroad=False)
     self.assertFalse(onroad.enabled(pv.RADAR))
@@ -372,7 +374,7 @@ class TestPreApVehicleRows(PedalCase):
     self.assertFalse(self.model(ap1_cp()).write(pv.RADAR, False))
     self.assertTrue(pp.get_bool(K.RADAR_ENABLED))
     m.write(pv.RADAR, False)
-    self.assertFalse(m.visible(pv.RADAR_NOSECONE))                   # saved nosecone kept, row hidden again
+    self.assertFalse(m.visible(pv.RADAR_NOSECONE))                   # saved nosecone kept, row hidden
     self.assertTrue(pp.get_bool(K.RADAR_BEHIND_NOSECONE))
 
   def test_ibooster_row_is_preap_only_default_off_and_offroad_only(self):

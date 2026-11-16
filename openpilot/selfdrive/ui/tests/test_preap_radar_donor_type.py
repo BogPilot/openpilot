@@ -72,6 +72,19 @@ class TestPreApRadarDonorType(unittest.TestCase):
     preap_params.set_bool(RADAR, True)
     self.assertFalse(self.model.visible(RADAR_DONOR_TYPE))
 
+  def test_nosecone_row_hidden_and_stored_value_kept(self):
+    for nose in (False, True):
+      preap_params.set_bool(RADAR_NOSECONE, nose)
+      for radar in (False, True):
+        preap_params.set_bool(RADAR, radar)
+        self.assertFalse(self.model.visible(RADAR_NOSECONE), (nose, radar))
+        self.assertFalse(self.model.enabled(RADAR_NOSECONE), (nose, radar))
+        self.assertFalse(self.model.write(RADAR_NOSECONE, not nose), (nose, radar))
+        self.assertEqual(preap_params.get_bool(RADAR_NOSECONE), nose)   # never deleted or changed
+        self.assertTrue((self.pdir / RADAR_NOSECONE).exists())
+    preap_params.set_bool(RADAR, True)
+    self.assertTrue(self.model.visible(RADAR_DONOR_TYPE))               # the donor type row replaces it
+
 
 if __name__ == "__main__":
   unittest.main()
