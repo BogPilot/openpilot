@@ -2,8 +2,10 @@
 // Pre-AP Bosch radar gateway (GTW emulation). Only runs when TESLA_FLAG_PREAP and
 // TESLA_FLAG_PREAP_RADAR_EMULATION are both set. Source: NotAutopilot opendbc
 // tesla_preap.h @ cc39c7fa (openpilot e99f4dc75), tesla_preap_gtw_emulation.
-// Firmware can_send(..., bus 1, skip_tx_hook=true). No host TX, no bus-0 TX,
-// no VIN or UDS, no blanket 0-to-1 forward, no Tinkla bus-0 synthetic 0x1A9.
+// Firmware can_send(..., bus 1, skip_tx_hook=true). No bus-0 TX, no blanket 0-to-1 forward,
+// no Tinkla bus-0 synthetic 0x1A9. Silent until the host 0x560 donor config is complete (tesla_preap_radar_ready,
+// NAP 604b9c49). With a donor VIN set, 0x2B9 VIN records and the 0x2A9 4WD bit follow the donor VIN
+// (NAP tesla_preap.h:346-389 @ opendbc 5dbe36d37, openpilot naponsp-alpha-prebuilt 7eb09d2a7).
 // Behind-nosecone (flag 128) only changes the GTW_carConfig radar_position field,
 // and only when emulation (flag 256) is also set.
 
@@ -76,16 +78,6 @@ static uint8_t tesla_preap_radar_compute_crc8(uint32_t lo, uint32_t hi, uint32_t
   return (uint8_t)(crc ^ 0xFFU);
 }
 
-// NAP tesla_preap.h:203-209 @ cc39c7fa. Sum of address bytes + all data bytes except the last.
-static uint8_t tesla_preap_radar_byte_sum_checksum(const CANPacket_t *pkt) {
-  uint8_t chksum = (uint8_t)(pkt->addr & 0xFFU) + (uint8_t)((pkt->addr >> 8) & 0xFFU);
-  const int len = (int)GET_LEN(pkt);
-  for (int i = 0; i < (len - 1); i++) {
-    chksum += pkt->data[i];
-  }
-  return chksum;
-}
-
 static void tesla_preap_radar_send(CANPacket_t *pkt) {
   pkt->bus = 1;
 #if defined(STM32H7) || defined(STM32F4)
@@ -112,7 +104,7 @@ static void tesla_preap_radar_readdr(const CANPacket_t *src, uint16_t new_addr) 
 // NAP tesla_preap.h:216-316 @ cc39c7fa. Called from tesla_rx_all for every RX.
 // Emits at most one rewritten frame per source, plus at most one synthetic on 0x115 and 0x118.
 static void tesla_preap_radar_rx_all(const CANPacket_t *to_fwd) {
-  if (tesla_preap && tesla_preap_radar_emulation && (to_fwd->bus == 0U)) {
+  if (tesla_preap && tesla_preap_radar_emulation && tesla_preap_radar_ready() && (to_fwd->bus == 0U)) {
     const int addr = (int)to_fwd->addr;
 
     // Group A: simple re-address (NAP :221-230)
@@ -123,7 +115,6 @@ static void tesla_preap_radar_rx_all(const CANPacket_t *to_fwd) {
       case 0x20A:  tesla_preap_radar_readdr(to_fwd, 0x159); break;  // BrakeMessage -> ESP_C
       case 0x308:  tesla_preap_radar_readdr(to_fwd, 0x209); break;  // GTW_odo
       case 0x30A:  tesla_preap_radar_readdr(to_fwd, 0x2D9); break;  // BC_status
-      case 0x405:  tesla_preap_radar_readdr(to_fwd, 0x2B9); break;  // VIP_405HS (not DAS_control)
       default: break;
     }
 
@@ -139,9 +130,58 @@ static void tesla_preap_radar_rx_all(const CANPacket_t *to_fwd) {
       uint32_t hi = TESLA_PREAP_RADAR_GET_BYTES_48(to_fwd);
       lo = (lo & 0xFFFFF33FU) | 0x100U | 0x440U;  // country=US, radar_type=Bosch
       hi = (hi & 0xCFFF0F0FU) | 0x10000000U | ((uint32_t)tesla_preap_radar_position << 4) | ((uint32_t)tesla_preap_radar_epas_type << 12);
+      // Bosch xWD is checked against the VIN on 0x2B9: a donor VIN with char 8 '2' or '4' (dual motor) declares 4WD
+      // (NAP tesla_preap.h:353-364). No donor: the car's own 0x398 bit is kept.
+      if (tesla_preap_radar_donor_active()) {
+        const uint8_t drive = tesla_preap_radar_vin[7];
+        if ((drive == (uint8_t)'2') || (drive == (uint8_t)'4')) {
+          lo |= 0x08U;
+        }
+      }
       tesla_preap_radar_word_to_bytes(&pkt.data[0], lo);
       tesla_preap_radar_word_to_bytes(&pkt.data[4], hi);
-      pkt.data[7] = tesla_preap_radar_byte_sum_checksum(&pkt);
+      // No data[7] checksum: Bosch BO_681 "All fixed bytes, no checksum", byte 7 = Msg2A9_Always0x10 (GTW_autopilot=1 set
+      // above). NAP a2cdda8e (tesla_preap.h:346-367 @ opendbc 5dbe36d37), BogPilot na-preap c68fda744, Tinkla safety_tesla.h:462-484@501c7de.
+      tesla_preap_radar_send(&pkt);
+    }
+
+    // VIP_405HS (0x405) -> 0x2B9 VIN feed; mux records 0x10-0x12 carry the donor VIN when one is set
+    // (NAP preap_transform_radar_vin_feed, tesla_preap.h:369-389). Not DAS_control; firmware-originated on bus 1 only.
+    if (addr == 0x405) {
+      CANPacket_t pkt;
+      tesla_preap_radar_pkt_clear(&pkt);
+      pkt.extended = to_fwd->extended;
+      pkt.fd = to_fwd->fd;
+      pkt.addr = 0x2B9;
+      pkt.data_len_code = to_fwd->data_len_code;
+      const unsigned int len = (unsigned int)GET_LEN(to_fwd);
+      for (unsigned int i = 0U; i < len; i++) {
+        pkt.data[i] = to_fwd->data[i];
+      }
+      const uint8_t rec = to_fwd->data[0];
+      if (tesla_preap_radar_donor_active() && (len == 8U) && ((rec & 0x10U) == 0x10U)) {
+        unsigned int first = 0U;
+        bool known = true;
+        if (rec == 0x10U) {
+          first = 0U;
+        } else if (rec == 0x11U) {
+          first = 3U;
+        } else if (rec == 0x12U) {
+          first = 10U;
+        } else {
+          known = false;
+        }
+        if (known) {
+          for (unsigned int i = 1U; i < 8U; i++) {
+            pkt.data[i] = 0U;
+          }
+          // 0x10: VIN[0..2] in bytes 5-7; 0x11: VIN[3..9] in bytes 1-7; 0x12: VIN[10..16] in bytes 1-7
+          const unsigned int start = (rec == 0x10U) ? 5U : 1U;
+          for (unsigned int i = start; i < 8U; i++) {
+            pkt.data[i] = tesla_preap_radar_vin[first + (i - start)];
+          }
+        }
+      }
       tesla_preap_radar_send(&pkt);
     }
 

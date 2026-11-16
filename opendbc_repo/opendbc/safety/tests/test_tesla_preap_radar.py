@@ -2,8 +2,10 @@
 """Pre-AP Bosch radar GTW: NAP-style bus-0 to bus-1 rewrite, flags 256 / 128.
 
 Flag off and flag 128 alone must not emit any bus-1 GTW frames. Flag 256 on Pre-AP
-emits the NAP map and synthetics on bus 1 only. 128/256 are ignored without PREAP.
-No new host TX, no bus-0 0x2B9, no VIN or UDS. Raw-wire tests, no DBC.
+emits the NAP map and synthetics on bus 1 only, once the host 0x560 donor config is
+complete (NAP 604b9c49). 128/256 are ignored without PREAP. Host TX adds only 0x560
+(consumed, never sent) and the bus-1 0x641 F190 read allow-list; both are covered in
+test_tesla_preap_radar_donor.py / test_tesla_preap_radar_f190.py. No bus-0 0x2B9. Raw-wire tests, no DBC.
 """
 import unittest
 
@@ -79,10 +81,9 @@ def expected_2a9(src, position=0, epas_type=0):
   hi = int.from_bytes(src[4:8], "little")
   lo = (lo & 0xFFFFF33F) | 0x100 | 0x440
   hi = (hi & 0xCFFF0F0F) | 0x10000000 | (position << 4) | (epas_type << 12)
-  data = bytearray(u32_le(lo) + u32_le(hi))
-  chksum = (0x2A9 & 0xFF) + ((0x2A9 >> 8) & 0xFF) + sum(data[:7])
-  data[7] = chksum & 0xFF
-  return bytes(data)
+  # No byte-7 checksum: Bosch BO_681 has none, byte 7 = (src & 0xCF) | 0x10 (NAP a2cdda8e,
+  # test_tesla_preap_radar_carconfig.py:22-50 @ opendbc 5dbe36d37 / openpilot 7eb09d2a7).
+  return u32_le(lo) + u32_le(hi)
 
 
 def expected_199_sna(src):
@@ -136,6 +137,22 @@ def raw(addr, data, bus=0):
   return pkt(addr, bytearray(data), bus)
 
 
+def donor_config(vin="", use_radar=True, position=0, epas_type=0):
+  """The three host 0x560 records (NAP teslacan.py:84-97 layout). Empty VIN = 17 spaces = this car."""
+  padded = (vin + " " * 17)[:17]
+  flags = (1 if use_radar else 0) | ((position & 0x03) << 1) | ((epas_type & 0x07) << 3)
+  return [
+    bytes((0, 1, flags, 0, 0, *padded[0:3].encode())),
+    bytes((1, *padded[3:10].encode())),
+    bytes((2, *padded[10:17].encode())),
+  ]
+
+
+def send_donor_config(vin="", use_radar=True, position=0, epas_type=0):
+  results = [bool(l.safety_tx_hook(pkt(0x560, d, 0))) for d in donor_config(vin, use_radar, position, epas_type)]
+  assert results == [False, False, False]  # consumed, never sent
+
+
 class RadarCase(unittest.TestCase):
   PARAM = PREAP | RADAR
 
@@ -143,6 +160,8 @@ class RadarCase(unittest.TestCase):
     self.assertEqual(l.set_safety_hooks(SAFETY_TESLA, self.PARAM), 0)
     l.init_tests()
     l.set_timer(1_000_000)
+    # blank VIN: GTW opens, no substitution (ignored when flag 256 is off). Position as the host sends it: 1 with flag 128.
+    send_donor_config(position=1 if (self.PARAM & NOSE) else 0)
     l.safety_can_send_log_reset()
 
   def rx(self, addr, data, bus=0):
@@ -180,6 +199,7 @@ class TestRadarFlagOff(RadarCase):
       self.assertEqual(frames, [], hex(addr))
 
   def test_tx_allowlist_unchanged(self):
+    # 0x560 / 0x641 are on the TX list now but always refused without flag 256.
     allowed = {(0x488, 0), (0x214, 0), (0x45, 0)}
     for addr in (0x488, 0x214, 0x45, 0x551, 0x2B9, 0x399, 0x560, 0x641, 0x219, 0x109, 0x2A9, 0x1A9, 0x169):
       for bus in range(4):
@@ -226,13 +246,23 @@ class TestRadarGtwOn(RadarCase):
     for addr in (0x32E, 0x33E, 0x370, 0x155, 0x551):
       self.assertEqual(self.rx(addr, bytes(range(8))), [], hex(addr))
 
-  def test_carconfig_patch_and_checksum(self):
-    src = bytes((0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00))
-    frames = self.rx(0x398, src)
-    self.assertEqual(len(frames), 1)
-    addr, bus, ln, body = frames[0]
-    self.assertEqual((addr, bus, ln), (0x2A9, 1, 8))
-    self.assertEqual(body, expected_2a9(src, position=0))
+  def test_carconfig_patch_no_byte7_checksum(self):
+    # zeros + the two NAP a2cdda8e vectors (test_tesla_preap_radar_carconfig.py:23-26 @ opendbc 5dbe36d37)
+    cases = (
+      ("0000000000000000", "4005000000000010"),
+      ("0290555300001700", "4295555300001710"),
+      ("0281555300000000", "4285555300000010"),
+    )
+    for src_hex, want_hex in cases:
+      src = bytes.fromhex(src_hex)
+      frames = self.rx(0x398, src)
+      self.assertEqual(len(frames), 1)
+      addr, bus, ln, body = frames[0]
+      self.assertEqual((addr, bus, ln), (0x2A9, 1, 8))
+      self.assertEqual(body.hex(), want_hex)
+      self.assertEqual(body, expected_2a9(src, position=0))
+      self.assertEqual(body[7] & 0x30, 0x10)  # GTW_autopilot = 1
+      self.assertEqual(body[7] & 0xCF, src[7] & 0xCF)
 
   def test_anglhp_sna_replacement(self):
     # lo bits 16.. have 0xFF3F in the masked field: bytes 2-3 of little-endian lo
@@ -279,6 +309,8 @@ class TestRadarGtwOn(RadarCase):
     self.assertFalse(any(bus == 0 for _, bus, _, _ in frames))
 
   def test_host_tx_allowlist_unchanged_and_bus0_2b9_blocked(self):
+    # 0x560 is on the TX list but is consumed and never sent; 0x641 with this all-zero payload is not on the F190
+    # allow-list, and it is never allowed on bus 0/2 or while engaged (test_tesla_preap_radar_f190.py).
     allowed = {(0x488, 0), (0x214, 0), (0x45, 0)}
     for addr in (0x488, 0x214, 0x45, 0x551, 0x2B9, 0x219, 0x2A9, 0x1A9, 0x169, 0x560, 0x641):
       for bus in range(4):
@@ -334,6 +366,7 @@ class TestRadarNosecone(RadarCase):
     frames = self.rx(0x398, src)
     self.assertEqual(len(frames), 1)
     self.assertEqual(frames[0][3], expected_2a9(src, position=1))
+    self.assertEqual(frames[0][3].hex(), "4005000010000010")  # position 1 = byte 4 bit 4 (tesla_preap.h:276 flag 128)
     self.assertNotEqual(frames[0][3], expected_2a9(src, position=0))
 
   def test_simple_readdr_unchanged(self):

@@ -11,7 +11,9 @@
 // Stricter than both references on purpose (see DIVERGENCES): the brake is read, steering through the brake needs an armed latch,
 // EAC_FAULT drops controls, STW_ACTN_RQ (0x45) may only send CANCEL, DAS_control (0x2b9) is not whitelisted, the pedal command is
 // capped at 2500, and the pedal sensor bus is latched to the first bus it is seen on. Optional Bosch radar
-// GTW (flags 256/128) is off by default; there is still no VIN or UDS path.
+// GTW (flags 256/128) is off by default. With flag 256 the GTW stays silent until the host has sent the full 0x560 donor
+// config (NAP 604b9c49); 0x560 is consumed here and never put on the car, and is ignored while engaged (stricter than NAP).
+// The only UDS path is a read-only F190 allow-list on bus 1 (0x641), disengaged only (NAP 347ac59b / edd064aa).
 
 #define TESLA_FLAG_PREAP 32U
 #define TESLA_FLAG_PREAP_PEDAL 64U
@@ -27,6 +29,14 @@ static int tesla_preap_pedal_bus = -1;  // G3: first bus the GAS_SENSOR (0x552) 
 static bool tesla_preap_radar_emulation = false;
 static int tesla_preap_radar_position = 0;
 static int tesla_preap_radar_epas_type = 0;
+// Donor-VIN config from the host (0x560, never on the car). NAP tesla_preap.h:124-130,199-228 @ opendbc 5dbe36d37
+// (openpilot naponsp-alpha-prebuilt 7eb09d2a7). Reset on every safety init.
+#define TESLA_PREAP_RADAR_VIN_ADDR 0x560U
+#define TESLA_PREAP_RADAR_UDS_ADDR 0x641U
+#define TESLA_PREAP_RADAR_VIN_LEN 17U
+static uint8_t tesla_preap_radar_vin[TESLA_PREAP_RADAR_VIN_LEN];
+static uint8_t tesla_preap_radar_vin_complete = 0U;   // bit per 0x560 record 0..2, 7 = complete
+static bool tesla_preap_radar_should_send = false;    // 0x560 record 0 data[2] bit 0 (useRadar)
 static int tesla_preap_gear = 4;                  // DI_gear, 4 = D
 static int tesla_preap_gear_prev = 4;
 static bool tesla_preap_doors_open = false;
@@ -199,9 +209,98 @@ static void tesla_preap_rx_hook(const CANPacket_t *msg) {
   }
 }
 
+// NAP preap_radar_ready() (tesla_preap.h:178-184): no bus-1 GTW frame until the 0x560 stream is complete and useRadar is set.
+static bool tesla_preap_radar_ready(void) {
+  return (tesla_preap_radar_vin_complete == 7U) && tesla_preap_radar_should_send;
+}
+
+// NAP preap_radar_donor_active() (tesla_preap.h:186-197): 17 spaces (or NULs) means "use this car", no substitution.
+static bool tesla_preap_radar_donor_active(void) {
+  bool active = false;
+  if (tesla_preap_radar_vin_complete == 7U) {
+    for (unsigned int i = 0U; i < TESLA_PREAP_RADAR_VIN_LEN; i++) {
+      if ((tesla_preap_radar_vin[i] != 0U) && (tesla_preap_radar_vin[i] != (uint8_t)' ')) {
+        active = true;
+      }
+    }
+  }
+  return active;
+}
+
+// NAP preap_apply_radar_vin_msg() (tesla_preap.h:199-228). Records 0..2 only, DLC 8 (TX list). Stricter than NAP:
+// ignored without flag 256 and while engaged or armed, so the radar contract cannot change mid-engagement.
+// Record 0 also carries the 0x2A9 position (bits 1-2, 0..2) and EPAS type (bits 3-5), as in NAP f00c8cb9; the host sends
+// position 1 with flag 128 and 0 without, and EPAS 0, so the radar sees the same values as before this change.
+static void tesla_preap_radar_apply_vin_msg(const CANPacket_t *msg) {
+  if (tesla_preap_radar_emulation && !controls_allowed && !tesla_preap_steer_armed && (GET_LEN(msg) == 8U)) {
+    const uint8_t rec = msg->data[0];
+    if (rec == 0U) {
+      const uint8_t cfg = msg->data[2];
+      const uint8_t position = (cfg >> 1U) & 0x03U;
+      const uint8_t epas_type = (cfg >> 3U) & 0x07U;
+      tesla_preap_radar_should_send = (cfg & 0x01U) != 0U;
+      tesla_preap_radar_position = (position > 2U) ? 0 : (int)position;
+      tesla_preap_radar_epas_type = (int)epas_type;
+      tesla_preap_radar_vin[0] = msg->data[5];
+      tesla_preap_radar_vin[1] = msg->data[6];
+      tesla_preap_radar_vin[2] = msg->data[7];
+      tesla_preap_radar_vin_complete |= 1U;
+    } else if (rec == 1U) {
+      for (unsigned int i = 0U; i < 7U; i++) {
+        tesla_preap_radar_vin[3U + i] = msg->data[1U + i];
+      }
+      tesla_preap_radar_vin_complete |= 2U;
+    } else if (rec == 2U) {
+      for (unsigned int i = 0U; i < 7U; i++) {
+        tesla_preap_radar_vin[10U + i] = msg->data[1U + i];
+      }
+      tesla_preap_radar_vin_complete |= 4U;
+    } else {
+      // other records ignored
+    }
+  }
+}
+
+// NAP preap_f190_payload_allowed() / preap_f190_tx_ok() (tesla_preap.h:137-172): exact 8-byte match against 6 frames,
+// bus 1, flag 256, disengaged (and not armed). Read-only: no write (0x2E), routine (0x31) or security access (0x27).
+static bool tesla_preap_radar_f190_tx_ok(const CANPacket_t *msg) {
+  static const uint8_t f190_allowed[6][8] = {
+    {0x02U, 0x3EU, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U},  // tester present
+    {0x02U, 0x10U, 0x01U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U},  // default session
+    {0x02U, 0x10U, 0x03U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U},  // extended session
+    {0x03U, 0x22U, 0xF1U, 0x90U, 0x00U, 0x00U, 0x00U, 0x00U},  // read DID F190 (VIN)
+    {0x30U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U},  // ISO-TP flow control
+    {0x02U, 0x3EU, 0x80U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U},  // tester present, no response
+  };
+  bool ok = false;
+  if (tesla_preap_radar_emulation && !controls_allowed && !tesla_preap_steer_armed && (msg->bus == 1U) && (GET_LEN(msg) == 8U)) {
+    for (unsigned int i = 0U; i < 6U; i++) {
+      bool match = true;
+      for (unsigned int b = 0U; b < 8U; b++) {
+        if (msg->data[b] != f190_allowed[i][b]) {
+          match = false;
+        }
+      }
+      ok = ok || match;
+    }
+  }
+  return ok;
+}
+
 static bool tesla_preap_tx_hook(const CANPacket_t *msg) {
   bool violation = false;
   const int addr = msg->addr;
+
+  if ((uint32_t)addr == TESLA_PREAP_RADAR_VIN_ADDR) {
+    // Host-to-panda donor config: consumed, never sent (NAP tesla_preap.h:771-775).
+    tesla_preap_radar_apply_vin_msg(msg);
+    violation = true;
+  }
+
+  if ((uint32_t)addr == TESLA_PREAP_RADAR_UDS_ADDR) {
+    // Radar UDS (bus 1 only by the TX list): F190 read sequence only, disengaged only (NAP tesla_preap.h:777-780).
+    violation = !tesla_preap_radar_f190_tx_ok(msg);
+  }
 
   if (addr == 0x488) {
     // DAS_steeringControl: AP1 packing, only NONE (0) and ANGLE_CONTROL (1) exist for Pre-AP
@@ -275,6 +374,11 @@ static safety_config tesla_preap_init_config(uint16_t param) {
   tesla_preap_radar_emulation = GET_FLAG(param, TESLA_FLAG_PREAP_RADAR_EMULATION);
   tesla_preap_radar_position = (tesla_preap_radar_emulation && GET_FLAG(param, TESLA_FLAG_PREAP_RADAR_BEHIND_NOSECONE)) ? 1 : 0;
   tesla_preap_radar_epas_type = 0;
+  tesla_preap_radar_vin_complete = 0U;
+  tesla_preap_radar_should_send = false;
+  for (unsigned int i = 0U; i < TESLA_PREAP_RADAR_VIN_LEN; i++) {
+    tesla_preap_radar_vin[i] = (uint8_t)' ';
+  }
   tesla_preap_gear = 4;
   tesla_preap_gear_prev = 4;
   tesla_preap_doors_open = false;
@@ -294,6 +398,8 @@ static safety_config tesla_preap_init_config(uint16_t param) {
     {0x45, 0, 8, .check_relay = false},   // STW_ACTN_RQ (cancel only)
     {0x551, 0, 6, .check_relay = false},  // Comma Pedal GAS_COMMAND, pedal on bus 0
     {0x551, 2, 6, .check_relay = false},  // Comma Pedal GAS_COMMAND, pedal on bus 2
+    {0x560, 0, 8, .check_relay = false},  // donor config host->panda: the tx hook consumes it and returns false, never on the car
+    {0x641, 1, 8, .check_relay = false},  // radar UDS, F190 read allow-list only, disengaged only
   };
 
   safety_config ret;
