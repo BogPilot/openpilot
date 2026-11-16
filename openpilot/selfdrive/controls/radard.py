@@ -191,6 +191,8 @@ class RadarD:
     self.lead_threshold = lead_threshold
     # Pre-AP Bosch retrofit only: docs/tesla/DIVERGENCES_preap_radar_filters.md (2). None everywhere else.
     self.stuck_filter = StuckTrackFilter() if preap else None
+    # Pre-AP: no radar-only low-speed lead; Tinkla, NAP and 0.9.7 keep the stock override (DIVERGENCES (3)).
+    self.low_speed_override = not preap
     self.stopping_runtime = stopping_runtime
     self.lane_change_settings = lane_change_settings
     self.ap1_lead_filters = [Ap1LeadGlitchFilter(DT_MDL) for _ in range(2)] if ap1_lead_filter else None
@@ -259,7 +261,8 @@ class RadarD:
         else:
           self.lead_prob_filters[i].update(lead_prob)
 
-      self.radar_state.leadOne = get_lead(self.v_ego, self.ready, self.tracks, leads_v3[0], model_v_ego, self.lead_prob_filters[0].x, low_speed_override=True,
+      self.radar_state.leadOne = get_lead(self.v_ego, self.ready, self.tracks, leads_v3[0], model_v_ego, self.lead_prob_filters[0].x,
+                                         low_speed_override=self.low_speed_override,
                                          lead_threshold=self.lead_threshold)
       self.radar_state.leadTwo = get_lead(self.v_ego, self.ready, self.tracks, leads_v3[1], model_v_ego, self.lead_prob_filters[1].x, low_speed_override=False,
                                          lead_threshold=self.lead_threshold)
@@ -277,7 +280,8 @@ class RadarD:
           preferred = None
         if preferred is not None:
           self.radar_state.leadOne = get_lead(self.v_ego, self.ready, self.tracks, leads_v3[0], model_v_ego,
-                                              self.lead_prob_filters[0].x, low_speed_override=True, preferred_track=preferred,
+                                              self.lead_prob_filters[0].x, low_speed_override=self.low_speed_override,
+                                              preferred_track=preferred,
                                               lead_threshold=self.lead_threshold)
       if self.ap1_lead_filters is not None:
         for i, field in enumerate(("leadOne", "leadTwo")):

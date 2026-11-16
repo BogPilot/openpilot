@@ -40,3 +40,12 @@ Model S / Model X behavior is unchanged. Code: `opendbc_repo/opendbc/car/tesla_a
   had changed by 3 m/s), and removes all 1941 frames where a fixed track had replaced a camera lead. AP1 as if it ran
   there: 0 lead frames lost on 536 replayed segments (813 held). An earlier 3 s / 0.15 m std detector without the
   vRel test flagged 18 AP1 tracks and lost 1.5 % of AP1 radar-lead frames.
+
+## (3) No low-speed radar-only lead on Pre-AP
+- Reference: Tinkla (`selfdrive/controls/radard.py:82-83,177` @ `501c7de`), NAP (`selfdrive/controls/radard.py:176-177,248`
+  @ `e99f4dc75`) and 0.9.7 (`selfdrive/controls/radard.py:230-231,347` @ `026cfb3`) keep the stock override: below
+  4 m/s, the closest radar track within 1 m laterally and 0.75 to 25 m ahead becomes leadOne without camera confirmation.
+- Ours: on Pre-AP, leadOne never uses the override (also when a Human Lane Change track is preferred); leads need the
+  camera. AP1 keeps the override.
+- Data: on the Pre-AP drive all 2022 low-speed-override lead frames were fixed tracks. On AP1 the override provides a
+  large share of real leads at low speed (34 % of radar-lead frames would be lost there), so it stays on for AP1.
