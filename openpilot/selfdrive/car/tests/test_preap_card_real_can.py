@@ -241,3 +241,78 @@ def test_0x560_stream_follows_donor_type_only_disengaged_and_not_in_drive(make_r
 def test_0x560_stream_off_without_radar_flag(make_rig):
   rig = make_rig(radar=False, donor_type=2, donor_vin=VIN)
   assert not [m for _ in range(60) for m in rig.step(gear=GEAR_P) if m[0] == 0x560]
+
+
+# ---- the read can never stop card ----
+
+class _LogRecorder:
+  def __init__(self):
+    self.calls = []
+
+  def __getattr__(self, name):
+    return lambda *a, **kw: self.calls.append((name, repr(a), repr(kw)))
+
+
+def test_internal_error_in_the_read_ends_it_cleanly_and_never_logs_details(rig, monkeypatch):
+  rec = _LogRecorder()
+  monkeypatch.setattr(card, "cloudlog", rec)
+  _, tx = _run_read(rig, max_s=0.03)                           # a read is running
+  assert rig.car.preap_vin_read.reader is not None
+
+  def boom(*a, **kw):
+    raise RuntimeError(f"decode failed for {VIN} {bytes(8)!r}")
+  monkeypatch.setattr(rig.car.preap_vin_read.reader, "update", boom)
+  out = rig.step(_radar_answers(tx))                           # card survives this step and still publishes sendcan
+  assert isinstance(out, list) and _uds(out) == []
+  assert _idle(rig) and preap_params.get_str(K.RADAR_VIN_READ_STATUS) == "read error"
+  assert [c[0] for c in rec.calls] == ["error"]
+  assert all(VIN not in "".join(c) and "decode failed" not in "".join(c) for c in rec.calls)
+  for _ in range(20):
+    rig.step()
+  _button_usable_again(rig)
+
+
+def test_rx_filter_error_does_not_stop_card(rig, monkeypatch):
+  _run_read(rig, max_s=0.03)
+
+  def bad_candata(*a):
+    raise ValueError("bad frame")
+  monkeypatch.setattr(card, "CanData", bad_candata)
+  took, _ = _run_read(rig, dt=0.2)                              # no replies reach the reader: it times out, card keeps going
+  assert took is not None and took <= 30.0
+  assert "timeout" in preap_params.get_str(K.RADAR_VIN_READ_STATUS)
+
+
+def test_read_is_bounded_even_if_the_reader_never_finishes(rig, monkeypatch):
+  from opendbc.car.tesla_ap1.preap import radar_vin_read
+  from opendbc.car.tesla_ap1.preap.radar_donor_vin import RadarDonorVinOutput, RadarDonorVinState
+  preap_params.set_bool(K.RADAR_READ_VIN, True)
+  rig.step()
+  monkeypatch.setattr(rig.car.preap_vin_read.reader, "update",
+                      lambda rx, now: RadarDonorVinOutput(RadarDonorVinState.READ_F190, ()))
+  t0 = rig.clock.t
+  while not _idle(rig) and rig.clock.t - t0 < 60.0:
+    rig.step()
+    rig.clock.t += 0.5
+  assert _idle(rig) and rig.clock.t - t0 <= radar_vin_read.MAX_READ_S + 1.0
+  assert preap_params.get_str(K.RADAR_VIN_READ_STATUS) == "timeout"
+
+
+def test_rx_only_collected_while_a_read_runs(rig):
+  rig.step([_single(b"\x7e\x00")])
+  assert rig.car.preap_vin_read_rx == []
+  preap_params.set_bool(K.RADAR_READ_VIN, True)
+  rig.step()
+  rig.step([_single(b"\x7e\x00")])
+  assert [(m.address, m.src) for m in rig.car.preap_vin_read_rx] == [(UDS_RX, UDS_BUS)]
+
+
+def test_runner_accepts_plain_tuples():
+  from opendbc.car.tesla_ap1.preap.radar_vin_read import RadarVinReadRunner
+  store = {}
+  fake = SimpleNamespace(get_bool=lambda k: store.get(k, False), set_bool=store.__setitem__, set_str=store.__setitem__)
+  store[K.RADAR_READ_VIN] = True
+  r = RadarVinReadRunner(True, params=fake)
+  assert _uds(r.update([], 0.0, False))
+  r.update([_single(b"\x7e\x00")], 0.01, False)
+  assert r.reader is not None and r.reader.state.name == "DEFAULT_SESSION"

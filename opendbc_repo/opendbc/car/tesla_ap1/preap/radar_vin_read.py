@@ -15,6 +15,7 @@ NAP card.py:216 (status text "saved <VIN>") is deliberately not ported.
 """
 from __future__ import annotations
 
+from opendbc.car.can_definitions import CanData
 from opendbc.car.tesla_ap1.preap import params as preap_params
 from opendbc.car.tesla_ap1.preap.params import PreApParamKeys
 from opendbc.car.tesla_ap1.preap.radar_donor_vin import (
@@ -29,6 +30,11 @@ STATUS_SAVED = "saved, restart the car"
 STATUS_ENGAGED = "disengage first"
 STATUS_RADAR_OFF = "radar off"
 STATUS_STOPPED = "stopped: engaged"
+STATUS_TIMEOUT = "timeout"
+STATUS_ERROR = "read error"
+
+# Backstop over the reader's own bounds (20 s for the read, then at most 3 s of cleanup): the button is free again after this.
+MAX_READ_S = 30.0
 
 _DONE = (RadarDonorVinState.COMPLETE, RadarDonorVinState.FAILED)
 
@@ -39,6 +45,7 @@ class RadarVinReadRunner:
     self.params = params
     self.reader: RadarDonorVinReader | None = None
     self.stored = False
+    self.started_at = 0.0
 
   def _status(self, text: str) -> None:
     self.params.set_str(PreApParamKeys.RADAR_VIN_READ_STATUS, text)
@@ -47,6 +54,15 @@ class RadarVinReadRunner:
     self.reader = None
     self._status(text)
     self.params.set_bool(PreApParamKeys.RADAR_READ_VIN, False)
+
+  def fail_safe(self) -> None:
+    """End the read after an internal error (called by card). Never raises; the error text is never stored or logged."""
+    self.reader = None
+    try:
+      self._status(STATUS_ERROR)
+      self.params.set_bool(PreApParamKeys.RADAR_READ_VIN, False)
+    except Exception:
+      pass
 
   def update(self, can_packets, now: float, engaged: bool) -> list:
     """can_packets: CanData-like items (address, dat, src) from this step. Returns 0x641 frames to send (bus 1)."""
@@ -63,6 +79,7 @@ class RadarVinReadRunner:
       self.reader = RadarDonorVinReader()
       self.reader.start(now)
       self.stored = False
+      self.started_at = now
       self._status(STATUS_READING)
 
     if engaged or not requested:
@@ -70,7 +87,12 @@ class RadarVinReadRunner:
       self._finish(STATUS_STOPPED if engaged else "")
       return []
 
-    rx = [p for p in can_packets if p.address == RADAR_UDS_RX and p.src == RADAR_UDS_BUS]
+    if now - self.started_at > MAX_READ_S:
+      self._finish(STATUS_TIMEOUT)
+      return []
+
+    # CanData or plain (address, dat, src) tuples, as can_capnp_to_list gives them.
+    rx = [CanData(p[0], p[1], p[2]) for p in can_packets if p[0] == RADAR_UDS_RX and p[2] == RADAR_UDS_BUS]
     out = self.reader.update(rx, now)
     if out.vin and not self.stored:
       # Stored as soon as F190 decodes (NAP test_commissioner_stores_vin_as_soon_as_f190_decodes); kept out of log text.

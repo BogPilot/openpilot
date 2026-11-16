@@ -213,10 +213,14 @@ class Car:
 
     can_strs = messaging.drain_sock_raw(self.can_sock, wait_for_one=True)
     can_list = can_capnp_to_list(can_strs)
-    if getattr(self, "preap_vin_read", None) is not None:
-      # Read Radar VIN button: radar UDS replies (0x651, bus 1) for this step only (opendbc tesla_ap1/preap/radar_vin_read.py).
+    self.preap_vin_read_rx = []
+    if getattr(self, "preap_vin_read", None) is not None and self.preap_vin_read.reader is not None:
+      # Read Radar VIN button, only while a read runs: radar UDS replies (0x651, bus 1) for this step (opendbc tesla_ap1/preap/radar_vin_read.py).
       # can_capnp_to_list gives (nanos, [(address, dat, src), ...]) plain tuples (selfdrive/pandad/pandad_api_impl.py).
-      self.preap_vin_read_rx = [CanData(addr, dat, src) for _, msgs in can_list for addr, dat, src in msgs if addr == 0x651 and src == 1]
+      try:
+        self.preap_vin_read_rx = [CanData(addr, dat, src) for _, msgs in can_list for addr, dat, src in msgs if addr == 0x651 and src == 1]
+      except Exception:
+        self.preap_vin_read_rx = []   # the read then times out on its own; card keeps running
 
     if self.ap1_model is not None:
       self.ap1_model.update(0)
@@ -361,7 +365,12 @@ class Car:
         # the panda reporting controls allowed, or no valid pandaStates (fail closed); any of them stops the read at once.
         panda_ok = bool(self.sm.valid["pandaStates"]) and not any(ps.controlsAllowed for ps in self.sm["pandaStates"])
         engaged = bool(CC.enabled) or bool(CC.latActive) or not panda_ok
-        can_sends = list(can_sends) + self.preap_vin_read.update(getattr(self, "preap_vin_read_rx", []), time.monotonic(), engaged)
+        try:
+          can_sends = list(can_sends) + self.preap_vin_read.update(getattr(self, "preap_vin_read_rx", []), time.monotonic(), engaged)
+        except Exception:
+          # Never let the read stop card: end it and free the button. Fixed text only, no exception text or frame data in logs.
+          self.preap_vin_read.fail_safe()
+          cloudlog.error("card: Pre-AP radar read ended on an internal error")
       self.pm.send('sendcan', can_list_to_can_capnp(can_sends, msgtype='sendcan', valid=CS.canValid))
 
       self.CC_prev = CC
