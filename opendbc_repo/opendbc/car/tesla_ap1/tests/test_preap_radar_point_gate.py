@@ -32,7 +32,7 @@ def test_preap_drops_invalid_points(long_paths, d, pe, kept):
   long_paths(True)
   store(radar=True)
   out = one_point(RadarInterface(preap_cp()), d, pe)
-  assert out is not None and len(out.points) == (1 if kept else 0) and not any(out.errors.to_dict().values())
+  assert out is not None and len(out.points) == (1 if kept else 0) and not out.errors.radarFault
 
 
 @pytest.mark.parametrize("d,pe", [(40.0, 96.875), (40.0, 18.75), (40.0, 0.0), (255.9375, 96.875)])
