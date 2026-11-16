@@ -2,6 +2,8 @@
 from opendbc.car.tesla_ap1.preap_radar_filters import STUCK_WINDOW_S, StuckTrackFilter
 
 DT = 0.05
+LSB = 1 / 16             # RadarPoint LongDist / LongSpeed step (0.0625)
+PHANTOM_D = 263 * LSB    # measured fixed-track range, m
 
 
 def run(f, d_of_t, v_rel, v_ego_of_t, seconds, tid=0):
@@ -20,7 +22,7 @@ def test_fixed_range_while_ego_accelerates_is_flagged_after_the_window():
 
 
 def test_lsb_noise_on_the_range_still_flags():
-  out = run(StuckTrackFilter(), lambda t: 16.4375 + (0.0625 if int(t / DT) % 3 == 0 else 0.0), 0.0625, lambda t: 1.0 * t, 8.0)
+  out = run(StuckTrackFilter(), lambda t: PHANTOM_D + (LSB if int(t / DT) % 3 == 0 else 0.0), LSB, lambda t: 1.0 * t, 8.0)
   assert out[-1][1]
 
 
