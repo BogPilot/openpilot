@@ -33,9 +33,12 @@ the brake behavior and the no-pedal cancel; BogPilot 0.9.7 na-preap 568fea947 fo
 - Unknown speed is refused, not held (fail closed). A non-finite speed (NaN, +-inf) is read as unknown (`engagement.py:188`).
 
 ## Display and sound
-- "Steering only / Pull twice for speed control" (`events.py` preapSteerOnly), "Speed control off / Steering only. Pull twice to retry"
-  (preapSpeedBlocked), "Stock cruise did not arm / Pull twice again" (preapCruiseNotArmed, NAP teslaCCNotArmed parity). No text
+- "Steering only / Double pull for speed control" (`events.py` preapSteerOnly), "Speed control off / Steering only. Double pull to retry"
+  (preapSpeedBlocked), "Stock cruise did not arm / Double pull again" (preapCruiseNotArmed, NAP teslaCCNotArmed parity). No text
   mentions braking or a hold: Pre-AP has no brake actuation. NAP has no steering-only banner.
+- User-facing text (these alerts and PREAP_PORT.md) names the gestures "single pull" and "double pull", after the "Double-pull vs
+  single-pull" section of NAP docs-nap/engagement.md:49-57 @ e99f4dc75, and leaves the timing out. NAP's doc itself describes a
+  first and a second pull inside a window; the window (strict `< 400 ms`) is unchanged and stays in the table above.
 - Steering-only path colour in both model renderers (`preap_steer_only`). Speed on/off chimes on the preapLatOnly edges; Q5
   `PREAP_SPEED_CHIMES_FOLLOW_TOGGLE` (`cruise_chimes.py:69`).
 
