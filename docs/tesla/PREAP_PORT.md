@@ -25,14 +25,14 @@ Code: `opendbc_repo/opendbc/car/tesla_ap1/preap/`, panda mode `opendbc_repo/open
 - One shared limit now lives in `preap/pedal_can.py` (`PANDA_MAX_ENABLED_RAW_GAS_CMD`, `PEDAL_RAW_MARGIN`, `PEDAL_ENABLED_RAW_LIMIT`).
   Both the calibration check (`preap/calib.py`) and the command encoder (`create_pedal_command`) use it, and a test reads
   `tesla_preap.h` and fails if the two numbers ever differ.
-- Math. Pedal scale = 100 / (pressed reading - coast reading). A planner pedal position `di` becomes the command
-  `coast - 1/scale + di/scale`, and the planner never goes above `PEDAL_DI_MAX` = 90. The limit is raw 2450, which is a command of
+- Math. Pedal scale = 100 / (full-throttle reading - zero reading). A planner pedal position `di` becomes the command
+  `zero - 1/scale + di/scale`, and the planner never goes above `PEDAL_DI_MAX` = 90. The limit is raw 2450, which is a command of
   about 101.59 (50 raw below the panda cap).
 - The accepted pedal scale window is a **fixed 0.82 to 3.0** (`FACTOR_MIN`, `FACTOR_MAX`; maintainers' decision). An earlier pass first derived the
   floor from the limit (about 0.88 to 0.89), so that the highest normal command always fitted under it. The floor is now looser on
   purpose: the encoder clamps every enabled command at the shared limit, so a low-scale pedal can no longer cause a dropped frame. It only
-  loses some top-end acceleration. A planner position above `max_reachable_di = 1 + scale * (101.59 - coast)` sends the same (clamped)
-  command. At scale 0.82 that is 84.3 with a coast reading of 0 and 83.7 at 0.8, so the top 6 or 7 points of the 0-90 range (about 7 %)
+  loses some top-end acceleration. A planner position above `max_reachable_di = 1 + scale * (101.59 - zero)` sends the same (clamped)
+  command. At scale 0.82 that is 84.3 with a zero reading of 0 and 83.7 at 0.8, so the top 6 or 7 points of the 0-90 range (about 7 %)
   are flat. A scale of 0.89 or more loses nothing. A real measured press (scale about 0.94) loses nothing.
   **The bounds will be revisited after the tester's 0.11.2 calibration and first-drive rlogs.**
 - A pedal scale saved outside the window (below 0.82 or above 3.0) is shown as "Recalibrate: scale out of range" and pedal
@@ -42,16 +42,18 @@ Code: `opendbc_repo/opendbc/car/tesla_ap1/preap/`, panda mode `opendbc_repo/open
 - The calibration failure messages are plain driver words (pedal scale, accelerator), for example
   "Pedal scale 0.718 is out of range (0.82 to 3.00). Check the Comma Pedal wiring and try again."
 
-### Pedal calibration saves the deepest point of the press
-- Before: the pedal reading saved as "fully pressed" was the first sample over coast + 10 (with the car seeing 5 % DI gas), which is
-  the very start of the press, so a slow press saved a far-too-low reading and a too-high scale.
-- Now the press is measured until the driver lets go: the capture starts at the same trigger, keeps every reading, and ends when the
-  reading has been back under coast + 10 for 10 frames (about 0.1 s) or 300 frames (about 3 s) after the press began, whichever is first.
-  The value saved is the deepest point the press **held** (`calib.press_peak`): the 8th highest reading (`PRESS_HOLD_SAMPLES`, about
-  80 ms at the 100 Hz controller). A noise spike shorter than that cannot be the answer.
-- A press that never stayed over coast + 10 for 8 readings fails with "The accelerator press was too short to measure. Press the pedal
-  fully, hold it down for a moment, then let go and try again." Cancel, a timeout, or losing the pedal mid-press saves nothing.
-- The guided screen says "Press the accelerator pedal fully once, then let go" and, in the detail line, to hold it for a moment.
+### Pedal calibration: zero where the car first sees throttle
+- Step 1 (feet off): a 200-frame window (about 2 s) while the car reads DI_pedalPos = 0, accepted when the medians of its two halves
+  agree within 1.0 and the peak-to-peak is under 10.0. The rest mean is saved as `PedalCalibMin`; the 99th percentile sets the noise floor.
+- Step 2 (one slow press to the floor): the pedal reading at the first frame with DI_pedalPos >= 0.4 % is `PedalCalibZero`, the reading at
+  the first frame with DI_pedalPos >= 99.6 % is `PedalCalibMax`, and the scale is 100 / (max - zero), as in Tinkla calibratePedal.py.
+- The zero is never below the rest p99 + 0.25. An onset reading under that is raised to it; an onset reading below the rest mean fails
+  ("The car saw the accelerator before the Comma Pedal reading moved. ...").
+- A twitch (back to DI 0 before 5 %) is ignored. A press let go before 99.6 %, or still short of it after about 5 s, fails with "The
+  accelerator was not pressed all the way down. Press it slowly to the floor, then let go and try again." Cancel, a timeout, or losing
+  the pedal mid-press saves nothing.
+- The guided screen says "Press the accelerator pedal fully once, then let go" and, in the detail line, to press slowly all the way down.
+- See the DIVERGENCES.md entry "Pre-AP pedal calibration: the zero is read where the car first sees throttle".
 
 ### "Pedal Not Responding" alert
 - When pedal longitudinal is on and the Comma Pedal stream (GAS_SENSOR, 0x552) is missing, or its counter has not moved for

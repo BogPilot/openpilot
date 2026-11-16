@@ -983,3 +983,45 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   the session stops when the car leaves Park; real carState messages, built and read back; the real page with its own
   wiring under headless raylib).
 - Credits: BogPilot 0.9.7 (the calibration flow and the "Park, foot off the pedal" instruction).
+
+## Pre-AP pedal calibration: the zero is read where the car first sees throttle, never below the rest noise
+- Platforms: Pre-AP Model S with a Comma Pedal (the guided Calibrate Pedal capture).
+- Reference behavior: Tinkla `selfdrive/car/tesla/pedal_calibrator/calibratePedal.py` (BogGyver/openpilot tesla_unity_dev @ 501c7de)
+  averages 100 pedal frames at rest with DI_pedalPos at 0 (`:210`, `:318-323`, `:340-347`) and saves that mean only as
+  `TeslaPedalCalibMin` (`:436`). It then sweeps a commanded pedal value up and saves the value where DI_pedalPos first goes above 0,
+  fine-tuned to DI 0.4 %, as `TeslaPedalCalibZero` (`:362-364`, `:396-399`, `:444`), the value at DI 99.6 % as `TeslaPedalCalibMax`
+  (`:354`, `:390`, `:440`) and factor = 100 / (max - zero) (`:401`). `tunes.py:19` uses `PEDAL_ZERO = CalibZero - 1/factor`, as does NAP
+  `nap_conf.py:282-302`. BogPilot 0.9.7 `na-preap` `selfdrive/car/tesla/preap/calib.py:75` saved the resting mean as the zero instead.
+- Our behavior (`opendbc_repo/opendbc/car/tesla_ap1/preap/calib.py`, `preap/carcontroller.py` `_update_detection_and_calib`):
+  1. Step 1 takes a 200-frame window (about 2 s at the 100 Hz controller) while the car reads DI_pedalPos = 0. It passes when the medians
+     of its two halves agree within 1.0 and its peak-to-peak is under 10.0 (DBC units); the peak-to-peak is recorded. The old test
+     (max-min <= 1.0 over 20 frames) failed a pedal whose rest reading is noisy.
+  2. Step 2 is one driver press. The pedal reading at the first frame with DI_pedalPos >= 0.4 % is the zero, the reading at the first frame
+     with DI_pedalPos >= 99.6 % is the max, factor = 100 / (max - zero). The old capture's zero (the resting mean) is retired.
+  3. Noise floor: the zero is never below the rest window's 99th percentile (nearest rank) + 0.25 (about 5 raw counts). An onset reading
+     between the rest mean and that floor is raised to the floor; an onset reading below the rest mean fails with "The car saw the
+     accelerator before the Comma Pedal reading moved. Check the Comma Pedal wiring and try again." and nothing is saved.
+  4. `PedalCalibMin` is now the rest mean (Tinkla `TeslaPedalCalibMin`) and `PedalCalibMax` the full-throttle reading. Both are
+     informational; only `PedalCalibZero` and `PedalCalibFactor` drive gasPressed and the pedal command. `PedalCalibMin` is an existing
+     file-backed key under /data/params_bogpilot, so no Params key or prebuilt library changes.
+  5. A press that goes back to DI 0 before passing 5 % is a twitch and is ignored. A press let go, or not reaching 99.6 % within 500
+     frames (about 5 s), fails with "The accelerator was not pressed all the way down. Press it slowly to the floor, then let go and
+     try again."
+- Divergences kept from Tinkla: the readings come from the pedal sensor (GAS_SENSOR, 0x552) during a driver press, not from a commanded
+  sweep, because the panda is never unlocked for calibration; there is no fine-tuning or 10-point validation pass; the noise floor and the
+  median rest check are ours.
+- Why: gasPressed with a Comma Pedal is pedal_to_di(reading) > 2, i.e. reading > zero + 1/factor (NAP `preap/carstate.py:158-159`,
+  `pedal_feedback.py:56-57`). With the zero at the resting mean, that cut sat inside the rest noise: a tester's pedal read 0x552 raw 433
+  to 485 with the foot off, and gasPressed flickered True on about one carState in seven at rest. With the zero at or above the floor the
+  cut is at least 1/factor above the rest p99.
+- Not changed: no gasPressed debounce; DI_pedalPos is not a gasPressed source; the panda (`tesla_preap.h`, its raw > 650 gas test and the
+  0x551 limits) is unchanged; the pedal command is still zero - 1/factor + di/factor, so a higher zero trims the top of the planner range
+  only at low scales (`max_reachable_di = 1 + factor * (101.59 - zero)`).
+- Testers must recalibrate: a saved calibration keeps its old zero until the driver runs Calibrate Pedal again.
+- Safety-relevant: yes (gasPressed and the pedal command both use the zero). The change makes gasPressed stricter at rest and the
+  commanded pedal value at DI 0 stays below the reading where the car sees throttle.
+- Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_pedal_zero_onset.py` (noisy rest passes, drift fails, onset capture,
+  floor clamp, fail below the rest mean, full reading, twitch, let go, window, gasPressed 0 at rest with the new zero and > 0 with the
+  rest-mean zero, commanded path with a higher zero), `test_preap_pedal.py`, `test_preap_pedal_limit.py`,
+  `openpilot/selfdrive/ui/tests/test_preap_pedal_cal.py`.
+- Credits: Tinkla/BogGyver (calibratePedal.py), NAP (nap_conf pedal_zero), BogPilot 0.9.7 (the guided driver-press flow).
