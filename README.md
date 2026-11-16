@@ -1,18 +1,26 @@
 # BogPilot for legacy Tesla Model S / X (openpilot 0.11.2 base)
 
-Branch: `bogpilot-tesla` (openpilot 0.11.2 base, comma 3X on AGNOS 19.9). Release tag: `bogpilot-tesla-c3x-0.11.2`.
+Branch: `bogpilot-tesla` (openpilot 0.11.2 base, comma 3X on AGNOS 19.9; comma 4 UI included, untested on hardware). Release tag: `bogpilot-tesla-c3x-0.11.2`.
 
 BogPilot is a community fork. It is not a comma product. You are always responsible for driving: keep your hands on the
 wheel and your eyes on the road, and be ready to take over at any time.
 
 > [!IMPORTANT]
-> **`bogpilot-tesla` is currently comma 3X only.** Install URL for comma 3X: `installer.comma.ai/BogPilot/bogpilot-tesla`
+> **`bogpilot-tesla` is supported and tested on the comma 3X.** Install URL for comma 3X: `installer.comma.ai/BogPilot/bogpilot-tesla`
+>
+> **Have a comma 4?** A comma 4 driving screen is now included, but it is untested on a real comma 4. See the warning below.
 >
 > **On a comma 3, do not install `bogpilot-tesla`.** comma does not officially support AGNOS 19.9 on comma 3 hardware.
 > If you have a comma 3 and a Model S AP1, use the `bogpilot-tesla-0.9.7` branch (AGNOS 10.1, which runs on the comma 3):
 > `installer.comma.ai/BogPilot/bogpilot-tesla-0.9.7`
 >
-> A 0.11.0 / AGNOS 17.2 LTS version will be backported from 0.11.2 once the full legacy Tesla integration is complete in v0.11.2.
+> The comma 3 will get a version backported from 0.11.2 to 0.10.0 / AGNOS 12.8 once the full legacy Tesla integration is complete in v0.11.2.
+
+> [!WARNING]
+> **comma 4 UI: included, untested on real hardware.** This branch now includes a BogPilot driving screen for the
+> comma 4, but it has never run on a real comma 4 because the developer does not have one. It has only been checked
+> with automated tests. The supported device for `bogpilot-tesla` is still the comma 3X. If you try it on a
+> comma 4, expect problems and report them in GitHub Issues.
 
 [![BogPilot on a legacy Model S (replay, signs and plates blurred).](docs/media/bogpilot_ui_replay_poster.png)](https://github.com/user-attachments/assets/bd31ac4c-b7e6-4b28-ac7b-2f897dcfb026)
 
@@ -41,6 +49,30 @@ with no Mobileye on bus 2.
   safety flag 256 is set) and its tests, one added Pre-AP pedal/brake test, and the panda source identity check
   (`panda/build_identity.py`). The AP1 safety path is unchanged. The radar gateway has no drive logs.
 
+## What's new in this build
+- **Onroad crash fix on git installs.** The prebuilt `loggerd` and `encoderd` could not find the shared ffmpeg
+  libraries on a git install and exited as soon as the device went onroad. The native prebuilts are now built against
+  the AGNOS 19.9 system venv, the same library path as openpilot 0.11.2. Panda firmware is unchanged by this fix.
+- **comma 4 driving screen** (untested on real hardware, see the warning above): the BogPilot speed pill, personality
+  button, 3-bar pedal gauge, lead boxes, steering arc and blind spot / status border, fitted to the comma 4 screen.
+  Display only. It runs only on a comma 4; the comma 3X driving screen does not use this code. Details:
+  `docs/tesla/DIVERGENCES_comma4_ui.md`.
+- **Sidebar Power.** Tapping the upper sidebar box now also offers Power (current draw in W) after status, Celsius and
+  Fahrenheit, offroad and onroad. Opt-in: the default stays numeric Celsius. Display only.
+- **What's new on the update splash.** The offroad update splash shows the newest section of `RELEASES.md` from the
+  incoming build. When it does not fit the comma 3X splash, it is cut at a whole line and ends with a "..." item; the
+  full notes stay in `RELEASES.md`.
+- **AP1 radar rate floor 6.69 Hz.** On AP1 Model S / X only, the radar tracks rate check now fails below 6.69 Hz
+  instead of the stock 8.0 Hz. The AP1 Bosch radar can run at 7.4-7.8 Hz with a full track list, which was raising
+  false communication alerts in heavy traffic. A missing or slow radar still fails the check; Pre-AP and other cars
+  keep 8.0 Hz. Panda safety is unchanged.
+- **No stock lead chevron.** The stock yellow / red lead triangle is never drawn; the BogPilot lead lock-on boxes and
+  labels show the lead instead.
+- **New defaults on a fresh install** (see "Features and defaults"): Driver Camera in Reverse on, and Experimental Mode
+  pre-confirmed while driving starts in Chill.
+
+Full notes: `RELEASES.md`. Every change from the references is listed in `docs/tesla/DIVERGENCES.md`.
+
 ## Install
 
 Requirements: comma 3X on AGNOS 19.9, a harness for your car.
@@ -60,21 +92,39 @@ with this tree. Do not install it on a comma 3X that is already on AGNOS 19.9.
   This is purely a visual change and doesn't impact how openpilot drives!"
 - Auto is stock openpilot 0.11.2 switching: in Experimental Mode with a wide stream, wide below 11 mph, narrow above
   22 mph, otherwise narrow. Standard always shows the narrow road camera; Wide always the wide one.
-- The old "Driver" choice is gone; a saved Driver value reads as Auto. The cabin camera still shows in reverse.
+- The old "Driver" choice is gone; a saved Driver value reads as Auto. The cabin camera still shows in reverse when
+  Driver Camera in Reverse is on (see below).
 - Registered default 0 (Auto). BogPilot > Appearance, under Quality of Life Visuals (default On).
 
-### Accel / decel bars (Pedals on Screen; default: **On**)
-- Two vertical bars replace the 0.9.7 pedal icons: decel on the left, accel on the right. They show when openpilot
-  longitudinal is active, Driving Screen Widgets is on (default On), Pedals on Screen is on (default **On**) and Dynamic
-  Pedals is on (default On). All three are under BogPilot > Appearance.
-- AP1 decel bar: total braking decel on one scale. **2.0 m/s² fills 50 %**, 3.5 m/s² fills 100 %.
-- Colours:
-  - regen (you, or nobody, braking with regen): **blue**; OP regen decel: dusty blue;
-  - your brake press: **red** when friction does most of the braking, violet when regen does most;
-  - OP applying the brake booster (AP1): **muted lavender** while regen has the majority, **rose** when friction has it;
-  - accel: green for your pedal, sage for an OP accel request.
-- The OP brake colour clears at most 0.25 s (plus one frame) after OP stops braking. Display only.
-- Pre-AP and other cars keep the two-half layout (regen half, brake press from 50 %).
+### Driver Camera in Reverse (default: **On**)
+- "Show Driver Camera When In Reverse": shows the driver camera after the car has been in reverse for half a second,
+  and returns to the road view when you leave reverse. Needs Quality of Life Visuals (default On).
+- On by default on a fresh install and after "Reset toggles to default". A device updated from an earlier build keeps
+  the value it already had (off unless you changed it).
+- All cars.
+
+### Experimental Mode on a fresh install (pre-confirmed, starts in Chill)
+- On a brand-new install (a device that has never run this software), the Experimental Mode warning counts as already
+  accepted, and driving starts in Chill (Experimental Mode off).
+- Updating from an earlier version changes nothing here: the first time you turn on Experimental Mode you still see
+  the warning, and once you accept it, it does not come back.
+- This lets the stalk hold (below) switch between Chill and Experimental from the first drive. That switch needs
+  openpilot longitudinal (AP1 Model S); on other cars the confirmation does nothing.
+- Experimental Mode is still alpha. You are responsible for driving.
+
+### Pedal gauge (Pedals on Screen; default: **On**)
+- Three vertical bars replace the 0.9.7 pedal icons: brake pedal on the left, regen power in the centre, acceleration on
+  the right. They show when openpilot longitudinal is active, Driving Screen Widgets is on (default On) and Pedals on
+  Screen is on (default **On**), both under BogPilot > Appearance. The old Dynamic / Static pedal options are gone.
+- Left, brake pedal: how hard the friction brake is applied. AP1 reads the brake booster rod stroke; Pre-AP shows on / off
+  from the brake switch, or the pedal position with the iBooster retrofit.
+- Centre, regen: regen power in kW from motor torque and speed. A full bar is 55 kW, so normal regen reads about half;
+  below 1 kW it stays empty.
+- Right, acceleration: your accelerator pedal while you press it, otherwise openpilot's acceleration request (a full bar
+  is 2.0 m/s², the most openpilot can command). Your pedal always wins.
+- Colours: bright when you are driving the bar (brake red, regen blue, accel green), muted when openpilot is (brake mauve
+  while openpilot applies the brake booster on AP1, regen light blue, accel sage).
+- Missing or stale data leaves a bar empty. Display only: nothing in controls, planning or the panda reads it.
 
 ### Confidence ball (default: On, left edge)
 - A small ball on the edge of the driving screen whose height follows the driving model's confidence.
@@ -101,6 +151,10 @@ with this tree. Do not install it on a comma 3X that is already on AGNOS 19.9.
 - Blind Spot Lane Fill (default On): tints the lane beside you red while the car reports a vehicle there.
 - Blind Spot Border (default On): turns that half of the screen border red.
 - Only cars that report blind spot data (Tesla AP1).
+
+### Sidebar upper box: Temp or Power (default: Celsius)
+- Tap the upper sidebar box to cycle status -> Celsius -> Fahrenheit -> Power. Power is the device's current draw in W
+  (grey `--` when it cannot be read). Offroad and onroad. Display only.
 
 ### AP1 / legacy Tesla longitudinal tuning ported from 0.9.7
 On AP1 Model S / X and Pre-AP Model S, a one-time start-up write applies the profiles the maintainer drove on 0.9.7,
