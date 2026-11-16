@@ -52,9 +52,7 @@ def test_hold_unit_blip_resets():
 
 def test_preap_sgufail_held_goes_camera_only_without_error(long_paths):
   out = drive(preap_ri(long_paths), [(1.0, {}), (3.0, {"RADC_SGUFail": 1}), (3.0, {})])
-  ctrl = drive(preap_ri(long_paths), [(7.0, {})])                    # same stream, SGUFail never set
-  assert all(o is not None and not o.errors.radarFault for _, o in out)                 # never a fault
-  assert [o.errors.to_dict() for _, o in out] == [o.errors.to_dict() for _, o in ctrl]   # errors identical to no SGUFail
+  assert all(o is not None and not any(o.errors.to_dict().values()) for _, o in out)   # never a fault or CAN error
   t_on, t_off = 2.0, 5.0
   before = [o for t, o in out if t < t_on + SGUFAIL_HOLD_S - 0.1]
   held = [o for t, o in out if t_on + SGUFAIL_HOLD_S + 0.1 < t < t_off]
