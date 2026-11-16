@@ -79,6 +79,7 @@ class TestStateToScreen(PedalCase):
     s = cal.screen_for(cal.Snapshot(armed=True, stage="coast_ok", live=True), elapsed=10)
     self.assertEqual((s.phase, s.instruction), (cal.PRESS, "Press the accelerator pedal fully once, then let go"))
     self.assertEqual([st for _, st in s.steps], [cal.DONE, cal.ACTIVE, cal.TODO])
+    self.assertIn("slowly all the way down", s.detail)
 
   def test_saved_shows_ready_and_scale(self):
     s = cal.screen_for(cal.Snapshot(live=True, calibrated=True, factor=0.94137), phase_hint=cal.SAVED)
@@ -132,7 +133,8 @@ class TestStateToScreen(PedalCase):
   def test_intro_has_the_full_text_and_start_cancel(self):
     html = cal.intro_html()
     for needle in ("Put the car in Park", "Keep your foot off the accelerator and brake pedals", "the car sees no input",
-                   "Press the accelerator pedal fully once, hold it for a moment, then let go", "A small twitch is ignored",
+                   "Press the accelerator pedal fully once, slowly, all the way down, then let go", "A small twitch is ignored",
+                   "about two seconds",
                    "only if the reading is sensible", "leave your current calibration exactly as it was", "90 seconds"):
       self.assertIn(needle, html)
     self.assertNotIn(">>", html)

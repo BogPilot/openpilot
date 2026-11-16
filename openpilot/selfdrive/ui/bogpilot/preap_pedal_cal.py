@@ -9,7 +9,8 @@ anywhere.
 The car process (preap/carcontroller.py) owns the capture. It publishes progress through file-backed params under /data/params_bogpilot
 (PedalCalibArmed / Stage / Message, PedalCalibDone / Zero / Factor, PedalDetected + PedalSeenTs). The UI only reads those and arms or
 disarms with calib.arm_calibration / calib.cancel_calibration. Cancel, a UI timeout, the car moving, and leaving the screen all disarm
-and never write a calibration value. The calibration logic itself (coast frames, press thresholds, span/factor validation) is unchanged.
+and never write a calibration value. The capture itself (rest window, the reading where the car first sees throttle, span/factor
+validation) lives in preap/calib.py and preap/carcontroller.py.
 """
 from __future__ import annotations
 
@@ -36,8 +37,8 @@ INTRO_TITLE = "Calibrate Comma Pedal"
 INTRO_PARAGRAPHS = (
   "Put the car in Park with the ignition on. Keep your foot off the accelerator and brake pedals. Keep the car stopped for the whole calibration.",
   "Step 1: Keep your foot off the accelerator and brake pedals. BogPilot waits until the pedal reading is steady and the car sees no input. "
-  "This takes about half a second.",
-  "Step 2: Press the accelerator pedal fully once, hold it for a moment, then let go. A small twitch is ignored.",
+  "This takes about two seconds.",
+  "Step 2: Press the accelerator pedal fully once, slowly, all the way down, then let go. A small twitch is ignored.",
   "BogPilot saves the new calibration only if the reading is sensible. If it is not, nothing is changed and you can try again.",
   "Cancel, running out of time (%d seconds), the car moving, or leaving the screen all leave your current calibration exactly as it "
   "was. Pedal longitudinal needs a calibrated pedal." % int(TIMEOUT_S),
@@ -182,7 +183,7 @@ def screen_for(snap: Snapshot, *, phase_hint: str = "", elapsed: float = 0.0, re
                   _steps(ACTIVE, TODO, TODO), ("Cancel",), False)
   if snap.stage == calib.STAGE_COAST_OK:
     return Screen(PRESS, "Step 2 of 2", "Press the accelerator pedal fully once, then let go",
-                  "Press the accelerator pedal all the way down, hold it for a moment, then let go. %d s left." % remaining,
+                  "Press the accelerator pedal slowly all the way down, then let go. %d s left." % remaining,
                   _steps(DONE, ACTIVE, TODO), ("Cancel",), False)
   return Screen(COAST, "Step 1 of 2", "Keep your foot off the accelerator and brake pedals",
                 "Keep your foot off the accelerator and brake pedals until the check mark appears. %d s left." % remaining,
