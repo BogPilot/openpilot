@@ -186,6 +186,10 @@ def get_lead(v_ego: float, ready: bool, tracks: dict[int, Track], lead_msg: capn
 
 
 class RadarD:
+  # Pre-AP filters are off unless __init__ turns them on (also for a RadarD built without __init__).
+  stuck_filter = None
+  low_speed_override = True
+
   def __init__(self, delay: float = 0.0, ap1_lead_filter: bool = False, stopping_runtime=None, lane_change_settings=None,
                lead_threshold: float = .5, preap: bool = False):
     self.lead_threshold = lead_threshold
