@@ -257,7 +257,8 @@ Recorded disagreements only where the cited files were read. No speculation.
   (`selfdrive/car/tesla/radar_interface.py:89-111` @ `501c7de`). Here Pre-AP faults on HWFail only, so SGUFail and
   SensorDirty never fault, nosecone or not (`opendbc_repo/opendbc/car/tesla_ap1/radar_interface.py`); AP1 keeps
   HWFail, SGUFail and SensorDirty. A CAN error or a silent radar still fails closed as in (2).
-  (4) Radar point filters on Pre-AP (SGUFail held means camera only, among others): `docs/tesla/DIVERGENCES_preap_radar_filters.md`.
+  (4) Radar point filters on Pre-AP (stuck tracks, no low-speed radar-only lead, range and ProbExist gate; SGUFail
+  stays ignored): `docs/tesla/DIVERGENCES_preap_radar_filters.md`.
 - Backup and resets (maintainer decision): both keys are in the durable settings backup and Toggle Backups (restore),
   and are not in Reset to Stock or Reset to Defaults, so a reset never turns the retrofit off.
 - Why: drivers moving from NAP have the retrofit; off by default leaves every other Pre-AP car unchanged.
