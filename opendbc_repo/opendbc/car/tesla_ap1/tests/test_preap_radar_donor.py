@@ -128,6 +128,28 @@ def test_rearm_on_lost_echoes_reinit_reboot_heartbeat():
     assert s.state == Link.STREAM, lk
 
 
+def test_no_send_when_safety_ok_is_false_between_panda_samples():
+  """A stream already in STREAM must not send 0x560 once the latest link is not in the car's mode, even with no new pandaStates sample.
+
+  observe() only moves to WAIT_SAFETY on a new sample. The every-step `not link.safety_ok` check
+  (radar_donor.py RadarDonorStream.update) is what stops a mid-cycle mode change, or a stale link that is
+  no longer ok, from putting 0x560 on the wire while state is still STREAM.
+  """
+  s = _fresh()
+  sent = _run(s, 10)
+  assert sent and s.state == Link.STREAM
+  # Same 10 Hz slot as a send, no new sample, safety_ok now false: nothing goes out; held_mode counts the hold.
+  held = s.held_mode
+  out = s.update(10, False, False, link=_link(ok=False, sample=False))
+  assert out == [] and s.held_mode == held + 1
+  later = _run(s, 20, start=11, link=lambda f: _link(ok=False, sample=False))
+  assert later == []
+  # Control: the same stale (no new sample) link with safety_ok still set would send on the 10 Hz slot.
+  s2 = _fresh()
+  _run(s2, 10)
+  assert len(s2.update(10, False, False, link=_link(ok=True, sample=False))) == 1
+
+
 def test_card_start_already_in_the_cars_mode_streams_in_drive():
   """First pandaStates sample already in the car's mode, not in Park: still send the three records.
 

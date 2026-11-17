@@ -96,7 +96,6 @@ class RadarDonorStream:
     self.rearms = 0
     self.sent = 0
     self.held_mode = 0
-    self._log = log_fn
 
   @property
   def donor_active(self) -> bool:
