@@ -17,7 +17,7 @@ def _spy(ri):
 def test_malformed_packets_are_skipped_and_time_falls_back_to_steps(long_paths):
   ri = ri_on(long_paths)
   seen = _spy(ri)
-  now = ri._preap_gate_step(["junk", (1, 2, 3), None and ()], set())
+  now = ri._preap_gate_step(["junk", (1, 2, 3), None], set())
   assert seen == [] and now == ri._preap_steps * 0.01
 
 
