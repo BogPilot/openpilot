@@ -57,16 +57,16 @@ every car and device (hardwared is generic).
    (fail-closed: going onroad and engaging are refused) instead of a healthy-looking 100 % / 0 %. A read with no success
    for 10 s keeps its last real value and logs `hardwared device reads stale` (and `... fresh again`). NAP holds its
    cached values without a staleness log.
-9. **Decision pending: stale temperatures while engaged.** Both behaviors are built, chosen by one module
-   constant read once when hardwared starts, `STALE_THERMAL_POLICY` in `openpilot/system/hardware/bg_reads.py`
+9. **Stale temperatures while engaged: `"nap"` by default, `"strict"` selectable.** Both behaviors are built, chosen by one
+   device-wide module constant (AP1 gets it too) read once when hardwared starts, `STALE_THERMAL_POLICY` in `openpilot/system/hardware/bg_reads.py`
    (logged at start as `hardwared stale thermal policy`; an unknown value falls back to strict):
-   - `"strict"` (**default** until decided): as soon as the temperatures are stale (no fresh reading for
+   - `"strict"` (selectable): as soon as the temperatures are stale (no fresh reading for
      10 s), thermalStatus is at least `overheated`, whatever the held reading. selfdrived then raises its stock
      `overheat` event: SOFT_DISABLE "System Overheated" when engaged (the stock 3 s soft-disable, then disengage) and
      NO_ENTRY otherwise; offroad it blocks going onroad. So an engaged car is disengaging within about 10.5 s of the
      last good reading (10 s plus one 0.5 s loop step). The device does not go offroad (only `critical` does that,
      as stock). Stock instead stopped deviceState, and selfdrived raised commIssue within 5 s.
-   - `"nap"` (NAP's design): fan 100 % from 10 s; `overheated` at once if the held reading was warm (at or above the
+   - `"nap"` (**default**, NAP's design): fan 100 % from 10 s; `overheated` at once if the held reading was warm (at or above the
      overheated band's entry temperature), otherwise after 60 s more of staleness (70 s after the last fresh reading). A thermal reader that hangs
      onroad with a cool last reading therefore allows up to about 70 s engaged without fresh temperatures.
    The hang is logged by name either way (`hardwared slow thermal zone`, `hardwared thermal stale`).
@@ -93,7 +93,7 @@ every car and device (hardwared is generic).
 - Held readings keep driving the bands, a warm device fails hot as soon as its readings go stale, a cool one fails
   hot after 60 s more, and the fan runs at full the whole time. Before the first reading the device is held offroad
   with the fan at full. Stock instead stopped publishing, which selfdrived treated as commIssue within 5 s; the one
-  path that can be slower than stock is divergence 9 with the `"nap"` policy (strict is the default).
+  path that can be slower than stock is divergence 9 with the `"nap"` policy (the default; strict is selectable).
 - No change to panda safety, CAN, controls, selfdrived's checks or any cereal schema.
 
 ## Tests

@@ -1045,17 +1045,17 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   their first read and log when stale; NAP's 10 s selfdrived commIssue window is not ported.
   Details: `docs/tesla/DIVERGENCES_hardwared_bg_reads.md`.
 - Why: a stalled sysfs read stopped deviceState for 12 to 14 s on Pre-AP cars and selfdrived raised commIssue.
-- Safety-relevant: yes (thermal protection). **Decision pending:** stale temperatures while engaged are
-  selectable by `STALE_THERMAL_POLICY` (`openpilot/system/hardware/bg_reads.py:41`, read once at start). `"strict"` (default): overheated as soon as
-  stale (10 s), so selfdrived's stock overheat event soft-disables an engaged car within about 10.5 s. `"nap"`: a cool
-  held reading stays engaged up to about 70 s (overheated after 60 s more stale, 70 s after the last fresh reading). Stock's stalled deviceState gave
-  commIssue in 5 s.
+- Safety-relevant: yes (thermal protection). Stale temperatures while engaged follow `STALE_THERMAL_POLICY`
+  (`openpilot/system/hardware/bg_reads.py:43`, read once at start). `"nap"` (default, as NAP): a cool held reading stays
+  engaged up to about 70 s (overheated after 60 s more stale, 70 s after the last fresh reading), a warm one is overheated
+  at once. `"strict"` (selectable): overheated as soon as stale (10 s), so selfdrived's stock overheat event soft-disables an
+  engaged car within about 10.5 s. The constant is device-wide (AP1 too). Stock's stalled deviceState gave commIssue in 5 s.
 - Our own hardening beyond NAP (NAP has no staleness gate here): free space or memory with no fresh read for over 60 s,
   after the first read, blocks new onroad entry (startup condition `device_reads_fresh`); never forces offroad mid-drive
   (logged and kept onroad); a fresh read clears it.
 - Tests: `openpilot/system/hardware/tests/test_hardwared_loop_rate.py`, `test_bg_reads.py`, `test_stale_entry_gate.py`,
   `test_hardwared_thermal_snapshot.py` (the loop takes the temperatures and their freshness from one snapshot),
-  `test_thermal_stall_policies.py` (12 to 14.4 s thermal read stalls under both policies).
+  `test_thermal_stall_policies.py` (12 to 14.4 s thermal read stalls and a hung reader under both policies).
 - Credits: NAP.
 
 ## Pre-AP radar-valid filter: no radar points until the radar is VALID (camera leads meanwhile)
@@ -1082,15 +1082,15 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Our behavior:
   - A radar that is not VALID (pending, a rejected config such as radPositionMismatch, any ITC, starved, frozen or silent)
     never blocks engage and never causes a no-entry, soft disable or disengage. Its points stay out of radard
-    (`opendbc_repo/opendbc/car/tesla_ap1/radar_interface.py:173`), speed control runs on camera leads, and one warning,
-    "Radar not ready – using camera lead", shows while engaged with openpilot longitudinal (`openpilot/selfdrive/car/card.py:279`,
+    (`opendbc_repo/opendbc/car/tesla_ap1/radar_interface.py:177`), speed control runs on camera leads, and one warning,
+    "Radar not ready – using camera lead", shows while engaged with openpilot longitudinal (`openpilot/selfdrive/car/card.py:284`,
     `tesla_ap1/ap1_events.py:78`, `openpilot/selfdrive/selfdrived/events.py:1013`, ET.WARNING only). The pull FSM has no radar
     term (`tesla_ap1/preap/carstate.py:300`, `:312`).
-  - radarFault comes only from RADC_HWFail (`radar_interface.py:136`). SGUFail, any ITC, pending and a radar that never spoke
-    never fault.
+  - radarFault comes only from RADC_HWFail (`radar_interface.py:140`), and not at all with the Ignore radar HWFail option on
+    (default off; see below). SGUFail, any ITC, pending and a radar that never spoke never fault.
   - The frozen 1-point check (starved or rejected ITC, 1.5 s) only filters: those points never become the lead.
   - A radar that is silent from boot is harmless: until its trigger message has arrived the radar interface publishes an empty,
-    error-free RadarData at 20 Hz (`radar_interface.py:113-114`), so there is no canError, commIssue, radarFault or
+    error-free RadarData at 20 Hz (`radar_interface.py:114-115`), so there is no canError, commIssue, radarFault or
     radarTempUnavailable.
   - Stale thermal: only the temperature reader's own age can fail hot (`openpilot/system/hardware/hardwared.py:357`, `:438`).
     Radar data and the other device reads never count as thermal.
@@ -1126,3 +1126,51 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   not a measured regen capability; tests also cover a -0.9 floor.
 - Tests: `openpilot/selfdrive/selfdrived/tests/test_preap_regen.py`.
 - Credits: NAP.
+
+## Pre-AP: Ignore radar HWFail option (default off)
+- Platforms: Pre-AP Model S with the retrofit Bosch radar. AP1 unchanged.
+- Reference behavior: NAP adds a toggle that turns RADC_HWFail into an advisory state: param `NAPRadarIgnoreHwFail`
+  (`opendbc/car/tesla/preap/nap_params.py:32`, default False at `:67`, opendbc `508d26fcb`; added in opendbc `a4c8a40f`),
+  re-read every radar cycle (`opendbc/car/tesla/radar_interface.py:26-53`, `:186-187`) and applied at `:211`
+  (`if radar_status['RADC_HWFail'] and not ignore_hw_fail: radarFault`). opendbc `0894437f` also honors it on a frozen table
+  with SGUFail (points dropped instead of a fault).
+- Our behavior: the same mechanism and default as a Pre-AP param, `TeslaRadarIgnoreHwFail`
+  (`opendbc_repo/opendbc/car/tesla_ap1/preap/params.py`, NAP's name without the NAP prefix like the other keys, default off),
+  read every radar cycle through card's params snapshot (`radar_interface.py:140`). Off: HWFail is a radarFault (no entry,
+  soft disable), as before. On: no radarFault; the radar-valid gate still sees HWFail (F4), so the points stay out of radard
+  and the one "Radar not ready" warning shows while engaged. No UI is added (set the param file). NAP `0894437f` needs no port:
+  a frozen table never faults here (it only filters).
+- Why: lets a car with a radar that reports HWFail drive on camera leads, as NAP allows, without changing the default.
+- Safety-relevant: yes (it hides a radar hardware fault when turned on). Default off.
+- Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_radar_ignore_hwfail.py` (off, on, live toggle, healthy radar
+  with it on).
+- Credits: NAP.
+
+## Pre-AP: 0x560 only while the panda shows the Pre-AP car mode (host side)
+- Platforms: Pre-AP with radar emulation. AP1 unchanged.
+- Reference behavior: NAP opendbc `f00c8cb9` streams 0x560 (the radar VIN config the panda consumes) from the car controller
+  without looking at the panda's safety mode.
+- Our behavior: 0x560 is sent only while the latest valid pandaStates entry of the panda it goes to (sendcan bus // 4) shows
+  SafetyModel.tesla with the Pre-AP flag, without the AP1 flag, and exactly the param from CarParams
+  (`opendbc_repo/opendbc/car/tesla_ap1/preap/panda_link.py` `preap_mode_ok`). Two checks, each on every step: the stream
+  stops on the first step another mode shows, even before a new pandaStates sample
+  (`opendbc_repo/opendbc/car/tesla_ap1/preap/radar_donor.py` `update`), and card drops any 0x560 left in sendcan for a panda
+  that is not in that mode, or with no valid pandaStates (`openpilot/selfdrive/car/card.py` `preap_gate_560`). Never in
+  ELM327, allOutput, noOutput, silent or another param. Panda safety is unchanged.
+- Why: in allOutput or ELM327 the panda does not consume 0x560, so it could reach the car bus.
+- Safety-relevant: yes (keeps a config frame off the car bus).
+- Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_mode_gates.py`,
+  `openpilot/selfdrive/car/tests/test_preap_card_mode_gates.py`.
+- Credits: NAP (the 0x560 stream).
+
+## Pre-AP: pedal and steering refusals count only in the car's safety mode
+- Platforms: Pre-AP with the comma pedal.
+- Reference behavior: NAP feeds the panda's refusals of its own 0x551 / 0x488 to the pull state machine.
+- Our behavior: rejected echoes of 0x551 (bus 0 and 2) and 0x488 (bus 0) count only once pandaStates for panda 0 has shown
+  the Pre-AP car mode on this step and the one before (`panda_link.py` `TxRefusalWatch.step` `car_mode`, `card.py`
+  `preap_link_update`). Before that, the ELM327 panda refuses every idle 0x488 at startup; those are counted as
+  `ignored_pre_mode` and never reach the pull state machine. Every refusal after the switch still counts, a lost echo included.
+- Why: at startup the refusals of the ELM327 window were read as pedal refusals.
+- Safety-relevant: yes (refusals in the car's mode are never dropped).
+- Tests: `test_preap_mode_gates.py`, `test_preap_card_mode_gates.py` (150 startup refusals ignored, 3 later ones counted).
+- Credits: NAP, BogPilot.

@@ -1,16 +1,16 @@
 # Pre-AP radar-valid filter (advisory, never an engage gate)
 
 Code: `opendbc_repo/opendbc/car/tesla_ap1/preap/radar_valid.py` (`RadarValidGate`), wired in `tesla_ap1/radar_interface.py`;
-card (`selfdrive/car/card.py:279`) turns a radar that is not VALID into `carState.bogpilot.preapRadarNotReady`, one warning.
+card (`selfdrive/car/card.py:284`) turns a radar that is not VALID into `carState.bogpilot.preapRadarNotReady`, one warning.
 The radar is never an engage input: the Pre-AP pull FSM (`preap/carstate.py` speed_block :300, long_allowed :312) has no radar
 term. Pre-AP only; AP1 has no filter. Lateral is never touched. See DIVERGENCES.md, "radar health is advisory, not an engage
 gate".
 
 ## What it does
 - Until the radar is VALID, and while any fault below is active, radar_interface publishes no radar points
-  (`radar_interface.py:173`): speed control runs on camera leads and, while engaged with openpilot longitudinal, one warning
+  (`radar_interface.py:177`): speed control runs on camera leads and, while engaged with openpilot longitudinal, one warning
   shows, "Radar not ready – using camera lead" (event `preapRadarNotReady`, ET.WARNING only, `selfdrived/events.py:1013`;
-  `ap1_events.py:78`). Never a no-entry, soft disable or disengage. Only HWFail is a radarFault (`radar_interface.py:136`).
+  `ap1_events.py:78`). Never a no-entry, soft disable or disengage. Only HWFail is a radarFault (`radar_interface.py:140`; none with the Ignore radar HWFail option on, default off).
 - A returned gateway echo (flag 256) only proves we sent the config frames. Whether the radar ACCEPTED it is read from the
   radar itself. The log-only status line (`preap radar: echoed= pending= valid= fault= late= ...`, every 5 s and on each
   change) reports echoed, pending, valid and the fault name separately.
