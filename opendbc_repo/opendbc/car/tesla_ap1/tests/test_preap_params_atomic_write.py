@@ -175,3 +175,58 @@ def test_mkstemp_dir_is_the_key_directory(_params_dir, monkeypatch):
   assert recorded["dir"] == str(dest.parent)
   assert recorded["parent"] == str(dest.parent)
   assert dest.read_text(encoding="utf-8") == "firmware-dir-check"
+
+
+def test_fsync_is_called_on_the_tmp_file_and_the_key_directory(_params_dir, monkeypatch):
+  """os.fsync must run on the tmp file and on the key directory. A missing call is a silent durability gap."""
+  key = K.PANDA_FIRMWARE
+  dest = params._path(key)
+  opened = {}
+  calls = []
+  real_fsync = os.fsync
+  real_open = os.open
+  real_mkstemp = tempfile.mkstemp
+
+  def wrap_mkstemp(*args, **kwargs):
+    fd, name = real_mkstemp(*args, **kwargs)
+    opened[fd] = name
+    return fd, name
+
+  def wrap_open(path, flags, *args, **kwargs):
+    fd = real_open(path, flags, *args, **kwargs)
+    opened[fd] = os.fspath(path)
+    return fd
+
+  def wrap_fsync(fd):
+    path = opened.get(fd)
+    if path is None:
+      for cand in (f"/proc/self/fd/{fd}", f"/dev/fd/{fd}"):
+        try:
+          path = os.readlink(cand)
+          break
+        except OSError:
+          continue
+    calls.append(path)
+    return real_fsync(fd)
+
+  monkeypatch.setattr(tempfile, "mkstemp", wrap_mkstemp)
+  monkeypatch.setattr(os, "open", wrap_open)
+  monkeypatch.setattr(os, "fsync", wrap_fsync)
+
+  params._write_text_file(key, "fsync-record")
+  assert dest.read_text(encoding="utf-8") == "fsync-record"
+  assert calls, "os.fsync was not called"
+  dest_parent = dest.parent.resolve()
+  tmp_hits = [p for p in calls if p and Path(p).name.startswith(dest.name + ".") and str(p).endswith(".tmp")]
+  dir_hits = []
+  for p in calls:
+    if not p:
+      continue
+    try:
+      if Path(p).resolve() == dest_parent:
+        dir_hits.append(p)
+    except OSError:
+      if os.path.abspath(p) == os.path.abspath(str(dest.parent)):
+        dir_hits.append(p)
+  assert tmp_hits, f"no tmp-file fsync in {calls}"
+  assert dir_hits, f"no directory fsync in {calls}"

@@ -61,9 +61,11 @@ def test_without_the_cache_the_same_steps_do_file_io(io_log):
 def test_writes_reach_the_file_from_the_background_thread(cache, _params_dir):
   params.set_float(K.PEDAL_SEEN_MONO, 12.5)
   assert params.get_float(K.PEDAL_SEEN_MONO) == 12.5          # read-your-write at once
-  deadline = time.monotonic() + 2.0
+  # perf_counter: the imported autouse _params_dir fixture patches time.monotonic
+  # to a frozen test clock, so a monotonic deadline would never expire if the file is late.
+  deadline = time.perf_counter() + 2.0
   path = params._path(K.PEDAL_SEEN_MONO)
-  while time.monotonic() < deadline and not path.is_file():
+  while time.perf_counter() < deadline and not path.is_file():
     time.sleep(0.02)
   assert path.read_text().strip() == "12.5"
 
