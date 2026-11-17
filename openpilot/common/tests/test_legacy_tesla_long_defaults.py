@@ -64,7 +64,7 @@ def test_platforms_are_the_three_tesla_ap1_platforms_and_not_ap2():
   assert {str(c) for c in CAR} == P.LEGACY_TESLA_PLATFORMS      # a new platform must be decided on purpose
 
 
-@pytest.mark.parametrize("model", sorted(P.LEGACY_TESLA_PLATFORMS))
+@pytest.mark.parametrize("model", ["TESLA_AP1_MODELS", "TESLA_AP1_MODELX"])
 def test_fresh_device_gets_the_whole_profile_once(model, tmp_path):
   p = FakeParams(CarModel=model)
   written = run(p, tmp_path)
@@ -73,13 +73,13 @@ def test_fresh_device_gets_the_whole_profile_once(model, tmp_path):
     assert P.values_equal(p.vals[key], value), key
   marker = json.loads(P.legacy_tesla_long_marker_path(tmp_path).read_text())
   assert set(marker["written"]) == set(ALL_KEYS) and marker["kept"] == {} and marker["skipped_groups"] == []
-  p.vals["DecelerationProfile"] = "0"          # the owner changes it afterwards: never reverted
+  p.vals["DecelerationProfile"] = "0"          # a later change is never reverted
   assert run(p, tmp_path) == [] and p.vals["DecelerationProfile"] == "0"
 
 
 def test_persistent_fingerprint_is_enough_when_car_model_is_unset(tmp_path, monkeypatch):
   monkeypatch.setattr(P, "_persistent_fingerprint", lambda params: "TESLA_PREAP_MODELS")
-  assert set(run(FakeParams(), tmp_path)) == set(ALL_KEYS)
+  assert set(run(FakeParams(), tmp_path)) == set(ALL_KEYS) - {"DecelerationProfile"}
 
 
 @pytest.mark.parametrize("model", ["TESLA_AP2_MODELS", "TOYOTA_COROLLA_TSS2", "", None])
@@ -103,7 +103,8 @@ def test_custom_values_are_never_overwritten(tmp_path):
   for key, value in dict(AccelerationProfile="3", RelaxedFollow="1.9", AggressiveJerkAcceleration="70", HumanAcceleration="0",
                          LongitudinalTune="0", StandardFollow="1.6").items():
     assert p.vals[key] == value and key not in written
-  assert p.vals["DecelerationProfile"] == "2" and p.vals["CustomPersonalities"] == "1"       # the untouched rest is filled
+  assert "DecelerationProfile" not in p.vals or p.vals.get("DecelerationProfile") != "2"
+  assert p.vals["CustomPersonalities"] == "1"       # the untouched rest is filled (DecelerationProfile is not, PS N1)
   kept = json.loads(P.legacy_tesla_long_marker_path(tmp_path).read_text())["kept"]
   assert kept["AccelerationProfile"] == "3" and kept["RelaxedFollow"] == "1.9" and kept["LongitudinalTune"] == "0"
 
@@ -124,10 +125,32 @@ def test_adoption_file_on_disk_counts_too(tmp_path):
   assert p.vals["RelaxedFollow"] == "1.75" and "CustomPersonalities" not in p.vals
 
 
-def test_default_equal_value_is_treated_as_unmodified_on_preap_and_x_documented_limit(tmp_path):
-  p = FakeParams(CarModel="TESLA_PREAP_MODELS", DecelerationProfile="1")        # registry default (Eco)
+def test_default_equal_value_is_treated_as_unmodified_on_model_x_documented_limit(tmp_path):
+  p = FakeParams(CarModel="TESLA_AP1_MODELX", DecelerationProfile="1")        # registry default (Eco)
   run(p, tmp_path)
   assert p.vals["DecelerationProfile"] == "2"
+
+
+def test_preap_first_boot_leaves_deceleration_profile_at_one_or_unset(tmp_path):
+  p = FakeParams(CarModel="TESLA_PREAP_MODELS")
+  written = run(p, tmp_path)
+  assert "DecelerationProfile" not in written
+  assert p.vals.get("DecelerationProfile") in (None, "1")
+  assert p.vals.get("DecelerationProfile") != "2"
+  assert set(written) == set(ALL_KEYS) - {"DecelerationProfile"}
+
+
+def test_preap_with_deceleration_already_one_is_not_moved_to_eco_plus(tmp_path):
+  p = FakeParams(CarModel="TESLA_PREAP_MODELS", DecelerationProfile="1")
+  run(p, tmp_path)
+  assert p.vals["DecelerationProfile"] == "1"
+
+
+def test_preap_already_set_to_eco_plus_is_left_alone(tmp_path):
+  p = FakeParams(CarModel="TESLA_PREAP_MODELS", DecelerationProfile="2")
+  written = run(p, tmp_path)
+  assert p.vals["DecelerationProfile"] == "2"
+  assert "DecelerationProfile" not in written
 
 
 def test_ap1_s_after_its_profile_ran_keeps_a_value_chosen_back_at_the_default(tmp_path):
@@ -160,12 +183,45 @@ def test_boot_hook_runs_it_and_stock_reset_suppresses_it(tmp_path):
   p = FakeParams(CarModel="TESLA_AP1_MODELX")
   r = after_defaults(p, file_root=tmp_path)
   assert any(e.startswith("legacy-tesla-long:") and e != "legacy-tesla-long:0" for e in r.events), r.events
-  assert p.vals["DecelerationProfile"] == "2"
+  assert p.vals["DecelerationProfile"] == "2"      # AP1 Model X is unchanged from 92aa9ee1f
   q = FakeParams(CarModel="TESLA_AP1_MODELX")
   d2 = tmp_path / "stock"; d2.mkdir()
   (d2 / "AP1StockReset1").write_text("1")
   r2 = after_defaults(q, file_root=d2)
   assert "ap1:suppressed-stock-reset" in r2.events and not (set(q.puts) & set(ALL_KEYS))
+
+
+def test_preap_boot_hook_does_not_write_deceleration_profile(tmp_path):
+  from openpilot.system.manager.bogpilot_startup import after_defaults
+  p = FakeParams(CarModel="TESLA_PREAP_MODELS")
+  r = after_defaults(p, file_root=tmp_path)
+  assert any(e.startswith("legacy-tesla-long:") and e != "legacy-tesla-long:0" for e in r.events), r.events
+  assert p.vals.get("DecelerationProfile") in (None, "1")
+  assert p.vals.get("DecelerationProfile") != "2"
+
+
+def test_ap1_profile_behaviour_equals_92aa9ee1f(tmp_path):
+  for model in ("TESLA_AP1_MODELS", "TESLA_AP1_MODELX"):
+    d = tmp_path / model
+    d.mkdir()
+    p = FakeParams(CarModel=model)
+    written = run(p, d)
+    assert set(written) == set(ALL_KEYS)
+    assert p.vals["DecelerationProfile"] == "2"
+    for key, value in ALL_KEYS.items():
+      assert P.values_equal(p.vals[key], value), (model, key)
+  # The AP1 S/X profile dict itself stays the 92aa9ee1f Eco+ entry.
+  assert P.LEGACY_TESLA_LONG_PROFILE[P._ACK_PROFILES]["DecelerationProfile"] == "2"
+
+
+def test_mutant_readding_preap_decel_rule_is_caught(tmp_path, monkeypatch):
+  monkeypatch.setattr(P, "_legacy_long_profile_for",
+                      lambda fp: {ack: dict(prof) for ack, prof in P.LEGACY_TESLA_LONG_PROFILE.items()})
+  p = FakeParams(CarModel="TESLA_PREAP_MODELS")
+  run(p, tmp_path)
+  assert p.vals.get("DecelerationProfile") == "2", (
+      "re-adding the pre-AP DecelerationProfile='2' write must be visible; production never writes it"
+  )
 
 
 def test_never_raises(tmp_path):

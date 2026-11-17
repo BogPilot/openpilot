@@ -546,8 +546,9 @@ def apply_legacy_slc_defaults_once(params=None, bogpilot_dir: Path | None = None
 #   4. AP1 Model S with the AP1DefaultsApplied marker: that profile already rewrote every still-default value once, so a
 #      value that is back at the registry default now was chosen by the owner after it: only unset keys are written
 #   5. "Reset to stock" (AP1StockReset1) suppresses it (bogpilot_startup), and LongitudinalTune=0 keeps the planner off
-#   Known limit (Pre-AP / Model X): an owner who explicitly picked the registry default itself (for example Eco
+#   Known limit (Model X): someone who explicitly picked the registry default itself (for example Eco
 #   deceleration) cannot be told apart from an untouched device and is moved to Eco+; the one-shot never repeats.
+#   Pre-AP is excluded from the DecelerationProfile write (PS N1); Eco+ is not applied there.
 # The marker records what was written and what was kept, for audit and for a manual undo.
 LEGACY_TESLA_PLATFORMS = frozenset({"TESLA_AP1_MODELS", "TESLA_AP1_MODELX", "TESLA_PREAP_MODELS"})
 LEGACY_TESLA_LONG_MARKER_NAME = "LegacyTeslaLongDefaultsApplied1"
@@ -573,6 +574,19 @@ LEGACY_TESLA_LONG_PROFILE: dict[str, dict[str, str]] = {
   },
   _ACK_HUMAN_FOLLOWING: {"HumanFollowing": "1"},
 }
+
+
+def _legacy_long_profile_for(fingerprint: str) -> dict[str, dict[str, str]]:
+  # PS N1: do not write DecelerationProfile on TESLA_PREAP_MODELS (Eco+ would
+  # limit pre-AP regen). AP1 S/X keep LEGACY_TESLA_LONG_PROFILE unchanged from
+  # 92aa9ee1f. Devices that already have '2' set are left as-is (no migration).
+  out: dict[str, dict[str, str]] = {}
+  for ack, profile in LEGACY_TESLA_LONG_PROFILE.items():
+    prof = dict(profile)
+    if fingerprint == "TESLA_PREAP_MODELS":
+      prof.pop("DecelerationProfile", None)
+    out[ack] = prof
+  return out
 
 
 def legacy_tesla_long_marker_path(bogpilot_dir: Path | None = None) -> Path:
@@ -620,7 +634,8 @@ def apply_legacy_tesla_long_defaults_once(params=None, bogpilot_dir: Path | None
     ap1_profile_ran = is_ap1(params) and marker_path(directory).exists()
     written: list[str] = []
     audit: dict = {"written": {}, "kept": {}, "skipped_groups": []}
-    for ack, profile in LEGACY_TESLA_LONG_PROFILE.items():
+    fingerprint = _legacy_slc_fingerprint(params)
+    for ack, profile in _legacy_long_profile_for(fingerprint).items():
       if _adopted_by_owner(params, directory, ack):
         audit["skipped_groups"].append(ack)
         continue
