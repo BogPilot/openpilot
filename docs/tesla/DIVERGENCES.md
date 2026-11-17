@@ -1088,7 +1088,7 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
     "Radar not ready – using camera lead", shows while engaged with openpilot longitudinal (`openpilot/selfdrive/car/card.py:284`,
     `tesla_ap1/ap1_events.py:78`, `openpilot/selfdrive/selfdrived/events.py:1013`, ET.WARNING only). The pull FSM has no radar
     term (`tesla_ap1/preap/carstate.py:300`, `:312`).
-  - radarFault comes only from RADC_HWFail (`radar_interface.py:142`), and not at all with the Ignore radar HWFail option on
+  - radarFault comes only from RADC_HWFail (`radar_interface.py:188`), and not at all with the Ignore radar HWFail option on
     (default off; see below). SGUFail, any ITC, pending and a radar that never spoke never fault.
   - The frozen 1-point check (starved or rejected ITC, 1.5 s) only filters: those points never become the lead.
   - A radar that is silent from boot is harmless: until its trigger message has arrived the radar interface publishes an empty,
@@ -1143,14 +1143,16 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   with SGUFail (points dropped instead of a fault).
 - Our behavior: the same mechanism and default as a Pre-AP param, `TeslaRadarIgnoreHwFail`
   (`opendbc_repo/opendbc/car/tesla_ap1/preap/params.py`, NAP's name without the NAP prefix like the other keys, default off),
-  read every radar cycle through card's params snapshot (`radar_interface.py:142`). Off: HWFail is a radarFault (no entry,
+  read every radar cycle through card's params snapshot (`radar_interface.py:188`). Off: HWFail is a radarFault (no entry,
   soft disable), as before. On: no radarFault; the radar-valid gate still sees HWFail (F4), so the points stay out of radard
-  and the one "Radar not ready" warning shows while engaged. No UI is added (set the param file). NAP `0894437f` needs no port:
-  a frozen table never faults here (it only filters).
+  and the one "Radar not ready" warning shows while engaged. A Vehicle Settings toggle is shown only on a detected Pre-AP
+  Model S while Bosch Radar is on (hidden on AP1 and while the car is unknown). The same file can still be set over ssh
+  (docs/tesla/HOWTO_preap_ignore_radar_hwfail.md). NAP `0894437f` needs no port: a frozen table never faults here (it only
+  filters).
 - Why: lets a car with a radar that reports HWFail drive on camera leads, as NAP allows, without changing the default.
 - Safety-relevant: yes (it hides a radar hardware fault when turned on). Default off.
 - Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_radar_ignore_hwfail.py` (off, on, live toggle, healthy radar
-  with it on).
+  with it on), `openpilot/selfdrive/ui/tests/test_preap_radar_ignore_hwfail_toggle.py`.
 - Credits: NAP.
 
 ## Pre-AP: 0x560 only while the panda shows the Pre-AP car mode (host side)

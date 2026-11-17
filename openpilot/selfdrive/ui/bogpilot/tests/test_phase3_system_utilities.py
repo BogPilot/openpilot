@@ -327,7 +327,7 @@ class UtilitiesTest(unittest.TestCase):
   def test_reset_bogpilot_defaults_leaves_preap_radar_toggles(self):
     # Maintainer rule: the radar toggles are backed up and restored, never reset.
     act = self.actions()
-    for k in ("TeslaRadarEnabled", "TeslaRadarBehindNosecone"):
+    for k in ("TeslaRadarEnabled", "TeslaRadarBehindNosecone", "TeslaRadarIgnoreHwFail"):
       self.assertNotIn(k, b.shipping_defaults())
       (self.file_root / k).write_text("1")
 
@@ -339,7 +339,7 @@ class UtilitiesTest(unittest.TestCase):
     import openpilot.common.bogpilot_ap1_profile as ap1
     with patch.object(sb, "backup_settings", fake_backup), patch.object(ap1, "clear_ap1_defaults_marker", lambda directory=None: None):
       act.reset_bogpilot_defaults()
-    for k in ("TeslaRadarEnabled", "TeslaRadarBehindNosecone"):
+    for k in ("TeslaRadarEnabled", "TeslaRadarBehindNosecone", "TeslaRadarIgnoreHwFail"):
       self.assertEqual((self.file_root / k).read_text(), "1")
 
   def test_reset_bogpilot_defaults_still_resets_unread_border_metrics(self):

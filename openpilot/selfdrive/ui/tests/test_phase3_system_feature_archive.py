@@ -39,7 +39,7 @@ class FeatureArchiveTests(unittest.TestCase):
                                   specs=self.specs, defaults=lambda:{'Fahrenheit':'0','ScreenTimeout':'30','NoLogging':'0'})
 
   def test_full_frozen_scope_not_generic_secret_dump(self):
-    self.assertEqual(len(f.FEATURE_SPECS),260)
+    self.assertEqual(len(f.FEATURE_SPECS),261)
     self.assertFalse(set(f.FEATURE_SPECS)&set(f.PROTECTED_EXCLUSIONS))
     for key in ('SshEnabled','CarParams','CalibrationParams','SecOCKey','DongleId','ForceFingerprint','AlwaysOnDM','RemoteUIStream'):
       self.assertNotIn(key,f.FEATURE_SPECS)
@@ -124,7 +124,7 @@ class FeatureArchiveTests(unittest.TestCase):
     self.assertEqual(self.store.raw('LocalLoggingDisableConsent'),'0')
 
   def test_preap_radar_file_toggles_round_trip(self):
-    keys = ('TeslaRadarEnabled', 'TeslaRadarBehindNosecone')
+    keys = ('TeslaRadarEnabled', 'TeslaRadarBehindNosecone', 'TeslaRadarIgnoreHwFail')
     from openpilot.common.bogpilot_toggles import FILE_TOGGLES
     for k in keys:
       self.assertEqual(f.FEATURE_SPECS[k]['source'], 'FILE_TOGGLES')
@@ -133,10 +133,10 @@ class FeatureArchiveTests(unittest.TestCase):
     specs = {k: f.FEATURE_SPECS[k] for k in keys}
     archive = f.FeatureArchive(self.prefs, lambda: dict(self.compat), self.root, specs=specs,
                                defaults=lambda: {k: '0' for k in keys})
-    self.store.values.update({'TeslaRadarEnabled': '1', 'TeslaRadarBehindNosecone': '1'})
+    self.store.values.update({k: '1' for k in keys})
     name = archive.backup()
     self.assertEqual(json.loads((self.root / name).read_text())['values'], {k: '1' for k in keys})
-    self.store.values.update({'TeslaRadarEnabled': '0', 'TeslaRadarBehindNosecone': '0'})
+    self.store.values.update({k: '0' for k in keys})
     archive.apply_preview(archive.preview(name))
     self.assertEqual({k: self.store.raw(k) for k in keys}, {k: '1' for k in keys})
     self.store.values.pop('TeslaRadarBehindNosecone')               # never set: restore brings back the saved value

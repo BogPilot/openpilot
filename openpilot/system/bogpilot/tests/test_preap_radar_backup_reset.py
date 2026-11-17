@@ -10,7 +10,7 @@ from openpilot.system.bogpilot import toggle_reset as tr
 from openpilot.system.bogpilot.tests.test_settings_backup import SandboxParams
 from openpilot.system.bogpilot.tests.test_toggle_reset import TypedParams
 
-RADAR_KEYS = ("TeslaRadarEnabled", "TeslaRadarBehindNosecone")
+RADAR_KEYS = ("TeslaRadarEnabled", "TeslaRadarBehindNosecone", "TeslaRadarIgnoreHwFail")
 
 
 class TestPreApRadarBackupReset(unittest.TestCase):
@@ -24,7 +24,7 @@ class TestPreApRadarBackupReset(unittest.TestCase):
 
   def test_keys_match_the_car_code_and_default_off(self):
     from opendbc.car.tesla_ap1.preap.params import DEFAULTS, PreApParamKeys as K
-    self.assertEqual((K.RADAR_ENABLED, K.RADAR_BEHIND_NOSECONE), RADAR_KEYS)
+    self.assertEqual((K.RADAR_ENABLED, K.RADAR_BEHIND_NOSECONE, K.RADAR_IGNORE_HW_FAIL), RADAR_KEYS)
     for k in RADAR_KEYS:
       self.assertIs(DEFAULTS[k], False)
       self.assertIs(FILE_TOGGLES[k][0], False)

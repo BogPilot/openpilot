@@ -2220,6 +2220,15 @@ FEATURE_SPECS = json.loads(r'''{
     "title": "Pre-AP: Bosch Radar",
     "type": "BOOL"
   },
+  "TeslaRadarIgnoreHwFail": {
+    "declared_default": "0",
+    "max": null,
+    "min": null,
+    "source": "FILE_TOGGLES",
+    "step": null,
+    "title": "Ignore Radar Hardware Fault (Pre-AP)",
+    "type": "BOOL"
+  },
   "ToyotaDoors": {
     "declared_default": "1",
     "max": null,

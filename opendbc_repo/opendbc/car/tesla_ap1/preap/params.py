@@ -56,7 +56,8 @@ class PreApParamKeys:
   # Ignore radar HWFail (NotAutopilot NAPRadarIgnoreHwFail, opendbc/car/tesla/preap/nap_params.py:32,67 @ opendbc 508d26fcb, added in
   # a4c8a40f). Default OFF: RADC_HWFail is a radarFault (no entry / soft disable). ON: HWFail is advisory only, as NAP
   # radar_interface.py:211: no radarFault, the radar-valid gate still sees it (points kept out, the one warning). Read every radar
-  # cycle, as NAP (through card's params snapshot, so no file IO in the step). No UI here.
+  # cycle, as NAP (through card's params snapshot, so no file IO in the step). Vehicle Settings toggle on a detected
+  # Pre-AP Model S while Bosch Radar is on; the same file can still be set over ssh.
   RADAR_IGNORE_HW_FAIL = "TeslaRadarIgnoreHwFail"
   # Aftermarket iBooster swap (Tinkla TinklaHasIBooster, selfdrive/car/tesla/carstate.py:115@501c7de). Default OFF, Pre-AP
   # only, read once when the car starts. Display only: the onroad brake bar follows 0x554 BrakePedalPosition instead of

@@ -190,6 +190,20 @@ _add("TeslaRadarDonorType", "Pre-AP: Radar Donor Type",
      note="Shown only while Bosch Radar is on. Press to step through the three types. Takes effect the next time the car starts. "
           + _OFFROAD,
      default="Model S pre-facelift")
+_add("TeslaRadarIgnoreHwFail", "Ignore Radar Hardware Fault (Pre-AP)",
+     "For a Pre-AP Model S with a retrofitted Tesla Bosch radar that reports a persistent hardware fault "
+     "(Radar Error: Restart the Car) even though the radar is working. Off (the default): that fault is a "
+     "Radar Error, so openpilot will not engage and will soft-disable if already engaged. On: that fault is no "
+     "longer a Radar Error, so openpilot can engage. The radar-valid gate still treats the hardware fault as a "
+     "fault, so radar points stay out of speed control, camera leads are used, and the one Radar not ready - "
+     "using camera lead warning shows while engaged. Other radar faults and a frozen track are unchanged: they "
+     "never raise Radar Error here, and frozen tracks are still dropped. Takes effect immediately "
+     "(the next radar cycle).",
+     when="If the car shows a persistent Radar Error: Restart the Car alert from the retrofit radar even though "
+          "the radar is fitted and working.",
+     note="Shown only on a detected Pre-AP Model S, and only while Bosch Radar is on. Hidden until the car is "
+          "identified, and never shown on AP1 or an unknown car. " + _OFFROAD,
+     default="Off")
 _add("TeslaHasIBooster", "Pre-AP: iBooster Swap",
      "For a Pre-AP Model S with an aftermarket iBooster. On: the brake bar of Pedals on Screen follows how far the brake pedal is "
      "pressed, read from the iBooster. Off: the bar is full while the brake is pressed and empty otherwise. If the iBooster "

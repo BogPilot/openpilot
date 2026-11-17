@@ -19,6 +19,7 @@ REGEN = "RegenComfortBrake"
 RADAR = "TeslaRadarEnabled"
 RADAR_NOSECONE = "TeslaRadarBehindNosecone"
 IBOOSTER = "TeslaHasIBooster"
+RADAR_IGNORE_HW_FAIL = "TeslaRadarIgnoreHwFail"
 RADAR_READ_VIN = "TeslaRadarReadVin"
 RADAR_DONOR_TYPE = "TeslaRadarDonorType"
 RADAR_DONOR_TYPE_TITLE = "Pre-AP: Radar Donor Type"
@@ -34,7 +35,8 @@ TITLES = {LONG: "Disable openpilot Longitudinal Control",
           DOUBLE_PULL: "Pre-AP: Double Pull to Engage Pedal Longitudinal",
           RADAR: "Pre-AP: Bosch Radar",
           RADAR_NOSECONE: "Pre-AP: Radar Behind Nosecone",
-          IBOOSTER: "Pre-AP: iBooster Swap"}
+          IBOOSTER: "Pre-AP: iBooster Swap",
+          RADAR_IGNORE_HW_FAIL: "Ignore Radar Hardware Fault (Pre-AP)"}
 # Pre-AP wording for the shared Disable row (AP1 keeps the stock text).
 PREAP_LONG_TITLE = "Disable Pedal Longitudinal"
 PREAP_LONG_DESCRIPTION = ("Turn on to disable Comma Pedal longitudinal (steering only). Leave it off so BogPilot can control your speed through a "
@@ -68,6 +70,10 @@ DESCRIPTIONS = {
   IBOOSTER: "Turn on only if the car has an aftermarket iBooster fitted on the chassis bus. The brake bar on the driving screen "
             "then follows how far the brake pedal is pressed instead of showing full or empty. Display only. "
             "Takes effect the next time the car starts.",
+  RADAR_IGNORE_HW_FAIL: "Turn this on if the retrofit radar keeps showing Radar Error: Restart the Car even though the radar is "
+                        "working. Openpilot can then engage and uses camera leads; radar points stay out of speed control and a "
+                        "Radar not ready - using camera lead warning still shows. Other radar faults are unchanged. "
+                        "Takes effect immediately.",
 }
 
 
@@ -118,6 +124,10 @@ class VehicleSettings:
       return is_preap(cp)              # Pre-AP retrofit only; AP1 has its own radar and never shows the row
     if key == IBOOSTER:
       return is_preap(cp)              # Pre-AP swap only; AP1 cars have the factory iBooster (0x39D brake level)
+    if key == RADAR_IGNORE_HW_FAIL:
+      from opendbc.car.tesla_ap1.preap import params as preap_params
+      # Pre-AP only, and only while Bosch Radar is on. Hidden while the car is unknown (no fingerprint yet).
+      return is_preap(cp) and preap_params.get_bool(RADAR)
     if key == RADAR_NOSECONE:
       # Hidden: the radar position now comes from Radar Donor Type (NAP NAPRadarPosition), so this row has no effect.
       # The stored TeslaRadarBehindNosecone value is kept as is (not deleted or migrated); it still only sets flag 128.
@@ -231,7 +241,7 @@ class VehicleSettings:
   def read(self, key):
     if key == LONG:
       return self.toggles.disable_openpilot_long(paths=(self.file_dir / LONG, self.params_file))
-    if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE, IBOOSTER):
+    if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE, IBOOSTER, RADAR_IGNORE_HW_FAIL):
       from opendbc.car.tesla_ap1.preap import params as preap_params
       return preap_params.get_bool(key)
     # Missing/unreadable files have the consumer's default-on semantics.
@@ -250,7 +260,7 @@ class VehicleSettings:
     if not self.enabled(key):
       return False
     state = bool(state)
-    if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE, IBOOSTER):
+    if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE, IBOOSTER, RADAR_IGNORE_HW_FAIL):
       from opendbc.car.tesla_ap1.preap import params as preap_params
       preap_params.set_bool(key, state)
       return True

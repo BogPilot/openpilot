@@ -38,6 +38,7 @@
     "Phase3StoppingRateEnabled",
     "TeslaRadarEnabled",
     "TeslaRadarBehindNosecone",
+    "TeslaRadarIgnoreHwFail",
     "TeslaHasIBooster"
   ],
   "setting_keys": [
