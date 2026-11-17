@@ -104,57 +104,38 @@ def test_own_blocked_count_only_0x560_bus0():
 def test_own_blocked_pure_0x560_feeds_nothing():
   o = OwnBlockedTx()
   for step in range(1, 301):
-    o.sent(1 if step % 10 == 0 else 0, step)
-    if step % 10 == 5 and step > 10:                    # 10 Hz sample, after the frame went out
-      assert o.take(1, step) == 0
-  assert o.credits == [[300, 1]]          # the last frame, not sampled yet
+    o.sent(1 if step % 10 == 3 else 0)
+    if step % 10 == 0:                                   # 10 Hz sample: counts the one frame sent in its window
+      assert o.take(1) == (0, False)
+  assert o.window == 0
 
 
 def test_own_blocked_mixed_passes_only_the_rest():
   o = OwnBlockedTx()
-  o.sent(1, 10)
-  o.sent(1, 20)
-  assert o.take(2 + 5, 22) == 5          # 5 pedal frames refused plus our 2 -> 5
-  o.sent(1, 30)
-  assert o.take(1, 32) == 0
-  assert o.take(4, 42) == 4              # no credit left: all of it is real
-  assert o.take(0, 43) == 0 and o.take(-3, 44) == 0
+  o.sent(1)
+  o.sent(1)
+  assert o.take(2 + 5) == (5, True)       # 5 pedal frames refused plus our 2 -> 5, and a warning
+  o.sent(1)
+  assert o.take(1) == (0, False)
+  assert o.take(4) == (4, True)           # nothing sent in this window: all of it is real
+  assert o.take(0) == (0, False) and o.take(-3) == (0, False)
 
 
-def test_own_blocked_never_negative_and_never_more_than_sent():
+def test_own_blocked_clamped_to_the_increase_and_no_carry_over():
   o = OwnBlockedTx()
-  o.sent(3, 1)
-  assert o.take(1, 2) == 0               # panda counted fewer than we sent (sample before the rest)
-  assert o.take(1, 3) == 0
-  assert o.take(5, 4) == 4               # one credit left, never more
-  assert o.take(1, 5) == 1
+  o.sent(3)
+  assert o.take(1) == (0, False)          # fewer counted than sent: 0, never negative
+  assert o.window == 0                    # the 2 not counted are not carried forward
+  assert o.take(1) == (1, True)           # so they can never hide a block in the next sample
+  o.sent(1)
+  assert o.take(5) == (4, True)           # never more than this window's own frames
 
 
-def test_own_blocked_credit_expires():
-  o = OwnBlockedTx(ttl_steps=30)
-  o.sent(1, 100)                         # a frame the panda never counted (sendcan dropped)
-  assert o.take(1, 130) == 0             # within the TTL it can hide one frame, one for one
-  o.sent(1, 200)
-  assert o.take(1, 231) == 1             # after the TTL a real block always gets through
-  assert o.credits == []
-
-
-def test_own_blocked_uncounted_credit_ages_out_while_the_stream_runs():
-  o = OwnBlockedTx(ttl_steps=30)
-  o.sent(1, 0)                            # never counted by the panda
-  for step in range(10, 200, 10):
-    o.sent(1, step)
-    assert o.take(1, step + 5) == 0       # each sample counts the newest frame
-  assert o.credits == []                  # the uncounted credit expired, it does not ride along
-  assert o.take(1, 300) == 1
-
-
-def test_own_blocked_lagging_sample_is_still_subtracted():
+def test_own_blocked_counted_a_sample_late_is_passed_on():
   o = OwnBlockedTx()
-  o.sent(1, 50)
-  o.sent(1, 60)
-  assert o.take(0, 61) == 0
-  assert o.take(2, 75) == 0               # counted one sample late: still ours
+  o.sent(1)
+  assert o.take(0) == (0, False)          # the panda had not counted it yet
+  assert o.take(1) == (1, True)           # fail-safe: shows as a block (and a warning), never hidden
 
 
 def test_stream_position_is_donor_type_and_blank_vin_is_spaces():

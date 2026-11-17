@@ -74,13 +74,16 @@ def _make_rig(tmp_path, monkeypatch, radar=True, donor_type=None, donor_vin=None
     # 0x651 on bus 0 and a radar-bus frame must never reach the reader
     return [di, (0x2A9, bytes(8), 1), (UDS_RX, bytes(8), 0)]
 
-  def step(frames=(), enabled=False, gear=GEAR_P, lat=False, tx_total=None):
+  def step(frames=(), enabled=False, gear=GEAR_P, lat=False, tx_total=None, sample=None):
     """One card step on the background traffic plus these frames; returns every (address, dat, src) card put in 'sendcan'.
-    tx_total: the panda's blocked-TX total (pandaStates.safetyTxBlocked) card sees in this step."""
+    tx_total: the panda's blocked-TX total (pandaStates.safetyTxBlocked) card sees in this step; sample: that pandaStates
+    message's logMonoTime (a new value = a new sample)."""
     ps = [log.PandaState.new_message(controlsAllowed=False, safetyTxBlocked=int(tx_total or 0) & 0xFFFFFFFF)]
     if tx_total is not None:
       c.sm.valid["pandaStates"] = True
       c.sm.data["pandaStates"] = ps
+    if sample is not None:
+      c.sm.logMonoTime["pandaStates"] = int(sample)
     inbox.append(can_list_to_can_capnp(background(gear) + list(frames), msgtype="can"))
     CS, _ = c.state_update()
     c.sm.alive["carControl"] = True
@@ -389,24 +392,24 @@ def _first_open(rig, panda, steps, gear_at, switch_at=SWITCH, reinit_at=None, en
 
 
 @pytest.mark.parametrize("drive_from", [0, 160, 240, 299, SWITCH + 5])
-def test_drive_before_safety_switch_releases_radar_within_1s(make_rig, drive_from):
+def test_drive_before_safety_switch_releases_radar_within_0_5s(make_rig, drive_from):
   # Fresh install: no donor VIN, no donor type. 92aa9ee1f sent no 0x560 in Drive: the gateway never opened for the drive.
   rig = make_rig()
   panda = _Panda()
   opened = _first_open(rig, panda, SWITCH + 200, lambda i: GEAR_D if i >= drive_from else GEAR_P)
   assert opened[SWITCH] is not None, "radar gateway never opened"
-  assert (opened[SWITCH] - SWITCH) * 0.01 <= 1.0
+  assert (opened[SWITCH] - SWITCH) * 0.01 <= 0.5
   assert panda.consumed >= 3
 
 
-def test_safety_reinit_while_in_drive_releases_radar_within_1s(make_rig):
+def test_safety_reinit_while_in_drive_releases_radar_within_0_5s(make_rig):
   rig = make_rig(donor_type=2, donor_vin=VIN)
   panda = _Panda()
   reinit = 600
   opened = _first_open(rig, panda, reinit + 200, lambda i: GEAR_P if i < 400 else GEAR_D, switch_at=100, reinit_at=reinit)
-  assert opened[100] is not None and (opened[100] - 100) * 0.01 <= 1.0
+  assert opened[100] is not None and (opened[100] - 100) * 0.01 <= 0.5
   assert opened[reinit] is not None, "radar gateway never reopened after the re-init in Drive"
-  assert (opened[reinit] - reinit) * 0.01 <= 1.0
+  assert (opened[reinit] - reinit) * 0.01 <= 0.5
 
 
 def test_reinit_while_engaged_waits_for_disengage(make_rig):
@@ -423,7 +426,8 @@ def test_reinit_while_engaged_waits_for_disengage(make_rig):
 
 def _count_run(rig, steps, gear=GEAR_P, real=None, counted=lambda i: True, reset_at=None, start=0):
   """Model the panda counter: every 0x560 card sends is a blocked TX (counted unless counted(i) is False), plus real[i] other
-  blocked frames; card sees the total at 10 Hz. Returns what card fed the FSM (CS.preap_panda_tx_blocked) at each step."""
+  blocked frames; card sees the total in a new pandaStates sample every 10 steps. Returns what card fed the FSM
+  (CS.preap_panda_tx_blocked) at each step."""
   real = real or {}
   live = sampled = start
   fed, own = [], 0
@@ -441,7 +445,7 @@ def _count_run(rig, steps, gear=GEAR_P, real=None, counted=lambda i: True, reset
       live = 0                                           # panda safety init clears its counter
     if i % 10 == 0:
       sampled = live
-    out = rig.step(gear=gear, tx_total=sampled)
+    out = rig.step(gear=gear, tx_total=sampled, sample=1 + i // 10)
     n560 = sum(1 for m in out if m[0] == 0x560)
     own += n560
     live += real.get(i, 0) + (n560 if counted(i) else 0)
@@ -471,6 +475,24 @@ def test_uncounted_0x560_never_hides_a_later_block(make_rig):
   rig = make_rig()
   fed, _ = _count_run(rig, 400, real={200: 1, 300: 3}, counted=lambda i: i >= 150)   # sendcan lost before step 150
   assert sum(fed) == 4
+
+
+def test_fewer_counted_than_sent_carries_nothing_into_the_next_sample(make_rig):
+  # The 0x560 sent in steps 100-109 are never counted (blocked < sent: fed 0, never negative). The next sample has our counted
+  # 0x560 plus one refused frame: the refusal reaches the FSM, no leftover credit from the window before hides it.
+  rig = make_rig()
+  fed, own = _count_run(rig, 200, gear=GEAR_D, real={115: 1}, counted=lambda i: not 100 <= i < 110)
+  assert own >= 18 and min(fed) == 0
+  assert sum(fed[100:111]) == 0 and sum(fed[111:121]) == 1 and sum(fed) == 1
+
+
+def test_block_over_own_0x560_logs_a_warning_with_counts_only(make_rig, monkeypatch):
+  rig = make_rig()
+  warned = []
+  monkeypatch.setattr(card.cloudlog, "warning", lambda msg, *a, **kw: warned.append(str(msg)))
+  fed, _ = _count_run(rig, 300, gear=GEAR_D, real={150: 2})
+  assert sum(fed) == 2
+  assert len(warned) == 1 and "passed 2" in warned[0] and VIN not in warned[0]
 
 
 def test_counter_reset_and_wrap(make_rig):

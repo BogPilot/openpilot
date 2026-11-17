@@ -11,10 +11,11 @@ Record 0 also carries the 0x2A9 radar position and EPAS type, which the panda ap
 Donor Type setting (TeslaRadarDonorType: 0 pre-facelift Model S, 1 facelift Model S, 2 Model X, default 0, as NAP
 NAPRadarPosition), not the Radar Behind Nosecone toggle. EPAS 0.
 Stream: in any gear, as NAP, which sends it at 10 Hz whenever the radar is on (opendbc/car/tesla/preap/sp/carcontroller.py:69-77
-@ 5dbe36d37), so the panda has the full config within 0.3 s of any safety init, even one while the car is already in Drive.
+@ 5dbe36d37; nap-alpha 92b42f772, opendbc 508d26fcb: opendbc/car/tesla/carcontroller.py:143-152), so the panda has the full
+config within 0.3 s of any safety init, even one while the car is already in Drive.
 Divergence (docs/tesla/DIVERGENCES_preap_radar_donor_vin.md): not sent while openpilot is engaged or steering (the panda ignores
 0x560 then anyway). The panda counts every consumed 0x560 as a blocked TX; card.py takes this stream's own frames back out of that
-count (OwnBlockedTx below), so the Pre-AP pull FSM sees only other blocked TX as a pedal refusal.
+count, per counter sample with no carry-over (OwnBlockedTx below), so our own frames do not read as a pedal refusal.
 Never log the VIN. Raw CAN still carries it: these frames are in sendcan and come back as rejected echoes in can.
 """
 from __future__ import annotations
@@ -80,38 +81,36 @@ class RadarDonorStream:
 
 
 class OwnBlockedTx:
-  """Takes this stream's own 0x560 frames back out of the panda's blocked-TX count (pandaStates.safetyTxBlocked).
+  """This stream's own 0x560 frames, taken back out of the panda's blocked-TX count (pandaStates.safetyTxBlocked), per sample.
 
   The panda counts every 0x560 as a blocked TX (can_common.h can_send): ELM327 refuses it, the car's mode consumes it. card sees
-  the total at 10 Hz. sent() records each step's 0x560 frames as credits, at send time, so a credit always exists before the
-  sample that counts its frame. take() spends credits against a counter increase and returns the rest, which is blocked TX of
-  any other address. Never negative, and never more subtracted than 0x560 frames were really sent.
-  A credit expires after ttl_steps card steps (0.3 s at 100 Hz, 3 samples). Credits are spent newest first, so a credit left by
-  a frame the panda never counted (sendcan lost, panda gone) ages out instead of standing in for newer frames. Only such a
-  credit can hide another blocked frame, one for one, for at most those 0.3 s (at most 3 at 10 Hz); a refusal blocks every
-  command frame (50 Hz and up).
-  The rejected echoes (src + 0xC0 in can) are not used: they come back on another path than the 10 Hz counter sample, so an echo
+  the total in each pandaStates sample (10 Hz). sent() adds the 0x560 frames card sent since the previous sample. take() runs
+  once per new sample: it subtracts at most those frames and never more than the observed increase (never negative), then
+  starts an empty window: no credit is carried to the next sample. So the subtraction can only remove frames sent in that same
+  window and never hides a blocked pedal frame behind an older 0x560. Fail-safe the other way: a 0x560 the panda counts one
+  sample late is passed on as a block (in FULL the FSM drops to steering only), and take() reports over=True whenever the
+  increase is larger than the window's own frames, so card logs a warning.
+  NAP needs none of this: no NAP car or control code reads safetyTxBlocked (git grep, nap-alpha 92b42f772 and its opendbc
+  508d26fcb: only pandad sets it and debug plot layouts show it).
+  The rejected echoes (src + 0xC0 in can) are not used: they come back on another path than the counter sample, so an echo
   can arrive after the sample that counted it, and they are dropped on an rx overflow.
   """
 
-  def __init__(self, ttl_steps: int = 30):
-    self.ttl_steps = int(ttl_steps)
-    self.credits: list[list[int]] = []   # [step sent, frames left]
+  def __init__(self):
+    self.window = 0   # 0x560 frames sent since the previous pandaStates sample
 
   @staticmethod
   def count(can_sends) -> int:
     return sum(1 for m in can_sends if m[0] == RADAR_VIN_ADDR and m[2] == RADAR_VIN_BUS)
 
-  def sent(self, n: int, step: int) -> None:
+  def sent(self, n: int) -> None:
     if n > 0:
-      self.credits.append([int(step), int(n)])
+      self.window += int(n)
 
-  def take(self, delta: int, step: int) -> int:
-    self.credits = [c for c in self.credits if step - c[0] <= self.ttl_steps]
-    left = max(int(delta), 0)
-    for c in reversed(self.credits):
-      used = min(left, c[1])
-      c[1] -= used
-      left -= used
-    self.credits = [c for c in self.credits if c[1] > 0]
-    return left
+  def take(self, delta: int) -> tuple[int, bool]:
+    """(blocked TX to pass on, over) for one new sample; over = the increase is larger than this window's own 0x560 frames."""
+    observed = max(int(delta), 0)
+    own = min(self.window, observed)
+    over = observed > self.window
+    self.window = 0
+    return observed - own, over

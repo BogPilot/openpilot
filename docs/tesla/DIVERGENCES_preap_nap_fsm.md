@@ -98,7 +98,9 @@ the 300 ms window is also ignored for the demote; the panda still refuses that f
 demotes. Kept as is rather than guessing the address.
 Our own host 0x560 radar config frames (always consumed by the panda as blocked TX) are taken back out of the increase
 before the FSM reads it (`card.py`, `preap/radar_donor.py` OwnBlockedTx; details in `DIVERGENCES_preap_radar_donor_vin.md`
-section 2), so the radar config stream never reads as a refusal. Every other blocked frame still does.
+section 2): once per counter sample, only the 0x560 sent since the previous sample, never more than the increase, nothing
+carried forward. A 0x560 counted in its own sample never reads as a refusal; every other blocked frame still does, and a 0x560
+counted a sample late is passed on (fail-safe).
 
 ## Own-spoof cancel echo
 NAP stamps its 300 ms spoof-echo window when a stalk spoof is requested (`engagement.py:88,153`, tested at :189-190), not

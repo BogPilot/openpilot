@@ -177,7 +177,7 @@ class Car:
     self.preap_engage_set_limit = None
     self.preap_tx_blocked_prev = None
     self.preap_own_blocked = None
-    self.preap_step = 0
+    self.preap_tx_sample = None
     self.preap_vin_read = None
     self.preap_vin_read_rx = []
     if self.CP.carFingerprint == "TESLA_PREAP_MODELS":
@@ -236,19 +236,27 @@ class Car:
       # Arm detection without ExperimentalModeConfirmed so a completed hold can
       # still raise the "confirm in Settings" alert; apply_experimental_toggle keeps the gate.
       self.CI.CS.stalk_controls_allowed = started and experimental_supported(self.CP)
-    self.preap_step = getattr(self, "preap_step", 0) + 1   # card steps, the clock of the 0x560 credits below (replay-safe)
     if hasattr(self.CI.CS, "preap_panda_tx_blocked") and self.sm.valid["pandaStates"]:
       # Pre-AP pedal: pandaStates.safetyTxBlocked (cereal log.capnp:568) is a running total for every address,
       # not only the pedal command. Feed the per-step increase into the pull FSM; a blocked TX (steering included)
-      # drops speed control back to steering only. Our own 0x560 radar config frames (always consumed as blocked, preap/radar_donor.py)
-      # are taken back out first, so only other blocked TX gets there. A drop of the total (panda safety init or wrap) feeds nothing.
-      tx_total = sum(int(ps.safetyTxBlocked) for ps in self.sm["pandaStates"])
-      delta = tx_total - self.preap_tx_blocked_prev if self.preap_tx_blocked_prev is not None and tx_total > self.preap_tx_blocked_prev else 0
-      if getattr(self, "preap_own_blocked", None) is not None:
-        delta = self.preap_own_blocked.take(delta, self.preap_step)
-      if delta > 0:
-        self.CI.CS.preap_panda_tx_blocked = delta
-      self.preap_tx_blocked_prev = tx_total
+      # drops speed control back to steering only. Once per new pandaStates sample, the 0x560 radar config frames card sent since the
+      # previous sample (always consumed as blocked, preap/radar_donor.py OwnBlockedTx) are taken back out, never more than the
+      # increase and with nothing carried forward. A drop of the total (panda safety init or wrap) feeds nothing.
+      sample = self.sm.logMonoTime["pandaStates"]
+      if sample != getattr(self, "preap_tx_sample", None):
+        self.preap_tx_sample = sample
+        tx_total = sum(int(ps.safetyTxBlocked) for ps in self.sm["pandaStates"])
+        prev = self.preap_tx_blocked_prev
+        delta = tx_total - prev if prev is not None and tx_total > prev else 0
+        own = getattr(self, "preap_own_blocked", None)
+        if own is not None:
+          own560 = own.window
+          delta, over = own.take(delta)
+          if over:
+            cloudlog.warning(f"card: Pre-AP blocked TX over own 0x560 in one pandaStates sample: passed {delta}, own 0x560 {own560}")
+        if delta > 0:
+          self.CI.CS.preap_panda_tx_blocked = delta
+        self.preap_tx_blocked_prev = tx_total
     # Update carState from CAN. Physical buttons/cancel remain untouched.
     CS = self.CI.update(can_list)
 
@@ -381,7 +389,7 @@ class Car:
           self.preap_vin_read.fail_safe()
           cloudlog.error("card: Pre-AP radar read ended on an internal error")
       if getattr(self, "preap_own_blocked", None) is not None:
-        self.preap_own_blocked.sent(self.preap_own_blocked.count(can_sends), self.preap_step)
+        self.preap_own_blocked.sent(self.preap_own_blocked.count(can_sends))
       self.pm.send('sendcan', can_list_to_can_capnp(can_sends, msgtype='sendcan', valid=CS.canValid))
 
       self.CC_prev = CC

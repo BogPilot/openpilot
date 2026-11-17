@@ -251,9 +251,11 @@ Recorded disagreements only where the cited files were read. No speculation.
   ignores it without 256 anyway). (2) Fail closed when the radar is silent: with the toggle on and no radar cycle
   for 0.5 s, the radar interface publishes canError at 20 Hz instead of nothing, so radarState goes invalid and
   openpilot will not engage (radar CAN error / commIssue). NAP returns nothing until the radar answers.
-  (3) Radar status faults (maintainer decision): Pre-AP ignores `RADC_SensorDirty`, following NAP; Tinkla faults on it
-  unless the radar is behind the nosecone; `RADC_HWFail` remains the only fault. NAP's Bosch rule is HWFail-only
-  on every car (`opendbc/car/tesla/radar_interface.py:85-88` @ `cc39c7fa`). Tinkla faults on HWFail, on SGUFail
+  (3) Radar status faults (maintainer decision): Pre-AP ignores `RADC_SensorDirty`; `RADC_HWFail` remains the only fault.
+  This diverges from NAP and from Tinkla. NAP `cc39c7fa` was HWFail-only on every Bosch car
+  (`opendbc/car/tesla/radar_interface.py:85-88`), but NAP nap-alpha `92b42f772` (opendbc `508d26fcb`) sets
+  `radarUnavailableTemporary` on SensorDirty (`opendbc/car/tesla/radar_interface.py:215-216`), so NAP is stricter
+  there. Tinkla faults on HWFail, on SGUFail
   except on PREAP, and on SensorDirty unless PREAP with the radar behind the nosecone
   (`selfdrive/car/tesla/radar_interface.py:89-111` @ `501c7de`). Here Pre-AP faults on HWFail only, so SGUFail and
   SensorDirty never fault, nosecone or not (`opendbc_repo/opendbc/car/tesla_ap1/radar_interface.py`); AP1 keeps

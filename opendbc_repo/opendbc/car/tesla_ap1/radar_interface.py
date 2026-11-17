@@ -67,9 +67,10 @@ class RadarInterface(RadarInterfaceBase):
 
     radar_status = self.rcp.vl['TeslaRadarSguInfo']
     if self.preap:
-      # Retrofit: only a hardware failure faults (Tinkla: "ignore RADC_SGUFail on PREAP MODEL S due to retrofit").
-      # NotAutopilot radar_interface.py:86-88@cc39c7fa. Tinkla still faults on SensorDirty unless behind the nosecone
-      # (selfdrive/car/tesla/radar_interface.py:89-111@501c7de); NotAutopilot's HWFail-only rule is followed here.
+      # Retrofit: only a hardware failure faults (Tinkla: "ignore RADC_SGUFail on PREAP MODEL S due to retrofit"; NAP ignores SGUFail
+      # too, opendbc/car/tesla/radar_interface.py:203-210 @ opendbc 508d26fcb). SensorDirty is ignored here, a divergence
+      # (docs/tesla/DIVERGENCES.md, radar status faults): NAP sets radarUnavailableTemporary on it (radar_interface.py:215-216 @
+      # 508d26fcb) and Tinkla faults on it unless behind the nosecone (selfdrive/car/tesla/radar_interface.py:89-111@501c7de).
       fault = radar_status['RADC_HWFail']
     else:
       fault = radar_status['RADC_HWFail'] or radar_status['RADC_SGUFail'] or radar_status['RADC_SensorDirty']
