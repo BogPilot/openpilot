@@ -33,9 +33,9 @@ THERMAL_STALE_S = 10.0
 # Once stale, fail hot after this much more time even if the last reading was cool.
 THERMAL_FAIL_HOT_S = 60.0
 # What stale temperatures do beyond the fan, read once when hardwared starts (stale_thermal_policy). None, the default, picks
-# per car: "nap" on a Pre-AP Model S (CarModel, else the persistent fingerprint: bogpilot_ap1_profile.is_preap_slc_platform),
-# "strict" on AP1 and every other car, and "strict" while the car is not known yet (first boot, MOCK). Setting "nap" or
-# "strict" here overrides that for every car:
+# per car: "nap" on a Pre-AP Model S (CarModel and the CarParamsPersistent fingerprint card writes, every one that is set
+# saying TESLA_PREAP_MODELS), "strict" on AP1 and every other car, and "strict" while the car is not known yet (first boot,
+# MOCK, a read error). Setting "nap" or "strict" here overrides that for every car:
 #   "nap":    as NAP: thermalStatus goes to at least overheated at once if the held reading was warm, otherwise only after
 #             THERMAL_FAIL_HOT_S more of staleness (about 70 s after the last reading). A hung reader with a cool last reading
 #             therefore stays engaged up to about 70 s, then soft-disables.
@@ -261,11 +261,33 @@ def stale_thermal_policy(params=None) -> str:
     return "strict"
   if params is None:
     return "strict"
+  fingerprints = [fp for fp in (_car_model(params), _persistent_fingerprint(params)) if fp]
+  return "nap" if fingerprints and all(fp == PREAP_FINGERPRINT for fp in fingerprints) else "strict"
+
+
+PREAP_FINGERPRINT = "TESLA_PREAP_MODELS"
+
+
+def _car_model(params) -> str | None:
   try:
-    from openpilot.common.bogpilot_ap1_profile import is_preap_slc_platform
-    return "nap" if is_preap_slc_platform(params) else "strict"
+    raw = params.get("CarModel")
+    value = raw.decode() if isinstance(raw, bytes) else raw
+    return str(value).strip() or None if value is not None else None
   except Exception:
-    return "strict"
+    return None
+
+
+def _persistent_fingerprint(params) -> str | None:
+  """carFingerprint of CarParamsPersistent (card.py writes it on every start), None if unset or unreadable."""
+  try:
+    raw = params.get("CarParamsPersistent")
+    if not raw:
+      return None
+    from opendbc.car.structs import car
+    with car.CarParams.from_bytes(raw) as cp:
+      return str(cp.carFingerprint).strip() or None
+  except Exception:
+    return None
 
 
 def fail_hot_thermal_status(status: int, stale: bool, stale_s: float, last_temp: float, warm_temp: float,

@@ -59,8 +59,8 @@ every car and device (hardwared is generic).
    cached values without a staleness log.
 9. **Stale temperatures while engaged: `"nap"` on Pre-AP, `"strict"` on AP1 and other cars.** Both behaviors are built,
    chosen once when hardwared starts by `stale_thermal_policy(params)` in `openpilot/system/hardware/bg_reads.py`: with
-   `STALE_THERMAL_POLICY = None` (the default) it is `"nap"` on a Pre-AP Model S (CarModel, else the persistent fingerprint,
-   `bogpilot_ap1_profile.is_preap_slc_platform`) and `"strict"` on AP1, any other car and while the car is not known yet;
+   `STALE_THERMAL_POLICY = None` (the default) it is `"nap"` on a Pre-AP Model S (CarModel and the CarParamsPersistent
+   fingerprint card writes, every one that is set saying `TESLA_PREAP_MODELS`) and `"strict"` on AP1, any other car and while the car is not known yet;
    setting the constant overrides that for every car (logged at start as `hardwared stale thermal policy`; an unknown value
    falls back to strict):
    - `"strict"` (AP1, other cars, unknown car): as soon as the temperatures are stale (no fresh reading for

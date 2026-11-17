@@ -21,7 +21,7 @@ class BrokenParams:
 
 
 def persistent(fingerprint: str) -> bytes:
-  from openpilot.cereal import car
+  from opendbc.car.structs import car
   return car.CarParams.new_message(carFingerprint=fingerprint).to_bytes()
 
 
@@ -53,6 +53,12 @@ def test_unknown_car_gets_strict(params):
 def test_explicit_policy_wins_for_every_car(monkeypatch, override, model):
   monkeypatch.setattr(bg, "STALE_THERMAL_POLICY", override)
   assert bg.stale_thermal_policy(FakeParams(CarModel=model)) == override
+
+
+def test_preap_fingerprint_alone_without_car_model_gets_nap():
+  # an auto-fingerprinted Pre-AP car never sets CarModel; card's CarParamsPersistent alone must give nap
+  assert bg.stale_thermal_policy(FakeParams(CarParamsPersistent=persistent("TESLA_PREAP_MODELS"))) == "nap"
+  assert bg.stale_thermal_policy(FakeParams(CarModel=b"", CarParamsPersistent=persistent("TESLA_PREAP_MODELS"))) == "nap"
 
 
 def test_hardwared_picks_the_policy_with_its_params():
