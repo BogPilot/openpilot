@@ -95,7 +95,8 @@ class PreApCarState(CarStateBase):
     self.preap_fsm_mode = int(self.decision.mode)   # read by the pedal guard (long_controller._append_pedal_command)
     self.preap_pedal_guard_blocks = 0               # pedal ENABLE frames the userspace guard turned into enable=0
     self._preap_guard_blocks_seen = 0
-    self.preap_panda_tx_blocked = 0                 # pandaStates.safetyTxBlocked delta, fed by card.py each step
+    self.preap_panda_tx_blocked = 0                 # refused own 0x551 / 0x488 frames this step, fed by card.py (preap/panda_link.py)
+    self.preap_link = None                          # panda_link.LinkInput, fed by card.py each step (read by the 0x560 stream)
     self._tx_block_press_ms = 0                     # last gas or brake press edge; TX blocks inside the window are ignored
     self._prev_tx_block_gas = False
     self._prev_tx_block_brake = False
@@ -287,8 +288,8 @@ class PreApCarState(CarStateBase):
         self._tx_block_press_ms = now_ms
       self._prev_tx_block_gas = bool(gas_any)
       self._prev_tx_block_brake = bool(ret.brakePressed)
-      # A userspace-guard block or a panda TX block (safetyTxBlocked is a total for all addresses, so this is stricter than
-      # needed) drops FULL to steering only with the speed-blocked warning. A TX-block delta inside
+      # A userspace-guard block or a panda refusal of our own 0x551 / 0x488 frame (their rejected echoes, card.py; plus blocked
+      # frames whose echo was lost, fail-safe) drops FULL to steering only with the speed-blocked warning. A TX-block delta inside
       # TX_BLOCK_PRESS_IGNORE_MS of a gas or brake press edge is the expected panda refusal of ENABLE=1
       # (tesla_preap.h:254) and is ignored; a guard block or bus mismatch still demotes, and any TX block
       # outside the window still demotes.

@@ -91,16 +91,14 @@ A TX-block delta within `TX_BLOCK_PRESS_IGNORE_MS` (300 ms) after a gas or brake
 refuses ENABLE=1 at `tesla_preap.h:254` (get_longitudinal_allowed / brake_pressed) from the first frame with INTERCEPTOR_GAS
 > 650 (gas_pressed, `:135`) and while the brake is pressed, and that expected block must not drop FULL. Guard blocks and a bus mismatch still demote
 immediately. A block with no recent press, or one after the window, still demotes.
-The window cannot be scoped to the pedal address 0x551: the panda keeps one blocked-TX counter for every bus and address
-(`panda/board/drivers/can_common.h:169`, reported as `safety_tx_blocked_pkt`, `panda/board/health.h:17`, and as
-`PandaState.safetyTxBlocked`, `cereal/log.capnp:568`), with no per-address data. So a blocked frame on any address inside
-the 300 ms window is also ignored for the demote; the panda still refuses that frame, and any block after the window
-demotes. Kept as is rather than guessing the address.
-Our own host 0x560 radar config frames (always consumed by the panda as blocked TX) are taken back out of the increase
-before the FSM reads it (`card.py`, `preap/radar_donor.py` OwnBlockedTx; details in `DIVERGENCES_preap_radar_donor_vin.md`
-section 2): once per counter sample, only the 0x560 sent since the previous sample, never more than the increase, nothing
-carried forward. A 0x560 counted in its own sample never reads as a refusal; every other blocked frame still does, and a 0x560
-counted a sample late is passed on (fail-safe).
+The window input, v2: the FSM reads refusals of our own pedal 0x551 and steering 0x488 frames, counted per address from the
+panda's rejected TX echoes (src bus + 0xC0, `selfdrive/pandad/panda.cc:265-266`; `preap/panda_link.py` TxRefusalWatch,
+fed by `card.py`), not the all-address `PandaState.safetyTxBlocked` total (`cereal/log.capnp:568`). So the 300 ms press
+window now ignores only refusals of those two addresses; a refused frame of any other address (our 0x560 radar config, which
+the panda always consumes as blocked, 0x214, the stock cruise cancel) never drops FULL. The total is kept as a fail-safe
+cross-check: a blocked frame whose echo never arrived (rx overflow) is passed on as a refusal within two counter samples,
+unless an own 0x560 was sent in the last 0.3 s (then logged only; card sends no 0x560 in FULL). NAP reads no blocked-TX data
+at all. Before (`92aa9ee1f`): any increase of the total in FULL demoted, including our own 0x560 and other addresses.
 
 ## Own-spoof cancel echo
 NAP stamps its 300 ms spoof-echo window when a stalk spoof is requested (`engagement.py:88,153`, tested at :189-190), not

@@ -19,37 +19,47 @@ checksum); NAP nap-alpha `92b42f772` (opendbc `508d26fcb`); BogPilot na-preap `c
   have arrived with useRadar set. All donor state is cleared on every safety init.
 - Stricter than NAP: 0x560 is ignored without flag 256 and while controls are allowed or the steering latch is armed, so the radar
   contract cannot change mid-engagement (NAP accepts it at any time: `opendbc/safety/modes/tesla_preap_tx.h:33-37` @ `508d26fcb`).
-- Host stream (`tesla_ap1/preap/radar_donor.py` RadarDonorStream): one record every 10 frames (10 Hz), only with flag 256, in
-  any gear, while openpilot is disengaged and not steering (`CC.enabled` and `CC.latActive` both false). The panda clears the
-  config on every safety init, including the switch from ELM327 to the car's mode about 15 s after the car starts, when the
-  driver may already be in Drive. So the stream keeps running in every gear, and the gateway opens about 0.3 s after any safety
-  init while disengaged. NAP streams it at 10 Hz whenever the radar is on, engaged or not
-  (`opendbc/car/tesla/preap/sp/carcontroller.py:69-77` @ `5dbe36d37`; nap-alpha `92b42f772`, opendbc `508d26fcb`:
-  `opendbc/car/tesla/carcontroller.py:143-152`).
-- Divergence from NAP: no 0x560 while engaged or steering. The panda ignores it then anyway (controls allowed or steering latch
-  armed, above), and the config it got before engaging stays in place until the next safety init. Limit: after a safety init
-  while engaged, the radar stays silent until openpilot is disengaged, then opens within about 0.3 s.
+- Host stream, v2 (`tesla_ap1/preap/radar_donor.py` RadarDonorStream, a link state machine keyed on what the panda reports;
+  card feeds it `pandaStates` and the panda's TX echoes, `tesla_ap1/preap/panda_link.py`). One record every 10 frames (10 Hz),
+  only with flag 256, in any gear, and only while:
+  - a panda runs the car's safety model with the expected param (not in ELM327, where the tx hook refuses it anyway);
+  - the gateway is not seen open: no returned echo (src 129) of any frame the gateway puts on bus 1 in the last 0.3 s
+    (the address set is read from `tesla_preap_radar.h` by a test);
+  - openpilot is disengaged and not steering, the pull FSM is not in an engaged mode, and the panda does not allow controls.
+  It stops as soon as the gateway frames come back, and re-arms on a safety model or param change, a panda uptime decrease
+  (reboot), `heartbeatLost`, or gateway echoes absent for 0.3 s while the panda does not allow controls (a same-mode re-init
+  shows nothing else in `pandaStates`). Simulated through the compiled panda safety code: the gateway opens within 1 s after
+  the switch from ELM327 (about 15 s after the car starts, in any gear), after a re-init or a panda reboot in Drive, and within
+  1 s of disengaging after a re-init while engaged. Not yet seen on a real car.
+- NAP streams it at 10 Hz whenever the radar is on, engaged or not (`opendbc/car/tesla/preap/sp/carcontroller.py:69-77` @
+  `5dbe36d37`; nap-alpha `92b42f772`, opendbc `508d26fcb`: `opendbc/car/tesla/carcontroller.py:143-152`). Divergence: no 0x560
+  while engaged or steering (the panda ignores it then anyway, the config set before engaging stays until the next safety init)
+  and none once the gateway is seen open. Limit: after a safety init while engaged, the radar stays silent until openpilot is
+  disengaged; the radar-valid gate (`DIVERGENCES_preap_radar_valid.md`) blocks speed control meanwhile.
+- card restart in Drive: if card's first `pandaStates` sample already shows the car's mode, the panda kept a config from an
+  earlier card process that this one cannot see. Then nothing is sent outside Park until the panda shows a re-init or reboot,
+  so a donor setting changed meanwhile is never applied at speed; logged once. The panda (`tesla_preap.h:235-262`) would
+  accept a changed config while disengaged in Drive; a panda-side check is left for a later panda image.
 - Before (`92aa9ee1f` and earlier builds with the gate): sent only while disengaged and not in Drive. A shift to Drive before
   the switch to the car's mode (or less than one full 0x560 cycle after it), or a safety re-init in Drive, kept the gateway
-  closed, so there was no radar for the whole drive.
-- Blocked-TX count: the panda counts every consumed 0x560 as a blocked TX (`panda/board/drivers/can_common.h:169`), in ELM327
-  (tx hook refuses it) and in the car's mode (consumed), and the Pre-AP pull FSM reads a blocked-TX increase as a pedal refusal and drops FULL to steering only
-  (`tesla_ap1/preap/carstate.py`). `selfdrive/car/card.py` therefore takes its own 0x560 frames back out of the
-  `pandaStates.safetyTxBlocked` increase before the FSM reads it (`radar_donor.py` OwnBlockedTx), once per new pandaStates
-  sample (10 Hz). It subtracts only the 0x560 frames card put in sendcan since the previous sample, never more than the observed
-  increase (never below 0), and carries nothing to the next sample. So a real refusal (for example blocked pedal 0x551 frames
-  in the same sample as our 0x560) still drops FULL, and an older 0x560 can never hide a later blocked frame. Fail-safe the
-  other way: a 0x560 the panda counts one sample late is passed on as a block. That only matters in FULL; our stream stops at
-  the first pull (steering), so a late count lands before the second pull unless the pulls are under one sample (0.1 s)
-  apart. card logs a warning (counts only) whenever the
-  increase is larger than the sample's own 0x560 frames. A drop of the total (safety init, u32 wrap) feeds nothing, as before.
-  The panda's rejected echoes (src + 0xC0 in `can`) are not used for this. They arrive on another path than the 10 Hz counter
-  sample, so an echo can come after the sample that counted it, and they are lost on an rx overflow.
-- Why we subtract and NAP does not: no NAP car or control code reads `safetyTxBlocked` (git grep: openpilot nap-alpha
-  `92b42f772`, where only pandad sets it and debug plot layouts show it; opendbc `508d26fcb` and `5dbe36d37`).
-  Our Pre-AP pull FSM treats any blocked-TX increase in FULL as a pedal refusal
-  (`DIVERGENCES_preap_nap_fsm.md`), so our own 0x560 must come out of that count. Not taken: pausing 0x560 during the pedal
-  engage sequence.
+  closed, so there was no radar for the whole drive. Variant `dc5e7d665` (local, never released) streamed in any gear and took
+  its own 0x560 back out of the panda's blocked-TX total; that subtraction is replaced below.
+- Refusals, v2: the panda counts every consumed 0x560 as a blocked TX (`panda/board/drivers/can_common.h:169`) and returns it as
+  a rejected echo (src bus + 0xC0, `selfdrive/pandad/panda.cc:265-266`). The Pre-AP pull FSM no longer reads the all-address
+  total. card counts the rejected echoes of our own pedal 0x551 (bus 0 or 2) and steering 0x488 (bus 0) frames each step and
+  feeds only those (`panda_link.py` TxRefusalWatch). A 0x560 echo has another address, so it can never read as a refusal,
+  whether it is counted, late or lost; and a real refusal reaches the FSM on the step its echo arrives, never held for a counter
+  sample. Rejected frames of other addresses (for example 0x214, stock cruise cancel) no longer drop FULL.
+- Cross-check, fail-safe: once per `pandaStates` sample the blocked-TX increase is matched against the rejected echoes seen
+  (every address). A shortfall is carried one sample (an echo can arrive after the sample that counted it); one still open after
+  that means echoes were lost (rx queue overflow) and is passed to the FSM as refusals, unless card sent a 0x560 in that or the
+  two previous sample windows, in which case it is logged only (rate-limited to one warning per 10 s, counts only). In FULL card
+  sends no 0x560, so a refused frame whose echo was lost still drops FULL, within two samples. Residual: a refusal whose echo
+  is lost, within 0.3 s after our last 0x560, is not passed on from the counter; the next refused frame (the pedal runs at
+  50 Hz) is.
+- Why NAP needs none of this: no NAP car or control code reads `safetyTxBlocked` (git grep: openpilot nap-alpha `92b42f772`,
+  where only pandad sets it and debug plot layouts show it; opendbc `508d26fcb` and `5dbe36d37`). Our Pre-AP pull FSM drops
+  FULL on a panda refusal (`DIVERGENCES_preap_nap_fsm.md`).
 
 ## 3. Donor VIN substitution (NAP)
 - `TeslaRadarDonorVin` (BogPilot params dir, empty by default). Empty = 17 spaces = this car: no substitution, the car's own
@@ -71,11 +81,13 @@ checksum); NAP nap-alpha `92b42f772` (opendbc `508d26fcb`); BogPilot na-preap `c
   value is 0) goes in 0x560 record 0, and the panda takes the position from 0x560. The nosecone toggle and flag 128 no longer
   pick the value (the panda init value from flag 128 is replaced by record 0 before the gateway opens). No panda C change was
   needed for this: the panda already took position from 0x560 (only its comments were updated to say so).
-- Radar Behind Nosecone is hidden from Vehicle Settings (owner decision), since it has no effect on the car any more. Its stored
+- Radar Behind Nosecone is hidden from Vehicle Settings (a project decision), since it has no effect on the car any more. Its stored
   value (`TeslaRadarBehindNosecone`) is kept as is, not deleted or migrated: it still sets flag 128, which nothing reads except
   the replaced init value (NAP keeps its nosecone bit as a leftover too). Divergence from NAP and Tinkla, which both show it.
-- Behavior change: before, a nosecone install with the radar on (480) sent 1; with the default it now sends 0. A car whose radar
-  wants 1 must pick "Model S facelift". Same disengaged, not-steering rule as the rest of 0x560.
+- Behavior change: before, a nosecone install with the radar on (480) sent 1; with the default it now sends 0. Keep Donor Type 0:
+  the old setting sent 1, and decoded tester data shows the radar rejected 1 (radPositionMismatch). If a position fault
+  persists with 0, try Model X (2); there is no promise that any value clears it. Same disengaged, not-steering rule as the
+  rest of 0x560.
 
 ## 5. Radar UDS: read-only F190 and the Read Radar VIN button
 - Panda: {0x641, bus 1, 8} on the TX list; the tx hook allows only NAP's six exact frames (tester present, default and extended
@@ -88,7 +100,7 @@ checksum); NAP nap-alpha `92b42f772` (opendbc `508d26fcb`); BogPilot na-preap `c
 - The VIN read is stored only in `TeslaRadarDonorVin` and used from the next car start. It is shown on the device under the button
   only. It is kept out of log text (carlog / cloudlog / print), crash reports, the status text (NAP `card.py:216` puts it there;
   not ported), openpilot Params (so never in the initData params snapshot), settings backups and the settings dump. It IS present
-  in raw CAN in the drive logs, as below. Accepted by the owner: the donor VIN in raw CAN is treated like the car's own VIN on
+  in raw CAN in the drive logs, as below. Accepted as a project decision: the donor VIN in raw CAN is treated like the car's own VIN on
   0x405, so the 0x560 path is kept and the panda does not store it any other way.
 - Raw CAN in the drive logs does carry VIN bytes. The car's own VIN is on 0x405 on every Tesla. The radar's 0x651 reply and the
   panda's 0x2B9 frames are raw bus-1 traffic. The host's 0x560 frames, which carry the donor VIN, are logged in `sendcan`

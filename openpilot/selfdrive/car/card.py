@@ -175,18 +175,22 @@ class Car:
     self.ap1_cluster_lift = bool(self.CP.brand == "tesla_ap1" and self.CP.carFingerprint != "TESLA_PREAP_MODELS" and self.CP.openpilotLongitudinalControl)
     # Pre-AP with pedal (pcmCruise=False): 0.9.7 SetSpeedLimit engage set from a fresh posted limit.
     self.preap_engage_set_limit = None
-    self.preap_tx_blocked_prev = None
-    self.preap_own_blocked = None
     self.preap_tx_sample = None
+    self.preap_refusals = None
+    self.preap_sent_560 = 0
+    self.preap_safety_expect = None
     self.preap_vin_read = None
     self.preap_vin_read_rx = []
     if self.CP.carFingerprint == "TESLA_PREAP_MODELS":
-      from opendbc.car.tesla_ap1.preap.radar_donor import OwnBlockedTx
+      from opendbc.car.tesla_ap1.preap.panda_link import RateLimitedLog, TxRefusalWatch
       from opendbc.car.tesla_ap1.preap.radar_vin_read import RadarVinReadRunner
       from opendbc.car.tesla_ap1.safety_flags import FLAG_TESLA_PREAP_RADAR_EMULATION
       param = int(self.CP.safetyConfigs[-1].safetyParam) if len(self.CP.safetyConfigs) else 0
       self.preap_vin_read = RadarVinReadRunner(bool(param & FLAG_TESLA_PREAP_RADAR_EMULATION))
-      self.preap_own_blocked = OwnBlockedTx()
+      self.preap_refusals = TxRefusalWatch()
+      self.preap_warn = RateLimitedLog(cloudlog.warning, 10.0)
+      if len(self.CP.safetyConfigs):
+        self.preap_safety_expect = (int(self.CP.safetyConfigs[-1].safetyModel), int(self.CP.safetyConfigs[-1].safetyParam))
     if self.CP.brand == "tesla_ap1" and self.CP.carFingerprint == "TESLA_PREAP_MODELS" and not self.CP.pcmCruise:
       from openpilot.selfdrive.controls.lib.phase3_speed_control import PreapEngageSetLimit
       self.preap_engage_set_limit = PreapEngageSetLimit(self.CP)
@@ -236,27 +240,8 @@ class Car:
       # Arm detection without ExperimentalModeConfirmed so a completed hold can
       # still raise the "confirm in Settings" alert; apply_experimental_toggle keeps the gate.
       self.CI.CS.stalk_controls_allowed = started and experimental_supported(self.CP)
-    if hasattr(self.CI.CS, "preap_panda_tx_blocked") and self.sm.valid["pandaStates"]:
-      # Pre-AP pedal: pandaStates.safetyTxBlocked (cereal log.capnp:568) is a running total for every address,
-      # not only the pedal command. Feed the per-step increase into the pull FSM; a blocked TX (steering included)
-      # drops speed control back to steering only. Once per new pandaStates sample, the 0x560 radar config frames card sent since the
-      # previous sample (always consumed as blocked, preap/radar_donor.py OwnBlockedTx) are taken back out, never more than the
-      # increase and with nothing carried forward. A drop of the total (panda safety init or wrap) feeds nothing.
-      sample = self.sm.logMonoTime["pandaStates"]
-      if sample != getattr(self, "preap_tx_sample", None):
-        self.preap_tx_sample = sample
-        tx_total = sum(int(ps.safetyTxBlocked) for ps in self.sm["pandaStates"])
-        prev = self.preap_tx_blocked_prev
-        delta = tx_total - prev if prev is not None and tx_total > prev else 0
-        own = getattr(self, "preap_own_blocked", None)
-        if own is not None:
-          own560 = own.window
-          delta, over = own.take(delta)
-          if over:
-            cloudlog.warning(f"card: Pre-AP blocked TX over own 0x560 in one pandaStates sample: passed {delta}, own 0x560 {own560}")
-        if delta > 0:
-          self.CI.CS.preap_panda_tx_blocked = delta
-        self.preap_tx_blocked_prev = tx_total
+    if self.preap_refusals is not None:
+      self.preap_link_update(can_list)
     # Update carState from CAN. Physical buttons/cancel remain untouched.
     CS = self.CI.update(can_list)
 
@@ -331,6 +316,39 @@ class Car:
 
     return CS, RD
 
+  def preap_link_update(self, can_list) -> None:
+    """Pre-AP: what the panda reports, for the pull FSM and the 0x560 stream (opendbc tesla_ap1/preap/panda_link.py).
+    The FSM gets refusals of our own 0x551 / 0x488 frames, read from their rejected TX echoes, not the all-address
+    safetyTxBlocked total, so our 0x560 (always refused by design) can never read as a pedal refusal. The total stays a
+    cross-check: blocked frames whose echo never came are passed on (fail-safe) unless an own 0x560 was sent nearby (logged)."""
+    from opendbc.car.tesla_ap1.preap.panda_link import LinkInput, scan_echoes
+    echoes = scan_echoes(can_list)
+    valid = bool(self.sm.valid["pandaStates"])
+    pss = list(self.sm["pandaStates"]) if self.sm.seen["pandaStates"] else []
+    sample = self.sm.logMonoTime["pandaStates"]
+    new_sample = valid and len(pss) > 0 and sample != self.preap_tx_sample
+    totals = None
+    if new_sample:
+      self.preap_tx_sample = sample
+      totals = [int(ps.safetyTxBlocked) for ps in pss]
+    refusals, logged = self.preap_refusals.step(echoes, self.preap_sent_560, totals)
+    self.preap_sent_560 = 0
+    if logged:
+      self.preap_warn(time.monotonic(), f"card: Pre-AP {logged} blocked TX without an echo next to an own 0x560, not a refusal")
+    if refusals > 0:
+      self.CI.CS.preap_panda_tx_blocked = int(getattr(self.CI.CS, "preap_panda_tx_blocked", 0) or 0) + refusals
+    link = LinkInput(gtw_echo=echoes.gtw > 0, new_sample=new_sample, controls_allowed=True)
+    if pss:
+      ps = pss[-1]
+      key = (int(getattr(ps.safetyModel, "raw", ps.safetyModel)), int(ps.safetyParam))
+      link.safety_key = key
+      link.safety_ok = valid and key == self.preap_safety_expect
+      link.uptime = int(ps.uptime)
+      link.heartbeat_lost = bool(ps.heartbeatLost)
+      # fail closed: no valid pandaStates reads as controls allowed, so no 0x560 goes out
+      link.controls_allowed = (not valid) or any(bool(p.controlsAllowed) for p in pss)
+    self.CI.CS.preap_link = link
+
   def state_publish(self, CS: car.CarState, RD: structs.RadarDataT | None):
     """carState and carParams publish loop"""
 
@@ -388,8 +406,8 @@ class Car:
           # Never let the read stop card: end it and free the button. Fixed text only, no exception text or frame data in logs.
           self.preap_vin_read.fail_safe()
           cloudlog.error("card: Pre-AP radar read ended on an internal error")
-      if getattr(self, "preap_own_blocked", None) is not None:
-        self.preap_own_blocked.sent(self.preap_own_blocked.count(can_sends))
+      if self.preap_refusals is not None:
+        self.preap_sent_560 += sum(1 for m in can_sends if m[0] == 0x560)
       self.pm.send('sendcan', can_list_to_can_capnp(can_sends, msgtype='sendcan', valid=CS.canValid))
 
       self.CC_prev = CC

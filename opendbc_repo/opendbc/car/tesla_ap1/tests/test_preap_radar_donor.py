@@ -16,7 +16,9 @@ from opendbc.car.can_definitions import CanData
 from opendbc.car.carlog import carlog
 from opendbc.car.tesla_ap1.preap import params
 from opendbc.car.tesla_ap1.preap.params import PreApParamKeys
-from opendbc.car.tesla_ap1.preap.radar_donor import OwnBlockedTx, RadarDonorStream, create_radar_vin_msg, normalize_radar_donor_vin
+from opendbc.car.tesla_ap1.preap.panda_link import LinkInput
+from opendbc.car.tesla_ap1.preap.radar_donor import (LOST_FRAMES, Link, RadarDonorStream, create_radar_vin_msg,
+                                                    normalize_radar_donor_vin)
 from opendbc.car.tesla_ap1.preap.radar_donor_vin import (
   FLOW_CONTROL,
   RADAR_UDS_BUS,
@@ -61,86 +63,96 @@ def test_create_radar_vin_msg_layout():
     create_radar_vin_msg(3, VIN, True, 0, 0)
 
 
-def _run(stream, frames, enabled=False, steering=False):
+KEY = (10, 480)     # tesla, Pre-AP + pedal + nosecone + flag 256
+
+
+def _link(ok=True, key=KEY, uptime=100, echo=False, sample=True, ca=False, hb=False):
+  return LinkInput(safety_ok=ok, safety_key=key if ok else (17, 1), uptime=uptime, heartbeat_lost=hb, controls_allowed=ca,
+                   new_sample=sample, gtw_echo=echo)
+
+
+def _run(stream, frames, enabled=False, steering=False, fsm=False, park=False, link=_link, start=0):
+  """link(f) -> LinkInput for frame f (default: the car's mode, no echo, a new sample every 10 frames)."""
   out = []
-  for f in range(frames):
-    out += stream.update(f, enabled, steering)
+  for f in range(start, start + frames):
+    lk = link(f) if callable(link) and link is not _link else _link(sample=(f % 10 == 0))
+    out += stream.update(f, enabled, steering, link=lk, fsm_engaged=fsm, in_park=park)
   return out
+
+
+def _fresh(*a, **kw):
+  """A stream whose card started before the panda's switch (first sample: ELM327), then the switch."""
+  s = RadarDonorStream(True, *a, **kw) if a else RadarDonorStream(True, "", 0)
+  s.update(0, False, False, link=_link(ok=False))
+  return s
 
 
 def test_stream_only_with_flag_256_disengaged_not_steering():
   assert _run(RadarDonorStream(False, VIN, 1), 100) == []
-  s = RadarDonorStream(True, "", 0)
-  sent = _run(s, 60)
+  sent = _run(_fresh(), 60)
   assert [m.dat[0] for m in sent] == [0, 1, 2, 0, 1, 2]        # 10 Hz at 100 Hz, records cycle
-  assert _run(RadarDonorStream(True, "", 0), 100, enabled=True) == []
-  assert _run(RadarDonorStream(True, "", 0), 100, steering=True) == []
-  assert _run(RadarDonorStream(True, "", 0), 100, enabled=True, steering=True) == []
+  for kw in ({"enabled": True}, {"steering": True}, {"fsm": True}, {"enabled": True, "steering": True}):
+    assert _run(_fresh(), 100, **kw) == [], kw
+  assert _run(_fresh(), 100, link=lambda f: _link(sample=f % 10 == 0, ca=True)) == []     # panda allows controls
 
 
-def test_stream_has_no_gear_input():
-  # 92aa9ee1f held it in Drive, so a safety init in Drive (the ~15 s switch to the car's mode, or a re-init) left the radar off.
+def test_no_stream_before_the_cars_mode_or_without_pandastates():
+  s = RadarDonorStream(True, "", 0)
+  assert _run(s, 100, link=lambda f: _link(ok=False, sample=f % 10 == 0)) == [] and s.state == Link.WAIT_SAFETY
+  assert _run(s, 100, link=lambda f: None) == [] and s.state == Link.WAIT_SAFETY
+
+
+def test_stream_has_no_gear_input_and_stops_on_echoes():
   import inspect
   assert "gear" not in " ".join(inspect.signature(RadarDonorStream.update).parameters)
-  s = RadarDonorStream(True, "", 0)
+  s = _fresh()
   assert len(_run(s, 30)) == 3
-  assert _run(s, 30, enabled=True) == [] and s.update(30, False, False)[0].dat[0] == 0   # resumes where it stopped
+  assert _run(s, 30, link=lambda f: _link(sample=f % 10 == 0, echo=True), start=30) == [] and s.state == Link.OPEN
 
 
-def test_carcontroller_passes_enabled_and_lat_active_not_gear():
+def test_rearm_on_lost_echoes_reinit_reboot_heartbeat():
+  def opened():
+    s = _fresh()
+    _run(s, 20, link=lambda f: _link(sample=f % 10 == 0, echo=True))
+    assert s.state == Link.OPEN
+    return s
+  s = opened()                                        # echoes stop: re-armed after LOST_FRAMES, streaming again
+  out = _run(s, LOST_FRAMES + 40, start=20)
+  assert s.state == Link.STREAM and len(out) >= 2 and s.rearms == 2
+  s = opened()                                        # echoes stop while the panda allows controls: no re-arm until it does not
+  _run(s, LOST_FRAMES + 40, link=lambda f: _link(sample=f % 10 == 0, ca=True), start=20)
+  assert s.state == Link.OPEN
+  for lk in (_link(key=(10, 224)), _link(uptime=3), _link(hb=True)):   # param change, reboot, heartbeat lost
+    s = opened()
+    s.update(30, False, False, link=lk)
+    assert s.state == Link.STREAM, lk
+
+
+def test_card_restart_in_drive_holds_the_config_until_a_reinit_or_park():
+  # PS N3: the first sample already shows the car's mode: the panda keeps a config from an earlier card process.
+  logs = []
+  s = RadarDonorStream(True, VIN, 2, log_fn=logs.append)
+  assert _run(s, 200) == [] and s.held_inherited > 0 and len(logs) == 1 and VIN not in logs[0]
+  assert len(_run(s, 30, park=True, start=200)) == 3                     # Park: the setting may be applied
+  s = RadarDonorStream(True, VIN, 2)
+  _run(s, 50)
+  s.update(50, False, False, link=_link(uptime=1))                       # panda reboot: config cleared, fresh config is fine
+  assert len(_run(s, 30, start=51)) == 3 and not s.inherited
+  s = RadarDonorStream(True, VIN, 2)
+  _run(s, 20)
+  s.update(20, False, False, link=_link(ok=False))
+  s.update(21, False, False, link=_link())                               # re-init seen as a mode transition
+  assert len(_run(s, 30, start=22)) == 3
+
+
+def test_carcontroller_passes_panda_link_and_fsm_mode():
   src = (PREAP_DIR / "carcontroller.py").read_text()
-  assert "self.radar_donor.update(self.frame, bool(CC.enabled), bool(CC.latActive))" in src
-
-
-# ---- own 0x560 frames taken back out of the panda blocked-TX count ----
-
-def test_own_blocked_count_only_0x560_bus0():
-  sends = [create_radar_vin_msg(0, "", True, 0, 0), CanData(0x560, bytes(8), 1), CanData(0x551, bytes(6), 2), (0x560, bytes(8), 0),
-           (0x488, bytes(4), 0)]
-  assert OwnBlockedTx.count(sends) == 2
-  assert OwnBlockedTx.count([]) == 0
-
-
-def test_own_blocked_pure_0x560_feeds_nothing():
-  o = OwnBlockedTx()
-  for step in range(1, 301):
-    o.sent(1 if step % 10 == 3 else 0)
-    if step % 10 == 0:                                   # 10 Hz sample: counts the one frame sent in its window
-      assert o.take(1) == (0, False)
-  assert o.window == 0
-
-
-def test_own_blocked_mixed_passes_only_the_rest():
-  o = OwnBlockedTx()
-  o.sent(1)
-  o.sent(1)
-  assert o.take(2 + 5) == (5, True)       # 5 pedal frames refused plus our 2 -> 5, and a warning
-  o.sent(1)
-  assert o.take(1) == (0, False)
-  assert o.take(4) == (4, True)           # nothing sent in this window: all of it is real
-  assert o.take(0) == (0, False) and o.take(-3) == (0, False)
-
-
-def test_own_blocked_clamped_to_the_increase_and_no_carry_over():
-  o = OwnBlockedTx()
-  o.sent(3)
-  assert o.take(1) == (0, False)          # fewer counted than sent: 0, never negative
-  assert o.window == 0                    # the 2 not counted are not carried forward
-  assert o.take(1) == (1, True)           # so they can never hide a block in the next sample
-  o.sent(1)
-  assert o.take(5) == (4, True)           # never more than this window's own frames
-
-
-def test_own_blocked_counted_a_sample_late_is_passed_on():
-  o = OwnBlockedTx()
-  o.sent(1)
-  assert o.take(0) == (0, False)          # the panda had not counted it yet
-  assert o.take(1) == (1, True)           # fail-safe: shows as a block (and a warning), never hidden
+  assert 'link=getattr(CS, "preap_link", None)' in src and "fsm_engaged=" in src and "in ENGAGED_MODES" in src
 
 
 def test_stream_position_is_donor_type_and_blank_vin_is_spaces():
   for want in (0, 1, 2):
-    s = RadarDonorStream(True, "", want)
+    s = _fresh("", want)
     r0, r1, r2 = _run(s, 30)
     assert (r0.dat[2] >> 1) & 3 == want and (r0.dat[2] >> 3) & 7 == 0 and r0.dat[2] & 1 == 1
     assert r0.dat[5:] == b"   " and r1.dat[1:] == b" " * 7 and r2.dat[1:] == b" " * 7
@@ -180,6 +192,7 @@ def test_carcontroller_streams_from_safety_param(tmp_path):
     for param in (480, 32 | 64 | 256):
       ctl = make(param)
       assert ctl.radar_donor.position == want, (text, param)
+      ctl.radar_donor.update(0, False, False, link=_link(ok=False))
       r0 = _run(ctl.radar_donor, 30)[0]
       assert (r0.dat[2] >> 1) & 3 == want, (text, param)
     assert make(32 | 64 | 128).radar_donor.position == 0, text

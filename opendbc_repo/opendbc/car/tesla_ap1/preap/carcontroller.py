@@ -13,7 +13,7 @@ Pedal calibration (driver foot press, no commanded gas) runs here from CarState 
 from __future__ import annotations
 
 from opendbc.can import CANPacker
-from opendbc.car import Bus
+from opendbc.car import Bus, structs
 from opendbc.car.carlog import carlog
 from opendbc.car.interfaces import CarControllerBase
 from opendbc.car.tesla_ap1.actuator_plan import apply_std_steer_angle_limits
@@ -28,6 +28,7 @@ from opendbc.car.tesla_ap1.preap.calib import (
   STAGE_COAST, STAGE_COAST_OK, STAGE_IDLE, apply_calibration_result, coast_steady, compute_calibration_onset, fail_calibration,
   is_pedal_calibrated, pedal_can_bus, pedal_long_allowed, rest_stats, set_stage,
 )
+from opendbc.car.tesla_ap1.preap.engagement import ENGAGED_MODES
 from opendbc.car.tesla_ap1.preap.long_controller import PreAPLongController
 from opendbc.car.tesla_ap1.preap.params import PreApParamKeys, get_bool, get_str, radar_donor_type
 from opendbc.car.tesla_ap1.preap.pedal_can import PedalCommandCounter
@@ -65,7 +66,7 @@ class PreApCarController(CarControllerBase):
     safety_param = int(configs[-1].safetyParam) if configs else 0
     radar_on = bool(safety_param & FLAG_TESLA_PREAP_RADAR_EMULATION)
     self.radar_donor = RadarDonorStream(radar_on, get_str(PreApParamKeys.RADAR_DONOR_VIN) if radar_on else "",
-                                        radar_donor_type() if radar_on else 0)
+                                        radar_donor_type() if radar_on else 0, log_fn=carlog.warning)
 
   # ---- pedal calibration (driver press only; the panda is never unlocked for it) ----
   def _reset_calib_capture(self) -> None:
@@ -172,7 +173,11 @@ class PreApCarController(CarControllerBase):
       can_sends.extend(self.long_ctrl.update(CC, CS, self.frame, long_ok=long_ok, now_nanos=int(now_nanos or 0)))
     # The spoof-echo window (preap/cruise.py) is stamped by StockCCSpoofer only when our CANCEL frame is put on the bus.
     can_sends.extend(self.stock_cc.update(CS, self.frame, self.tesla_can, CANBUS.chassis))
-    can_sends.extend(self.radar_donor.update(self.frame, bool(CC.enabled), bool(CC.latActive)))
+    # 0x560 follows the panda's own reports (card: CS.preap_link); never while the pull FSM is in an engaged mode (PS N1).
+    can_sends.extend(self.radar_donor.update(
+      self.frame, bool(CC.enabled), bool(CC.latActive), link=getattr(CS, "preap_link", None),
+      fsm_engaged=int(getattr(CS, "preap_fsm_mode", 0)) in ENGAGED_MODES,
+      in_park=getattr(CS.out, "gearShifter", None) == structs.CarState.GearShifter.park))
 
     new_actuators = actuators.as_builder()
     new_actuators.steeringAngleDeg = float(self.apply_angle_last)
