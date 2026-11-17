@@ -443,8 +443,14 @@ class SelfdriveD:
     if not REPLAY and self.rk.lagging:
       self.events.add(EventName.selfdrivedLagging)
     if self.CP.openpilotLongitudinalControl:
+      # NAP selfdrived.py:528-529 @ 92b42f772 maps radarErrors.canError to canError. Pre-AP only: a distinct
+      # event with identical disable behaviour (docs/tesla/DIVERGENCES.md). AP1 and an unknown car keep canError.
       if self.sm['radarState'].radarErrors.canError:
-        self.events.add(EventName.canError)
+        from opendbc.car.tesla_ap1.values import is_preap
+        if is_preap(getattr(self.CP, "carFingerprint", None)):
+          self.events.add(EventName.radarDataInvalid)
+        else:
+          self.events.add(EventName.canError)
       elif self.sm['radarState'].radarErrors.radarUnavailableTemporary:
         self.events.add(EventName.radarTempUnavailable)
       elif any(self.sm['radarState'].radarErrors.to_dict().values()):

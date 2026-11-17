@@ -142,6 +142,7 @@ struct OnroadEvent @0xc4fa6047f024e718 {
     preapCruiseNotArmed @112; # Pre-AP no pedal: the second pull did not arm stock cruise within 600 ms
     preapRegenLimit @113;     # Pre-AP pedal: the plan asks for more decel than regen can give (alert only, selfdrived/preap_regen.py)
     preapRadarNotReady @114;  # Pre-AP pedal: radar not ready, speed control on camera leads (warning only, never no-entry or disable)
+    radarDataInvalid @115;  # Pre-AP only: radar parser invalid while frames arrive, after a short first-contact/resume grace
 
     lowBatteryDEPRECATED @40;
     soundsUnavailableDEPRECATED @47;

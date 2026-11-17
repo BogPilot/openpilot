@@ -961,6 +961,17 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
     ET.NO_ENTRY: NoEntryAlert("Unknown Vehicle Variant"),
   },
 
+  # Pre-AP only (selfdrived): same immediateDisable, noEntry and permanent as canError; text only differs.
+  EventName.radarDataInvalid: {
+    ET.IMMEDIATE_DISABLE: ImmediateDisableAlert("Radar Data Invalid"),
+    ET.PERMANENT: Alert(
+      "Radar Data Invalid",
+      "",
+      AlertStatus.normal, AlertSize.small,
+      Priority.LOW, VisualAlert.none, AudibleAlert.none, 1., creation_delay=1.),
+    ET.NO_ENTRY: NoEntryAlert("Radar Data Invalid"),
+  },
+
   EventName.canBusMissing: {
     ET.IMMEDIATE_DISABLE: ImmediateDisableAlert("CAN Bus Disconnected"),
     ET.PERMANENT: Alert(

@@ -1186,11 +1186,27 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   errors at 20 Hz (speed control on camera leads) and marks the radar not VALID, so card raises the one "Radar not ready – using
   camera lead" warning (`opendbc_repo/opendbc/car/tesla_ap1/radar_interface.py:121`). No canError, radarFault or
   radarUnavailableTemporary from silence. Frames coming back recover through the radar-valid gate. A radar parser that goes
-  invalid while frames still arrive stays canError (`radar_interface.py:130`), an immediate disable with openpilot
-  longitudinal. Panda unchanged.
+  invalid while frames still arrive sets radarErrors.canError (`radar_interface.py` parser-invalid path); selfdrived
+  raises radarDataInvalid on Pre-AP only, after a short first-contact/resume grace. AP1 keeps canError. The silence
+  path stays empty and error-free. Panda unchanged.
 - Divergence from NAP: NAP publishes nothing during the silence; ours publishes the empty RadarData so radard keeps radarState
   valid on camera leads, and shows the warning.
 - Safety-relevant: yes (a lost radar only removes radar leads; the camera lead and every other check stay).
 - Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_radar_silence_advisory.py`, `test_preap_bosch_radar.py`,
   `openpilot/selfdrive/controls/tests/test_ap1_radartracks_min_freq.py`.
+- Credits: NAP.
+
+## Driver alerts: radarDataInvalid for a Pre-AP radar parser fault
+- Platforms: Pre-AP Model S with openpilot longitudinal. AP1 and an unknown car are unchanged.
+- Reference behavior: NAP selfdrived.py:528-529 @ 92b42f772 maps radarState.radarErrors.canError to canError.
+- Our behavior: on Pre-AP only, that radar-side flag maps to EventName.radarDataInvalid
+  (`openpilot/selfdrive/selfdrived/selfdrived.py`), with the same immediateDisable, noEntry and permanent
+  behaviour as canError and the text "TAKE CONTROL IMMEDIATELY" / "Radar Data Invalid". The car-bus canError
+  path (CS.canValid / canTimeout) is unchanged. A short Pre-AP grace (`PREAP_PARSER_GRACE_S`,
+  `opendbc_repo/opendbc/car/tesla_ap1/radar_interface.py`) suppresses the parser's first-contact and resume
+  canError while the CANParser is still filling; after the grace, an invalid parser while frames arrive still
+  sets the flag. The option-B silence path publishes empty, error-free RadarData and never sets an error.
+- Why: NAP and stock show CAN Error for radar parser faults; we show Radar Data Invalid with identical disable behaviour.
+- Safety-relevant: yes (same disable as canError on a truly invalid parser; first contact and silence do not disengage).
+- Tests: `openpilot/selfdrive/selfdrived/tests/test_radar_data_invalid.py`.
 - Credits: NAP.

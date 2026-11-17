@@ -23,9 +23,17 @@ TRIGGER_MSG = 878  # RadarPoint31_B
 # - After the trigger has arrived, no radar cycle for 0.5 s: advisory, as NAP (radar_interface.py:176-177 @ 508d26fcb: no
 #   trigger, nothing published, no error). The tracks are dropped, an empty error-free RadarData goes out at 20 Hz (camera
 #   leads) and the radar reads not VALID, so card raises the one warning. Frames coming back recover through the radar-valid
-#   gate. A radar parser that goes invalid while frames still arrive stays canError (NAP radar_interface.py:190-191).
+#   gate. A radar parser that goes invalid while frames still arrive sets errors.canError (NAP radar_interface.py:190-191),
+#   which selfdrived maps to radarDataInvalid on Pre-AP only after PREAP_PARSER_GRACE_S.
 PREAP_MISSING_RADAR_FRAMES = 50
 PREAP_MISSING_RADAR_PUBLISH_DIV = 5
+# Pre-AP only. CANParser.can_valid (opendbc/can/parser.py:185-199) is false until every checked message has a
+# timestamp (MessageState.valid, :92-99). TeslaRadarSguInfo is 10 Hz and the 64 RadarPoint A/B messages are listed
+# at 16 Hz, so the first trigger cycle (and the first cycle after a silence) often has can_valid false for one
+# published RadarData. 0.25 s is one SGU period plus one slow radar cycle (~0.14 s) with margin, under 1 s.
+# After the grace, an invalid parser while frames still arrive still sets canError. The silence path (empty
+# error-free RadarData) never sets an error and does not start this grace.
+PREAP_PARSER_GRACE_S = 0.25
 
 
 def get_radar_can_parser(CP):
@@ -67,6 +75,7 @@ class RadarInterface(RadarInterfaceBase):
     self.preap_radar_spoke = False     # the trigger message has arrived at least once since card started
     self.preap_v_ego = 0.0             # card.py sets it each step (for the gate's late label only)
     self._preap_steps = 0
+    self._preap_grace_until = None     # Pre-AP first-contact / resume grace end time (CAN seconds), or None
     if self.preap and self.rcp is not None:
       configs = list(getattr(CP, "safetyConfigs", None) or [])
       param = int(configs[-1].safetyParam) if configs else 0
@@ -101,7 +110,16 @@ class RadarInterface(RadarInterfaceBase):
       self.preap_gate.on_alert_matrix(now, self.rcp.vl['TeslaRadarAlertMatrix'])
     return now
 
+  def _can_now(self, can_strings) -> float:
+    """CAN time in seconds from the last timestamp in this step, else 10 ms steps."""
+    now = None
+    for pkt in can_strings or ():
+      if isinstance(pkt, tuple) and len(pkt) >= 1 and pkt[0]:
+        now = float(pkt[0]) * 1e-9
+    return now if now is not None else self._preap_steps * 0.01
+
   def update(self, can_strings):
+
     if self.rcp is None:
       return super().update(None)
 
@@ -121,14 +139,24 @@ class RadarInterface(RadarInterfaceBase):
           self.preap_radar_valid = False   # the one warning (card), no error: a radar that stops is advisory, as NAP :176-177
           if self.frames_without_radar % PREAP_MISSING_RADAR_PUBLISH_DIV == 0:
             self.pts.clear()               # no stale tracks survive a radar dropout: radard runs on camera leads
-            return structs.RadarData()
+            return structs.RadarData()     # error-free: never canError / radarDataInvalid on the silence path
       return None
+    now = gate_now if gate_now is not None else self._can_now(can_strings)
+    first_contact = self.preap and not self.preap_radar_spoke
+    resume = self.preap and self.preap_radar_spoke and self.frames_without_radar > 0
+    if first_contact or resume:
+      self._preap_grace_until = now + PREAP_PARSER_GRACE_S
     self.frames_without_radar = 0
     self.preap_radar_spoke = True
 
     ret = structs.RadarData()
     if not self.rcp.can_valid:
-      ret.errors.canError = True
+      # Pre-AP only: skip canError during first-contact / resume grace. After the grace, an invalid
+      # parser while frames arrive still sets canError. AP1 is unchanged (no grace). The silence
+      # path above never sets an error and does not invalidate radarState.
+      in_grace = self.preap and self._preap_grace_until is not None and now < self._preap_grace_until
+      if not in_grace:
+        ret.errors.canError = True
 
     radar_status = self.rcp.vl['TeslaRadarSguInfo']
     if self.preap:
