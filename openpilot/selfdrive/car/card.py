@@ -12,6 +12,7 @@ from openpilot.common.params import Params
 from openpilot.common.traffic_mode_hold import TrafficModeHold
 from openpilot.common.realtime import config_realtime_process, Priority, Ratekeeper
 from openpilot.selfdrive.car.step_overrun import StepOverrunCounter
+from openpilot.selfdrive.car.preap_card_step import use_10hz_distance_button, use_step_overrun_counter
 from openpilot.common.swaglog import cloudlog, ForwardingHandler
 
 from opendbc.car import DT_CTRL, structs
@@ -228,8 +229,13 @@ class Car:
 
     # card is driven by can recv, expected at 100Hz
     self.rk = Ratekeeper(100, print_delay_threshold=None)
-    self.onroad_distance_button = False
-    self.step_timer = StepOverrunCounter(cloudlog.warning)
+    # 07e8bd68f moved OnroadDistanceButtonPressed to the 10 Hz params thread and
+    # added a log-only step-overrun counter on every car. Gate both to Pre-AP:
+    # AP1 and unknown keep the 92aa9ee1f path (read the button every 100 Hz step,
+    # no overrun timer).
+    if use_10hz_distance_button(self.CP.carFingerprint):
+      self.onroad_distance_button = False
+    self.step_timer = StepOverrunCounter(cloudlog.warning) if use_step_overrun_counter(self.CP.carFingerprint) else None
 
   def state_update(self) -> tuple[car.CarState, structs.RadarDataT | None]:
     """carState update loop, driven by can"""
@@ -273,8 +279,13 @@ class Car:
       except Exception:
         cloudlog.exception("card: AP1 personality sync failed")
     self.traffic_mode_hold.apply_stalk(stalk_traffic)
+    if use_10hz_distance_button(self.CP.carFingerprint):
+      distance_pressed = self.onroad_distance_button
+    else:
+      # 92aa9ee1f: read every 100 Hz step on AP1 and unknown (07e8bd68f gated to Pre-AP)
+      distance_pressed = self.params.get_bool("OnroadDistanceButtonPressed")
     CS.bogpilot.trafficModeEnabled = self.traffic_mode_hold.update_button(
-      self.onroad_distance_button, time.monotonic())
+      distance_pressed, time.monotonic())
 
     # Update radar tracks from CAN
     if self.preap_refusals is not None and hasattr(self.RI, "preap_v_ego"):
@@ -495,7 +506,8 @@ class Car:
 
   def params_thread(self, evt):
     while not evt.is_set():
-      self.onroad_distance_button = self.params.get_bool("OnroadDistanceButtonPressed")   # read here, not in the 100 Hz step
+      if use_10hz_distance_button(self.CP.carFingerprint):
+        self.onroad_distance_button = self.params.get_bool("OnroadDistanceButtonPressed")
       self.is_metric = self.params.get_bool("IsMetric")
       self.experimental_mode = self.params.get_bool("ExperimentalMode") and self.CP.openpilotLongitudinalControl
       time.sleep(0.1)
@@ -506,9 +518,12 @@ class Car:
     try:
       t.start()
       while True:
-        t0 = time.monotonic()
-        self.step()
-        self.step_timer.record(time.monotonic() - t0, t0)
+        if self.step_timer is not None:
+          t0 = time.monotonic()
+          self.step()
+          self.step_timer.record(time.monotonic() - t0, t0)
+        else:
+          self.step()
         self.rk.monitor_time()
     finally:
       e.set()

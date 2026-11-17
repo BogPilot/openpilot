@@ -1107,15 +1107,20 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Credits: NAP, Tinkla/BogGyver.
 
 ## card: no Pre-AP param file IO in the 100 Hz step, step overrun counter
-- Platforms: Pre-AP (the cache); every car (the counter).
+- Platforms: Pre-AP only. AP1 and an unknown car are unchanged.
 - Reference behavior: stock card does no file IO per step; NAP and BogPilot 0.9.7 Pre-AP code read and write param files
-  from the control step.
+  from the control step. 92aa9ee1f reads `OnroadDistanceButtonPressed` on every 100 Hz card step and has no step-overrun
+  counter. 07e8bd68f moved that Params read to the 10 Hz params thread and added a log-only overrun counter for every car.
 - Our behavior: Pre-AP param reads in card's step come from an in-memory snapshot that a background thread refreshes every
   0.1 s, and writes are flushed by that thread (`opendbc_repo/opendbc/car/tesla_ap1/preap/params.py` StepCache; values are
-  never logged). `OnroadDistanceButtonPressed` is read in card's params thread. card counts steps over their 10 ms slot and
-  logs the count and the worst step at most every 10 s (`openpilot/selfdrive/car/step_overrun.py`).
-- Why: file IO in the 100 Hz loop can stall a step. That this caused the tester stalls is UNPROVEN.
-- Tests: `test_preap_params_step_cache.py`, `openpilot/selfdrive/car/tests/test_step_overrun.py`.
+  never logged). On Pre-AP only, `OnroadDistanceButtonPressed` is read in card's params thread (10 Hz), so a Traffic Mode
+  long-press can register up to about 0.1 s later, and card counts steps over their 10 ms slot, logging the count and the
+  worst step at most every 10 s (`openpilot/selfdrive/car/step_overrun.py`). AP1 and unknown cars keep the 92aa9ee1f path:
+  the button is read every 100 Hz step, and the overrun timer does not run.
+- Why: file IO in the 100 Hz loop can stall a step on Pre-AP. AP1 keeps the last good build's behaviour.
+- Safety-relevant: no (button timing and a log-only timer; neither changes control).
+- Tests: `test_preap_params_step_cache.py`, `openpilot/selfdrive/car/tests/test_step_overrun.py`,
+  `openpilot/selfdrive/car/tests/test_preap_distance_button_read.py`.
 - Credits: BogPilot.
 
 ## Pre-AP regen-limit alert (alert only)
