@@ -46,6 +46,8 @@ class _Clock:
 
 
 def _make_rig(tmp_path, monkeypatch, radar=True, donor_type=None, donor_vin=None):
+  # card starts the process-wide Pre-AP params snapshot (preap/params.py StepCache); one per rig, or the last test's values leak in
+  preap_params.stop_step_cache()
   monkeypatch.setattr(preap_params, "_params_dir", tmp_path / "params_bogpilot")
   if donor_type is not None:
     preap_params.set_str(K.RADAR_DONOR_TYPE, str(donor_type))
@@ -66,7 +68,7 @@ def _make_rig(tmp_path, monkeypatch, radar=True, donor_type=None, donor_vin=None
   c.pm.send = lambda name, dat: sent.append(dat) if name == "sendcan" else None
   c.initialized_prev = True
   packer = CANPacker(DBC[CAR.TESLA_PREAP_MODELS][Bus.chassis])
-  st = SimpleNamespace(i=0)
+  st = SimpleNamespace(i=0, ps=0)
 
   def background(gear):
     st.i += 1
@@ -78,14 +80,18 @@ def _make_rig(tmp_path, monkeypatch, radar=True, donor_type=None, donor_vin=None
     """One card step on the background traffic plus these frames; returns every (address, dat, src) card put in 'sendcan'.
     tx_total: the panda's blocked-TX total (pandaStates.safetyTxBlocked) card sees in this step; sample: that pandaStates
     message's logMonoTime (a new value = a new sample); ps_fields: the whole pandaStates entry (the libsafety panda).
-    Without tx_total / ps_fields the step carries what pandad publishes on a car: one valid pandaStates entry in the car's
-    own safety mode (card's expected model and param), controls not allowed. ps_valid=False: no valid pandaStates."""
+    Without tx_total / ps_fields the step carries what pandad publishes on a fresh start: a new valid pandaStates sample each
+    step, ELM327 on the first one, then the car's own safety mode (card's expected model and param), controls not allowed.
+    ps_valid=False: no valid pandaStates."""
     ps = [log.PandaState.new_message(controlsAllowed=False, safetyTxBlocked=int(tx_total or 0) & 0xFFFFFFFF)]
     if ps_fields is not None:
       ps = [log.PandaState.new_message(**ps_fields)]
     elif tx_total is None and ps_valid:
-      model, param = c.preap_safety_expect
-      ps = [log.PandaState.new_message(controlsAllowed=False, safetyModel=model, safetyParam=param)]
+      st.ps += 1
+      model, param = c.preap_safety_expect if st.ps > 1 else (int(car.CarParams.SafetyModel.elm327), 1)
+      ps = [log.PandaState.new_message(controlsAllowed=False, safetyModel=model, safetyParam=param, uptime=1)]
+      if sample is None:
+        sample = st.ps
     if not ps_valid:
       c.sm.valid["pandaStates"] = False
     else:
@@ -111,13 +117,17 @@ def _make_rig(tmp_path, monkeypatch, radar=True, donor_type=None, donor_vin=None
     clock.t += 0.01
     return out
 
+  step()   # boot: card's first step sees the panda still in ELM327; pandad switches it to the car's mode after ControlsReady
   return SimpleNamespace(car=c, step=step, clock=clock)
 
 
 @pytest.fixture
 def make_rig(tmp_path, monkeypatch):
   with OpenpilotPrefix(clean_dirs_on_exit=False):
-    yield lambda **kw: _make_rig(tmp_path, monkeypatch, **kw)
+    try:
+      yield lambda **kw: _make_rig(tmp_path, monkeypatch, **kw)
+    finally:
+      preap_params.stop_step_cache()
 
 
 @pytest.fixture
