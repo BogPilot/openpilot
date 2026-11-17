@@ -1078,8 +1078,8 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Platforms: Pre-AP Model S with the retrofit Bosch radar. AP1 unchanged.
 - Reference behavior: NAP nap-alpha `92b42f772` (opendbc `508d26fcb`) raises no radar error before the radar's trigger
   message (`opendbc/car/tesla/radar_interface.py:176-177`) and ignores SGUFail, so only HWFail faults (`:203-215`; opendbc
-  `f29a061c`). opendbc `ebd04ce3` drops frozen tracks with SGUFail instead of faulting. `26164ce9` falls back to camera leads
-  with a warning ("Using camera lead") while the radar is unhealthy. opendbc `f00c8cb9` always streams 0x560, an empty VIN as
+  `f29a061c`). opendbc `ebd04ce3` drops frozen tracks, and only while Ignore radar HWFail is on. NAP openpilot `26164ce9`
+  falls back to camera leads with a warning ("Using camera lead") while the radar is unhealthy. opendbc `f00c8cb9` always streams 0x560, an empty VIN as
   17 spaces. Tinkla/BogGyver ignore SGUFail on the Pre-AP retrofit.
 - Our behavior:
   - A radar that is not VALID (pending, a rejected config such as radPositionMismatch, any ITC, starved, frozen or silent)
