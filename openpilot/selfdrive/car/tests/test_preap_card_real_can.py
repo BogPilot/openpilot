@@ -332,7 +332,7 @@ def test_runner_accepts_plain_tuples():
 
 ELM327_PARAM = 1
 SWITCH = 300           # card step of the panda's switch to the car's safety mode (~15 s after start on a car, shortened here)
-CONFIG_398 = "0281555300000000"
+CONFIG_398 = bytes((0x02, 0x81, 0x55, 0x53, 0, 0, 0, 0))   # car 0x398, as in the panda donor tests
 
 
 class _Panda:
@@ -369,7 +369,7 @@ class _Panda:
     if not self.tesla:
       return False
     self.l.safety_can_send_log_reset()
-    self.l.safety_rx_hook(self.pkt(0x398, bytearray(bytes.fromhex(CONFIG_398)), 0))
+    self.l.safety_rx_hook(self.pkt(0x398, bytearray(CONFIG_398), 0))
     return any(addr == 0x2A9 and bus == 1 for addr, bus, _, _ in self.sent())
 
 
