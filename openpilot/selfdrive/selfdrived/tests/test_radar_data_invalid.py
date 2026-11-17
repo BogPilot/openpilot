@@ -151,40 +151,81 @@ def _fresh_canerror_like(text: str):
   }
 
 
+def _alert_fields_except_duration_and_text(a):
+  # Every Alert field except duration (test_alertmanager mutates the singleton)
+  # and the two text fields. Includes the alert class.
+  out = {k: v for k, v in vars(a).items() if k not in ("duration", "alert_text_1", "alert_text_2")}
+  out["cls"] = type(a)
+  return out
+
+
 def test_alerts_match_canerror_except_text():
+  # Fresh constructors: isolation from test_alertmanager duration mutations on EVENTS singletons.
   rdi = _fresh_canerror_like("Radar Data Invalid")
   ce = _fresh_canerror_like("Unknown Vehicle Variant")
   assert set(EVENTS[EventName.radarDataInvalid]) == set(EVENTS[EventName.canError]) == set(rdi) == {
     ET.IMMEDIATE_DISABLE, ET.PERMANENT, ET.NO_ENTRY}
 
-  def fields(a, skip_text=False):
-    keys = ("alert_status", "alert_size", "priority", "visual_alert", "audible_alert",
-            "duration", "creation_delay")
-    out = {k: getattr(a, k) for k in keys}
-    out["cls"] = type(a)
-    if not skip_text:
-      out["alert_text_1"] = a.alert_text_1
-      out["alert_text_2"] = a.alert_text_2
-    return out
-
   for et in (ET.IMMEDIATE_DISABLE, ET.PERMANENT, ET.NO_ENTRY):
-    a, b = rdi[et], ce[et]
-    assert fields(a, skip_text=True) == fields(b, skip_text=True), et
-    text_a = (a.alert_text_1, a.alert_text_2)
-    text_b = (b.alert_text_1, b.alert_text_2)
+    live_a = EVENTS[EventName.radarDataInvalid][et]
+    live_b = EVENTS[EventName.canError][et]
+    # Live table: same class and every field except duration and text.
+    assert type(live_a) is type(live_b) is type(ce[et]), et
+    assert _alert_fields_except_duration_and_text(live_a) == \
+           _alert_fields_except_duration_and_text(live_b) == \
+           _alert_fields_except_duration_and_text(ce[et]) == \
+           _alert_fields_except_duration_and_text(rdi[et]), et
+    text_a = (live_a.alert_text_1, live_a.alert_text_2)
+    text_b = (live_b.alert_text_1, live_b.alert_text_2)
     assert "Radar Data Invalid" in "".join(text_a)
     assert "Unknown Vehicle Variant" in "".join(text_b)
     swapped = tuple(t.replace("Radar Data Invalid", "Unknown Vehicle Variant") for t in text_a)
     assert swapped == text_b
-    # The table still carries the same text; duration on those objects may have been overwritten.
-    assert (EVENTS[EventName.radarDataInvalid][et].alert_text_1, EVENTS[EventName.radarDataInvalid][et].alert_text_2) == text_a
-    assert (EVENTS[EventName.canError][et].alert_text_1, EVENTS[EventName.canError][et].alert_text_2) == text_b
+    # Fresh objects keep the same wording (and are used for class/field expected values above).
+    assert (rdi[et].alert_text_1, rdi[et].alert_text_2) == text_a
+    assert (ce[et].alert_text_1, ce[et].alert_text_2) == text_b
 
-  # Immediate disable wording: TAKE CONTROL IMMEDIATELY / Radar Data Invalid
   imm = rdi[ET.IMMEDIATE_DISABLE]
+  assert type(imm) is ImmediateDisableAlert
+  assert type(EVENTS[EventName.radarDataInvalid][ET.IMMEDIATE_DISABLE]) is ImmediateDisableAlert
   assert imm.alert_text_1 == "TAKE CONTROL IMMEDIATELY"
   assert imm.alert_text_2 == "Radar Data Invalid"
+  assert EVENTS[EventName.radarDataInvalid][ET.IMMEDIATE_DISABLE].priority == \
+         EVENTS[EventName.canError][ET.IMMEDIATE_DISABLE].priority == Priority.HIGHEST
 
+
+def test_mutant_rdi_priority_or_class_change_is_caught():
+  et = ET.IMMEDIATE_DISABLE
+  live_a = EVENTS[EventName.radarDataInvalid][et]
+  live_b = EVENTS[EventName.canError][et]
+  assert type(live_a) is type(live_b) is ImmediateDisableAlert
+  assert live_a.priority == live_b.priority == Priority.HIGHEST
+  production = _alert_fields_except_duration_and_text(live_a)
+
+  saved_priority = live_a.priority
+  try:
+    live_a.priority = Priority.LOWEST
+    assert _alert_fields_except_duration_and_text(live_a) != _alert_fields_except_duration_and_text(live_b)
+    assert live_a.priority != live_b.priority
+  finally:
+    live_a.priority = saved_priority
+  assert _alert_fields_except_duration_and_text(live_a) == production
+
+  saved_obj = EVENTS[EventName.radarDataInvalid][et]
+  try:
+    EVENTS[EventName.radarDataInvalid][et] = Alert(
+      saved_obj.alert_text_1, saved_obj.alert_text_2,
+      saved_obj.alert_status, saved_obj.alert_size,
+      saved_obj.priority, saved_obj.visual_alert, saved_obj.audible_alert,
+      4., creation_delay=saved_obj.creation_delay)
+    mut = EVENTS[EventName.radarDataInvalid][et]
+    assert type(mut) is Alert
+    assert type(mut) is not type(live_b)
+    assert _alert_fields_except_duration_and_text(mut) != _alert_fields_except_duration_and_text(live_b)
+  finally:
+    EVENTS[EventName.radarDataInvalid][et] = saved_obj
+  assert EVENTS[EventName.radarDataInvalid][et] is saved_obj
+  assert type(EVENTS[EventName.radarDataInvalid][et]) is ImmediateDisableAlert
 
 def test_events_defined_includes_radar_data_invalid():
   events = log.OnroadEvent.EventName.schema.enumerants
