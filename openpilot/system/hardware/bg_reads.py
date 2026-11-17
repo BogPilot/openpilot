@@ -211,6 +211,42 @@ class ReadStaleness:
     return stale
 
 
+# Free space or memory with no fresh value for this long, after its first real read, blocks NEW onroad entry.
+ENTRY_STALE_S = 60.0
+ENTRY_GATE_KEYS = ("free_space", "memory")
+
+
+class StaleEntryGate:
+  """Startup condition: False while offroad and free space or memory has had no fresh read for ENTRY_STALE_S.
+
+  Only after a key's first real read (before it, the fail-closed placeholders already apply). It never forces
+  offroad: while onroad a stale read is logged once and the drive keeps going; the gate only answers whether a new
+  onroad entry may start. A fresh read clears it.
+  """
+
+  def __init__(self, stale_after_s: float | None = None, keys: tuple[str, ...] = ENTRY_GATE_KEYS):
+    self._stale_after_s = ENTRY_STALE_S if stale_after_s is None else stale_after_s
+    self._keys = keys
+    self.stale: set[str] = set()
+    self._logged: tuple[bool, frozenset[str]] | None = None
+
+  def update(self, ages: dict[str, float | None], onroad: bool) -> bool:
+    stale = {k for k in self._keys if ages.get(k) is not None and ages[k] > self._stale_after_s}
+    state = (bool(onroad), frozenset(stale))
+    if stale and state != self._logged:
+      if onroad:
+        cloudlog.event("hardwared device reads stale while onroad: staying onroad, new entry blocked once offroad",
+                       error=True, keys=sorted(stale), age_s={k: round(ages[k], 1) for k in sorted(stale)})
+      else:
+        cloudlog.event("hardwared device reads stale: onroad entry blocked until a fresh read", error=True,
+                       keys=sorted(stale), age_s={k: round(ages[k], 1) for k in sorted(stale)})
+    elif not stale and self.stale:
+      cloudlog.event("hardwared device reads fresh: onroad entry gate cleared", keys=sorted(self.stale))
+    self._logged = state if stale else None
+    self.stale = stale
+    return onroad or not stale
+
+
 def stale_thermal_policy() -> str:
   """STALE_THERMAL_POLICY, or "strict" if it is not a known policy."""
   if STALE_THERMAL_POLICY in STALE_THERMAL_POLICIES:

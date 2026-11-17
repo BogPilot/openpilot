@@ -26,7 +26,7 @@ from openpilot.system.loggerd.config import get_available_percent
 from openpilot.common.swaglog import cloudlog
 from openpilot.system.hardware.power_monitoring import PowerMonitoring
 from openpilot.system.hardware.fan_controller import FanController
-from openpilot.system.hardware.bg_reads import (BackgroundReads, LoopStepTimer, ReadStaleness, ThermalStaleness,
+from openpilot.system.hardware.bg_reads import (BackgroundReads, LoopStepTimer, ReadStaleness, StaleEntryGate, ThermalStaleness,
                                                 fail_hot_thermal_status, read_thermal_zones, stale_thermal_policy)
 from openpilot.system.hardware.chestnut.monitoring import chestnut_state_thread
 from openpilot.system.hardware.chestnut.status import ChestnutStatus
@@ -288,6 +288,7 @@ def hardware_thread(end_event, hw_queue) -> None:
   dev = BackgroundReads("device", dev_reads, dev_defaults)
   dev.start(end_event)
   dev_age = ReadStaleness("device")
+  entry_gate = StaleEntryGate()
   # startup only: let the first readings land so the first deviceState isn't built from defaults
   first_wait_end = time.monotonic() + FIRST_READ_WAIT_S
   while time.monotonic() < first_wait_end and not end_event.is_set():
@@ -365,7 +366,8 @@ def hardware_thread(end_event, hw_queue) -> None:
     timer.mark("hw_queue")
 
     # stale device reads keep their last real value (logged once by ReadStaleness)
-    dev_age.update({k: dev.age_s(k) for k in dev_reads})
+    dev_ages = {k: dev.age_s(k) for k in dev_reads}
+    dev_age.update(dev_ages)
     memory_usage = dev.get("memory")
     cpu_usage = dev.get("cpu", [])
 
@@ -447,6 +449,8 @@ def hardware_thread(end_event, hw_queue) -> None:
 
     # with 2% left, we killall, otherwise the phone will take a long time to boot
     startup_conditions["free_space"] = msg.deviceState.freeSpacePercent > 2
+    # free space / memory stale > 60 s after their first read: no NEW onroad entry; never forces offroad mid-drive
+    startup_conditions["device_reads_fresh"] = entry_gate.update(dev_ages, onroad=started_ts is not None)
     startup_conditions["completed_training"] = params.get("CompletedTrainingVersion") == training_version
     startup_conditions["not_driver_view"] = not params.get_bool("IsDriverViewEnabled")
 

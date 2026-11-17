@@ -1049,5 +1049,8 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   stale (10 s), so selfdrived's stock overheat event soft-disables an engaged car within about 10.5 s. `"nap"`: a cool
   held reading stays engaged up to about 70 s (overheated after 60 s more stale, 70 s after the last fresh reading). Stock's stalled deviceState gave
   commIssue in 5 s.
-- Tests: `openpilot/system/hardware/tests/test_hardwared_loop_rate.py`, `test_bg_reads.py`.
+- Our own hardening beyond NAP (NAP has no staleness gate here): free space or memory with no fresh read for over 60 s,
+  after the first read, blocks new onroad entry (startup condition `device_reads_fresh`); never forces offroad mid-drive
+  (logged and kept onroad); a fresh read clears it.
+- Tests: `openpilot/system/hardware/tests/test_hardwared_loop_rate.py`, `test_bg_reads.py`, `test_stale_entry_gate.py`.
 - Credits: NAP.

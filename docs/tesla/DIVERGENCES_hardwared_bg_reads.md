@@ -76,11 +76,18 @@ every car and device (hardwared is generic).
    (and `hardwared first thermal reading` with the wait when it lands), and the existing stock
    `Offroad_TemperatureTooHigh` alert shows "no reading" instead of a temperature (no new UI).
 11. Limitation: stale non-thermal values (free space, memory, CPU/GPU load, brightness, power draw) are held and
-   logged, not failed: a reader that hangs after its first read keeps the last real free space and memory, so
-   selfdrived's outOfSpace/lowMemory checks see the held values until it recovers. Still on the deviceState loop (as
+   logged: a reader that hangs after its first read keeps the last real free space and memory, so selfdrived's
+   outOfSpace/lowMemory checks see the held values until it recovers. Free space and memory also gate new onroad
+   entry (12). Still on the deviceState loop (as
    in NAP; the 1 s step timer covers them): the `/dev/kmsg` write, the IsEngaged Params write, the offroad power read
    and `set_power_save`. Contention for the Python interpreter lock between the reader threads and the loop is not
    covered by these changes.
+12. **Our own hardening beyond NAP (NAP has no staleness gate here): stale free space or memory blocks new onroad
+   entry.** After their first real read, free space or memory with no fresh value for more than 60 s
+   (`ENTRY_STALE_S`, `StaleEntryGate` in `openpilot/system/hardware/bg_reads.py`) makes the startup condition
+   `device_reads_fresh` false, so a car that is offroad does not go onroad on held values. It never forces offroad:
+   onroad, the stale read is logged once (`hardwared device reads stale while onroad: staying onroad, ...`) and the drive
+   keeps going, because startup conditions only gate entry. A fresh read clears it. 60 s or less has no effect.
 
 ## Safety
 - Held readings keep driving the bands, a warm device fails hot as soon as its readings go stale, a cool one fails
@@ -100,6 +107,9 @@ every car and device (hardwared is generic).
   thermal reading at all (never onroad, fan 100 %, at least `overheated`); the thermal reader thread dying (stale, fan
   100 %, then `overheated`); device reads hung from the start (fail-closed free space and memory, never onroad,
   stale log); the boot check latch.
+- `openpilot/system/hardware/tests/test_stale_entry_gate.py`: offroad plus free space or memory stale over 60 s blocks
+  onroad entry; onroad plus stale over 60 s stays onroad and logs once; a fresh value clears the block; 60 s or less has
+  no effect; before the first read and other keys are not this gate's job; hardwared wires it as a startup condition only.
 - `openpilot/system/hardware/tests/test_bg_reads.py`: reader cache and error handling, a hung read never blocks,
   thermal zones match `ThermalConfig.get_msg()`, the real 10 s / 60 s thresholds (also after a reader thread dies, with
   an injected monotonic clock), device-read staleness, and the loop timer.
