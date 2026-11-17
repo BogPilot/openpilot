@@ -96,6 +96,7 @@ class RadarDonorStream:
     self.rearms = 0
     self.sent = 0
     self.held_inherited = 0
+    self.held_mode = 0
     self._log = log_fn
 
   @property
@@ -157,6 +158,10 @@ class RadarDonorStream:
              in_park: bool = False) -> list[CanData]:
     self.observe(link)
     if self.state != Link.STREAM or (frame % 10) != 0:
+      return []
+    if link is None or not link.safety_ok:
+      # checked every step on the latest pandaStates, not only on a new sample: any other mode stops the stream at once
+      self.held_mode += 1
       return []
     if enabled or steering or fsm_engaged or (link is not None and link.controls_allowed):
       return []

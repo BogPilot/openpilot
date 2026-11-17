@@ -14,6 +14,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from opendbc.car.structs import CarParams
+from opendbc.car.tesla_ap1.values import TeslaAp1SafetyFlags
+
 CAN_RETURNED_BUS_OFFSET = 0x80   # selfdrive/pandad/panda.h
 CAN_REJECTED_BUS_OFFSET = 0xC0
 RADAR_BUS = 1
@@ -26,6 +29,22 @@ PEDAL_ADDR = 0x551        # preap/pedal_can.py GAS_COMMAND, bus 0 or 2 (tesla_pr
 STEER_ADDR = 0x488        # DAS_steeringControl, bus 0
 RADAR_VIN_ADDR = 0x560    # preap/radar_donor.py, host to panda only, always refused by design
 OWN_CONTROL_TX = frozenset(((PEDAL_ADDR, 0), (PEDAL_ADDR, 2), (STEER_ADDR, 0)))
+PANDA_BUSES = 4           # sendcan bus b goes to panda b // 4 (selfdrive/pandad/panda.cc:176)
+
+SAFETY_TESLA = int(CarParams.SafetyModel.tesla)   # car.capnp SafetyModel tesla @10; tesla_preap.h hooks need the PREAP flag
+FLAG_PREAP = int(TeslaAp1SafetyFlags.PREAP)
+FLAG_AP1 = int(TeslaAp1SafetyFlags.AP1)
+
+
+def preap_mode_ok(safety_model: int, safety_param: int, expect) -> bool:
+  """True only when one pandaStates entry shows the Pre-AP car mode: SafetyModel.tesla with the PREAP flag (never the AP1 flag)
+  and exactly the param card expects for that panda (expect: (model, param) from CarParams.safetyConfigs). Every other mode
+  (ELM327, noOutput, allOutput, silent, another param) is False."""
+  if expect is None:
+    return False
+  model, param = int(safety_model), int(safety_param)
+  return (model == SAFETY_TESLA and (param & FLAG_PREAP) != 0 and (param & FLAG_AP1) == 0
+          and (model, param) == (int(expect[0]), int(expect[1])))
 
 
 @dataclass
@@ -70,7 +89,7 @@ class PandaSample:
 @dataclass
 class LinkInput:
   """What card hands the CarController each step (CS.preap_link)."""
-  safety_ok: bool = False          # a panda runs the car's safety model with the expected param (flag 256 included)
+  safety_ok: bool = False          # panda 0 (bus 0, where 0x560 and our control frames go) shows the Pre-AP car mode (preap_mode_ok)
   safety_key: tuple | None = None  # (model, param) of that panda, for transition detection
   uptime: int | None = None
   heartbeat_lost: bool = False
@@ -119,6 +138,9 @@ class TxRefusalWatch:
   Then, fail-safe, the lost count is passed to the FSM as refusals, unless card sent a 0x560 in this or the previous two
   sample windows (the lost echo could be ours): that case is logged only. In FULL card sends no 0x560 (radar_donor.py), so a
   refusal whose echo was lost still demotes there.
+  Refusals count only once pandaStates shows the car's mode (car_mode, from card): before the switch the panda runs ELM327 and
+  refuses every frame on bus 0, which is not a pedal or steering refusal. Those are counted in ignored_pre_mode only, and the
+  cross-check restarts, so nothing from before the switch is carried into it.
   """
 
   def __init__(self):
@@ -127,10 +149,20 @@ class TxRefusalWatch:
     self.carry = 0
     self.sent_560_windows = [0, 0, 0]   # this window, previous, the one before
     self.unexplained = 0                # lost echoes seen so far (counts, for the status line)
+    self.ignored_pre_mode = 0           # refused own control frames while the panda was not yet in the car's mode
 
-  def step(self, echoes: EchoCounts, sent_560: int, totals: list[int] | None) -> tuple[int, int]:
+  def step(self, echoes: EchoCounts, sent_560: int, totals: list[int] | None, car_mode: bool = True) -> tuple[int, int]:
     """One card step. totals: per-panda safetyTxBlocked when a NEW pandaStates sample arrived, else None.
-    Returns (refusals for the FSM, lost echoes logged only)."""
+    car_mode: pandaStates showed the car's mode on this and the previous step (card). Returns (refusals for the FSM, lost
+    echoes logged only)."""
+    if not car_mode:
+      self.ignored_pre_mode += int(echoes.rejected_control)
+      if totals is not None:
+        self.prev_total = sum(int(t) for t in totals)
+      self.carry = 0
+      self.echoes_since_sample = 0
+      self.sent_560_windows = [0, 0, 0]
+      return 0, 0
     refusals = int(echoes.rejected_control)
     logged = 0
     self.echoes_since_sample += echoes.rejected_control + echoes.rejected_560 + echoes.rejected_other

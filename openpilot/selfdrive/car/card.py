@@ -180,6 +180,9 @@ class Car:
     self.preap_refusals = None
     self.preap_sent_560 = 0
     self.preap_safety_expect = None
+    self.preap_safety_expects: list[tuple[int, int]] = []
+    self.preap_car_mode_prev = False
+    self.preap_560_dropped = 0
     self.preap_vin_read = None
     self.preap_vin_read_rx = []
     if self.CP.carFingerprint == "TESLA_PREAP_MODELS":
@@ -197,6 +200,8 @@ class Car:
         # safetyModel is a capnp enum on the device (no int()); .raw is its number, as for pandaStates in preap_link_update
         sm_ = self.CP.safetyConfigs[-1].safetyModel
         self.preap_safety_expect = (int(getattr(sm_, "raw", sm_)), int(self.CP.safetyConfigs[-1].safetyParam))
+        # per panda (safetyConfigs[i] is what pandad sets on panda i), for the host-side 0x560 gate
+        self.preap_safety_expects = [(int(getattr(c.safetyModel, "raw", c.safetyModel)), int(c.safetyParam)) for c in self.CP.safetyConfigs]
     if self.CP.brand == "tesla_ap1" and self.CP.carFingerprint == "TESLA_PREAP_MODELS" and not self.CP.pcmCruise:
       from openpilot.selfdrive.controls.lib.phase3_speed_control import PreapEngageSetLimit
       self.preap_engage_set_limit = PreapEngageSetLimit(self.CP)
@@ -346,7 +351,11 @@ class Car:
     if new_sample:
       self.preap_tx_sample = sample
       totals = [int(ps.safetyTxBlocked) for ps in pss]
-    refusals, logged = self.preap_refusals.step(echoes, self.preap_sent_560, totals)
+    # Panda 0 gets bus 0 and 2 (our 0x551 / 0x488 and the 0x560 config). Refusals count only while it shows the car's mode on
+    # this AND the previous step, so an echo of a frame refused before the switch (ELM327) never reads as a pedal refusal.
+    car_mode = self.preap_panda_mode_ok(0, pss, valid)
+    refusals, logged = self.preap_refusals.step(echoes, self.preap_sent_560, totals, car_mode=car_mode and self.preap_car_mode_prev)
+    self.preap_car_mode_prev = car_mode
     self.preap_sent_560 = 0
     if logged:
       self.preap_warn(time.monotonic(), f"card: Pre-AP {logged} blocked TX without an echo next to an own 0x560, not a refusal")
@@ -354,15 +363,40 @@ class Car:
       self.CI.CS.preap_panda_tx_blocked = int(getattr(self.CI.CS, "preap_panda_tx_blocked", 0) or 0) + refusals
     link = LinkInput(gtw_echo=echoes.gtw > 0, new_sample=new_sample, controls_allowed=True)
     if pss:
-      ps = pss[-1]
+      ps = pss[0]
       key = (int(getattr(ps.safetyModel, "raw", ps.safetyModel)), int(ps.safetyParam))
       link.safety_key = key
-      link.safety_ok = valid and key == self.preap_safety_expect
+      link.safety_ok = car_mode
       link.uptime = int(ps.uptime)
       link.heartbeat_lost = bool(ps.heartbeatLost)
       # fail closed: no valid pandaStates reads as controls allowed, so no 0x560 goes out
       link.controls_allowed = (not valid) or any(bool(p.controlsAllowed) for p in pss)
     self.CI.CS.preap_link = link
+
+  def preap_panda_mode_ok(self, panda: int, pss=None, valid=None) -> bool:
+    """pandaStates (valid, latest entry for this panda) shows the Pre-AP car mode with the param card set (panda_link.preap_mode_ok)."""
+    from opendbc.car.tesla_ap1.preap.panda_link import preap_mode_ok
+    if valid is None:
+      valid = bool(self.sm.valid["pandaStates"])
+    if pss is None:
+      pss = list(self.sm["pandaStates"]) if self.sm.seen["pandaStates"] else []
+    if not valid or panda >= len(pss) or panda >= len(self.preap_safety_expects):
+      return False
+    ps = pss[panda]
+    return preap_mode_ok(int(getattr(ps.safetyModel, "raw", ps.safetyModel)), int(ps.safetyParam), self.preap_safety_expects[panda])
+
+  def preap_gate_560(self, can_sends) -> list:
+    """Host-side 0x560 gate, on the final sendcan of this step: a 0x560 goes out only while the latest pandaStates shows the panda
+    it goes to (bus // 4) in the Pre-AP car mode, never in allOutput, noOutput, ELM327 or any other mode (that panda's tesla_preap
+    tx hook consumes and refuses it, tesla_preap.h:291-299; in allOutput no hook would stop it, safety.h:249-250)."""
+    from opendbc.car.tesla_ap1.preap.panda_link import PANDA_BUSES, RADAR_VIN_ADDR
+    out = []
+    for m in can_sends:
+      if m[0] == RADAR_VIN_ADDR and not self.preap_panda_mode_ok(int(m[2]) // PANDA_BUSES):
+        self.preap_560_dropped += 1
+        continue
+      out.append(m)
+    return out
 
   def state_publish(self, CS: car.CarState, RD: structs.RadarDataT | None):
     """carState and carParams publish loop"""
@@ -422,6 +456,7 @@ class Car:
           self.preap_vin_read.fail_safe()
           cloudlog.error("card: Pre-AP radar read ended on an internal error")
       if self.preap_refusals is not None:
+        can_sends = self.preap_gate_560(can_sends)
         self.preap_sent_560 += sum(1 for m in can_sends if m[0] == 0x560)
       self.pm.send('sendcan', can_list_to_can_capnp(can_sends, msgtype='sendcan', valid=CS.canValid))
 
