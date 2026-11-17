@@ -104,6 +104,7 @@ def _make_rig(tmp_path, monkeypatch, radar=True, donor_type=None, donor_vin=None
     inbox.append(can_list_to_can_capnp(background(gear) + list(frames), msgtype="can"))
     CS, _ = c.state_update()
     c.sm.alive["carControl"] = True
+    c.sm.alive["pandaStates"] = bool(ps_alive)    # card's own SubMaster update in state_update recomputes alive on the rig
     if ps_valid:
       c.sm.valid["pandaStates"] = True
       c.sm.data["pandaStates"] = ps
