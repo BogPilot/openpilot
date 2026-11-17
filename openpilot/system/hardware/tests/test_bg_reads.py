@@ -210,7 +210,7 @@ def test_strict_policy_fails_hot_as_soon_as_stale_and_unknown_policy_is_strict(m
   assert bg.fail_hot_thermal_status(OK, True, 0.0, 45.0, WARM_C, OK, OVERHEATED, strict=True) == OVERHEATED
   assert bg.fail_hot_thermal_status(OK, True, 0.0, 45.0, WARM_C, OK, OVERHEATED, strict=False) == OK
   assert bg.fail_hot_thermal_status(CRITICAL, True, 0.0, 45.0, WARM_C, OK, OVERHEATED, strict=True) == CRITICAL
-  assert bg.stale_thermal_policy() == "nap"          # the default
+  assert bg.STALE_THERMAL_POLICY is None and bg.stale_thermal_policy() == "strict"   # default: per car, unknown car is strict
   monkeypatch.setattr(bg, "STALE_THERMAL_POLICY", "strict")
   assert bg.stale_thermal_policy() == "strict"       # still selectable
   monkeypatch.setattr(bg, "STALE_THERMAL_POLICY", "bogus")

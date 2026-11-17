@@ -32,15 +32,17 @@ SLOW_READ_S = 0.25
 THERMAL_STALE_S = 10.0
 # Once stale, fail hot after this much more time even if the last reading was cool.
 THERMAL_FAIL_HOT_S = 60.0
-# What stale temperatures do beyond the fan, read once when hardwared starts. Default "nap" (decided for the Pre-AP port; this
-# constant is device-wide, so AP1 on this branch gets it too); "strict" stays selectable here:
+# What stale temperatures do beyond the fan, read once when hardwared starts (stale_thermal_policy). None, the default, picks
+# per car: "nap" on a Pre-AP Model S (CarModel, else the persistent fingerprint: bogpilot_ap1_profile.is_preap_slc_platform),
+# "strict" on AP1 and every other car, and "strict" while the car is not known yet (first boot, MOCK). Setting "nap" or
+# "strict" here overrides that for every car:
 #   "nap":    as NAP: thermalStatus goes to at least overheated at once if the held reading was warm, otherwise only after
 #             THERMAL_FAIL_HOT_S more of staleness (about 70 s after the last reading). A hung reader with a cool last reading
 #             therefore stays engaged up to about 70 s, then soft-disables.
 #   "strict": thermalStatus goes to at least overheated as soon as the temperatures are stale (THERMAL_STALE_S), whatever
 #             the held reading. Onroad that is selfdrived's overheat event: soft disable (3 s) when engaged, no entry
 #             otherwise. Offroad it blocks going onroad. The device does not go offroad (only critical does that).
-STALE_THERMAL_POLICY = "nap"
+STALE_THERMAL_POLICY: str | None = None
 STALE_THERMAL_POLICIES = ("nap", "strict")
 # A non-thermal device read with no success for this long is logged as stale (its last real value is kept).
 DEVICE_STALE_S = 10.0
@@ -249,12 +251,21 @@ class StaleEntryGate:
     return onroad or not stale
 
 
-def stale_thermal_policy() -> str:
-  """STALE_THERMAL_POLICY, or "strict" if it is not a known policy."""
-  if STALE_THERMAL_POLICY in STALE_THERMAL_POLICIES:
-    return STALE_THERMAL_POLICY
-  cloudlog.event("hardwared unknown stale thermal policy, using strict", error=True, policy=str(STALE_THERMAL_POLICY))
-  return "strict"
+def stale_thermal_policy(params=None) -> str:
+  """STALE_THERMAL_POLICY if set ("strict" if it is not a known policy), else per car from params: "nap" on Pre-AP, "strict"
+  on any other car and while the car is unknown (no params, no CarModel / persistent fingerprint, or any read error)."""
+  if STALE_THERMAL_POLICY is not None:
+    if STALE_THERMAL_POLICY in STALE_THERMAL_POLICIES:
+      return STALE_THERMAL_POLICY
+    cloudlog.event("hardwared unknown stale thermal policy, using strict", error=True, policy=str(STALE_THERMAL_POLICY))
+    return "strict"
+  if params is None:
+    return "strict"
+  try:
+    from openpilot.common.bogpilot_ap1_profile import is_preap_slc_platform
+    return "nap" if is_preap_slc_platform(params) else "strict"
+  except Exception:
+    return "strict"
 
 
 def fail_hot_thermal_status(status: int, stale: bool, stale_s: float, last_temp: float, warm_temp: float,

@@ -301,8 +301,9 @@ def hardware_thread(end_event, hw_queue) -> None:
   chestnut_status = ChestnutStatus()
   branch = get_short_branch()
   device_type = HARDWARE.get_device_type()  # constant; reading it every tick was a sysfs read on the loop
-  # read once at start, never in the loop: "strict" goes overheated as soon as temperatures are stale, "nap" only if warm or 60 s more
-  strict_stale = stale_thermal_policy() == "strict"
+  # read once at start, never in the loop: "strict" goes overheated as soon as temperatures are stale, "nap" only if warm or 60 s more.
+  # Per car (bg_reads.stale_thermal_policy): nap on Pre-AP, strict on AP1, any other car and an unknown car.
+  strict_stale = stale_thermal_policy(params) == "strict"
   no_temps_logged = False
   first_temps_logged = False
   loop_start = time.monotonic()

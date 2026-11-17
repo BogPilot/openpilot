@@ -1046,10 +1046,12 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   Details: `docs/tesla/DIVERGENCES_hardwared_bg_reads.md`.
 - Why: a stalled sysfs read stopped deviceState for 12 to 14 s on Pre-AP cars and selfdrived raised commIssue.
 - Safety-relevant: yes (thermal protection). Stale temperatures while engaged follow `STALE_THERMAL_POLICY`
-  (`openpilot/system/hardware/bg_reads.py:43`, read once at start). `"nap"` (default, as NAP): a cool held reading stays
+  (`openpilot/system/hardware/bg_reads.py:45`, read once at start, `stale_thermal_policy` `:254`). The default picks per car:
+  `"nap"` on Pre-AP only, `"strict"` on AP1, every other car and while the car is not known yet; setting the constant
+  overrides that. `"nap"` (Pre-AP default, as NAP): a cool held reading stays
   engaged up to about 70 s (overheated after 60 s more stale, 70 s after the last fresh reading), a warm one is overheated
-  at once. `"strict"` (selectable): overheated as soon as stale (10 s), so selfdrived's stock overheat event soft-disables an
-  engaged car within about 10.5 s. The constant is device-wide (AP1 too). Stock's stalled deviceState gave commIssue in 5 s.
+  at once. `"strict"` (AP1 and unknown-car default): overheated as soon as stale (10 s), so selfdrived's stock overheat
+  event soft-disables an engaged car within about 10.5 s. Stock's stalled deviceState gave commIssue in 5 s.
 - Our own hardening beyond NAP (NAP has no staleness gate here): free space or memory with no fresh read for over 60 s,
   after the first read, blocks new onroad entry (startup condition `device_reads_fresh`); never forces offroad mid-drive
   (logged and kept onroad); a fresh read clears it.

@@ -494,8 +494,9 @@ def test_onroad_stale_cool_thermal_by_policy(monkeypatch, policy):
   assert pol == [policy]
 
 
-def test_default_stale_thermal_policy_is_nap():
-  assert bg is not None and bg.STALE_THERMAL_POLICY == "nap" and bg.stale_thermal_policy() == "nap"
+def test_default_stale_thermal_policy_is_per_car():
+  # None = per car (test_stale_thermal_policy_scope.py): nap on Pre-AP only, strict without a known car
+  assert bg is not None and bg.STALE_THERMAL_POLICY is None and bg.stale_thermal_policy() == "strict"
   assert "strict" in bg.STALE_THERMAL_POLICIES
 
 

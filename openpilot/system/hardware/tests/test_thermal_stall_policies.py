@@ -51,7 +51,7 @@ def soft_disable_time():
 
 
 def test_constants():
-  assert bg.THERMAL_STALE_S == 10.0 and bg.THERMAL_FAIL_HOT_S == 60.0 and bg.STALE_THERMAL_POLICY == "nap"
+  assert bg.THERMAL_STALE_S == 10.0 and bg.THERMAL_FAIL_HOT_S == 60.0 and bg.STALE_THERMAL_POLICY is None
   assert set(bg.STALE_THERMAL_POLICIES) == {"nap", "strict"}
   assert soft_disable_time() == 3.0
   ev = (ROOT / "selfdrive/selfdrived/events.py").read_text()
