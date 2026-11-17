@@ -2,7 +2,10 @@
 from opendbc.can import CANParser
 from opendbc.car import Bus, structs
 from opendbc.car.interfaces import RadarInterfaceBase
+from opendbc.car.tesla_ap1.preap.panda_link import GTW_ECHO_ADDRS, GTW_ECHO_SRC
+from opendbc.car.tesla_ap1.preap.radar_valid import RadarValidGate
 from opendbc.car.tesla_ap1.preap_radar_filters import bosch_point_valid
+from opendbc.car.tesla_ap1.safety_flags import FLAG_TESLA_PREAP_RADAR_EMULATION
 from opendbc.car.tesla_ap1.values import CANBUS, DBC, is_preap
 
 NUM_POINTS = 32
@@ -20,6 +23,9 @@ def get_radar_can_parser(CP):
   if CP.radarUnavailable or Bus.radar not in DBC[CP.carFingerprint]:
     return None
   messages = [('TeslaRadarSguInfo', 10)]
+  if is_preap(CP.carFingerprint):
+    # 0x501 alert matrix for the Pre-AP radar-valid gate (preap/radar_valid.py), ~1 Hz; never part of can_valid (nan = no alive check)
+    messages.append(('TeslaRadarAlertMatrix', float('nan')))
   for i in range(NUM_POINTS):
     messages.extend([(f'RadarPoint{i}_A', 16), (f'RadarPoint{i}_B', 16)])
   # CANBUS.radar is bus 1. 0x32e / 0x33e on this bus are RadarPoint10_A /
@@ -43,6 +49,32 @@ class RadarInterface(RadarInterfaceBase):
     self.updated_messages = set()
     self.preap = is_preap(CP.carFingerprint)
     self.frames_without_radar = 0
+    # Pre-AP radar-valid gate (preap/radar_valid.py): no points published and no speed control (card feeds the pull FSM) while
+    # the gateway is not echoing, the radar is starved or rejects its config, or its table is frozen with SGUFail.
+    self.preap_gate = None
+    self.preap_radar_valid = True
+    self._preap_steps = 0
+    if self.preap and self.rcp is not None:
+      configs = list(getattr(CP, "safetyConfigs", None) or [])
+      param = int(configs[-1].safetyParam) if configs else 0
+      self.preap_gate = RadarValidGate(bool(param & FLAG_TESLA_PREAP_RADAR_EMULATION))
+      self.preap_radar_valid = False
+
+  def _preap_gate_step(self, can_strings, vls) -> float:
+    """Feed the gate this step's echoes and 0x501; returns its time (CAN log time, else 10 ms steps)."""
+    self._preap_steps += 1
+    now = None
+    for pkt in can_strings or ():
+      if isinstance(pkt, tuple) and len(pkt) == 2:
+        nanos, msgs = pkt
+        if nanos:
+          now = float(nanos) * 1e-9
+        if any(src == GTW_ECHO_SRC and addr in GTW_ECHO_ADDRS for addr, _, src in msgs):
+          self.preap_gate.on_echo(now if now is not None else self._preap_steps * 0.01)
+    now = now if now is not None else self._preap_steps * 0.01
+    if 1281 in vls:
+      self.preap_gate.on_alert_matrix(now, self.rcp.vl['TeslaRadarAlertMatrix'])
+    return now
 
   def update(self, can_strings):
     if self.rcp is None:
@@ -50,7 +82,12 @@ class RadarInterface(RadarInterfaceBase):
 
     vls = self.rcp.update(can_strings)
     self.updated_messages.update(vls)
+    gate_now = None
+    if self.preap_gate is not None:
+      gate_now = self._preap_gate_step(can_strings, vls)
     if self.trigger_msg not in self.updated_messages:
+      if self.preap_gate is not None:
+        self.preap_radar_valid = self.preap_gate.update(gate_now, bool(self.rcp.vl['TeslaRadarSguInfo']['RADC_SGUFail']))
       if self.preap:
         self.frames_without_radar += 1
         if self.frames_without_radar >= PREAP_MISSING_RADAR_FRAMES and self.frames_without_radar % PREAP_MISSING_RADAR_PUBLISH_DIV == 0:
@@ -101,5 +138,11 @@ class RadarInterface(RadarInterfaceBase):
       self.pts[i].vRel = msg_a['LongSpeed']
 
     ret.points = list(self.pts.values())
+    if self.preap_gate is not None:
+      sgu_fail = bool(radar_status['RADC_SGUFail'])
+      self.preap_gate.on_points(gate_now, ret.points, sgu_fail)
+      self.preap_radar_valid = self.preap_gate.update(gate_now, sgu_fail)
+      if not self.preap_radar_valid:
+        ret.points = []          # tracks keep their ids in self.pts; nothing reaches radard until the gate is valid
     self.updated_messages.clear()
     return ret

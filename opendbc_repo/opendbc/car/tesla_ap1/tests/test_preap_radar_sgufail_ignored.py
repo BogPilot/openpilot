@@ -1,9 +1,10 @@
 """Pre-AP Bosch radar: RADC_SGUFail is ignored (points kept, no fault), as in Tinkla and NAP; AP1 still faults on it.
-docs/tesla/DIVERGENCES_preap_radar_filters.md (1)."""
+docs/tesla/DIVERGENCES_preap_radar_filters.md (1). Filter-level: the radar-valid gate is off here (no_gate); its warm-up and
+its SGUFail-after-valid behaviour are in test_preap_radar_valid.py."""
 from opendbc.can import CANPacker
 from opendbc.car import Bus
 from opendbc.car.tesla_ap1.radar_interface import RadarInterface
-from opendbc.car.tesla_ap1.tests.test_preap_bosch_radar import _params_dir, ap1_cp, long_paths, preap_cp, store  # noqa: F401
+from opendbc.car.tesla_ap1.tests.test_preap_bosch_radar import _params_dir, ap1_cp, long_paths, no_gate, preap_cp, store  # noqa: F401
 from opendbc.car.tesla_ap1.values import CAR, DBC
 
 DT = 0.0625  # 16 Hz radar cycle
@@ -31,7 +32,7 @@ def drive(ri, pattern):
 def preap_ri(long_paths):
   long_paths(True)
   store(radar=True)
-  return RadarInterface(preap_cp())
+  return no_gate(RadarInterface(preap_cp()))
 
 
 def test_preap_keeps_points_while_sgufail_is_set(long_paths):

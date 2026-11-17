@@ -4,7 +4,7 @@ from opendbc.can import CANPacker
 from opendbc.car import Bus
 from opendbc.car.tesla_ap1.preap_radar_filters import BOSCH_MAX_DIST, OBJECT_MIN_PROBABILITY, bosch_point_valid
 from opendbc.car.tesla_ap1.radar_interface import RadarInterface
-from opendbc.car.tesla_ap1.tests.test_preap_bosch_radar import _params_dir, ap1_cp, long_paths, preap_cp, store  # noqa: F401
+from opendbc.car.tesla_ap1.tests.test_preap_bosch_radar import no_gate, _params_dir, ap1_cp, long_paths, preap_cp, store  # noqa: F401
 from opendbc.car.tesla_ap1.values import CAR, DBC
 
 
@@ -31,7 +31,7 @@ def test_constants_match_tinkla_and_nap():
 def test_preap_drops_invalid_points(long_paths, d, pe, kept):
   long_paths(True)
   store(radar=True)
-  out = one_point(RadarInterface(preap_cp()), d, pe)
+  out = one_point(no_gate(RadarInterface(preap_cp())), d, pe)
   assert out is not None and len(out.points) == (1 if kept else 0) and not out.errors.radarFault
 
 

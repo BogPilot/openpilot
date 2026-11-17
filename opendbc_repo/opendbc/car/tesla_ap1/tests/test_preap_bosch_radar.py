@@ -128,6 +128,13 @@ def preap_on_radar(long_paths):
   return RadarInterface(preap_cp())
 
 
+def no_gate(ri):
+  """Point/fault tests here check the filters, not the radar-valid gate (test_preap_radar_valid.py covers that)."""
+  assert ri.preap_gate is not None
+  ri.preap_gate, ri.preap_radar_valid = None, True
+  return ri
+
+
 @pytest.mark.parametrize("sgu,fault", [({}, False), ({"RADC_SGUFail": 1}, False), ({"RADC_SensorDirty": 1}, False),
                                        ({"RADC_HWFail": 1}, True)])
 def test_preap_faults_on_hwfail_only(long_paths, sgu, fault):
@@ -156,7 +163,7 @@ def test_preap_silent_radar_fails_closed(long_paths):
 
 
 def test_preap_radar_dropout_clears_tracks_and_recovers(long_paths):
-  ri = preap_on_radar(long_paths)
+  ri = no_gate(preap_on_radar(long_paths))
   t = 1_000_000_000
   first = ri.update([(t, frames({}))])
   assert first is not None and len(first.points) == 1
