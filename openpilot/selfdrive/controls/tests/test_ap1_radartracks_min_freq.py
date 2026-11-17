@@ -240,7 +240,7 @@ def preap_radar_on(tmp_path, monkeypatch):
   return RadarInterface(CarInterface.get_params(CAR.TESLA_PREAP_MODELS, {}, [], False, False, False))
 
 
-def test_preap_missing_radar_canerror_only_after_it_spoke(preap_radar_on):
+def test_preap_missing_radar_never_canerror_before_or_after_it_spoke(preap_radar_on):
   from opendbc.car.tesla_ap1.tests.test_preap_bosch_radar import frames
   sm = make_sm(CAR.TESLA_PREAP_MODELS)
   assert sm.freq_tracker['radarTracks'].min_freq == STOCK_MIN
@@ -251,4 +251,5 @@ def test_preap_missing_radar_canerror_only_after_it_spoke(preap_radar_on):
   outs = [ri.update([]) for _ in range(PREAP_MISSING_RADAR_FRAMES - 1)]
   assert all(o is None for o in outs)
   out = ri.update([])
-  assert out is not None and out.errors.canError and not out.points
+  assert out is not None and not any(out.errors.to_dict().values()) and not out.points   # advisory, as NAP :176-177
+  assert not ri.preap_radar_valid

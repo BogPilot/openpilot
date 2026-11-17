@@ -20,8 +20,10 @@ TRIGGER_MSG = 878  # RadarPoint31_B
 #   (opendbc/car/tesla/radar_interface.py:176-177 @ opendbc 508d26fcb returns before any error).
 #   It publishes an empty RadarData with no errors at 20 Hz (the RadarInterfaceBase rate), so radard
 #   keeps radarState valid on camera leads: no canError, commIssue, radarFault or radarTempUnavailable.
-# - After the trigger has arrived, no radar cycle for 0.5 s: a canError RadarData at 20 Hz (NAP raises
-#   canError from can_valid there, radar_interface.py:190-191), so radard marks radarState invalid.
+# - After the trigger has arrived, no radar cycle for 0.5 s: advisory, as NAP (radar_interface.py:176-177 @ 508d26fcb: no
+#   trigger, nothing published, no error). The tracks are dropped, an empty error-free RadarData goes out at 20 Hz (camera
+#   leads) and the radar reads not VALID, so card raises the one warning. Frames coming back recover through the radar-valid
+#   gate. A radar parser that goes invalid while frames still arrive stays canError (NAP radar_interface.py:190-191).
 PREAP_MISSING_RADAR_FRAMES = 50
 PREAP_MISSING_RADAR_PUBLISH_DIV = 5
 
@@ -115,11 +117,11 @@ class RadarInterface(RadarInterfaceBase):
         return super().update(None)      # silent radar: empty, error-free RadarData at 20 Hz (camera leads), as NAP :176-177
       if self.preap:
         self.frames_without_radar += 1
-        if self.frames_without_radar >= PREAP_MISSING_RADAR_FRAMES and self.frames_without_radar % PREAP_MISSING_RADAR_PUBLISH_DIV == 0:
-          self.pts.clear()               # no stale tracks survive a radar dropout
-          ret = structs.RadarData()
-          ret.errors.canError = True
-          return ret
+        if self.frames_without_radar >= PREAP_MISSING_RADAR_FRAMES:
+          self.preap_radar_valid = False   # the one warning (card), no error: a radar that stops is advisory, as NAP :176-177
+          if self.frames_without_radar % PREAP_MISSING_RADAR_PUBLISH_DIV == 0:
+            self.pts.clear()               # no stale tracks survive a radar dropout: radard runs on camera leads
+            return structs.RadarData()
       return None
     self.frames_without_radar = 0
     self.preap_radar_spoke = True

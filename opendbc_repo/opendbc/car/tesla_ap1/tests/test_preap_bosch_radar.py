@@ -163,14 +163,16 @@ def test_preap_silent_radar_is_harmless(long_paths):
 # ---- fail closed only after the radar has spoken ----
 
 
-def test_preap_radar_dropout_clears_tracks_and_recovers(long_paths):
+def test_preap_radar_dropout_clears_tracks_without_an_error_and_recovers(long_paths):
+  # a radar that stops after speaking is advisory, as NAP (radar_interface.py:176-177): tracks dropped, no canError
   ri = no_gate(preap_on_radar(long_paths))
   t = 1_000_000_000
   first = ri.update([(t, frames({}))])
   assert first is not None and len(first.points) == 1
   for _ in range(PREAP_MISSING_RADAR_FRAMES):
     out = ri.update([])
-  assert out is not None and out.errors.canError and not out.points and not ri.pts
+  assert out is not None and not any(out.errors.to_dict().values()) and not out.points and not ri.pts
+  assert not ri.preap_radar_valid
   back = ri.update([(t + 10**9, frames({}))])
   assert back is not None and len(back.points) == 1 and ri.frames_without_radar == 0
 

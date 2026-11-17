@@ -4,7 +4,7 @@ Code trace checked here (file:line in the commit message): card.py sets carState
 opendbc ap1_events.py turns it into preapRadarNotReady while enabled; events.py gives that event ET.WARNING only. The pull FSM
 (opendbc tesla_ap1/preap/carstate.py) has no radar input. selfdrived's radar events stay the stock ones (canError,
 radarTempUnavailable, radarFault from radarState.radarErrors), and the Pre-AP RadarInterface sets none of them unless RADC_HWFail
-(radarFault) or a radar that has spoken goes quiet (canError)."""
+(radarFault) or its radar parser goes invalid while frames still arrive (canError). A radar that goes quiet is advisory."""
 import pathlib
 
 from openpilot.cereal import log

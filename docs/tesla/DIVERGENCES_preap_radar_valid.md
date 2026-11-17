@@ -8,9 +8,9 @@ gate".
 
 ## What it does
 - Until the radar is VALID, and while any fault below is active, radar_interface publishes no radar points
-  (`radar_interface.py:177`): speed control runs on camera leads and, while engaged with openpilot longitudinal, one warning
+  (`radar_interface.py:179`): speed control runs on camera leads and, while engaged with openpilot longitudinal, one warning
   shows, "Radar not ready – using camera lead" (event `preapRadarNotReady`, ET.WARNING only, `selfdrived/events.py:1013`;
-  `ap1_events.py:78`). Never a no-entry, soft disable or disengage. Only HWFail is a radarFault (`radar_interface.py:140`; none with the Ignore radar HWFail option on, default off).
+  `ap1_events.py:78`). Never a no-entry, soft disable or disengage. Only HWFail is a radarFault (`radar_interface.py:142`; none with the Ignore radar HWFail option on, default off).
 - A returned gateway echo (flag 256) only proves we sent the config frames. Whether the radar ACCEPTED it is read from the
   radar itself. The log-only status line (`preap radar: echoed= pending= valid= fault= late= ...`, every 5 s and on each
   change) reports echoed, pending, valid and the fault name separately.
