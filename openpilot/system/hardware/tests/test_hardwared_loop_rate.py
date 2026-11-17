@@ -494,8 +494,9 @@ def test_onroad_stale_cool_thermal_by_policy(monkeypatch, policy):
   assert pol == [policy]
 
 
-def test_default_stale_thermal_policy_is_strict():
-  assert bg is not None and bg.STALE_THERMAL_POLICY == "strict" and bg.stale_thermal_policy() == "strict"
+def test_default_stale_thermal_policy_is_nap():
+  assert bg is not None and bg.STALE_THERMAL_POLICY == "nap" and bg.stale_thermal_policy() == "nap"
+  assert "strict" in bg.STALE_THERMAL_POLICIES
 
 
 def test_startup_gate_waits_for_a_real_thermal_reading_independently_of_the_band(monkeypatch):

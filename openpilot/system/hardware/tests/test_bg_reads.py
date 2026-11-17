@@ -210,9 +210,9 @@ def test_strict_policy_fails_hot_as_soon_as_stale_and_unknown_policy_is_strict(m
   assert bg.fail_hot_thermal_status(OK, True, 0.0, 45.0, WARM_C, OK, OVERHEATED, strict=True) == OVERHEATED
   assert bg.fail_hot_thermal_status(OK, True, 0.0, 45.0, WARM_C, OK, OVERHEATED, strict=False) == OK
   assert bg.fail_hot_thermal_status(CRITICAL, True, 0.0, 45.0, WARM_C, OK, OVERHEATED, strict=True) == CRITICAL
-  assert bg.stale_thermal_policy() == "strict"
-  monkeypatch.setattr(bg, "STALE_THERMAL_POLICY", "nap")
-  assert bg.stale_thermal_policy() == "nap"
+  assert bg.stale_thermal_policy() == "nap"          # the default
+  monkeypatch.setattr(bg, "STALE_THERMAL_POLICY", "strict")
+  assert bg.stale_thermal_policy() == "strict"       # still selectable
   monkeypatch.setattr(bg, "STALE_THERMAL_POLICY", "bogus")
   assert bg.stale_thermal_policy() == "strict"
   assert [e[0] for e in events] == ["hardwared unknown stale thermal policy, using strict"]

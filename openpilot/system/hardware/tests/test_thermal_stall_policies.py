@@ -51,7 +51,8 @@ def soft_disable_time():
 
 
 def test_constants():
-  assert bg.THERMAL_STALE_S == 10.0 and bg.THERMAL_FAIL_HOT_S == 60.0 and bg.STALE_THERMAL_POLICY == "strict"
+  assert bg.THERMAL_STALE_S == 10.0 and bg.THERMAL_FAIL_HOT_S == 60.0 and bg.STALE_THERMAL_POLICY == "nap"
+  assert set(bg.STALE_THERMAL_POLICIES) == {"nap", "strict"}
   assert soft_disable_time() == 3.0
   ev = (ROOT / "selfdrive/selfdrived/events.py").read_text()
   block = ev.split("EventName.overheat: {", 1)[1].split("},", 1)[0]
@@ -62,6 +63,20 @@ def test_constants():
 def test_strict_cool_device_overheated_for_the_stall_beyond_10_s(stall):
   over = overheated_s(statuses(stall, "strict", 60.0))
   assert stall - bg.THERMAL_STALE_S - 0.5 <= over <= stall - bg.THERMAL_STALE_S + 0.6
+
+
+def first_overheated_s(st):
+  return next((i * 0.01 for i, s in enumerate(st) if s >= ThermalStatus.overheated), None)
+
+
+@pytest.mark.parametrize("policy, after", [("nap", 70.0), ("strict", 10.0)])
+def test_hung_reader_cool_last_reading(policy, after):
+  # the thermal reader never returns again from t=5 s, last reading cool (60 C): nap holds ok for about 70 s, strict about 10 s
+  st = statuses(1000.0, policy, 60.0, total_s=100.0, stall_at=5.0)
+  t = first_overheated_s(st)
+  print(f"hung thermal reader, cool last reading, {policy}: overheated from {t:.2f} s ({t - 5.0:.2f} s after the last reading)")
+  assert t is not None and after - 0.1 <= t - 5.0 <= after + 0.6
+  assert all(s >= ThermalStatus.overheated for s in st[int(t * 100):])
 
 
 @pytest.mark.parametrize("stall", STALLS)
