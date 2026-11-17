@@ -3,6 +3,7 @@ from opendbc.can import CANParser
 from opendbc.car import Bus, structs
 from opendbc.car.carlog import carlog
 from opendbc.car.interfaces import RadarInterfaceBase
+from opendbc.car.tesla_ap1.preap import params as preap_params
 from opendbc.car.tesla_ap1.preap.panda_link import GTW_ECHO_ADDRS, GTW_ECHO_SRC
 from opendbc.car.tesla_ap1.preap.radar_valid import RadarValidGate
 from opendbc.car.tesla_ap1.preap_radar_filters import bosch_point_valid
@@ -133,7 +134,10 @@ class RadarInterface(RadarInterfaceBase):
       # too, opendbc/car/tesla/radar_interface.py:203-210 @ opendbc 508d26fcb). SensorDirty is ignored here, a divergence
       # (docs/tesla/DIVERGENCES.md, radar status faults): NAP sets radarUnavailableTemporary on it (radar_interface.py:215-216 @
       # 508d26fcb) and Tinkla faults on it unless behind the nosecone (selfdrive/car/tesla/radar_interface.py:89-111@501c7de).
-      fault = radar_status['RADC_HWFail']
+      # HWFail faults unless Ignore radar HWFail is on (default off; NAP NAPRadarIgnoreHwFail, radar_interface.py:186-187,211 @
+      # 508d26fcb, re-read every cycle). Then it is advisory only: the gate below still sees HWFail (F4), keeps the points out of
+      # radard and card raises the one warning.
+      fault = radar_status['RADC_HWFail'] and not preap_params.get_bool(preap_params.PreApParamKeys.RADAR_IGNORE_HW_FAIL)
     else:
       fault = radar_status['RADC_HWFail'] or radar_status['RADC_SGUFail'] or radar_status['RADC_SensorDirty']
     if fault:
