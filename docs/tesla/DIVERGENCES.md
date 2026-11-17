@@ -1224,3 +1224,24 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Tests: `openpilot/selfdrive/selfdrived/tests/test_radar_data_invalid.py`,
   `openpilot/selfdrive/selfdrived/tests/test_preap_radar_not_ready.py`.
 - Credits: NAP.
+
+## Pre-AP params files: atomic replace so a concurrent reader cannot see a truncated write
+- Platforms: file-backed keys under `/data/params_bogpilot` (`opendbc_repo/opendbc/car/tesla_ap1/preap/params.py`).
+  The AP1/unknown card path does not use this helper: `start_step_cache()` runs only for
+  `TESLA_PREAP_MODELS`, and the 92aa9ee1f 100 Hz `OnroadDistanceButtonPressed` read (R5 / ab106443b)
+  goes through openpilot Params, not these files.
+- Reference behavior: 07e8bd68f added the 10 Hz StepCache so the Pre-AP 100 Hz step does no
+  `/data` file IO. `_write_text_file` still called `Path.write_text`, which truncates the file
+  before writing, so a concurrent reader can see empty text and fall back to the default.
+- Our behavior: `_write_text_file` writes a tmp file in the same directory, flushes, fsyncs,
+  then `os.replace` onto the destination, and fsyncs the directory. The tmp is removed only
+  if that fails. Same path and same content as before; AP1 readers that go through this
+  helper (override sensitivity once per drive, pandad's PandaFirmwareVersion string) see
+  identical values.
+- Why: a reader (the StepCache refresh, the Vehicle Settings UI, or a test) must never observe
+  a torn or empty params file.
+- Safety-relevant: low to moderate. Keys read onroad include TeslaRadarIgnoreHwFail (default
+  OFF, the safer side) and pedal-calibration mirrors; a torn read could briefly apply a default.
+- Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_params_atomic_write.py`,
+  `test_preap_params_step_cache.py`.
+- Credits: 07e8bd68f (StepCache write path).

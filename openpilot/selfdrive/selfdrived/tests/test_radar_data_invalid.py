@@ -380,6 +380,11 @@ def test_ap1_invalid_parser_is_canerror_immediately_no_grace():
   # AP1: the first published trigger already sets canError (no grace).
   first = next(o for _, o, trig in pub if trig)
   assert first.errors.canError
+  # g5_ap1_first_contact_grace drops "self.preap and" from first_contact; that would
+  # arm _preap_grace_until on AP1 even though in_grace still requires self.preap
+  # (so canError alone would not catch it). 92aa behaviour: no first-contact grace.
+  assert not ri.preap
+  assert ri._preap_grace_until is None
   names = map_radar_can_error(CAR.TESLA_AP1_MODELS)
   assert names == {EventName.canError}
   assert EventName.radarDataInvalid not in names

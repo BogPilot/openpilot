@@ -37,3 +37,5 @@ def test_ap1_invalid_parser_is_still_canerror():
     t += 62_500_000
     out = ri.update([(t, frames({}, trigger=True)[-1:])])
   assert out is not None and out.errors.canError
+  assert not ri.preap
+  assert ri._preap_grace_until is None

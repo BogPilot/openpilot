@@ -8,6 +8,8 @@ User-facing product name: BogPilot.
 """
 from __future__ import annotations
 
+import os
+import tempfile
 import threading
 from pathlib import Path
 
@@ -211,8 +213,44 @@ def _read_text_file(key: str) -> str:
 
 
 def _write_text_file(key: str, text: str) -> None:
+  """Atomic replace in the same directory so a concurrent reader never sees a truncated file.
+
+  07e8bd68f's StepCache writes these files from a background thread while readers (the next
+  refresh, the UI, tests) may open the same path. Path.write_text truncates first, so a
+  reader can see empty text and fall back to the default. Write a tmp next to the destination,
+  flush+fsync, then os.replace. The tmp is removed only if that fails.
+  """
   _params_dir.mkdir(parents=True, exist_ok=True)
-  _path(key).write_text(text, encoding="utf-8")
+  dest = _path(key)
+  fd, tmp_name = tempfile.mkstemp(prefix=dest.name + ".", suffix=".tmp", dir=str(dest.parent))
+  try:
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+      fd = -1
+      f.write(text)
+      f.flush()
+      os.fsync(f.fileno())
+    os.replace(tmp_name, dest)
+    tmp_name = ""
+    try:
+      dirfd = os.open(str(dest.parent), os.O_RDONLY)
+      try:
+        os.fsync(dirfd)
+      finally:
+        os.close(dirfd)
+    except OSError:
+      pass
+  except Exception:
+    if fd >= 0:
+      try:
+        os.close(fd)
+      except OSError:
+        pass
+    if tmp_name:
+      try:
+        os.unlink(tmp_name)
+      except OSError:
+        pass
+    raise
 
 
 def get_bool(key: str, default: bool | None = None) -> bool:
