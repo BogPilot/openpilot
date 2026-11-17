@@ -3,7 +3,7 @@ docs/tesla/DIVERGENCES_preap_radar_filters.md (1). Filter-level: the radar-valid
 its SGUFail-after-valid behaviour are in test_preap_radar_valid.py."""
 from opendbc.can import CANPacker
 from opendbc.car import Bus
-from opendbc.car.tesla_ap1.radar_interface import RadarInterface
+from opendbc.car.tesla_ap1.radar_interface import NUM_POINTS, RadarInterface
 from opendbc.car.tesla_ap1.tests.test_preap_bosch_radar import _params_dir, ap1_cp, long_paths, no_gate, preap_cp, store  # noqa: F401
 from opendbc.car.tesla_ap1.values import CAR, DBC
 
@@ -11,11 +11,12 @@ DT = 0.0625  # 16 Hz radar cycle
 
 
 def cycle(packer, t, sgu):
-  return [(int(t * 1e9), [packer.make_can_msg("TeslaRadarSguInfo", 1, sgu),
-                          packer.make_can_msg("RadarPoint0_A", 1, {"Tracked": 1, "Meas": 1, "Index": 1, "LongDist": 40.0,
-                                                                   "ProbExist": 96.875}),
-                          packer.make_can_msg("RadarPoint0_B", 1, {"Index2": 1}),
-                          packer.make_can_msg("RadarPoint31_B", 1, {})])]
+  # F3/3e1b8ea76: feed the full table so the parser is valid during first-contact grace.
+  msgs = [packer.make_can_msg("TeslaRadarSguInfo", 1, sgu)]
+  for i in range(NUM_POINTS):
+    a = {"Tracked": 1, "Meas": 1, "Index": 1, "LongDist": 40.0, "ProbExist": 96.875} if i == 0 else {"Tracked": 0, "Index": 1}
+    msgs += [packer.make_can_msg(f"RadarPoint{i}_A", 1, a), packer.make_can_msg(f"RadarPoint{i}_B", 1, {"Index2": 1})]
+  return [(int(t * 1e9), msgs)]
 
 
 def drive(ri, pattern):

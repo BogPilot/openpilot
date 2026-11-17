@@ -3,17 +3,18 @@ import pytest
 from opendbc.can import CANPacker
 from opendbc.car import Bus
 from opendbc.car.tesla_ap1.preap_radar_filters import BOSCH_MAX_DIST, OBJECT_MIN_PROBABILITY, bosch_point_valid
-from opendbc.car.tesla_ap1.radar_interface import RadarInterface
+from opendbc.car.tesla_ap1.radar_interface import NUM_POINTS, RadarInterface
 from opendbc.car.tesla_ap1.tests.test_preap_bosch_radar import no_gate, _params_dir, ap1_cp, long_paths, preap_cp, store  # noqa: F401
 from opendbc.car.tesla_ap1.values import CAR, DBC
 
 
 def one_point(ri, long_dist, prob_exist):
   packer = CANPacker(DBC[CAR.TESLA_PREAP_MODELS][Bus.radar])
-  msgs = [packer.make_can_msg("TeslaRadarSguInfo", 1, {}),
-          packer.make_can_msg("RadarPoint0_A", 1, {"Tracked": 1, "Meas": 1, "Index": 1, "LongDist": long_dist, "ProbExist": prob_exist}),
-          packer.make_can_msg("RadarPoint0_B", 1, {"Index2": 1}),
-          packer.make_can_msg("RadarPoint31_B", 1, {})]
+  # F3/3e1b8ea76: feed the full table so the parser is valid; grace would otherwise publish 0 points.
+  msgs = [packer.make_can_msg("TeslaRadarSguInfo", 1, {})]
+  for i in range(NUM_POINTS):
+    a = {"Tracked": 1, "Meas": 1, "Index": 1, "LongDist": long_dist, "ProbExist": prob_exist} if i == 0 else {"Tracked": 0, "Index": 1}
+    msgs += [packer.make_can_msg(f"RadarPoint{i}_A", 1, a), packer.make_can_msg(f"RadarPoint{i}_B", 1, {"Index2": 1})]
   return ri.update([(1_000_000_000, msgs)])
 
 

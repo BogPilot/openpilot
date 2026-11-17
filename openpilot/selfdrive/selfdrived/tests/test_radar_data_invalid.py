@@ -18,7 +18,10 @@ from opendbc.car.tesla_ap1.radar_interface import (
 )
 from opendbc.car.tesla_ap1.values import AP1_CHASSIS_SIGNATURE, CAR, DBC, is_preap
 from openpilot.cereal import log
-from openpilot.selfdrive.selfdrived.events import EVENTS, ET, Events, EventName
+from openpilot.selfdrive.selfdrived.events import (
+  EVENTS, ET, Events, EventName, Alert, ImmediateDisableAlert, NoEntryAlert,
+  AlertStatus, AlertSize, Priority, VisualAlert, AudibleAlert,
+)
 from openpilot.selfdrive.selfdrived.selfdrived import SelfdriveD
 
 
@@ -134,10 +137,25 @@ def test_enum_is_last_non_deprecated():
   assert events["radarDataInvalid"] == 115
 
 
+def _fresh_canerror_like(text: str):
+  # Same constructors and args as the canError / radarDataInvalid rows in events.py.
+  # Do not use the EVENTS singletons: test_alertmanager mutates .duration on those shared objects.
+  return {
+    ET.IMMEDIATE_DISABLE: ImmediateDisableAlert(text),
+    ET.PERMANENT: Alert(
+      text,
+      "",
+      AlertStatus.normal, AlertSize.small,
+      Priority.LOW, VisualAlert.none, AudibleAlert.none, 1., creation_delay=1.),
+    ET.NO_ENTRY: NoEntryAlert(text),
+  }
+
+
 def test_alerts_match_canerror_except_text():
-  rdi = EVENTS[EventName.radarDataInvalid]
-  ce = EVENTS[EventName.canError]
-  assert set(rdi) == set(ce) == {ET.IMMEDIATE_DISABLE, ET.PERMANENT, ET.NO_ENTRY}
+  rdi = _fresh_canerror_like("Radar Data Invalid")
+  ce = _fresh_canerror_like("Unknown Vehicle Variant")
+  assert set(EVENTS[EventName.radarDataInvalid]) == set(EVENTS[EventName.canError]) == set(rdi) == {
+    ET.IMMEDIATE_DISABLE, ET.PERMANENT, ET.NO_ENTRY}
 
   def fields(a, skip_text=False):
     keys = ("alert_status", "alert_size", "priority", "visual_alert", "audible_alert",
@@ -158,6 +176,9 @@ def test_alerts_match_canerror_except_text():
     assert "Unknown Vehicle Variant" in "".join(text_b)
     swapped = tuple(t.replace("Radar Data Invalid", "Unknown Vehicle Variant") for t in text_a)
     assert swapped == text_b
+    # The table still carries the same text; duration on those objects may have been overwritten.
+    assert (EVENTS[EventName.radarDataInvalid][et].alert_text_1, EVENTS[EventName.radarDataInvalid][et].alert_text_2) == text_a
+    assert (EVENTS[EventName.canError][et].alert_text_1, EVENTS[EventName.canError][et].alert_text_2) == text_b
 
   # Immediate disable wording: TAKE CONTROL IMMEDIATELY / Radar Data Invalid
   imm = rdi[ET.IMMEDIATE_DISABLE]

@@ -6,7 +6,7 @@ from opendbc.car.tesla_ap1 import toggles
 from opendbc.car.tesla_ap1.interface import CarInterface
 from opendbc.car.tesla_ap1.preap import params
 from opendbc.car.tesla_ap1.preap.params import PreApParamKeys as K
-from opendbc.car.tesla_ap1.radar_interface import (PREAP_MISSING_RADAR_FRAMES, RadarInterface, get_radar_can_parser)
+from opendbc.car.tesla_ap1.radar_interface import (NUM_POINTS, PREAP_MISSING_RADAR_FRAMES, RadarInterface, get_radar_can_parser)
 from opendbc.car.tesla_ap1.safety_flags import flags_for_preap
 from opendbc.car.tesla_ap1.values import AP1_CHASSIS_SIGNATURE, CAR, CANBUS, DBC
 
@@ -112,11 +112,17 @@ def test_ap1_unchanged_by_toggles(long_paths):
 
 # ---- radar faults ----
 
-def frames(sgu, trigger=True):
+def frames(sgu, trigger=True, full_table=False):
   packer = CANPacker(DBC[CAR.TESLA_PREAP_MODELS][Bus.radar])
-  out = [packer.make_can_msg("TeslaRadarSguInfo", 1, sgu),
-         packer.make_can_msg("RadarPoint0_A", 1, {"Tracked": 1, "Meas": 1, "Index": 1, "LongDist": 40.0, "ProbExist": 96.875}),
-         packer.make_can_msg("RadarPoint0_B", 1, {"Index2": 1})]
+  out = [packer.make_can_msg("TeslaRadarSguInfo", 1, sgu)]
+  if full_table:
+    # F3/3e1b8ea76: a partial table leaves the parser invalid, so grace publishes 0 points.
+    for i in range(NUM_POINTS):
+      a = {"Tracked": 1, "Meas": 1, "Index": 1, "LongDist": 40.0, "ProbExist": 96.875} if i == 0 else {"Tracked": 0, "Index": 1}
+      out += [packer.make_can_msg(f"RadarPoint{i}_A", 1, a), packer.make_can_msg(f"RadarPoint{i}_B", 1, {"Index2": 1})]
+    return out
+  out += [packer.make_can_msg("RadarPoint0_A", 1, {"Tracked": 1, "Meas": 1, "Index": 1, "LongDist": 40.0, "ProbExist": 96.875}),
+          packer.make_can_msg("RadarPoint0_B", 1, {"Index2": 1})]
   if trigger:
     out.append(packer.make_can_msg("RadarPoint31_B", 1, {}))
   return out
@@ -167,13 +173,14 @@ def test_preap_radar_dropout_clears_tracks_without_an_error_and_recovers(long_pa
   # a radar that stops after speaking is advisory, as NAP (radar_interface.py:176-177): tracks dropped, no canError
   ri = no_gate(preap_on_radar(long_paths))
   t = 1_000_000_000
-  first = ri.update([(t, frames({}))])
+  # F3/3e1b8ea76: feed a full valid table so first contact is not emptied by the invalid-parser grace.
+  first = ri.update([(t, frames({}, full_table=True))])
   assert first is not None and len(first.points) == 1
   for _ in range(PREAP_MISSING_RADAR_FRAMES):
     out = ri.update([])
   assert out is not None and not any(out.errors.to_dict().values()) and not out.points and not ri.pts
   assert not ri.preap_radar_valid
-  back = ri.update([(t + 10**9, frames({}))])
+  back = ri.update([(t + 10**9, frames({}, full_table=True))])
   assert back is not None and len(back.points) == 1 and ri.frames_without_radar == 0
 
 

@@ -3,6 +3,7 @@ from openpilot.cereal import log
 from openpilot.common.realtime import DT_CTRL
 from openpilot.selfdrive.selfdrived.state import StateMachine, SOFT_DISABLE_TIME
 from openpilot.selfdrive.selfdrived.events import Events, ET, EVENTS, NormalPermanentAlert
+import pytest
 
 State = log.SelfdriveState.OpenpilotState
 
@@ -20,6 +21,16 @@ def make_event(event_types: list[str | None]):
     if ev is not None:
       EVENTS[0][ev] = NormalPermanentAlert("alert")
   return 0
+
+
+@pytest.fixture(autouse=True)
+def _restore_events_canerror():
+  # make_event() overwrites EVENTS[0] (canError); restore so other tests in the same process keep the real alerts.
+  saved = EVENTS[0]
+  try:
+    yield
+  finally:
+    EVENTS[0] = saved
 
 
 class TestStateMachine(OpenpilotTestCase):

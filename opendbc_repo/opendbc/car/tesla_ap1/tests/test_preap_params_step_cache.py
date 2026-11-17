@@ -92,7 +92,10 @@ def test_card_starts_the_cache_for_pre_ap_and_moves_its_own_param_read():
   pre = src.split("self.preap_refusals = TxRefusalWatch()", 1)[1].split("\n    if ", 1)[0]
   assert "start_step_cache()" in pre
   step_body = src.split("  def state_update(self)", 1)[1].split("  def params_thread", 1)[0]
-  # the only Params call left in the step is stock's one-time ControlsReady write when controls first start
-  assert "self.params.get" not in step_body
+  # Pre-AP keeps the 10 Hz snapshot (07e8bd68f). AP1/unknown keep the 92aa9ee1f 100 Hz read (ab106443b).
+  ap1_read = 'distance_pressed = self.params.get_bool("OnroadDistanceButtonPressed")'
+  assert ap1_read in step_body
+  assert "self.params.get" not in step_body.replace(ap1_read, "")
+  assert "distance_pressed = self.onroad_distance_button" in step_body
   assert [ln.strip() for ln in step_body.splitlines() if "self.params.put" in ln] == ['self.params.put_bool("ControlsReady", True)']
   assert 'self.onroad_distance_button = self.params.get_bool("OnroadDistanceButtonPressed")' in src
