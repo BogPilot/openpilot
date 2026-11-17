@@ -68,7 +68,16 @@ def _make_rig(tmp_path, monkeypatch, radar=True, donor_type=None, donor_vin=None
   c.pm.send = lambda name, dat: sent.append(dat) if name == "sendcan" else None
   c.initialized_prev = True
   packer = CANPacker(DBC[CAR.TESLA_PREAP_MODELS][Bus.chassis])
-  st = SimpleNamespace(i=0, ps=0)
+  st = SimpleNamespace(i=0, ps=0, alive=True)
+  sm_update = c.sm.update
+
+  def sm_update_keep_alive(*a, **kw):
+    # the rig injects pandaStates into sm.data and never receives a message, so card's own sm.update(0) (card.py:252, before
+    # preap_link_update at :259) recomputes alive from recv_time and clears it; keep the flag the step asks for
+    ret = sm_update(*a, **kw)
+    c.sm.alive["pandaStates"] = st.alive
+    return ret
+  c.sm.update = sm_update_keep_alive
 
   def background(gear):
     st.i += 1
@@ -100,11 +109,11 @@ def _make_rig(tmp_path, monkeypatch, radar=True, donor_type=None, donor_vin=None
       c.sm.data["pandaStates"] = ps
     if sample is not None:
       c.sm.logMonoTime["pandaStates"] = int(sample)
-    c.sm.alive["pandaStates"] = bool(ps_alive)
+    st.alive = bool(ps_alive)
+    c.sm.alive["pandaStates"] = st.alive
     inbox.append(can_list_to_can_capnp(background(gear) + list(frames), msgtype="can"))
     CS, _ = c.state_update()
     c.sm.alive["carControl"] = True
-    c.sm.alive["pandaStates"] = bool(ps_alive)    # card's own SubMaster update in state_update recomputes alive on the rig
     if ps_valid:
       c.sm.valid["pandaStates"] = True
       c.sm.data["pandaStates"] = ps
