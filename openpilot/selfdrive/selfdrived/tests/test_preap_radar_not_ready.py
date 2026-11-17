@@ -2,9 +2,10 @@
 
 Code trace checked here (file:line in the commit message): card.py sets carState.bogpilot.preapRadarNotReady after RI.update;
 opendbc ap1_events.py turns it into preapRadarNotReady while enabled; events.py gives that event ET.WARNING only. The pull FSM
-(opendbc tesla_ap1/preap/carstate.py) has no radar input. selfdrived's radar events stay the stock ones (canError,
-radarTempUnavailable, radarFault from radarState.radarErrors), and the Pre-AP RadarInterface sets none of them unless RADC_HWFail
-(radarFault) or its radar parser goes invalid while frames still arrive (canError). A radar that goes quiet is advisory."""
+(opendbc tesla_ap1/preap/carstate.py) has no radar input. selfdrived maps a Pre-AP radar parser fault to radarDataInvalid
+(with radar-specific text); AP1 and an unknown car keep stock canError. radarTempUnavailable and radarFault still come from
+radarState.radarErrors. The Pre-AP RadarInterface sets none of them unless RADC_HWFail (radarFault) or its radar parser goes
+invalid while frames still arrive (canError, mapped to radarDataInvalid in selfdrived). A radar that goes quiet is advisory."""
 import pathlib
 
 from openpilot.cereal import log
@@ -39,5 +40,8 @@ def test_selfdrived_radar_events_are_stock():
   sd = (ROOT / "openpilot/selfdrive/selfdrived/selfdrived.py").read_text()
   block = sd[sd.index("if self.CP.openpilotLongitudinalControl:\n      if self.sm['radarState'].radarErrors.canError:"):]
   block = block[:block.index("if CS.canTimeout:")]
-  assert "preap" not in block.lower()
+  # Pre-AP maps the radar parser fault to radarDataInvalid with radar-specific text; AP1 and unknown stay stock canError.
+  assert "is_preap" in block
+  assert "EventName.radarDataInvalid" in block
+  assert "EventName.canError" in block
   assert "preapRadarNotReady" not in sd                    # only through car events (ap1_events.py)

@@ -76,6 +76,7 @@ class RadarInterface(RadarInterfaceBase):
     self.preap_v_ego = 0.0             # card.py sets it each step (for the gate's late label only)
     self._preap_steps = 0
     self._preap_grace_until = None     # Pre-AP first-contact / resume grace end time (CAN seconds), or None
+    self._preap_parser_seen_valid = False  # Pre-AP: resume grace only after the parser has been valid again
     if self.preap and self.rcp is not None:
       configs = list(getattr(CP, "safetyConfigs", None) or [])
       param = int(configs[-1].safetyParam) if configs else 0
@@ -118,6 +119,19 @@ class RadarInterface(RadarInterfaceBase):
         now = float(pkt[0]) * 1e-9
     return now if now is not None else self._preap_steps * 0.01
 
+  def _preap_is_resume(self) -> bool:
+    # Resume only after a real silence. The trigger (0x36E) arrives every 70-100 ms
+    # (about 16 Hz) while card calls update() at 100 Hz, so frames_without_radar is
+    # routinely 5-10 between healthy cycles. Treating any value > 0 as a resume
+    # re-armed the 0.25 s grace on almost every cycle, and a dropped SGU (0x301)
+    # never raised canError. Use the same threshold as the advisory silence path:
+    # PREAP_MISSING_RADAR_FRAMES (50 steps at 100 Hz = 0.5 s). Re-arm only after
+    # the parser has been valid again, so a still-invalid parser cannot hide behind
+    # a later silence.
+    return (self.preap and self.preap_radar_spoke
+            and self.frames_without_radar >= PREAP_MISSING_RADAR_FRAMES
+            and self._preap_parser_seen_valid)
+
   def update(self, can_strings):
 
     if self.rcp is None:
@@ -143,18 +157,22 @@ class RadarInterface(RadarInterfaceBase):
       return None
     now = gate_now if gate_now is not None else self._can_now(can_strings)
     first_contact = self.preap and not self.preap_radar_spoke
-    resume = self.preap and self.preap_radar_spoke and self.frames_without_radar > 0
+    resume = self._preap_is_resume()
     if first_contact or resume:
       self._preap_grace_until = now + PREAP_PARSER_GRACE_S
+      if resume:
+        self._preap_parser_seen_valid = False
     self.frames_without_radar = 0
     self.preap_radar_spoke = True
 
     ret = structs.RadarData()
+    in_grace = self.preap and self._preap_grace_until is not None and now < self._preap_grace_until
+    if self.rcp.can_valid:
+      self._preap_parser_seen_valid = True
     if not self.rcp.can_valid:
       # Pre-AP only: skip canError during first-contact / resume grace. After the grace, an invalid
       # parser while frames arrive still sets canError. AP1 is unchanged (no grace). The silence
       # path above never sets an error and does not invalidate radarState.
-      in_grace = self.preap and self._preap_grace_until is not None and now < self._preap_grace_until
       if not in_grace:
         ret.errors.canError = True
 
@@ -197,6 +215,9 @@ class RadarInterface(RadarInterfaceBase):
       self.pts[i].vRel = msg_a['LongSpeed']
 
     ret.points = list(self.pts.values())
+    # Pre-AP: do not feed radard from an untrusted parser during first-contact / resume grace.
+    if self.preap and in_grace and not self.rcp.can_valid:
+      ret.points = []
     if self.preap_gate is not None:
       self.preap_gate.on_sgu(gate_now, int(radar_status['RADC_SGU_ITC']), bool(radar_status['RADC_SGUFail']),
                              bool(radar_status['RADC_HWFail']), bool(radar_status['RADC_SensorDirty']))

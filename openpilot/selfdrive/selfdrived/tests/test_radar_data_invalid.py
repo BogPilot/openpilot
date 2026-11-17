@@ -1,4 +1,9 @@
-"""Pre-AP radarDataInvalid: mapping, alerts, first-contact/resume grace, silence path, AP1 unchanged."""
+"""Pre-AP radarDataInvalid: mapping, alerts, first-contact/resume grace, silence path, AP1 unchanged.
+
+Cadence: card calls RadarInterface.update at 100 Hz; the 0x36E trigger arrives about every 70-100 ms
+(~16 Hz). Tests step at 10 ms with 5 empty updates between triggers, and send TeslaRadarSguInfo (0x301)
+at 10 Hz unless a case drops it.
+"""
 import inspect
 
 import pytest
@@ -18,6 +23,10 @@ from openpilot.selfdrive.selfdrived.selfdrived import SelfdriveD
 
 
 NS = 1_000_000_000
+DT = 0.01          # card update rate, 100 Hz
+TRIG_EVERY = 6     # 5 empty updates between triggers: 16.7 Hz, in the real 70-100 ms / ~16 Hz band
+SGU_EVERY = 10     # TeslaRadarSguInfo (0x301) at 10 Hz
+NUM_POINTS = 64
 
 
 @pytest.fixture(autouse=True)
@@ -52,12 +61,27 @@ def ap1_cp():
   return CarInterface.get_params(CAR.TESLA_AP1_MODELS, fp, [], False, False, False)
 
 
-def frames(sgu=None, trigger=True):
-  packer = CANPacker(DBC[CAR.TESLA_PREAP_MODELS][Bus.radar])
-  out = [packer.make_can_msg("TeslaRadarSguInfo", 1, sgu or {}),
-         packer.make_can_msg("RadarPoint0_A", 1, {"Tracked": 1, "Meas": 1, "Index": 1, "LongDist": 40.0, "ProbExist": 96.875}),
-         packer.make_can_msg("RadarPoint0_B", 1, {"Index2": 1})]
-  if trigger:
+def _packer():
+  return CANPacker(DBC[CAR.TESLA_PREAP_MODELS][Bus.radar])
+
+
+def frames(*, include_sgu=True, trigger=True, sgu=None, full_table=False):
+  packer = _packer()
+  out = []
+  if include_sgu:
+    out.append(packer.make_can_msg("TeslaRadarSguInfo", 1, sgu or {}))
+  n = NUM_POINTS if full_table else 1
+  for i in range(n):
+    if i == 31 and not trigger:
+      continue
+    out.append(packer.make_can_msg(f"RadarPoint{i}_A", 1, {
+      "Tracked": 1 if i == 0 else 0, "Meas": 1 if i == 0 else 0, "Index": i,
+      "LongDist": 40.0 if i == 0 else 0.0, "ProbExist": 96.875 if i == 0 else 0.0,
+    }))
+    if i == 31 and not trigger:
+      continue
+    out.append(packer.make_can_msg(f"RadarPoint{i}_B", 1, {"Index2": i}))
+  if trigger and not full_table:
     out.append(packer.make_can_msg("RadarPoint31_B", 1, {}))
   return out
 
@@ -74,8 +98,20 @@ def no_gate(ri):
   return ri
 
 
-def step(ri, t_s, trigger=True):
-  return ri.update([(int(t_s * NS), frames(trigger=trigger))])
+def drive(ri, t0, n_steps, *, send_trigger=True, send_sgu=True, full_table=False):
+  """100 Hz steps. Trigger every 6 steps, SGU every 10, unless disabled."""
+  published = []
+  for i in range(n_steps):
+    t = t0 + i * DT
+    trig = send_trigger and (i % TRIG_EVERY == 0)
+    sgu = send_sgu and (i % SGU_EVERY == 0)
+    if trig or sgu or (full_table and trig):
+      out = ri.update([(int(t * NS), frames(include_sgu=sgu, trigger=trig, full_table=full_table and trig))])
+    else:
+      out = ri.update([])
+    if out is not None:
+      published.append((t, out, trig))
+  return published
 
 
 def map_radar_can_error(fingerprint, *, drop_preap_gate=False):
@@ -123,7 +159,7 @@ def test_alerts_match_canerror_except_text():
     swapped = tuple(t.replace("Radar Data Invalid", "Unknown Vehicle Variant") for t in text_a)
     assert swapped == text_b
 
-  # Immediate disable wording required by the owner: TAKE CONTROL IMMEDIATELY / Radar Data Invalid
+  # Immediate disable wording: TAKE CONTROL IMMEDIATELY / Radar Data Invalid
   imm = rdi[ET.IMMEDIATE_DISABLE]
   assert imm.alert_text_1 == "TAKE CONTROL IMMEDIATELY"
   assert imm.alert_text_2 == "Radar Data Invalid"
@@ -140,7 +176,6 @@ def test_events_defined_includes_radar_data_invalid():
 
 def test_selfdrived_maps_parser_error_preap_only():
   src = inspect.getsource(SelfdriveD.update_events)
-  # Radar-side branch is gated; the car-bus canValid path is unchanged.
   assert "if self.sm['radarState'].radarErrors.canError:" in src
   assert "from opendbc.car.tesla_ap1.values import is_preap" in src
   assert "self.events.add(EventName.radarDataInvalid)" in src
@@ -149,12 +184,11 @@ def test_selfdrived_maps_parser_error_preap_only():
   radar_block = radar_block.split("elif self.sm['radarState'].radarErrors.radarUnavailableTemporary:")[0]
   assert "is_preap" in radar_block
   assert "EventName.radarDataInvalid" in radar_block
-  assert "EventName.canError" in radar_block  # AP1 / unknown else-branch
-  # Car-bus path is a separate branch and must not use radarDataInvalid
-  bus = src.split("elif not CS.canValid:")[1]
-  bus = bus.split("\n", 2)[0] + bus.split("\n", 2)[1]
-  assert "EventName.canError" in src.split("elif not CS.canValid:")[1].split("\n")[1]
-  assert "radarDataInvalid" not in src.split("elif not CS.canValid:")[1].split("if")[0]
+  assert "EventName.canError" in radar_block
+  after = src[src.index("if CS.canTimeout:"):]
+  assert "EventName.canBusMissing" in after
+  assert "EventName.canError" in after
+  assert "radarDataInvalid" not in after
 
 
 def test_mapping_preap_gets_radar_data_invalid_not_canerror():
@@ -171,7 +205,6 @@ def test_mapping_ap1_and_unknown_keep_canerror():
 
 
 def test_mutant_dropping_preap_gate_is_caught():
-  # If the is_preap gate is dropped, AP1 would get radarDataInvalid. The test must fail that.
   mutated = map_radar_can_error(CAR.TESLA_AP1_MODELS, drop_preap_gate=True)
   assert EventName.radarDataInvalid in mutated
   correct = map_radar_can_error(CAR.TESLA_AP1_MODELS)
@@ -181,29 +214,33 @@ def test_mutant_dropping_preap_gate_is_caught():
 
 def test_car_bus_invalid_is_canerror_not_radar_data_invalid():
   src = inspect.getsource(SelfdriveD.update_events)
-  # The car-bus path is CS.canTimeout / not CS.canValid, not the radarErrors branch.
   assert "elif not CS.canValid:" in src
   assert "if CS.canTimeout:" in src
   after = src[src.index("if CS.canTimeout:"):]
   assert "EventName.canBusMissing" in after
   assert "EventName.canError" in after
-  # radarDataInvalid must not appear in the car-bus section
   assert "radarDataInvalid" not in after
 
 
-# ---- radar_interface: silence path, grace, AP1 ----
+# ---- radar_interface: silence path, grace at real cadence, AP1 ----
 
 def test_grace_constant_is_at_most_one_second():
   assert 0 < PREAP_PARSER_GRACE_S <= 1.0
   assert PREAP_PARSER_GRACE_S == 0.25
 
 
+def test_resume_predicate_uses_missing_radar_threshold():
+  src = inspect.getsource(RadarInterface._preap_is_resume)
+  assert "frames_without_radar >= PREAP_MISSING_RADAR_FRAMES" in src
+  assert "frames_without_radar > 0" not in src
+  assert "_preap_parser_seen_valid" in src
+
+
 def test_silence_path_is_error_free(long_paths):
   ri = preap_ri(long_paths)
-  # First contact, then silence past the 0.5 s advisory window.
-  assert step(ri, 1.0) is not None
+  drive(ri, 1.0, TRIG_EVERY)  # first contact (one trigger)
   outs = []
-  for i in range(1, PREAP_MISSING_RADAR_FRAMES + 5):
+  for _ in range(PREAP_MISSING_RADAR_FRAMES + 5):
     outs.append(ri.update([]))
   published = [o for o in outs if o is not None]
   assert published, "silence path must publish empty RadarData"
@@ -211,15 +248,9 @@ def test_silence_path_is_error_free(long_paths):
     assert not o.points
     assert not o.errors.canError
     assert not any(o.errors.to_dict().values())
-  # Host mapping: a silent radar raises neither event
   ev = Events()
-  # no canError flag, so neither branch fires
   assert not ev.names
   src = inspect.getsource(RadarInterface.update)
-  # The option-B return is empty RadarData with no canError assignment on that path
-  assert "return structs.RadarData()" in src
-  silence = src.split("if self.preap:")[2] if src.count("if self.preap:") >= 3 else src
-  # The empty return does not set canError
   block = src[src.index("self.pts.clear()"):src.index("return None")]
   assert "return structs.RadarData()" in block
   assert "canError" not in block or "never canError" in block
@@ -235,71 +266,166 @@ def test_never_spoke_silence_is_error_free(long_paths):
 
 
 def test_first_contact_has_no_canerror_during_grace(long_paths):
+  """(b) First-contact grace still suppresses at startup, at the real 100 Hz / 16 Hz cadence."""
   ri = no_gate(preap_ri(long_paths))
-  out = step(ri, 1.0)
-  assert out is not None
-  assert not ri.rcp.can_valid, "fixture must leave the parser invalid (incomplete table)"
-  assert not out.errors.canError
-  # still inside grace
-  out2 = step(ri, 1.0 + PREAP_PARSER_GRACE_S - 0.01)
-  assert out2 is not None and not out2.errors.canError
-
-
-def test_resume_after_silence_has_no_canerror_during_grace(long_paths):
-  ri = no_gate(preap_ri(long_paths))
-  assert step(ri, 1.0) is not None
-  for _ in range(PREAP_MISSING_RADAR_FRAMES):
-    ri.update([])
-  # Resume at 10 s: parser still invalid, grace must hide canError
-  out = step(ri, 10.0)
-  assert out is not None
+  n = int(PREAP_PARSER_GRACE_S / DT) - 1  # still inside grace
+  pub = drive(ri, 1.0, n, send_sgu=False)
+  assert pub, "first contact must publish"
   assert not ri.rcp.can_valid
-  assert not out.errors.canError
-  out2 = step(ri, 10.0 + PREAP_PARSER_GRACE_S - 0.01)
-  assert out2 is not None and not out2.errors.canError
+  assert all(not o.errors.canError for _, o, _ in pub)
+  assert all(not o.points for _, o, _ in pub)  # F3: no points during grace while invalid
 
 
-def test_sustained_invalid_after_grace_sets_canerror(long_paths):
+def test_dropped_sgu_fires_after_grace_at_real_cadence(long_paths):
+  """(a) 5 s of missing 0x301 (SGU) with the trigger still arriving must set canError after grace."""
   ri = no_gate(preap_ri(long_paths))
-  assert step(ri, 1.0) is not None
-  out = step(ri, 1.0 + PREAP_PARSER_GRACE_S + 0.01)
-  assert out is not None
+  pub = drive(ri, 1.0, int(5.0 / DT), send_sgu=False)
   assert not ri.rcp.can_valid
-  assert out.errors.canError
+  in_grace = [o for t, o, trig in pub if trig and (t - 1.0) < PREAP_PARSER_GRACE_S]
+  after = [o for t, o, trig in pub if trig and (t - 1.0) >= PREAP_PARSER_GRACE_S]
+  assert in_grace and all(not o.errors.canError for o in in_grace)
+  assert after and any(o.errors.canError for o in after)
+  assert after[-1].errors.canError
   names = map_radar_can_error(CAR.TESLA_PREAP_MODELS)
   assert names == {EventName.radarDataInvalid}
 
 
+def test_resume_after_real_silence_rearms_once(long_paths):
+  """(c) After the parser has been valid, a real 0.5 s silence re-arms grace once, not every 0x36E gap."""
+  ri = no_gate(preap_ri(long_paths))
+  # Fill the parser (full 64-point table + SGU + trigger) so can_valid can become true.
+  drive(ri, 1.0, int(1.0 / DT), send_sgu=True, full_table=True)
+  assert ri._preap_parser_seen_valid or ri.rcp.can_valid
+  # Real silence: 50+ empty 10 ms steps, no 0x36E.
+  silent = [ri.update([]) for _ in range(PREAP_MISSING_RADAR_FRAMES + 2)]
+  published_silent = [o for o in silent if o is not None]
+  assert published_silent
+  assert all(not o.errors.canError and not any(o.errors.to_dict().values()) for o in published_silent)
+  # Resume with SGU dropped (invalid parser): grace must hide canError for 0.25 s, then fire.
+  t_resume = 1.0 + 1.0 + (PREAP_MISSING_RADAR_FRAMES + 2) * DT
+  pub = drive(ri, t_resume, int(1.0 / DT), send_sgu=False)
+  in_grace = [o for t, o, trig in pub if trig and (t - t_resume) < PREAP_PARSER_GRACE_S]
+  after = [o for t, o, trig in pub if trig and (t - t_resume) >= PREAP_PARSER_GRACE_S]
+  assert in_grace and all(not o.errors.canError for o in in_grace)
+  assert after and any(o.errors.canError for o in after)
+
+
 def test_ap1_invalid_parser_is_canerror_immediately_no_grace():
   ri = RadarInterface(ap1_cp())
-  out = step(ri, 1.0)
-  assert out is not None
+  pub = drive(ri, 1.0, TRIG_EVERY * 2, send_sgu=False)
+  assert pub
   assert not ri.rcp.can_valid
-  assert out.errors.canError
+  # AP1: the first published trigger already sets canError (no grace).
+  first = next(o for _, o, trig in pub if trig)
+  assert first.errors.canError
   names = map_radar_can_error(CAR.TESLA_AP1_MODELS)
   assert names == {EventName.canError}
   assert EventName.radarDataInvalid not in names
-  # a later frame still canError (no grace window on AP1)
-  out2 = step(ri, 1.0 + 0.01)
-  assert out2 is not None and out2.errors.canError
 
 
 def test_mutant_grace_removed_is_caught(long_paths, monkeypatch):
   import opendbc.car.tesla_ap1.radar_interface as ri_mod
   monkeypatch.setattr(ri_mod, "PREAP_PARSER_GRACE_S", 0.0)
   ri = no_gate(preap_ri(long_paths))
-  out = step(ri, 1.0)
-  assert out is not None
+  pub = drive(ri, 1.0, 1, send_sgu=False)
+  assert pub
   assert not ri.rcp.can_valid
-  assert out.errors.canError, "removing the grace must surface canError at first contact"
-  # Production (unmutated constant already applied only via monkeypatch on this instance)
-  # The production path is covered by test_first_contact_has_no_canerror_during_grace.
+  assert pub[0][1].errors.canError, "removing the grace must surface canError at first contact"
+
+
+def test_mutant_grace_never_ending_is_caught(long_paths, monkeypatch):
+  import opendbc.car.tesla_ap1.radar_interface as ri_mod
+  monkeypatch.setattr(ri_mod, "PREAP_PARSER_GRACE_S", 1e9)
+  ri = no_gate(preap_ri(long_paths))
+  pub = drive(ri, 1.0, int(5.0 / DT), send_sgu=False)
+  after = [o for t, o, trig in pub if trig and (t - 1.0) >= 0.25]
+  assert after and all(not o.errors.canError for o in after), "an endless grace must hide a dropped SGU"
+
+
+def test_mutant_old_resume_gt_zero_is_caught(long_paths, monkeypatch):
+  def old_resume(self):
+    return self.preap and self.preap_radar_spoke and self.frames_without_radar > 0
+  monkeypatch.setattr(RadarInterface, "_preap_is_resume", old_resume)
+  ri = no_gate(preap_ri(long_paths))
+  pub = drive(ri, 1.0, int(5.0 / DT), send_sgu=False)
+  after = [o for t, o, trig in pub if trig and (t - 1.0) >= PREAP_PARSER_GRACE_S]
+  assert after and all(not o.errors.canError for o in after), (
+      "the old frames_without_radar > 0 resume must hide a dropped SGU at the real cadence"
+  )
+
+
+def test_mutant_silence_raises_error_is_caught(long_paths, monkeypatch):
+  import opendbc.car.tesla_ap1.radar_interface as ri_mod
+  orig = ri_mod.RadarInterface.update
+
+  def upd(self, can_strings):
+    ret = orig(self, can_strings)
+    if ret is not None and self.preap and self.preap_radar_spoke and self.frames_without_radar >= PREAP_MISSING_RADAR_FRAMES:
+      ret.errors.canError = True
+    return ret
+  monkeypatch.setattr(ri_mod.RadarInterface, "update", upd)
+  ri = preap_ri(long_paths)
+  drive(ri, 1.0, TRIG_EVERY)
+  outs = [ri.update([]) for _ in range(PREAP_MISSING_RADAR_FRAMES + 5)]
+  published = [o for o in outs if o is not None]
+  assert published and any(o.errors.canError for o in published), "silence must not set canError in production; this mutant does"
 
 
 def test_events_defined_and_source_gate_still_present():
   src = inspect.getsource(SelfdriveD.update_events)
-  # Mutant: dropping the pre-AP gate would map AP1 to radarDataInvalid. Source must keep the gate.
   assert "if is_preap(getattr(self.CP, \"carFingerprint\", None)):" in src
   ri_src = inspect.getsource(RadarInterface.update)
   assert "in_grace" in ri_src
   assert "PREAP_PARSER_GRACE_S" in ri_src
+  assert "frames_without_radar >= PREAP_MISSING_RADAR_FRAMES" in inspect.getsource(RadarInterface._preap_is_resume)
+  assert "if self.preap and in_grace and not self.rcp.can_valid:" in inspect.getsource(RadarInterface.update)
+
+
+def test_invalid_frames_during_grace_publish_zero_points(long_paths):
+  """Invalid parser frames at the 100 Hz card cadence must not publish points during grace."""
+  ri = no_gate(preap_ri(long_paths))
+  n = int(PREAP_PARSER_GRACE_S / DT)  # still inside grace
+  pub = drive(ri, 1.0, n, send_sgu=False)
+  trigger_pub = [o for _, o, trig in pub if trig]
+  assert trigger_pub, "first-contact trigger frames must publish"
+  assert not ri.rcp.can_valid
+  for o in trigger_pub:
+    assert not o.points
+    assert not o.errors.canError
+
+
+def test_flapping_at_real_cadence_does_not_rearm(long_paths):
+  """Five empty 10 ms updates between 0x36E triggers are not a resume; a dropped SGU still fires after grace."""
+  ri = no_gate(preap_ri(long_paths))
+  pub = drive(ri, 1.0, int(2.0 / DT), send_sgu=False)
+  after = [o for t, o, trig in pub if trig and (t - 1.0) >= PREAP_PARSER_GRACE_S]
+  assert after and any(o.errors.canError for o in after)
+  assert after[-1].errors.canError
+  # grace should not have been re-armed on the later cycles
+  assert ri._preap_grace_until is not None
+  last_t = after[-1] and [t for t, o, trig in pub if trig][-1]
+  assert last_t >= 1.0 + PREAP_PARSER_GRACE_S
+  # still past grace: _preap_is_resume stays false because the gap is only 5 frames
+  assert ri.frames_without_radar < PREAP_MISSING_RADAR_FRAMES or not ri._preap_parser_seen_valid
+
+
+def test_mutant_keeping_grace_points_is_caught(long_paths, monkeypatch):
+  import opendbc.car.tesla_ap1.radar_interface as ri_mod
+  orig = ri_mod.RadarInterface.update
+
+  def upd(self, can_strings):
+    ret = orig(self, can_strings)
+    if ret is not None and self.preap and self.pts:
+      now = self._preap_grace_until
+      in_grace = self.preap and self._preap_grace_until is not None
+      # The production path empties ret.points during grace while invalid; this mutant puts them back.
+      if in_grace and not self.rcp.can_valid:
+        ret.points = list(self.pts.values())
+    return ret
+  monkeypatch.setattr(ri_mod.RadarInterface, "update", upd)
+  ri = no_gate(preap_ri(long_paths))
+  pub = drive(ri, 1.0, int(PREAP_PARSER_GRACE_S / DT), send_sgu=False)
+  trigger_pub = [o for _, o, trig in pub if trig]
+  assert trigger_pub and any(o.points for o in trigger_pub), (
+      "removing the grace point drop must leak invalid points; production must not"
+  )
