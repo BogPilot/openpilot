@@ -10,14 +10,16 @@ nap_conf.py:46-52 (normalize_radar_donor_vin) @ opendbc 5dbe36d37 (openpilot nap
 Record 0 also carries the 0x2A9 radar position and EPAS type, which the panda applies (NAP f00c8cb9). Position is the Radar
 Donor Type setting (TeslaRadarDonorType: 0 pre-facelift Model S, 1 facelift Model S, 2 Model X, default 0, as NAP
 NAPRadarPosition), not the Radar Behind Nosecone toggle. EPAS 0.
-Stream: in any gear, as NAP, which sends it at 10 Hz whenever the radar is on (opendbc/car/tesla/preap/sp/carcontroller.py:69-77
-@ 5dbe36d37; nap-alpha 92b42f772, opendbc 508d26fcb: opendbc/car/tesla/carcontroller.py:143-152).
-Divergence (docs/tesla/DIVERGENCES_preap_radar_donor_vin.md): the stream follows what the panda reports, not gear or engage
-guesses (RadarDonorStream below): it runs only while the panda is in the car's mode with flag 256 and its gateway is not seen
-open (no echo on src 129), and stops as soon as the gateway frames come back. It never runs while openpilot is engaged, steering,
-the pull FSM is in an engaged mode or the panda allows controls (the panda ignores 0x560 then anyway). The pull FSM reads only
-refusals of our own pedal and steering frames (preap/panda_link.py TxRefusalWatch), so a 0x560 can never look like one.
-Never log the VIN. Raw CAN still carries it: these frames are in sendcan and come back as rejected echoes in can.
+Stream: in any gear, including after a card start already in Drive, as long as openpilot is disengaged. NAP sends it at 10 Hz
+whenever the radar is on, engaged or not (opendbc/car/tesla/preap/sp/carcontroller.py:69-77 @ 5dbe36d37; nap-alpha 92b42f772,
+opendbc 508d26fcb: opendbc/car/tesla/carcontroller.py:143-152; donor position from 0x560 in NAP f00c8cb9).
+Divergence (docs/tesla/DIVERGENCES_preap_radar_donor_vin.md): closed-loop, not always-on. The stream follows what the panda
+reports (RadarDonorStream below): it runs only while the panda is in the car's mode with flag 256 and its gateway is not seen
+open (no echo on src 129), and stops as soon as the gateway frames come back. If those echoes later stop, or the panda
+re-inits or reboots, it starts again. It never runs while openpilot is engaged, steering, the pull FSM is in an engaged mode
+or the panda allows controls (the panda ignores 0x560 then anyway, tesla_preap.h tesla_preap_radar_apply_vin_msg). The pull
+FSM reads only refusals of our own pedal and steering frames (preap/panda_link.py TxRefusalWatch), so a 0x560 can never look
+like one. Never log the VIN. Raw CAN still carries it: these frames are in sendcan and come back as rejected echoes in can.
 """
 from __future__ import annotations
 
@@ -73,12 +75,12 @@ class RadarDonorStream:
   """The 0x560 config as a link state machine keyed on what the panda reports (CS.preap_link from card, panda_link.LinkInput).
 
   Re-arms to STREAM on a safety model/param transition, a panda uptime decrease (reboot), heartbeatLost, or gateway echoes
-  absent for LOST_FRAMES. The panda clears the config on every safety init (tesla_preap.h init) and keeps its gateway closed
-  until all three records arrived; a re-init forces controls_allowed off (safety.h), so the car disengages and the stream resumes.
-  Sends only while disengaged: not while enabled, steering, the pull FSM is engaged, or the panda allows controls.
-  Card restart (inherited): when card's first pandaStates sample already shows the car's mode, the panda kept a config from a
-  card that ran before, which this card cannot see. Then, outside Park, nothing is sent until the panda shows a re-init
-  (transition, reboot or heartbeat loss), so a donor setting changed meanwhile is never applied at speed; logged.
+  absent for LOST_FRAMES. The panda clears the config on every safety init (tesla_preap.h tesla_preap_init_config) and keeps
+  its gateway closed until all three records arrived; a re-init forces controls_allowed off (safety.h), so the car
+  disengages and the stream resumes. Sends only while disengaged: not while enabled, steering, the pull FSM is engaged, or
+  the panda allows controls. A card start whose first pandaStates sample already shows the car's mode (already in Drive)
+  still streams: the panda may have no config at all (fresh boot) or may have been re-inited, and holding for Park was
+  leaving the radar without car data for the whole drive.
   """
 
   def __init__(self, radar_emulation: bool, donor_vin: str, position: int, log_fn=None):
@@ -91,11 +93,8 @@ class RadarDonorStream:
     self.last_echo_frame: int | None = None
     self.safety_key = None
     self.uptime: int | None = None
-    self.first_sample_seen = False
-    self.inherited = False
     self.rearms = 0
     self.sent = 0
-    self.held_inherited = 0
     self.held_mode = 0
     self._log = log_fn
 
@@ -106,8 +105,6 @@ class RadarDonorStream:
   def _rearm(self, reinit: bool) -> None:
     self.rearms += 1
     self.last_echo_frame = None
-    if reinit:
-      self.inherited = False
     self.state = Link.STREAM
 
   def observe(self, link) -> None:
@@ -121,12 +118,6 @@ class RadarDonorStream:
     if link.gtw_echo:
       self.last_echo_frame = self.frame
     if link.new_sample:
-      first = not self.first_sample_seen
-      self.first_sample_seen = True
-      if first and link.safety_ok:
-        self.inherited = True
-        if self._log is not None:
-          self._log("radar donor: card started with the panda already in the car's mode; config held outside Park until a re-init")
       reinit = False
       if self.safety_key is not None and link.safety_key != self.safety_key:
         reinit = True
@@ -139,8 +130,6 @@ class RadarDonorStream:
       if not link.safety_ok:
         self.state = Link.WAIT_SAFETY
         self.last_echo_frame = None
-        if reinit:
-          self.inherited = False
         return
       if reinit or self.state == Link.WAIT_SAFETY:
         self._rearm(reinit)
@@ -154,8 +143,7 @@ class RadarDonorStream:
       if gone and not link.controls_allowed:
         self._rearm(False)
 
-  def update(self, frame: int, enabled: bool, steering: bool = False, link=None, fsm_engaged: bool = False,
-             in_park: bool = False) -> list[CanData]:
+  def update(self, frame: int, enabled: bool, steering: bool = False, link=None, fsm_engaged: bool = False) -> list[CanData]:
     self.observe(link)
     if self.state != Link.STREAM or (frame % 10) != 0:
       return []
@@ -164,9 +152,6 @@ class RadarDonorStream:
       self.held_mode += 1
       return []
     if enabled or steering or fsm_engaged or (link is not None and link.controls_allowed):
-      return []
-    if self.inherited and not in_park:
-      self.held_inherited += 1
       return []
     msg = create_radar_vin_msg(self.idx, self.vin, True, self.position, 0)
     self.idx = (self.idx + 1) % 3

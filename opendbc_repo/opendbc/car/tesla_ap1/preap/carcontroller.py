@@ -13,7 +13,7 @@ Pedal calibration (driver foot press, no commanded gas) runs here from CarState 
 from __future__ import annotations
 
 from opendbc.can import CANPacker
-from opendbc.car import Bus, structs
+from opendbc.car import Bus
 from opendbc.car.carlog import carlog
 from opendbc.car.interfaces import CarControllerBase
 from opendbc.car.tesla_ap1.actuator_plan import apply_std_steer_angle_limits
@@ -176,8 +176,7 @@ class PreApCarController(CarControllerBase):
     # 0x560 follows the panda's own reports (card: CS.preap_link); never while the pull FSM is in an engaged mode.
     can_sends.extend(self.radar_donor.update(
       self.frame, bool(CC.enabled), bool(CC.latActive), link=getattr(CS, "preap_link", None),
-      fsm_engaged=int(getattr(CS, "preap_fsm_mode", 0)) in ENGAGED_MODES,
-      in_park=getattr(CS.out, "gearShifter", None) == structs.CarState.GearShifter.park))
+      fsm_engaged=int(getattr(CS, "preap_fsm_mode", 0)) in ENGAGED_MODES))
 
     new_actuators = actuators.as_builder()
     new_actuators.steeringAngleDeg = float(self.apply_angle_last)

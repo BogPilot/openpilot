@@ -1165,12 +1165,17 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   stops on the first step another mode shows, even before a new pandaStates sample
   (`opendbc_repo/opendbc/car/tesla_ap1/preap/radar_donor.py` `update`), and card drops any 0x560 left in sendcan for a panda
   that is not in that mode, or with no valid pandaStates (`openpilot/selfdrive/car/card.py` `preap_gate_560`). Never in
-  ELM327, allOutput, noOutput, silent or another param. Panda safety is unchanged.
-- Why: in allOutput or ELM327 the panda does not consume 0x560, so it could reach the car bus.
-- Safety-relevant: yes (keeps a config frame off the car bus).
+  ELM327, allOutput, noOutput, silent or another param. The stream runs in any gear, including a card start already in Drive,
+  only while disengaged, and only until src-129 gateway echoes show the gateway is open; it starts again if those echoes stop
+  or the panda re-inits. Panda safety is unchanged. Details: `docs/tesla/DIVERGENCES_preap_radar_donor_vin.md` section 2.
+- Why: in allOutput or ELM327 the panda does not consume 0x560, so it could reach the car bus. Holding the stream for Park
+  after a start already in Drive left the gateway closed for the whole drive.
+- Safety-relevant: yes (keeps a config frame off the car bus; a closed gateway is warning-only).
 - Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_mode_gates.py`,
+  `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_radar_donor.py`,
+  `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_radar_donor_restart.py`,
   `openpilot/selfdrive/car/tests/test_preap_card_mode_gates.py`.
-- Credits: NAP (the 0x560 stream).
+- Credits: NAP (the 0x560 stream, `f00c8cb9`).
 
 ## Pre-AP: pedal and steering refusals count only in the car's safety mode
 - Platforms: Pre-AP with the comma pedal.

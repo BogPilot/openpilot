@@ -19,6 +19,7 @@ What's new
 * Fewer false TAKE CONTROL alerts from the AP1 radar in heavy traffic
 * The stock lead triangle is no longer drawn
 * Settings saved under the old FrogPilot names now carry over to BogPilot on the first start after updating
+* Pre-AP with the Bosch radar retrofit: the radar config is sent again if the comma starts or restarts already in Drive, and again if the radar gateway later closes. On a build before this, start in Park and let the comma fully boot before shifting
 
 BogPilot 0.11.2 for legacy Tesla (comma 3X, 2026-11-14)
 ========================

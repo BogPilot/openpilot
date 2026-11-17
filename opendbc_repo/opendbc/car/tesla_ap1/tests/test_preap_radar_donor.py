@@ -71,12 +71,12 @@ def _link(ok=True, key=KEY, uptime=100, echo=False, sample=True, ca=False, hb=Fa
                    new_sample=sample, gtw_echo=echo)
 
 
-def _run(stream, frames, enabled=False, steering=False, fsm=False, park=False, link=_link, start=0):
+def _run(stream, frames, enabled=False, steering=False, fsm=False, link=_link, start=0):
   """link(f) -> LinkInput for frame f (default: the car's mode, no echo, a new sample every 10 frames)."""
   out = []
   for f in range(start, start + frames):
     lk = link(f) if callable(link) and link is not _link else _link(sample=(f % 10 == 0))
-    out += stream.update(f, enabled, steering, link=lk, fsm_engaged=fsm, in_park=park)
+    out += stream.update(f, enabled, steering, link=lk, fsm_engaged=fsm)
   return out
 
 
@@ -128,16 +128,19 @@ def test_rearm_on_lost_echoes_reinit_reboot_heartbeat():
     assert s.state == Link.STREAM, lk
 
 
-def test_card_restart_in_drive_holds_the_config_until_a_reinit_or_park():
-  # The first sample already shows the car's mode: the panda keeps a config from an earlier card process.
-  logs = []
-  s = RadarDonorStream(True, VIN, 2, log_fn=logs.append)
-  assert _run(s, 200) == [] and s.held_inherited > 0 and len(logs) == 1 and VIN not in logs[0]
-  assert len(_run(s, 30, park=True, start=200)) == 3                     # Park: the setting may be applied
+def test_card_start_already_in_the_cars_mode_streams_in_drive():
+  """First pandaStates sample already in the car's mode, not in Park: still send the three records.
+
+  Holding for Park (or for a later re-init) left a Drive-only start with a closed gateway for the whole drive.
+  """
+  s = RadarDonorStream(True, VIN, 2)
+  sent = _run(s, 30)     # default link is the car's mode, no echo, no Park input
+  assert [m.dat[0] for m in sent] == [0, 1, 2]
+  assert all(m.src == 0 and m.address == 0x560 for m in sent)
   s = RadarDonorStream(True, VIN, 2)
   _run(s, 50)
-  s.update(50, False, False, link=_link(uptime=1))                       # panda reboot: config cleared, fresh config is fine
-  assert len(_run(s, 30, start=51)) == 3 and not s.inherited
+  s.update(50, False, False, link=_link(uptime=1))                       # panda reboot: config cleared, stream again
+  assert len(_run(s, 30, start=51)) == 3
   s = RadarDonorStream(True, VIN, 2)
   _run(s, 20)
   s.update(20, False, False, link=_link(ok=False))

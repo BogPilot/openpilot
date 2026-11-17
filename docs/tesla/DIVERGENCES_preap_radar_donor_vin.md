@@ -28,23 +28,28 @@ checksum); NAP nap-alpha `92b42f772` (opendbc `508d26fcb`); BogPilot na-preap `c
   - openpilot is disengaged and not steering, the pull FSM is not in an engaged mode, and the panda does not allow controls.
   It stops as soon as the gateway frames come back, and re-arms on a safety model or param change, a panda uptime decrease
   (reboot), `heartbeatLost`, or gateway echoes absent for 0.3 s while the panda does not allow controls (a same-mode re-init
-  shows nothing else in `pandaStates`). Simulated through the compiled panda safety code: the gateway opens within 1 s after
-  the switch from ELM327 (about 15 s after the car starts, in any gear), after a re-init or a panda reboot in Drive, and within
-  1 s of disengaging after a re-init while engaged. Not yet seen on a real car.
-- NAP streams it at 10 Hz whenever the radar is on, engaged or not (`opendbc/car/tesla/preap/sp/carcontroller.py:69-77` @
-  `5dbe36d37`; nap-alpha `92b42f772`, opendbc `508d26fcb`: `opendbc/car/tesla/carcontroller.py:143-152`). Divergence: no 0x560
-  while engaged or steering (the panda ignores it then anyway, the config set before engaging stays until the next safety init)
-  and none once the gateway is seen open. Limit: after a safety init while engaged, the radar stays silent until openpilot is
+  shows nothing else in `pandaStates`). A card start whose first `pandaStates` sample already shows the car's mode (already
+  in Drive, or a card restart mid-drive) also streams; there is no Park hold. Simulated through the compiled panda safety
+  code: the gateway opens after the three records, including from a Drive-only start, and after a mid-drive re-init once
+  openpilot is disengaged.
+- NAP (`f00c8cb9`; also nap-alpha `92b42f772`, opendbc `508d26fcb`: `opendbc/car/tesla/carcontroller.py:143-152`, and
+  `opendbc/car/tesla/preap/sp/carcontroller.py:69-77` @ `5dbe36d37`) streams 0x560 at 10 Hz whenever the radar is on, engaged
+  or not. Divergence: closed-loop, not always-on. No 0x560 while engaged or steering (the panda ignores it then anyway,
+  `tesla_preap.h` `tesla_preap_radar_apply_vin_msg`; the config set before engaging stays until the next safety init) and
+  none once the gateway is seen open. After a safety init while engaged, the radar stays silent until openpilot is
   disengaged; the radar-valid filter (`DIVERGENCES_preap_radar_valid.md`) keeps its points out meanwhile (camera leads, one
-  warning), never blocking engage.
-- card restart in Drive: if card's first `pandaStates` sample already shows the car's mode, the panda kept a config from an
-  earlier card process that this one cannot see. Then nothing is sent outside Park until the panda shows a re-init or reboot,
-  so a donor setting changed meanwhile is never applied at speed; logged once. The panda (`tesla_preap.h:235-262`) would
-  accept a changed config while disengaged in Drive; a panda-side check is left for a later panda image.
-- Before (`92aa9ee1f` and earlier builds with the gate): sent only while disengaged and not in Drive. A shift to Drive before
-  the switch to the car's mode (or less than one full 0x560 cycle after it), or a safety re-init in Drive, kept the gateway
-  closed, so there was no radar for the whole drive. Variant `dc5e7d665` (local, never released) streamed in any gear and took
-  its own 0x560 back out of the panda's blocked-TX total; that subtraction is replaced below.
+  "Radar not ready" warning), never a no-entry, soft disable or disengage. radarFault stays RADC_HWFail only.
+- Why closed-loop rather than NAP always-on: must-haves are "send until the gateway echoes show it is open" and "start again
+  if it closes". Once open, further 0x560 is not needed until the next init or a stale-echo re-arm. The panda tx hook always
+  returns false for 0x560 (consumed, never on the car) and counts a blocked TX; we already do not treat that as a pull-FSM
+  refusal, and we still avoid sending it while engaged.
+- Before (`92aa9ee1f` and earlier builds with the gate): sent only while disengaged and not in Drive. A later host change
+  streamed in any gear but held if card's first `pandaStates` sample already showed the car's mode, until Park or a re-init.
+  A Drive-only start (or a card restart already in Drive) then left the gateway closed for the whole drive, and the radar
+  never became valid. Until a build with this closed-loop stream is installed: start in Park and let the comma fully boot
+  before shifting.
+- Variant `dc5e7d665` (local, never released) streamed in any gear and took its own 0x560 back out of the panda's blocked-TX
+  total; that subtraction is replaced below.
 - Refusals, v2: the panda counts every consumed 0x560 as a blocked TX (`panda/board/drivers/can_common.h:169`) and returns it as
   a rejected echo (src bus + 0xC0, `selfdrive/pandad/panda.cc:265-266`). The Pre-AP pull FSM no longer reads the all-address
   total. card counts the rejected echoes of our own pedal 0x551 (bus 0 or 2) and steering 0x488 (bus 0) frames each step and
