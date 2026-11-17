@@ -1157,8 +1157,10 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 
 ## Pre-AP: 0x560 only while the panda shows the Pre-AP car mode (host side)
 - Platforms: Pre-AP with radar emulation. AP1 unchanged.
-- Reference behavior: NAP opendbc `f00c8cb9` streams 0x560 (the radar VIN config the panda consumes) from the car controller
-  without looking at the panda's safety mode.
+- Reference behavior: NAP opendbc `f00c8cb9` (`opendbc/car/tesla/carcontroller.py:126-134`) streams 0x560 (the radar VIN config
+  the panda consumes) from the car controller without looking at the panda's safety mode, at `frame % 100` (1/s). The 10 Hz
+  rate (`frame % 10`) is from nap-dev `851e9e1c` (`opendbc/car/tesla/carcontroller.py:126-135`) and nap-ap1 `21a45cf9`
+  (`opendbc/car/tesla/carcontroller.py:145-154`).
 - Our behavior: 0x560 is sent only while the latest valid pandaStates entry of the panda it goes to (sendcan bus // 4) shows
   SafetyModel.tesla with the Pre-AP flag, without the AP1 flag, and exactly the param from CarParams
   (`opendbc_repo/opendbc/car/tesla_ap1/preap/panda_link.py` `preap_mode_ok`). Two checks, each on every step: the stream
@@ -1175,7 +1177,7 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_radar_donor.py`,
   `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_radar_donor_restart.py`,
   `openpilot/selfdrive/car/tests/test_preap_card_mode_gates.py`.
-- Credits: NAP (the 0x560 stream, `f00c8cb9`).
+- Credits: NAP (the 0x560 stream and position, `f00c8cb9`; 10 Hz rate, nap-dev `851e9e1c` / nap-ap1 `21a45cf9`).
 
 ## Pre-AP: pedal and steering refusals count only in the car's safety mode
 - Platforms: Pre-AP with the comma pedal.

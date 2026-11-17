@@ -6,13 +6,14 @@ digits, entered by hand), the panda puts that VIN in the radar's 0x2B9 VIN recor
 so a salvage radar sees the car it came from. Empty (the default) = 17 spaces = this car, no substitution.
 
 Layout: NAP opendbc/car/tesla/preap/teslacan.py:83-97 (create_radar_vin_msg, the Tinkla 0.6.6 packing) and
-nap_conf.py:46-52 (normalize_radar_donor_vin) @ opendbc 5dbe36d37 (openpilot naponsp-alpha-prebuilt 7eb09d2a7).
+nap_conf.py:46-52 (normalize_radar_donor_vin) @ openpilot naponsp-alpha-prebuilt 7eb09d2a7.
 Record 0 also carries the 0x2A9 radar position and EPAS type, which the panda applies (NAP f00c8cb9). Position is the Radar
 Donor Type setting (TeslaRadarDonorType: 0 pre-facelift Model S, 1 facelift Model S, 2 Model X, default 0, as NAP
 NAPRadarPosition), not the Radar Behind Nosecone toggle. EPAS 0.
-Stream: in any gear, including after a card start already in Drive, as long as openpilot is disengaged. NAP sends it at 10 Hz
-whenever the radar is on, engaged or not (opendbc/car/tesla/preap/sp/carcontroller.py:69-77 @ 5dbe36d37; nap-alpha 92b42f772,
-opendbc 508d26fcb: opendbc/car/tesla/carcontroller.py:143-152; donor position from 0x560 in NAP f00c8cb9).
+Stream: in any gear, including after a card start already in Drive, as long as openpilot is disengaged. NAP f00c8cb9
+sends it at frame % 100 (1/s) whenever the radar is on, engaged or not (opendbc/car/tesla/carcontroller.py:126-134). The
+10 Hz rate (frame % 10) is from nap-dev 851e9e1c (opendbc/car/tesla/carcontroller.py:126-135) and nap-ap1 21a45cf9
+(opendbc/car/tesla/carcontroller.py:145-154).
 Divergence (docs/tesla/DIVERGENCES_preap_radar_donor_vin.md): closed-loop, not always-on. The stream follows what the panda
 reports (RadarDonorStream below): it runs only while the panda is in the car's mode with flag 256 and its gateway is not seen
 open (no echo on src 129), and stops as soon as the gateway frames come back. If those echoes later stop, or the panda
@@ -83,7 +84,7 @@ class RadarDonorStream:
   leaving the radar without car data for the whole drive.
   """
 
-  def __init__(self, radar_emulation: bool, donor_vin: str, position: int, log_fn=None):
+  def __init__(self, radar_emulation: bool, donor_vin: str, position: int):
     self.radar_emulation = bool(radar_emulation)
     self.vin = normalize_radar_donor_vin(donor_vin)
     self.position = position if type(position) is int and position in (0, 1, 2) else 0

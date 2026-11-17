@@ -5,8 +5,8 @@ The VIN it reads is stored only in the TeslaRadarDonorVin file param and kept ou
 The panda allows only these exact 0x641 frames, on bus 1, with flag 256, while disengaged (tesla_preap.h).
 It never writes F190, never runs a routine, never asks for security access, never flashes firmware.
 
-Ported from NAP opendbc/car/tesla/preap/radar_donor_vin.py:1-143,219-361 @ opendbc 5dbe36d37 (openpilot
-naponsp-alpha-prebuilt 7eb09d2a7; NAP 347ac59b / edd064aa). Not ported: RadarDonorVinCommissioner (:145-216),
+Ported from NAP opendbc/car/tesla/preap/radar_donor_vin.py:1-143,219-361 @ openpilot
+naponsp-alpha-prebuilt 7eb09d2a7 (NAP 347ac59b / edd064aa). Not ported: RadarDonorVinCommissioner (:145-216),
 which starts a read by itself on a radar VIN fault and stores the result.
 """
 

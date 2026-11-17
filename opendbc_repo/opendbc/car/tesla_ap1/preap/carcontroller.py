@@ -66,7 +66,7 @@ class PreApCarController(CarControllerBase):
     safety_param = int(configs[-1].safetyParam) if configs else 0
     radar_on = bool(safety_param & FLAG_TESLA_PREAP_RADAR_EMULATION)
     self.radar_donor = RadarDonorStream(radar_on, get_str(PreApParamKeys.RADAR_DONOR_VIN) if radar_on else "",
-                                        radar_donor_type() if radar_on else 0, log_fn=carlog.warning)
+                                        radar_donor_type() if radar_on else 0)
 
   # ---- pedal calibration (driver press only; the panda is never unlocked for it) ----
   def _reset_calib_capture(self) -> None:

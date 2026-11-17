@@ -1,8 +1,8 @@
 """Pre-AP radar donor VIN, host side: the 0x560 stream, the manual Read Radar VIN runner and the ported F190 reader.
 
 VINs here are synthetic: each contains I, O and Q, which no real VIN may contain.
-Reader tests ported from NAP opendbc/car/tesla/preap/tests/test_radar_donor_vin.py:18-121 @ opendbc 5dbe36d37
-(openpilot naponsp-alpha-prebuilt 7eb09d2a7); its Commissioner (automatic start) tests are not ported with it.
+Reader tests ported from NAP opendbc/car/tesla/preap/tests/test_radar_donor_vin.py:18-121 @ openpilot
+naponsp-alpha-prebuilt 7eb09d2a7; its Commissioner (automatic start) tests are not ported with it.
 """
 import io
 import logging
@@ -85,6 +85,20 @@ def _fresh(*a, **kw):
   s = RadarDonorStream(True, *a, **kw) if a else RadarDonorStream(True, "", 0)
   s.update(0, False, False, link=_link(ok=False))
   return s
+
+
+def test_stream_records_carry_the_configured_donor_vin():
+  """Streamed 0x560 records carry the configured donor VIN.
+
+  VIN is synthetic: it contains I, O and Q, which no real VIN may contain.
+  """
+  s = RadarDonorStream(True, VIN, 0)
+  sent = _run(s, 30)
+  assert [m.dat[0] for m in sent] == [0, 1, 2]
+  assert sent[0].dat[5:] == VIN[0:3].encode()
+  assert sent[1].dat[1:] == VIN[3:10].encode()
+  assert sent[2].dat[1:] == VIN[10:17].encode()
+  assert sent[0].dat[5:] + sent[1].dat[1:] + sent[2].dat[1:] == VIN.encode()
 
 
 def test_stream_only_with_flag_256_disengaged_not_steering():

@@ -1,8 +1,8 @@
 """Pre-AP 0x560 donor config: send in any gear until the radar gateway is open, then re-arm if it closes.
 
 0x560 is host-to-panda only (bus 0). The panda tx hook consumes it and returns false, so it never goes on the car
-(tesla_preap.h tesla_preap_tx_hook). No panda C change. Pack replay reads PREAP_TESTER2_PACK_DIR (debug-pack JSON);
-those packs stay out of the tree. Synthetic VINs only.
+(tesla_preap.h tesla_preap_tx_hook). No panda C change. Optional replay of recorded Drive-only captures reads
+PREAP_DRIVE_PACK_DIR (JSON files in that directory); those captures stay out of the tree. Synthetic VINs only.
 """
 from __future__ import annotations
 
@@ -139,10 +139,10 @@ def test_mid_drive_reinit_then_disengage_reopens_the_gateway():
   assert any(f[0] == 0x2A9 for f in sent())
 
 
-# ---- Tester 2 Drive-only debug packs (optional; private, not in the tree) ----
+# ---- Recorded Drive-only captures (optional; not in the tree) ----
 
 def _pack_dir() -> Path | None:
-  raw = os.environ.get("PREAP_TESTER2_PACK_DIR", "").strip()
+  raw = os.environ.get("PREAP_DRIVE_PACK_DIR", "").strip()
   if not raw:
     return None
   p = Path(raw)
@@ -150,7 +150,7 @@ def _pack_dir() -> Path | None:
 
 
 def _pack_files(folder: Path) -> list[Path]:
-  files = sorted(folder.glob("*Pre-AP_commIssue_92aa9ee-debugpack.json"))
+  files = sorted(p for p in folder.iterdir() if p.is_file() and p.suffix.lower() == ".json")
   return files
 
 
@@ -216,11 +216,11 @@ def _summarize_pack(path: Path) -> dict:
   }
 
 
-@pytest.mark.skipif(_pack_dir() is None, reason="PREAP_TESTER2_PACK_DIR is not set")
-def test_tester2_drive_packs_open_the_gateway_in_the_safety_model():
+@pytest.mark.skipif(_pack_dir() is None, reason="PREAP_DRIVE_PACK_DIR is not set")
+def test_recorded_drive_captures_open_the_gateway_in_the_safety_model():
   folder = _pack_dir()
   files = _pack_files(folder)
-  assert len(files) == 2, "expected both Drive-only debug packs"
+  assert len(files) == 2, "expected two recorded Drive-only captures"
   pytest.importorskip("cffi")
   from opendbc.safety.tests.libsafety import libsafety_py
   from opendbc.safety.tests.test_tesla_preap import PREAP, SAFETY_TESLA, pkt
@@ -240,7 +240,7 @@ def test_tester2_drive_packs_open_the_gateway_in_the_safety_model():
     assert info["n_gtw_echo"] == 0
 
     s = RadarDonorStream(True, "", 0)
-    records = _run(s, 30)   # first sample already in the car's mode, as in these packs
+    records = _run(s, 30)   # first sample already in the car's mode, as in these captures
     assert [m.dat[0] for m in records] == [0, 1, 2]
     assert all(m.src == 0 for m in records)
 

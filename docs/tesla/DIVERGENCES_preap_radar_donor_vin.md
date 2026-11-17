@@ -1,15 +1,15 @@
 # Pre-AP Bosch radar: donor VIN, config gate, 0x2A9 byte 7, Read Radar VIN
 
-References: NAP `naponsp-alpha-prebuilt` `7eb09d2a7` (opendbc `5dbe36d37`, panda `a8f6ff22d`), NAP commits `347ac59b` /
-`edd064aa` (donor VIN + F190), `604b9c49` (config gate), `f00c8cb9` (position from the donor config), `a2cdda8e` (no byte-7
-checksum); NAP nap-alpha `92b42f772` (opendbc `508d26fcb`); BogPilot na-preap `c68fda744`; Tinkla/BogGyver `501c7de`.
+References: NAP `naponsp-alpha-prebuilt` `7eb09d2a7`, NAP commits `347ac59b` /
+`edd064aa` (donor VIN + F190), `604b9c49` (config gate), `f00c8cb9` (stream and position from the donor config, at 1/s), `a2cdda8e` (no byte-7
+checksum); nap-dev `851e9e1c` and nap-ap1 `21a45cf9` (10 Hz stream); NAP nap-alpha `92b42f772` (opendbc `508d26fcb`); BogPilot na-preap `c68fda744`; Tinkla/BogGyver `501c7de`.
 
 ## 1. 0x2A9 byte 7 (now matches all references)
 - Before: the panda overwrote 0x2A9 byte 7 with an address + data byte sum (ported from NAP `cc39c7fa`), which also changed
   GTW_autopilot and the other byte-7 bits.
 - Now: no checksum. Byte 7 = (car 0x398 byte 7 & 0xCF) | 0x10, i.e. GTW_autopilot = 1. Bosch BO_681 is "all fixed bytes, no
   checksum" (`opendbc/dbc/generator/tesla/tesla_radar_bosch.py:158,249`). Same as NAP `a2cdda8e`
-  (`opendbc/safety/modes/tesla_preap.h:346-367` @ `5dbe36d37`), na-preap `c68fda744` and Tinkla (`safety_tesla.h:462-484`).
+  (`opendbc/safety/modes/tesla_preap.h` @ `a2cdda8e`), na-preap `c68fda744` and Tinkla (`safety_tesla.h:462-484`).
 
 ## 2. Host 0x560 donor config and the config gate (NAP, one rule stricter)
 - 0x560 is host to panda only: on the TX list as {0x560, bus 0, 8}, the tx hook consumes it and returns false, so it never goes
@@ -32,9 +32,10 @@ checksum); NAP nap-alpha `92b42f772` (opendbc `508d26fcb`); BogPilot na-preap `c
   in Drive, or a card restart mid-drive) also streams; there is no Park hold. Simulated through the compiled panda safety
   code: the gateway opens after the three records, including from a Drive-only start, and after a mid-drive re-init once
   openpilot is disengaged.
-- NAP (`f00c8cb9`; also nap-alpha `92b42f772`, opendbc `508d26fcb`: `opendbc/car/tesla/carcontroller.py:143-152`, and
-  `opendbc/car/tesla/preap/sp/carcontroller.py:69-77` @ `5dbe36d37`) streams 0x560 at 10 Hz whenever the radar is on, engaged
-  or not. Divergence: closed-loop, not always-on. No 0x560 while engaged or steering (the panda ignores it then anyway,
+- NAP `f00c8cb9` (`opendbc/car/tesla/carcontroller.py:126-134`) streams 0x560 whenever the radar is on, engaged or not,
+  at `frame % 100` (1/s). The 10 Hz rate (`frame % 10`) is from nap-dev `851e9e1c`
+  (`opendbc/car/tesla/carcontroller.py:126-135`) and nap-ap1 `21a45cf9` (`opendbc/car/tesla/carcontroller.py:145-154`).
+  Divergence: closed-loop, not always-on. No 0x560 while engaged or steering (the panda ignores it then anyway,
   `tesla_preap.h` `tesla_preap_radar_apply_vin_msg`; the config set before engaging stays until the next safety init) and
   none once the gateway is seen open. After a safety init while engaged, the radar stays silent until openpilot is
   disengaged; the radar-valid filter (`DIVERGENCES_preap_radar_valid.md`) keeps its points out meanwhile (camera leads, one
@@ -64,7 +65,7 @@ checksum); NAP nap-alpha `92b42f772` (opendbc `508d26fcb`); BogPilot na-preap `c
   is lost, within 0.3 s after our last 0x560, is not passed on from the counter; the next refused frame (the pedal runs at
   50 Hz) is.
 - Why NAP needs none of this: no NAP car or control code reads `safetyTxBlocked` (git grep: openpilot nap-alpha `92b42f772`,
-  where only pandad sets it and debug plot layouts show it; opendbc `508d26fcb` and `5dbe36d37`). Our Pre-AP pull FSM drops
+  where only pandad sets it and debug plot layouts show it; opendbc `508d26fcb`). Our Pre-AP pull FSM drops
   FULL on a panda refusal (`DIVERGENCES_preap_nap_fsm.md`).
 
 ## 3. Donor VIN substitution (NAP)
