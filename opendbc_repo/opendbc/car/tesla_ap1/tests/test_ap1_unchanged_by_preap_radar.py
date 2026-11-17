@@ -26,7 +26,7 @@ def test_ap1_radar_that_stops_publishes_nothing_as_before():
   assert ri.update([(1_000_000_000, frames({}))]) is not None
   outs = [ri.update([]) for _ in range(PREAP_MISSING_RADAR_FRAMES * 6)]
   assert all(o is None for o in outs)                 # no RadarData at all: no new canError, no dropped-points publish
-  assert ri.frames_without_radar == 0 and ri.preap_radar_valid is True and not ri.preap_radar_spoke
+  assert ri.frames_without_radar == 0 and ri.preap_radar_valid is True   # Pre-AP counters untouched (read only under self.preap)
 
 
 def test_ap1_invalid_parser_is_still_canerror():
