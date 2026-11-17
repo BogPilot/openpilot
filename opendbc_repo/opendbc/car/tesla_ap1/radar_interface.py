@@ -1,12 +1,15 @@
 """AP1 Bosch radar (bus 1, tesla_radar_bosch_generated). 32 points, trigger 0x36e."""
 from opendbc.can import CANParser
 from opendbc.car import Bus, structs
+from opendbc.car.carlog import carlog
 from opendbc.car.interfaces import RadarInterfaceBase
 from opendbc.car.tesla_ap1.preap.panda_link import GTW_ECHO_ADDRS, GTW_ECHO_SRC
 from opendbc.car.tesla_ap1.preap.radar_valid import RadarValidGate
 from opendbc.car.tesla_ap1.preap_radar_filters import bosch_point_valid
 from opendbc.car.tesla_ap1.safety_flags import FLAG_TESLA_PREAP_RADAR_EMULATION
 from opendbc.car.tesla_ap1.values import CANBUS, DBC, is_preap
+
+PREAP_STATUS_S = 5.0
 
 NUM_POINTS = 32
 TRIGGER_MSG = 878  # RadarPoint31_B
@@ -59,6 +62,16 @@ class RadarInterface(RadarInterfaceBase):
       param = int(configs[-1].safetyParam) if configs else 0
       self.preap_gate = RadarValidGate(bool(param & FLAG_TESLA_PREAP_RADAR_EMULATION))
       self.preap_radar_valid = False
+
+  def _preap_status_line(self, now: float, n_points: int) -> None:
+    """Log-only radar status line (no UI, no control): every STATUS_S and on every change of echoed / accepted / valid."""
+    st = self.preap_gate.status()
+    key = (st["echoed"], st["accepted"], st["valid"], st["reasons"])
+    last_t, last_key = getattr(self, "_preap_status", (None, None))
+    if last_t is None or key != last_key or now - last_t >= PREAP_STATUS_S:
+      carlog.info(f"preap radar: echoed={int(st['echoed'])} accepted={int(st['accepted'])} valid={int(st['valid'])} "
+                  f"reasons=0x{st['reasons']:02x} itc={st['itc']} reject={int(st['reject'])} points={n_points} faults={st['faults']}")
+      self._preap_status = (now, key)
 
   def _preap_gate_step(self, can_strings, vls) -> float:
     """Feed the gate this step's echoes and 0x501; returns its time (CAN log time, else 10 ms steps)."""
@@ -140,8 +153,9 @@ class RadarInterface(RadarInterfaceBase):
     ret.points = list(self.pts.values())
     if self.preap_gate is not None:
       sgu_fail = bool(radar_status['RADC_SGUFail'])
-      self.preap_gate.on_points(gate_now, ret.points, sgu_fail)
+      self.preap_gate.on_points(gate_now, ret.points, sgu_fail, int(radar_status['RADC_SGU_ITC']))
       self.preap_radar_valid = self.preap_gate.update(gate_now, sgu_fail)
+      self._preap_status_line(gate_now, len(ret.points))
       if not self.preap_radar_valid:
         ret.points = []          # tracks keep their ids in self.pts; nothing reaches radard until the gate is valid
     self.updated_messages.clear()
