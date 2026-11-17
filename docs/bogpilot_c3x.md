@@ -101,7 +101,7 @@ UI -> store -> consumer test.
   - Car Selection (fallback only, see above)
   - Vehicle Controls (only on a detected AP1 Model S or Pre-AP Model S; Model X does not show these rows):
     - AP1 Model S: Disable openpilot Longitudinal Control; Dash Cluster Integration; Earlier, Gentler Regen Stops (with openpilot longitudinal)
-    - Pre-AP Model S: Disable Pedal Longitudinal; Bosch Radar (retrofit, default Off), and while Bosch Radar is on: Radar Donor Type (default Model S pre-facelift) and Read Radar VIN (Radar Behind Nosecone is hidden; its saved value is kept but has no effect); Software and Panda Firmware (read-only); with pedal longitudinal, Comma Pedal status and Calibrate Pedal. Double Pull to Engage Pedal Longitudinal stays hidden while Always On Lateral is unavailable
+    - Pre-AP Model S: Disable Pedal Longitudinal; Bosch Radar (retrofit, default Off), and while Bosch Radar is on: Radar Donor Type (default Model S pre-facelift) and Read Radar VIN (Radar Behind Nosecone is hidden; its saved value is kept but has no effect); Software and Panda Firmware (read-only); with pedal longitudinal, Comma Pedal status and Calibrate Pedal. Double Pull to Engage Pedal Longitudinal is hidden; its saved value is kept but has no effect. A single pull engages steering only, and a double pull adds speed control
   - Wheel Controls > Stalk Controls: twist follow, experimental pull/push with a hold time of 1.10-5.00 s, **default 1.23 s**
   - Vehicle Info: read-only last-detected / UNVERIFIED CarParams text
 - **System Settings**

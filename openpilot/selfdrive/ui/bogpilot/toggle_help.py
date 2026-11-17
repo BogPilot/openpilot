@@ -155,12 +155,10 @@ _add("RegenComfortBrake", "Tesla AP1: Earlier, Gentler Regen Stops",
           "Needs openpilot longitudinal control. Takes effect the next time the planner starts, normally the next drive.",
      default="On")
 _add("TeslaPreApDoublePull", "Pre-AP: Double Pull to Engage Pedal Longitudinal",
-     "Chooses how the cruise stalk engages. On: the first pull starts Always On Lateral steering only (openpilot is not engaged and the "
-     "pedal is never commanded), and a second pull within 400 ms engages openpilot with Comma Pedal longitudinal. A pull or the brake "
-     "while engaged drops back to steering only. Off: a single pull engages steering and pedal longitudinal together.",
-     when="Turn it on if you want to be able to engage steering without the pedal controlling speed.",
-     note="Shown only while Always On Lateral is available. Takes effect immediately. Pre-AP Model S with Comma Pedal longitudinal only. "
-          "Cancel (push the stalk away) still ends everything. " + _OFFROAD,
+     "This row is hidden in this build, and the saved setting is kept but not applied. Pre-AP engagement does not use this "
+     "switch: a single pull engages steering only, and a double pull adds speed control. A pull or the brake while speed "
+     "control is on goes back to steering only. Cancel (push the stalk away) ends everything.",
+     note="Pre-AP Model S with Comma Pedal longitudinal only. The saved value is kept as is and has no effect in this build.",
      default="On")
 _add("TeslaRadarEnabled", "Pre-AP: Bosch Radar",
      "For a Pre-AP Model S with a retrofitted Tesla Bosch radar. On: openpilot reads the radar, and radar leads feed Comma Pedal "
@@ -280,8 +278,7 @@ _add("push_hold_s", "Experimental Push Hold",
           "value turns the gesture off rather than making it shorter.",
      default="1.23 s", range="1.10 to 5.00 seconds, in 0.01 second steps")
 _add("standard_engage_cancel_fixed", "Standard Stalk Engagement / Cancel",
-     "Shows that normal engage and cancel on the stalk are fixed. No timing here can be changed, and the pre-AP double pull is "
-     "not supported by this build.")
+     "Shows that normal engage and cancel on the stalk are fixed. No timing here can be changed.")
 
 # ---------------------------------------------------------------- Lane Changes
 _BSM_NOTE = ("A lane change, nudged or automatic, is blocked while the blind-spot monitor reports the side occupied. If the "

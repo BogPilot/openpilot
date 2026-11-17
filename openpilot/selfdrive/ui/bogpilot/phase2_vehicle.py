@@ -58,9 +58,9 @@ DESCRIPTIONS = {
   CLUSTER: "Show openpilot information on the Tesla dash cluster. Off leaves the cluster stock. Takes effect immediately.",
   REGEN: "Start slowing for a lead earlier with regen-sized comfort braking. Emergency braking limits and stopped distance are unchanged. "
          "Takes effect the next time the planner starts (normally the next drive).",
-  DOUBLE_PULL: "Needs Always On Lateral. On: the first pull of the cruise stalk starts Always On Lateral steering only (openpilot is not engaged); a second pull "
-               "within 400 ms engages openpilot with pedal longitudinal, and a pull or the brake while engaged drops back to steering only. Off: one pull "
-               "engages steering and pedal longitudinal. Takes effect immediately.",
+  DOUBLE_PULL: "Hidden in this build: the saved setting is kept but not applied. A single pull engages steering only, and a "
+               "double pull adds speed control. A pull or the brake while speed control is on goes back to steering only. "
+               "Cancel (push the stalk away) ends everything.",
   RADAR: "Turn on only if a Tesla Bosch radar is fitted on the radar bus and the panda firmware supports it. Radar leads then feed "
          "pedal longitudinal and Human-Like Following. If the radar does not answer, openpilot will not engage and shows an alert. "
          "Takes effect the next time the car starts.",
@@ -113,7 +113,8 @@ class VehicleSettings:
     if key == REGEN:
       return bool(cp.openpilotLongitudinalControl) and not is_preap(cp)
     if key == DOUBLE_PULL:
-      # Hidden (never an inert switch) while Always On Lateral is unavailable: the first pull is an AOL lateral intent, as on 0.9.7.
+      # Hidden (never an inert switch) while Always On Lateral is unavailable. The saved TeslaPreApDoublePull value is kept
+      # and not applied; NAP-style double pull is always on (opendbc tesla_ap1/preap/engagement.py).
       from opendbc.car.tesla_ap1.preap import params as preap_params
       from openpilot.selfdrive.car import preap_aol
       if not (is_preap(cp) and bool(cp.openpilotLongitudinalControl)):

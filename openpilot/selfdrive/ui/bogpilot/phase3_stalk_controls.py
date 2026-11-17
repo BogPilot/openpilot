@@ -97,7 +97,7 @@ def create_stalk_controls_layout(store=None):
         on_done=self.refresh,
       )
       self.note = text_item(tr('Standard Stalk Engagement / Cancel'), tr('Fixed'),
-                            tr('Pre-AP double-pull is not supported by this build. No engagement timing is adjustable here.'))
+                            tr('Normal engage and cancel on the stalk are fixed. No engagement timing is adjustable here.'))
       for key, item in {**self.toggles, **self.delays, 'standard_engage_cancel_fixed': self.note}.items():
         attach_help(item, key)
       attach_help(self.reset, "section.reset_defaults")
