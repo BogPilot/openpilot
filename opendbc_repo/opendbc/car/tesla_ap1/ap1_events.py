@@ -31,6 +31,9 @@ WRONG_CAR_MODE = "wrongCarMode"
 PREAP_STEER_ONLY = "preapSteerOnly"
 PREAP_SPEED_BLOCKED = "preapSpeedBlocked"
 PREAP_CC_NOT_ARMED = "preapCruiseNotArmed"
+# Pre-AP pedal: radar not ready (carState.bogpilot.preapRadarNotReady, card.py): its points are kept out of radard and speed control
+# uses camera leads. The one radar warning; advisory, as NAP / Tinkla (no no-entry, soft disable or disengage).
+PREAP_RADAR_NOT_READY = "preapRadarNotReady"
 INHIBIT_ALERT_FRAMES = int(1.0 / DT_CTRL)  # ~1 s at 100 Hz
 
 
@@ -71,6 +74,9 @@ class Ap1Events:
     # AP1 openpilot long: no set speed for a standstill engage (op_long_set_speed.py). NO_ENTRY only, so it never disengages.
     if bool(getattr(bogpilot, "ap1SpeedLimitUnknown", False)) and SPEED_LIMIT_UNKNOWN not in out:
       out.append(SPEED_LIMIT_UNKNOWN)
+
+    if bool(enabled) and bool(getattr(bogpilot, "preapRadarNotReady", False)) and PREAP_RADAR_NOT_READY not in out:
+      out.append(PREAP_RADAR_NOT_READY)
 
     if bool(enabled) and bool(getattr(bogpilot, "preapLatOnly", False)):
       if bool(getattr(bogpilot, "preapSpeedBlocked", False)):

@@ -1,11 +1,14 @@
-"""Pre-AP radar-valid gate: has the retrofit Bosch radar ACCEPTED its config and is it tracking, or only receiving frames?
+"""Pre-AP radar-valid filter: has the retrofit Bosch radar ACCEPTED its config and is it tracking, or only receiving frames?
 
-Pre-AP only (radar_interface.py). Criteria: the CAN analysis of 14 of 67 AP1 power-ups, the tester packs and a 0.9.7 Pre-AP log
+Pre-AP only (radar_interface.py). ADVISORY ONLY, as NAP and Tinkla: it decides whether radar points reach radard, never whether
+the car may engage. Until VALID (and on any FAULT) radar_interface drops every point, so speed control runs on camera leads and
+the car shows one warning (carState.bogpilot.preapRadarNotReady -> preapRadarNotReady). No state here is a radarFault, a no-entry,
+a soft disable or a disengage; only RADC_HWFail is a radarFault, set by radar_interface itself. Criteria: the CAN analysis of 14 of 67 AP1 power-ups, the tester packs and a 0.9.7 Pre-AP log
 (project notes, radar accepted criteria v1). DBC: dbc/generator/tesla/tesla_radar_bosch.py (0x301 TeslaRadarSguInfo :46-55,
 0x501 TeslaRadarAlertMatrix :64-130) and _radar_common.py:6-15 (point slots 0x310-0x36D). Time 0 is the radar's first 0x301.
 
 States (status line reports echoed, pending, valid and the fault name separately):
-- FAULT, non-latching, any one of:
+- FAULT (points filtered, nothing else), non-latching, any one of:
   F1 SGU_ITC (:50) in ITC_STARVED {67,68,70,83} or ITC_POS_REJECT {96} held F1_S (1.0 s);
   F2 any F2_BITS (0x501 configMismatch :77, CntryCdValidity :95, vinValidity :105, xwdValidity :110, radPositionMismatch :129,
      strRackMismatch :130, or the bdy/esp/gtw/sccm/adas MIA bits :79-83) set in 2 consecutive 0x501 frames; it clears after 2
@@ -14,18 +17,18 @@ States (status line reports echoed, pending, valid and the fault name separately
      counted only while the ITC is in the F1 set (NAP BoschTableFreezeWatch, opendbc car/tesla/preap/radar_table_freeze.py
      @ 7eb09d2a7, with its 4 points lowered to 1, its window shortened, and its SGUFail gate replaced by the ITC gate: parked
      healthy radars legitimately show unchanged tables for up to ~10 s);
-  F4 HWFail (:53), immediately;
+  F4 HWFail (:53), immediately (radar_interface also sets radarFault for it);
   NO_ECHO: with flag 256, no returned gateway echo (preap/panda_link.py GTW_ECHO_ADDRS) for ECHO_S: the radar gets no vehicle
      data at all.
 - VALID: ITC in ITC_OK {0, 107} (107 seen on healthy AP1 radars for 12-207 s; its meaning is UNPROVEN), SGUFail (:54), HWFail and
   SensorDirty (:52) all 0, a 0x501 frame seen and the last one clear of F2_BITS and the adjustment bits :72-74, and a moving track
   in the last MOVE_RECENT_S, all held VALID_S (2.0 s). VALID latches until a FAULT fires (a no-motion gap does not drop it).
 - PENDING: neither (aligning SGUFail or adjustment bits with moving tracks, a parked radar with no moving track yet). Not a
-  fault. Whether PENDING allows speed control is PENDING_LONG_OK (False: not valid, the safe default; NAP allows engage).
+  fault: its points are filtered like a FAULT's, and engage and speed control are not affected (camera leads).
 Moving track: a tracked point (bit 62, :15) with 0 < dist <= 250 m and ProbExist >= 50 % (radar_interface filters those), seen in
 the last 0.3 s, with |LongSpeed| >= MOVING_VREL or a LongDist change >= MOVING_DD against the same slot MOVE_BACK_S earlier.
 LATE (label only): not VALID DEADLINE_S after the later of the radar's first 0x301 and the car first moving (vEgo >= 0.3).
-HWFail keeps its radarFault in radar_interface. Times come from the CAN packets' log time. All of this is UNPROVEN on a car.
+Times come from the CAN packets' log time. All of this is UNPROVEN on a car.
 """
 from __future__ import annotations
 
@@ -49,7 +52,6 @@ SEEN_S = 0.3
 ECHO_S = 2.0
 DEADLINE_S = 20.0
 EGO_MOVING = 0.3             # m/s
-PENDING_LONG_OK = False
 F2_BITS = ("RADC_a009_configMismatch", "RADC_a027_CntryCdValidity", "RADC_a037_vinValidity", "RADC_a042_xwdValidity",
            "RADC_a061_radPositionMismatch", "RADC_a062_strRackMismatch",
            "RADC_a011_bdyMIA", "RADC_a012_espMIA", "RADC_a013_gtwMIA", "RADC_a014_sccmMIA", "RADC_a015_adasMIA")
@@ -59,10 +61,9 @@ FAULT_ORDER = ("F4", "F1", "F2", "F3", "NO_ECHO")
 
 
 class RadarValidGate:
-  def __init__(self, radar_emulation: bool, pending_long_ok: bool = PENDING_LONG_OK, frozen_s: float = FROZEN_S,
+  def __init__(self, radar_emulation: bool, frozen_s: float = FROZEN_S,
                frozen_min_points: int = FROZEN_MIN_POINTS, frozen_gated: bool = FROZEN_GATED):
     self.radar_emulation = bool(radar_emulation)
-    self.pending_long_ok = bool(pending_long_ok)
     self.frozen_s, self.frozen_min_points, self.frozen_gated = float(frozen_s), int(frozen_min_points), bool(frozen_gated)
     self.t0: float | None = None             # first 0x301
     self.ego_moved: float | None = None
@@ -80,11 +81,10 @@ class RadarValidGate:
     self.sig_since: float | None = None
     self.ok_since: float | None = None
     self.echoed = not self.radar_emulation
-    self.valid = False                        # fail closed: speed control only once VALID
+    self.valid = False                        # radar points reach radard only once VALID (camera leads until then)
     self.fault: str | None = None
     self.active: frozenset = frozenset()
     self.late = False
-    self.long_ok = False
     self.faults = 0                           # VALID -> FAULT edges
 
   # ---- inputs ----
@@ -152,7 +152,7 @@ class RadarValidGate:
     return frozenset(k for k in FAULT_ORDER if on[k])
 
   def update(self, now: float) -> bool:
-    """Returns whether speed control may use the radar (VALID, or PENDING with pending_long_ok)."""
+    """Returns whether radar points may reach radard (VALID). Advisory: never an engage or speed-control condition."""
     if self.radar_emulation:
       self.echoed = self.last_echo is not None and now - self.last_echo < ECHO_S
     self.active = self._faults(now)
@@ -172,8 +172,7 @@ class RadarValidGate:
       self.faults += 1
     start = self.t0 if self.ego_moved is None or self.t0 is None else max(self.t0, self.ego_moved)
     self.late = (not self.valid and self.t0 is not None and self.ego_moved is not None and now - start >= DEADLINE_S)
-    self.long_ok = self.valid or (self.pending and self.pending_long_ok)
-    return self.long_ok
+    return self.valid
 
   @property
   def pending(self) -> bool:
@@ -182,4 +181,4 @@ class RadarValidGate:
   def status(self) -> dict:
     """For the log-only status line."""
     return dict(echoed=self.echoed, pending=self.pending, valid=self.valid, fault=self.fault or "-", late=self.late,
-                itc=self.itc, long_ok=self.long_ok, faults=self.faults)
+                itc=self.itc, faults=self.faults)

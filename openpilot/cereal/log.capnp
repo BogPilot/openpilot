@@ -141,6 +141,7 @@ struct OnroadEvent @0xc4fa6047f024e718 {
     preapSpeedBlocked @111;   # Pre-AP pedal: speed control refused or dropped (blocked pedal frame, standstill option (a))
     preapCruiseNotArmed @112; # Pre-AP no pedal: the second pull did not arm stock cruise within 600 ms
     preapRegenLimit @113;     # Pre-AP pedal: the plan asks for more decel than regen can give (alert only, selfdrived/preap_regen.py)
+    preapRadarNotReady @114;  # Pre-AP pedal: radar not ready, speed control on camera leads (warning only, never no-entry or disable)
 
     lowBatteryDEPRECATED @40;
     soundsUnavailableDEPRECATED @47;

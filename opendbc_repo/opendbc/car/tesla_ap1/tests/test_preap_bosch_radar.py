@@ -149,17 +149,18 @@ def test_ap1_fault_rule_unchanged(sgu, fault):
   assert out is not None and out.errors.radarFault == fault
 
 
-# ---- fail closed: toggle on, radar silent ----
+# ---- toggle on, radar silent from boot: harmless (NAP radar_interface.py:176-177), camera leads ----
 
-def test_preap_silent_radar_fails_closed(long_paths):
+def test_preap_silent_radar_is_harmless(long_paths):
   ri = preap_on_radar(long_paths)
-  outs = [ri.update([]) for _ in range(PREAP_MISSING_RADAR_FRAMES - 1)]
-  assert all(o is None for o in outs)                           # 0.49 s grace: nothing published yet
-  out = ri.update([])                                            # frame 50
-  assert out is not None and out.errors.canError and not out.points
-  later = [ri.update([]) for _ in range(20)]
-  errs = [o for o in later if o is not None]
-  assert len(errs) == 4 and all(o.errors.canError for o in errs)  # keeps failing closed at 20 Hz
+  outs = [ri.update([]) for _ in range(PREAP_MISSING_RADAR_FRAMES * 20)]   # 10 s at 100 Hz
+  published = [o for o in outs if o is not None]
+  assert len(published) == len(outs) // 5                         # 20 Hz, so radarTracks stays alive for radard
+  assert all(not o.points and not any(o.errors.to_dict().values()) for o in published)
+  assert not ri.preap_radar_spoke and not ri.preap_radar_valid    # not ready: the warning, nothing else
+
+
+# ---- fail closed only after the radar has spoken ----
 
 
 def test_preap_radar_dropout_clears_tracks_and_recovers(long_paths):

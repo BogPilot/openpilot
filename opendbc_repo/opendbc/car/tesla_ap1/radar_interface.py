@@ -13,11 +13,14 @@ PREAP_STATUS_S = 5.0
 
 NUM_POINTS = 32
 TRIGGER_MSG = 878  # RadarPoint31_B
-# Pre-AP retrofit, fail closed: card calls update() at 100 Hz and the radar cycles at
-# the measured 7.4-12.6 Hz, depending on track count. With no radar cycle for 0.5 s,
-# publish a canError RadarData at 20 Hz (the RadarInterfaceBase rate) instead of nothing,
-# so radard marks radarState invalid and selfdrived raises its radar CAN error / commIssue
-# (no engage, soft disable).
+# Pre-AP retrofit: card calls update() at 100 Hz and the radar cycles at the measured
+# 7.4-12.6 Hz, depending on track count.
+# - Silent radar (its trigger message has never arrived since card started): harmless, as NAP
+#   (opendbc/car/tesla/radar_interface.py:176-177 @ opendbc 508d26fcb returns before any error).
+#   It publishes an empty RadarData with no errors at 20 Hz (the RadarInterfaceBase rate), so radard
+#   keeps radarState valid on camera leads: no canError, commIssue, radarFault or radarTempUnavailable.
+# - After the trigger has arrived, no radar cycle for 0.5 s: a canError RadarData at 20 Hz (NAP raises
+#   canError from can_valid there, radar_interface.py:190-191), so radard marks radarState invalid.
 PREAP_MISSING_RADAR_FRAMES = 50
 PREAP_MISSING_RADAR_PUBLISH_DIV = 5
 
@@ -52,11 +55,13 @@ class RadarInterface(RadarInterfaceBase):
     self.updated_messages = set()
     self.preap = is_preap(CP.carFingerprint)
     self.frames_without_radar = 0
-    # Pre-AP radar-valid gate (preap/radar_valid.py): no points published and no speed control (card feeds the pull FSM) until
-    # the radar is VALID (accepted its config and tracks moving objects); a fault (starved / rejected ITC, 0x501 alerts, a frozen
-    # table, HWFail, no gateway echo) drops it.
+    # Pre-AP radar-valid filter (preap/radar_valid.py), advisory only (NAP / Tinkla: radar health is not an engage gate): no radar
+    # points reach radard until the radar is VALID (accepted its config and tracks moving objects), and none while a fault (starved /
+    # rejected ITC, 0x501 alerts, a frozen table, HWFail, no gateway echo) is active. Speed control then runs on camera leads and
+    # card raises the one warning (carState.bogpilot.preapRadarNotReady). Never a no-entry, soft disable or disengage.
     self.preap_gate = None
     self.preap_radar_valid = True
+    self.preap_radar_spoke = False     # the trigger message has arrived at least once since card started
     self.preap_v_ego = 0.0             # card.py sets it each step (for the gate's late label only)
     self._preap_steps = 0
     if self.preap and self.rcp is not None:
@@ -72,7 +77,7 @@ class RadarInterface(RadarInterfaceBase):
     last_t, last_key = getattr(self, "_preap_status", (None, None))
     if last_t is None or key != last_key or now - last_t >= PREAP_STATUS_S:
       carlog.info(f"preap radar: echoed={int(st['echoed'])} pending={int(st['pending'])} valid={int(st['valid'])} "
-                  f"fault={st['fault']} late={int(st['late'])} itc={st['itc']} long_ok={int(st['long_ok'])} points={n_points} "
+                  f"fault={st['fault']} late={int(st['late'])} itc={st['itc']} camera_lead={int(not st['valid'])} points={n_points} "
                   f"faults={st['faults']}")
       self._preap_status = (now, key)
 
@@ -105,6 +110,8 @@ class RadarInterface(RadarInterfaceBase):
     if self.trigger_msg not in self.updated_messages:
       if self.preap_gate is not None:
         self.preap_radar_valid = self.preap_gate.update(gate_now)
+      if self.preap and not self.preap_radar_spoke:
+        return super().update(None)      # silent radar: empty, error-free RadarData at 20 Hz (camera leads), as NAP :176-177
       if self.preap:
         self.frames_without_radar += 1
         if self.frames_without_radar >= PREAP_MISSING_RADAR_FRAMES and self.frames_without_radar % PREAP_MISSING_RADAR_PUBLISH_DIV == 0:
@@ -114,6 +121,7 @@ class RadarInterface(RadarInterfaceBase):
           return ret
       return None
     self.frames_without_radar = 0
+    self.preap_radar_spoke = True
 
     ret = structs.RadarData()
     if not self.rcp.can_valid:
@@ -162,6 +170,6 @@ class RadarInterface(RadarInterfaceBase):
       self.preap_radar_valid = self.preap_gate.update(gate_now)
       self._preap_status_line(gate_now, len(ret.points))
       if not self.preap_radar_valid:
-        ret.points = []          # tracks keep their ids in self.pts; nothing reaches radard until the gate is valid
+        ret.points = []          # filter only: tracks keep their ids in self.pts; radard runs on camera leads meanwhile
     self.updated_messages.clear()
     return ret

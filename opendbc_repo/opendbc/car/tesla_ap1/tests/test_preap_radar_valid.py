@@ -1,7 +1,8 @@
 """Pre-AP radar-valid gate (preap/radar_valid.py). Numbers come from the CAN analysis of the tester packs, a 0.9.7 Pre-AP log
 and 67 AP1 power-ups (radar accepted criteria v1): F1 ITC starved / position-rejected held 1.0 s, F2 0x501 alerts in 2 frames,
 F3 a frozen table (1 point, 1.5 s, only while the ITC is in the F1 set), F4 HWFail; VALID = ITC {0, 107}, flags and 0x501 clear and
-a moving track, held 2.0 s, latched until a fault; PENDING otherwise. Lateral is untouched."""
+a moving track, held 2.0 s, latched until a fault; PENDING otherwise. Advisory only: it filters radar points, it never blocks
+engage or speed control (test_preap_radar_advisory.py)."""
 from types import SimpleNamespace
 
 import pytest
@@ -68,12 +69,12 @@ def test_starts_pending_and_needs_2_s_held():
   t = first(g, 0.0, 6.0, lambda gg: gg.valid)
   assert t is not None and VALID_S - DT <= t <= VALID_S + 1.0 + 2 * DT   # first 0x501 at t=0, 2.0 s held
   g2 = feed(rv.RadarValidGate(True), 0.0, VALID_S - 2 * DT)
-  assert g2.pending and not g2.valid and not g2.long_ok and g2.fault is None
+  assert g2.pending and not g2.valid and g2.fault is None
 
 
 def test_itc_107_healthy_reaches_valid():
   g = feed(rv.RadarValidGate(True), 0.0, 5.0, itc=107)
-  assert g.valid and g.long_ok and g.fault is None
+  assert g.valid and g.fault is None
 
 
 @pytest.mark.parametrize("itc", [90, 1, 255])
@@ -84,7 +85,7 @@ def test_other_itc_stays_pending(itc):
 
 def test_sgufail_aligning_with_moving_tracks_is_pending_then_valid():
   g = feed(rv.RadarValidGate(True), 0.0, 30.0, sgu=True)
-  assert g.pending and g.fault is None and not g.long_ok and g.faults == 0
+  assert g.pending and g.fault is None and g.faults == 0
   t = first(g, 30.0, 40.0, lambda gg: gg.valid)
   assert t is not None and 30.0 + VALID_S - DT <= t <= 30.0 + VALID_S + 2 * DT
 
@@ -122,16 +123,13 @@ def test_moving_by_distance_change_alone():
   assert not feed(rv.RadarValidGate(True), 0.0, 8.0, points=creep).valid
 
 
-@pytest.mark.parametrize("pending_long_ok", [False, True])
-def test_pending_long_ok_setting(pending_long_ok):
-  g = feed(rv.RadarValidGate(True, pending_long_ok=pending_long_ok), 0.0, 10.0, sgu=True)
-  assert g.pending and g.long_ok is pending_long_ok
-  feed(g, 10.0, 12.0, itc=96, sgu=True)                    # a FAULT is never usable
-  assert g.fault == "F1" and not g.long_ok
-
-
-def test_pending_default_is_not_valid_for_long():
-  assert rv.PENDING_LONG_OK is False and rv.RadarValidGate(True).pending_long_ok is False
+def test_no_pending_long_setting_left():
+  # advisory only: no PENDING_LONG_OK, no long_ok output, nothing for speed control to read
+  assert not hasattr(rv, "PENDING_LONG_OK")
+  with pytest.raises(TypeError):
+    rv.RadarValidGate(True, pending_long_ok=True)
+  g = feed(rv.RadarValidGate(True), 0.0, 10.0, sgu=True)
+  assert g.pending and not hasattr(g, "long_ok") and "long_ok" not in g.status()
 
 
 # ---- FAULTS ----
@@ -176,7 +174,7 @@ def test_f2_needs_two_consecutive_frames_and_two_clear_frames_to_clear(bit):
 def test_f4_hwfail_is_immediate():
   g = feed(rv.RadarValidGate(True), 0.0, 5.0)
   feed(g, 5.0, 5.0 + DT, hw=True)
-  assert g.fault == "F4" and not g.valid and not g.long_ok
+  assert g.fault == "F4" and not g.valid
 
 
 def test_no_echo_with_the_gateway_flag_only():
@@ -322,20 +320,13 @@ def test_ap1_has_no_gate():
   assert ri.preap_gate is None and ri.preap_radar_valid
 
 
-# ---- pull FSM: no speed control while invalid, steering kept ----
+# ---- pull FSM: the radar is not an input (NAP / Tinkla), FULL engages and stays ----
 
-def test_full_refused_while_radar_invalid():
+def test_pull_fsm_has_no_radar_input():
   c = Car(pedal=True)
-  c.rig.cs.preap_radar_ok = False
+  assert not hasattr(c.rig.cs, "preap_radar_ok")
   out = _double_pull(c)
-  assert c.mode != Mode.FULL and c.enabled_frames == 0 and not (out.cruiseState.enabled and not out.bogpilot.preapLatOnly)
-
-
-def test_full_drops_to_steering_only_when_radar_goes_invalid():
-  c = Car(pedal=True)
-  _double_pull(c)
-  assert c.mode == Mode.FULL
-  c.rig.cs.preap_radar_ok = False
-  for _ in range(5):
+  assert c.mode == Mode.FULL and out.cruiseState.enabled and not out.bogpilot.preapLatOnly
+  for _ in range(50):
     out = c.step()
-  assert c.mode == Mode.LAT_ONLY and out.bogpilot.preapLatOnly and c.op
+  assert c.mode == Mode.FULL and not out.bogpilot.preapLatOnly

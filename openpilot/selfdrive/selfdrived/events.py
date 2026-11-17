@@ -1008,6 +1008,16 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
       Priority.MID, VisualAlert.none, AudibleAlert.prompt, .2),
   },
 
+  # Warning only (carState.bogpilot.preapRadarNotReady, opendbc tesla_ap1/preap/radar_valid.py): the radar is advisory, as NAP and
+  # Tinkla. No NO_ENTRY, SOFT_DISABLE or IMMEDIATE_DISABLE entry on purpose.
+  EventName.preapRadarNotReady: {
+    ET.WARNING: Alert(
+      "Radar not ready – using camera lead",
+      "",
+      AlertStatus.normal, AlertSize.small,
+      Priority.LOWEST, VisualAlert.none, AudibleAlert.none, .2),
+  },
+
   EventName.preapSpeedBlocked: {
     ET.WARNING: Alert(
       "Speed control off",

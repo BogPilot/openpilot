@@ -228,7 +228,7 @@ def test_selfdrived_event_mapping_for_radar_errors(err_field, event):
   assert event in events.names
 
 
-# ---- Pre-AP: 8.0 Hz unchanged and missing-radar canError still fires ----
+# ---- Pre-AP: 8.0 Hz unchanged; a silent radar is harmless, canError only once it has spoken (NAP radar_interface.py:176-177) ----
 
 @pytest.fixture
 def preap_radar_on(tmp_path, monkeypatch):
@@ -240,10 +240,14 @@ def preap_radar_on(tmp_path, monkeypatch):
   return RadarInterface(CarInterface.get_params(CAR.TESLA_PREAP_MODELS, {}, [], False, False, False))
 
 
-def test_preap_missing_radar_canerror_still_fires(preap_radar_on):
+def test_preap_missing_radar_canerror_only_after_it_spoke(preap_radar_on):
+  from opendbc.car.tesla_ap1.tests.test_preap_bosch_radar import frames
   sm = make_sm(CAR.TESLA_PREAP_MODELS)
   assert sm.freq_tracker['radarTracks'].min_freq == STOCK_MIN
   ri = preap_radar_on
+  silent = [o for o in (ri.update([]) for _ in range(PREAP_MISSING_RADAR_FRAMES * 4)) if o is not None]
+  assert len(silent) == PREAP_MISSING_RADAR_FRAMES * 4 // 5 and not any(any(o.errors.to_dict().values()) for o in silent)
+  assert ri.update([(1_000_000_000, frames({}))]) is not None          # the radar speaks once
   outs = [ri.update([]) for _ in range(PREAP_MISSING_RADAR_FRAMES - 1)]
   assert all(o is None for o in outs)
   out = ri.update([])

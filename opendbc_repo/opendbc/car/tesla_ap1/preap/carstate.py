@@ -97,7 +97,6 @@ class PreApCarState(CarStateBase):
     self._preap_guard_blocks_seen = 0
     self.preap_panda_tx_blocked = 0                 # refused own 0x551 / 0x488 frames this step, fed by card.py (preap/panda_link.py)
     self.preap_link = None                          # panda_link.LinkInput, fed by card.py each step (read by the 0x560 stream)
-    self.preap_radar_ok = True                      # Pre-AP radar-valid gate (preap/radar_valid.py), fed by card.py each step
     self._tx_block_press_ms = 0                     # last gas or brake press edge; TX blocks inside the window are ignored
     self._prev_tx_block_gas = False
     self._prev_tx_block_brake = False
@@ -296,10 +295,10 @@ class PreApCarState(CarStateBase):
       # outside the window still demotes.
       tx_blocked = int(self.preap_panda_tx_blocked) > 0
       press_tx = bool(self._tx_block_press_ms) and 0 <= (now_ms - self._tx_block_press_ms) <= TX_BLOCK_PRESS_IGNORE_MS
-      # The radar-valid gate (preap/radar_valid.py) not valid drops FULL too (no radar points reach radard then) and refuses it below.
-      radar_ok = bool(self.preap_radar_ok)
+      # The radar is advisory (preap/radar_valid.py, NAP / Tinkla): its state is not an input here. A radar that is not ready only
+      # keeps its points out of radard (camera leads) and raises one warning (card.py, preapRadarNotReady).
       speed_block = ((self.preap_pedal_guard_blocks != self._preap_guard_blocks_seen) or (tx_blocked and not press_tx)
-                     or bool(self.preap_pedal_bus_mismatch) or not radar_ok)
+                     or bool(self.preap_pedal_bus_mismatch))
       self.preap_gas_clear_updates = 0 if gas_any else min(self.preap_gas_clear_updates + 1, 1000)
       self._preap_guard_blocks_seen = self.preap_pedal_guard_blocks
       self.preap_panda_tx_blocked = 0
@@ -310,7 +309,7 @@ class PreApCarState(CarStateBase):
         gear_d=(ret.gearShifter == structs.CarState.GearShifter.drive), door_open=bool(ret.doorOpen),
         epas_drop=bool(self.preap_panda_drop), stale=not bool(getattr(cp, "can_valid", True)),
         di_engaged=(acc_enabled if cruise_state is not None else None), v_ego=float(ret.vEgo),
-        long_allowed=bool(self.preap_pedal_detected and is_pedal_calibrated() and self.preap_pedal_bus_ok and radar_ok),
+        long_allowed=bool(self.preap_pedal_detected and is_pedal_calibrated() and self.preap_pedal_bus_ok),
         speed_block=speed_block, gas_pressed=gas_any, pedal_bus_ok=bool(self.preap_pedal_bus_ok))
       self.preap_fsm_mode = int(self.decision.mode)
       self.preap_standstill_hold = bool(self.decision.standstill_hold)
