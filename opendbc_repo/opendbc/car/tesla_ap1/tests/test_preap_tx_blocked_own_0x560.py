@@ -96,6 +96,37 @@ def test_refusal_with_lost_echo_still_demotes_fail_safe():
   assert _dropped_to_steering(rig, outs) and d is not None and AT + 4 < d <= AT + 4 + 20
 
 
+def test_rx_queue_overflow_gate_every_echo_lost_for_0_3_s():
+  # Overflow gate: the panda's rx queue overflows and EVERY rejected echo is lost for 30 steps, with two real 0x551 refusals
+  # inside: the counter cross-check still demotes, within two 10 Hz samples of the first one.
+  burst = set(range(AT, AT + 30))
+  rig, outs, fed = _feed(refused={AT + 4: 1, AT + 12: 2}, lost_ctl=burst)
+  d = _drop_step(outs)
+  assert _full_before(outs) and _dropped_to_steering(rig, outs) and AT + 4 < d <= AT + 4 + 20
+  assert sum(fed) == 3                       # each lost refusal passed on once
+
+
+def test_rx_queue_overflow_without_refusals_keeps_full():
+  # The same overflow with nothing refused (the counter does not move): no false demotion.
+  rig, outs, fed = _feed(lost_ctl=set(range(AT, AT + 30)), lost=set(range(AT, AT + 30)))
+  assert _full_before(outs) and _still_full(rig, outs) and sum(fed) == 0
+
+
+def test_lost_echoes_next_to_our_own_0x560_are_logged_not_refusals():
+  # Outside FULL card streams 0x560; a counter shortfall right after our own 0x560 may be our frame: logged, not a refusal.
+  w = TxRefusalWatch()
+  w.step(EchoCounts(), 0, [0])
+  w.step(EchoCounts(), 1, None)                       # our 0x560 refused, its echo lost in the overflow
+  assert w.step(EchoCounts(), 0, [1]) == (0, 0)       # shortfall carried one sample for a late echo
+  assert w.step(EchoCounts(), 0, [1]) == (0, 1)       # still missing: logged only
+  w2 = TxRefusalWatch()
+  w2.step(EchoCounts(), 0, [0])
+  for _ in range(4):                                  # no 0x560 for three sample windows
+    w2.step(EchoCounts(), 0, [0])
+  assert w2.step(EchoCounts(), 0, [1]) == (0, 0)
+  assert w2.step(EchoCounts(), 0, [1]) == (1, 0)      # lost refusal echo: passed on fail-safe
+
+
 def test_late_refusal_echo_is_not_counted_twice():
   rig, outs, fed = _feed(refused={AT + 8: 1}, late_ctl={AT + 8})
   assert sum(fed) == 1 and _dropped_to_steering(rig, outs)
