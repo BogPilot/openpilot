@@ -75,14 +75,14 @@ def test_real_0x551_refusal_drops_full_on_its_own_echo_step():
 
 
 def test_lost_or_uncounted_0x560_never_hides_a_real_refusal():
-  # VD (a): a 0x560 lost or never counted next to a real 0x551 refusal in the same sample: the refusal still demotes, at once.
+  # (a) a 0x560 lost or never counted next to a real 0x551 refusal in the same sample: the refusal still demotes, at once.
   for kw in ({"lost": {AT + 2}}, {"late": {AT + 2}}):
     rig, outs, fed = _feed(own560={AT + 2: 1}, refused={AT + 4: 1}, **kw)
     assert _dropped_to_steering(rig, outs) and _drop_step(outs) == AT + 4, kw
 
 
 def test_real_refusal_is_not_delayed_by_0x560_timing():
-  # VD (b): the refusal's own echo is the trigger, whatever our 0x560 frames do around it.
+  # (b) the refusal's own echo is the trigger, whatever our 0x560 frames do around it.
   base = _drop_step(_feed(refused={AT + 5: 1})[1])
   for own in ({AT + 5: 1}, {AT + 1: 1, AT + 9: 1}, {AT: 3}):
     for kw in ({}, {"late": set(own)}, {"lost": set(own)}):

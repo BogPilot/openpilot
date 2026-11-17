@@ -173,7 +173,7 @@ class PreApCarController(CarControllerBase):
       can_sends.extend(self.long_ctrl.update(CC, CS, self.frame, long_ok=long_ok, now_nanos=int(now_nanos or 0)))
     # The spoof-echo window (preap/cruise.py) is stamped by StockCCSpoofer only when our CANCEL frame is put on the bus.
     can_sends.extend(self.stock_cc.update(CS, self.frame, self.tesla_can, CANBUS.chassis))
-    # 0x560 follows the panda's own reports (card: CS.preap_link); never while the pull FSM is in an engaged mode (PS N1).
+    # 0x560 follows the panda's own reports (card: CS.preap_link); never while the pull FSM is in an engaged mode.
     can_sends.extend(self.radar_donor.update(
       self.frame, bool(CC.enabled), bool(CC.latActive), link=getattr(CS, "preap_link", None),
       fsm_engaged=int(getattr(CS, "preap_fsm_mode", 0)) in ENGAGED_MODES,

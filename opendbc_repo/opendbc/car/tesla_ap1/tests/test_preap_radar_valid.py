@@ -56,7 +56,7 @@ def test_starts_invalid_and_needs_acceptance_for_clear_s():
 
 
 def test_healthy_radar_with_sgufail_while_aligning_still_reaches_valid():
-  """The 2 s rule is on acceptance (ITC 0, 0x501 clear, moving tracks), not on SGUFail: alignment can't block long forever."""
+  """The 2 s rule is on acceptance (ITC 0, 0x501 clear, moving tracks), not on SGUFail: a radar that is still aligning can't block long forever."""
   g = run(rv.RadarValidGate(True), 0.0, 60.0, sgu=True)
   assert g.valid and g.accepted and g.reasons == 0
 

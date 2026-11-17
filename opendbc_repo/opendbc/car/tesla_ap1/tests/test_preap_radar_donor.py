@@ -129,7 +129,7 @@ def test_rearm_on_lost_echoes_reinit_reboot_heartbeat():
 
 
 def test_card_restart_in_drive_holds_the_config_until_a_reinit_or_park():
-  # PS N3: the first sample already shows the car's mode: the panda keeps a config from an earlier card process.
+  # The first sample already shows the car's mode: the panda keeps a config from an earlier card process.
   logs = []
   s = RadarDonorStream(True, VIN, 2, log_fn=logs.append)
   assert _run(s, 200) == [] and s.held_inherited > 0 and len(logs) == 1 and VIN not in logs[0]

@@ -78,7 +78,7 @@ class RadarDonorStream:
   Sends only while disengaged: not while enabled, steering, the pull FSM is engaged, or the panda allows controls.
   Card restart (inherited): when card's first pandaStates sample already shows the car's mode, the panda kept a config from a
   card that ran before, which this card cannot see. Then, outside Park, nothing is sent until the panda shows a re-init
-  (transition, reboot or heartbeat loss), so a donor setting changed meanwhile is never applied at speed (PS N3); logged.
+  (transition, reboot or heartbeat loss), so a donor setting changed meanwhile is never applied at speed; logged.
   """
 
   def __init__(self, radar_emulation: bool, donor_vin: str, position: int, log_fn=None):
