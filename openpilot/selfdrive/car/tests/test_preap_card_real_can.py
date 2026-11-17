@@ -74,14 +74,21 @@ def _make_rig(tmp_path, monkeypatch, radar=True, donor_type=None, donor_vin=None
     # 0x651 on bus 0 and a radar-bus frame must never reach the reader
     return [di, (0x2A9, bytes(8), 1), (UDS_RX, bytes(8), 0)]
 
-  def step(frames=(), enabled=False, gear=GEAR_P, lat=False, tx_total=None, sample=None, ps_fields=None):
+  def step(frames=(), enabled=False, gear=GEAR_P, lat=False, tx_total=None, sample=None, ps_fields=None, ps_valid=True):
     """One card step on the background traffic plus these frames; returns every (address, dat, src) card put in 'sendcan'.
     tx_total: the panda's blocked-TX total (pandaStates.safetyTxBlocked) card sees in this step; sample: that pandaStates
-    message's logMonoTime (a new value = a new sample); ps_fields: the whole pandaStates entry (the libsafety panda)."""
+    message's logMonoTime (a new value = a new sample); ps_fields: the whole pandaStates entry (the libsafety panda).
+    Without tx_total / ps_fields the step carries what pandad publishes on a car: one valid pandaStates entry in the car's
+    own safety mode (card's expected model and param), controls not allowed. ps_valid=False: no valid pandaStates."""
     ps = [log.PandaState.new_message(controlsAllowed=False, safetyTxBlocked=int(tx_total or 0) & 0xFFFFFFFF)]
     if ps_fields is not None:
       ps = [log.PandaState.new_message(**ps_fields)]
-    if tx_total is not None or ps_fields is not None:
+    elif tx_total is None and ps_valid:
+      model, param = c.preap_safety_expect
+      ps = [log.PandaState.new_message(controlsAllowed=False, safetyModel=model, safetyParam=param)]
+    if not ps_valid:
+      c.sm.valid["pandaStates"] = False
+    else:
       c.sm.seen["pandaStates"] = True
       c.sm.valid["pandaStates"] = True
       c.sm.data["pandaStates"] = ps
@@ -90,7 +97,7 @@ def _make_rig(tmp_path, monkeypatch, radar=True, donor_type=None, donor_vin=None
     inbox.append(can_list_to_can_capnp(background(gear) + list(frames), msgtype="can"))
     CS, _ = c.state_update()
     c.sm.alive["carControl"] = True
-    if tx_total is not None or ps_fields is not None:
+    if ps_valid:
       c.sm.valid["pandaStates"] = True
       c.sm.data["pandaStates"] = ps
     cc = car.CarControl.new_message()
@@ -349,14 +356,16 @@ class _Panda:
   next step, as can_common.h can_send does. Each step one car 0x398 goes to the rx hook; whatever the gateway put on bus 1
   comes back as returned echoes on src 129. pandaStates carries model, param, uptime, controls_allowed and the counter."""
 
-  def __init__(self):
+  def __init__(self, param):
+    """param: the car's safetyParam from CarParams, as pandad hands it to the panda."""
     from opendbc.car.structs import CarParams
     from opendbc.safety.tests.libsafety import libsafety_py
     from opendbc.safety.tests.test_tesla_preap import PREAP, SAFETY_TESLA, pkt
     from opendbc.safety.tests.test_tesla_preap_radar import RADAR, sent
+    assert int(param) & (PREAP | RADAR) == PREAP | RADAR
     self.l, self.pkt, self.sent = libsafety_py.libsafety, pkt, sent
     self.elm = int(CarParams.SafetyModel.elm327)
-    self.mode_args = (SAFETY_TESLA, PREAP | RADAR)
+    self.mode_args = (SAFETY_TESLA, int(param))
     self.model, self.param = self.elm, ELM327_PARAM
     assert self.l.set_safety_hooks(self.model, self.param) == 0
     self.l.init_tests()
@@ -460,7 +469,7 @@ def _drive_from(t):
 def test_drive_before_safety_switch_releases_radar_within_1s(make_rig, drive_from):
   # Fresh install: no donor VIN, no donor type. 92aa9ee1f sent no 0x560 in Drive: the gateway never opened for the drive.
   rig = make_rig()
-  panda = _Panda()
+  panda = _Panda(rig.car.CP.safetyConfigs[-1].safetyParam)
   opened, fed, s560 = _matrix(rig, panda, SWITCH + 200, _drive_from(drive_from), {SWITCH: "switch"})
   assert opened[SWITCH] is not None, "radar gateway never opened"
   assert (opened[SWITCH] - SWITCH) * 0.01 <= 1.0
@@ -472,7 +481,7 @@ def test_drive_before_safety_switch_releases_radar_within_1s(make_rig, drive_fro
 @pytest.mark.parametrize("event", ["reinit", "reboot"])
 def test_reinit_or_reboot_in_drive_reopens_within_1s(make_rig, event):
   rig = make_rig(donor_type=2, donor_vin=VIN)
-  panda = _Panda()
+  panda = _Panda(rig.car.CP.safetyConfigs[-1].safetyParam)
   at = 600
   opened, fed, _ = _matrix(rig, panda, at + 200, _drive_from(400), {100: "switch", at: event})
   assert opened[100] is not None and (opened[100] - 100) * 0.01 <= 1.0
@@ -483,7 +492,7 @@ def test_reinit_or_reboot_in_drive_reopens_within_1s(make_rig, event):
 
 def test_reinit_while_engaged_waits_for_disengage(make_rig):
   rig = make_rig()
-  panda = _Panda()
+  panda = _Panda(rig.car.CP.safetyConfigs[-1].safetyParam)
   reinit, release = 300, 500
   opened, fed, s560 = _matrix(rig, panda, release + 150, lambda i: GEAR_D, {50: "switch", reinit: "reinit"},
                               enabled_at=lambda i: 200 <= i < release)
@@ -496,7 +505,7 @@ def test_reinit_while_engaged_waits_for_disengage(make_rig):
 @pytest.mark.parametrize("engage_after", [1, 10, 50, 200])
 def test_engage_soon_after_each_event_no_radar_frame_reads_as_refusal(make_rig, event, engage_after):
   rig = make_rig()
-  panda = _Panda()
+  panda = _Panda(rig.car.CP.safetyConfigs[-1].safetyParam)
   events = {100: "switch"} if event == "switch" else {100: "switch", 400: event}
   at = max(events)
   opened, fed, s560 = _matrix(rig, panda, at + engage_after + 200, _drive_from(50), events,
@@ -507,7 +516,7 @@ def test_engage_soon_after_each_event_no_radar_frame_reads_as_refusal(make_rig, 
 
 def test_real_0x551_refusal_in_the_0x560_stream_reaches_the_fsm(make_rig):
   rig = make_rig()
-  panda = _Panda()
+  panda = _Panda(rig.car.CP.safetyConfigs[-1].safetyParam)
   inject = (SWITCH + 2, SWITCH + 13, SWITCH + 27)       # while our 0x560 stream runs (before the gateway opens)
   opened, fed, s560 = _matrix(rig, panda, SWITCH + 200, _drive_from(0), {SWITCH: "switch"}, inject_551=inject)
   assert sum(s560[SWITCH:SWITCH + 30]) >= 2
@@ -518,7 +527,7 @@ def test_real_0x551_refusal_in_the_0x560_stream_reaches_the_fsm(make_rig):
 
 def test_real_0x551_refusal_with_lost_echo_is_passed_on_from_the_counter(make_rig):
   rig = make_rig()
-  panda = _Panda()
+  panda = _Panda(rig.car.CP.safetyConfigs[-1].safetyParam)
   opened, _, _ = _matrix(rig, panda, SWITCH + 100, _drive_from(0), {SWITCH: "switch"})
   assert opened[SWITCH] is not None
   panda.lose_echoes = True
@@ -529,7 +538,7 @@ def test_real_0x551_refusal_with_lost_echo_is_passed_on_from_the_counter(make_ri
 
 def test_pandastates_invalid_sends_no_0x560(make_rig):
   rig = make_rig()
-  outs = [rig.step(gear=GEAR_D) for _ in range(100)]
+  outs = [rig.step(gear=GEAR_D, ps_valid=False) for _ in range(100)]
   assert not any(m[0] == 0x560 for out in outs for m in out)
 
 

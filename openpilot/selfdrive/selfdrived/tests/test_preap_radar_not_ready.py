@@ -7,7 +7,7 @@ radarTempUnavailable, radarFault from radarState.radarErrors), and the Pre-AP Ra
 (radarFault) or a radar that has spoken goes quiet (canError)."""
 import pathlib
 
-from cereal import log
+from openpilot.cereal import log
 from openpilot.selfdrive.selfdrived.events import EVENTS, ET
 
 EventName = log.OnroadEvent.EventName
