@@ -64,6 +64,6 @@ by card). Two parked AP1 power-ups reached VALID about 2 s after moving off.
   gated doesn't; ITC 107 reaches VALID; aligning SGUFail with moving tracks is PENDING, then VALID; no PENDING setting left), `test_preap_radar_advisory.py`
   (every cause that is not VALID keeps engage and only filters; HWFail still faults) and
   `openpilot/selfdrive/selfdrived/tests/test_preap_radar_not_ready.py` (warning only).
-- Replays of the tester packs and a 30-file AP1 sample through `RadarInterface` are private (raw CAN). Tester 2 faults 1.02 s
-  after its pack starts and never reaches VALID; tester 1 never reaches VALID; every decoded AP1 file reaches VALID with no
-  fault.
+- Replays of recorded Drive captures and a 30-file AP1 sample through `RadarInterface` are private (raw CAN). One recorded
+  Drive capture faults 1.02 s after it starts and never reaches VALID; another never reaches VALID; every decoded AP1 file
+  reaches VALID with no fault.
