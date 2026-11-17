@@ -248,9 +248,10 @@ Recorded disagreements only where the cited files were read. No speculation.
   Following and Human-Like Lane Changes default On (maintainer decision; unset values only, a saved Off is kept, nothing
   is written to Params); with it off both are effectively Off. Toggle off: CarParams bytes and the safety param (96 / 32) are identical to the build before.
 - Divergences from NAP: (1) the nosecone bit is only sent with the radar bit (NAP sends it on its own; the panda
-  ignores it without 256 anyway). (2) Fail closed when the radar is silent: with the toggle on and no radar cycle
-  for 0.5 s, the radar interface publishes canError at 20 Hz instead of nothing, so radarState goes invalid and
-  openpilot will not engage (radar CAN error / commIssue). NAP returns nothing until the radar answers.
+  ignores it without 256 anyway). (2) A radar that has never sent its trigger message since card started is harmless,
+  as in NAP (`opendbc/car/tesla/radar_interface.py:176-177` @ `508d26fcb`): the radar interface publishes an empty,
+  error-free RadarData at 20 Hz (NAP returns nothing) so radarState stays valid on camera leads. After the trigger has
+  arrived, no radar cycle for 0.5 s publishes canError at 20 Hz, like NAP's can_valid canError (`:190-191`).
   (3) Radar status faults (maintainer decision): Pre-AP ignores `RADC_SensorDirty`; `RADC_HWFail` remains the only fault.
   This diverges from NAP and from Tinkla. NAP `cc39c7fa` was HWFail-only on every Bosch car
   (`opendbc/car/tesla/radar_interface.py:85-88`), but NAP nap-alpha `92b42f772` (opendbc `508d26fcb`) sets
@@ -1057,19 +1058,51 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   `test_thermal_stall_policies.py` (12 to 14.4 s thermal read stalls under both policies).
 - Credits: NAP.
 
-## Pre-AP radar-valid gate: no radar points and no speed control until the radar is VALID
+## Pre-AP radar-valid filter: no radar points until the radar is VALID (camera leads meanwhile)
 - Platforms: Pre-AP Model S with the retrofit Bosch radar. AP1 unchanged.
 - Reference behavior: stock and Tinkla/BogGyver publish every Pre-AP radar point; NAP faults a frozen table only with 4 or more
   points and SGUFail (`opendbc car/tesla/preap/radar_table_freeze.py` @ `7eb09d2a7`) and allows engage while its radar aligns.
-- Our behavior: radar_interface publishes no points and the pull FSM allows no speed control until the radar is VALID (ITC
+- Our behavior: radar_interface publishes no points until the radar is VALID (ITC
   0 or 107, status flags and 0x501 clear, a moving track, held 2 s, latched until a fault). Faults: starved or
   position-rejected ITC held 1 s, 0x501 alerts in 2 frames, a frozen table (1 point, 1.5 s, while the ITC is starved or
-  rejected), HWFail, no gateway echo. PENDING (aligning, parked) is not a fault and does not allow speed control
-  (`PENDING_LONG_OK`, decision pending). Details and DBC lines: `docs/tesla/DIVERGENCES_preap_radar_valid.md`.
+  rejected), HWFail, no gateway echo. Speed control keeps running on camera leads; the radar is never an engage input
+  (next entry). PENDING (aligning, parked) is not a fault. Details and DBC lines: `docs/tesla/DIVERGENCES_preap_radar_valid.md`.
 - Why: both testers' radars never accepted their config (frozen phantom tables, ITC 67 / 96, 0x501 MIA and position
   mismatch), and openpilot still used their points.
-- Safety-relevant: yes (fail closed on radar data). The ITC meanings, including 107, are UNPROVEN.
+- Safety-relevant: yes (a radar that has not proven itself never supplies a lead). The ITC meanings, including 107, are UNPROVEN.
 - Credits: NAP (frozen-table watch).
+
+## Pre-AP: matches NAP/Tinkla: radar health is advisory, not an engage gate
+- Platforms: Pre-AP Model S with the retrofit Bosch radar. AP1 unchanged.
+- Reference behavior: NAP nap-alpha `92b42f772` (opendbc `508d26fcb`) raises no radar error before the radar's trigger
+  message (`opendbc/car/tesla/radar_interface.py:176-177`) and ignores SGUFail, so only HWFail faults (`:203-215`; opendbc
+  `f29a061c`). opendbc `ebd04ce3` drops frozen tracks with SGUFail instead of faulting. `26164ce9` falls back to camera leads
+  with a warning ("Using camera lead") while the radar is unhealthy. opendbc `f00c8cb9` always streams 0x560, an empty VIN as
+  17 spaces. Tinkla/BogGyver ignore SGUFail on the Pre-AP retrofit.
+- Our behavior:
+  - A radar that is not VALID (pending, a rejected config such as radPositionMismatch, any ITC, starved, frozen or silent)
+    never blocks engage and never causes a no-entry, soft disable or disengage. Its points stay out of radard
+    (`opendbc_repo/opendbc/car/tesla_ap1/radar_interface.py:173`), speed control runs on camera leads, and one warning,
+    "Radar not ready – using camera lead", shows while engaged with openpilot longitudinal (`openpilot/selfdrive/car/card.py:279`,
+    `tesla_ap1/ap1_events.py:78`, `openpilot/selfdrive/selfdrived/events.py:1013`, ET.WARNING only). The pull FSM has no radar
+    term (`tesla_ap1/preap/carstate.py:300`, `:312`).
+  - radarFault comes only from RADC_HWFail (`radar_interface.py:136`). SGUFail, any ITC, pending and a radar that never spoke
+    never fault.
+  - The frozen 1-point check (starved or rejected ITC, 1.5 s) only filters: those points never become the lead.
+  - A radar that is silent from boot is harmless: until its trigger message has arrived the radar interface publishes an empty,
+    error-free RadarData at 20 Hz (`radar_interface.py:113-114`), so there is no canError, commIssue, radarFault or
+    radarTempUnavailable.
+  - Stale thermal: only the temperature reader's own age can fail hot (`openpilot/system/hardware/hardwared.py:357`, `:438`).
+    Radar data and the other device reads never count as thermal.
+  - 0x560 goes to the panda only (bus 0, consumed by the panda's TX hook and never put on the car bus), also with an empty
+    VIN. Nothing is written to the radar. Panda safety is unchanged.
+- Divergences from NAP: (1) silent radar: NAP returns nothing; ours publishes the empty RadarData so radard keeps radarState
+  valid. (2) After the radar has spoken, a 0.5 s dropout still publishes canError, like NAP's can_valid canError
+  (`radar_interface.py:190-191`). (3) NAP (`f00c8cb9`, `e512a07c`) keeps radarFault on a frozen table with SGUFail; ours only
+  filters it. (4) SensorDirty is ignored; NAP sets radarUnavailableTemporary (`:215-216`).
+- Tests: `test_preap_radar_advisory.py`, `test_preap_radar_valid.py`, `test_preap_bosch_radar.py`, `test_preap_tx_buses.py`,
+  `openpilot/selfdrive/selfdrived/tests/test_preap_radar_not_ready.py`, `openpilot/system/hardware/tests/test_thermal_stale_scope.py`.
+- Credits: NAP, Tinkla/BogGyver.
 
 ## card: no Pre-AP param file IO in the 100 Hz step, step overrun counter
 - Platforms: Pre-AP (the cache); every car (the counter).

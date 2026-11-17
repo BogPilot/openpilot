@@ -1,12 +1,16 @@
-# Pre-AP radar-valid gate
+# Pre-AP radar-valid filter (advisory, never an engage gate)
 
 Code: `opendbc_repo/opendbc/car/tesla_ap1/preap/radar_valid.py` (`RadarValidGate`), wired in `tesla_ap1/radar_interface.py`;
-card (`selfdrive/car/card.py`) feeds the result to the Pre-AP pull FSM (`preap/carstate.py` speed_block). Pre-AP only; AP1 has
-no gate. Lateral is never touched.
+card (`selfdrive/car/card.py:279`) turns a radar that is not VALID into `carState.bogpilot.preapRadarNotReady`, one warning.
+The radar is never an engage input: the Pre-AP pull FSM (`preap/carstate.py` speed_block :300, long_allowed :312) has no radar
+term. Pre-AP only; AP1 has no filter. Lateral is never touched. See DIVERGENCES.md, "radar health is advisory, not an engage
+gate".
 
 ## What it does
-- Until the gate allows it, radar_interface publishes no radar points and the pull FSM refuses FULL (a second pull stays
-  steering only) or drops FULL to steering only. HWFail keeps its radarFault as before.
+- Until the radar is VALID, and while any fault below is active, radar_interface publishes no radar points
+  (`radar_interface.py:173`): speed control runs on camera leads and, while engaged with openpilot longitudinal, one warning
+  shows, "Radar not ready – using camera lead" (event `preapRadarNotReady`, ET.WARNING only, `selfdrived/events.py:1013`;
+  `ap1_events.py:78`). Never a no-entry, soft disable or disengage. Only HWFail is a radarFault (`radar_interface.py:136`).
 - A returned gateway echo (flag 256) only proves we sent the config frames. Whether the radar ACCEPTED it is read from the
   radar itself. The log-only status line (`preap radar: echoed= pending= valid= fault= late= ...`, every 5 s and on each
   change) reports echoed, pending, valid and the fault name separately.
@@ -16,7 +20,7 @@ From a CAN analysis of both tester packs, a 0.9.7 Pre-AP log and 67 AP1 power-up
 `opendbc/dbc/generator/tesla/tesla_radar_bosch.py` (0x301 TeslaRadarSguInfo :46-55, 0x501 TeslaRadarAlertMatrix :64-130) and
 `_radar_common.py:6-15` (point slots 0x310-0x36D). Time 0 is the radar's first 0x301.
 
-FAULT (non-latching, any one):
+FAULT (non-latching, any one; a fault only keeps the points out, only F4 is a radarFault):
 - F1: `RADC_SGU_ITC` (:50) in {67, 68, 70, 83} (seen on starved radars) or {96} (seen with a rejected position), held 1.0 s.
 - F2: any of 0x501 a009_configMismatch (:77), a027_CntryCdValidity (:95), a037_vinValidity (:105), a042_xwdValidity (:110),
   a061_radPositionMismatch (:129), a062_strRackMismatch (:130), or the bdy / esp / gtw / sccm / adas MIA bits (:79-83), set in
@@ -36,8 +40,8 @@ AP1 power-ups for 12-207 s with SGUFail 0 and 0x501 clear, so a strict ITC = 0 w
 is UNPROVEN.**
 
 PENDING: neither, for example SGUFail or adjustment bits with moving tracks (aligning), or a parked radar with no moving
-track yet. Not a fault. Speed control in PENDING is one constant, `PENDING_LONG_OK = False` (not allowed: the safe default;
-NAP allows engage while its radar aligns, `car/tesla/radar_interface.py:203-206` @ `7eb09d2a7`). A decision is pending.
+track yet. Not a fault. Like every state that is not VALID it only keeps the points out (camera leads); engage and speed control are
+allowed, as NAP allows engage while its radar aligns (`opendbc/car/tesla/radar_interface.py:203-210` @ `508d26fcb`).
 
 Moving track: a tracked point (bit 62, `_radar_common.py:15`) with 0 < LongDist <= 250 m and ProbExist >= 50 % (the filters
 in radar_interface), seen in the last 0.3 s, with |LongSpeed| >= 0.5 m/s or a LongDist change >= 0.5 m against the same slot
@@ -48,14 +52,18 @@ by card). Two parked AP1 power-ups reached VALID about 2 s after moving off.
 
 ## Divergences
 - Stock and NAP: Pre-AP radar points always reach radard; NAP faults a frozen table only with 4 points and SGUFail. Tinkla
-  and BogPilot 0.9.7: no such gate. Ours is stricter: no radar points and no speed control until VALID.
+  and BogPilot 0.9.7: no such filter. Ours filters more (no radar points until VALID, camera leads meanwhile) but, like NAP
+  and Tinkla, radar health never blocks engage or speed control. NAP (`f00c8cb9`, `e512a07c`) raises radarFault on a frozen
+  table with SGUFail; ours only drops those points.
 - Not proven on a car: the ITC meanings, why ITC 107 clears at standstill, how long a parked ITC 90 lasts, an aligning radar
   with SGUFail and live tracks (not seen in any AP1 log), and the tester 2 time base (its packs start mid-drive).
 
 ## Evidence (offline replays and tests)
 - Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_radar_valid.py` (the analysis' numbers: 1 point fires and 4
   don't on tester 2's phantoms; 1.5 s fires within 2 s and 2.4 s doesn't; ungated F3 false-faults on a parked static scene and
-  gated doesn't; ITC 107 reaches VALID; aligning SGUFail with moving tracks is PENDING, then VALID; both PENDING settings).
+  gated doesn't; ITC 107 reaches VALID; aligning SGUFail with moving tracks is PENDING, then VALID; no PENDING setting left), `test_preap_radar_advisory.py`
+  (every cause that is not VALID keeps engage and only filters; HWFail still faults) and
+  `openpilot/selfdrive/selfdrived/tests/test_preap_radar_not_ready.py` (warning only).
 - Replays of the tester packs and a 30-file AP1 sample through `RadarInterface` are private (raw CAN). Tester 2 faults 1.02 s
   after its pack starts and never reaches VALID; tester 1 never reaches VALID; every decoded AP1 file reaches VALID with no
   fault.

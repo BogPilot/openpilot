@@ -35,7 +35,8 @@ checksum); NAP nap-alpha `92b42f772` (opendbc `508d26fcb`); BogPilot na-preap `c
   `5dbe36d37`; nap-alpha `92b42f772`, opendbc `508d26fcb`: `opendbc/car/tesla/carcontroller.py:143-152`). Divergence: no 0x560
   while engaged or steering (the panda ignores it then anyway, the config set before engaging stays until the next safety init)
   and none once the gateway is seen open. Limit: after a safety init while engaged, the radar stays silent until openpilot is
-  disengaged; the radar-valid gate (`DIVERGENCES_preap_radar_valid.md`) blocks speed control meanwhile.
+  disengaged; the radar-valid filter (`DIVERGENCES_preap_radar_valid.md`) keeps its points out meanwhile (camera leads, one
+  warning), never blocking engage.
 - card restart in Drive: if card's first `pandaStates` sample already shows the car's mode, the panda kept a config from an
   earlier card process that this one cannot see. Then nothing is sent outside Park until the panda shows a re-init or reboot,
   so a donor setting changed meanwhile is never applied at speed; logged once. The panda (`tesla_preap.h:235-262`) would
