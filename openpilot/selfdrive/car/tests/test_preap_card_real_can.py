@@ -436,7 +436,8 @@ class _Panda:
 
 def _matrix(rig, panda, steps, gear_at, events=None, enabled_at=lambda i: False, inject_551=()):
   """Run card against the panda. events: {step: "switch" | "reinit" | "reboot"}. inject_551: steps at which a real ENABLE=1
-  0x551 (as card's pedal path builds it) is offered to the panda. Returns (opened {event step: first open step},
+  0x551 (as card's pedal path builds it) is offered to the panda after card's own frames of that step, so its rejected echo
+  arrives on the next step like the echo of any frame card sends. Returns (opened {event step: first open step},
   fed [what card fed the pull FSM per step], sent_560 per step)."""
   from opendbc.car.tesla_ap1.preap.pedal_can import PedalCommandCounter, create_pedal_command
   events = events or {}
@@ -459,11 +460,11 @@ def _matrix(rig, panda, steps, gear_at, events=None, enabled_at=lambda i: False,
     if ev:
       cur = i
       opened[cur] = None
+    out = rig.step(panda.take(), gear=gear_at(i), enabled=enabled_at(i), ps_fields=panda.state(), sample=1 + i // 10)
+    panda.tx(out)
     if i in inject_551:
       m = create_pedal_command(20.0, 1, counter, 2)
       assert panda.refuse(m[0], m[1], m[2])
-    out = rig.step(panda.take(), gear=gear_at(i), enabled=enabled_at(i), ps_fields=panda.state(), sample=1 + i // 10)
-    panda.tx(out)
     s560.append(sum(1 for m in out if m[0] == 0x560))
     panda.tick(i)
     if cur is not None and opened[cur] is None and panda.gateway_open():

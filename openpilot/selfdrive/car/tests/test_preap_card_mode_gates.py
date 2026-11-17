@@ -81,8 +81,9 @@ def test_card_gate_alone_drops_a_0x560_in_another_mode(make_rig, monkeypatch, mo
 def test_card_gate_checks_the_panda_the_frame_goes_to(make_rig, monkeypatch):
   rig = make_rig()
   _inject_560(rig, monkeypatch, bus=4)                             # panda 1: no pandaStates entry, no expectation
-  out = [_n560(rig.step(ps_fields=_ps(rig), sample=1 + i)) for i in range(20)]
-  assert sum(out) == 0
+  outs = [rig.step(ps_fields=_ps(rig), sample=1 + i) for i in range(20)]
+  assert not any(m[0] == 0x560 and m[2] == 4 for out in outs for m in out)
+  assert any(m[0] == 0x560 and m[2] == 0 for out in outs for m in out)   # the stream's own 0x560 to panda 0 still goes
 
 
 def test_card_gate_fails_closed_without_valid_pandastates(make_rig, monkeypatch):
