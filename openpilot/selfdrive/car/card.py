@@ -194,7 +194,9 @@ class Car:
       from opendbc.car.tesla_ap1.preap.params import start_step_cache
       start_step_cache()
       if len(self.CP.safetyConfigs):
-        self.preap_safety_expect = (int(self.CP.safetyConfigs[-1].safetyModel), int(self.CP.safetyConfigs[-1].safetyParam))
+        # safetyModel is a capnp enum on the device (no int()); .raw is its number, as for pandaStates in preap_link_update
+        sm_ = self.CP.safetyConfigs[-1].safetyModel
+        self.preap_safety_expect = (int(getattr(sm_, "raw", sm_)), int(self.CP.safetyConfigs[-1].safetyParam))
     if self.CP.brand == "tesla_ap1" and self.CP.carFingerprint == "TESLA_PREAP_MODELS" and not self.CP.pcmCruise:
       from openpilot.selfdrive.controls.lib.phase3_speed_control import PreapEngageSetLimit
       self.preap_engage_set_limit = PreapEngageSetLimit(self.CP)
