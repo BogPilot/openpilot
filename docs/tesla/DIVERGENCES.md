@@ -1030,3 +1030,22 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   rest-mean zero, commanded path with a higher zero), `test_preap_pedal.py`, `test_preap_pedal_limit.py`,
   `openpilot/selfdrive/ui/tests/test_preap_pedal_cal.py`.
 - Credits: Tinkla/BogGyver (calibratePedal.py), NAP (nap_conf pedal_zero), BogPilot 0.9.7 (the guided driver-press flow).
+
+## hardwared: slow device reads off the deviceState loop
+- Platforms: all (generic hardwared).
+- Reference behavior: NAP reads thermal zones and every other slow device read on background threads, fails hot when
+  thermal readings go stale and logs slow loop steps (nap-alpha `92b42f772`, nap-dev-0.11.2 `65b9c2878`;
+  `system/hardware/thermal_reader.py`, `sysfs_reader.py`, `loop_timing.py`). Tinkla/BogGyver and BogPilot 0.9.7 read inline.
+- Our behavior: the same design, our own implementation (`openpilot/system/hardware/bg_reads.py`). Divergences: a startup
+  condition that needs one real thermal reading before going onroad; before that reading the temperature filters are
+  not fed, the fan runs at 100 % and thermalStatus is at least overheated; free space and memory are fail-closed until
+  their first read and log when stale; NAP's 10 s selfdrived commIssue window is not ported.
+  Details: `docs/tesla/DIVERGENCES_hardwared_bg_reads.md`.
+- Why: a stalled sysfs read stopped deviceState for 12 to 14 s on Pre-AP cars and selfdrived raised commIssue.
+- Safety-relevant: yes (thermal protection). **Decision pending:** stale temperatures while engaged are
+  selectable by `STALE_THERMAL_POLICY` (bg_reads.py, read once at start). `"strict"` (default): overheated as soon as
+  stale (10 s), so selfdrived's stock overheat event soft-disables an engaged car within about 10.5 s. `"nap"`: a cool
+  held reading stays engaged up to about 70 s (overheated after 60 s more stale, 70 s after the last fresh reading). Stock's stalled deviceState gave
+  commIssue in 5 s.
+- Tests: `openpilot/system/hardware/tests/test_hardwared_loop_rate.py`, `test_bg_reads.py`.
+- Credits: NAP.

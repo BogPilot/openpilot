@@ -26,6 +26,8 @@ from openpilot.system.loggerd.config import get_available_percent
 from openpilot.common.swaglog import cloudlog
 from openpilot.system.hardware.power_monitoring import PowerMonitoring
 from openpilot.system.hardware.fan_controller import FanController
+from openpilot.system.hardware.bg_reads import (BackgroundReads, LoopStepTimer, ReadStaleness, ThermalStaleness,
+                                                fail_hot_thermal_status, read_thermal_zones, stale_thermal_policy)
 from openpilot.system.hardware.chestnut.monitoring import chestnut_state_thread
 from openpilot.system.hardware.chestnut.status import ChestnutStatus
 from openpilot.common.version import terms_version, training_version
@@ -38,6 +40,7 @@ TEMP_TAU = 5.   # 5s time constant
 DISCONNECT_TIMEOUT = 5.  # wait 5 seconds before going offroad after disconnect so you get an alert
 PANDA_STATES_TIMEOUT = round(1000 / SERVICE_LIST['pandaStates'].frequency * 1.5)  # 1.5x the expected pandaState frequency
 ONROAD_CYCLE_TIME = 1  # seconds to wait offroad after requesting an onroad cycle
+FIRST_READ_WAIT_S = 2.  # startup only: how long to wait for the first background reads before the loop starts
 
 class Chestnut:
   # flash before going onroad, modeld ignores chestnut until the product string matches
@@ -198,6 +201,35 @@ def hw_state_thread(end_event, hw_queue):
     time.sleep(DT_HW)
 
 
+def device_reads(system_stats) -> tuple[dict, dict]:
+  """Slow non-thermal device reads for the background reader, and the value each key holds until its first read."""
+  booted = {"done": False}
+
+  def read_booted() -> bool:
+    # the onroad condition latches once this is True, so stop polling the encoder debugfs after that
+    if not booted["done"]:
+      booted["done"] = bool(HARDWARE.booted())
+    return booted["done"]
+
+  reads = {
+    "free_space": lambda: get_available_percent(default=100.0),
+    "memory": lambda: system_stats.memory_usage_percent() if system_stats is not None else 0.,
+    "cpu": lambda: system_stats.cpu_usage_percent() if system_stats is not None else [],
+    "gpu": lambda: HARDWARE.get_gpu_usage_percent(),
+    "screen_brightness": lambda: HARDWARE.get_screen_brightness(),
+    "booted": read_booted,
+    "power_draw": lambda: HARDWARE.get_current_power_draw(),
+    "som_power_draw": lambda: HARDWARE.get_som_power_draw(),
+  }
+  # Before the first real read, free space and memory are fail-closed placeholders, never "healthy":
+  # 0 % free blocks going onroad (free_space startup condition) and both make selfdrived refuse to engage.
+  defaults = {
+    "free_space": 0.0, "memory": 100.0, "cpu": [], "gpu": 0., "screen_brightness": 0,
+    "booted": False, "power_draw": 0., "som_power_draw": 0.,
+  }
+  return reads, defaults
+
+
 def hardware_thread(end_event, hw_queue) -> None:
   system_stats = LinuxSystemStats() if sys.platform == "linux" else None
   pm = messaging.PubMaster(['deviceState'])
@@ -247,13 +279,38 @@ def hardware_thread(end_event, hw_queue) -> None:
   HARDWARE.initialize_hardware()
   thermal_config = HARDWARE.get_thermal_config()
 
+  # Every slow device read runs on a background thread; the loop below only uses the cached values,
+  # so a stalled sysfs read can't stop deviceState. Design from NAP, see bg_reads.py.
+  thermal_reads = BackgroundReads("thermal", {"temps": lambda: read_thermal_zones(thermal_config)}, {"temps": {}})
+  thermal_reads.start(end_event)
+  thermal_age = ThermalStaleness()
+  dev_reads, dev_defaults = device_reads(system_stats)
+  dev = BackgroundReads("device", dev_reads, dev_defaults)
+  dev.start(end_event)
+  dev_age = ReadStaleness("device")
+  # startup only: let the first readings land so the first deviceState isn't built from defaults
+  first_wait_end = time.monotonic() + FIRST_READ_WAIT_S
+  while time.monotonic() < first_wait_end and not end_event.is_set():
+    if thermal_reads.has_value("temps") and all(dev.has_value(k) for k in dev_reads):
+      break
+    time.sleep(0.02)
+
   fan_controller = FanController(int(1./DT_HW))
   chestnut = Chestnut()
   chestnut_status = ChestnutStatus()
   branch = get_short_branch()
+  device_type = HARDWARE.get_device_type()  # constant; reading it every tick was a sysfs read on the loop
+  # read once at start, never in the loop: "strict" goes overheated as soon as temperatures are stale, "nap" only if warm or 60 s more
+  strict_stale = stale_thermal_policy() == "strict"
+  no_temps_logged = False
+  first_temps_logged = False
+  loop_start = time.monotonic()
+  cloudlog.event("hardwared stale thermal policy", policy="strict" if strict_stale else "nap")
 
   while not end_event.is_set():
+    timer = LoopStepTimer()
     sm.update(PANDA_STATES_TIMEOUT)
+    timer.mark("sm_update")
 
     pandaStates = sm['pandaStates']
     peripheralState = sm['peripheralState']
@@ -263,6 +320,7 @@ def hardware_thread(end_event, hw_queue) -> None:
       params.put_bool("OnroadCycleRequested", False, block=True)
       offroad_cycle_count = sm.frame
     onroad_conditions["not_onroad_cycle"] = (sm.frame - offroad_cycle_count) >= ONROAD_CYCLE_TIME * SERVICE_LIST['pandaStates'].frequency
+    timer.mark("onroad_cycle")
 
     if sm.updated['pandaStates'] and len(pandaStates) > 0:
 
@@ -278,26 +336,42 @@ def hardware_thread(end_event, hw_queue) -> None:
         onroad_conditions["ignition"] = False
         cloudlog.error("panda timed out onroad")
 
+    timer.mark("panda_state")
+
     # Run at 2Hz, plus either edge of ignition
     ign_edge = (started_ts is not None) != all(onroad_conditions.values())
     if (sm.frame % round(SERVICE_LIST['pandaStates'].frequency * DT_HW) != 0) and not ign_edge:
+      timer.report_if_slow()
       continue
 
     msg = messaging.new_message('deviceState', valid=True)
-    msg.deviceState = thermal_config.get_msg()
-    msg.deviceState.deviceType = HARDWARE.get_device_type()
+    # one snapshot: the temperatures and whether they are a real reading must come from the same moment
+    temps, have_temps = thermal_reads.snapshot("temps", {})
+    if not have_temps and not no_temps_logged:
+      cloudlog.event("hardwared no thermal reading yet: offroad, fan 100 % until it arrives", error=True)
+      no_temps_logged = True
+    elif have_temps and no_temps_logged and not first_temps_logged:
+      cloudlog.event("hardwared first thermal reading", wait_s=round(time.monotonic() - loop_start, 1))
+      first_temps_logged = True
+    thermal_age.update(thermal_reads.age_s("temps"))
+    msg.deviceState = temps
+    msg.deviceState.deviceType = device_type
+    timer.mark("thermal")
 
     try:
       last_hw_state = hw_queue.get_nowait()
     except queue.Empty:
       pass
+    timer.mark("hw_queue")
 
-    memory_usage = system_stats.memory_usage_percent() if system_stats is not None else 0.
-    cpu_usage = system_stats.cpu_usage_percent() if system_stats is not None else []
+    # stale device reads keep their last real value (logged once by ReadStaleness)
+    dev_age.update({k: dev.age_s(k) for k in dev_reads})
+    memory_usage = dev.get("memory")
+    cpu_usage = dev.get("cpu", [])
 
-    msg.deviceState.freeSpacePercent = get_available_percent(default=100.0)
+    msg.deviceState.freeSpacePercent = dev.get("free_space")
     msg.deviceState.memoryUsagePercent = int(round(memory_usage))
-    msg.deviceState.gpuUsagePercent = int(round(HARDWARE.get_gpu_usage_percent()))
+    msg.deviceState.gpuUsagePercent = int(round(dev.get("gpu", 0.)))
     online_cpu_usage = [int(round(n)) for n in cpu_usage]
     offline_cpu_usage = [0., ] * (len(msg.deviceState.cpuTempC) - len(online_cpu_usage))
     msg.deviceState.cpuUsagePercent = online_cpu_usage + offline_cpu_usage
@@ -311,7 +385,8 @@ def hardware_thread(end_event, hw_queue) -> None:
 
     msg.deviceState.modemTempC = last_hw_state.modem_temps
 
-    msg.deviceState.screenBrightnessPercent = HARDWARE.get_screen_brightness()
+    msg.deviceState.screenBrightnessPercent = dev.get("screen_brightness", 0)
+    timer.mark("device_reads")
 
     set_usb_state(msg.deviceState, last_hw_state.usb_state)
     chestnut.update(started_ts is None, last_hw_state.usb_state)
@@ -320,23 +395,32 @@ def hardware_thread(end_event, hw_queue) -> None:
     chestnut_status.update(started_ts is None or not onroad_conditions["ignition"], branch, last_hw_state.usb_state, chestnut.failed,
                            params.get_bool("ChestnutLoading"), params.get("ChestnutActive"),
                            chestnut_state if chestnut_valid else None, set_offroad_alert_if_changed)
+    timer.mark("usb_chestnut")
     # this subset is only used for offroad
     temp_sources = [
       msg.deviceState.memoryTempC,
       max(msg.deviceState.cpuTempC, default=0.),
       max(msg.deviceState.gpuTempC, default=0.),
     ]
-    offroad_comp_temp = offroad_temp_filter.update(max(temp_sources))
+    # Before the first real thermal reading there are no temperatures: don't feed the filters (they would seed at 0 C
+    # and lag the real reading by ~10 s), so they seed from the first real reading like stock.
+    offroad_comp_temp = offroad_temp_filter.update(max(temp_sources)) if have_temps else offroad_temp_filter.x
 
     # this drives the thermal status while onroad
     temp_sources.append(max(msg.deviceState.pmicTempC, default=0.))
-    all_comp_temp = all_temp_filter.update(max(temp_sources))
+    all_comp_temp = all_temp_filter.update(max(temp_sources)) if have_temps else all_temp_filter.x
     msg.deviceState.maxTempC = all_comp_temp
 
     msg.deviceState.fanSpeedPercentDesired = fan_controller.update(all_comp_temp, onroad_conditions["ignition"])
+    if thermal_age.stale or not have_temps:
+      # no fresh temperatures: assume the worst for cooling
+      msg.deviceState.fanSpeedPercentDesired = 100
 
     is_offroad_for_5_min = (started_ts is None) and ((not started_seen) or (off_ts is None) or (time.monotonic() - off_ts > 60 * 5))
-    if is_offroad_for_5_min and offroad_comp_temp > OFFROAD_DANGER_TEMP:
+    if not have_temps:
+      # no temperatures yet: never an engageable band (also blocks going onroad)
+      thermal_status = max(thermal_status, ThermalStatus.overheated)
+    elif is_offroad_for_5_min and offroad_comp_temp > OFFROAD_DANGER_TEMP:
       # if device is offroad and already hot without the extra onroad load,
       # we want to cool down first before increasing load
       thermal_status = ThermalStatus.critical
@@ -347,6 +431,12 @@ def hardware_thread(end_event, hw_queue) -> None:
         thermal_status = list(THERMAL_BANDS.keys())[band_idx - 1]
       elif current_band.max_temp is not None and all_comp_temp > current_band.max_temp:
         thermal_status = list(THERMAL_BANDS.keys())[band_idx + 1]
+    # stale temperatures: the bands above ran on the held readings; fail hot if they were already warm or stale too long
+    # (or, with the strict policy, as soon as they are stale)
+    thermal_status = fail_hot_thermal_status(thermal_status, thermal_age.stale, thermal_age.stale_s, all_comp_temp,
+                                             THERMAL_BANDS[ThermalStatus.overheated].min_temp, ThermalStatus.ok, ThermalStatus.overheated,
+                                             strict=strict_stale)
+    timer.mark("thermal_status")
 
     # **** starting logic ****
 
@@ -365,17 +455,21 @@ def hardware_thread(end_event, hw_queue) -> None:
 
     startup_conditions["not_flashing_chestnut"] = not chestnut.flashing
 
+    # never go onroad without at least one real thermal reading
+    startup_conditions["thermal_read"] = have_temps
+
     # ensure device is fully booted
-    startup_conditions["device_booted"] = startup_conditions.get("device_booted", False) or HARDWARE.booted()
+    startup_conditions["device_booted"] = startup_conditions.get("device_booted", False) or dev.get("booted", False)
 
     # if the temperature enters the danger zone, go offroad to cool down
     onroad_conditions["device_temp_good"] = thermal_status < ThermalStatus.critical
-    extra_text = f"{offroad_comp_temp:.1f}C"
+    extra_text = f"{offroad_comp_temp:.1f}C" if have_temps else "no reading"
     show_alert = (not onroad_conditions["device_temp_good"] or not startup_conditions["device_temp_engageable"]) and onroad_conditions["ignition"]
     set_offroad_alert_if_changed("Offroad_TemperatureTooHigh", show_alert, extra_text=extra_text)
 
     if show_alert:
       msg.deviceState.fanSpeedPercentDesired = 100
+    timer.mark("startup_conditions")
 
     # BogPilot: no comma registration/cloud account gate for onroad (local-only build).
 
@@ -399,6 +493,8 @@ def hardware_thread(end_event, hw_queue) -> None:
           kmsg.write(f"<3>[hardware] engaged: {engaged}\n")
       except Exception:
         pass
+
+    timer.mark("engaged")
 
     should_pwrsave = not onroad_conditions["ignition"] and msg.deviceState.screenBrightnessPercent < 1e-3
     if should_pwrsave != pwrsave or (count == 0):
@@ -424,17 +520,15 @@ def hardware_thread(end_event, hw_queue) -> None:
       started_ts = None
       if off_ts is None:
         off_ts = time.monotonic()
+    timer.mark("power_save_transition")
 
     # Offroad power monitoring
     voltage = None if peripheralState.pandaType == log.PandaState.PandaType.unknown else peripheralState.voltage
     power_monitor.calculate(voltage, onroad_conditions["ignition"])
     msg.deviceState.offroadPowerUsageUwh = power_monitor.get_power_used()
     msg.deviceState.carBatteryCapacityUwh = max(0, power_monitor.get_car_battery_capacity())
-    current_power_draw = HARDWARE.get_current_power_draw()
-    msg.deviceState.powerDrawW = current_power_draw
-
-    som_power_draw = HARDWARE.get_som_power_draw()
-    msg.deviceState.somPowerDrawW = som_power_draw
+    msg.deviceState.powerDrawW = dev.get("power_draw", 0.)
+    msg.deviceState.somPowerDrawW = dev.get("som_power_draw", 0.)
 
     # Check if we need to shut down
     if power_monitor.should_shutdown(onroad_conditions["ignition"], in_car, off_ts, started_seen):
@@ -449,7 +543,9 @@ def hardware_thread(end_event, hw_queue) -> None:
       msg.deviceState.lastAthenaPingTime = last_ping
 
     msg.deviceState.thermalStatus = thermal_status
+    timer.mark("power_monitor")
     pm.send("deviceState", msg)
+    timer.mark("send")
 
     # report to server once every 10 minutes, or every 1s when thermally blocked
     rising_edge_started = should_start and not should_start_prev
@@ -486,6 +582,8 @@ def hardware_thread(end_event, hw_queue) -> None:
 
     count += 1
     should_start_prev = should_start
+    timer.mark("status_params")
+    timer.report_if_slow()
 
 
 def main():
