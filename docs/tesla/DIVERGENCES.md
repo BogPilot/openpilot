@@ -1235,11 +1235,14 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   before writing, so a concurrent reader can see empty text and fall back to the default.
 - Our behavior: `_write_text_file` writes a tmp file in the same directory, flushes, fsyncs,
   then `os.replace` onto the destination, and fsyncs the directory. The tmp is removed only
-  if that fails. Same path and same content as before; AP1 readers that go through this
-  helper (override sensitivity once per drive, pandad's PandaFirmwareVersion string) see
-  identical values.
+  if that fails. Before the replace, the tmp is chmod'd to the existing file's mode, or
+  0o644 if the file is new (the mode `Path.write_text` used with umask 0o022). Same path,
+  same content, and same mode as before. AP1 paths that go through this helper (override
+  sensitivity once per drive; pandad writes PandaFirmwareVersion) see identical values
+  and modes. An orphan tmp left after a power loss during the write is harmless: no
+  reader lists the directory, and the next write uses a new tmp.
 - Why: a reader (the StepCache refresh, the Vehicle Settings UI, or a test) must never observe
-  a torn or empty params file.
+  a torn or empty params file, and AP1 file modes must stay as they were.
 - Safety-relevant: low to moderate. Keys read onroad include TeslaRadarIgnoreHwFail (default
   OFF, the safer side) and pedal-calibration mirrors; a torn read could briefly apply a default.
 - Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_params_atomic_write.py`,

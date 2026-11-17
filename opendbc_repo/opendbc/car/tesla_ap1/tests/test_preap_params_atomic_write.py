@@ -5,6 +5,9 @@ first, so a reader can see empty text and fall back to the default. _write_text_
 writes a tmp in the same directory, fsyncs, and os.replace.
 """
 import os
+from pathlib import Path
+import stat
+import tempfile
 import threading
 import time
 
@@ -92,3 +95,83 @@ def test_failed_write_removes_only_the_tmp(_params_dir, monkeypatch):
   assert dest.read_text(encoding="utf-8") == VALUES[0]     # destination unchanged
   leftovers = list(params._params_dir.iterdir())
   assert leftovers == [dest], leftovers
+
+
+def _write_text_92aa(key: str, text: str) -> None:
+  """The 92aa9ee1f in-place write (then `_write_text`): mkdir, then Path.write_text."""
+  params._params_dir.mkdir(parents=True, exist_ok=True)
+  params._path(key).write_text(text, encoding="utf-8")
+
+
+def test_panda_firmware_bytes_and_mode_match_92aa(_params_dir):
+  """AP1: pandad writes PandaFirmwareVersion through this helper. Bytes and mode must
+  match the 92aa in-place write for a new file and for an existing file."""
+  key = K.PANDA_FIRMWARE
+  text_new = "board.panda version-test\n"
+  text_upd = "board.panda version-test-2\n"
+  base = params._params_dir
+  saved_dir = base
+
+  def snap(path):
+    return path.read_bytes(), stat.S_IMODE(path.stat().st_mode)
+
+  try:
+    # New file: old helper in one dir, new helper in another.
+    old_dir, new_dir = base / "ref_new", base / "atomic_new"
+    params._params_dir = old_dir
+    _write_text_92aa(key, text_new)
+    params._params_dir = new_dir
+    params._write_text_file(key, text_new)
+    old_b, old_m = snap(old_dir / key)
+    new_b, new_m = snap(new_dir / key)
+    assert old_b == new_b == text_new.encode("utf-8")
+    assert old_m == new_m
+    assert old_m == 0o644
+
+    # Existing 0o644 file, then a second write of new contents.
+    old_ex, new_ex = base / "ref_ex", base / "atomic_ex"
+    for d, write in ((old_ex, _write_text_92aa), (new_ex, params._write_text_file)):
+      params._params_dir = d
+      _write_text_92aa(key, text_new)
+      os.chmod(d / key, 0o644)
+      write(key, text_upd)
+    old_b, old_m = snap(old_ex / key)
+    new_b, new_m = snap(new_ex / key)
+    assert old_b == new_b == text_upd.encode("utf-8")
+    assert old_m == new_m == 0o644
+
+    # Existing non-default mode must be kept (Path.write_text does not change it).
+    old_k, new_k = base / "ref_600", base / "atomic_600"
+    for d, write in ((old_k, _write_text_92aa), (new_k, params._write_text_file)):
+      params._params_dir = d
+      _write_text_92aa(key, text_new)
+      os.chmod(d / key, 0o600)
+      write(key, text_upd)
+    old_b, old_m = snap(old_k / key)
+    new_b, new_m = snap(new_k / key)
+    assert old_b == new_b == text_upd.encode("utf-8")
+    assert old_m == new_m == 0o600
+  finally:
+    params._params_dir = saved_dir
+
+
+def test_mkstemp_dir_is_the_key_directory(_params_dir, monkeypatch):
+  """The tmp must be created in the key's directory so os.replace cannot raise EXDEV.
+  set_* swallow OSError, so a tmp on another filesystem would silently not save."""
+  key = K.PANDA_FIRMWARE
+  dest = params._path(key)
+  recorded = {}
+  real = tempfile.mkstemp
+
+  def wrap(*args, **kwargs):
+    fd, name = real(*args, **kwargs)
+    recorded["dir"] = kwargs.get("dir")
+    recorded["name"] = name
+    recorded["parent"] = str(Path(name).parent)
+    return fd, name
+
+  monkeypatch.setattr(tempfile, "mkstemp", wrap)
+  params._write_text_file(key, "firmware-dir-check")
+  assert recorded["dir"] == str(dest.parent)
+  assert recorded["parent"] == str(dest.parent)
+  assert dest.read_text(encoding="utf-8") == "firmware-dir-check"

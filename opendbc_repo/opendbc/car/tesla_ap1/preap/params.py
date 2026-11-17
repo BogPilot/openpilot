@@ -219,11 +219,18 @@ def _write_text_file(key: str, text: str) -> None:
   refresh, the UI, tests) may open the same path. Path.write_text truncates first, so a
   reader can see empty text and fall back to the default. Write a tmp next to the destination,
   flush+fsync, then os.replace. The tmp is removed only if that fails.
+
+  tempfile.mkstemp creates the tmp as 0o600. os.replace keeps that mode, which would change
+  an existing 0o644 file (Path.write_text left the mode alone) and would create new files
+  as 0o600 instead of 0o644 (Path.write_text with umask 0o022). Set the tmp to the existing
+  file's mode, or 0o644 if the file is new, before replacing.
   """
   _params_dir.mkdir(parents=True, exist_ok=True)
   dest = _path(key)
+  mode = dest.stat().st_mode & 0o777 if dest.is_file() else 0o644
   fd, tmp_name = tempfile.mkstemp(prefix=dest.name + ".", suffix=".tmp", dir=str(dest.parent))
   try:
+    os.fchmod(fd, mode)
     with os.fdopen(fd, "w", encoding="utf-8") as f:
       fd = -1
       f.write(text)
