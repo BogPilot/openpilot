@@ -1045,12 +1045,51 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   Details: `docs/tesla/DIVERGENCES_hardwared_bg_reads.md`.
 - Why: a stalled sysfs read stopped deviceState for 12 to 14 s on Pre-AP cars and selfdrived raised commIssue.
 - Safety-relevant: yes (thermal protection). **Decision pending:** stale temperatures while engaged are
-  selectable by `STALE_THERMAL_POLICY` (bg_reads.py, read once at start). `"strict"` (default): overheated as soon as
+  selectable by `STALE_THERMAL_POLICY` (`openpilot/system/hardware/bg_reads.py:41`, read once at start). `"strict"` (default): overheated as soon as
   stale (10 s), so selfdrived's stock overheat event soft-disables an engaged car within about 10.5 s. `"nap"`: a cool
   held reading stays engaged up to about 70 s (overheated after 60 s more stale, 70 s after the last fresh reading). Stock's stalled deviceState gave
   commIssue in 5 s.
 - Our own hardening beyond NAP (NAP has no staleness gate here): free space or memory with no fresh read for over 60 s,
   after the first read, blocks new onroad entry (startup condition `device_reads_fresh`); never forces offroad mid-drive
   (logged and kept onroad); a fresh read clears it.
-- Tests: `openpilot/system/hardware/tests/test_hardwared_loop_rate.py`, `test_bg_reads.py`, `test_stale_entry_gate.py`.
+- Tests: `openpilot/system/hardware/tests/test_hardwared_loop_rate.py`, `test_bg_reads.py`, `test_stale_entry_gate.py`,
+  `test_hardwared_thermal_snapshot.py` (the loop takes the temperatures and their freshness from one snapshot),
+  `test_thermal_stall_policies.py` (12 to 14.4 s thermal read stalls under both policies).
+- Credits: NAP.
+
+## Pre-AP radar-valid gate: no radar points and no speed control until the radar is VALID
+- Platforms: Pre-AP Model S with the retrofit Bosch radar. AP1 unchanged.
+- Reference behavior: stock and Tinkla/BogGyver publish every Pre-AP radar point; NAP faults a frozen table only with 4 or more
+  points and SGUFail (`opendbc car/tesla/preap/radar_table_freeze.py` @ `7eb09d2a7`) and allows engage while its radar aligns.
+- Our behavior: radar_interface publishes no points and the pull FSM allows no speed control until the radar is VALID (ITC
+  0 or 107, status flags and 0x501 clear, a moving track, held 2 s, latched until a fault). Faults: starved or
+  position-rejected ITC held 1 s, 0x501 alerts in 2 frames, a frozen table (1 point, 1.5 s, while the ITC is starved or
+  rejected), HWFail, no gateway echo. PENDING (aligning, parked) is not a fault and does not allow speed control
+  (`PENDING_LONG_OK`, decision pending). Details and DBC lines: `docs/tesla/DIVERGENCES_preap_radar_valid.md`.
+- Why: both testers' radars never accepted their config (frozen phantom tables, ITC 67 / 96, 0x501 MIA and position
+  mismatch), and openpilot still used their points.
+- Safety-relevant: yes (fail closed on radar data). The ITC meanings, including 107, are UNPROVEN.
+- Credits: NAP (frozen-table watch).
+
+## card: no Pre-AP param file IO in the 100 Hz step, step overrun counter
+- Platforms: Pre-AP (the cache); every car (the counter).
+- Reference behavior: stock card does no file IO per step; NAP and BogPilot 0.9.7 Pre-AP code read and write param files
+  from the control step.
+- Our behavior: Pre-AP param reads in card's step come from an in-memory snapshot that a background thread refreshes every
+  0.1 s, and writes are flushed by that thread (`opendbc_repo/opendbc/car/tesla_ap1/preap/params.py` StepCache; values are
+  never logged). `OnroadDistanceButtonPressed` is read in card's params thread. card counts steps over their 10 ms slot and
+  logs the count and the worst step at most every 10 s (`openpilot/selfdrive/car/step_overrun.py`).
+- Why: file IO in the 100 Hz loop can stall a step. That this caused the tester stalls is UNPROVEN.
+- Tests: `test_preap_params_step_cache.py`, `openpilot/selfdrive/car/tests/test_step_overrun.py`.
+- Credits: BogPilot.
+
+## Pre-AP regen-limit alert (alert only)
+- Platforms: Pre-AP with openpilot longitudinal.
+- Reference behavior: NAP warns when the plan asks for more decel than regen gives (`selfdrived/preap_regen.py` @ `92b42f772`).
+- Our behavior: the same pattern, our own code (`openpilot/selfdrive/selfdrived/preap_regen.py`): planner aTarget below the
+  floor + 0.2 m/s^2 for more than 0.3 s while longitudinal is active raises "Brake if needed" (event `preapRegenLimit`).
+  No change to the plan or the actuation, never a disengagement.
+- UNPROVEN: the -1.5 m/s^2 floor (`REGEN_MAX`, `tesla_ap1/preap/vdas_constants.py:36`) is a commanded floor copied from NAP,
+  not a measured regen capability; tests also cover a -0.9 floor.
+- Tests: `openpilot/selfdrive/selfdrived/tests/test_preap_regen.py`.
 - Credits: NAP.

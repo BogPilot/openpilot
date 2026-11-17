@@ -82,16 +82,15 @@ NAP @ e99f4dc75 `tesla_preap.h`:349-355 and BogPilot na-preap @ 568fea947 `safet
 `tesla_preap.h`:128-135 does (`tesla_preap_pedal_bus`), uses only that bus for presence and gas, and if 0x552 later
 arrives on the other bus, drops FULL to steering only and never sends ENABLE=1. Stricter than both references.
 
-## Panda blocked-TX count
-`card.py` (:213-219) feeds the panda's total blocked-TX count (`pandaStates.safetyTxBlocked`) into the pull FSM as
-`preap_panda_tx_blocked`. `safetyTxBlocked` is a running total for every address, not only the pedal command, so a
-blocked steering frame (or any other blocked TX) also drops speed control from FULL to steering only (T15,
-`carstate.py` speed_block, `engagement.py` FULL demote). Stricter than counting only a blocked 0x551. Accepted.
-A TX-block delta within `TX_BLOCK_PRESS_IGNORE_MS` (300 ms) after a gas or brake press edge is ignored: the panda
+## Panda TX refusals
+`card.py` feeds the pull FSM (`preap_panda_tx_blocked`) the refusals of our own pedal 0x551 and steering 0x488 frames (the
+v2 input below), so a refused steering frame drops speed control from FULL to steering only as a refused pedal frame does
+(T15, `carstate.py` speed_block, `engagement.py` FULL demote). Stricter than counting only a refused 0x551.
+A refusal within `TX_BLOCK_PRESS_IGNORE_MS` (300 ms) after a gas or brake press edge is ignored: the panda
 refuses ENABLE=1 at `tesla_preap.h:254` (get_longitudinal_allowed / brake_pressed) from the first frame with INTERCEPTOR_GAS
 > 650 (gas_pressed, `:135`) and while the brake is pressed, and that expected block must not drop FULL. Guard blocks and a bus mismatch still demote
 immediately. A block with no recent press, or one after the window, still demotes.
-The window input, v2: the FSM reads refusals of our own pedal 0x551 and steering 0x488 frames, counted per address from the
+The input, v2: the FSM reads refusals of our own pedal 0x551 and steering 0x488 frames, counted per address from the
 panda's rejected TX echoes (src bus + 0xC0, `selfdrive/pandad/panda.cc:265-266`; `preap/panda_link.py` TxRefusalWatch,
 fed by `card.py`), not the all-address `PandaState.safetyTxBlocked` total (`cereal/log.capnp:568`). So the 300 ms press
 window now ignores only refusals of those two addresses; a refused frame of any other address (our 0x560 radar config, which
