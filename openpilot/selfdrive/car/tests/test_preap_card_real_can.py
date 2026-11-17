@@ -4,6 +4,7 @@ The frames take the same path as on a car: can_list_to_can_capnp builds the capn
 card.py's can_capnp_to_list turns them into (address, dat, src) tuples, and state_update / controls_update run on a real
 Pre-AP CarInterface and RadarInterface. What card sends is read back out of the real 'sendcan' bytes.
 Only the socket drain, the clock, the panda state and 'sendcan' publishing are stubbed. No capnp-like objects.
+The radar gateway tests use the compiled panda safety code (libsafety) as the panda: card's real 0x560 frames go to its tx hook.
 VINs are synthetic: each contains I, O and Q, which no real VIN may contain.
 """
 from types import SimpleNamespace
@@ -73,15 +74,21 @@ def _make_rig(tmp_path, monkeypatch, radar=True, donor_type=None, donor_vin=None
     # 0x651 on bus 0 and a radar-bus frame must never reach the reader
     return [di, (0x2A9, bytes(8), 1), (UDS_RX, bytes(8), 0)]
 
-  def step(frames=(), enabled=False, gear=GEAR_P):
-    """One card step on the background traffic plus these frames; returns every (address, dat, src) card put in 'sendcan'."""
+  def step(frames=(), enabled=False, gear=GEAR_P, lat=False, tx_total=None):
+    """One card step on the background traffic plus these frames; returns every (address, dat, src) card put in 'sendcan'.
+    tx_total: the panda's blocked-TX total (pandaStates.safetyTxBlocked) card sees in this step."""
+    ps = [log.PandaState.new_message(controlsAllowed=False, safetyTxBlocked=int(tx_total or 0) & 0xFFFFFFFF)]
+    if tx_total is not None:
+      c.sm.valid["pandaStates"] = True
+      c.sm.data["pandaStates"] = ps
     inbox.append(can_list_to_can_capnp(background(gear) + list(frames), msgtype="can"))
     CS, _ = c.state_update()
     c.sm.alive["carControl"] = True
     c.sm.valid["pandaStates"] = True
-    c.sm.data["pandaStates"] = [log.PandaState.new_message(controlsAllowed=False)]
+    c.sm.data["pandaStates"] = ps
     cc = car.CarControl.new_message()
     cc.enabled = enabled
+    cc.latActive = lat
     sent.clear()
     c.controls_update(CS, cc.as_reader())
     out = []
@@ -228,14 +235,17 @@ def test_button_without_radar_flag_is_refused(make_rig):
 
 
 @pytest.mark.parametrize("donor_type", [0, 1, 2])
-def test_0x560_stream_follows_donor_type_only_disengaged_and_not_in_drive(make_rig, donor_type):
+def test_0x560_stream_follows_donor_type_any_gear_only_disengaged_and_not_steering(make_rig, donor_type):
   rig = make_rig(donor_type=donor_type, donor_vin=VIN)
-  frames = [m for _ in range(60) for m in rig.step(gear=GEAR_P) if m[0] == 0x560]
-  assert len(frames) == 6 and all(s == 0 and len(d) == 8 for _, d, s in frames)
-  r0 = [d for _, d, _ in frames if d[0] == 0]
-  assert r0 and all((d[2] >> 1) & 3 == donor_type and d[2] & 1 == 1 for d in r0)
-  assert not [m for _ in range(60) for m in rig.step(gear=GEAR_D) if m[0] == 0x560]                 # in Drive
-  assert not [m for _ in range(60) for m in rig.step(gear=GEAR_P, enabled=True) if m[0] == 0x560]   # engaged
+  for gear in (GEAR_P, GEAR_D):
+    frames = [m for _ in range(60) for m in rig.step(gear=gear) if m[0] == 0x560]
+    assert len(frames) == 6 and all(s == 0 and len(d) == 8 for _, d, s in frames), gear
+    r0 = [d for _, d, _ in frames if d[0] == 0]
+    assert r0 and all((d[2] >> 1) & 3 == donor_type and d[2] & 1 == 1 for d in r0)
+  for gear in (GEAR_P, GEAR_D):
+    assert not [m for _ in range(60) for m in rig.step(gear=gear, enabled=True) if m[0] == 0x560]            # engaged
+    assert not [m for _ in range(60) for m in rig.step(gear=gear, lat=True) if m[0] == 0x560]                # steering
+    assert not [m for _ in range(60) for m in rig.step(gear=gear, enabled=True, lat=True) if m[0] == 0x560]
 
 
 def test_0x560_stream_off_without_radar_flag(make_rig):
@@ -316,3 +326,158 @@ def test_runner_accepts_plain_tuples():
   assert _uds(r.update([], 0.0, False))
   r.update([_single(b"\x7e\x00")], 0.01, False)
   assert r.reader is not None and r.reader.state.name == "DEFAULT_SESSION"
+
+
+# ---- radar gateway after a safety init in Drive (compiled panda safety code as the panda) ----
+
+ELM327_PARAM = 1
+SWITCH = 300           # card step of the panda's switch to the car's safety mode (~15 s after start on a car, shortened here)
+CONFIG_398 = "0281555300000000"
+
+
+class _Panda:
+  """libsafety as the panda: ELM327 until switch(), then tesla with Pre-AP + radar gateway (flag 256). Every 0x560 card sends
+  goes to its tx hook; gateway_open() feeds one car 0x398 and reports whether the panda put its 0x2A9 on the radar bus."""
+
+  def __init__(self):
+    from opendbc.car.structs import CarParams
+    from opendbc.safety.tests.libsafety import libsafety_py
+    from opendbc.safety.tests.test_tesla_preap import PREAP, SAFETY_TESLA, pkt
+    from opendbc.safety.tests.test_tesla_preap_radar import RADAR, sent
+    self.l, self.pkt, self.sent = libsafety_py.libsafety, pkt, sent
+    self.mode_args = (SAFETY_TESLA, PREAP | RADAR)
+    assert self.l.set_safety_hooks(int(CarParams.SafetyModel.elm327), ELM327_PARAM) == 0
+    self.l.init_tests()
+    self.tesla = False
+    self.consumed = 0
+
+  def switch(self):
+    """The switch to the car's mode, and any later re-init: the panda clears the 0x560 config."""
+    assert self.l.set_safety_hooks(*self.mode_args) == 0
+    self.l.init_tests()
+    self.l.set_timer(1_000_000)
+    self.l.set_controls_allowed(False)
+    self.tesla = True
+
+  def tx(self, out):
+    for addr, dat, src in out:
+      if addr == 0x560 and self.tesla:
+        assert not self.l.safety_tx_hook(self.pkt(addr, bytearray(dat), src))   # consumed, never on the car
+        self.consumed += 1
+
+  def gateway_open(self):
+    if not self.tesla:
+      return False
+    self.l.safety_can_send_log_reset()
+    self.l.safety_rx_hook(self.pkt(0x398, bytearray(bytes.fromhex(CONFIG_398)), 0))
+    return any(addr == 0x2A9 and bus == 1 for addr, bus, _, _ in self.sent())
+
+
+def _first_open(rig, panda, steps, gear_at, switch_at=SWITCH, reinit_at=None, enabled_at=lambda i: False):
+  """{init step: first step the gateway was open after it (None if never)}, for the switch and an optional re-init."""
+  opened, cur = {}, None
+  for i in range(steps):
+    if i in (switch_at, reinit_at):
+      panda.switch()
+      assert not panda.gateway_open()                   # config cleared: the gateway stays closed until 0x560 is complete
+      cur = i
+      opened[cur] = None
+    panda.tx(rig.step(gear=gear_at(i), enabled=enabled_at(i)))
+    if cur is not None and opened[cur] is None and panda.gateway_open():
+      opened[cur] = i
+  return opened
+
+
+@pytest.mark.parametrize("drive_from", [0, 160, 240, 299, SWITCH + 5])
+def test_drive_before_safety_switch_releases_radar_within_1s(make_rig, drive_from):
+  # Fresh install: no donor VIN, no donor type. 92aa9ee1f sent no 0x560 in Drive: the gateway never opened for the drive.
+  rig = make_rig()
+  panda = _Panda()
+  opened = _first_open(rig, panda, SWITCH + 200, lambda i: GEAR_D if i >= drive_from else GEAR_P)
+  assert opened[SWITCH] is not None, "radar gateway never opened"
+  assert (opened[SWITCH] - SWITCH) * 0.01 <= 1.0
+  assert panda.consumed >= 3
+
+
+def test_safety_reinit_while_in_drive_releases_radar_within_1s(make_rig):
+  rig = make_rig(donor_type=2, donor_vin=VIN)
+  panda = _Panda()
+  reinit = 600
+  opened = _first_open(rig, panda, reinit + 200, lambda i: GEAR_P if i < 400 else GEAR_D, switch_at=100, reinit_at=reinit)
+  assert opened[100] is not None and (opened[100] - 100) * 0.01 <= 1.0
+  assert opened[reinit] is not None, "radar gateway never reopened after the re-init in Drive"
+  assert (opened[reinit] - reinit) * 0.01 <= 1.0
+
+
+def test_reinit_while_engaged_waits_for_disengage(make_rig):
+  # Engaged (or steering): no 0x560 from card, and the panda would ignore it. The gateway reopens <= 1 s after disengaging.
+  rig = make_rig()
+  panda = _Panda()
+  reinit, release = 300, 500
+  opened = _first_open(rig, panda, release + 150, lambda i: GEAR_D, switch_at=50, reinit_at=reinit,
+                       enabled_at=lambda i: 200 <= i < release)
+  assert opened[reinit] is not None and release <= opened[reinit] <= release + 100
+
+
+# ---- the pedal FSM's blocked-TX input: card takes its own 0x560 frames back out ----
+
+def _count_run(rig, steps, gear=GEAR_P, real=None, counted=lambda i: True, reset_at=None, start=0):
+  """Model the panda counter: every 0x560 card sends is a blocked TX (counted unless counted(i) is False), plus real[i] other
+  blocked frames; card sees the total at 10 Hz. Returns what card fed the FSM (CS.preap_panda_tx_blocked) at each step."""
+  real = real or {}
+  live = sampled = start
+  fed, own = [], 0
+  ci, update = rig.car.CI, rig.car.CI.update
+
+  def spy(*a, **kw):
+    # what card hands the FSM this step, read just before CarInterface.update (the FSM consumes it inside, preap/carstate.py)
+    fed.append(int(ci.CS.preap_panda_tx_blocked))
+    ret = update(*a, **kw)
+    ci.CS.preap_panda_tx_blocked = 0
+    return ret
+  ci.update = spy
+  for i in range(steps):
+    if i == reset_at:
+      live = 0                                           # panda safety init clears its counter
+    if i % 10 == 0:
+      sampled = live
+    out = rig.step(gear=gear, tx_total=sampled)
+    n560 = sum(1 for m in out if m[0] == 0x560)
+    own += n560
+    live += real.get(i, 0) + (n560 if counted(i) else 0)
+  return fed, own
+
+
+@pytest.mark.parametrize("gear", [GEAR_P, GEAR_D])
+def test_own_0x560_blocks_never_reach_the_pedal_fsm(make_rig, gear):
+  rig = make_rig()
+  fed, own = _count_run(rig, 600, gear=gear)
+  assert len(fed) == 600 and own >= 55                                       # the stream ran (any gear) and the panda counted every frame
+  assert sum(fed) == 0 and min(fed) == 0
+
+
+def test_real_blocked_tx_still_reaches_the_pedal_fsm_with_0x560_in_the_count(make_rig):
+  rig = make_rig()
+  real = {105: 1, 333: 1, 334: 1, 450: 5, 517: 25}       # e.g. refused pedal 0x551 frames, mixed with our 0x560
+  fed, own = _count_run(rig, 600, gear=GEAR_D, real=real)
+  assert own >= 55
+  assert sum(fed) == sum(real.values())
+  for i, n in real.items():
+    nxt = (i // 10 + 1) * 10                            # next 10 Hz sample
+    assert sum(fed[i:nxt + 1]) >= n, (i, fed[i:nxt + 1])
+
+
+def test_uncounted_0x560_never_hides_a_later_block(make_rig):
+  rig = make_rig()
+  fed, _ = _count_run(rig, 400, real={200: 1, 300: 3}, counted=lambda i: i >= 150)   # sendcan lost before step 150
+  assert sum(fed) == 4
+
+
+def test_counter_reset_and_wrap(make_rig):
+  rig = make_rig()
+  fed, _ = _count_run(rig, 400, real={150: 1, 250: 2}, reset_at=200)
+  assert min(fed) == 0 and sum(fed) == 3
+  rig = make_rig()
+  fed, _ = _count_run(rig, 300, real={150: 4, 250: 1}, start=0xFFFFFFFF - 20)   # the u32 total wraps at the step-170 sample
+  assert min(fed) >= 0 and max(fed) <= 4
+  assert sum(fed[150:]) == 5

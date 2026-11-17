@@ -96,6 +96,9 @@ The window cannot be scoped to the pedal address 0x551: the panda keeps one bloc
 `PandaState.safetyTxBlocked`, `cereal/log.capnp:568`), with no per-address data. So a blocked frame on any address inside
 the 300 ms window is also ignored for the demote; the panda still refuses that frame, and any block after the window
 demotes. Kept as is rather than guessing the address.
+Our own host 0x560 radar config frames (always consumed by the panda as blocked TX) are taken back out of the increase
+before the FSM reads it (`card.py`, `preap/radar_donor.py` OwnBlockedTx; details in `DIVERGENCES_preap_radar_donor_vin.md`
+section 2), so the radar config stream never reads as a refusal. Every other blocked frame still does.
 
 ## Own-spoof cancel echo
 NAP stamps its 300 ms spoof-echo window when a stalk spoof is requested (`engagement.py:88,153`, tested at :189-190), not

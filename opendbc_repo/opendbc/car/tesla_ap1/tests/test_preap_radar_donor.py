@@ -12,12 +12,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from opendbc.car import structs
 from opendbc.car.can_definitions import CanData
 from opendbc.car.carlog import carlog
 from opendbc.car.tesla_ap1.preap import params
 from opendbc.car.tesla_ap1.preap.params import PreApParamKeys
-from opendbc.car.tesla_ap1.preap.radar_donor import RadarDonorStream, create_radar_vin_msg, normalize_radar_donor_vin
+from opendbc.car.tesla_ap1.preap.radar_donor import OwnBlockedTx, RadarDonorStream, create_radar_vin_msg, normalize_radar_donor_vin
 from opendbc.car.tesla_ap1.preap.radar_donor_vin import (
   FLOW_CONTROL,
   RADAR_UDS_BUS,
@@ -31,7 +30,6 @@ from opendbc.car.tesla_ap1.preap.radar_donor_vin import (
 from opendbc.car.tesla_ap1.preap.radar_vin_read import STATUS_ENGAGED, STATUS_RADAR_OFF, STATUS_SAVED, RadarVinReadRunner
 
 VIN = "TESTQQQ4OIQ000001"
-GEAR = structs.CarState.GearShifter
 PREAP_DIR = pathlib.Path(params.__file__).parent
 
 
@@ -63,21 +61,100 @@ def test_create_radar_vin_msg_layout():
     create_radar_vin_msg(3, VIN, True, 0, 0)
 
 
-def _run(stream, frames, enabled=False, gear=GEAR.park):
+def _run(stream, frames, enabled=False, steering=False):
   out = []
   for f in range(frames):
-    out += stream.update(f, enabled, gear)
+    out += stream.update(f, enabled, steering)
   return out
 
 
-def test_stream_only_with_flag_256_disengaged_not_in_drive():
+def test_stream_only_with_flag_256_disengaged_not_steering():
   assert _run(RadarDonorStream(False, VIN, 1), 100) == []
   s = RadarDonorStream(True, "", 0)
   sent = _run(s, 60)
   assert [m.dat[0] for m in sent] == [0, 1, 2, 0, 1, 2]        # 10 Hz at 100 Hz, records cycle
   assert _run(RadarDonorStream(True, "", 0), 100, enabled=True) == []
-  assert _run(RadarDonorStream(True, "", 0), 100, gear=GEAR.drive) == []
-  assert len(_run(RadarDonorStream(True, "", 0), 30, gear=GEAR.reverse)) == 3
+  assert _run(RadarDonorStream(True, "", 0), 100, steering=True) == []
+  assert _run(RadarDonorStream(True, "", 0), 100, enabled=True, steering=True) == []
+
+
+def test_stream_has_no_gear_input():
+  # 92aa9ee1f held it in Drive, so a safety init in Drive (the ~15 s switch to the car's mode, or a re-init) left the radar off.
+  import inspect
+  assert "gear" not in " ".join(inspect.signature(RadarDonorStream.update).parameters)
+  s = RadarDonorStream(True, "", 0)
+  assert len(_run(s, 30)) == 3
+  assert _run(s, 30, enabled=True) == [] and s.update(30, False, False)[0].dat[0] == 0   # resumes where it stopped
+
+
+def test_carcontroller_passes_enabled_and_lat_active_not_gear():
+  src = (PREAP_DIR / "carcontroller.py").read_text()
+  assert "self.radar_donor.update(self.frame, bool(CC.enabled), bool(CC.latActive))" in src
+
+
+# ---- own 0x560 frames taken back out of the panda blocked-TX count ----
+
+def test_own_blocked_count_only_0x560_bus0():
+  sends = [create_radar_vin_msg(0, "", True, 0, 0), CanData(0x560, bytes(8), 1), CanData(0x551, bytes(6), 2), (0x560, bytes(8), 0),
+           (0x488, bytes(4), 0)]
+  assert OwnBlockedTx.count(sends) == 2
+  assert OwnBlockedTx.count([]) == 0
+
+
+def test_own_blocked_pure_0x560_feeds_nothing():
+  o = OwnBlockedTx()
+  for step in range(1, 301):
+    o.sent(1 if step % 10 == 0 else 0, step)
+    if step % 10 == 5 and step > 10:                    # 10 Hz sample, after the frame went out
+      assert o.take(1, step) == 0
+  assert o.credits == [[300, 1]]          # the last frame, not sampled yet
+
+
+def test_own_blocked_mixed_passes_only_the_rest():
+  o = OwnBlockedTx()
+  o.sent(1, 10)
+  o.sent(1, 20)
+  assert o.take(2 + 5, 22) == 5          # 5 pedal frames refused plus our 2 -> 5
+  o.sent(1, 30)
+  assert o.take(1, 32) == 0
+  assert o.take(4, 42) == 4              # no credit left: all of it is real
+  assert o.take(0, 43) == 0 and o.take(-3, 44) == 0
+
+
+def test_own_blocked_never_negative_and_never_more_than_sent():
+  o = OwnBlockedTx()
+  o.sent(3, 1)
+  assert o.take(1, 2) == 0               # panda counted fewer than we sent (sample before the rest)
+  assert o.take(1, 3) == 0
+  assert o.take(5, 4) == 4               # one credit left, never more
+  assert o.take(1, 5) == 1
+
+
+def test_own_blocked_credit_expires():
+  o = OwnBlockedTx(ttl_steps=30)
+  o.sent(1, 100)                         # a frame the panda never counted (sendcan dropped)
+  assert o.take(1, 130) == 0             # within the TTL it can hide one frame, one for one
+  o.sent(1, 200)
+  assert o.take(1, 231) == 1             # after the TTL a real block always gets through
+  assert o.credits == []
+
+
+def test_own_blocked_uncounted_credit_ages_out_while_the_stream_runs():
+  o = OwnBlockedTx(ttl_steps=30)
+  o.sent(1, 0)                            # never counted by the panda
+  for step in range(10, 200, 10):
+    o.sent(1, step)
+    assert o.take(1, step + 5) == 0       # each sample counts the newest frame
+  assert o.credits == []                  # the uncounted credit expired, it does not ride along
+  assert o.take(1, 300) == 1
+
+
+def test_own_blocked_lagging_sample_is_still_subtracted():
+  o = OwnBlockedTx()
+  o.sent(1, 50)
+  o.sent(1, 60)
+  assert o.take(0, 61) == 0
+  assert o.take(2, 75) == 0               # counted one sample late: still ours
 
 
 def test_stream_position_is_donor_type_and_blank_vin_is_spaces():

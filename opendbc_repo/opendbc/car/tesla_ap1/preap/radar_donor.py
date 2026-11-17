@@ -10,13 +10,15 @@ nap_conf.py:46-52 (normalize_radar_donor_vin) @ opendbc 5dbe36d37 (openpilot nap
 Record 0 also carries the 0x2A9 radar position and EPAS type, which the panda applies (NAP f00c8cb9). Position is the Radar
 Donor Type setting (TeslaRadarDonorType: 0 pre-facelift Model S, 1 facelift Model S, 2 Model X, default 0, as NAP
 NAPRadarPosition), not the Radar Behind Nosecone toggle. EPAS 0.
-Divergence (docs/tesla/DIVERGENCES.md): the stream is sent only while disengaged and not in Drive, because the panda counts every
-consumed 0x560 as a blocked TX and the Pre-AP pull FSM treats a blocked TX as a pedal refusal. NAP streams it at 10 Hz all the time.
+Stream: in any gear, as NAP, which sends it at 10 Hz whenever the radar is on (opendbc/car/tesla/preap/sp/carcontroller.py:69-77
+@ 5dbe36d37), so the panda has the full config within 0.3 s of any safety init, even one while the car is already in Drive.
+Divergence (docs/tesla/DIVERGENCES_preap_radar_donor_vin.md): not sent while openpilot is engaged or steering (the panda ignores
+0x560 then anyway). The panda counts every consumed 0x560 as a blocked TX; card.py takes this stream's own frames back out of that
+count (OwnBlockedTx below), so the Pre-AP pull FSM sees only other blocked TX as a pedal refusal.
 Never log the VIN. Raw CAN still carries it: these frames are in sendcan and come back as rejected echoes in can.
 """
 from __future__ import annotations
 
-from opendbc.car import structs
 from opendbc.car.can_definitions import CanData
 
 RADAR_VIN_ADDR = 0x560
@@ -51,10 +53,12 @@ def create_radar_vin_msg(fragment: int, vin: str, use_radar: bool, position: int
 
 
 class RadarDonorStream:
-  """Sends the 3 records, one every 10 frames (10 Hz at 100 Hz), only with flag 256, only while disengaged and not in Drive.
+  """Sends the 3 records, one every 10 frames (10 Hz at 100 Hz), only with flag 256, in any gear, only while disengaged and not steering.
 
-  The car starts in Park, so the panda has the full config ~0.3 s after start, before the car can move. The panda keeps it until
-  its next safety init; it ignores 0x560 while engaged anyway.
+  The panda clears the config on every safety init (the switch to the car's safety mode comes ~15 s after start, when the driver may
+  already be in Drive) and keeps its radar gateway closed until all three records arrived, so the stream does not wait for Park:
+  the gateway opens <= 0.3 s after any safety init while disengaged. The panda ignores 0x560 while controls are allowed or its
+  steering latch is armed, and so does this stream while engaged or steering; the config set before engaging stays in place.
   """
 
   def __init__(self, radar_emulation: bool, donor_vin: str, position: int):
@@ -67,9 +71,47 @@ class RadarDonorStream:
   def donor_active(self) -> bool:
     return self.vin != ""
 
-  def update(self, frame: int, enabled: bool, gear_shifter) -> list[CanData]:
-    if not self.radar_emulation or enabled or gear_shifter == structs.CarState.GearShifter.drive or (frame % 10) != 0:
+  def update(self, frame: int, enabled: bool, steering: bool = False) -> list[CanData]:
+    if not self.radar_emulation or enabled or steering or (frame % 10) != 0:
       return []
     msg = create_radar_vin_msg(self.idx, self.vin, True, self.position, 0)
     self.idx = (self.idx + 1) % 3
     return [msg]
+
+
+class OwnBlockedTx:
+  """Takes this stream's own 0x560 frames back out of the panda's blocked-TX count (pandaStates.safetyTxBlocked).
+
+  The panda counts every 0x560 as a blocked TX (can_common.h can_send): ELM327 refuses it, the car's mode consumes it. card sees
+  the total at 10 Hz. sent() records each step's 0x560 frames as credits, at send time, so a credit always exists before the
+  sample that counts its frame. take() spends credits against a counter increase and returns the rest, which is blocked TX of
+  any other address. Never negative, and never more subtracted than 0x560 frames were really sent.
+  A credit expires after ttl_steps card steps (0.3 s at 100 Hz, 3 samples). Credits are spent newest first, so a credit left by
+  a frame the panda never counted (sendcan lost, panda gone) ages out instead of standing in for newer frames. Only such a
+  credit can hide another blocked frame, one for one, for at most those 0.3 s (at most 3 at 10 Hz); a refusal blocks every
+  command frame (50 Hz and up).
+  The rejected echoes (src + 0xC0 in can) are not used: they come back on another path than the 10 Hz counter sample, so an echo
+  can arrive after the sample that counted it, and they are dropped on an rx overflow.
+  """
+
+  def __init__(self, ttl_steps: int = 30):
+    self.ttl_steps = int(ttl_steps)
+    self.credits: list[list[int]] = []   # [step sent, frames left]
+
+  @staticmethod
+  def count(can_sends) -> int:
+    return sum(1 for m in can_sends if m[0] == RADAR_VIN_ADDR and m[2] == RADAR_VIN_BUS)
+
+  def sent(self, n: int, step: int) -> None:
+    if n > 0:
+      self.credits.append([int(step), int(n)])
+
+  def take(self, delta: int, step: int) -> int:
+    self.credits = [c for c in self.credits if step - c[0] <= self.ttl_steps]
+    left = max(int(delta), 0)
+    for c in reversed(self.credits):
+      used = min(left, c[1])
+      c[1] -= used
+      left -= used
+    self.credits = [c for c in self.credits if c[1] > 0]
+    return left

@@ -172,7 +172,7 @@ class PreApCarController(CarControllerBase):
       can_sends.extend(self.long_ctrl.update(CC, CS, self.frame, long_ok=long_ok, now_nanos=int(now_nanos or 0)))
     # The spoof-echo window (preap/cruise.py) is stamped by StockCCSpoofer only when our CANCEL frame is put on the bus.
     can_sends.extend(self.stock_cc.update(CS, self.frame, self.tesla_can, CANBUS.chassis))
-    can_sends.extend(self.radar_donor.update(self.frame, bool(CC.enabled), getattr(CS.out, "gearShifter", None)))
+    can_sends.extend(self.radar_donor.update(self.frame, bool(CC.enabled), bool(CC.latActive)))
 
     new_actuators = actuators.as_builder()
     new_actuators.steeringAngleDeg = float(self.apply_angle_last)
