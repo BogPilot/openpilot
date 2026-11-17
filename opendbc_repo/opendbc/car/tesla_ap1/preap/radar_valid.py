@@ -3,7 +3,7 @@
 Pre-AP only (radar_interface.py). ADVISORY ONLY, as NAP and Tinkla: it decides whether radar points reach radard, never whether
 the car may engage. Until VALID (and on any FAULT) radar_interface drops every point, so speed control runs on camera leads and
 the car shows one warning (carState.bogpilot.preapRadarNotReady -> preapRadarNotReady). No state here is a radarFault, a no-entry,
-a soft disable or a disengage; only RADC_HWFail is a radarFault, set by radar_interface itself. Criteria: the CAN analysis of 14 of 67 AP1 power-ups, the tester packs and a 0.9.7 Pre-AP log
+a soft disable or a disengage; only RADC_HWFail is a radarFault, set by radar_interface itself. Criteria: the CAN analysis of 14 of 67 AP1 power-ups, the recorded Drive captures and a 0.9.7 Pre-AP log
 (project notes, radar accepted criteria v1). DBC: dbc/generator/tesla/tesla_radar_bosch.py (0x301 TeslaRadarSguInfo :46-55,
 0x501 TeslaRadarAlertMatrix :64-130) and _radar_common.py:6-15 (point slots 0x310-0x36D). Time 0 is the radar's first 0x301.
 

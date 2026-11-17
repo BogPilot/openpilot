@@ -16,7 +16,7 @@ gate".
   change) reports echoed, pending, valid and the fault name separately.
 
 ## Criteria
-From a CAN analysis of both tester packs, a 0.9.7 Pre-AP log and 67 AP1 power-ups (666 unique AP1 files). DBC:
+From a CAN analysis of both recorded Drive captures, a 0.9.7 Pre-AP log and 67 AP1 power-ups (666 unique AP1 files). DBC:
 `opendbc/dbc/generator/tesla/tesla_radar_bosch.py` (0x301 TeslaRadarSguInfo :46-55, 0x501 TeslaRadarAlertMatrix :64-130) and
 `_radar_common.py:6-15` (point slots 0x310-0x36D). Time 0 is the radar's first 0x301.
 
@@ -27,8 +27,8 @@ FAULT (non-latching, any one; a fault only keeps the points out, only F4 is a ra
   2 consecutive 0x501 frames. It clears after 2 consecutive clear frames.
 - F3 frozen table: 1 or more points whose rounded (dRel, yRel, vRel) set is unchanged for 1.5 s, counted only while the ITC
   is in the F1 set. NAP `BoschTableFreezeWatch` (`opendbc car/tesla/preap/radar_table_freeze.py` @ `7eb09d2a7`) with three
-  changes: 1 point instead of 4 (tester 2's frozen table had 3 points, so 4 never fires), 1.5 s (2.4 s or more misses tester
-  2's 2 s target; 1.9 s meets it by only 20-30 ms), and the ITC gate instead of NAP's SGUFail gate (ungated, it false-faults
+  changes: 1 point instead of 4 (one recorded Drive capture's frozen table had 3 points, so 4 never fires), 1.5 s (2.4 s or
+  more misses that capture's 2 s target; 1.9 s meets it by only 20-30 ms), and the ITC gate instead of NAP's SGUFail gate (ungated, it false-faults
   6-33 times on parked AP1 static scenes; ITC-gated, 0 of 666 files).
 - F4: `RADC_HWFail` (:53), immediately (same signal as the existing radarFault).
 - NO_ECHO: with flag 256, no returned gateway echo for 2 s (the radar then gets no vehicle data at all).
@@ -56,11 +56,11 @@ by card). Two parked AP1 power-ups reached VALID about 2 s after moving off.
   and Tinkla, radar health never blocks engage or speed control. NAP (`f00c8cb9`, `e512a07c`) raises radarFault on a frozen
   table with SGUFail; ours only drops those points.
 - Not proven on a car: the ITC meanings, why ITC 107 clears at standstill, how long a parked ITC 90 lasts, an aligning radar
-  with SGUFail and live tracks (not seen in any AP1 log), and the tester 2 time base (its packs start mid-drive).
+  with SGUFail and live tracks (not seen in any AP1 log), and one recorded Drive capture's time base (it starts mid-drive).
 
 ## Evidence (offline replays and tests)
 - Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_radar_valid.py` (the analysis' numbers: 1 point fires and 4
-  don't on tester 2's phantoms; 1.5 s fires within 2 s and 2.4 s doesn't; ungated F3 false-faults on a parked static scene and
+  don't on one recorded Drive capture's phantoms; 1.5 s fires within 2 s and 2.4 s doesn't; ungated F3 false-faults on a parked static scene and
   gated doesn't; ITC 107 reaches VALID; aligning SGUFail with moving tracks is PENDING, then VALID; no PENDING setting left), `test_preap_radar_advisory.py`
   (every cause that is not VALID keeps engage and only filters; HWFail still faults) and
   `openpilot/selfdrive/selfdrived/tests/test_preap_radar_not_ready.py` (warning only).

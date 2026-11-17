@@ -1,4 +1,4 @@
-"""Pre-AP radar-valid gate (preap/radar_valid.py). Numbers come from the CAN analysis of the tester packs, a 0.9.7 Pre-AP log
+"""Pre-AP radar-valid gate (preap/radar_valid.py). Numbers come from the CAN analysis of the recorded Drive captures, a 0.9.7 Pre-AP log
 and 67 AP1 power-ups (radar accepted criteria v1): F1 ITC starved / position-rejected held 1.0 s, F2 0x501 alerts in 2 frames,
 F3 a frozen table (1 point, 1.5 s, only while the ITC is in the F1 set), F4 HWFail; VALID = ITC {0, 107}, flags and 0x501 clear and
 a moving track, held 2.0 s, latched until a fault; PENDING otherwise. Advisory only: it filters radar points, it never blocks
@@ -19,7 +19,7 @@ from opendbc.car.tesla_ap1.values import CAR, DBC
 CLEAN = {b: 0 for b in rv.ALERT_BITS}
 DT = 0.0625                                                    # one radar cycle
 F1_S, VALID_S, FROZEN_S, DEADLINE_S = 1.0, 2.0, 1.5, 20.0      # the analysis' numbers, not the module's constants
-PHANTOMS = ((2.56, 0.0, 0.0), (3.06, 0.5, 0.0), (4.62, -0.5, 0.0))   # tester 2's frozen table (vRel 0.00, no distance change)
+PHANTOMS = ((2.56, 0.0, 0.0), (3.06, 0.5, 0.0), (4.62, -0.5, 0.0))   # one recorded Drive capture's frozen table (vRel 0.00, no distance change)
 
 
 def bits(**on):
