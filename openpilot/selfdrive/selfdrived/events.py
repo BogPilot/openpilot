@@ -999,6 +999,15 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
     ET.PERMANENT: NormalPermanentAlert("Steering only", "Double pull for speed control"),
   },
 
+  # Alert only (selfdrived/preap_regen.py): the plan wants more decel than the Pre-AP regen floor; nothing is disengaged.
+  EventName.preapRegenLimit: {
+    ET.WARNING: Alert(
+      "Brake if needed",
+      "Regen limit: the car can't slow this fast",
+      AlertStatus.userPrompt, AlertSize.mid,
+      Priority.MID, VisualAlert.none, AudibleAlert.prompt, .2),
+  },
+
   EventName.preapSpeedBlocked: {
     ET.WARNING: Alert(
       "Speed control off",

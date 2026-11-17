@@ -21,6 +21,7 @@ from openpilot.selfdrive.locationd.helpers import PoseCalibrator, Pose
 from openpilot.selfdrive.selfdrived.events import Events, ET
 from openpilot.selfdrive.selfdrived.helpers import ExcessiveActuationCheck
 from openpilot.selfdrive.selfdrived.preap_arm import PreapArmWatch
+from openpilot.selfdrive.selfdrived.preap_regen import PreapRegenWatch
 from openpilot.selfdrive.selfdrived.preap_brake import PreapHeldBrake, brake_disengages, panda_controls_dropped_on_purpose
 from openpilot.selfdrive.ui.bogpilot.phase2_alerts import create_optional_alert_runtime, dispatch_optional_alerts
 from openpilot.selfdrive.ui.bogpilot.phase2_driver_alerts import create_driver_alert_runtime, dispatch_driver_alerts
@@ -97,6 +98,7 @@ class SelfdriveD:
 
     self.car_events = CarEvents(self.CP)
     self.preap_arm = PreapArmWatch(self.CP)
+    self.preap_regen = PreapRegenWatch(self.CP)
     self.preap_held_brake = PreapHeldBrake(self.CP)
 
     self.pose_calibrator = PoseCalibrator()
@@ -394,6 +396,10 @@ class SelfdriveD:
     if self.preap_arm.update(self.enabled, self.sm['pandaStates'], IGNORED_SAFETY_MODES,
                              dropped_on_purpose=panda_controls_dropped_on_purpose(CS)):
       self.events.add(EventName.preapNotArmed)
+
+    # Pre-AP regen limit: alert only (preap_regen.py)
+    if self.preap_regen.update(self.sm['carControl'].longActive, self.sm['longitudinalPlan'].aTarget):
+      self.events.add(EventName.preapRegenLimit)
 
     for i, pandaState in enumerate(self.sm['pandaStates']):
       # All pandas must match the list of safetyConfigs, and if outside this list, must be silent or noOutput

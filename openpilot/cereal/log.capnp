@@ -140,6 +140,7 @@ struct OnroadEvent @0xc4fa6047f024e718 {
     preapSteerOnly @110;      # Pre-AP: engaged, steering only (one pull, a brake or a re-pull in FULL): "Pull twice for speed control"
     preapSpeedBlocked @111;   # Pre-AP pedal: speed control refused or dropped (blocked pedal frame, standstill option (a))
     preapCruiseNotArmed @112; # Pre-AP no pedal: the second pull did not arm stock cruise within 600 ms
+    preapRegenLimit @113;     # Pre-AP pedal: the plan asks for more decel than regen can give (alert only, selfdrived/preap_regen.py)
 
     lowBatteryDEPRECATED @40;
     soundsUnavailableDEPRECATED @47;
