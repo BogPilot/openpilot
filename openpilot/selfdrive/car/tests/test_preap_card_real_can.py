@@ -76,13 +76,13 @@ def _make_rig(tmp_path, monkeypatch, radar=True, donor_type=None, donor_vin=None
     # 0x651 on bus 0 and a radar-bus frame must never reach the reader
     return [di, (0x2A9, bytes(8), 1), (UDS_RX, bytes(8), 0)]
 
-  def step(frames=(), enabled=False, gear=GEAR_P, lat=False, tx_total=None, sample=None, ps_fields=None, ps_valid=True):
+  def step(frames=(), enabled=False, gear=GEAR_P, lat=False, tx_total=None, sample=None, ps_fields=None, ps_valid=True, ps_alive=True):
     """One card step on the background traffic plus these frames; returns every (address, dat, src) card put in 'sendcan'.
     tx_total: the panda's blocked-TX total (pandaStates.safetyTxBlocked) card sees in this step; sample: that pandaStates
     message's logMonoTime (a new value = a new sample); ps_fields: the whole pandaStates entry (the libsafety panda).
     Without tx_total / ps_fields the step carries what pandad publishes on a fresh start: a new valid pandaStates sample each
     step, ELM327 on the first one, then the car's own safety mode (card's expected model and param), controls not allowed.
-    ps_valid=False: no valid pandaStates."""
+    ps_valid=False: no valid pandaStates. ps_alive: SubMaster's alive flag for pandaStates (pandad publishing at its rate)."""
     ps = [log.PandaState.new_message(controlsAllowed=False, safetyTxBlocked=int(tx_total or 0) & 0xFFFFFFFF)]
     if ps_fields is not None:
       ps = [log.PandaState.new_message(**ps_fields)]
@@ -100,6 +100,7 @@ def _make_rig(tmp_path, monkeypatch, radar=True, donor_type=None, donor_vin=None
       c.sm.data["pandaStates"] = ps
     if sample is not None:
       c.sm.logMonoTime["pandaStates"] = int(sample)
+    c.sm.alive["pandaStates"] = bool(ps_alive)
     inbox.append(can_list_to_can_capnp(background(gear) + list(frames), msgtype="can"))
     CS, _ = c.state_update()
     c.sm.alive["carControl"] = True

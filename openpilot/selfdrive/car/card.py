@@ -183,6 +183,8 @@ class Car:
     self.preap_safety_expects: list[tuple[int, int]] = []
     self.preap_car_mode_prev = False
     self.preap_560_dropped = 0
+    self.preap_ps_seen_sample = None   # pandaStates logMonoTime last seen, and card's clock when it changed (freshness)
+    self.preap_ps_seen_at: float | None = None
     self.preap_vin_read = None
     self.preap_vin_read_rx = []
     if self.CP.carFingerprint == "TESLA_PREAP_MODELS":
@@ -373,13 +375,29 @@ class Car:
       link.controls_allowed = (not valid) or any(bool(p.controlsAllowed) for p in pss)
     self.CI.CS.preap_link = link
 
+  PREAP_PANDA_STATES_MAX_AGE_S = 0.5   # pandaStates is 10 Hz (pandad): five missed samples
+
+  def preap_panda_states_fresh(self) -> bool:
+    """pandaStates is alive (SubMaster) and a new sample arrived within PREAP_PANDA_STATES_MAX_AGE_S on card's clock. Stale but
+    valid reads as not fresh, so the Pre-AP gates below fail closed (no 0x560, no refusal counting)."""
+    sample = self.sm.logMonoTime["pandaStates"]
+    now = time.monotonic()
+    if self.sm.seen["pandaStates"] and sample != self.preap_ps_seen_sample:
+      self.preap_ps_seen_sample = sample
+      self.preap_ps_seen_at = now
+    return (bool(self.sm.alive["pandaStates"]) and self.preap_ps_seen_at is not None
+            and now - self.preap_ps_seen_at <= self.PREAP_PANDA_STATES_MAX_AGE_S)
+
   def preap_panda_mode_ok(self, panda: int, pss=None, valid=None) -> bool:
-    """pandaStates (valid, latest entry for this panda) shows the Pre-AP car mode with the param card set (panda_link.preap_mode_ok)."""
+    """pandaStates (valid, alive, fresh, latest entry for this panda) shows the Pre-AP car mode with the param card set
+    (panda_link.preap_mode_ok)."""
     from opendbc.car.tesla_ap1.preap.panda_link import preap_mode_ok
     if valid is None:
       valid = bool(self.sm.valid["pandaStates"])
     if pss is None:
       pss = list(self.sm["pandaStates"]) if self.sm.seen["pandaStates"] else []
+    if not self.preap_panda_states_fresh():
+      return False
     if not valid or panda >= len(pss) or panda >= len(self.preap_safety_expects):
       return False
     ps = pss[panda]
