@@ -8,6 +8,7 @@ User-facing product name: BogPilot.
 """
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 PARAMS_DIR = Path("/data/params_bogpilot")
@@ -92,7 +93,107 @@ def _path(key: str) -> Path:
   return _params_dir / key
 
 
+class StepCache:
+  """card's 100 Hz step never touches /data while this is on (card.py starts it for Pre-AP).
+
+  Reads come from an in-memory snapshot that a background thread refreshes every REFRESH_S; writes update the snapshot at
+  once (the next read in the step sees them) and the thread writes them out, latest value wins, errors counted, never
+  raised into the step. A key outside the snapshot is read directly once and then kept (counted in `misses`). Values are
+  never logged (one may be a donor VIN).
+  """
+  REFRESH_S = 0.1
+
+  def __init__(self, keys):
+    self._lock = threading.Lock()
+    self._vals = {k: _read_text_file(k) for k in keys}     # card init, before the loop
+    self._pending: dict[str, str] = {}
+    self.misses = 0
+    self.write_errors = 0
+    self.thread: threading.Thread | None = None
+    self._stop = threading.Event()
+
+  def read(self, key: str) -> str:
+    with self._lock:
+      if key in self._vals:
+        return self._vals[key]
+      self.misses += 1
+    text = _read_text_file(key)
+    with self._lock:
+      self._vals.setdefault(key, text)
+    return text
+
+  def write(self, key: str, text: str) -> None:
+    with self._lock:
+      self._vals[key] = text
+      self._pending[key] = text
+
+  def refresh_once(self) -> None:
+    with self._lock:
+      pending, self._pending = self._pending, {}
+      keys = list(self._vals)
+    for k, text in pending.items():
+      try:
+        _write_text_file(k, text)
+      except OSError:
+        self.write_errors += 1
+    fresh = {k: _read_text_file(k) for k in keys}
+    with self._lock:
+      for k, text in fresh.items():
+        if k not in self._pending:                  # a newer write from the step wins over the file
+          self._vals[k] = text
+
+  def _loop(self) -> None:
+    while not self._stop.is_set():
+      self.refresh_once()
+      self._stop.wait(self.REFRESH_S)
+    self.refresh_once()                             # flush the last writes
+
+  def start(self) -> "StepCache":
+    self.thread = threading.Thread(target=self._loop, name="preap_params", daemon=True)
+    self.thread.start()
+    return self
+
+  def stop(self) -> None:
+    self._stop.set()
+    if self.thread is not None:
+      self.thread.join(timeout=2.0)
+
+
+_step_cache: StepCache | None = None
+
+
+def start_step_cache() -> StepCache:
+  """Card: from now on this process reads and writes these params through the snapshot (see StepCache)."""
+  global _step_cache
+  if _step_cache is None:
+    keys = [v for k, v in vars(PreApParamKeys).items() if not k.startswith("_") and isinstance(v, str)]
+    _step_cache = StepCache(keys).start()
+  return _step_cache
+
+
+def stop_step_cache() -> None:
+  global _step_cache
+  if _step_cache is not None:
+    _step_cache.stop()
+    _step_cache = None
+
+
 def _read_text(key: str) -> str:
+  c = _step_cache
+  if c is not None and threading.current_thread() is not c.thread:
+    return c.read(key)
+  return _read_text_file(key)
+
+
+def _write_text(key: str, text: str) -> None:
+  c = _step_cache
+  if c is not None and threading.current_thread() is not c.thread:
+    c.write(key, text)
+    return
+  _write_text_file(key, text)
+
+
+def _read_text_file(key: str) -> str:
   try:
     p = _path(key)
     if p.is_file():
@@ -102,7 +203,7 @@ def _read_text(key: str) -> str:
   return ""
 
 
-def _write_text(key: str, text: str) -> None:
+def _write_text_file(key: str, text: str) -> None:
   _params_dir.mkdir(parents=True, exist_ok=True)
   _path(key).write_text(text, encoding="utf-8")
 

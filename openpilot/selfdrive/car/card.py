@@ -11,6 +11,7 @@ from opendbc.car.structs import car
 from openpilot.common.params import Params
 from openpilot.common.traffic_mode_hold import TrafficModeHold
 from openpilot.common.realtime import config_realtime_process, Priority, Ratekeeper
+from openpilot.selfdrive.car.step_overrun import StepOverrunCounter
 from openpilot.common.swaglog import cloudlog, ForwardingHandler
 
 from opendbc.car import DT_CTRL, structs
@@ -189,6 +190,9 @@ class Car:
       self.preap_vin_read = RadarVinReadRunner(bool(param & FLAG_TESLA_PREAP_RADAR_EMULATION))
       self.preap_refusals = TxRefusalWatch()
       self.preap_warn = RateLimitedLog(cloudlog.warning, 10.0)
+      # no /data file IO in the 100 Hz step: Pre-AP params through a 10 Hz background snapshot (preap/params.py StepCache)
+      from opendbc.car.tesla_ap1.preap.params import start_step_cache
+      start_step_cache()
       if len(self.CP.safetyConfigs):
         self.preap_safety_expect = (int(self.CP.safetyConfigs[-1].safetyModel), int(self.CP.safetyConfigs[-1].safetyParam))
     if self.CP.brand == "tesla_ap1" and self.CP.carFingerprint == "TESLA_PREAP_MODELS" and not self.CP.pcmCruise:
@@ -215,6 +219,8 @@ class Car:
 
     # card is driven by can recv, expected at 100Hz
     self.rk = Ratekeeper(100, print_delay_threshold=None)
+    self.onroad_distance_button = False
+    self.step_timer = StepOverrunCounter(cloudlog.warning)
 
   def state_update(self) -> tuple[car.CarState, structs.RadarDataT | None]:
     """carState update loop, driven by can"""
@@ -259,7 +265,7 @@ class Car:
         cloudlog.exception("card: AP1 personality sync failed")
     self.traffic_mode_hold.apply_stalk(stalk_traffic)
     CS.bogpilot.trafficModeEnabled = self.traffic_mode_hold.update_button(
-      self.params.get_bool("OnroadDistanceButtonPressed"), time.monotonic())
+      self.onroad_distance_button, time.monotonic())
 
     # Update radar tracks from CAN
     RD: structs.RadarDataT | None = self.RI.update(can_list)
@@ -430,6 +436,7 @@ class Car:
 
   def params_thread(self, evt):
     while not evt.is_set():
+      self.onroad_distance_button = self.params.get_bool("OnroadDistanceButtonPressed")   # read here, not in the 100 Hz step
       self.is_metric = self.params.get_bool("IsMetric")
       self.experimental_mode = self.params.get_bool("ExperimentalMode") and self.CP.openpilotLongitudinalControl
       time.sleep(0.1)
@@ -440,7 +447,9 @@ class Car:
     try:
       t.start()
       while True:
+        t0 = time.monotonic()
         self.step()
+        self.step_timer.record(time.monotonic() - t0, t0)
         self.rk.monitor_time()
     finally:
       e.set()
