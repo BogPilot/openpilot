@@ -38,8 +38,12 @@ def test_no_engage_path_reads_the_radar_state():
 
 def test_selfdrived_radar_events_are_stock():
   sd = (ROOT / "openpilot/selfdrive/selfdrived/selfdrived.py").read_text()
-  block = sd[sd.index("if self.CP.openpilotLongitudinalControl:\n      if self.sm['radarState'].radarErrors.canError:"):]
-  block = block[:block.index("if CS.canTimeout:")]
+  # A comment sits between the longitudinal-control guard and the canError check, so the two
+  # lines are not adjacent. Bound the block from the guard that precedes the check.
+  start = sd.index("if self.sm['radarState'].radarErrors.canError:")
+  guard = sd.rfind("if self.CP.openpilotLongitudinalControl:", 0, start)
+  assert guard != -1
+  block = sd[guard:sd.index("if CS.canTimeout:", start)]
   # Pre-AP maps the radar parser fault to radarDataInvalid with radar-specific text; AP1 and unknown stay stock canError.
   assert "is_preap" in block
   assert "EventName.radarDataInvalid" in block
