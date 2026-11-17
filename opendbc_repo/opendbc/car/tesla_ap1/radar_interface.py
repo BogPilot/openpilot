@@ -52,10 +52,12 @@ class RadarInterface(RadarInterfaceBase):
     self.updated_messages = set()
     self.preap = is_preap(CP.carFingerprint)
     self.frames_without_radar = 0
-    # Pre-AP radar-valid gate (preap/radar_valid.py): no points published and no speed control (card feeds the pull FSM) while
-    # the gateway is not echoing, the radar is starved or rejects its config, or its table is frozen with SGUFail.
+    # Pre-AP radar-valid gate (preap/radar_valid.py): no points published and no speed control (card feeds the pull FSM) until
+    # the radar is VALID (accepted its config and tracks moving objects); a fault (starved / rejected ITC, 0x501 alerts, a frozen
+    # table, HWFail, no gateway echo) drops it.
     self.preap_gate = None
     self.preap_radar_valid = True
+    self.preap_v_ego = 0.0             # card.py sets it each step (for the gate's late label only)
     self._preap_steps = 0
     if self.preap and self.rcp is not None:
       configs = list(getattr(CP, "safetyConfigs", None) or [])
@@ -64,13 +66,14 @@ class RadarInterface(RadarInterfaceBase):
       self.preap_radar_valid = False
 
   def _preap_status_line(self, now: float, n_points: int) -> None:
-    """Log-only radar status line (no UI, no control): every STATUS_S and on every change of echoed / accepted / valid."""
+    """Log-only radar status line (no UI, no control): every STATUS_S and on every change of echoed / pending / valid / fault."""
     st = self.preap_gate.status()
-    key = (st["echoed"], st["accepted"], st["valid"], st["reasons"])
+    key = (st["echoed"], st["pending"], st["valid"], st["fault"], st["late"])
     last_t, last_key = getattr(self, "_preap_status", (None, None))
     if last_t is None or key != last_key or now - last_t >= PREAP_STATUS_S:
-      carlog.info(f"preap radar: echoed={int(st['echoed'])} accepted={int(st['accepted'])} valid={int(st['valid'])} "
-                  f"reasons=0x{st['reasons']:02x} itc={st['itc']} reject={int(st['reject'])} points={n_points} faults={st['faults']}")
+      carlog.info(f"preap radar: echoed={int(st['echoed'])} pending={int(st['pending'])} valid={int(st['valid'])} "
+                  f"fault={st['fault']} late={int(st['late'])} itc={st['itc']} long_ok={int(st['long_ok'])} points={n_points} "
+                  f"faults={st['faults']}")
       self._preap_status = (now, key)
 
   def _preap_gate_step(self, can_strings, vls) -> float:
@@ -85,6 +88,7 @@ class RadarInterface(RadarInterfaceBase):
         if any(src == GTW_ECHO_SRC and addr in GTW_ECHO_ADDRS for addr, _, src in msgs):
           self.preap_gate.on_echo(now if now is not None else self._preap_steps * 0.01)
     now = now if now is not None else self._preap_steps * 0.01
+    self.preap_gate.on_ego(now, self.preap_v_ego)
     if 1281 in vls:
       self.preap_gate.on_alert_matrix(now, self.rcp.vl['TeslaRadarAlertMatrix'])
     return now
@@ -100,7 +104,7 @@ class RadarInterface(RadarInterfaceBase):
       gate_now = self._preap_gate_step(can_strings, vls)
     if self.trigger_msg not in self.updated_messages:
       if self.preap_gate is not None:
-        self.preap_radar_valid = self.preap_gate.update(gate_now, bool(self.rcp.vl['TeslaRadarSguInfo']['RADC_SGUFail']))
+        self.preap_radar_valid = self.preap_gate.update(gate_now)
       if self.preap:
         self.frames_without_radar += 1
         if self.frames_without_radar >= PREAP_MISSING_RADAR_FRAMES and self.frames_without_radar % PREAP_MISSING_RADAR_PUBLISH_DIV == 0:
@@ -152,9 +156,10 @@ class RadarInterface(RadarInterfaceBase):
 
     ret.points = list(self.pts.values())
     if self.preap_gate is not None:
-      sgu_fail = bool(radar_status['RADC_SGUFail'])
-      self.preap_gate.on_points(gate_now, ret.points, sgu_fail, int(radar_status['RADC_SGU_ITC']))
-      self.preap_radar_valid = self.preap_gate.update(gate_now, sgu_fail)
+      self.preap_gate.on_sgu(gate_now, int(radar_status['RADC_SGU_ITC']), bool(radar_status['RADC_SGUFail']),
+                             bool(radar_status['RADC_HWFail']), bool(radar_status['RADC_SensorDirty']))
+      self.preap_gate.on_points(gate_now, {i: (p.dRel, p.yRel, p.vRel) for i, p in self.pts.items()})
+      self.preap_radar_valid = self.preap_gate.update(gate_now)
       self._preap_status_line(gate_now, len(ret.points))
       if not self.preap_radar_valid:
         ret.points = []          # tracks keep their ids in self.pts; nothing reaches radard until the gate is valid

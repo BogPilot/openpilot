@@ -268,6 +268,8 @@ class Car:
       self.onroad_distance_button, time.monotonic())
 
     # Update radar tracks from CAN
+    if self.preap_refusals is not None and hasattr(self.RI, "preap_v_ego"):
+      self.RI.preap_v_ego = float(CS.vEgo)      # radar-valid gate's late label only (opendbc tesla_ap1/preap/radar_valid.py)
     RD: structs.RadarDataT | None = self.RI.update(can_list)
     if self.preap_refusals is not None and hasattr(self.CI.CS, "preap_radar_ok"):
       # Pre-AP radar-valid gate (opendbc tesla_ap1/preap/radar_valid.py): the pull FSM reads it on the next step

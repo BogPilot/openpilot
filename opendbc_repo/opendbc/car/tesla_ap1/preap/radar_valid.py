@@ -1,146 +1,185 @@
-"""Pre-AP radar-valid gate: did the retrofit Bosch radar ACCEPT its config and see the road, not just receive frames?
+"""Pre-AP radar-valid gate: has the retrofit Bosch radar ACCEPTED its config and is it tracking, or only receiving frames?
 
-Pre-AP only (radar_interface.py). While the gate is not valid, radar_interface publishes no points and the pull FSM allows no
-speed control: FULL is refused on the second pull and dropped if it is on (carstate.py; card.py feeds it). Lateral is not
-touched. Two separate questions, both reported in the log-only status line:
-- echoed: with flag 256, the panda's radar gateway is sending (returned TX echoes, src 129, of the frames in
-  preap/panda_link.py GTW_ECHO_ADDRS). An echo only proves we sent the frames.
-- accepted: the radar itself says it is configured and working: TeslaRadarSguInfo RADC_SGU_ITC == 0 (DBC generator
-  dbc/generator/tesla/tesla_radar_bosch.py:50), the last TeslaRadarAlertMatrix (0x501) frame has none of REJECT_BITS
-  (radPositionMismatch :129, vinValidity :105, xwdValidity :110), and a moving track (|vRel| >= MOVING_VREL) has been
-  seen, all together for CLEAR_S. SGUFail (:54) is NOT part of acceptance: a healthy radar raises it while it aligns
-  (NAP keeps engage allowed on it, car/tesla/radar_interface.py:203-210 @ naponsp-alpha-prebuilt 7eb09d2a7).
-Valid = accepted and none of these, each of which also drops acceptance (it must be earned again):
-- D1 no gateway: with flag 256, no echo for HOLD_S (the radar then gets no vehicle data at all).
-- D2 starved: 0x501 bdy / esp / gtw / sccm MIA bits (:79-82) set in 2 consecutive frames and held for HOLD_S.
-- D3 config rejected: any REJECT_BITS set in 2 consecutive frames and held for HOLD_S.
-- D6 frozen: 1 or more valid points whose (dRel, yRel, vRel) table has not changed for FROZEN_S while SGUFail is set (NAP
-  BoschTableFreezeWatch, opendbc car/tesla/preap/radar_table_freeze.py:12-36 @ 7eb09d2a7, with NAP's MIN_POINTS 4 lowered
-  to 1 as the tester-2 table had 3 points, and its 40 cycles expressed in seconds).
-NOT_ACCEPTED (label only, for the status line): echoed, or no gateway needed, for ACCEPT_S without acceptance.
-HWFail keeps its radarFault. Times come from the CAN packets' log time.
+Pre-AP only (radar_interface.py). Criteria: the CAN analysis of 14 of 67 AP1 power-ups, the tester packs and a 0.9.7 Pre-AP log
+(project notes, radar accepted criteria v1). DBC: dbc/generator/tesla/tesla_radar_bosch.py (0x301 TeslaRadarSguInfo :46-55,
+0x501 TeslaRadarAlertMatrix :64-130) and _radar_common.py:6-15 (point slots 0x310-0x36D). Time 0 is the radar's first 0x301.
+
+States (status line reports echoed, pending, valid and the fault name separately):
+- FAULT, non-latching, any one of:
+  F1 SGU_ITC (:50) in ITC_STARVED {67,68,70,83} or ITC_POS_REJECT {96} held F1_S (1.0 s);
+  F2 any F2_BITS (0x501 configMismatch :77, CntryCdValidity :95, vinValidity :105, xwdValidity :110, radPositionMismatch :129,
+     strRackMismatch :130, or the bdy/esp/gtw/sccm/adas MIA bits :79-83) set in 2 consecutive 0x501 frames; it clears after 2
+     consecutive clear frames;
+  F3 frozen table: FROZEN_MIN_POINTS (1) or more points whose rounded (dRel, yRel, vRel) set is unchanged for FROZEN_S (1.5 s),
+     counted only while the ITC is in the F1 set (NAP BoschTableFreezeWatch, opendbc car/tesla/preap/radar_table_freeze.py
+     @ 7eb09d2a7, with its 4 points lowered to 1, its window shortened, and its SGUFail gate replaced by the ITC gate: parked
+     healthy radars legitimately show unchanged tables for up to ~10 s);
+  F4 HWFail (:53), immediately;
+  NO_ECHO: with flag 256, no returned gateway echo (preap/panda_link.py GTW_ECHO_ADDRS) for ECHO_S: the radar gets no vehicle
+     data at all.
+- VALID: ITC in ITC_OK {0, 107} (107 seen on healthy AP1 radars for 12-207 s; its meaning is UNPROVEN), SGUFail (:54), HWFail and
+  SensorDirty (:52) all 0, a 0x501 frame seen and the last one clear of F2_BITS and the adjustment bits :72-74, and a moving track
+  in the last MOVE_RECENT_S, all held VALID_S (2.0 s). VALID latches until a FAULT fires (a no-motion gap does not drop it).
+- PENDING: neither (aligning SGUFail or adjustment bits with moving tracks, a parked radar with no moving track yet). Not a
+  fault. Whether PENDING allows speed control is PENDING_LONG_OK (False: not valid, the safe default; NAP allows engage).
+Moving track: a tracked point (bit 62, :15) with 0 < dist <= 250 m and ProbExist >= 50 % (radar_interface filters those), seen in
+the last 0.3 s, with |LongSpeed| >= MOVING_VREL or a LongDist change >= MOVING_DD against the same slot MOVE_BACK_S earlier.
+LATE (label only): not VALID DEADLINE_S after the later of the radar's first 0x301 and the car first moving (vEgo >= 0.3).
+HWFail keeps its radarFault in radar_interface. Times come from the CAN packets' log time. All of this is UNPROVEN on a car.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections import deque
 
-HOLD_S = 2.0
-CLEAR_S = 2.0
-FROZEN_S = 5.0
+ITC_OK = frozenset({0, 107})
+ITC_STARVED = frozenset({67, 68, 70, 83})
+ITC_POS_REJECT = frozenset({96})
+ITC_FAULT = ITC_STARVED | ITC_POS_REJECT
+F1_S = 1.0
+F2_FRAMES = 2
+FROZEN_S = 1.5
 FROZEN_MIN_POINTS = 1
-ACCEPT_S = 20.0
-MOVING_VREL = 0.5   # m/s
-MIA_BITS = ("RADC_a011_bdyMIA", "RADC_a012_espMIA", "RADC_a013_gtwMIA", "RADC_a014_sccmMIA")
-REJECT_BITS = ("RADC_a061_radPositionMismatch", "RADC_a037_vinValidity", "RADC_a042_xwdValidity")
-D1, D2, D3, D6, NOT_ACCEPTED = 1, 2, 4, 8, 16   # reason bits; NOT_ACCEPTED never invalidates on its own
-INVALIDATING = D1 | D2 | D3 | D6
-
-
-@dataclass
-class _Held:
-  since: float | None = None
-  frames: int = 0
-
-  def update(self, on: bool, now: float) -> None:
-    if on:
-      self.frames += 1
-      if self.since is None:
-        self.since = now
-    else:
-      self.since, self.frames = None, 0
-
-  def held(self, now: float, hold: float, min_frames: int = 1) -> bool:
-    return self.since is not None and self.frames >= min_frames and now - self.since >= hold
+FROZEN_GATED = True          # F3 only while the ITC is in ITC_FAULT
+VALID_S = 2.0
+MOVE_RECENT_S = 2.0
+MOVING_VREL = 0.5            # m/s
+MOVING_DD = 0.5              # m
+MOVE_BACK_S = 2.0
+SEEN_S = 0.3
+ECHO_S = 2.0
+DEADLINE_S = 20.0
+EGO_MOVING = 0.3             # m/s
+PENDING_LONG_OK = False
+F2_BITS = ("RADC_a009_configMismatch", "RADC_a027_CntryCdValidity", "RADC_a037_vinValidity", "RADC_a042_xwdValidity",
+           "RADC_a061_radPositionMismatch", "RADC_a062_strRackMismatch",
+           "RADC_a011_bdyMIA", "RADC_a012_espMIA", "RADC_a013_gtwMIA", "RADC_a014_sccmMIA", "RADC_a015_adasMIA")
+ADJUST_BITS = ("RADC_a004_adjustmentNotDone", "RADC_a005_adjustmentReq", "RADC_a006_adjustmentNotOk")
+ALERT_BITS = F2_BITS + ADJUST_BITS
+FAULT_ORDER = ("F4", "F1", "F2", "F3", "NO_ECHO")
 
 
 class RadarValidGate:
-  def __init__(self, radar_emulation: bool):
+  def __init__(self, radar_emulation: bool, pending_long_ok: bool = PENDING_LONG_OK, frozen_s: float = FROZEN_S,
+               frozen_min_points: int = FROZEN_MIN_POINTS, frozen_gated: bool = FROZEN_GATED):
     self.radar_emulation = bool(radar_emulation)
-    self.t0: float | None = None
+    self.pending_long_ok = bool(pending_long_ok)
+    self.frozen_s, self.frozen_min_points, self.frozen_gated = float(frozen_s), int(frozen_min_points), bool(frozen_gated)
+    self.t0: float | None = None             # first 0x301
+    self.ego_moved: float | None = None
     self.last_echo: float | None = None
-    self.echo_since: float | None = None
-    self.mia = _Held()
-    self.reject = _Held()
-    self.reject_now = False
     self.itc: int | None = None
+    self.sgu_fail = self.hw_fail = self.dirty = False
+    self.itc_fault_since: float | None = None
+    self.alert_seen = False
+    self.alert_clean = False                  # last 0x501 clear of ALERT_BITS
+    self.f2_run = 0                           # consecutive 0x501 frames with F2 bits (>0) or clear (<0)
+    self.f2 = False
+    self.slots: dict[int, deque] = {}
     self.last_move: float | None = None
     self.sig = None
     self.sig_since: float | None = None
-    self.reasons = 0
+    self.ok_since: float | None = None
     self.echoed = not self.radar_emulation
-    self.accepted = False
-    self.accept_since: float | None = None
-    self.wait_since: float | None = None
-    self.valid = False          # fail closed until the radar has accepted its config
-    self.faults = 0             # valid -> invalid edges
+    self.valid = False                        # fail closed: speed control only once VALID
+    self.fault: str | None = None
+    self.active: frozenset = frozenset()
+    self.late = False
+    self.long_ok = False
+    self.faults = 0                           # VALID -> FAULT edges
 
+  # ---- inputs ----
   def on_echo(self, now: float) -> None:
-    if self.last_echo is None or now - self.last_echo >= HOLD_S:
-      self.echo_since = now
     self.last_echo = now
+
+  def on_ego(self, now: float, v_ego: float) -> None:
+    if self.ego_moved is None and abs(float(v_ego)) >= EGO_MOVING:
+      self.ego_moved = now
 
   def on_alert_matrix(self, now: float, vl) -> None:
     """One new 0x501 frame (parser values)."""
-    self.mia.update(any(bool(vl[b]) for b in MIA_BITS), now)
-    self.reject_now = any(bool(vl[b]) for b in REJECT_BITS)
-    self.reject.update(self.reject_now, now)
+    bad = any(bool(vl[b]) for b in F2_BITS)
+    self.alert_seen = True
+    self.alert_clean = not bad and not any(bool(vl[b]) for b in ADJUST_BITS)
+    self.f2_run = (max(self.f2_run, 0) + 1) if bad else (min(self.f2_run, 0) - 1)
+    if self.f2_run >= F2_FRAMES:
+      self.f2 = True
+    elif self.f2_run <= -F2_FRAMES:
+      self.f2 = False
 
-  def on_points(self, now: float, points, sgu_fail: bool, itc: int | None = None) -> None:
-    """One radar cycle: the valid points before the gate drops them, SGUFail and the SGU ITC."""
-    if itc is not None:
-      self.itc = int(itc)
-    if any(abs(float(p.vRel)) >= MOVING_VREL for p in points):
+  def on_sgu(self, now: float, itc: int, sgu_fail: bool, hw_fail: bool, dirty: bool) -> None:
+    """One 0x301 frame."""
+    if self.t0 is None:
+      self.t0 = now
+    self.itc, self.sgu_fail, self.hw_fail, self.dirty = int(itc), bool(sgu_fail), bool(hw_fail), bool(dirty)
+    if self.itc in ITC_FAULT:
+      if self.itc_fault_since is None:
+        self.itc_fault_since = now
+    else:
+      self.itc_fault_since = None
+
+  def on_points(self, now: float, points: dict) -> None:
+    """One radar cycle: {slot: (dRel, yRel, vRel)} of the tracked, in-range, ProbExist >= 50 % points before the gate drops them."""
+    for slot in [s for s in self.slots if s not in points]:
+      del self.slots[slot]
+    moving = False
+    for slot, (d, _y, v) in points.items():
+      hist = self.slots.setdefault(slot, deque())
+      hist.append((now, float(d)))
+      while len(hist) > 1 and hist[1][0] <= now - MOVE_BACK_S:
+        hist.popleft()
+      t_then, d_then = hist[0]
+      if abs(float(v)) >= MOVING_VREL or (now - t_then >= MOVE_BACK_S - 1e-6 and abs(float(d) - d_then) >= MOVING_DD):
+        moving = True
+    if moving:
       self.last_move = now
-    rows = tuple(sorted((round(float(p.dRel), 2), round(float(p.yRel), 2), round(float(p.vRel), 2)) for p in points))
-    if len(rows) < FROZEN_MIN_POINTS or not sgu_fail:
+    rows = tuple(sorted((round(float(d), 2), round(float(y), 2), round(float(v), 2)) for d, y, v in points.values()))
+    gate_on = (self.itc in ITC_FAULT) if self.frozen_gated else True
+    if len(rows) < self.frozen_min_points or not gate_on:
       self.sig, self.sig_since = None, None
     elif rows != self.sig:
       self.sig, self.sig_since = rows, now
 
-  def update(self, now: float, sgu_fail: bool = False) -> bool:
-    if self.t0 is None:
-      self.t0 = now
-    r = 0
+  # ---- state ----
+  def _faults(self, now: float) -> frozenset:
+    on = {
+      "F4": self.hw_fail,
+      "F1": self.itc_fault_since is not None and now - self.itc_fault_since >= F1_S - 1e-9,
+      "F2": self.f2,
+      "F3": self.sig_since is not None and now - self.sig_since >= self.frozen_s - 1e-9,
+      "NO_ECHO": self.radar_emulation and now - (self.last_echo if self.last_echo is not None else
+                                                 (self.t0 if self.t0 is not None else now)) >= ECHO_S,
+    }
+    return frozenset(k for k in FAULT_ORDER if on[k])
+
+  def update(self, now: float) -> bool:
+    """Returns whether speed control may use the radar (VALID, or PENDING with pending_long_ok)."""
     if self.radar_emulation:
-      self.echoed = self.last_echo is not None and now - self.last_echo < HOLD_S
-      ref = self.last_echo if self.last_echo is not None else self.t0
-      if now - ref >= HOLD_S:
-        r |= D1
-    if self.mia.held(now, HOLD_S, 2):
-      r |= D2
-    if self.reject.held(now, HOLD_S, 2):
-      r |= D3
-    if self.sig_since is not None and now - self.sig_since >= FROZEN_S:
-      r |= D6
-
-    if r:
-      self.accepted, self.accept_since = False, None
-    elif not self.accepted:
-      ok = (self.itc == 0 and not self.reject_now and self.last_move is not None and now - self.last_move < CLEAR_S)
-      if not ok:
-        self.accept_since = None
-      else:
-        if self.accept_since is None:
-          self.accept_since = now
-        if now - self.accept_since >= CLEAR_S:
-          self.accepted = True
-
-    if self.accepted or (r & D1):
-      self.wait_since = None
-    else:
-      if self.wait_since is None:
-        self.wait_since = (self.echo_since if self.radar_emulation and self.echo_since is not None else now)
-      if now - self.wait_since >= ACCEPT_S:
-        r |= NOT_ACCEPTED
-    self.reasons = r
-
-    valid = self.accepted and not (r & INVALIDATING)
-    if self.valid and not valid:
+      self.echoed = self.last_echo is not None and now - self.last_echo < ECHO_S
+    self.active = self._faults(now)
+    self.fault = next((k for k in FAULT_ORDER if k in self.active), None)     # the first, for the status line
+    ok = (self.itc in ITC_OK and not (self.sgu_fail or self.hw_fail or self.dirty) and self.alert_seen and self.alert_clean
+          and self.last_move is not None and now - self.last_move <= MOVE_RECENT_S)
+    if self.fault is not None or not ok:
+      self.ok_since = None
+    elif self.ok_since is None:
+      self.ok_since = now
+    was = self.valid
+    if self.fault is not None:
+      self.valid = False
+    elif not self.valid and self.ok_since is not None and now - self.ok_since >= VALID_S - 1e-9:
+      self.valid = True
+    if was and not self.valid:
       self.faults += 1
-    self.valid = valid
-    return valid
+    start = self.t0 if self.ego_moved is None or self.t0 is None else max(self.t0, self.ego_moved)
+    self.late = (not self.valid and self.t0 is not None and self.ego_moved is not None and now - start >= DEADLINE_S)
+    self.long_ok = self.valid or (self.pending and self.pending_long_ok)
+    return self.long_ok
+
+  @property
+  def pending(self) -> bool:
+    return not self.valid and self.fault is None
 
   def status(self) -> dict:
-    """For the log-only status line: echoed and accepted are reported separately."""
-    return dict(echoed=self.echoed, accepted=self.accepted, valid=self.valid, reasons=self.reasons, itc=self.itc,
-                reject=self.reject_now, faults=self.faults)
+    """For the log-only status line."""
+    return dict(echoed=self.echoed, pending=self.pending, valid=self.valid, fault=self.fault or "-", late=self.late,
+                itc=self.itc, long_ok=self.long_ok, faults=self.faults)
