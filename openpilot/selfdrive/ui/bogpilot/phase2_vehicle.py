@@ -21,6 +21,12 @@ RADAR_NOSECONE = "TeslaRadarBehindNosecone"
 IBOOSTER = "TeslaHasIBooster"
 RADAR_IGNORE_HW_FAIL = "TeslaRadarIgnoreHwFail"
 RADAR_READ_VIN = "TeslaRadarReadVin"
+RADAR_FLIP = "TeslaRadarUpsideDown"
+RADAR_OFFSET = "TeslaRadarOffset"
+RADAR_OFFSET_TITLE = "Pre-AP: Radar Offset"
+RADAR_OFFSET_DESCRIPTION = ("Sideways correction for a radar that is not centered, in meters. Positive moves every radar track to the left. "
+                            "Press to add 0.05 m (after 1.00 it wraps to -1.00). 0.00 is off. Takes effect the next time the car starts.")
+RADAR_OFFSET_STEP_M = 0.05
 RADAR_DONOR_TYPE = "TeslaRadarDonorType"
 RADAR_DONOR_TYPE_TITLE = "Pre-AP: Radar Donor Type"
 RADAR_DONOR_TYPE_DESCRIPTION = ("The car the retrofit radar came from: Model S before the facelift, Model S after it, or Model X. "
@@ -43,7 +49,8 @@ TITLES = {LONG: "Disable openpilot Longitudinal Control",
           RADAR: "Pre-AP: Bosch Radar",
           RADAR_NOSECONE: "Pre-AP: Radar Behind Nosecone",
           IBOOSTER: "Pre-AP: iBooster Swap",
-          RADAR_IGNORE_HW_FAIL: "Ignore Radar Hardware Fault (Pre-AP)"}
+          RADAR_IGNORE_HW_FAIL: "Ignore Radar Hardware Fault (Pre-AP)",
+          RADAR_FLIP: "Pre-AP: Flip Radar"}
 # Pre-AP wording for the shared Disable row (AP1 keeps the stock text).
 PREAP_LONG_TITLE = "Disable Pedal Longitudinal"
 PREAP_LONG_DESCRIPTION = ("Turn on to disable Comma Pedal longitudinal (steering only). Leave it off so BogPilot can control your speed through a "
@@ -81,6 +88,8 @@ DESCRIPTIONS = {
                         "working. Openpilot can then engage and uses camera leads; radar points stay out of speed control and a "
                         "Radar not ready - using camera lead warning still shows. Other radar faults are unchanged. "
                         "Takes effect immediately.",
+  RADAR_FLIP: "Turn on if the radar is mounted upside down, so objects on your left show on the right. Flips every radar track left to "
+              "right. Shown while Bosch Radar is on. Takes effect the next time the car starts.",
 }
 
 
@@ -140,7 +149,7 @@ class VehicleSettings:
       # Hidden: the radar position now comes from Radar Donor Type (NAP NAPRadarPosition), so this row has no effect.
       # The stored TeslaRadarBehindNosecone value is kept as is (not deleted or migrated); it still only sets flag 128.
       return False
-    if key in (RADAR_READ_VIN, RADAR_DONOR_TYPE, RADAR_DONOR_VIN):
+    if key in (RADAR_READ_VIN, RADAR_DONOR_TYPE, RADAR_DONOR_VIN, RADAR_FLIP, RADAR_OFFSET):
       from opendbc.car.tesla_ap1.preap import params as preap_params
       return is_preap(cp) and preap_params.get_bool(RADAR)
     if key in (BUILD_INFO, PANDA_FIRMWARE):
@@ -227,6 +236,25 @@ class VehicleSettings:
     preap_params.set_int(preap_params.PreApParamKeys.RADAR_DONOR_TYPE, value)
     return value
 
+  # ---- Pre-AP Radar Offset (Tinkla TinklaRadarOffset): -1.00 .. 1.00 m in 0.05 steps from the row, default 0, offroad only ----
+  def radar_offset(self):
+    from opendbc.car.tesla_ap1.preap import params as preap_params
+    return round(preap_params.radar_offset_m(), 2)
+
+  def radar_offset_text(self):
+    return f"{self.radar_offset():+.2f} M" if self.radar_offset() else "0.00 M"
+
+  def next_radar_offset(self):
+    """Pressed: +0.05 m, wrapping from above 1.00 to -1.00. Refused unless visible and offroad. Returns the stored value or None."""
+    if not self.enabled(RADAR_OFFSET):
+      return None
+    from opendbc.car.tesla_ap1.preap import params as preap_params
+    value = round(self.radar_offset() + RADAR_OFFSET_STEP_M, 2)
+    if value > preap_params.RADAR_OFFSET_LIMIT_M:
+      value = -preap_params.RADAR_OFFSET_LIMIT_M
+    preap_params.set_float(preap_params.PreApParamKeys.RADAR_OFFSET, value)
+    return value
+
   def donor_vin_text(self):
     """Device UI only: the saved donor VIN, or Not set. Kept out of log text."""
     from opendbc.car.tesla_ap1.preap import params as preap_params
@@ -278,7 +306,7 @@ class VehicleSettings:
   def read(self, key):
     if key == LONG:
       return self.toggles.disable_openpilot_long(paths=(self.file_dir / LONG, self.params_file))
-    if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE, IBOOSTER, RADAR_IGNORE_HW_FAIL):
+    if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE, IBOOSTER, RADAR_IGNORE_HW_FAIL, RADAR_FLIP):
       from opendbc.car.tesla_ap1.preap import params as preap_params
       return preap_params.get_bool(key)
     # Missing/unreadable files have the consumer's default-on semantics.
@@ -297,7 +325,7 @@ class VehicleSettings:
     if not self.enabled(key):
       return False
     state = bool(state)
-    if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE, IBOOSTER, RADAR_IGNORE_HW_FAIL):
+    if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE, IBOOSTER, RADAR_IGNORE_HW_FAIL, RADAR_FLIP):
       from opendbc.car.tesla_ap1.preap import params as preap_params
       preap_params.set_bool(key, state)
       return True
@@ -383,6 +411,12 @@ def create_vehicle_settings_layout(params=None):
                                        callback=self.edit_donor_vin, enabled=lambda: self.model.enabled(RADAR_DONOR_VIN))
       attach_help(self.donor_vin_row, RADAR_DONOR_VIN)
       self.rows[RADAR_DONOR_VIN] = self.donor_vin_row
+      self.rows[RADAR_FLIP] = self.rows.pop(RADAR_FLIP)       # Flip Radar and Radar Offset sit right under Radar Donor Type
+      self.offset_row = button_item(lambda: tr(RADAR_OFFSET_TITLE), lambda: self.model.radar_offset_text(),
+                                    lambda: tr(RADAR_OFFSET_DESCRIPTION),
+                                    callback=self.model.next_radar_offset, enabled=lambda: self.model.enabled(RADAR_OFFSET))
+      attach_help(self.offset_row, RADAR_OFFSET)
+      self.rows[RADAR_OFFSET] = self.offset_row
       # An empty or short page says why (no car / wrong car / longitudinal control off) instead of showing nothing.
       from openpilot.selfdrive.ui.bogpilot import menu_locks
       from openpilot.selfdrive.ui.bogpilot.vehicle_settings import disable_long_effective

@@ -71,6 +71,9 @@ class RadarInterface(RadarInterfaceBase):
     # rejected ITC, 0x501 alerts, a frozen table, HWFail, no gateway echo) is active. Speed control then runs on camera leads and
     # card raises the one warning (carState.bogpilot.preapRadarNotReady). Never a no-entry, soft disable or disengage.
     self.preap_gate = None
+    # Pre-AP mounting corrections (preap/params.py RADAR_FLIP / RADAR_OFFSET), read once at start. AP1 never reads them.
+    self.preap_flip = False
+    self.preap_offset = 0.0
     self.preap_radar_valid = True
     self.preap_radar_spoke = False     # the trigger message has arrived at least once since card started
     self.preap_v_ego = 0.0             # card.py sets it each step (for the gate's late label only)
@@ -82,6 +85,8 @@ class RadarInterface(RadarInterfaceBase):
       param = int(configs[-1].safetyParam) if configs else 0
       self.preap_gate = RadarValidGate(bool(param & FLAG_TESLA_PREAP_RADAR_EMULATION))
       self.preap_radar_valid = False
+      self.preap_flip = preap_params.get_bool(preap_params.PreApParamKeys.RADAR_FLIP)
+      self.preap_offset = preap_params.radar_offset_m()
 
   def _preap_status_line(self, now: float, n_points: int) -> None:
     """Log-only radar status line (no UI, no control): every STATUS_S and on every change of echoed / pending / valid / fault."""
@@ -214,6 +219,13 @@ class RadarInterface(RadarInterfaceBase):
         self.track_id += 1
       self.pts[i].dRel = msg_a['LongDist']
       self.pts[i].yRel = msg_a['LatDist']
+      if self.preap and (self.preap_flip or self.preap_offset):
+        # Pre-AP mounting corrections, Tinkla radar_interface.py:145-151 @501c7de (offset first, then the flip, same order). Both default
+        # off: the branch is skipped and yRel is exactly as before. Tinkla also negates yvRel; RadarPoint here only has it in the
+        # deprecated group and nothing reads it (this port never fills it in), so there is no lateral speed to flip.
+        self.pts[i].yRel += self.preap_offset
+        if self.preap_flip:
+          self.pts[i].yRel = -self.pts[i].yRel
       self.pts[i].vRel = msg_a['LongSpeed']
 
     ret.points = list(self.pts.values())

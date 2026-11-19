@@ -65,6 +65,12 @@ class PreApParamKeys:
   # only, read once when the car starts. Display only: the onroad brake bar follows 0x554 BrakePedalPosition instead of
   # the binary brake press. NotAutopilot's NAPiBoosterEnabled (nap_params.py:31@e99f4dc75) is defined there but unused.
   HAS_IBOOSTER = "TeslaHasIBooster"
+  # Radar mounting corrections, Pre-AP Bosch radar only (Tinkla TinklaUseTeslaRadarUpsideDown / TinklaRadarOffset, selfdrive/car/tesla/
+  # radar_interface.py:67-69,145-151 @501c7de, MIT). Flip Radar: radar mounted upside down, so each track's lateral position (yRel) is
+  # negated (Tinkla also negates yvRel; this schema has no live yvRel). Radar Offset: meters added to each track's lateral position, positive left, -1.0..1.0. Both default OFF / 0.0 (no
+  # change), host side only (radar_interface.py), read once when the car starts. No panda change.
+  RADAR_FLIP = "TeslaRadarUpsideDown"
+  RADAR_OFFSET = "TeslaRadarOffset"
 
 
 # Safe defaults (match NotAutopilot DEFAULT_CONFIG).
@@ -92,6 +98,8 @@ DEFAULTS = {
   PreApParamKeys.RADAR_VIN_READ_STATUS: "",
   PreApParamKeys.RADAR_IGNORE_HW_FAIL: False,
   PreApParamKeys.HAS_IBOOSTER: False,
+  PreApParamKeys.RADAR_FLIP: False,
+  PreApParamKeys.RADAR_OFFSET: 0.0,
 }
 
 # Overridable in tests.
@@ -315,6 +323,17 @@ def get_int(key: str, default: int | None = None) -> int:
 
 def set_int(key: str, value: int) -> None:
   _write_text(key, str(int(value)))
+
+
+RADAR_OFFSET_LIMIT_M = 1.0
+
+
+def radar_offset_m() -> float:
+  """TeslaRadarOffset in meters, clamped to -1.0..1.0. Missing, empty, bad, nan or inf is 0.0 (no offset)."""
+  value = get_float(PreApParamKeys.RADAR_OFFSET)
+  if value != value or value in (float("inf"), float("-inf")):
+    return 0.0
+  return max(-RADAR_OFFSET_LIMIT_M, min(RADAR_OFFSET_LIMIT_M, value))
 
 
 RADAR_DONOR_TYPES = (0, 1, 2)   # pre-facelift Model S, facelift Model S, Model X

@@ -199,6 +199,20 @@ _add("TeslaRadarDonorType", "Pre-AP: Radar Donor Type",
      note="Shown only while Bosch Radar is on. Press to step through the three types. Takes effect the next time the car starts. "
           + _OFFROAD,
      default="Model S pre-facelift")
+_add("TeslaRadarUpsideDown", "Pre-AP: Flip Radar",
+     "For a retrofit Bosch radar mounted upside down. Flips every radar track left to right (its sideways position), so a "
+     "car on your left shows on the left again. Off (the default) leaves the radar as it reports.",
+     when="Only if radar leads show on the wrong side of the road because the radar is mounted upside down.",
+     note="Pre-AP only, shown while Bosch Radar is on. Takes effect the next time the car starts. "
+          + _OFFROAD,
+     default="Off")
+_add("TeslaRadarOffset", "Pre-AP: Radar Offset",
+     "Shifts every radar track sideways by this many meters to correct a radar that is not mounted in the middle of the car. "
+     "Positive moves tracks to the left, negative to the right. 0.00 (the default) changes nothing.",
+     when="If radar leads sit consistently to one side of where the car really is.",
+     note="Pre-AP only, shown while Bosch Radar is on. Press to add 0.05 m; after 1.00 it wraps to -1.00. Takes effect the next "
+          "time the car starts. " + _OFFROAD,
+     default="0.00 m", range="-1.00 to 1.00 m")
 _add("TeslaRadarIgnoreHwFail", "Ignore Radar Hardware Fault (Pre-AP)",
      "For a Pre-AP Model S with a retrofitted Tesla Bosch radar that reports a persistent hardware fault "
      "(Radar Error: Restart the Car) even though the radar is working. Off (the default): that fault is a "
