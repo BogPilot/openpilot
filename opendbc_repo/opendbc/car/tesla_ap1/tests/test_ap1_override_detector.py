@@ -54,6 +54,95 @@ def test_rate_needs_torque_as_well():
   assert sig == [ov.SIGNAL_NONE, ov.SIGNAL_RATE]
 
 
+def test_rate_ignores_wheel_motion_that_follows_the_command():
+  # Logged: a curve ramp at -44 deg/s with 1.33 Nm on the column, wheel 5 deg behind a command it is moving toward.
+  det = ov.DriverOverrideDetector()   # the shipped default (level 2): 33.75 deg/s with 1.125 Nm
+  assert set(run(det, 50, angle=-27.8, cmd=-32.6, rate=-44.0, torque=-1.33)) == {ov.SIGNAL_NONE}
+  det.reset()
+  assert set(run(det, 50, angle=27.8, cmd=32.6, rate=44.0, torque=1.33)) == {ov.SIGNAL_NONE}, "mirrored"
+  # Logged: a hands-free straight road, 1.3 deg of wheel jitter, +32 deg/s and 1.24 Nm for a frame or two.
+  det.reset()
+  assert set(run(det, 50, angle=0.8, cmd=1.2, rate=31.9, torque=1.24)) == {ov.SIGNAL_NONE}
+  det = ov.DriverOverrideDetector(ov.SENSITIVITY_BASE_LEVEL)
+  assert set(run(det, 50, angle=0.3, cmd=0.9, rate=-60.0, torque=1.5)) == {ov.SIGNAL_NONE}, "inside the follow margin, either sign"
+  assert set(run(det, 50, angle=0.3, cmd=-0.6, rate=60.0, torque=1.5)) == {ov.SIGNAL_NONE}, "inside the follow margin, either sign"
+
+
+def test_rate_still_counts_when_the_wheel_moves_away_from_or_past_the_command():
+  for level in (1, 2, 3, 4, 5):
+    th = ov.override_thresholds(level)
+    rate, tq = th.rate_dps + 1.0, th.rate_torque_nm + 0.1
+    det = ov.DriverOverrideDetector(level)
+    # command 2 deg ahead (above the follow margin, below the angle error one), wheel moving away from it
+    assert run(det, 2, angle=0.0, cmd=2.0, rate=-rate, torque=-tq) == [ov.SIGNAL_NONE, ov.SIGNAL_RATE], level
+    det.reset()
+    # wheel already past the command, still going: the driver, not the request
+    assert run(det, 2, angle=10.0, cmd=7.0, rate=rate, torque=tq)[-1] == ov.SIGNAL_RATE, level
+    det.reset()
+    # same push against a command in the other direction
+    assert run(det, 2, angle=-3.0, cmd=-1.0, rate=-rate, torque=-tq)[-1] == ov.SIGNAL_RATE, level
+
+
+def test_rate_without_a_command_is_unchanged():
+  det = ov.DriverOverrideDetector(ov.SENSITIVITY_BASE_LEVEL)
+  sig = run(det, 2, rate=-ov.OVERRIDE_RATE_DPS, torque=ov.OVERRIDE_RATE_TORQUE_NM, cmd=None)
+  assert sig == [ov.SIGNAL_NONE, ov.SIGNAL_RATE]
+
+
+def test_torque_and_hands_still_fire_while_the_wheel_follows_the_command():
+  # Logged: 2.38 Nm at 1:36:23.95 PM while the wheel was moving toward the plan.
+  det = ov.DriverOverrideDetector()
+  assert run(det, 3, angle=-31.4, cmd=-44.1, rate=-34.0, torque=-2.38)[-1] == ov.SIGNAL_TORQUE
+  det.reset()
+  assert run(det, 1, hands=2, angle=-31.4, cmd=-44.1, rate=-34.0, torque=0.0) == [ov.SIGNAL_HANDS]
+
+
+def test_following_frames_restart_the_rate_debounce():
+  det = ov.DriverOverrideDetector(ov.SENSITIVITY_BASE_LEVEL)
+  kw = dict(rate=-40.0, torque=-1.5)
+  seq = (run(det, 1, angle=0.0, cmd=2.0, **kw) + run(det, 1, angle=-3.0, cmd=-8.0, **kw)    # away, then following
+         + run(det, 1, angle=0.0, cmd=2.0, **kw))
+  assert set(seq) == {ov.SIGNAL_NONE}, "a following frame in between breaks the two-frame count"
+
+
+@pytest.mark.parametrize("platform", PLATFORMS)
+def test_controller_does_not_yield_to_its_own_fast_steering(platform):
+  car = Car(platform)
+  car.planned = 6.0
+  car.settle(300)
+  car.angle = 6.0
+  car.settle(100)
+  car.planned = 30.0
+  car.run(3)
+  # the wheel moves toward the plan at 44 deg/s with 1.3 Nm on the column, hands flag 0
+  car.torque, car.rate = 1.3, 44.0
+  sent = []
+  for _ in range(60):
+    x = car.step()
+    if x is not None:
+      sent.append(x)
+      car.angle = x[1] - 1.5          # the wheel trails the angle the controller sent by 1.5 deg, moving toward it
+  assert car.ctl.ap1_yield.active is False and car.ctl.ap1_yield.signal == ov.SIGNAL_NONE
+  assert all(t == 1 for t, _a in sent), sent
+
+
+@pytest.mark.parametrize("platform", PLATFORMS)
+def test_controller_still_yields_to_a_hard_push_while_following(platform):
+  car = Car(platform)
+  car.planned = 6.0
+  car.settle(300)
+  car.angle = 6.0
+  car.settle(100)
+  car.planned = 30.0
+  car.run(3)
+  car.torque, car.rate = 2.5, 44.0
+  for _ in range(6):
+    x = car.step()
+    if x is not None:
+      car.angle = x[1] - 1.5
+  assert car.ctl.ap1_yield.active and car.ctl.ap1_yield.signal == ov.SIGNAL_TORQUE
+
+
 def test_angle_error_needs_a_command_and_motion_away_from_it():
   det = ov.DriverOverrideDetector(ov.SENSITIVITY_BASE_LEVEL)   # the module constants (level 3), not the default
   # command ahead by 6 deg, wheel moving away from it

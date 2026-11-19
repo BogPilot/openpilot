@@ -12,11 +12,20 @@ reported trigger (carState.bogpilot.ap1OverrideSignal):
   HANDS         EPAS handsOnLevel >= 2 (the existing flag, unchanged).
   TORQUE        |driver torque| >= OVERRIDE_TORQUE_NM for OVERRIDE_TORQUE_FRAMES.
   RATE          |wheel rate| >= OVERRIDE_RATE_DPS together with
-                |driver torque| >= OVERRIDE_RATE_TORQUE_NM for OVERRIDE_RATE_FRAMES.
+                |driver torque| >= OVERRIDE_RATE_TORQUE_NM for OVERRIDE_RATE_FRAMES,
+                unless the wheel is following openpilot's own request (see below).
   ANGLE_ERROR   openpilot is commanding ANGLE, the wheel is at least
                 OVERRIDE_ERROR_DEG away from that command, and it is moving away
                 from it at OVERRIDE_ERROR_RATE_DPS or more, for
                 OVERRIDE_ERROR_FRAMES.
+
+The RATE signal ignores wheel motion that follows openpilot's own request. While openpilot is commanding ANGLE, a fast wheel
+with torque on it is not a driver when it is moving toward the commanded angle (the sign of command - measured agrees with the
+wheel rate), or when it is already within OVERRIDE_RATE_FOLLOW_DEG of the command (the sign is noise there). The EPAS torque
+that openpilot's own fast steering puts on the column then does not read as a hand (logged: a hands-free straight road trip at
+17.9 m/s on 1.3 deg of wheel jitter, and a curve ramp at 40 dps). A wheel moving away from the command, or past it, is the
+driver's and still counts, exactly as before. With no active command (command_deg None) nothing is ignored. TORQUE, HANDS and
+ANGLE_ERROR are unchanged.
 
 Debounce is counted in control frames. steeringTorque and the EPAS angle arrive
 at about 25 Hz and are held between samples, so a 3 frame debounce needs at most
@@ -63,6 +72,8 @@ OVERRIDE_TORQUE_FRAMES = 3        # 30 ms
 OVERRIDE_RATE_DPS = 30.0
 OVERRIDE_RATE_TORQUE_NM = 1.0
 OVERRIDE_RATE_FRAMES = 2          # 20 ms
+# RATE is ignored while the wheel moves toward openpilot's command, or is within this many degrees of it.
+OVERRIDE_RATE_FOLLOW_DEG = 1.0
 
 OVERRIDE_ERROR_DEG = 4.0
 OVERRIDE_ERROR_RATE_DPS = 20.0
@@ -190,12 +201,14 @@ class DriverOverrideDetector:
       return self.signal
 
     self._torque_frames = self._torque_frames + 1 if abs_torque >= th.torque_nm else 0
-    self._rate_frames = (self._rate_frames + 1
-                         if (abs_rate >= th.rate_dps and abs_torque >= th.rate_torque_nm) else 0)
+    following = False
     away = False
     if command_deg is not None:
       error = float(command_deg) - float(angle_deg)
       away = abs(error) >= OVERRIDE_ERROR_DEG and error * rate < 0.0 and abs_rate >= OVERRIDE_ERROR_RATE_DPS
+      following = abs(error) < OVERRIDE_RATE_FOLLOW_DEG or error * rate > 0.0
+    self._rate_frames = (self._rate_frames + 1
+                         if (abs_rate >= th.rate_dps and abs_torque >= th.rate_torque_nm and not following) else 0)
     self._error_frames = self._error_frames + 1 if away else 0
 
     if hands >= OVERRIDE_HANDS_LEVEL:

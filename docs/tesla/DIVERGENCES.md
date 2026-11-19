@@ -605,6 +605,22 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   `test_override_sensitivity_default_paths.py`.
 - Credits: BogPilot (driver-override detector).
 
+## Steering: the wheel-rate override ignores wheel motion that follows openpilot's own request
+- Platforms: AP1 Model S, AP1 Model X, Pre-AP Model S (one shared detector, `override.py`).
+- Reference behavior: stock 0.11.2 (and the baseline of this port) treats a wheel rate of 33.75 deg/s or more together with
+  1.125 Nm on the column (level 2) for 2 control frames as a driver override, whichever way the wheel moves.
+- Our behavior: while openpilot is commanding ANGLE, that RATE signal does not count when the wheel is moving toward the
+  commanded angle, or is within 1.0 deg of it (the sign of the error is noise there). A wheel moving away from the command
+  or past it still counts, and with no active command nothing changes. The torque signal (2.25 Nm at level 2), the EPAS
+  hands flag, the angle error signal, the debounce counts, the release test and the panda limits are unchanged. The panda
+  does not read the override detector; no panda change.
+- Why: the EPAS torque that openpilot's own fast steering puts on the column read as a hand in logged AP1 drives (a
+  hands-free straight road at 17.9 m/s on 1.3 deg of jitter; a 40 dps curve ramp that paused steering mid-turn).
+- Safety-relevant: yes, driver override detection. A driver who helps the wheel toward the command with 1.1 to 2.25 Nm is not
+  detected by RATE (2.25 Nm or the hands flag still is); a driver who pushes against or past the command is detected as before.
+- Tests: `test_ap1_override_detector.py` (`test_rate_*`, `test_torque_and_hands_still_fire_*`, `test_controller_*`).
+- Credits: BogPilot (driver-override detector).
+
 ## Sidebar: the onroad Vehicle Online box can show CPU instead
 - Platforms: all (UI only).
 - Reference behavior: onroad, the sidebar's middle box is the vehicle status (VEHICLE ONLINE, or NO PANDA in red) and
