@@ -210,7 +210,7 @@ _add("TeslaRadarOffset", "Pre-AP: Radar Offset",
      "Shifts every radar track sideways by this many meters to correct a radar that is not mounted in the middle of the car. "
      "Positive moves tracks to the left, negative to the right. 0.00 (the default) changes nothing.",
      when="If radar leads sit consistently to one side of where the car really is.",
-     note="Pre-AP only, shown while Bosch Radar is on. Press to add 0.05 m; after 1.00 it wraps to -1.00. Takes effect the next "
+     note="Pre-AP only, shown while Bosch Radar is on. Use - and + to change it by 0.01 m; it stops at -1.00 and 1.00. Takes effect the next "
           "time the car starts. " + _OFFROAD,
      default="0.00 m", range="-1.00 to 1.00 m")
 _add("TeslaRadarIgnoreHwFail", "Ignore Radar Hardware Fault (Pre-AP)",

@@ -24,9 +24,12 @@ RADAR_READ_VIN = "TeslaRadarReadVin"
 RADAR_FLIP = "TeslaRadarUpsideDown"
 RADAR_OFFSET = "TeslaRadarOffset"
 RADAR_OFFSET_TITLE = "Pre-AP: Radar Offset"
-RADAR_OFFSET_DESCRIPTION = ("Sideways correction for a radar that is not centered, in meters. Positive moves every radar track to the left. "
-                            "Press to add 0.05 m (after 1.00 it wraps to -1.00). 0.00 is off. Takes effect the next time the car starts.")
-RADAR_OFFSET_STEP_M = 0.05
+RADAR_OFFSET_DESCRIPTION = ("Sideways correction for a radar that is not centered, in meters. Positive moves every radar track to the left, "
+                            "negative to the right. Use - and + to change it by 0.01 m; it stops at -1.00 and 1.00. 0.00 is off. "
+                            "Takes effect the next time the car starts.")
+RADAR_OFFSET_STEP_M = 0.01
+RADAR_OFFSET_MINUS = "-"   # ASCII U+002D, as the Alert Volume rows (phase2_sounds.MINUS_GLYPH): U+2212 can render as ? in the UI font
+RADAR_OFFSET_PLUS = "+"
 RADAR_DONOR_TYPE = "TeslaRadarDonorType"
 RADAR_DONOR_TYPE_TITLE = "Pre-AP: Radar Donor Type"
 RADAR_DONOR_TYPE_DESCRIPTION = ("The car the retrofit radar came from: Model S before the facelift, Model S after it, or Model X. "
@@ -242,16 +245,19 @@ class VehicleSettings:
     return round(preap_params.radar_offset_m(), 2)
 
   def radar_offset_text(self):
-    return f"{self.radar_offset():+.2f} M" if self.radar_offset() else "0.00 M"
+    """Two decimals and the unit, e.g. 0.25 m, -0.05 m (ASCII minus), 0.00 m."""
+    value = self.radar_offset()
+    return f"{abs(value):.2f} m" if value == 0 else f"{RADAR_OFFSET_MINUS if value < 0 else ''}{abs(value):.2f} m"
 
-  def next_radar_offset(self):
-    """Pressed: +0.05 m, wrapping from above 1.00 to -1.00. Refused unless visible and offroad. Returns the stored value or None."""
+  def step_radar_offset(self, steps):
+    """Pressed - (steps=-1) or + (steps=+1): move by 0.01 m, clamped to -1.00..1.00 (no wrap), kept on whole hundredths.
+    Refused unless visible and offroad. Returns the stored value or None."""
     if not self.enabled(RADAR_OFFSET):
       return None
     from opendbc.car.tesla_ap1.preap import params as preap_params
-    value = round(self.radar_offset() + RADAR_OFFSET_STEP_M, 2)
-    if value > preap_params.RADAR_OFFSET_LIMIT_M:
-      value = -preap_params.RADAR_OFFSET_LIMIT_M
+    limit = int(round(preap_params.RADAR_OFFSET_LIMIT_M * 100))
+    cents = max(-limit, min(limit, int(round(self.radar_offset() * 100)) + int(steps)))
+    value = cents / 100
     preap_params.set_float(preap_params.PreApParamKeys.RADAR_OFFSET, value)
     return value
 
@@ -366,6 +372,7 @@ def create_vehicle_settings_layout(params=None):
   from openpilot.system.ui.widgets.scroller_tici import Scroller
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
   from openpilot.system.ui.widgets.list_view import button_item, text_item
+  from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_value_step_item
   from openpilot.selfdrive.ui.bogpilot import preap_pedal_cal as cal
 
   class VehicleSettingsLayout(Widget):
@@ -412,9 +419,15 @@ def create_vehicle_settings_layout(params=None):
       attach_help(self.donor_vin_row, RADAR_DONOR_VIN)
       self.rows[RADAR_DONOR_VIN] = self.donor_vin_row
       self.rows[RADAR_FLIP] = self.rows.pop(RADAR_FLIP)       # Flip Radar and Radar Offset sit right under Radar Donor Type
-      self.offset_row = button_item(lambda: tr(RADAR_OFFSET_TITLE), lambda: self.model.radar_offset_text(),
-                                    lambda: tr(RADAR_OFFSET_DESCRIPTION),
-                                    callback=self.model.next_radar_offset, enabled=lambda: self.model.enabled(RADAR_OFFSET))
+      # Same shared [-] [value] [+] row as the Alert Volume rows (gated_actions.gated_value_step_item, phase2_sounds.py).
+      self.offset_row = gated_value_step_item(lambda: tr(RADAR_OFFSET_TITLE), lambda: tr(RADAR_OFFSET_DESCRIPTION),
+                                              lambda: self.model.radar_offset_text(),
+                                              on_minus=lambda: self.model.step_radar_offset(-1),
+                                              on_plus=lambda: self.model.step_radar_offset(1),
+                                              minus=RADAR_OFFSET_MINUS, plus=RADAR_OFFSET_PLUS, selected_index=1, button_width=150,
+                                              enabled=lambda: self.model.enabled(RADAR_OFFSET),
+                                              default_text="0.00 m", is_default=lambda: self.model.radar_offset() == 0.0,
+                                              translate=tr)
       attach_help(self.offset_row, RADAR_OFFSET)
       self.rows[RADAR_OFFSET] = self.offset_row
       # An empty or short page says why (no car / wrong car / longitudinal control off) instead of showing nothing.
