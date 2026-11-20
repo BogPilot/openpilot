@@ -246,9 +246,9 @@ class Car:
     # card is driven by can recv, expected at 100Hz
     self.rk = Ratekeeper(100, print_delay_threshold=None)
     # 07e8bd68f moved OnroadDistanceButtonPressed to the 10 Hz params thread and
-    # added a log-only step-overrun counter on every car. Gate both to Pre-AP:
-    # AP1 and unknown keep the 92aa9ee1f path (read the button every 100 Hz step,
-    # no overrun timer).
+    # added a log-only step-overrun counter on every car. The button read is 10 Hz
+    # on Pre-AP and AP1; the overrun timer is Pre-AP only. Unknown cars keep the
+    # 92aa9ee1f path (read the button every 100 Hz step).
     if use_10hz_distance_button(self.CP.carFingerprint):
       self.onroad_distance_button = False
     self.step_timer = StepOverrunCounter(cloudlog.warning) if use_step_overrun_counter(self.CP.carFingerprint) else None
@@ -298,7 +298,7 @@ class Car:
     if use_10hz_distance_button(self.CP.carFingerprint):
       distance_pressed = self.onroad_distance_button
     else:
-      # 92aa9ee1f: read every 100 Hz step on AP1 and unknown (07e8bd68f gated to Pre-AP)
+      # 92aa9ee1f: read every 100 Hz step on unknown cars (Pre-AP and AP1 use the 10 Hz snapshot)
       distance_pressed = self.params.get_bool("OnroadDistanceButtonPressed")
     CS.bogpilot.trafficModeEnabled = self.traffic_mode_hold.update_button(
       distance_pressed, time.monotonic())
