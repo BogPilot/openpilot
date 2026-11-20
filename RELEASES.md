@@ -3,10 +3,10 @@ What's new
 * Holding the stalk tip in the first detent now changes the set speed by 1 every 0.2 s after a short pause, like native AP1 TACC. The deep detent still steps to the next 5. AP1 and Pre-AP with a comma pedal
 * Most settings can now be changed while driving, like FrogPilot 0.9.7, including Alert Volume. Sound minimums are unchanged
   * Steering, Driving Model, Vehicle, Car Selection and Stalk Controls ask for a reboot. Disable Long applies when the car turns off or on Reboot Now, which needs you to disengage first
-  * Gas/Brake, Tuning Level, downloads, calibration and resets stay locked while driving
+  * Gas/Brake, Tuning Level and resets stay locked while driving. Downloads and pedal calibration need Park or the car off
 * New panda firmware, which updates itself on the first start after updating:
-  * Steering commands are limited to a safe cornering force and ±360° of wheel angle on AP1 and Pre-AP
-  * Pre-AP steering requests stay within 20° of where the wheel is
+  * Steering commands are limited to a safe cornering force on AP1 and Pre-AP, and to ±360° of wheel angle on AP1 (Pre-AP already had that)
+* Pre-AP: steering requests stay within 20° of where the wheel is
 * AP1: steering recovers from a temporary power steering fault (code 4) at any speed above 0.3 m/s (about 0.7 mph), not only above about 5 mph
 * A blinker that's already on when you engage no longer starts a lane change
 * AP1 and Pre-AP: fewer false steering takeovers from wheel motion openpilot itself asked for
