@@ -454,15 +454,20 @@ class TestSettingsSidebarFlow(NativeCase):
     self.assertIsInstance(header.action_item, TextAction)
     self.assertNotEqual(header.action_item.text, "BACK")
 
-  def test_header_says_when_settings_are_locked_while_driving(self):
+  def test_header_shows_the_open_pages_onroad_class(self):
+    # 0.9.7 onroad parity (onroad_policy): Alerts and Sounds stay open onroad, Steering asks for a reboot.
+    from openpilot.selfdrive.ui.ui_state import ui_state
     self.open_bogpilot()
     self.open_pill("manage")
     header = self.bogpilot.content._header
-    from openpilot.selfdrive.ui.ui_state import ui_state
     with mock.patch.object(ui_state, "is_offroad", lambda: True):
       self.assertEqual(header.action_item.text, "")
     with mock.patch.object(ui_state, "is_offroad", lambda: False):
-      self.assertEqual(header.action_item.text, "Locked while the car is on")
+      self.assertEqual(header.action_item.text, "")
+    self.tap(self.settings._back_btn_rect)
+    self.open_pill("steering")
+    with mock.patch.object(ui_state, "is_offroad", lambda: False):
+      self.assertIn("reboot", header.action_item.text)
 
   def test_screenshots(self):
     shots = os.getenv("MENU_SHOTS")

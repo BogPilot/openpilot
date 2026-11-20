@@ -114,7 +114,9 @@ def available_choices():
 
 
 def apply_choice(params, choice: str, *, offroad: bool) -> bool:
-  """Write CarModel/ForceFingerprint for a writable choice. Offroad-only.
+  """Write CarModel/ForceFingerprint for a writable choice. `offroad` is the caller's edit gate: True offroad, and since
+  0.9.7 onroad parity also while the car is on (onroad_policy REBOOT class: the fingerprint is only read when the car
+  starts, so a change made while driving takes effect at the next start, after the reboot prompt).
 
   Returns True when Params were updated. Unknown ids refuse.
   """
@@ -170,7 +172,7 @@ def clear_selection(params) -> None:
 def create_car_selection_layout(params=None):
   """Lazy UI factory: Auto, Tesla AP1 Model S, and Tesla AP1 Model X."""
   from openpilot.common.params import Params
-  from openpilot.selfdrive.ui.ui_state import ui_state
+  from openpilot.selfdrive.ui.bogpilot import onroad_policy
   from openpilot.system.ui.lib.application import gui_app
   from openpilot.system.ui.lib.multilang import tr
   from openpilot.system.ui.widgets import DialogResult, Widget
@@ -178,6 +180,8 @@ def create_car_selection_layout(params=None):
   from openpilot.system.ui.widgets.option_dialog import MultiOptionDialog
   from openpilot.system.ui.widgets.scroller_tici import Scroller
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
+
+  editable = onroad_policy.editor("car_selection")   # REBOOT class: editable while driving, prompts to reboot
 
   class CarSelectionLayout(Widget):
     def __init__(self):
@@ -189,7 +193,7 @@ def create_car_selection_layout(params=None):
         lambda: tr("SELECT"),
         lambda: tr("Choose Auto (default), Tesla AP1 Model S, or Tesla AP1 Model X when detection fails. Takes effect the next time the car starts."),
         callback=self._open_picker,
-        enabled=ui_state.is_offroad,
+        enabled=editable,
       )
       self._current = text_item(lambda: tr("Current selection"), "")
       attach_help(self._select, "CarSelection")
@@ -197,7 +201,7 @@ def create_car_selection_layout(params=None):
       self.scroller = Scroller([self._select, self._current], line_separator=True, spacing=0)
 
     def _open_picker(self):
-      if not ui_state.is_offroad():
+      if not editable():
         self.refresh()
         return
       labels = [CHOICE_LABELS[c] for c in available_choices()]
@@ -210,7 +214,8 @@ def create_car_selection_layout(params=None):
         self._dialog = None
         if result == DialogResult.CONFIRM and sel in labels:
           choice = available_choices()[labels.index(sel)]
-          apply_choice(self.params, choice, offroad=ui_state.is_offroad())
+          if apply_choice(self.params, choice, offroad=editable()):
+            onroad_policy.changed("car_selection")   # 0.9.7: reboot prompt when changed while started
         self.refresh()
 
       self._dialog = MultiOptionDialog(tr("Car Selection"), labels, current, callback=done)

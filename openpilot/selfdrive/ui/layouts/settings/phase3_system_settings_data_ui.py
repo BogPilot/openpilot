@@ -15,8 +15,13 @@ PENDING = {
 
 
 def build_data_layout(*, params=None, store=None, offroad=None, capable=None, show_header=True,
-                      compatibility=None, defaults=None, export_dir=None):
-  """Build the Data submenu Widget. Parent System Settings owns outer navigation."""
+                      compatibility=None, defaults=None, export_dir=None, onroad_ok=None):
+  """Build the Data submenu Widget. Parent System Settings owns outer navigation.
+
+  Onroad (0.9.7 parity, onroad_policy "system_data"): the non-destructive actions (Storage Use, View Stats, Toggle
+  Backups BACKUP, Stats EXPORT) work while driving; delete / rename / restore / stats reset stay offroad only.
+  `onroad_ok(row)` decides; by default it is the policy, unless the caller injected its own `offroad` (tests), in which
+  case nothing is allowed onroad unless `onroad_ok` is given too."""
   import json
   import threading
   import pyray as rl
@@ -37,11 +42,22 @@ def build_data_layout(*, params=None, store=None, offroad=None, capable=None, sh
 
   params = params if params is not None else Params()
   store = store if store is not None else ParamStore(params)
+  if onroad_ok is None and offroad is None:
+    from openpilot.selfdrive.ui.bogpilot import onroad_policy
+    onroad_ok = lambda row: onroad_policy.can_edit(onroad_policy.row_class(row, "system_data"))  # noqa: E731
   offroad = offroad or ui_state.is_offroad
   capable = capable or (lambda: not PC and HARDWARE.get_device_type() in {"tici", "tizi", "mici"})
   store = DurableStore(store, set(FEATURE_SPECS) | {"BogPilotStats", "DebugMode", "LocalLoggingDisableConsent", "HighQualityRecordingConsent"})
-  prefs = SystemPreferences(store, offroad, capable, stats_backup_dir="/data/bogpilot_stats_backups")
-  data = LocalData(offroad, capable, recording=lambda: recorder().recording)
+  prefs = SystemPreferences(store, offroad, capable, stats_backup_dir="/data/bogpilot_stats_backups", onroad_ok=onroad_ok)
+  data = LocalData(offroad, capable, recording=lambda: recorder().recording, onroad_ok=onroad_ok)
+
+  def onroad_allows(row):
+    if onroad_ok is None or row is None:
+      return False
+    try:
+      return bool(onroad_ok(row))
+    except Exception:
+      return False
 
   def installed_compatibility():
     cp = getattr(ui_state, "CP", None)
@@ -86,20 +102,21 @@ def build_data_layout(*, params=None, store=None, offroad=None, capable=None, sh
         return True
       return bool(self.busy)
 
-    def allowed(self):
-      return not self.busy and offroad() and capable()
+    def allowed(self, row=None):
+      """Offroad: every action. Car on: only the actions whose row the onroad policy allows (row None: offroad only)."""
+      return not self.busy and capable() and (offroad() or onroad_allows(row))
 
     def unavailable(self, title):
       return text_item(lambda: tr(title), lambda: tr("Unavailable"), lambda: tr(PENDING[title]))
 
-    def action(self, title, label, callback, description=""):
+    def action(self, title, label, callback, description="", row=None):
       return attach_help_first(
         button_item(lambda: tr(title), lambda: tr(label), lambda: tr(description),
-                    callback=lambda: self.attempt(callback), enabled=self.allowed),
+                    callback=lambda: self.attempt(callback, row), enabled=lambda: self.allowed(row)),
         f"data:{title}:{label}", f"data:{title}")
 
-    def attempt(self, callback):
-      if not self.allowed():
+    def attempt(self, callback, row=None):
+      if not self.allowed(row):
         self.status = "Offroad supported device required; no changes made."
         self._dirty = True
         return
@@ -109,8 +126,8 @@ def build_data_layout(*, params=None, store=None, offroad=None, capable=None, sh
         self.status = f"Action refused or failed ({type(exc).__name__}); no success claimed."
         self._dirty = True
 
-    def run(self, function):
-      if not self.allowed():
+    def run(self, function, row=None):
+      if not self.allowed(row):
         return
       self.busy = True
       self.status = "Working..."
@@ -118,7 +135,7 @@ def build_data_layout(*, params=None, store=None, offroad=None, capable=None, sh
 
       def worker():
         try:
-          prefs.guard()
+          prefs.guard(row)
           outcome = function()
           self.status = outcome if isinstance(outcome, str) else "Completed."
         except Exception as exc:
@@ -129,13 +146,13 @@ def build_data_layout(*, params=None, store=None, offroad=None, capable=None, sh
 
       threading.Thread(target=worker, daemon=True).start()
 
-    def confirm(self, question, function, label="Confirm"):
-      if not self.allowed():
+    def confirm(self, question, function, label="Confirm", row=None):
+      if not self.allowed(row):
         return
 
       def done(result):
         if result == DialogResult.CONFIRM:
-          self.attempt(lambda: self.run(function))
+          self.attempt(lambda: self.run(function, row), row)
 
       gui_app.push_widget(ConfirmDialog(tr(question), tr(label), callback=done))
 
@@ -213,21 +230,21 @@ def build_data_layout(*, params=None, store=None, offroad=None, capable=None, sh
         items = [
           self.action("Delete Driving Data", "DELETE", lambda: self.confirm(
             "Delete all unpreserved local driving data and footage? Preserved drives are kept.",
-            lambda: data.delete("driving"), "Delete")),
+            lambda: data.delete("driving"), "Delete"), row="data:delete"),
           self.action("Delete Error Logs", "DELETE", lambda: self.confirm(
-            "Delete all local error logs?", lambda: data.delete("errors"), "Delete")),
+            "Delete all local error logs?", lambda: data.delete("errors"), "Delete"), row="data:delete"),
         ]
         items += [self.manage(t) for t in (
           "Screen Recordings", "Storage Use", "BogPilot Backups", "Toggle Backups", "BogPilot Stats")]
       elif title == "Screen Recordings":
         items = [
           self.action("Screen Recordings", "DELETE", lambda: self.recording_select(lambda n: self.confirm(
-            "Delete this screen recording?", lambda: data.delete("recordings", n), "Delete"))),
+            "Delete this screen recording?", lambda: data.delete("recordings", n), "Delete")), row="data:delete"),
           self.action("Screen Recordings", "DELETE ALL", lambda: self.confirm(
             "Delete all completed local screen recordings?",
-            lambda: data.delete("recordings"), "Delete All")),
+            lambda: data.delete("recordings"), "Delete All"), row="data:delete"),
           self.action("Screen Recordings", "RENAME", lambda: self.recording_select(self.rename),
-                      "Recording must be stopped. Active locks/partial files block management."),
+                      "Recording must be stopped. Active locks/partial files block management.", row="data:rename"),
         ]
       elif title == "Storage Use":
         try:
@@ -252,13 +269,13 @@ def build_data_layout(*, params=None, store=None, offroad=None, capable=None, sh
                       "Exact installed-source/schema/platform/vehicle compatibility required. "
                       "Security/calibration/identity/DM/cloud/policy keys excluded. No cloud upload."),
             "data:Toggle Backups.scope"),
-          self.action("Toggle Backups", "BACKUP", lambda: self.run(archives.backup)),
+          self.action("Toggle Backups", "BACKUP", lambda: self.run(archives.backup, "data:backup"), row="data:backup"),
           self.action("Toggle Backups", "DELETE", lambda: self.backup_select(lambda n: self.confirm(
-            "Delete this compatible feature-toggle backup?", lambda: archives.delete(n), "Delete"))),
+            "Delete this compatible feature-toggle backup?", lambda: archives.delete(n), "Delete")), row="data:delete"),
           self.action("Toggle Backups", "DELETE ALL", lambda: self.confirm(
             "Delete all validated feature-toggle backups? Old/system/executable archives are kept.",
-            archives.delete, "Delete All")),
-          self.action("Toggle Backups", "RESTORE", lambda: self.backup_select(self.preview_restore)),
+            archives.delete, "Delete All"), row="data:delete"),
+          self.action("Toggle Backups", "RESTORE", lambda: self.backup_select(self.preview_restore), row="data:restore"),
         ]
       elif title == "Preview Changes":
         plan = self._preview
@@ -267,23 +284,23 @@ def build_data_layout(*, params=None, store=None, offroad=None, capable=None, sh
                             f"{v['from'] if v['from'] is not None else 'Inherited'} -> {v['to'] if v['to'] is not None else 'Inherited'}")
                   for k, v in sorted(plan["changes"].items())]
         items += [text_item("Protected: " + k, reason) for k, reason in sorted(PROTECTED_EXCLUSIONS.items())]
-        items.append(self.action("Apply Preview", "CONFIRM", lambda: self.confirm(
+        items.append(self.action("Apply Preview", "CONFIRM", row="data:restore", callback=lambda: self.confirm(
           "Apply ONLY the listed compatible preference changes? A durable pre-change backup is mandatory. "
           "Driving behavior preferences may change. Protected security/calibration/car identity/DM/cloud keys are excluded. "
           "No restart or reboot is performed.",
-          lambda: archives.apply_preview(plan), "Apply Changes")))
+          lambda: archives.apply_preview(plan), "Apply Changes")))   # row data:restore: offroad only
       elif title == "BogPilot Stats":
         items = [
           self.action("BogPilot Stats", "RESET", lambda: self.confirm(
             "Reset collected BogPilot stats? Driving logs and recordings are kept.",
-            prefs.reset_stats, "Reset")),
+            prefs.reset_stats, "Reset"), row="data:stats_reset"),
           self.manage("View Stats"),
         ]
         if export_dir is not None:
           items.append(self.action("BogPilot Stats", "EXPORT", lambda: self.confirm(
             "Export a local JSON copy of BogPilot stats? No upload or network action occurs.",
-            self.do_export_stats, "Export"),
-            "Local file only; overwrite refused; path set by integrator/tests."))
+            self.do_export_stats, "Export", row="data:export"),
+            "Local file only; overwrite refused; path set by integrator/tests.", row="data:export"))
       elif title == "View Stats":
         try:
           stats = prefs.stats()

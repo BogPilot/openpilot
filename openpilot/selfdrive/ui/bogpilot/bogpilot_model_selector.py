@@ -65,10 +65,17 @@ def ui_text(snapshot: Snapshot) -> list[str]:
 
 
 class ModelSelectorController:
-  """Offroad driving-model choice. Never raises; backend failures become status text."""
+  """Driving-model choice. Never raises; backend failures become status text.
 
-  def __init__(self, is_offroad, store=None, root=None, cache=None):
+  `is_offroad` is the edit gate. The page passes onroad_policy.editor("driving_model") (0.9.7 Model: reboot-prompt
+  class), so a model can be chosen while driving; the choice is recorded for the next drive start either way
+  (selection.select), and `started` says whether to tell the user it needs a reboot. `on_change` runs after a
+  successful choice (the reboot prompt)."""
+
+  def __init__(self, is_offroad, store=None, root=None, cache=None, started=None, on_change=None):
     self.is_offroad = is_offroad
+    self.started = started or (lambda: False)
+    self.on_change = on_change or (lambda: None)
     self.store = store
     self.root = root
     # Shared with validate_entry, which stores hashes and Validation objects here.
@@ -92,11 +99,22 @@ class ModelSelectorController:
       result = selection.SelectResult(False, f"Driving model was not changed ({type(exc).__name__}).")
     self.message = result.message
     self.refresh()
+    if getattr(result, "ok", False):
+      try:
+        self.on_change()
+      except Exception:
+        pass
     return result
 
   def _offroad(self) -> bool:
     try:
       return self.is_offroad() is True
+    except Exception:
+      return False
+
+  def _started(self) -> bool:
+    try:
+      return bool(self.started())
     except Exception:
       return False
 
@@ -165,6 +183,8 @@ class ModelSelectorController:
       status += f" | Next drive: {selected_name}"
     if not offroad:
       status += " | Changes apply offroad only"
+    elif self._started():
+      status += " | Takes effect after a reboot"
     only_default = len(entries) == 1 and entries[0].id == STOCK_ID
     return Snapshot(tuple(rows), status, only_default, notice, offroad)
 
@@ -181,8 +201,9 @@ def create_driving_model_layout(controller=None):
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
 
   if controller is None:
-    from openpilot.selfdrive.ui.ui_state import ui_state
-    controller = ModelSelectorController(ui_state.is_offroad)
+    from openpilot.selfdrive.ui.bogpilot import onroad_policy
+    controller = ModelSelectorController(onroad_policy.editor("driving_model"), started=onroad_policy.is_started,
+                                         on_change=lambda: onroad_policy.changed("driving_model"))
 
   class DrivingModelLayout(Widget):
     def __init__(self):

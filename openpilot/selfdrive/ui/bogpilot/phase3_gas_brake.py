@@ -173,7 +173,10 @@ def create_gas_brake_layout(store=None, cp_source=None, can_edit=None):
   if cp_source is None or can_edit is None:
     from openpilot.selfdrive.ui.ui_state import ui_state
     cp_source = cp_source or (lambda: ui_state.CP)
-    can_edit = can_edit or ui_state.is_offroad
+    if can_edit is None:
+      # onroad_policy "gas_brake" = LOCKED: offroad only (0.9.7 allowed Longitudinal live; see ONROAD_CAVEATS).
+      from openpilot.selfdrive.ui.bogpilot import onroad_policy
+      can_edit = onroad_policy.editor("gas_brake")
   cp = LiveCP(cp_source)
 
   class GasBrakeLayout(Widget):

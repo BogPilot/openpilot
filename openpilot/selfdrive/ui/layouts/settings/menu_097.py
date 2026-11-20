@@ -4,14 +4,16 @@ the left, pill buttons on the right and thin dividers between rows.
 `Section` / `Pill` are plain data (what the menu shows and which existing raylib page each pill opens). `MenuNavigation`
 is pure state (no raylib): home -> pill -> optional page list -> page, with Back. `MenuLayout` is the raylib widget.
 
-Nothing here writes a setting except the Tuning Level control, and only when it is tapped. Importing this module has no UI
-or Params side effects.
+Nothing here writes a setting except the Tuning Level control (only when it is tapped) and, through
+onroad_policy.install, the reboot-class changes staged while the car was on (applied when it turns off). Importing this
+module has no UI or Params side effects.
 """
 from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from openpilot.selfdrive.ui.bogpilot import onroad_policy
 from openpilot.selfdrive.ui.bogpilot import tuning_level as tl
 from openpilot.selfdrive.ui.layouts.settings.phase2_navigation import Page, content_bounds
 from openpilot.system.ui.lib.multilang import tr_noop
@@ -73,12 +75,14 @@ def validate(sections) -> None:
 class MenuNavigation:
   """Home -> (pill) -> (pill, page). A pill with one visible page opens it directly."""
 
-  def __init__(self, sections, home_factory: Callable, menu_factory: Callable, level: Callable[[], int] | None = None):
+  def __init__(self, sections, home_factory: Callable, menu_factory: Callable, level: Callable[[], int] | None = None,
+               on_move: Callable[[], None] | None = None):
     validate(sections)
     self.sections = tuple(sections)
     self._home_factory = home_factory
     self._menu_factory = menu_factory
     self._level = level or tl.effective_level
+    self._on_move = on_move
     self._cache: dict = {}
     self.path: tuple = ()
     self.visible = False
@@ -153,6 +157,8 @@ class MenuNavigation:
     if self.visible:
       self.current.hide_event()
     self.path = path
+    if self._on_move is not None:
+      self._on_move()
     if self.visible:
       target.show_event()
 
@@ -210,6 +216,27 @@ class MenuNavigation:
     if self.visible:
       self.current.hide_event()
       self.visible = False
+
+
+def page_class_of(navigation: MenuNavigation) -> str | None:
+  """Onroad class of what is open: the page, or on a page list the class its visible pages share (None when they differ
+  or at home)."""
+  path = navigation.path
+  if len(path) == 2:
+    return onroad_policy.page_class(path[1])
+  if len(path) == 1:
+    classes = {onroad_policy.page_class(p.key) for p in navigation.pages_of(navigation.pill(path[0]))}
+    return classes.pop() if len(classes) == 1 else None
+  return None
+
+
+def page_note(navigation: MenuNavigation, drive=None) -> str:
+  drive = drive or onroad_policy.state()
+  cls = page_class_of(navigation)
+  if cls is None:
+    return ""
+  started = drive.started()
+  return onroad_policy.note(cls, started, drive.parked() if started else True)
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -347,13 +374,22 @@ def build_menu(sections, store=None, can_edit: Callable[[], bool] | None = None,
       super().__init__()
       from openpilot.selfdrive.ui.ui_state import ui_state
       self._ui_state = ui_state
-      self._can_edit = can_edit or (lambda: bool(ui_state.is_offroad()))
+      # Onroad policy (bogpilot/onroad_policy.py, 0.9.7 parity): there is no global lock any more. Each page has a class
+      # (editable / reboot prompt / parked / locked) and guards its own rows; this widget only gates the Tuning Level
+      # control (offroad only) and shows the open page's note next to the title.
+      self._can_edit = can_edit or onroad_policy.editor("", "tuning_level")
       self._store = store
       self._show_warning = show_warning or (lambda text: gui_app.push_widget(alert_dialog(tr(text))))
-      self.navigation = MenuNavigation(sections, self._build_home, self._build_page_list, level=self.level)
+      self.navigation = MenuNavigation(sections, self._build_home, self._build_page_list, level=self.level,
+                                       on_move=onroad_policy.new_visit)
+      onroad_policy.install(ui_state)   # staged reboot-class changes are applied when the car turns off
       # Title only: Back is the top-left item of the settings sidebar (see SettingsLayout), as in 0.9.7.
-      # While the car is on every setting is locked; say so next to the title, where the user is looking.
-      self._header = text_item(lambda: tr(self.navigation.title), lambda: "" if self._can_edit() else tr(LOCKED_WHILE_DRIVING))
+      self._header = text_item(lambda: tr(self.navigation.title), lambda: tr(self._page_note()))
+
+    def _page_note(self) -> str:
+      """Note next to the title while the car is on: the open page's class (or, on a page list, the class all its
+      pages share)."""
+      return page_note(self.navigation)
 
     # ---- Tuning Level control
     def level(self) -> int:
@@ -378,7 +414,7 @@ def build_menu(sections, store=None, can_edit: Callable[[], bool] | None = None,
                               selected=self.level, enabled=self._can_edit)
       tuning = attach_help(MenuRow(lambda: tr("Tuning Level"), icon_path("menu_tuning.png"), action_item=segmented),
                            "menu.tuning_level")
-      # The home page has no header: while the car is on every setting is locked, so say so under the first row.
+      # The home page has no header: the Tuning Level stays offroad only, so say so under its row while the car is on.
       tuning.subtitle = lambda: "" if self._can_edit() else tr(LOCKED_WHILE_DRIVING)
       items = [tuning]
       for section in nav.sections:

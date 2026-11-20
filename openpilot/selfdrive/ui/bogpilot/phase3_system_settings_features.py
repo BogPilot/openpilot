@@ -139,7 +139,7 @@ class FeatureArchive(PreferenceArchive):
       return ()
 
   def backup(self):
-    self.prefs.guard()
+    self.prefs.guard("data:backup")   # creating a backup changes no setting: allowed while driving when the policy says so
     values = {key: self.prefs.store.raw(key) for key in sorted(self.keys)}
     # Absent values are represented explicitly: a same-build restore can return
     # to inheritance without silently synthesizing a saved ON/default value.

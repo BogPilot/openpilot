@@ -21,7 +21,8 @@ def test_actual_factories_and_honest_restart_semantics():
   assert {page.key for page in pages["vehicle"]} == {"car_selection", "vehicle_controls", "stalk_controls", "vehicle_info"}
   assert {page.key for page in pages["system"]} == {"system_data", "system_device", "system_utilities"}
   assert all(callable(page.factory) and page.controls for group in pages.values() for page in group)
-  assert "next sound service start" in (Path(__file__).parents[1] / "bogpilot/phase2_sounds.py").read_text()
+  # soundd re-reads the volume store about once a second while idle (0.9.7 onroad parity: no restart needed).
+  assert "picks them up within about a second" in (Path(__file__).parents[1] / "bogpilot/phase2_sounds.py").read_text()
 
 
 def test_reverse_retains_real_stock_safety_alert_renderer_last():

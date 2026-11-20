@@ -4,8 +4,9 @@ Every row has a real 0.11.2 consumer (see controls/lib/phase3_steering_tuning.py
 inert stand-in: SteerKP, ForceTorqueController, NNFF, NNFFLite.
 
 Parent integrator registers `PAGE_KEY/PAGE_TITLE/create_steering_tuning_layout/ACTIVE_CONTROLS` as one Driving
-Controls page. Widget enabled callbacks AND writes enforce offroad/capability guards, so a stale confirmation
-cannot write onroad or for a car that lacks the row.
+Controls page. Widget enabled callbacks AND writes enforce the edit gate and capability guards, so a stale
+confirmation cannot write for a car that lacks the row. The edit gate is onroad_policy.editor("steering_tuning"):
+0.9.7 Lateral, reboot-prompt class (editable while driving; the first change while the car is on asks to reboot).
 """
 import math
 from opendbc.car.tesla_ap1.override import SENSITIVITY_DEFAULT, SENSITIVITY_LEVELS, sanitize_level
@@ -35,9 +36,11 @@ def _as_callable(cp):
 
 
 class TuningEditor:
-  """cp may be a CarParams or a callable returning the current persisted CarParams (None when unknown)."""
-  def __init__(self, cp, store, offroad):
+  """cp may be a CarParams or a callable returning the current persisted CarParams (None when unknown).
+  `offroad` is the edit gate (see the module docstring); `on_change(key)` runs after each saved write or reset."""
+  def __init__(self, cp, store, offroad, on_change=None):
     self._cp, self.store, self.offroad = _as_callable(cp), store, offroad
+    self.on_change = on_change or (lambda key: None)
 
   @property
   def cp(self):
@@ -115,12 +118,14 @@ class TuningEditor:
       return False
     self.store.put(key, value)
     self.store.invalidate(key)
+    self.on_change(key)
     return True
 
   def reset(self, key):
     if (key != OVERRIDE_SENSITIVITY and key not in self.rows) or not self.can_edit(key):
       return False
     self.store.remove(key)
+    self.on_change(key)
     return True
 
   def level(self):
@@ -201,8 +206,9 @@ class TuningEditor:
     return self.write(key, round(self.value(key) + direction * NUMERIC_STEP, 2))
 
 
-def make_layout(cp, store, offroad):
-  """cp: CarParams or callable returning it. Items are fixed; vehicle-dependent ones hide via set_visible."""
+def make_layout(cp, store, offroad, on_change=None):
+  """cp: CarParams or callable returning it. Items are fixed; vehicle-dependent ones hide via set_visible.
+  offroad: the edit gate; on_change(key): after each saved change (the reboot prompt)."""
   from openpilot.system.ui.widgets import Widget
   from openpilot.system.ui.widgets.list_view import toggle_item
   from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_value_step_item, reset_section_item, RESET_SECTION_TITLE, MINUS, PLUS
@@ -218,7 +224,7 @@ def make_layout(cp, store, offroad):
   class SteeringTuningLayout(Widget):
     def __init__(self):
       super().__init__()
-      self.editor = TuningEditor(cp, store, offroad)
+      self.editor = TuningEditor(cp, store, offroad, on_change=on_change)
       self.toggles = {}
       e = self.editor
       items = []
@@ -339,5 +345,8 @@ def make_layout(cp, store, offroad):
 def create_steering_tuning_layout():
   """Navigation factory (lazy). Uses the persisted UI CarParams, which does not prove an attached car."""
   from openpilot.common.bogpilot_store import ParamStore
+  from openpilot.selfdrive.ui.bogpilot import onroad_policy
   from openpilot.selfdrive.ui.ui_state import ui_state
-  return make_layout(lambda: ui_state.CP, ParamStore(), ui_state.is_offroad)
+  # 0.9.7 Lateral: editable while driving, reboot prompt on the first change while the car is on.
+  return make_layout(lambda: ui_state.CP, ParamStore(), onroad_policy.editor("steering_tuning"),
+                     on_change=onroad_policy.on_change("steering_tuning"))

@@ -120,7 +120,7 @@ def step_is_default(store, key: str) -> bool:
 
 
 class LaneChangeLayout:
-  def __new__(cls, store=None, *, runtime_integrated=False, offroad=None):
+  def __new__(cls, store=None, *, runtime_integrated=False, offroad=None, on_change=None):
     if not runtime_integrated:
       raise RuntimeError("Lane-change consumers must be integrated before exposing controls")
     from openpilot.common.bogpilot_store import ParamStore
@@ -140,8 +140,13 @@ class LaneChangeLayout:
         self._build()
 
       def _editable(self):
-        # No private calibration/capability assumptions: primary supplies offroad.
+        # No private calibration/capability assumptions: primary supplies the edit gate (onroad_policy "lane_changes",
+        # 0.9.7 Lateral: editable while driving with the reboot prompt).
         return offroad is not None and offroad()
+
+      def _changed(self, key):
+        if on_change is not None:
+          on_change(key)
 
       def _build(self):
         by_key = {}
@@ -220,12 +225,14 @@ class LaneChangeLayout:
 
       def _after_reset(self):
         # A reset may switch a section off or on: rebuild like a toggle does, so the rows follow the switch.
+        self._changed("reset")
         self._build()
         self.scroller.show_event()
 
       def _toggle(self, key, state):
         if self._editable():
           configure(self.store, key, bool(state))
+          self._changed(key)
           self._build()
           self.scroller.show_event()
 
@@ -235,6 +242,7 @@ class LaneChangeLayout:
           key = row[0]
           value = self.store.get_float(key)
           configure(self.store, key, str(round(max(low, min(high, value + direction * step)), 1)))
+          self._changed(key)
 
       def show_event(self):
         super().show_event()

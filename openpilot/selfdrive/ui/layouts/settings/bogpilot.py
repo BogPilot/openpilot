@@ -9,9 +9,11 @@ LANE_CHANGE_CONTROLS = ("LaneChanges", "NudgelessLaneChange", "LaneChangeTime", 
 
 def _lane_changes_layout():
   """Lane Changes: consumers are desire_helper/radard (applied in this tree), hence runtime_integrated=True."""
+  from openpilot.selfdrive.ui.bogpilot import onroad_policy
   from openpilot.selfdrive.ui.bogpilot.phase3_lanechange import LaneChangeLayout
-  from openpilot.selfdrive.ui.ui_state import ui_state
-  return LaneChangeLayout(runtime_integrated=True, offroad=ui_state.is_offroad)
+  # 0.9.7 Lateral: editable while driving, reboot prompt on the first change while the car is on (onroad_policy).
+  return LaneChangeLayout(runtime_integrated=True, offroad=onroad_policy.editor("lane_changes"),
+                          on_change=onroad_policy.on_change("lane_changes"))
 
 
 def _vehicle_info_layout():

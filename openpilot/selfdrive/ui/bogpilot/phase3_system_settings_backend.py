@@ -133,9 +133,20 @@ def _bytes(fd, dev, depth=0, count=None):
   return total
 
 
+def _onroad_ok(onroad_ok, op) -> bool:
+  """Caller-supplied onroad allowance for one named operation (onroad_policy row key); none means offroad only."""
+  if onroad_ok is None or op is None:
+    return False
+  try:
+    return bool(onroad_ok(op))
+  except Exception:
+    return False
+
+
 class LocalData:
-  def __init__(self, offroad, capable, *, roots=None, recording=lambda: False):
+  def __init__(self, offroad, capable, *, roots=None, recording=lambda: False, onroad_ok=None):
     self.offroad, self.capable = offroad, capable
+    self.onroad_ok = onroad_ok   # read-only Storage Use may run while driving when this allows "data:storage_use"
     self.roots = ROOTS if roots is None else roots  # fixtures only; UI never supplies this
     self.recording = recording
 
@@ -181,7 +192,7 @@ class LocalData:
 
   def storage_use(self):
     """Read-only byte totals per local data category. Never mutates files."""
-    if not self.offroad() or not self.capable():
+    if not self.capable() or not (self.offroad() or _onroad_ok(self.onroad_ok, "data:storage_use")):
       raise PermissionError("Offroad supported device required")
     report = {}
     for category, roots in self.roots.items():
@@ -261,13 +272,16 @@ RANGES = {"DeviceShutdown": (0, 33, 1), "LowVoltageShutdown": (11.8, 12.5, .1),
 
 
 class SystemPreferences:
-  def __init__(self, store, offroad, capable, stats_backup_dir=None):
+  def __init__(self, store, offroad, capable, stats_backup_dir=None, onroad_ok=None):
     self.store, self.offroad, self.capable = store, offroad, capable
+    # Named non-destructive operations ("data:backup", "data:export") may run while driving when onroad_ok allows them
+    # (onroad_policy, 0.9.7 parity). Everything else, and every call without an operation name, stays offroad only.
+    self.onroad_ok = onroad_ok
     # lifetime stats cannot be rebuilt, so RESET needs a durable copy first.
     self.stats_backup_dir = stats_backup_dir
 
-  def guard(self):
-    if not self.offroad() or not self.capable():
+  def guard(self, op=None):
+    if not self.capable() or not (self.offroad() or _onroad_ok(self.onroad_ok, op)):
       raise PermissionError("Offroad supported device required")
 
   def _backup_stats(self, raw):
@@ -342,7 +356,7 @@ class SystemPreferences:
     destination_dir must be an absolute path supplied by the caller/tests; the UI
     never accepts free-form paths. Overwrite refused. No network upload.
     """
-    self.guard()
+    self.guard("data:export")
     dest = Path(destination_dir)
     if not dest.is_absolute() or ".." in dest.parts:
       raise ValueError("Absolute export directory required")

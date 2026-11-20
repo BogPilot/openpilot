@@ -24,7 +24,14 @@ U+2212 MINUS SIGN is NOT in the atlas (renders as '?'). This panel uses ASCII '-
 
 Not owned here: BogPilot Alerts rows (alertsAudio lane), GoatScream (skipped),
 test-play buttons (0.9.7 ffplay; unverified), settings.py / bogpilot.py registration (INT),
-soundd.py live-reload (see PROPOSED_shared.patch). U+2014 on drive stats = driveStats lane.
+soundd.py itself. U+2014 on drive stats = driveStats lane.
+
+Onroad (FrogPilot 0.9.7 parity, sounds_settings.cc:144-146): this page is editable while the car is on
+(onroad_policy.PAGE_CLASS["volume"] = ONROAD). The 25% floors are unchanged and enforced in three places regardless of
+the UI: VOLUME_ROWS / WARNING_FLOOR here, soundd.resolve_alert_gain fallback, and alert_volumes.volume_fraction.
+soundd re-reads the file store about once per second while no alert is playing (soundd.py soundd_thread), and
+write_text is an atomic replace, so a change made while driving reaches soundd within ~1 s of the current alert ending
+and never mid-alert.
 """
 from __future__ import annotations
 
@@ -269,13 +276,16 @@ def create_volume_layout():
   """Raylib Alert Volume Controller: [Mute|Min] [ASCII -] [label] [+] per category.
 
   Mute sits LEFT of minus. Warning/critical rows use Min and clamp to 25% so safety
-  alerts stay audible. Without PROPOSED_shared.patch, soundd loads volumes at process
-  start; the UI re-reads the store about once per second while idle.
+  alerts stay audible. Editable onroad (0.9.7 parity); soundd picks a change up within
+  about a second, once no alert is playing. The UI re-reads the store about once per second.
   """
-  from openpilot.selfdrive.ui.ui_state import ui_state
+  from openpilot.selfdrive.ui.bogpilot import onroad_policy
   from openpilot.system.ui.lib.multilang import tr
   from openpilot.system.ui.widgets import Widget
   from openpilot.system.ui.widgets.list_view import toggle_item, text_item
+
+  # Editable while driving (0.9.7 parity). Only the gate changes: ranges, floors and writes are exactly as offroad.
+  editable = onroad_policy.editor("volume")
   from openpilot.selfdrive.ui.bogpilot.gated_actions import RESET_SECTION_TITLE, gated_value_step_item, reset_section_item
   from openpilot.system.ui.widgets.scroller_tici import Scroller
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
@@ -291,10 +301,10 @@ def create_volume_layout():
           "Per-category alert volumes. File store (/data/params_bogpilot) is the live source "
           "(soundd reads file before Params). Mute saves the current level and jumps to the "
           "row minimum; tap again to restore (survives restart). Prompt, Prompt Distracted and Warning rows use "
-          "Min and cannot go below 25%. Without the soundd live-reload patch, a new value "
-          "applies at the next sound service start. Auto follows ambient."
+          "Min and cannot go below 25%. Changes work while driving: the sound service "
+          "picks them up within about a second, once no alert is playing. Auto follows ambient."
         ),
-        read_controller(), callback=self.set_controller, enabled=ui_state.is_offroad,
+        read_controller(), callback=self.set_controller, enabled=editable,
       )
       attach_help(self.controller, "AlertVolumeControl")
       self.note = text_item(
@@ -320,20 +330,20 @@ def create_volume_layout():
           callback=lambda index, key=key: self.on_button(key, index),
           selected_index=1,
           button_width=150,
-          enabled=ui_state.is_offroad,   # lock the action too, so a locked tap cannot move the highlight
+          enabled=editable,   # lock the action too, so a locked tap cannot move the highlight
           default_text=lambda key=key: label(default_volume(key)),
           is_default=lambda key=key: is_default_volume(key),
           translate=tr,
         )
-        row.set_enabled(ui_state.is_offroad)
+        row.set_enabled(editable)
         attach_help(row, key)
         self.volumes[key] = row
         items.append(row)
       # One reset row for the section: asks first, then writes the volume keys back to their defaults and the controller
       # switch back to its shipped default (section_defaults).
       self.reset = reset_section_item(section_defaults, write_volume_default, title=lambda: tr(RESET_SECTION_TITLE),
-                                      enabled=ui_state.is_offroad, on_done=lambda: self.refresh(force=True))
-      self.reset.set_enabled(ui_state.is_offroad)
+                                      enabled=editable, on_done=lambda: self.refresh(force=True))
+      self.reset.set_enabled(editable)
       attach_help(self.reset, "section.reset_defaults")
       # Same Tuning Level as the controller it belongs to (AlertVolumeControl is level 2 in bogpilot_defaults.py), so
       # the reset row is hidden whenever the controller and its volume rows are hidden.
@@ -354,12 +364,12 @@ def create_volume_layout():
               "101 is Auto.")
 
     def set_controller(self, value):
-      if ui_state.is_offroad():
+      if editable():
         set_controller(bool(value))
       self.refresh(force=True)
 
     def on_button(self, key, index):
-      if not ui_state.is_offroad():
+      if not editable():
         self.refresh(force=True)
         return
       if index == 0:

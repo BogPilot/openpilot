@@ -117,10 +117,17 @@ class VehicleSettings:
 
   cp and offroad are callables, deliberately not captured snapshots. A confirmation
   may outlive its car or offroad state. Optional paths are for isolated native tests.
+
+  `offroad` is the edit gate. Since 0.9.7 onroad parity the UI passes onroad_policy.editor("vehicle_controls") (REBOOT
+  class: editable while driving, then the reboot prompt), so it is True onroad too. `started`, when given, says the car
+  is on: Disable openpilot Longitudinal Control is then staged (onroad_policy.stage) instead of written, because the
+  planners read it live; it is applied when the car turns off or just before Reboot Now. read() shows the staged value.
   """
-  def __init__(self, params, cp, offroad, file_dir=None, params_file=None):
+  def __init__(self, params, cp, offroad, file_dir=None, params_file=None, started=None, on_change=None):
     from opendbc.car.tesla_ap1 import toggles, regen_brake
     self.params, self.cp, self.offroad = params, cp, offroad
+    self.started = started or (lambda: False)
+    self.on_change = on_change or (lambda key: None)
     self.toggles, self.regen = toggles, regen_brake
     self.file_dir = Path(file_dir) if file_dir is not None else toggles.IC_INTEGRATION_DIR
     self.params_file = Path(params_file) if params_file is not None else toggles.DISABLE_OP_LONG_PATHS[1]
@@ -181,22 +188,25 @@ class VehicleSettings:
     """Save a hand-typed donor VIN. Returns None on success, or the reason it was refused.
 
     Empty / separators only clears it (empty = 17 spaces = this car, no substitution). Anything else must normalize to a
-    17-character VIN, the same check the 0x560 stream applies, so a half-typed VIN can never reach the radar. Offroad
-    only, as Radar Donor Type: the value is read once when the car starts. The VIN itself is never logged or returned
+    17-character VIN, the same check the 0x560 stream applies, so a half-typed VIN can never reach the radar. Gated like
+    Radar Donor Type (the edit gate; while the car is on that is the reboot-prompt class): the value is read once when
+    the car starts, so a change made while driving applies at the next start. The VIN itself is never logged or returned
     in a reason string.
     """
     if not self.enabled(RADAR_DONOR_VIN):
-      return "Turn on Bosch Radar first, with the car off." if not self.visible(RADAR_DONOR_VIN) else "Turn the car off first."
+      return "Turn on Bosch Radar first." if not self.visible(RADAR_DONOR_VIN) else "Turn the car off first."
     from opendbc.car.tesla_ap1.preap import params as preap_params
     from opendbc.car.tesla_ap1.preap.radar_donor import normalize_radar_donor_vin
     raw = "" if text is None else str(text)
     if not any(ch.isalnum() for ch in raw):
       preap_params.set_str(preap_params.PreApParamKeys.RADAR_DONOR_VIN, "")
+      self.on_change(RADAR_DONOR_VIN)
       return None
     vin = normalize_radar_donor_vin(raw)
     if not vin:
       return RADAR_DONOR_VIN_BAD
     preap_params.set_str(preap_params.PreApParamKeys.RADAR_DONOR_VIN, vin)
+    self.on_change(RADAR_DONOR_VIN)
     return None
 
   def donor_vin_stored(self):
@@ -231,7 +241,7 @@ class VehicleSettings:
     status = preap_params.get_str(preap_params.PreApParamKeys.RADAR_VIN_READ_STATUS).strip()
     return status[:24].upper() if status else "READ"
 
-  # ---- Pre-AP Radar Donor Type (NAP NAPRadarPosition): 0 / 1 / 2, offroad only ----
+  # ---- Pre-AP Radar Donor Type (NAP NAPRadarPosition): 0 / 1 / 2, read once at car start (edit gate: self.offroad) ----
   def donor_type(self):
     from opendbc.car.tesla_ap1.preap import params as preap_params
     return preap_params.radar_donor_type()
@@ -240,15 +250,16 @@ class VehicleSettings:
     return RADAR_DONOR_TYPE_NAMES[self.donor_type()]
 
   def next_donor_type(self):
-    """Pressed: the next type (0 -> 1 -> 2 -> 0). Refused unless visible and offroad. Returns the stored value or None."""
+    """Pressed: the next type (0 -> 1 -> 2 -> 0). Refused unless visible and the edit gate allows. Returns the stored value or None."""
     if not self.enabled(RADAR_DONOR_TYPE):
       return None
     from opendbc.car.tesla_ap1.preap import params as preap_params
     value = (self.donor_type() + 1) % 3
     preap_params.set_int(preap_params.PreApParamKeys.RADAR_DONOR_TYPE, value)
+    self.on_change(RADAR_DONOR_TYPE)
     return value
 
-  # ---- Pre-AP Radar Offset (Tinkla TinklaRadarOffset): -1.00 .. 1.00 m in 0.05 steps from the row, default 0, offroad only ----
+  # ---- Pre-AP Radar Offset (Tinkla TinklaRadarOffset): -1.00 .. 1.00 m in 0.05 steps from the row, default 0, read at car start ----
   def radar_offset(self):
     from opendbc.car.tesla_ap1.preap import params as preap_params
     return round(preap_params.radar_offset_m(), 2)
@@ -260,7 +271,7 @@ class VehicleSettings:
 
   def step_radar_offset(self, steps):
     """Pressed - (steps=-1) or + (steps=+1): move by 0.01 m, clamped to -1.00..1.00 (no wrap), kept on whole hundredths.
-    Refused unless visible and offroad. Returns the stored value or None."""
+    Refused unless visible and the edit gate allows. Returns the stored value or None."""
     if not self.enabled(RADAR_OFFSET):
       return None
     from opendbc.car.tesla_ap1.preap import params as preap_params
@@ -268,6 +279,7 @@ class VehicleSettings:
     cents = max(-limit, min(limit, int(round(self.radar_offset() * 100)) + int(steps)))
     value = cents / 100
     preap_params.set_float(preap_params.PreApParamKeys.RADAR_OFFSET, value)
+    self.on_change(RADAR_OFFSET)
     return value
 
   def donor_vin_text(self):
@@ -320,6 +332,10 @@ class VehicleSettings:
 
   def read(self, key):
     if key == LONG:
+      from openpilot.selfdrive.ui.bogpilot import onroad_policy
+      staged = onroad_policy.pending(LONG)
+      if staged is not None:
+        return bool(staged)
       return self.toggles.disable_openpilot_long(paths=(self.file_dir / LONG, self.params_file))
     if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE, IBOOSTER, RADAR_IGNORE_HW_FAIL, RADAR_FLIP, AUTO_SPEED):
       from opendbc.car.tesla_ap1.preap import params as preap_params
@@ -343,8 +359,17 @@ class VehicleSettings:
     if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE, IBOOSTER, RADAR_IGNORE_HW_FAIL, RADAR_FLIP, AUTO_SPEED):
       from opendbc.car.tesla_ap1.preap import params as preap_params
       preap_params.set_bool(key, state)
+      self.on_change(key)
       return True
     if key == LONG:
+      from openpilot.selfdrive.ui.bogpilot import onroad_policy
+      if self.started():
+        # Car on: stage it. The planners read this live; it must not flip mid-drive (applied with the car off).
+        if not onroad_policy.stage(LONG, state):
+          return False
+        self.on_change(key)
+        return True
+      onroad_policy.clear_pending(LONG)
       # Existing override has priority over Params. Do not create a new override.
       self.params.put_bool(LONG, state, block=True)
       override = self.file_dir / LONG
@@ -354,7 +379,16 @@ class VehicleSettings:
       self.toggles.set_enable_ic_integration(state, path=self.cluster_path)
     elif key == REGEN:
       self.regen.set_regen_comfort_brake(state, path=self.regen_path)
+    self.on_change(key)
     return True
+
+
+def apply_staged_long(value) -> bool:
+  """onroad_policy applier for a Disable Longitudinal change staged while the car was on: the normal offroad write
+  (Params plus an existing override file), re-checked against the persisted car (refused if it no longer has the row)."""
+  from openpilot.common.params import Params
+  from openpilot.selfdrive.ui.ui_state import ui_state
+  return VehicleSettings(Params(), lambda: ui_state.CP, lambda: True).write(LONG, bool(value))
 
 
 def _safe(fn):
@@ -383,11 +417,17 @@ def create_vehicle_settings_layout(params=None):
   from openpilot.system.ui.widgets.list_view import button_item, text_item
   from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_value_step_item
   from openpilot.selfdrive.ui.bogpilot import preap_pedal_cal as cal
+  from openpilot.selfdrive.ui.bogpilot import onroad_policy
 
   class VehicleSettingsLayout(Widget):
     def __init__(self):
       super().__init__()
-      self.model = VehicleSettings(params if params is not None else Params(), lambda: ui_state.CP, ui_state.is_offroad)
+      # REBOOT class (0.9.7 Vehicles panel): editable while driving; the first change while the car is on shows the
+      # reboot prompt, and Disable Longitudinal is staged until the car is off. Calibrate / Read VIN keep their own
+      # parked / not-engaged gates.
+      self.model = VehicleSettings(params if params is not None else Params(), lambda: ui_state.CP,
+                                   onroad_policy.editor("vehicle_controls"), started=onroad_policy.is_started,
+                                   on_change=onroad_policy.on_change("vehicle_controls"))
       # Speed and gear, not carState.standstill: on Pre-AP that is the DI cruise standstill state (see cal.car_moving).
       self.model.moving_fn = lambda: cal.car_state_moving(ui_state.started, ui_state.sm["carState"])
       self._status_cache = (0.0, "")
@@ -494,12 +534,12 @@ def create_vehicle_settings_layout(params=None):
     def edit_donor_vin(self):
       """Donor VIN pressed: a keyboard with the saved VIN in it. Confirm saves it, an empty box clears it.
 
-      Refused with a reason while the car is on or the radar is off (the value is read once at car start). The guards
-      are rechecked in the model when the keyboard closes, so a car that starts while the keyboard is open cannot
-      change the radar contract mid-drive.
+      Refused with a reason while the radar is off or the edit gate refuses. The value is read once at car start, so a
+      change saved while driving (reboot-prompt class) changes the radar contract only at the next start. The guards
+      are rechecked in the model when the keyboard closes.
       """
       reason = None if self.model.enabled(RADAR_DONOR_VIN) else (
-        "Turn on Bosch Radar first, with the car off." if not self.model.visible(RADAR_DONOR_VIN) else "Turn the car off first.")
+        "Turn on Bosch Radar first." if not self.model.visible(RADAR_DONOR_VIN) else "Turn the car off first.")
       if reason:
         gui_app.push_widget(alert_dialog(tr(reason)))
         return

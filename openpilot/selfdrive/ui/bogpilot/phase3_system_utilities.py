@@ -180,9 +180,12 @@ class UtilitiesActions:
   """Injectable offroad/capability guards; production roots never come from UI text."""
 
   def __init__(self, offroad, capable, *, params=None, store=None, file_root=None,
-               backup_root=None, cache_roots=None, report_root=None, now=None):
+               backup_root=None, cache_roots=None, report_root=None, now=None, onroad_ok=None):
     self.offroad = offroad
     self.capable = capable
+    # Named non-destructive actions ("DebugMode", "LocalDebugReport") may run while driving when onroad_ok allows them
+    # (onroad_policy, 0.9.7 parity). Resets and cache clearing call guard() without a name: always offroad only.
+    self.onroad_ok = onroad_ok
     self.params = params
     self.store = store
     self.file_root = Path(file_root or os.getenv("BOGPILOT_PARAMS_DIR", "/data/params_bogpilot"))
@@ -203,8 +206,14 @@ class UtilitiesActions:
     roots.append("/data/model_replay_cache")
     return tuple(roots)
 
-  def guard(self):
-    if not self.offroad() or not self.capable():
+  def guard(self, op=None):
+    onroad = False
+    if self.onroad_ok is not None and op is not None:
+      try:
+        onroad = bool(self.onroad_ok(op))
+      except Exception:
+        onroad = False
+    if not self.capable() or not (self.offroad() or onroad):
       raise PermissionError("Offroad supported device required")
 
   # --- Debug Mode -----------------------------------------------------------
@@ -217,7 +226,7 @@ class UtilitiesActions:
     return bool(self.params.get_bool("DebugMode"))
 
   def set_debug_mode(self, enabled: bool) -> str:
-    self.guard()
+    self.guard("DebugMode")
     if type(enabled) is not bool:
       raise ValueError("Boolean required")
     if self.store is not None:
@@ -399,7 +408,7 @@ class UtilitiesActions:
 
   def save_debug_report(self, *, extra=None) -> str:
     """Write a local JSON diagnostics report. No network upload."""
-    self.guard()
+    self.guard("LocalDebugReport")
     payload = self._build_report(extra=extra)
     raw = json.dumps(payload, sort_keys=True, indent=2).encode()
     if len(raw) > MAX_REPORT_BYTES:

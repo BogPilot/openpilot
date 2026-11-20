@@ -30,6 +30,7 @@ RANGES = {
 }
 
 BOOL_KEYS = frozenset({DEVICE_MASTER, SCREEN_MASTER, "StandbyMode", "ScreenRecorder", "NoLogging"})
+RECORDER_CONTROL = "ScreenRecorderControl"   # the Start / Stop actions (allowed onroad: the recorder is an onroad feature)
 
 # Disable Logging (NoLogging) sits under Device Settings as in 0.9.7 (tuning level 2, needs Device Settings on):
 # process_config gates logging on it (system/manager/nologging.no_logging: no loggerd, encoderd, proclogd, journald,
@@ -132,18 +133,30 @@ class MemoryStore:
     self.put(key, "1" if value else "0")
 
 
+def _onroad_ok(onroad_ok, key) -> bool:
+  if onroad_ok is None or key is None:
+    return False
+  try:
+    return bool(onroad_ok(key))
+  except Exception:
+    return False
+
+
 class DevicePreferences:
-  """Offroad/capability-guarded preference writer with mandatory readback."""
+  """Capability-guarded preference writer with mandatory readback. Offroad always; while the car is on only the keys
+  `onroad_ok(key)` allows (the UI passes onroad_policy: screen settings and the parked-only power timers yes, the
+  Device Settings master and Disable Logging no). Without `onroad_ok` it is offroad only, as before."""
 
-  def __init__(self, store, offroad, capable):
+  def __init__(self, store, offroad, capable, onroad_ok=None):
     self.store, self.offroad, self.capable = store, offroad, capable
+    self.onroad_ok = onroad_ok
 
-  def guard(self):
-    if not self.offroad() or not self.capable():
+  def guard(self, key=None):
+    if not self.capable() or not (self.offroad() or _onroad_ok(self.onroad_ok, key)):
       raise PermissionError("Offroad supported device required")
 
   def set(self, key, value):
-    self.guard()
+    self.guard(key)
     if key not in DEVICE_KEYS:
       raise ValueError("Preference outside Device Controls scope")
     if key in RANGES:
@@ -175,11 +188,12 @@ class DeviceControlsMenu:
   STOCK_SHUTDOWN_S = 30 * 3600
   STOCK_VOLTAGE = 11.8
 
-  def __init__(self, store=None, offroad=None, capable=None, recorder_start=None, recorder_stop=None):
+  def __init__(self, store=None, offroad=None, capable=None, recorder_start=None, recorder_stop=None, onroad_ok=None):
     self.store = store if store is not None else MemoryStore()
     self.offroad = offroad or (lambda: True)
     self.capable = capable or (lambda: True)
-    self.prefs = DevicePreferences(self.store, self.offroad, self.capable)
+    self.onroad_ok = onroad_ok
+    self.prefs = DevicePreferences(self.store, self.offroad, self.capable, onroad_ok)
     self.recorder_start = recorder_start or (lambda: "recorder.start not injected")
     self.recorder_stop = recorder_stop or (lambda: "recorder.stop not injected")
     self.path = ()  # () | ("Device Settings",) | ("Screen Settings",)
@@ -189,8 +203,9 @@ class DeviceControlsMenu:
   def title(self):
     return self.path[-1] if self.path else "Device Controls"
 
-  def allowed(self):
-    return bool(self.offroad() and self.capable())
+  def allowed(self, key=None):
+    """Offroad: every row. Car on: only the rows `onroad_ok(key)` allows (key None = the strict, offroad-only answer)."""
+    return bool(self.capable() and (self.offroad() or _onroad_ok(self.onroad_ok, key)))
 
   def go(self, title):
     if title in ("Device Settings", "Screen Settings"):
@@ -205,7 +220,7 @@ class DeviceControlsMenu:
     return False
 
   def set(self, key, value):
-    if not self.allowed():
+    if not self.allowed(key):
       self.status = "Offroad supported device required; no changes made."
       return False
     try:
@@ -291,7 +306,7 @@ class DeviceControlsMenu:
     return voltage_cutoff(self.store, self.STOCK_VOLTAGE if stock is None else stock)
 
   def run_action(self, action):
-    if not self.allowed():
+    if not self.allowed(RECORDER_CONTROL):
       self.status = "Offroad supported device required; no changes made."
       return False
     if action == "start_recording":
@@ -332,8 +347,12 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
   base = store if store is not None else ParamStore(params)
   offroad = ui_state.is_offroad
   capable = lambda: (not PC) and HARDWARE.get_device_type() in {"tici", "tizi", "mici"}
+  from openpilot.selfdrive.ui.bogpilot import onroad_policy
   menu = DeviceControlsMenu(
     store=base, offroad=offroad, capable=capable,
+    # 0.9.7 parity: screen settings, the recorder and the (parked-only) power timers change while driving; the Device
+    # Settings master and Disable Logging stay offroad only (onroad_policy.ROW_CLASS).
+    onroad_ok=lambda key: onroad_policy.can_edit(onroad_policy.row_class(key, "system_device")),
     recorder_start=lambda: ("Recording started." if recorder().engine.start() else "Recorder refused to start."),
     recorder_stop=lambda: (recorder().stop() or "Recording stopped."),
   )
@@ -358,8 +377,11 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
         return True
       return False
 
-    def allowed(self):
-      return menu.allowed()
+    def allowed(self, key=None):
+      return menu.allowed(key)
+
+    def allows(self, key):
+      return lambda: menu.allowed(key)
 
     def back(self):
       menu.back()
@@ -401,7 +423,7 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
       current_f = float(current) if current is not None else float(DEFAULTS[key])
 
       def open_dialog():
-        if not self.allowed():
+        if not self.allowed(key):
           menu.status = "Offroad supported device required; no changes made."
           self._dirty = True
           return
@@ -427,7 +449,7 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
         return text_item(lambda: tr(title), lambda: tr("Runtime integration pending"),
                          lambda: tr("Preference not advertised as working until PROPOSED ui_state/power hooks land."))
       return attach_help(button_item(lambda: tr(title), lambda: tr(label(current_f)), lambda: tr(desc),
-                                     callback=open_dialog, enabled=self.allowed), key)
+                                     callback=open_dialog, enabled=self.allows(key)), key)
 
     def make_scroller(self):
       items = []
@@ -439,7 +461,7 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
         master = attach_help(toggle_item(lambda: tr("Device Settings"),
                                          lambda: tr("Master for shutdown timer, Disable Logging and low-voltage cutoff. Off keeps stock power protection."),
                                          menu.store.get_bool(DEVICE_MASTER, DEFAULTS[DEVICE_MASTER]),
-                                         callback=lambda v: self.put(DEVICE_MASTER, v), enabled=self.allowed),
+                                         callback=lambda v: self.put(DEVICE_MASTER, v), enabled=self.allows(DEVICE_MASTER)),
                              "system:Device Settings")
         items.append(master)
         # Disable Logging needs no runtime hook (process_config reads it); attach_help adds its level-2 gate.
@@ -456,7 +478,7 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
 
         no_logging = attach_help(toggle_item(lambda: tr(NO_LOGGING_TITLE), lambda: tr(NO_LOGGING_DESC),
                                              menu.store.get_bool("NoLogging", DEFAULTS["NoLogging"]),
-                                             callback=lambda v: switch.toggled(v), enabled=self.allowed),
+                                             callback=lambda v: switch.toggled(v), enabled=self.allows("NoLogging")),
                                  "NoLogging")
         switch = NoLoggingSwitch(ask, save, lambda: no_logging.action_item.set_state(False))
         if runtime_hooks:
@@ -471,7 +493,7 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
         master = attach_help(toggle_item(lambda: tr("Screen Settings"),
                                          lambda: tr("Master for brightness, timeout, standby and the screen recorder button. Off keeps stock display behavior."),
                                          menu.store.get_bool(SCREEN_MASTER, DEFAULTS[SCREEN_MASTER]),
-                                         callback=lambda v: self.put(SCREEN_MASTER, v), enabled=self.allowed),
+                                         callback=lambda v: self.put(SCREEN_MASTER, v), enabled=self.allows(SCREEN_MASTER)),
                              "system:Screen Settings")
         items.append(master)
         children = []
@@ -484,7 +506,7 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
             attach_help(toggle_item(lambda: tr("Standby Mode"),
                                     lambda: tr("Allow display sleep while ignition is on after timeout. Alerts and engagement changes wake."),
                                     menu.store.get_bool("StandbyMode", False),
-                                    callback=lambda v: self.put("StandbyMode", v), enabled=self.allowed), "StandbyMode"),
+                                    callback=lambda v: self.put("StandbyMode", v), enabled=self.allows("StandbyMode")), "StandbyMode"),
           ]
         else:
           for title in ("Screen Brightness (Offroad)", "Screen Brightness (Onroad)",
@@ -493,16 +515,16 @@ def create_device_controls_layout(store=None, runtime_hooks=True, show_header=Fa
         children.append(attach_help(toggle_item(lambda: tr("Screen Recorder Button"),
                                                 lambda: tr("Show a button on the driving screen to record the screen."),
                                                 menu.store.get_bool("ScreenRecorder", DEFAULTS["ScreenRecorder"]),
-                                                callback=lambda v: self.put("ScreenRecorder", v), enabled=self.allowed),
+                                                callback=lambda v: self.put("ScreenRecorder", v), enabled=self.allows("ScreenRecorder")),
                                     "ScreenRecorder"))
         nest(master, *children)   # shown only while Screen Settings is on; the saved values stay
         items += children
         items += [
           attach_help(button_item(lambda: tr("Screen Recorder"), lambda: tr("Start"),
-                                  callback=lambda: menu.run_action("start_recording"), enabled=self.allowed),
+                                  callback=lambda: menu.run_action("start_recording"), enabled=self.allows(RECORDER_CONTROL)),
                       "ScreenRecorderControl"),
           attach_help(button_item(lambda: tr("Screen Recorder"), lambda: tr("Stop"),
-                                  callback=lambda: menu.run_action("stop_recording"), enabled=self.allowed),
+                                  callback=lambda: menu.run_action("stop_recording"), enabled=self.allows(RECORDER_CONTROL)),
                       "ScreenRecorderControl"),
         ]
       items.append(text_item(lambda: tr("Status"), lambda: tr(menu.status or "Ready; no changes made")))

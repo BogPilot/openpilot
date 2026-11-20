@@ -7,8 +7,10 @@ Stock v0.11.2 `system/ui/widgets/list_view.py` has two gaps the BogPilot setting
 * `MultipleButtonAction` is always built `enabled=True`, and `_handle_mouse_release` moves the highlight before the
   callback runs, so a caller that locks only the `ListItem` (not the action) gets a live, mis-highlighted row.
 
-The classes below subclass the stock actions and change only those two things. Every BogPilot editor still refuses
-the write itself while onroad. These classes fix the UI gate (look and touch); they are not the safety check.
+The classes below subclass the stock actions and change only those two things. They fix the UI gate (look and touch);
+they are not the safety check. Whether a row may change while the car is on is decided per page by
+bogpilot/onroad_policy.py (0.9.7 parity: some pages are editable onroad, some show a reboot prompt, some stay parked or
+offroad only), and each BogPilot editor re-checks that same `enabled` / policy callable before it writes.
 The factories mirror the stock `dual_button_item` / `multiple_button_item` signatures and return a stock `ListItem`.
 
 `gated_value_step_item` is the shared value row, `[leading...] [-] [value] [+] [trailing...]` on one line (the Alert

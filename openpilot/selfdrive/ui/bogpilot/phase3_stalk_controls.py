@@ -23,9 +23,12 @@ DESCRIPTIONS = {
 
 
 class StalkMenu:
-  def __init__(self, cp, offroad, store=None):
+  """`offroad` is the edit gate: the UI passes onroad_policy.editor("stalk_controls") (0.9.7 Wheel Controls, reboot-
+  prompt class: editable while driving). `on_change(key)` runs after each saved write (the reboot prompt)."""
+  def __init__(self, cp, offroad, store=None, on_change=None):
     self.cp, self.offroad = cp, offroad
     self.store = store if store is not None else Store()
+    self.on_change = on_change or (lambda key: None)
 
   def visible(self, key):
     return supported(self.cp()) if key == 'twist_follow' else experimental_supported(self.cp())
@@ -37,6 +40,7 @@ class StalkMenu:
     if not self.enabled(key):
       return False
     self.store.write(key, value)
+    self.on_change(key)
     return True
 
   def step(self, key, hundredths):
@@ -60,7 +64,9 @@ def create_stalk_controls_layout(store=None):
   class StalkControlsLayout(Widget):
     def __init__(self):
       super().__init__()
-      self.model = StalkMenu(lambda: ui_state.CP, ui_state.is_offroad, store)
+      from openpilot.selfdrive.ui.bogpilot import onroad_policy
+      self.model = StalkMenu(lambda: ui_state.CP, onroad_policy.editor("stalk_controls"), store,
+                             on_change=onroad_policy.on_change("stalk_controls"))
       self.settings = self.model.store.read()
       self.toggles = {key: toggle_item(lambda k=key: tr(TITLES[k]), lambda k=key: tr(DESCRIPTIONS[k]),
                                      getattr(self.settings, key), callback=lambda value, k=key: self.set_value(k, value),
@@ -83,7 +89,7 @@ def create_stalk_controls_layout(store=None):
           is_default=lambda k=key: not differs_from_default(getattr(self.settings, k), DEFAULT_HOLD_S),
           translate=tr,
         )
-      # One reset for both hold keys, gated like those rows (experimental_supported + offroad). There is no
+      # One reset for both hold keys, gated like those rows (experimental_supported + edit gate). There is no
       # Tuning Level parent for these keys in the params registry, so no invented level gate is applied.
       def write_hold(key, value):
         if not self.model.write(key, value):

@@ -87,8 +87,14 @@ class SoftwareLayout(Widget):
     self._scroller.render(rect)
 
   def _update_state(self):
+    # BogPilot (0.9.7 software_settings.cc:165-169): downloads while the car is off or parked; Install stays offroad only.
+    from openpilot.selfdrive.ui.bogpilot import onroad_policy
+    drive = onroad_policy.state()
+    started = drive.started()
+    can_download = onroad_policy.downloads_allowed(started, drive.parked() if started else True)
+
     # Show/hide onroad warning
-    self._onroad_label.set_visible(ui_state.is_onroad())
+    self._onroad_label.set_visible(not can_download)
 
     # Update current version and release notes
     current_desc = ui_state.params.get("UpdaterCurrentDescription") or ""
@@ -97,7 +103,7 @@ class SoftwareLayout(Widget):
     self._version_item.set_description(current_release_notes)
 
     # Update download button visibility and state
-    self._download_btn.set_visible(ui_state.is_offroad())
+    self._download_btn.set_visible(can_download)
 
     updater_state = ui_state.params.get("UpdaterState") or "idle"
     failed_count = ui_state.params.get("UpdateFailedCount") or 0
