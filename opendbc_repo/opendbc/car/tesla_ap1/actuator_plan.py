@@ -25,15 +25,16 @@ import numpy as np
 clip = np.clip
 from opendbc.car.tesla_ap1.epas_gate import EAC_BLOCKING_STATUS
 from opendbc.car.tesla_ap1.hso import AP1_HANDS_ON_LEVEL
+from opendbc.car.tesla_ap1.lateral_limits import limit_lat_accel_angle, panda_rate_ceiling
 from opendbc.car.tesla_ap1.steer_fault import AP1_LATCHED_ANGLE_ERRORS
 from opendbc.car.tesla_ap1.values import CarControllerParams
 
 
 def apply_std_steer_angle_limits(apply_angle, apply_angle_last, v_ego, LIMITS):
-  """0.9.7 openpilot angle rate limiter (speed-interpolated up/down tables), kept verbatim for AP1."""
+  """0.9.7 openpilot angle rate limiter (speed-interpolated up/down tables) for AP1 and Pre-AP, capped below the panda tables."""
   steer_up = apply_angle_last * apply_angle >= 0. and abs(apply_angle) > abs(apply_angle_last)
   rate_limits = LIMITS.ANGLE_RATE_LIMIT_UP if steer_up else LIMITS.ANGLE_RATE_LIMIT_DOWN
-  angle_rate_lim = np.interp(v_ego, rate_limits.speed_bp, rate_limits.angle_v)
+  angle_rate_lim = min(np.interp(v_ego, rate_limits.speed_bp, rate_limits.angle_v), panda_rate_ceiling(v_ego, steer_up))
   return float(np.clip(apply_angle, apply_angle_last - angle_rate_lim, apply_angle_last + angle_rate_lim))
 
 # safety_tesla.h tesla_tx_hook: type 0 is NONE and type 3 is DISABLED.
@@ -188,15 +189,17 @@ def ap1_gas_neutral(chassis_das_only, openpilot_longitudinal_control, enabled, g
   return bool(chassis_das_only) and bool(openpilot_longitudinal_control) and bool(enabled) and bool(gas_pressed)
 
 
-def _ap1_limited_angle(requested_angle_deg, last_angle_deg, measured_angle_deg, v_ego):
-  """Rate limit, then Tinkla's +/- 20 deg clip around the measured wheel.
+def _ap1_limited_angle(requested_angle_deg, last_angle_deg, measured_angle_deg, v_ego, v_ego_raw=None):
+  """Rate limit, then Tinkla's +/- 20 deg clip around the measured wheel, then the lateral-accel bound (last, so the
+  result always satisfies the panda bound even when the measured wheel is outside it).
 
   The clip is the "to not fault the EPS" bound. It is applied after the
   speed-based rate limit. A requested angle inside that window is unchanged
   aside from the rate step.
   """
   apply_angle = apply_std_steer_angle_limits(requested_angle_deg, last_angle_deg, v_ego, CarControllerParams)
-  return clip(apply_angle, measured_angle_deg - 20, measured_angle_deg + 20)
+  apply_angle = clip(apply_angle, measured_angle_deg - 20, measured_angle_deg + 20)
+  return limit_lat_accel_angle(apply_angle, v_ego if v_ego_raw is None else v_ego_raw)
 
 
 def ap1_hold_measured_angle(chassis_das_only, enabled, eac_fault, hands_pause,
@@ -241,7 +244,7 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
                         epas_error=None, eac_fault=False, hands_on_level=0,
                         eac_status=None, soft_start=False, driver_yield=False, gas_pressed=False,
                         steer_tick=None, standby=False, steer_session=None, lat_session=None, epas_yield=False,
-                        tmp_fault_probe=False):
+                        tmp_fault_probe=False, v_ego_raw=None):
   """Same steering branches CarController.update had before this function existed.
 
   Disengaged lateral: no steering frame. Sending type-NONE 0x488 while
@@ -297,12 +300,12 @@ def build_actuator_plan(frame, lat_active, hands_on_fault, openpilot_longitudina
   if steer_send:
     if hold_measured:
       # Measured ANGLE: EPAS inhibit recovery, latched 6/3, a latched code 4 request, or engage soft-start.
-      apply_angle = _ap1_limited_angle(measured_angle_deg, last_angle_deg, measured_angle_deg, v_ego)
+      apply_angle = _ap1_limited_angle(measured_angle_deg, last_angle_deg, measured_angle_deg, v_ego, v_ego_raw)
       apply_angle_last = apply_angle
       steer = SteerCommand(apply_angle, True, steer_counter)
     elif lkas_enabled and not hands_pause:
       # Angular rate limit based on speed, then the EPS clip.
-      apply_angle = _ap1_limited_angle(requested_angle_deg, last_angle_deg, measured_angle_deg, v_ego)
+      apply_angle = _ap1_limited_angle(requested_angle_deg, last_angle_deg, measured_angle_deg, v_ego, v_ego_raw)
       apply_angle_last = apply_angle
       steer = SteerCommand(apply_angle, True, steer_counter)
     elif chassis_das_only and steer_enabled and not hands_on_fault:

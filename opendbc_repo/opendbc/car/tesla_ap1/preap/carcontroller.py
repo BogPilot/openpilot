@@ -20,6 +20,7 @@ from opendbc.car.tesla_ap1.actuator_plan import apply_std_steer_angle_limits
 from opendbc.car.tesla_ap1.engage_ramp import Ap1EngageSteerRamp
 from opendbc.car.tesla_ap1.epas_gate import EpasGate
 from opendbc.car.tesla_ap1.hso import Ap1DriverYield, ap1_lat_active
+from opendbc.car.tesla_ap1.lateral_limits import clip_to_measured_wheel, limit_lat_accel_angle
 from opendbc.car.tesla_ap1.override import DriverOverrideDetector, read_sensitivity_level
 from opendbc.car.tesla_ap1.teslacan import TeslaCAN
 from opendbc.car.tesla_ap1.values import CANBUS, DBC, CarControllerParams
@@ -157,6 +158,9 @@ class PreApCarController(CarControllerBase):
     requested = self.ap1_ramp.update(lat_active, float(CS.out.steeringAngleDeg), float(actuators.steeringAngleDeg))
     if lat_active:
       angle = apply_std_steer_angle_limits(requested, self.apply_angle_last, CS.out.vEgo, CarControllerParams)
+      # +/- 20 deg around the measured wheel (as AP1), then the lateral-accel bound last so the panda bound always holds.
+      angle = clip_to_measured_wheel(angle, float(CS.out.steeringAngleDeg))
+      angle = limit_lat_accel_angle(angle, float(getattr(CS.out, "vEgoRaw", CS.out.vEgo)))
     else:
       angle = float(CS.out.steeringAngleDeg)
     if self.frame % 2 == 0:

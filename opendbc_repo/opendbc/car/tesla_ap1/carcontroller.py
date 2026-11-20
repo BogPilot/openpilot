@@ -201,6 +201,7 @@ class CarController(CarControllerBase):
       standby=ap1_standby_allowed(self.ap1_standstill, self.CP.openpilotLongitudinalControl, CC.enabled,
                                   CS.out.gearShifter == GearShifter.drive,
                                   bool(getattr(CS, "stock_ap_active", False))) if (ap1 and self.ap1_standstill) else False,
+      v_ego_raw=float(getattr(CS.out, "vEgoRaw", CS.out.vEgo)),  # lateral-accel bound input (stage 1)
     )
     self.apply_angle_last = plan.apply_angle_last
     if plan.steer is not None:
