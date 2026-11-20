@@ -680,7 +680,11 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
       regen = is_regen_limit_alert(ui_state.sm["selfdriveState"].alertType)   # Pre-AP regen-limit warning: red border
     except Exception:
       regen = False
-    colour = C4A.border_colour(ui_state.status.value, (bool(traffic) and bool(self._engaged) and longitudinal) or regen)
+    try:
+      experimental = bool(ui_state.sm["selfdriveState"].experimentalMode)   # same source as the steering arc
+    except Exception:
+      experimental = False
+    colour = C4A.border_colour(ui_state.status.value, (bool(traffic) and bool(self._engaged) and longitudinal) or regen, experimental)
     self.bp_c4_layout["border_colour"] = colour
     self.bp_c4_layout["bsm"] = self.bp_c4_bsm
     self.bp_c4_layout.update(C4A.paint_border(rect, colour, self.bp_c4_bsm))

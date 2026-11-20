@@ -20,6 +20,7 @@ HALO_W = (6, 4, 2)
 
 BORDER_ENGAGED = (0x16, 0x7F, 0x40, 255)
 BORDER_OVERRIDE = (0x89, 0x92, 0x8D, 255)
+BORDER_EXPERIMENTAL = ARC.PURPLE + (255,)   # the steering-arc purple, engaged in Experimental Mode
 TRAFFIC_RED = (201, 34, 49, 255)
 BSM_RED = (0xC9, 0x22, 0x31, 0xF1)
 BSM_EDGE_BAR = (255, 30, 30, 220)
@@ -115,10 +116,13 @@ def paint(state, rect, raise_px=C4.ARC_RAISE_PX):
   return {"steering arc": band_bbox(g)}
 
 
-def border_colour(status: str, traffic_red: bool):
-  """status: UIStatus value ("engaged" / "override" / "disengaged"). None = no border."""
+def border_colour(status: str, traffic_red: bool, experimental: bool = False):
+  """status: UIStatus value ("engaged" / "override" / "disengaged"). None = no border.
+  Engaged: Traffic Mode / regen-limit red wins, then the Experimental Mode purple, else green."""
   if status == "engaged":
-    return TRAFFIC_RED if traffic_red else BORDER_ENGAGED
+    if traffic_red:
+      return TRAFFIC_RED
+    return BORDER_EXPERIMENTAL if experimental else BORDER_ENGAGED
   if status == "override":
     return BORDER_OVERRIDE
   return None
