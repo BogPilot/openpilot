@@ -105,6 +105,8 @@ class PreApCarState(CarStateBase):
     self.preap_gas_clear_updates = 0                # updates since both gas tests read released
     self.preap_standstill_hold = False              # Q1 (b) hold, read by the pedal guard
     self.preap_capture_edge = False                 # one update: the card captures the FULL set speed (selfdrive/car/card.py)
+    self.preap_capture_from_stop = False            # with preap_capture_edge: the FULL began at a stop (t1401: from-stop set on entry)
+    self.preap_capture_tip = False                  # with preap_capture_edge: FULL entered by an up/down tip (t1401)
     self.op_enabled = False          # CarController feeds CC.enabled here every frame
     self.preap_panda_drop = False
     self.preap_epas_refusing = False
@@ -254,6 +256,16 @@ class PreApCarState(CarStateBase):
       self.button_states[button.event_type] = state
 
     pull_edge = any(e.type == ButtonType.resumeCruise and e.pressed for e in button_events)
+    # t1401: up/down tip release edge (values.py BUTTONS: accelCruise 4/16, decelCruise 8/32). The release, so the card's capture
+    # (after VCruiseHelper in the same step) replaces that tip's own +-1 step.
+    tip_edge = any(e.type in (ButtonType.accelCruise, ButtonType.decelCruise) and not e.pressed for e in button_events)
+    # v6: the panda is the gate (a tip never sets controls_allowed: tesla_preap.h tesla_preap_stalk reads only pull / cancel, and a brake
+    # press clears it until a new pull, safety.h:360). Mirror a known "not allowed" here so a tip after a brake override does not
+    # enter FULL just to have its first pedal ENABLE refused. Unknown (no link yet, or pandaStates invalid, which card reads as allowed)
+    # passes; the panda still refuses.
+    link = self.preap_link
+    if link is not None and not bool(link.controls_allowed):
+      tip_edge = False
     if self.pedal_long:
       # Our own STW CANCEL spoof (StockCCSpoofer) must not read as a driver FWD disengage.
       # A cancel is real once more than 600 ms have passed since the last counted pull
@@ -326,10 +338,12 @@ class PreApCarState(CarStateBase):
         epas_drop=bool(self.preap_panda_drop), stale=not bool(getattr(cp, "can_valid", True)),
         di_engaged=(acc_enabled if cruise_state is not None else None), v_ego=float(ret.vEgo),
         long_allowed=bool(self.preap_pedal_detected and is_pedal_calibrated() and self.preap_pedal_bus_ok),
-        speed_block=speed_block, gas_pressed=gas_any, pedal_bus_ok=bool(self.preap_pedal_bus_ok))
+        speed_block=speed_block, gas_pressed=gas_any, pedal_bus_ok=bool(self.preap_pedal_bus_ok), tip_edge=tip_edge)
       self.preap_fsm_mode = int(self.decision.mode)
       self.preap_standstill_hold = bool(self.decision.standstill_hold)
       self.preap_capture_edge = bool(self.decision.capture_edge)
+      self.preap_capture_from_stop = bool(self.decision.capture_edge and self.decision.capture_from_stop)
+      self.preap_capture_tip = bool(self.decision.capture_edge and self.decision.capture_tip)
       self._enable_request = bool(self.decision.enable_request)
       ret.cruiseState.enabled = bool(self.decision.engaged)
       ret.cruiseState.available = pedal_cruise_available(

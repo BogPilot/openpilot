@@ -1,9 +1,12 @@
-"""Pre-AP: a stalk tap (UP/DN) never engages speed control or SLC, disengaged or steering-only.
+"""Pre-AP stalk tap (UP/DN) rules, v6 (Bardo t1421/t1422): a tap never engages openpilot from disengaged and never takes SLC; with the
+pedal, a tap while steering only (after the first pull, or after a brake override ended speed control) engages speed control at the
+current speed rounded to a whole display unit; with no pedal a tap never adds speed control (unchanged).
 
-Pre-AP engages only from a stalk pull (NAP-style double pull: the first pull is steering only, a second pull inside
-the window adds speed control; NAP preap/engagement.py:126-173 @cc39c7fa). A tap is not a pull, so it can neither
-engage openpilot nor turn a steering-only engagement into speed control, with or without a pedal. The double-pull
-path itself is unchanged.
+History: the original rule ("a tap never engages speed control or SLC", commit 7cab7e66f) came from copying NAP's engagement
+(NAP preap/engagement.py:126-173 @cc39c7fa: only a second pull adds speed control). Bardo replaced it (t1401 for the from-stop tip,
+t1421/t1422 for identical tip behaviour on AP1 and Pre-AP, following the AP1 tap latch: tesla_ap1/op_long_set_speed.py rules 2-3).
+Pre-AP engages from a stalk pull: the first pull is steering only, a second pull inside the window adds speed control. The tip entry
+is engagement.py PREAP_TIP_ENGAGES_LONG; it needs a first pull (the panda's controls_allowed) and a closed double-pull window.
 """
 import pytest
 
@@ -62,6 +65,11 @@ def test_preap_tap_while_steering_only_never_adds_speed_control(pedal, tap):
   outs = run_seq(rig, seq, pedal=pedal)
   after_pull = outs[21:]
   assert all(o[0] for o in after_pull), "steering-only engagement dropped"
+  if pedal:
+    # t1401: the tap (released at frame 84) latches speed control; never before it
+    assert all(o[2].bogpilot.preapLatOnly for o in outs[21:84])
+    assert outs[-1][1] and not outs[-1][2].bogpilot.preapLatOnly, "the tap latched speed control"
+    return
   assert all(o[2].bogpilot.preapLatOnly for o in after_pull)
   assert not any(o[1] for o in outs), "a tap added speed control"
 
@@ -73,6 +81,21 @@ def test_preap_tap_inside_the_double_pull_window_is_not_a_second_pull(tap):
   outs = run_seq(rig, seq)
   assert outs[-1][0] and outs[-1][2].bogpilot.preapLatOnly
   assert not any(o[1] for o in outs)
+
+
+def test_preap_tap_from_steering_only_latches_the_rounded_current_speed_pedal_only():
+  from opendbc.car.common.conversions import Conversions as CV
+  from opendbc.car.tesla_ap1.preap.engagement import Mode
+  from opendbc.car.tesla_ap1.tests.test_preap_from_stop_v5 import Card, _settle
+  k = Card()
+  v = 12.6 * CV.MPH_TO_KPH
+  _settle(k, 200, v_kph=v)
+  k.step(stalk=PULL, v_kph=v)
+  _settle(k, 60, v_kph=v)
+  assert k.c.mode == Mode.LAT_ONLY
+  k.step(stalk=4, v_kph=v)
+  k.step(stalk=0, v_kph=v)
+  assert k.c.mode == Mode.FULL and abs(k.mph() - 13) < 0.01, "whole mph (12.6 -> 13); never SLC, never the engaging tip's own step"
 
 
 def test_preap_double_pull_still_adds_speed_control():

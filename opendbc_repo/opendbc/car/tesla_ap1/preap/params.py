@@ -71,6 +71,12 @@ class PreApParamKeys:
   # change), host side only (radar_interface.py), read once when the car starts. No panda change.
   RADAR_FLIP = "TeslaRadarUpsideDown"
   RADAR_OFFSET = "TeslaRadarOffset"
+  # Pre AP Auto Speed. Default OFF: NAP-style engage, the set speed is captured from the current speed (NAP preap/engagement.py
+  # @ e99f4dc75) and the Speed Limit Controller never moves it; the posted limit is still shown. ON: the BogPilot SLC set-speed
+  # logic, as on AP1 (Set Speed Limit engage at limit + offset, SLC raises and lowers the set). Pre-AP pedal longitudinal only.
+  # Read once when the car starts (card and plannerd). File-backed like the keys above: no libparams key, so a missing file is
+  # the default and a saved choice is never overwritten.
+  AUTO_SPEED = "TeslaPreApAutoSpeed"
 
 
 # Safe defaults (match NotAutopilot DEFAULT_CONFIG).
@@ -100,6 +106,7 @@ DEFAULTS = {
   PreApParamKeys.HAS_IBOOSTER: False,
   PreApParamKeys.RADAR_FLIP: False,
   PreApParamKeys.RADAR_OFFSET: 0.0,
+  PreApParamKeys.AUTO_SPEED: False,
 }
 
 # Overridable in tests.
@@ -387,6 +394,14 @@ def aol_available() -> bool:
     return False
   try:
     return provider() is True
+  except Exception:
+    return False
+
+
+def preap_auto_speed() -> bool:
+  """Pre AP Auto Speed (default OFF). Any read problem reads as OFF (NAP-style engage at the current speed)."""
+  try:
+    return bool(get_bool(PreApParamKeys.AUTO_SPEED))
   except Exception:
     return False
 

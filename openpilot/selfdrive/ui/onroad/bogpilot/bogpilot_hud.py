@@ -675,7 +675,12 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
   def _bp_c4_border(self, rect, traffic):
     from openpilot.selfdrive.ui.onroad.bogpilot import c4_arc as C4A
     longitudinal = bool(getattr(ui_state, "has_longitudinal_control", False))
-    colour = C4A.border_colour(ui_state.status.value, bool(traffic) and bool(self._engaged) and longitudinal)
+    from openpilot.selfdrive.ui.onroad.bogpilot.alert_banner_logic import is_regen_limit_alert
+    try:
+      regen = is_regen_limit_alert(ui_state.sm["selfdriveState"].alertType)   # Pre-AP regen-limit warning: red border
+    except Exception:
+      regen = False
+    colour = C4A.border_colour(ui_state.status.value, (bool(traffic) and bool(self._engaged) and longitudinal) or regen)
     self.bp_c4_layout["border_colour"] = colour
     self.bp_c4_layout["bsm"] = self.bp_c4_bsm
     self.bp_c4_layout.update(C4A.paint_border(rect, colour, self.bp_c4_bsm))

@@ -15,6 +15,17 @@ V_CRUISE_INITIAL = 40
 # Open choice (pedal capture speed): Pre-AP pedal FULL capture uses SetSpeedLimit (limit + offset) when it is on and fresh (True,
 # default) or always the exact vEgo (False).
 PREAP_FULL_USE_SET_SPEED_LIMIT = True
+# t1394: Pre-AP pedal, no SetSpeedLimit: the first pull (steering only) and the FULL capture use the current speed rounded to the
+# display unit (NAP preap/engagement.py:243-246 @ cc39c7fa), with no 25 mph (V_CRUISE_INITIAL) floor; from a stop the driver's
+# from-stop speed (AP1TapFromZeroMph, the AP1 Standstill Tap Speed row) replaces the floor. False = the v2 behaviour (40 km/h floor).
+PREAP_FROM_STOP_REPLACES_FLOOR = True
+PREAP_STANDSTILL_MS = 0.1   # same bound as preap/engagement.py STANDSTILL_SPEED_MS
+
+
+def preap_round_kph(v_ego_ms: float, is_metric: bool) -> float:
+  """NAP _capture_target_speed: current speed rounded half-up to whole km/h or whole mph, returned in km/h, never below 0."""
+  uom = 1.0 if is_metric else CV.MPH_TO_KPH
+  return max(int(max(float(v_ego_ms), 0.0) * CV.MS_TO_KPH / uom + 0.5) * uom, 0.0)
 IMPERIAL_INCREMENT = round(CV.MPH_TO_KPH, 1)  # round here to avoid rounding errors incrementing set speed
 
 ButtonEvent = car.CarState.ButtonEvent
@@ -125,20 +136,38 @@ class VCruiseHelper:
         self.button_timers[b.type.raw] = 1 if b.pressed else 0
         self.button_change_states[b.type.raw] = {"standstill": CS.cruiseState.standstill, "enabled": enabled}
 
-  def capture_preap_full(self, v_ego_ms: float, set_limit_kph: float = 0.0) -> None:
+  def capture_preap_full(self, v_ego_ms: float, set_limit_kph: float = 0.0, is_metric: bool | None = None,
+                         from_stop_kph: float = 0.0) -> None:
     """Pre-AP pedal: set speed on the FULL capture edge (second pull while moving, or the standstill hold released by the
     accelerator). SetSpeedLimit fresh -> limit + offset (clipped as initialize_v_cruise does); otherwise the exact vEgo, as NAP
     captures the current speed (NAP preap/engagement.py:142,243-246 @ e99f4dc75; NAP rounds to the display unit). Never
     V_CRUISE_INITIAL (40) and never the V_CRUISE_MIN (8) floor. No resume path: the old set speed is never restored here."""
     if set_limit_kph > 0.0:
       self.v_cruise_kph = int(round(np.clip(set_limit_kph, V_CRUISE_MIN, V_CRUISE_MAX)))
-    else:
+    elif is_metric is None:
       self.v_cruise_kph = float(min(max(float(v_ego_ms), 0.0) * CV.MS_TO_KPH, V_CRUISE_MAX))
+    else:
+      # t1394: NAP rounding to the display unit. from_stop_kph > 0 only for a FULL that started at a stop. t1401 (default): passed on
+      # the FULL entry itself (vEgo ~0), so the set is exactly the from-stop value; v3 option: on the hold release, as a minimum.
+      v = preap_round_kph(v_ego_ms, bool(is_metric))
+      if from_stop_kph > 0.0:
+        v = max(v, float(from_stop_kph))
+      self.v_cruise_kph = float(min(v, V_CRUISE_MAX))
     self.v_cruise_cluster_kph = self.v_cruise_kph
 
-  def initialize_v_cruise(self, CS, experimental_mode: bool, set_limit_kph: float = 0.0) -> None:
+  def initialize_v_cruise(self, CS, experimental_mode: bool, set_limit_kph: float = 0.0, preap_from_stop_kph: float | None = None,
+                          is_metric: bool = False) -> None:
     # initializing is handled by the PCM
     if self.CP.pcmCruise:
+      return
+
+    if preap_from_stop_kph is not None and PREAP_FROM_STOP_REPLACES_FLOOR and set_limit_kph <= 0.0:
+      # Pre-AP pedal first pull (steering only; card passes preap_from_stop_kph only there). Moving: the rounded current speed.
+      # At a stop: the from-stop speed. Never the 40 km/h floor. The FULL capture re-sets it (capture_preap_full).
+      v = float(getattr(CS, "vEgo", 0.0) or 0.0)
+      self.v_cruise_kph = float(min(preap_round_kph(v, is_metric) if v >= PREAP_STANDSTILL_MS else float(preap_from_stop_kph),
+                                    V_CRUISE_MAX))
+      self.v_cruise_cluster_kph = self.v_cruise_kph
       return
 
     if any(b.type in (ButtonType.accelCruise, ButtonType.resumeCruise) for b in CS.buttonEvents) and self.v_cruise_initialized:

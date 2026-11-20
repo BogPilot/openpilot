@@ -138,12 +138,13 @@ def engage_with_up_tip(ctl, sm, v_ego, limit):
     sm.set(v_ego=v_ego, limit=limit, cruise=False, long_active=False, up=True)
     ctl.update(sm, 10.0, v_ego, DT)
   sm.set(v_ego=v_ego, limit=limit, cruise=True, long_active=True)
-  ctl.update(sm, 10.0, v_ego, DT)                                 # tip-engage: sticky latch at the exact vEgo
+  ctl.update(sm, 10.0, v_ego, DT)                                 # tip-engage: sticky latch at the vEgo in whole mph
   sm.set(v_ego=v_ego, limit=limit, cruise=True, long_active=True, up=True, spd=4)
   return ctl.update(sm, 10.0, v_ego, DT)
 
 
-@pytest.mark.parametrize("pref,expected", [(True, 20 * MPH), (False, 15 * MPH)])
+# v6: the tip-engage latch itself is a whole display unit (14.8 -> 15 mph), so the +5 gives 20 with or without AP1TipRoundSet
+@pytest.mark.parametrize("pref,expected", [(True, 20 * MPH), (False, 20 * MPH)])
 def test_planner_full_tip_up_from_fractional_latch(pref, expected):
   ctl, sm = make(), Sm()
   ctl._tip_round_fixed, ctl._tip_round = pref, pref

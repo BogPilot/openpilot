@@ -189,9 +189,9 @@ class TestEditor(unittest.TestCase):
     def clock():
       t[0] += 2.0
       return t[0]
-    ctl, sm = sc.Ap1SpeedControl(CP_PREAP, store=store, clock=clock), Sm()
+    ctl, sm = sc.Ap1SpeedControl(CP_PREAP, store=store, clock=clock, auto_speed=True), Sm()   # Pre AP Auto Speed on
     self.assertTrue(ctl.ap1)
-    self.assertLess(run(ctl, sm, 30.0, 20.0, limit=45 * MPH, rwd=True), 30.0)   # on by default: follows the limit
+    self.assertLess(run(ctl, sm, 30.0, 20.0, limit=45 * MPH, rwd=True), 30.0)   # SLC on: follows the limit
     self.assertTrue(ed.write("SpeedLimitController", False))
     self.assertEqual(store.vals["SpeedLimitController"], "0")
     self.assertEqual(run(ctl, sm, 30.0, 20.0, limit=45 * MPH), 30.0)            # off: the set speed passes through

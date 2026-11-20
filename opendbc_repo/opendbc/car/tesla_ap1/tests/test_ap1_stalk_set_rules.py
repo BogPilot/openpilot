@@ -66,21 +66,21 @@ def test_shallow_plus_minus_one_while_moving_with_a_set():
   assert h.tip_ms == pytest.approx(37 * MPH)
 
 
-def test_rolling_no_set_tap_or_engage_latches_exact_vego():
-  v = 22.4 * MPH  # not a multiple of 5
+def test_rolling_no_set_tap_or_engage_latches_whole_mph_vego():
+  v = 22.4 * MPH  # not a multiple of 5; v6 latches the whole mph (22), no longer the exact vEgo
   h = Ap1RaiseHoldoff()
   h.tap_from_zero_ms = TAP_FROM_ZERO_KPH * CV.KPH_TO_MS
   h.update(False, False, True, False, 0.0, v, current_set_ms=0.0, dt=DT)
   allow, sticky = h.update(True, False, True, False, 0.0, v, current_set_ms=0.0, dt=DT)
-  assert sticky == pytest.approx(v)
+  assert sticky == pytest.approx(22 * MPH)
   assert h.tip_ms == 0.0
 
-  # Already enabled, no existing set, rolling tap: exact vEgo, not 15 mph and not next-5.
+  # Already enabled, no existing set, rolling tap: whole-mph vEgo (v6), not 15 mph and not next-5.
   h = Ap1RaiseHoldoff()
   h.tap_from_zero_ms = TAP_FROM_ZERO_KPH * CV.KPH_TO_MS
   h.update(True, False, False, False, 0.0, v, current_set_ms=0.0, dt=DT)  # enable with no recent stalk
   h.update(True, False, True, False, 0.0, v, current_set_ms=0.0, dt=DT, tip_full=True)
-  assert h.tip_ms == pytest.approx(v)
+  assert h.tip_ms == pytest.approx(22 * MPH)
   assert h.tip_ms != pytest.approx(TAP_FROM_ZERO_KPH * CV.KPH_TO_MS)
   assert h.tip_ms != pytest.approx(next_5_ms(v))
 

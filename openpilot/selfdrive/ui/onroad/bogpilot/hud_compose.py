@@ -655,9 +655,20 @@ class HudComposer:
     f = self.frame
     return bool(f is not None and f.traffic_mode is True and f.engaged and f.longitudinal and ui_state.status == UIStatus.ENGAGED)
 
+  def regen_red(self) -> bool:
+    """Pre-AP regen-limit warning showing (selfdriveState.alertType): red border, as Traffic Mode."""
+    f = self.frame
+    if f is None:
+      return False
+    try:
+      from openpilot.selfdrive.ui.onroad.bogpilot.alert_banner_logic import is_regen_limit_alert
+      return is_regen_limit_alert(f.sm["selfdriveState"].alertType)
+    except Exception:
+      return False
+
   def border_color(self, base):
-    """Onroad border colour: LKAS-fault flash first, then the Traffic Mode red, else the stock status colour."""
-    return self.border_override() or (TRAFFIC_RED if self.traffic_red() else base)
+    """Onroad border colour: LKAS-fault flash first, then the Traffic Mode / Pre-AP regen-limit red, else the stock colour."""
+    return self.border_override() or (TRAFFIC_RED if (self.traffic_red() or self.regen_red()) else base)
 
   def border_override(self, millis=None):
     """LKAS-fault flashing border (daily onroad_home) from w4's plan of the real alertType; None = stock colour."""

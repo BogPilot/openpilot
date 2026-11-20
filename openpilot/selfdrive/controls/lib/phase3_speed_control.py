@@ -38,6 +38,7 @@ gasFollowSpeed additions:
 """
 from __future__ import annotations
 
+import copy
 import math
 import time
 
@@ -150,6 +151,34 @@ def dashboard_limit_ms(value) -> float:
   v = _finite(value, 0.0)
   return v if 0.0 < v <= MAX_LIMIT_MS else 0.0
 
+
+
+def preap_auto_speed_on(fixed=None) -> bool:
+  """Pre AP Auto Speed (opendbc tesla_ap1/preap/params.py AUTO_SPEED, default OFF). fixed: bool for tests / replay.
+  Called once per process start (card, plannerd), so the choice holds for the whole drive. Any read problem is OFF."""
+  if fixed is not None:
+    return bool(fixed)
+  try:
+    from opendbc.car.tesla_ap1.preap.params import preap_auto_speed
+    return bool(preap_auto_speed())
+  except Exception:
+    return False
+
+
+def preap_auto_fallback_toggles(t):
+  """Pre AP Auto Speed ON (t1385): with no posted limit the planner uses Experimental Mode's planned speed, whatever the
+  shared Fallback Speed choice says (Set Speed / Previous Limit are AP1 choices). A copy, so the shared snapshot, the UI and
+  AP1 never see it. This is the planner flag only: the ExperimentalMode param is never written (resolve_experimental), the
+  rc7 "or" policy still keeps a manual Experimental on, and carState.vCruise (the captured set, stalk tips) stays the cap
+  because the planner keeps the cruise candidate in the min() next to e2e."""
+  try:
+    t2 = copy.copy(t)
+    t2.slc_fallback_experimental_mode = True
+    t2.slc_fallback_previous_speed_limit = False
+    t2.slc_fallback_set_speed = False
+    return t2
+  except Exception:
+    return t
 
 
 def slc_supported(CP) -> bool:
@@ -267,12 +296,13 @@ class PreapEngageSetLimit:
   then (and for a stale / unknown limit) the stock engage set applies. 0 = no limit set.
   """
 
-  def __init__(self, CP, store=None, toggles_fn=None, adopted=None):
+  def __init__(self, CP, store=None, toggles_fn=None, adopted=None, auto_speed=None):
     self.CP = CP
     self._store, self._toggles_fn, self._adopted_fixed = store, toggles_fn, adopted
     fp = str(getattr(CP, "carFingerprint", "") or "")
+    # Pre AP Auto Speed OFF (default): inactive, so kph() is 0 and the engage / FULL capture take the exact vEgo (NAP).
     self.active = (fp == "TESLA_PREAP_MODELS" and not bool(getattr(CP, "pcmCruise", True))
-                   and slc_supported(CP))
+                   and slc_supported(CP) and preap_auto_speed_on(auto_speed))
     # Snapshot of (toggles, adopted), refreshed off card's 100 Hz step (card.params_thread calls refresh()).
     # kph() runs on the engage / FULL-capture edge inside that step; reading the toggles there meant the lazy
     # imports below, a ParamStore (and its first all_keys()) and dozens of param reads landed on the engage
@@ -570,11 +600,17 @@ class LongEngageGate:
 class Ap1SpeedControl:
   """Planner bridge: SLC + AP1 software stalk set authority (bogpilot_vcruise.py:70-171)."""
 
-  def __init__(self, CP, store=None, toggles_fn=None, clock=time.monotonic, adopted=None, map_context=None, tip_round=None):
+  def __init__(self, CP, store=None, toggles_fn=None, clock=time.monotonic, adopted=None, map_context=None, tip_round=None,
+               auto_speed=None):
     """adopted: None = read SLC_ACK from the store (fail closed when there is no store); bool = fixed (tests/replay)."""
     self.CP = CP
     self._adopted_fixed = adopted
-    self.ap1 = slc_supported(CP)  # S, X, and Pre-AP with openpilot longitudinal
+    # S, X, and Pre-AP with openpilot longitudinal. Pre-AP only with Pre AP Auto Speed on (default OFF: the set speed stays the
+    # captured one and update() is the bit-exact passthrough; the posted limit still shows from dashboardSpeedLimit).
+    self.ap1 = slc_supported(CP) and (str(getattr(CP, "carFingerprint", "") or "") != "TESLA_PREAP_MODELS"
+                                      or preap_auto_speed_on(auto_speed))
+    # Pre-AP with Pre AP Auto Speed on: no posted limit -> Experimental Mode fallback (preap_auto_fallback_toggles).
+    self._preap_auto = bool(self.ap1 and str(getattr(CP, "carFingerprint", "") or "") == "TESLA_PREAP_MODELS")
     # card lifts carState.vCruiseCluster for display on these; the planner uses the unlifted value.
     self._cluster_lifted = bool(str(getattr(CP, "carFingerprint", "") or "") in AP1_CLUSTER_LIFT_FPS and
                                 getattr(CP, "openpilotLongitudinalControl", False) and getattr(CP, "pcmCruise", True))
@@ -703,6 +739,8 @@ class Ap1SpeedControl:
   def update(self, sm, v_cruise: float, v_ego: float, dt: float = DT_MDL) -> float:
     """v_cruise (m/s, already min(carState.vCruise, V_CRUISE_MAX)) -> SLC / stalk set (m/s)."""
     t = self.toggles() if self.ap1 else None
+    if t is not None and self._preap_auto:
+      t = preap_auto_fallback_toggles(t)
     if t is None or not self._adopted or not getattr(t, "speed_limit_controller", False) or not getattr(t, "slc_platform", self.ap1):
       return self._inactive(v_cruise)
     if not _service_ok(sm, "carState") or not math.isfinite(v_cruise) or not math.isfinite(v_ego):

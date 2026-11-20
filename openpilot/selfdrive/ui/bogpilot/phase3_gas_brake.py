@@ -27,7 +27,8 @@ PAGE_TITLE = "Gas / Brake"
 TAP_FROM_ZERO_KEY = "AP1TapFromZeroMph"
 TAP_FROM_ZERO_TITLE = "Standstill Tap Speed"
 TAP_FROM_ZERO_DESC = (
-  "Applies only to an AP1 standstill engage with no known speed limit. The car will drive off to this speed."
+  "AP1: a standstill engage with no known speed limit; the car will drive off to this speed. Pre-AP with the Comma Pedal: "
+  "a double pull at a stop sets this speed. Press the accelerator to pull away. Tip the stalk up or down to change it."
 )
 # Consumer-backed control IDs (feeds Page.controls so an empty page is omitted by the navigation).
 CONTROLS = ("LongitudinalActuatorDelay", "MaxDesiredAcceleration", "StopAccel", "StoppingDecelRate",

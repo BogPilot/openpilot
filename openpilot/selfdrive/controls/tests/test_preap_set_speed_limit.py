@@ -30,7 +30,7 @@ def store(**vals):
 
 def engage(cp=CP_PREAP, adopted=True, **vals):
   st = store(**vals)
-  return sc.PreapEngageSetLimit(cp, store=st, toggles_fn=lambda: onroad_toggles(st, cp), adopted=adopted)
+  return sc.PreapEngageSetLimit(cp, store=st, toggles_fn=lambda: onroad_toggles(st, cp), adopted=adopted, auto_speed=True)
 
 
 class TestEngageSetLimit(unittest.TestCase):
@@ -97,7 +97,7 @@ class TestEngageSetLimit(unittest.TestCase):
   def test_toggle_failure_fails_closed(self):
     def boom():
       raise RuntimeError
-    e = sc.PreapEngageSetLimit(CP_PREAP, store=store(), toggles_fn=boom, adopted=True)
+    e = sc.PreapEngageSetLimit(CP_PREAP, store=store(), toggles_fn=boom, adopted=True, auto_speed=True)
     self.assertEqual(e.kph(MOVING, 20.0), 0.0)
 
   def test_key_is_configurable_and_watched(self):
@@ -185,7 +185,8 @@ class TestCardWiring(unittest.TestCase):
 
   def test_enable_edge_passes_limit(self):
     self.assertIn('self.preap_engage_set_limit.kph(self.CS_prev, getattr(self.CI.CS, "engage_limit_ms", 0.0))', self.SRC)
-    self.assertIn("initialize_v_cruise(self.CS_prev, self.experimental_mode, set_limit_kph)", self.SRC)
+    self.assertIn("initialize_v_cruise(self.CS_prev, self.experimental_mode, set_limit_kph,", self.SRC)
+    self.assertIn("preap_from_stop_kph=from_stop, is_metric=self.is_metric)", self.SRC)
 
 
 class TestSettingsRow(unittest.TestCase):

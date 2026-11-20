@@ -11,8 +11,11 @@ Rolling (not standstill):
    plus the speed-limit offset (Offset1..7 bands), the same limit source (speed_limit.py) and bands
    (phase3_speed_control.offset_for) the planner's SLC uses; BogPilot 0.9.7 SLC (speed_limit_controller.py
    @568fea947). The offset comes from the card (params), never from bogpilotPlan, so there is no feedback loop.
-2. Otherwise (a fresh UP/DN tap, a pull with no known limit, or no stalk seen): exact vEgoRaw at the engage
-   edge, including below 8 kph. No 8 kph clamp-up, no 5 mph rounding. Tinkla ACC_module.py:154-158 @501c7de
+2. Otherwise (a fresh UP/DN tap, a pull with no known limit, or no stalk seen): vEgoRaw at the engage edge,
+   rounded half-up to a whole display unit (whole mph; km/h when the car's DI_speedUnits is KPH), the same
+   latch a Pre-AP tip gets (v6, Bardo t1421: tip behaviour identical on AP1 and Pre-AP; before v6 the exact
+   vEgoRaw). Rounding never turns the latch into 0 (it then stays exact). Includes below 8 kph. No 8 kph
+   clamp-up, no 5 mph rounding. Tinkla ACC_module.py:154-158 @501c7de
    (current-speed latch at engage); BogPilot 0.9.7 slc_raise (tap -> sticky vEgo) @04d560f3e. A known limit
    never wins over a rolling tap. If that vEgo would publish as 0, the standstill rules below apply instead.
 Fresh = pressed while engaged with nothing latched, or at most TAP_WINDOW_S before the engage edge (BogPilot
@@ -20,7 +23,8 @@ Fresh = pressed while engaged with nothing latched, or at most TAP_WINDOW_S befo
 Standstill (a tap never takes SLC here either; only a pull does):
 3. A fresh stalk UP/DN tap as the most recent press: the tap-from-stop speed (AP1TapFromZeroMph, default 15 mph,
    24.14016 kph), even with a known limit. The planner's tap from 0 gives the same set (slc_raise tap_from_zero_ms).
-   A tap made while still rolling, then a stop inside the window: the exact vEgo at the tap, the same latch the
+   A tap made while still rolling, then a stop inside the window: the vEgo at the tap (whole display unit, as
+   rule 2), the same latch the
    planner takes for that tap (slc_raise engage_vego_ms), never limit plus offset.
 4. A known limit (a fresh pull, or no stalk seen): limit plus offset.
 5. A fresh tap with no limit (e.g. a pull after the tap): the tap-from-stop speed. An older tap (e.g. at a red
@@ -116,6 +120,14 @@ def _clamp_max_kph(kph: float) -> float:
   return min(float(kph), SET_MAX_KPH)
 
 
+def round_whole_kph(kph: float, is_metric: bool = False) -> float:
+  """v6: a rolling tip latch in whole display units (half-up), returned in kph. Whole mph unless is_metric (whole km/h).
+  A result of 0 (a speed under half a unit) keeps the exact value, so a latch never becomes 0 / unset."""
+  unit = 1.0 if is_metric else CV.MPH_TO_KPH
+  rounded = math.floor(float(kph) / unit + 0.5) * unit
+  return rounded if rounded > 0.0 else float(kph)
+
+
 def _limit_plus_offset_kph(limit_ms: float, offset_fn: Callable[[float], float] | None) -> float:
   """Limit plus offset in kph, clamped to 8-170. 0 (treated as an unknown limit) when the offset or the sum is not finite."""
   offset_ms = float(offset_fn(limit_ms)) if offset_fn is not None else 0.0
@@ -148,10 +160,11 @@ class OpLongSetSpeed:
 
   def update(self, cruise_state, v_ego_raw_ms: float, standstill: bool, limit_ms: float = 0.0,
              offset_fn: Callable[[float], float] | None = None, tap: bool = False,
-             tap_from_zero_kph: float | None = None, pull: bool = False) -> float:
+             tap_from_zero_kph: float | None = None, pull: bool = False, is_metric: bool = False) -> float:
     """Returns cruiseState.speed (m/s). Sets self.speed_limit_unknown.
 
     tap: an UP/DN (accelCruise / decelCruise) press edge this frame. pull: a resumeCruise (SpdCtrlLvr_Stat 2) press edge.
+    is_metric: DI_speedUnits is KPH (the rolling latch rounds to whole km/h instead of whole mph).
     """
     # Non-finite inputs never become a set: a non-finite limit (or limit plus offset) is an unknown limit, a non-finite
     # vEgoRaw latches nothing (the engage is refused like an unknown limit at a standstill), a non-finite tap-from-stop
@@ -199,14 +212,14 @@ class OpLongSetSpeed:
         if self.stalk_kind == "pull" and limit_set_kph > 0.0:
           self.set_kph = limit_set_kph
         else:
-          self.set_kph = _clamp_max_kph(v_kph)
+          self.set_kph = _clamp_max_kph(round_whole_kph(v_kph, is_metric))
       elif self.stalk_kind == "tap" and self.tap_kph > 0.0:
         # Standstill tap: the tap-from-stop speed even with a known limit; only a pull engages SLC.
         self.set_kph = _clamp_kph(self.tap_kph)
       elif self.stalk_kind == "tap" and self.tap_vego_kph > 0.0 and not _would_publish_zero(self.tap_vego_kph):
         # Tapped while rolling, stopped inside the window: the vEgo latch of that tap (the planner latches the same
         # vEgo for this engage), never limit plus offset.
-        self.set_kph = _clamp_max_kph(self.tap_vego_kph)
+        self.set_kph = _clamp_max_kph(round_whole_kph(self.tap_vego_kph, is_metric))
       elif limit_set_kph > 0.0:
         self.set_kph = limit_set_kph
       elif self.tap_kph > 0.0:

@@ -124,14 +124,14 @@ def test_standstill_default_b_holds_until_the_accelerator_release_while_moving()
   e = PreAPEngagement()
   step(e, 0, pull=True, v_ego=0.0)
   d = step(e, 200, pull=True, op=True, v_ego=0.0)
-  assert d.mode == Mode.FULL and d.standstill_hold and d.full_edge and not d.capture_edge, "nothing captured at 0"
+  assert d.mode == Mode.FULL and d.standstill_hold and d.full_edge and d.capture_edge and d.capture_from_stop, "t1401: from-stop set on the pull"
   assert step(e, 300, op=True, v_ego=0.0).standstill_hold
   assert step(e, 400, op=True, v_ego=0.0, gas=True).standstill_hold, "still holding while the accelerator is pressed"
   d = step(e, 500, op=True, v_ego=0.0)
   assert d.standstill_hold and not d.capture_edge, "released while still stopped: keep holding, capture nothing"
   step(e, 600, op=True, v_ego=0.5, gas=True)
   d = step(e, 700, op=True, v_ego=1.0)
-  assert d.mode == Mode.FULL and not d.standstill_hold and d.capture_edge, "released while moving: capture on this edge"
+  assert d.mode == Mode.FULL and not d.standstill_hold and not d.capture_edge, "t1401: released while moving ends the hold, set kept"
   assert not step(e, 800, op=True, v_ego=1.0).capture_edge
 
 

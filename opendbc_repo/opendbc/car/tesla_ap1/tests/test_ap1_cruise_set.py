@@ -8,6 +8,7 @@ from opendbc.car import Bus
 from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.tesla_ap1 import cruise_set
 from opendbc.car.tesla_ap1.carstate import CarState
+from opendbc.car.tesla_ap1.op_long_set_speed import round_whole_kph as W  # v6: a rolling tip latch is a whole display unit
 from opendbc.car.tesla_ap1.values import CAR
 
 PACKER = CANPacker("tesla_ap1_can")
@@ -68,5 +69,5 @@ def test_read_once_in_init(monkeypatch, tmp_path):
 @pytest.mark.parametrize("file_text", [None, "0"])
 def test_op_long_set_unaffected_by_x2(monkeypatch, tmp_path, file_text):
   """Openpilot long: engaged = the engage latch (here vEgo 64 kph, no limit), not DI; not engaged = 0, never DI x2."""
-  assert _speed(monkeypatch, tmp_path, file_text, True, 2, 40, steps=3) == pytest.approx(64.0 * CV.KPH_TO_MS, abs=1e-3)
+  assert _speed(monkeypatch, tmp_path, file_text, True, 2, 40, steps=3) == pytest.approx(W(64.0) * CV.KPH_TO_MS, abs=1e-3)
   assert _speed(monkeypatch, tmp_path, file_text, True, 1, 40) == 0.0

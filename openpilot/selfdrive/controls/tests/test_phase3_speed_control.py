@@ -73,9 +73,9 @@ class Sm(dict):
     return self
 
 
-def make(t=None, store=None, cp=CP_AP1, adopted=True):
+def make(t=None, store=None, cp=CP_AP1, adopted=True, auto_speed=True):
   t = t or toggles()
-  return sc.Ap1SpeedControl(cp, store=store, toggles_fn=lambda: t, clock=lambda: 0.0, adopted=adopted)
+  return sc.Ap1SpeedControl(cp, store=store, toggles_fn=lambda: t, clock=lambda: 0.0, adopted=adopted, auto_speed=auto_speed)
 
 
 def run(ctl, sm, v_cruise, v_ego, n=1, **kw):
@@ -159,10 +159,10 @@ class TestAp1Stalk(unittest.TestCase):
   def test_unclassified_engage_latches_vego(self):
     """No stalk seen at the engage edge: latch vEgo (never SLC), held through higher and lower limits."""
     ctl, sm = make(), Sm()
-    self.assertAlmostEqual(self.engage(ctl, sm, 20.0, 45 * MPH), 20.0, places=4)
+    self.assertAlmostEqual(self.engage(ctl, sm, 20.0, 45 * MPH), 45 * MPH, places=4)   # v6: whole mph (20 m/s = 44.7 mph)
     self.assertTrue(ctl.holdoff.sticky_vego)
-    self.assertAlmostEqual(run(ctl, sm, 10.0, 20.0, limit=60 * MPH, n=10), 20.0, places=4)
-    self.assertAlmostEqual(run(ctl, sm, 10.0, 20.0, limit=25 * MPH, n=10), 20.0, places=4)
+    self.assertAlmostEqual(run(ctl, sm, 10.0, 20.0, limit=60 * MPH, n=10), 45 * MPH, places=4)
+    self.assertAlmostEqual(run(ctl, sm, 10.0, 20.0, limit=25 * MPH, n=10), 45 * MPH, places=4)
     self.assertAlmostEqual(run(ctl, sm, 10.0, 20.0, limit=45 * MPH, rwd=True), 50 * MPH, places=4)  # pull -> SLC
 
   def test_pull_engage_follows_slc(self):
@@ -754,7 +754,7 @@ class TestEngageSetWithSlcOff(unittest.TestCase):
 
   def test_pull_with_slc_off_and_no_limit_is_unchanged(self):
     out, _ = self._pull("0", 20.0, False, 0.0)
-    self.assertAlmostEqual(out, 20.0, places=4)        # rolling: exact vEgo
+    self.assertAlmostEqual(out, 45 * MPH, places=4)    # rolling: vEgo in whole mph (v6; 20 m/s = 44.7 mph)
     out, ols = self._pull("0", 0.0, True, 0.0)
     self.assertEqual(out, 0.0)                         # standstill: refused (NO_ENTRY ap1SpeedLimitUnknown)
     self.assertTrue(ols.speed_limit_unknown)

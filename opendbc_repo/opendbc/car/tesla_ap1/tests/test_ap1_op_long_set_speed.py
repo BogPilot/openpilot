@@ -13,6 +13,7 @@ from opendbc.car import Bus
 from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.tesla_ap1.ap1_events import Ap1Events, SPEED_LIMIT_UNKNOWN
 from opendbc.car.tesla_ap1.carstate import CarState
+from opendbc.car.tesla_ap1.op_long_set_speed import round_whole_kph as W  # v6: a rolling tip latch is a whole display unit
 from opendbc.car.tesla_ap1.op_long_set_speed import (TAP_FROM_ZERO_KPH, TAP_WINDOW_S, OpLongSetSpeed,
      format_tap_from_zero_display, parse_tap_from_zero_mph, tap_from_zero_kph_from_param)
 from opendbc.car.tesla_ap1.slc_raise import Ap1RaiseHoldoff, ap1_cruise_ms
@@ -101,7 +102,7 @@ def test_op_long_never_zero_or_di_while_engaged(cruise_state):
   rets += [car.step(cruise_state, 0, 0.0) for _ in range(3)]
   for ret, raw in zip(rets, [40, 30, 10] + [0] * 4, strict=True):
     assert ret.cruiseState.enabled
-    assert ret.cruiseState.speed == pytest.approx(64.0 * CV.KPH_TO_MS, abs=1e-3)
+    assert ret.cruiseState.speed == pytest.approx(W(64.0) * CV.KPH_TO_MS, abs=1e-3)
     assert ret.cruiseState.speed != pytest.approx(raw * 0.5 * CV.MPH_TO_MS)
   assert all(v != V_CRUISE_UNSET for v in _vcruise(rets))
 
@@ -112,9 +113,9 @@ def test_op_long_not_engaged_publishes_no_di_seed():
   pre = [car.step(STANDBY, 24, 50.0) for _ in range(3)]
   assert all(r.cruiseState.speed == 0.0 for r in pre)
   edge = car.step(ENABLED, 24, 50.0)
-  assert edge.cruiseState.speed == pytest.approx(50.0 * CV.KPH_TO_MS, abs=1e-3)
+  assert edge.cruiseState.speed == pytest.approx(W(50.0) * CV.KPH_TO_MS, abs=1e-3)
   v = _vcruise(pre + [edge])
-  assert v[:3] == [V_CRUISE_UNSET] * 3 and v[3] == pytest.approx(50.0, abs=1e-3)
+  assert v[:3] == [V_CRUISE_UNSET] * 3 and v[3] == pytest.approx(W(50.0), abs=1e-3)
 
 
 @pytest.mark.parametrize("cruise_state", [ENABLED, STANDSTILL])
@@ -146,7 +147,7 @@ def test_moving_tap_or_no_stalk_engage_latches_vego_and_holds_through_stop(lever
     car.step(STANDBY, 20, 40.0, map_limit=MAP_65, lever=lever)
   rets = [car.step(ENABLED, 20, 40.0, map_limit=MAP_65)]
   rets += [car.step(ENABLED, 0, 0.0, map_limit=0) for _ in range(3)]
-  assert all(r.cruiseState.speed == pytest.approx(40.0 * CV.KPH_TO_MS, abs=1e-3) for r in rets)
+  assert all(r.cruiseState.speed == pytest.approx(W(40.0) * CV.KPH_TO_MS, abs=1e-3) for r in rets)
   assert all(not r.bogpilot.ap1SpeedLimitUnknown for r in rets)
 
 
@@ -230,11 +231,11 @@ def test_tap_inside_window_before_edge_counts(lever):
 def test_moving_no_limit_vego_latch_no_event():
   car = Car()
   ret = car.step(ENABLED, 6, 12.0)
-  assert ret.cruiseState.speed == pytest.approx(12.0 * CV.KPH_TO_MS, abs=1e-3)
+  assert ret.cruiseState.speed == pytest.approx(W(12.0) * CV.KPH_TO_MS, abs=1e-3)
   assert SPEED_LIMIT_UNKNOWN not in _events(ret)
-  assert car.step(ENABLED, 0, 3.0).cruiseState.speed == pytest.approx(12.0 * CV.KPH_TO_MS, abs=1e-3)
-  slow = Car().step(ENABLED, 0, 3.0)  # creeping (not standstill), no limit: exact vEgo, no 8 kph clamp
-  assert slow.cruiseState.speed == pytest.approx(3.0 * CV.KPH_TO_MS, abs=1e-3)
+  assert car.step(ENABLED, 0, 3.0).cruiseState.speed == pytest.approx(W(12.0) * CV.KPH_TO_MS, abs=1e-3)
+  slow = Car().step(ENABLED, 0, 3.0)  # creeping (not standstill), no limit: whole mph (v6), no 8 kph clamp
+  assert slow.cruiseState.speed == pytest.approx(W(3.0) * CV.KPH_TO_MS, abs=1e-3)
 
 
 @pytest.mark.parametrize("stop_state", ENGAGED)
@@ -243,7 +244,7 @@ def test_mid_drive_latch_holds_through_later_stop(stop_state):
   rets = [car.step(ENABLED, 20, 40.0), car.step(ENABLED, 4, 10.0), car.step(ENABLED, 0, 2.0)]
   rets += [car.step(stop_state, 0, 0.0) for _ in range(5)]
   for ret in rets:
-    assert ret.cruiseState.speed == pytest.approx(40.0 * CV.KPH_TO_MS, abs=1e-3)
+    assert ret.cruiseState.speed == pytest.approx(W(40.0) * CV.KPH_TO_MS, abs=1e-3)
     assert not ret.bogpilot.ap1SpeedLimitUnknown
   assert all(v != V_CRUISE_UNSET for v in _vcruise(rets))
 
@@ -277,7 +278,7 @@ def test_model_x_op_long_on_gets_same_behavior():
   """AP1 Model X with openpilot long on is in is_ap1_family (values.py:158-159): same latch and NO_ENTRY."""
   car = Car(fingerprint=CAR.TESLA_AP1_MODELX, op_long=True)
   rets = [car.step(ENABLED, 20, 50.0)] + [car.step(STANDSTILL, 0, 0.0) for _ in range(3)]
-  assert all(r.cruiseState.speed == pytest.approx(50.0 * CV.KPH_TO_MS, abs=1e-3) for r in rets)
+  assert all(r.cruiseState.speed == pytest.approx(W(50.0) * CV.KPH_TO_MS, abs=1e-3) for r in rets)
   assert Car(fingerprint=CAR.TESLA_AP1_MODELX).step(STANDSTILL, 0, 0.0).bogpilot.ap1SpeedLimitUnknown
 
 
@@ -311,7 +312,7 @@ def test_stale_limit_standstill_engage_is_no_entry():
 def test_stale_limit_moving_engage_falls_through_to_vego():
   car, _ = _stale_limit_car(LIMIT_MAX_AGE_S + 0.5)
   ret = car.step(ENABLED, 0, 40.0, map_msg=False)
-  assert ret.cruiseState.speed == pytest.approx(40.0 * CV.KPH_TO_MS, abs=1e-3)
+  assert ret.cruiseState.speed == pytest.approx(W(40.0) * CV.KPH_TO_MS, abs=1e-3)
   assert not ret.bogpilot.ap1SpeedLimitUnknown
 
 
@@ -344,7 +345,7 @@ def test_model_x_units_unknown_does_not_latch_metric_like_limit(cruise_state):
   if cruise_state == STANDSTILL:
     assert ret.cruiseState.speed == 0.0 and ret.bogpilot.ap1SpeedLimitUnknown
   else:
-    assert ret.cruiseState.speed == pytest.approx(40.0 * CV.KPH_TO_MS, abs=1e-3)
+    assert ret.cruiseState.speed == pytest.approx(W(40.0) * CV.KPH_TO_MS, abs=1e-3)
 
 
 def test_model_x_units_known_metric_latches_kph():
@@ -416,11 +417,11 @@ def test_standstill_drive_off_only_from_fresh_limit_or_fresh_tap(cruise_state):
 def test_disengage_then_reengage_resets_the_set(stop_state):
   """A disengage clears the latch and any used tap: each engage edge picks its own set from what is fresh then."""
   car = Car()
-  assert car.step(ENABLED, 0, 40.0, map_msg=False).cruiseState.speed == pytest.approx(40.0 * CV.KPH_TO_MS, abs=1e-3)
+  assert car.step(ENABLED, 0, 40.0, map_msg=False).cruiseState.speed == pytest.approx(W(40.0) * CV.KPH_TO_MS, abs=1e-3)
   off = car.step(stop_state, 0, 40.0, map_msg=False)
   assert off.cruiseState.speed == 0.0 and car.state.op_long_set.set_kph == 0.0
   ret = car.step(ENABLED, 0, 60.0, map_msg=False)            # moving re-engage: new vEgo, not the old 40
-  assert ret.cruiseState.speed == pytest.approx(60.0 * CV.KPH_TO_MS, abs=1e-3)
+  assert ret.cruiseState.speed == pytest.approx(W(60.0) * CV.KPH_TO_MS, abs=1e-3)
   car.step(stop_state, 0, 0.0, map_msg=False)
   ret = car.step(STANDSTILL, 0, 0.0, map_msg=False)           # standstill re-engage, nothing fresh: NO_ENTRY
   assert ret.cruiseState.speed == 0.0 and ret.bogpilot.ap1SpeedLimitUnknown
@@ -446,7 +447,7 @@ def test_model_s_units_unknown_or_stale_does_not_latch_metric_like_limit(cruise_
   if cruise_state == STANDSTILL:
     assert ret.cruiseState.speed == 0.0 and ret.bogpilot.ap1SpeedLimitUnknown
   else:
-    assert ret.cruiseState.speed == pytest.approx(40.0 * CV.KPH_TO_MS, abs=1e-3)
+    assert ret.cruiseState.speed == pytest.approx(W(40.0) * CV.KPH_TO_MS, abs=1e-3)
   # Stale 0x2F8: units were seen, then the gps frame stops while fused stays fresh.
   car = Car()
   _x_step(car, STANDBY, v, fused=100, units=1)
@@ -457,7 +458,7 @@ def test_model_s_units_unknown_or_stale_does_not_latch_metric_like_limit(cruise_
   if cruise_state == STANDSTILL:
     assert ret.cruiseState.speed == 0.0 and ret.bogpilot.ap1SpeedLimitUnknown
   else:
-    assert ret.cruiseState.speed == pytest.approx(40.0 * CV.KPH_TO_MS, abs=1e-3)
+    assert ret.cruiseState.speed == pytest.approx(W(40.0) * CV.KPH_TO_MS, abs=1e-3)
 
 
 def test_model_s_units_known_metric_latches_kph():
@@ -528,18 +529,18 @@ def _roll(car, cruise_state, v_kph, lever=0):
 
 @pytest.mark.parametrize("v_kph", [0.5, 2.0, 7.9])
 @pytest.mark.parametrize("lever", [0, UP])
-def test_rolling_engage_no_limit_latches_exact_vego(v_kph, lever):
-  """Rolling, no fresh limit: exact vEgo, including below 8 kph. A tap does not switch to the standstill 15 mph set."""
+def test_rolling_engage_no_limit_latches_rounded_vego(v_kph, lever):
+  """Rolling, no fresh limit: vEgo in whole mph (v6; was exact), including below 8 kph. A tap does not switch to the standstill 15 mph set."""
   # Reach a true rolling state before the engage edge (CarState.standstill uses filtered vEgo).
   car = Car()
   _roll(car, STANDBY, v_kph)
   ret = car.step(ENABLED, 0, v_kph, lever=lever)
   assert not ret.standstill
-  assert ret.cruiseState.speed == pytest.approx(v_kph * CV.KPH_TO_MS, abs=1e-3)
+  assert ret.cruiseState.speed == pytest.approx(W(v_kph) * CV.KPH_TO_MS, abs=1e-3)
   assert not ret.bogpilot.ap1SpeedLimitUnknown
   assert SPEED_LIMIT_UNKNOWN not in _events(ret)
   held = car.step(ENABLED, 0, v_kph)
-  assert held.cruiseState.speed == pytest.approx(v_kph * CV.KPH_TO_MS, abs=1e-3)
+  assert held.cruiseState.speed == pytest.approx(W(v_kph) * CV.KPH_TO_MS, abs=1e-3)
 
 
 def test_tap_from_zero_setting_default_edges_live_and_display():
@@ -609,11 +610,11 @@ def _rolling_engage(v_kph, lever, offset_ms=None, gap_frames=0, map_limit=MAP_65
 def test_rolling_tap_engage_latches_vego_not_limit(lever):
   car, ret = _rolling_engage(72.0, lever, offset_ms=5 * CV.MPH_TO_MS)
   assert not ret.standstill
-  assert ret.cruiseState.speed == pytest.approx(72.0 * CV.KPH_TO_MS, abs=1e-3)
+  assert ret.cruiseState.speed == pytest.approx(W(72.0) * CV.KPH_TO_MS, abs=1e-3)
   limit = ui_map_speed_limit_ms(MAP_65, False)
   assert abs(ret.cruiseState.speed - limit) > 1.0
   held = [car.step(ENABLED, 0, 90.0, map_limit=MAP_65) for _ in range(20)]   # speeding up later never moves it
-  assert all(h.cruiseState.speed == pytest.approx(72.0 * CV.KPH_TO_MS, abs=1e-3) for h in held)
+  assert all(h.cruiseState.speed == pytest.approx(W(72.0) * CV.KPH_TO_MS, abs=1e-3) for h in held)
 
 
 def test_rolling_pull_engage_latches_limit_plus_offset():
@@ -625,23 +626,23 @@ def test_rolling_pull_engage_latches_limit_plus_offset():
 
 def test_rolling_pull_engage_without_a_limit_latches_vego():
   _car, ret = _rolling_engage(50.0, RWD, map_limit=0)
-  assert ret.cruiseState.speed == pytest.approx(50.0 * CV.KPH_TO_MS, abs=1e-3)
+  assert ret.cruiseState.speed == pytest.approx(W(50.0) * CV.KPH_TO_MS, abs=1e-3)
 
 
-@pytest.mark.parametrize("mph", [5.0, 7.5, 10.0])
+@pytest.mark.parametrize("mph", [5.0, 7.6, 10.0])
 @pytest.mark.parametrize("lever", [UP, DN])
 def test_low_speed_tap_with_limit_latches_vego(mph, lever):
   v_kph = mph * CV.MPH_TO_KPH
   _car, ret = _rolling_engage(v_kph, lever, offset_ms=5 * CV.MPH_TO_MS)
   assert not ret.standstill
-  assert ret.cruiseState.speed == pytest.approx(v_kph * CV.KPH_TO_MS, abs=1e-3)
+  assert ret.cruiseState.speed == pytest.approx(W(v_kph) * CV.KPH_TO_MS, abs=1e-3)
   assert not ret.bogpilot.ap1SpeedLimitUnknown and SPEED_LIMIT_UNKNOWN not in _events(ret)
 
 
 def test_stale_pull_before_rolling_engage_latches_vego():
   """A pull older than TAP_WINDOW_S before the engage edge does not count: vEgo, not the limit."""
   _car, ret = _rolling_engage(72.0, RWD, offset_ms=5 * CV.MPH_TO_MS, gap_frames=_frames(TAP_WINDOW_S) + 5)
-  assert ret.cruiseState.speed == pytest.approx(72.0 * CV.KPH_TO_MS, abs=1e-3)
+  assert ret.cruiseState.speed == pytest.approx(W(72.0) * CV.KPH_TO_MS, abs=1e-3)
 
 
 @pytest.mark.parametrize("first,last,want_limit", [(RWD, UP, False), (UP, RWD, True)])
@@ -654,7 +655,7 @@ def test_most_recent_stalk_action_decides_the_rolling_engage(first, last, want_l
   car.step(STANDBY, 0, 72.0, map_limit=MAP_65, lever=last)
   ret = car.step(ENABLED, 0, 72.0, map_limit=MAP_65)
   limit = ui_map_speed_limit_ms(MAP_65, False)
-  want = (limit + offset) if want_limit else 72.0 * CV.KPH_TO_MS
+  want = (limit + offset) if want_limit else W(72.0) * CV.KPH_TO_MS
   assert ret.cruiseState.speed == pytest.approx(want, abs=1e-3)
 
 
@@ -774,7 +775,7 @@ def _latch(v_ms, standstill, limit_ms, offset=OFFSET_5_MS, tap_zero=None, **pres
 def test_nonfinite_limit_is_an_unknown_limit(bad):
   # Rolling pull: no usable limit -> exact vEgo latch (as a pull with no known limit).
   out, ols = _latch(20.0, False, bad, pull=True)
-  assert math.isfinite(out) and out == pytest.approx(20.0, abs=1e-6)
+  assert math.isfinite(out) and out == pytest.approx(45 * CV.MPH_TO_MS, abs=1e-6)   # 20 m/s = 44.7 mph, whole mph
   assert not ols.speed_limit_unknown
   # Standstill, no tap: refused (NO_ENTRY ap1SpeedLimitUnknown), nothing latched.
   out, ols = _latch(0.0, True, bad, pull=True)
@@ -787,7 +788,7 @@ def test_nonfinite_limit_is_an_unknown_limit(bad):
 @pytest.mark.parametrize("bad", NONFINITE)
 def test_nonfinite_offset_makes_the_limit_unknown(bad):
   out, ols = _latch(20.0, False, LIMIT_45_MS, offset=bad, pull=True)
-  assert math.isfinite(out) and out == pytest.approx(20.0, abs=1e-6)
+  assert math.isfinite(out) and out == pytest.approx(45 * CV.MPH_TO_MS, abs=1e-6)   # 20 m/s = 44.7 mph, whole mph
   out, ols = _latch(0.0, True, LIMIT_45_MS, offset=bad, pull=True)
   assert out == 0.0 and ols.set_kph == 0.0 and ols.speed_limit_unknown
   out, ols = _latch(0.0, True, LIMIT_45_MS, offset=bad)
@@ -892,7 +893,7 @@ def test_rolling_tap_then_stop_within_window_keeps_tap_set_on_can(lever):
     car.step(STANDBY, 0, 0.0, map_limit=MAP_65)
   rets = [car.step(STANDSTILL, 0, 0.0, map_limit=MAP_65) for _ in range(10)]
   for ret in rets:
-    assert ret.cruiseState.speed == pytest.approx(10.0 * CV.KPH_TO_MS, abs=0.05)
+    assert ret.cruiseState.speed == pytest.approx(W(10.0) * CV.KPH_TO_MS, abs=0.05)
     assert not ret.bogpilot.ap1SpeedLimitUnknown
 
 

@@ -209,7 +209,7 @@ class TestPreApAndXConsumer(unittest.TestCase):
     store = FakeStore(SpeedLimitController="1", SLCPriority1="Dashboard",
                       **{f"Offset{i}": "0" for i in range(1, 8)})
     t = sc_onroad(store, cp)
-    ctl = sc.Ap1SpeedControl(cp, store=store, toggles_fn=lambda: t, clock=lambda: 0.0, adopted=True)
+    ctl = sc.Ap1SpeedControl(cp, store=store, toggles_fn=lambda: t, clock=lambda: 0.0, adopted=True, auto_speed=True)
     sm = Sm()
     out = run(ctl, sm, 30.0, 20.0, limit=45 * MPH, rwd=True)  # pull engage: SLC mode (a no-stalk engage latches vEgo)
     self.assertTrue(ctl.ap1)
@@ -221,7 +221,7 @@ class TestPreApAndXConsumer(unittest.TestCase):
     store = FakeStore(SpeedLimitController="1", SLCPriority1="Dashboard",
                       **{f"Offset{i}": "0" for i in range(1, 8)})
     t = sc_onroad(store, cp)
-    ctl = sc.Ap1SpeedControl(cp, store=store, toggles_fn=lambda: t, clock=lambda: 0.0, adopted=True)
+    ctl = sc.Ap1SpeedControl(cp, store=store, toggles_fn=lambda: t, clock=lambda: 0.0, adopted=True, auto_speed=True)
     sm = Sm()
     out = run(ctl, sm, 30.0, 20.0, limit=45 * MPH, rwd=True)  # pull engage: SLC mode (a no-stalk engage latches vEgo)
     self.assertTrue(ctl.ap1)
@@ -231,7 +231,7 @@ class TestPreApAndXConsumer(unittest.TestCase):
     cp = NS(carFingerprint="TESLA_MODEL_3", openpilotLongitudinalControl=True, radarUnavailable=False, enableBsm=True)
     store = FakeStore(SpeedLimitController="1")
     t = sc_onroad(store, cp)
-    ctl = sc.Ap1SpeedControl(cp, store=store, toggles_fn=lambda: t, clock=lambda: 0.0, adopted=True)
+    ctl = sc.Ap1SpeedControl(cp, store=store, toggles_fn=lambda: t, clock=lambda: 0.0, adopted=True, auto_speed=True)
     sm = Sm()
     self.assertFalse(ctl.ap1)
     self.assertEqual(run(ctl, sm, 30.0, 20.0, limit=45 * MPH), 30.0)

@@ -13,6 +13,7 @@ from opendbc.car.tesla_ap1.slc_raise import prev_5_ms
 
 V_CRUISE = 20.0 * 1.0      # m/s planner/DI set while the stalk set is "ours" to compare against
 V_EGO = 20.0
+V_LATCH = 45 * sc.MPH_TO_MS   # v6: a tip / no-stalk engage latches vEgo in whole mph (20 m/s = 44.7 mph -> 45)
 
 
 def frames(seconds):
@@ -57,8 +58,8 @@ class TestSinglePullMode(unittest.TestCase):
     ctl, sm = make(), Sm()
     off(ctl, sm, 0.2, 50 * MPH, up=True)
     out = long_on(ctl, sm, 1.0, 50 * MPH)
-    self.assertAlmostEqual(out[-1], V_EGO, places=3)             # sticky vEgo, no raise
-    self.assertAlmostEqual(long_on(ctl, sm, 0.5, 35 * MPH)[-1], V_EGO, places=3)   # holds through a lower limit
+    self.assertAlmostEqual(out[-1], V_LATCH, places=3)             # sticky vEgo, no raise
+    self.assertAlmostEqual(long_on(ctl, sm, 0.5, 35 * MPH)[-1], V_LATCH, places=3)   # holds through a lower limit
 
   def test_repull_while_engaged_relatches_slc(self):
     ctl, sm = make(), Sm()
@@ -144,7 +145,7 @@ class TestDoublePullMode(unittest.TestCase):
     lat_only(ctl, sm, 0.6, 50 * MPH)
     lat_only(ctl, sm, 0.1, 50 * MPH, up=True)                     # long engaged with the up tip, not a pull
     out = long_on(ctl, sm, 0.5, 50 * MPH)
-    self.assertAlmostEqual(out[-1], V_EGO, places=3)
+    self.assertAlmostEqual(out[-1], V_LATCH, places=3)
     self.assertTrue(ctl.holdoff.sticky_vego)
 
   def test_pull_while_long_engaged_drops_to_lateral_then_second_pull_relatches(self):
@@ -216,9 +217,9 @@ class TestEngageStalkAction(unittest.TestCase):
     for press in ({"up": True}, {"dn": True}):
       ctl, sm = make(), Sm()
       out = gas_engage(ctl, sm, 50 * MPH, 20.0, 26.0, **press)     # release 2 s (> 0.8 s window) after the tap
-      self.assertTrue(all(abs(o - 20.0) < 1e-6 for o in out), (press, out))   # vEgo at the tap, not at release
+      self.assertTrue(all(abs(o - V_LATCH) < 1e-6 for o in out), (press, out))   # vEgo at the tap, not at release
       self.assertTrue(ctl.holdoff.sticky_vego)
-      self.assertAlmostEqual(long_on(ctl, sm, 0.5, 65 * MPH)[-1], 20.0, places=4)   # higher limit never raises it
+      self.assertAlmostEqual(long_on(ctl, sm, 0.5, 65 * MPH)[-1], V_LATCH, places=4)   # higher limit never raises it
 
   def test_gas_held_pull_follows_slc(self):
     ctl, sm = make(), Sm()
@@ -235,7 +236,7 @@ class TestEngageStalkAction(unittest.TestCase):
     off(ctl, sm, 1.0, 50 * MPH)                                     # cancel / brake: cruise drops
     self.assertIsNone(ctl.holdoff.engage_kind)
     out = long_on(ctl, sm, 0.5, 50 * MPH)                           # re-engage with no stalk seen
-    self.assertAlmostEqual(out[-1], V_EGO, places=4)                # the old pull is not reused: vEgo, not SLC
+    self.assertAlmostEqual(out[-1], V_LATCH, places=4)                # the old pull is not reused: vEgo, not SLC
 
   def test_openpilot_disengage_clears_remembered_action(self):
     ctl, sm = make(), Sm()
@@ -247,7 +248,7 @@ class TestEngageStalkAction(unittest.TestCase):
   def test_unclassified_engage_latches_vego(self):
     ctl, sm = make(), Sm()
     out = gas_engage(ctl, sm, 50 * MPH, 20.0, 26.0)
-    self.assertTrue(all(abs(o - 20.0) < 1e-6 for o in out), out)   # vEgo at the cruise edge
+    self.assertTrue(all(abs(o - V_LATCH) < 1e-6 for o in out), out)   # vEgo at the cruise edge
     self.assertEqual(ctl.holdoff.engage_kind, "none")
 
   def test_lat_only_tap_after_pull_overrides_it(self):
@@ -256,17 +257,17 @@ class TestEngageStalkAction(unittest.TestCase):
     lat_only(ctl, sm, 1.0, 50 * MPH)
     lat_only(ctl, sm, 0.1, 50 * MPH, dn=True)
     out = long_on(ctl, sm, 0.5, 50 * MPH)
-    self.assertAlmostEqual(out[-1], V_EGO, places=4)
+    self.assertAlmostEqual(out[-1], V_LATCH, places=4)
 
   def test_gas_override_longer_than_drop_window_keeps_the_tap_latch(self):
     """A gas override past LongEngageGate.DROP_S used to drop the tap latch and hand the set to SLC."""
     ctl, sm = make(), Sm()
     off(ctl, sm, 0.1, 50 * MPH, up=True)
-    self.assertAlmostEqual(long_on(ctl, sm, 0.5, 50 * MPH)[-1], V_EGO, places=4)
+    self.assertAlmostEqual(long_on(ctl, sm, 0.5, 50 * MPH)[-1], V_LATCH, places=4)
     for _ in range(frames(2.0)):
       run(ctl, sm, V_CRUISE, 27.0, limit=50 * MPH, cruise=True, long_active=False, gas=True)
     out = [run(ctl, sm, V_CRUISE, 27.0, limit=50 * MPH, cruise=True, long_active=True) for _ in range(frames(0.5))]
-    self.assertTrue(all(abs(o - V_EGO) < 1e-6 for o in out), out)
+    self.assertTrue(all(abs(o - V_LATCH) < 1e-6 for o in out), out)
 
   def test_gas_override_longer_than_drop_window_keeps_a_tipped_set(self):
     ctl, sm = make(), Sm()

@@ -398,7 +398,7 @@ class SelfdriveD:
       self.events.add(EventName.preapNotArmed)
 
     # Pre-AP regen limit: alert only (preap_regen.py)
-    if self.preap_regen.update(self.sm['carControl'].longActive, self.sm['longitudinalPlan'].aTarget):
+    if self.preap_regen.update(self.sm['carControl'].longActive, self.sm['longitudinalPlan'].aTarget, CS.brakePressed):
       self.events.add(EventName.preapRegenLimit)
 
     for i, pandaState in enumerate(self.sm['pandaStates']):

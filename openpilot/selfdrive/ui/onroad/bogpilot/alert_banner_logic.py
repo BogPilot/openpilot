@@ -101,3 +101,14 @@ def plan_alert(alert: AlertIn | None, rect: tuple[float, float, float, float], *
   hide = full if redesign else True
   return AlertPlan(MODE_NATIVE, alert, (x, y, w, h), mid=alert.size == SIZE_MID, showing=True, full=full,
                    hide_cluster=hide, lkas_fault=lkas, reserved_top=y if full else None)
+
+
+REGEN_LIMIT_ALERT = "preapRegenLimit/"
+
+
+def is_regen_limit_alert(alert_type) -> bool:
+  """Pre-AP regen-limit warning (selfdrived/preap_regen.py) is showing: the onroad border turns red, as for Traffic Mode."""
+  try:
+    return str(alert_type or "").startswith(REGEN_LIMIT_ALERT)
+  except Exception:
+    return False

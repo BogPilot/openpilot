@@ -1010,13 +1010,14 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
     ET.PERMANENT: NormalPermanentAlert("Steering only", "Double pull for speed control"),
   },
 
-  # Alert only (selfdrived/preap_regen.py): the plan wants more decel than the Pre-AP regen floor; nothing is disengaged.
+  # Alert only (selfdrived/preap_regen.py): the plan wants more than 1.2 m/s^2 of decel (fixed, conservative vs ~1.6-1.8 regen)
+  # for 0.3 s; nothing is disengaged. The onroad border turns red from this alertType (alert_banner_logic.is_regen_limit_alert).
   EventName.preapRegenLimit: {
     ET.WARNING: Alert(
       "Brake if needed",
       "Regen limit: the car can't slow this fast",
       AlertStatus.userPrompt, AlertSize.mid,
-      Priority.MID, VisualAlert.none, AudibleAlert.prompt, .2),
+      Priority.MID, VisualAlert.none, AudibleAlert.promptRepeat, .2),
   },
 
   # Warning only (carState.bogpilot.preapRadarNotReady, opendbc tesla_ap1/preap/radar_valid.py): the radar is advisory, as NAP and

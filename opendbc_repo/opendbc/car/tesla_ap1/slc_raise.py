@@ -126,6 +126,16 @@ def _speed_units(speed_ms: float, round_whole: bool, is_metric: bool) -> tuple[f
   return float(math.floor(value + 0.5)), to_ms
 
 
+def round_latch_ms(speed_ms: float, is_metric: bool = False) -> float:
+  """v6 (Bardo t1421): a tip / engage vEgo latch in whole display units (half-up; mph, or km/h when is_metric), as m/s.
+  Same rule as Pre-AP (cruise.preap_round_kph) and op_long_set_speed.round_whole_kph. A result of 0 keeps the exact speed."""
+  v = max(float(speed_ms), 0.0)
+  unit = CV.MS_TO_KPH if is_metric else CV.MS_TO_MPH
+  back = CV.KPH_TO_MS if is_metric else CV.MPH_TO_MS
+  whole = math.floor(round(v * unit, 4) + 0.5)
+  return float(whole) * back if whole > 0 else v
+
+
 def next_5_ms(speed_ms: float, round_whole: bool = False, is_metric: bool = False) -> float:
   """Next multiple of 5 above speed_ms (30→35, 36→40); exact multiples go +5.
 
@@ -339,8 +349,8 @@ class Ap1RaiseHoldoff:
           self.tip_ms = float(self.tap_from_zero_ms)  # standstill tap from 0 (AP1 openpilot long)
           self._tip_upgraded = True
         elif base <= 0.0:
-          # Rolling with no existing set: latch exact vEgo (no 5 mph rounding, no tap-from-0).
-          self.tip_ms = max(float(v_ego_ms), 0.0)
+          # Rolling with no existing set: latch vEgo in a whole display unit (v6; was exact; no 5 mph rounding, no tap-from-0).
+          self.tip_ms = round_latch_ms(v_ego_ms, self.is_metric)
           self._tip_upgraded = True
         elif tip_full:
           self.tip_ms = min(next_5_ms(base, round_whole=self.round_whole, is_metric=self.is_metric), self.V_CRUISE_MAX_MS)
@@ -360,7 +370,7 @@ class Ap1RaiseHoldoff:
           self.tip_ms = float(self.tap_from_zero_ms)  # standstill tap from 0 (AP1 openpilot long)
           self._tip_upgraded = True
         elif base <= 0.0:
-          self.tip_ms = max(float(v_ego_ms), 0.0)
+          self.tip_ms = round_latch_ms(v_ego_ms, self.is_metric)   # v6: whole display unit, as the tip-up latch above
           self._tip_upgraded = True
         elif tip_full:
           self.tip_ms = self._dn_set_ms(base, prev_5_ms(base, round_whole=self.round_whole, is_metric=self.is_metric))
@@ -434,6 +444,8 @@ class Ap1RaiseHoldoff:
         self._clear_tip()
       else:
         latched = self._session_set_ms if self._session_set_ms > 0.0 else max(float(self.engage_vego_ms), 0.0)
+        if self._session_set_ms <= 0.0:
+          latched = round_latch_ms(latched, self.is_metric)   # v6: the tip latch is a whole display unit
         if kind != "tap" and latched < 0.1:
           # Unclassified engage at a standstill: no vEgo-0 latch. The standstill rule is unchanged
           # (op_long_set_speed: limit+offset, a fresh tap's 15 mph, or NO_ENTRY ap1SpeedLimitUnknown).

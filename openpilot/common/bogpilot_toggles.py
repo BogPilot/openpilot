@@ -59,6 +59,8 @@ FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
   "TeslaRadarIgnoreHwFail": (False, "Pre-AP ignore retrofit radar HWFail"),
   # Pre-AP iBooster swap (tesla_ap1/preap/params.py). Default OFF. Display only. Backed up and restored; never reset.
   "TeslaHasIBooster": (False, "Pre-AP iBooster swap brake bar"),
+  # Pre AP Auto Speed (tesla_ap1/preap/params.py). Default OFF = NAP-style engage at the current speed. Backed up and restored; never reset.
+  "TeslaPreApAutoSpeed": (False, "Pre-AP SLC auto set speed"),
 }
 
 # key: (default, allowed values) for the few text-valued files

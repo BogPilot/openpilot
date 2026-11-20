@@ -178,6 +178,7 @@ class Car:
     self.ap1_cluster_lift = bool(self.CP.brand == "tesla_ap1" and self.CP.carFingerprint != "TESLA_PREAP_MODELS" and self.CP.openpilotLongitudinalControl)
     # Pre-AP with pedal (pcmCruise=False): 0.9.7 SetSpeedLimit engage set from a fresh posted limit.
     self.preap_engage_set_limit = None
+    self.preap_from_stop = None
     self.preap_tx_sample = None
     self.preap_refusals = None
     self.preap_sent_560 = 0
@@ -216,6 +217,13 @@ class Car:
       # 11.11 ms Ratekeeper.lagging threshold and raise "System Lagging" (a soft disable). params_thread keeps the
       # snapshot fresh from here on, so later engages do not read /data in the step either.
       warm_engage_helpers(self.preap_engage_set_limit)
+      # t1394: the AP1 from-stop setting (AP1TapFromZeroMph, kph, 1 s cache) for the Pre-AP pedal from-stop capture. Warmed offroad.
+      from openpilot.selfdrive.controls.lib.phase3_speed_control import EngageTapFromZero
+      self.preap_from_stop = EngageTapFromZero()
+      try:
+        self.preap_from_stop()
+      except Exception:
+        pass
     self._cluster_floor = None
     if self.ap1_cluster_lift:
       from openpilot.selfdrive.controls.lib.phase3_speed_control import EngageClusterFloor
@@ -320,15 +328,30 @@ class Car:
       set_limit_kph = 0.0
       if self.preap_engage_set_limit is not None:
         set_limit_kph = self.preap_engage_set_limit.kph(self.CS_prev, getattr(self.CI.CS, "engage_limit_ms", 0.0))
-      self.v_cruise_helper.initialize_v_cruise(self.CS_prev, self.experimental_mode, set_limit_kph)
+      from_stop = None
+      if self.preap_from_stop is not None:
+        try:
+          from_stop = float(self.preap_from_stop())
+        except Exception:
+          from_stop = None
+      self.v_cruise_helper.initialize_v_cruise(self.CS_prev, self.experimental_mode, set_limit_kph,
+                                               preap_from_stop_kph=from_stop, is_metric=self.is_metric)
 
     if getattr(self.CI.CS, "preap_capture_edge", False) and not self.CP.pcmCruise:
       # Pre-AP pedal FULL capture edge (opendbc tesla_ap1/preap/engagement.py capture_edge). Pedal capture speed choice: SetSpeedLimit gives limit + offset
       # through the same freshness / units / standstill / gas gates as the engage set; otherwise the exact vEgo.
       set_limit_kph = 0.0
-      if PREAP_FULL_USE_SET_SPEED_LIMIT and self.preap_engage_set_limit is not None:
+      # t1401: a tip entry latches like the AP1 tap and never takes SetSpeedLimit (tesla_ap1/op_long_set_speed.py rules 2-3).
+      tip_entry = bool(getattr(self.CI.CS, "preap_capture_tip", False))
+      if PREAP_FULL_USE_SET_SPEED_LIMIT and self.preap_engage_set_limit is not None and not tip_entry:
         set_limit_kph = self.preap_engage_set_limit.kph(CS, getattr(self.CI.CS, "engage_limit_ms", 0.0))
-      self.v_cruise_helper.capture_preap_full(float(CS.vEgo), set_limit_kph)
+      from_stop = 0.0
+      if getattr(self.CI.CS, "preap_capture_from_stop", False) and self.preap_from_stop is not None:
+        try:
+          from_stop = float(self.preap_from_stop())
+        except Exception:
+          from_stop = 0.0
+      self.v_cruise_helper.capture_preap_full(float(CS.vEgo), set_limit_kph, is_metric=self.is_metric, from_stop_kph=from_stop)
 
     # TODO: mirror the carState.cruiseState struct?
     CS.vCruise = float(self.v_cruise_helper.v_cruise_kph)

@@ -234,6 +234,18 @@ _add("TeslaHasIBooster", "Pre-AP: iBooster Swap",
      when="Only if an iBooster is fitted and connected to the chassis bus.",
      note="Pre-AP Model S only. Takes effect the next time the car starts. " + _OFFROAD,
      default="Off")
+_add("TeslaPreApAutoSpeed", "Pre AP Auto Speed",
+     "Chooses who sets the speed on a Pre-AP car with pedal longitudinal. Off (default): when speed control engages, the set "
+     "speed is your current speed, as NotAutopilot does; only the stalk changes it. On: BogPilot's Speed Limit Controller sets "
+     "and changes it, as on AP1: engage at the posted limit plus your offset when Set Speed Limit is on, and the set follows the "
+     "posted limit as it changes. With no posted limit, the speed comes from Experimental Mode's plan (the Experimental Mode "
+     "toggle itself is not changed), never above your set speed. Stalk up / down still sets a lower or higher speed. Pre-AP "
+     "slows by regen only, so a lower limit can take longer to reach; brake if needed.",
+     when="Turn on if you want the speed to follow posted limits. Review Speed Limit Controller settings (offsets, Set Speed "
+          "Limit) first. On Pre-AP the Fallback Speed is always Experimental Mode while this is on.",
+     note="Pre-AP with pedal longitudinal only. The posted limit is shown either way. Takes effect the next time the car "
+          "starts. " + _OFFROAD,
+     default="Off")
 _add("PedalStatus", "Comma Pedal",
      "Live status of the Comma Pedal. Not detected: the car has not heard the pedal lately (also shown with the car off). Needs "
      "calibration: the pedal is heard but not calibrated, so pedal longitudinal stays off. Recalibrate: the saved pedal scale is out of "

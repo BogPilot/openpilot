@@ -306,7 +306,8 @@ class CarState(CarStateBase):
       ret.cruiseState.speed = self.op_long_set.update(cruise_state, ret.vEgoRaw, ret.standstill,
                                                       limit_ms=engage_limit_ms,
                                                       offset_fn=self.op_long_offset, tap=tap,
-                                                      tap_from_zero_kph=tap_zero, pull=pull)
+                                                      tap_from_zero_kph=tap_zero, pull=pull,
+                                                      is_metric=(speed_units == "KPH"))
       fp_ret.ap1SpeedLimitUnknown = self.op_long_set.speed_limit_unknown
 
     # 0x108 motor torque (Nm) and RPM, raw decoded values (SNA stays -1024 Nm / -32768 rpm). Published for Model S and

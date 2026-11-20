@@ -2202,6 +2202,15 @@ FEATURE_SPECS = json.loads(r'''{
     "title": "Pre-AP: iBooster Swap",
     "type": "BOOL"
   },
+  "TeslaPreApAutoSpeed": {
+    "declared_default": "0",
+    "max": null,
+    "min": null,
+    "source": "FILE_TOGGLES",
+    "step": null,
+    "title": "Pre AP Auto Speed",
+    "type": "BOOL"
+  },
   "TeslaRadarBehindNosecone": {
     "declared_default": "0",
     "max": null,

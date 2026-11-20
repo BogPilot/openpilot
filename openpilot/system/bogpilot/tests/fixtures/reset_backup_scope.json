@@ -39,7 +39,8 @@
     "TeslaRadarEnabled",
     "TeslaRadarBehindNosecone",
     "TeslaRadarIgnoreHwFail",
-    "TeslaHasIBooster"
+    "TeslaHasIBooster",
+    "TeslaPreApAutoSpeed"
   ],
   "setting_keys": [
     "AccelerationPath",
