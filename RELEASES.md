@@ -12,7 +12,8 @@ What's new
 * AP1 and Pre-AP: fewer false steering takeovers from wheel motion openpilot itself asked for
 * Standstill Tap Speed shows in km/h when Metric is on. Your saved speed carries over
 * Pre-AP Auto Speed (off by default): a moving double pull below the Standstill Tap Speed raises the set speed to it
-* Pedal gauge: the regen and accel bars now scale by motor torque
+* Pedal gauge: the regen bar and openpilot's accel bar now show motor power on a log scale, and the regen bar flashes light blue when openpilot asks for more regen than the motor can give
+* AP1: while engaged, the cluster lane no longer ends short of a stopped car ahead, so the lead vehicle stays drawn
 * Pre-AP Bosch radar retrofit: Flip Radar and Radar Offset settings (off by default)
 * Pre-AP: Donor VIN entry in Vehicle Settings, and the "Steering only" banner clears after 3 s
 
