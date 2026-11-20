@@ -1,5 +1,23 @@
 What's new
 =======================
+* Holding the stalk tip in the first detent now changes the set speed by 1 every 0.2 s after a short pause, like native AP1 TACC. The deep detent still steps to the next 5. AP1 and Pre-AP with a comma pedal
+* Most settings can now be changed while driving, like FrogPilot 0.9.7, including Alert Volume. Sound minimums are unchanged
+  * Steering, Driving Model, Vehicle, Car Selection and Stalk Controls ask for a reboot. Disable Long applies when the car turns off or on Reboot Now, which needs you to disengage first
+  * Gas/Brake, Tuning Level, downloads, calibration and resets stay locked while driving
+* New panda firmware, which updates itself on the first start after updating:
+  * Steering commands are limited to a safe cornering force and ±360° of wheel angle on AP1 and Pre-AP
+  * Pre-AP steering requests stay within 20° of where the wheel is
+* AP1: steering recovers from a temporary power steering fault (code 4) at any speed above 0.3 m/s (about 0.7 mph), not only above about 5 mph
+* A blinker that's already on when you engage no longer starts a lane change
+* AP1 and Pre-AP: fewer false steering takeovers from wheel motion openpilot itself asked for
+* Standstill Tap Speed shows in km/h when Metric is on. Your saved speed carries over
+* Pre-AP Auto Speed (off by default): a moving double pull below the Standstill Tap Speed raises the set speed to it
+* Pedal gauge: the regen and accel bars now scale by motor torque
+* Pre-AP Bosch radar retrofit: Flip Radar and Radar Offset settings (off by default)
+* Pre-AP: Donor VIN entry in Vehicle Settings, and the "Steering only" banner clears after 3 s
+
+BogPilot 0.11.2 for legacy Tesla (comma 3X, 2026-11-17)
+========================
 * Fixes an onroad crash on git installs. New: comma 4 UI, comma 3X sidebar Power
 * Fixes the comma 3X getting stuck on the BogPilot splash screen after installing
 * Rebuilt the prebuilt params library and the services built with it (pandad, camerad, loggerd, encoderd and bootlog) from the current source
