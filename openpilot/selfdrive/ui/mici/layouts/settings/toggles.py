@@ -51,7 +51,7 @@ class TogglesLayoutMici(NavScroller):
     always_on_dm_toggle = BigParamControl("always-on driver monitor", "AlwaysOnDM")
     # BogPilot (as the 3X Toggles panel): the cabin camera is recorded on the device only, never uploaded.
     record_front = BigParamControl("record cabin camera locally", "RecordFront", toggle_callback=restart_needed_callback)
-    record_mic = BigParamControl("record & upload mic audio", "RecordAudio", toggle_callback=restart_needed_callback)
+    record_mic = BigParamControl("record mic audio locally", "RecordAudio", toggle_callback=restart_needed_callback)
     enable_openpilot = BigParamControl("enable openpilot", "OpenpilotEnabledToggle", toggle_callback=restart_needed_callback)
 
     self._scroller.add_widgets([

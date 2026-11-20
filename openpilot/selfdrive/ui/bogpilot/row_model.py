@@ -77,6 +77,27 @@ def _ensure_rect(action) -> None:
     action.set_rect(rl.Rectangle(r.x, r.y, max(1.0, float(action.get_width_hint())), float(ITEM_BASE_HEIGHT)))
 
 
+_opening: list = []    # rows whose 3X handler is running right now (innermost last)
+
+
+def _opens(method):
+  """Remember which row is acting while its 3X handler runs, so a dialog that handler opens (on the comma 4: a
+  slide-to-confirm page) keeps that row's lock: a row that becomes locked cannot be confirmed."""
+  def wrapper(self, *args, **kwargs):
+    _opening.append(self)
+    try:
+      return method(self, *args, **kwargs)
+    finally:
+      _opening.pop()
+  wrapper.__name__, wrapper.__doc__ = method.__name__, method.__doc__
+  return wrapper
+
+
+def opening_gate() -> Callable[[], bool] | None:
+  """The lock of the row whose handler is running (None outside a row action, e.g. the reboot prompt)."""
+  return _opening[-1].enabled if _opening else None
+
+
 class Row:
   """Read and act on one 3X row. Every action re-checks the row's lock first (fail closed: a row whose ListItem OR
   action is disabled is locked) and then calls the 3X handler, which checks its own gate again before it writes."""
@@ -179,6 +200,7 @@ class Row:
     return [(_button_text(b), bool(_res(lambda b=b: b.is_visible, False))) for b in (self.action.left_button, self.action.right_button)]
 
   # ---- act (each returns True when the 3X handler was called)
+  @_opens
   def toggle(self) -> bool:
     if self.kind not in (TOGGLE, MANAGE_TOGGLE) or not self.toggle_enabled():
       return False
@@ -188,6 +210,7 @@ class Row:
     t._handle_mouse_release(MousePos(t.rect.x + 1, t.rect.y + 1))
     return True
 
+  @_opens
   def manage(self) -> bool:
     if not self.manage_enabled():
       return False
@@ -197,6 +220,7 @@ class Row:
     cb()
     return True
 
+  @_opens
   def press(self) -> bool:
     """ButtonAction: what ListItem._render does when its button reports a press and the action is enabled."""
     if self.kind != BUTTON or not self.enabled() or self.item.callback is None:
@@ -204,6 +228,7 @@ class Row:
     self.item.callback()
     return True
 
+  @_opens
   def press_index(self, index: int) -> bool:
     """CHOICE option / STEPPER button `index`: a release at that button's own rectangle, so the action's own handler
     (gate, highlight sync, value-step dispatch) runs unchanged."""
@@ -240,6 +265,7 @@ class Row:
   def press_trailing(self, i: int) -> bool:
     return self.kind == STEPPER and 0 <= i < len(self.trailing()) and self.press_index(self.action.value_index + 2 + i)
 
+  @_opens
   def press_dual(self, side: int) -> bool:
     if self.kind != DUAL or not self.enabled():
       return False

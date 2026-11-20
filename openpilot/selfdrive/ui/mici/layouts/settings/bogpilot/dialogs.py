@@ -52,27 +52,98 @@ def _button_text(button) -> str:
   return _label_text(getattr(button, "_label", None))
 
 
-class ConfirmPage(NavScroller):
-  """ConfirmDialog / alert_dialog: the text as grey cards, then the confirm card (and the cancel card when the 3X
-  dialog has one). Confirm / cancel call the 3X dialog's own button handlers (they pop this page and run its callback);
-  a swipe down is Cancel (OK for a one-button alert)."""
+DESTRUCTIVE = ("reset", "delete", "erase", "remove", "clear", "uninstall", "wipe", "forget", "restore", "discard")
+
+
+def _destructive(text: str, confirm: str) -> bool:
+  """Red slider (stock "slide to forget" / "slide to delete" look) when the 3X button or question names a destructive
+  action. Look only: which actions ask, and what they do, is the 3X page's."""
+  words = f"{confirm} {text}".lower()
+  return any(w in words for w in DESTRUCTIVE)
+
+
+class ConfirmPage(NavWidget):
+  """ConfirmDialog with a Cancel button: the question on top (marquee when long), the stock comma 4 slide-to-confirm
+  below. Sliding runs the 3X dialog's own confirm handler; a swipe down is its Cancel.
+
+  The page keeps the lock of the 3X row that opened it (row_model.opening_gate): while that row is locked (the car
+  started, a parent switch went off, ...) the slider cannot be dragged or confirmed and the lock note replaces the
+  question. A dialog opened outside a row (the reboot prompt) has no lock of its own; its handler keeps the 3X rule
+  (Reboot Now refused while engaged).
+
+  alert_dialog (one OK button, no Cancel) is not a confirmation: it stays the text cards + one OK card (AlertPage)."""
+
+  def __init__(self, dialog, gate=None):
+    super().__init__()
+    from openpilot.system.ui.widgets.label import UnifiedLabel
+    from openpilot.system.ui.widgets.slider import BigSlider, RedBigSlider
+    from openpilot.selfdrive.ui.mici.layouts.settings.bogpilot.widgets import mici_title
+    self.dialog = dialog
+    self.gate = gate or (lambda: True)
+    self.set_rect(rl.Rectangle(0, 0, gui_app.width, gui_app.height))
+    confirm = _button_text(getattr(dialog, "_confirm_button", None)) or "OK"
+    self.question = confirm_text(dialog)
+    self.slider_title = f"slide to {mici_title(confirm)}"
+    icon = gui_app.texture("icons_mici/setup/small_slider/slider_arrow.png", 64, 55)
+    cls = RedBigSlider if _destructive(self.question, confirm) else BigSlider
+    self.red = cls is RedBigSlider
+    self.slider = self._child(cls(self.slider_title, icon, confirm_callback=self._confirmed))
+    self.slider.set_enabled(lambda: self.unlocked() and not self.is_dismissing)
+    self._label = self._child(UnifiedLabel(lambda: self.question if self.unlocked() else self.locked_note(), font_size=30,
+                                           font_weight=FontWeight.MEDIUM, text_color=TEXT, wrap_text=False, scroll=True))
+    self.confirmed = False
+    self.set_back_callback(self._swiped)
+
+  def unlocked(self) -> bool:
+    try:
+      return bool(self.gate())
+    except Exception:
+      return False               # fail closed
+
+  @staticmethod
+  def locked_note() -> str:
+    from openpilot.selfdrive.ui.layouts.settings.menu_097 import LOCKED_WHILE_DRIVING
+    from openpilot.system.ui.lib.multilang import tr
+    return tr(LOCKED_WHILE_DRIVING)
+
+  def _confirmed(self):
+    if not self.unlocked():      # locked between the drag and the end of the slide animation
+      self.slider.reset()
+      return
+    self.confirmed = True
+    self.dialog._confirm_button_callback()
+
+  def _swiped(self):
+    if self.confirmed:
+      return
+    callback = getattr(self.dialog, "_callback", None)
+    if callback is not None:
+      callback(DialogResult.CANCEL)
+
+  def _update_state(self):
+    super()._update_state()
+    if not self.unlocked() and not self.slider.confirmed:
+      self.slider.reset()        # drop a drag in progress the moment the row locks
+
+  def _render(self, rect):
+    self._label.render(rl.Rectangle(rect.x + 20, rect.y + 8, rect.width - 40, 44))
+    sw, sh = self.slider.rect.width, self.slider.rect.height
+    self.slider.render(rl.Rectangle(rect.x + (rect.width - sw) / 2, rect.y + rect.height - sh, sw, sh))
+
+
+class AlertPage(NavScroller):
+  """alert_dialog (one OK button): the text as grey cards, then the OK card (the 3X dialog's own handler). A swipe
+  down is OK too."""
 
   def __init__(self, dialog):
     super().__init__()
+    from openpilot.selfdrive.ui.mici.layouts.settings.bogpilot.widgets import mici_title
     self.dialog = dialog
-    cancel = getattr(dialog, "_cancel_text", "")
     confirm = _button_text(getattr(dialog, "_confirm_button", None)) or "OK"
     cards = [InfoCard(lambda: "", lambda p=p: p) for p in chunk_text(confirm_text(dialog))] or [InfoCard(lambda: "", lambda: "")]
-    cards.append(LiveCard(lambda: confirm, on_tap=dialog._confirm_button_callback))
-    if cancel:
-      cards.append(LiveCard(lambda: cancel, on_tap=dialog._cancel_button_callback))
+    cards.append(LiveCard(lambda: mici_title(confirm), on_tap=dialog._confirm_button_callback))
     self._scroller.add_widgets(cards)
-    self.set_back_callback(self._swiped)
-
-  def _swiped(self):
-    callback = getattr(self.dialog, "_callback", None)
-    if callback is not None:
-      callback(DialogResult.CANCEL if getattr(self.dialog, "_cancel_text", "") else DialogResult.CONFIRM)
+    self.set_back_callback(lambda: dialog._callback and dialog._callback(DialogResult.CONFIRM))
 
 
 class OptionsPage(NavScroller):
@@ -170,7 +241,10 @@ def to_mici(widget):
   from openpilot.system.ui.widgets.keyboard import Keyboard
   from openpilot.system.ui.widgets.option_dialog import MultiOptionDialog
   if isinstance(widget, ConfirmDialog):
-    return ConfirmPage(widget)
+    if not getattr(widget, "_cancel_text", ""):
+      return AlertPage(widget)
+    from openpilot.selfdrive.ui.bogpilot.row_model import opening_gate
+    return ConfirmPage(widget, gate=opening_gate())
   if isinstance(widget, MultiOptionDialog):
     return OptionsPage(widget)
   if isinstance(widget, Keyboard):
@@ -203,4 +277,4 @@ def install(app=None) -> bool:
   return True
 
 
-__all__ = ["ConfirmPage", "OptionsPage", "PedalCalPage", "keyboard_page", "to_mici", "install", "confirm_text"]
+__all__ = ["ConfirmPage", "AlertPage", "OptionsPage", "PedalCalPage", "keyboard_page", "to_mici", "install", "confirm_text"]

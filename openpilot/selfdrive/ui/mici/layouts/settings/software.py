@@ -104,9 +104,19 @@ class CheckUpdateButton(BigButton):
   def _update_state(self):
     super()._update_state()
 
-    if ui_state.started:
+    # BogPilot (same rule as the 3X Software panel): downloads while the car is off or in Park, through the shared
+    # onroad_policy PARKED class. Install stays offroad only (InstallUpdateButton).
+    from openpilot.selfdrive.ui.bogpilot import onroad_policy
+    drive = onroad_policy.state()
+    started = drive.started()
+    if not onroad_policy.downloads_allowed(started, drive.parked() if started else True):
       self.set_enabled(False)
+      self._blocked = True
       return
+    if getattr(self, "_blocked", False):
+      self._blocked = False
+      if self._state == UpdaterState.IDLE:
+        self.set_enabled(True)   # back in Park / off: the IDLE branch below only re-enables on failure / fetch / result
 
     updater_state = ui_state.params.get("UpdaterState") or ""
     failed_count = ui_state.params.get("UpdateFailedCount") or 0

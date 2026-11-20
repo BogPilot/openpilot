@@ -19,6 +19,21 @@ from openpilot.system.ui.lib.multilang import tr
 
 REFRESH_INTERVAL = 5.0  # seconds
 
+# BogPilot: the driving-model fallback alert, same key / trigger / text as the 3X (widgets/offroad_alerts.py). It lives
+# in the BogPilot setting store, not in Params, so it is read through common/bogpilot_models/alert.current_alert().
+from openpilot.common.bogpilot_models.alert import ALERT_KEY as BOGPILOT_MODEL_ALERT_KEY  # "BogPilot_ModelFallback"
+
+
+def read_alert(params, key: str):
+  """Params JSON for a stock offroad alert, or the BogPilot fallback alert ({"text", "severity"}) / None."""
+  if key == BOGPILOT_MODEL_ALERT_KEY:
+    try:
+      from openpilot.common.bogpilot_models.alert import current_alert
+      return current_alert()
+    except Exception:
+      return None
+  return params.get(key)
+
 
 class AlertSize(IntEnum):
   SMALL = 0
@@ -246,8 +261,9 @@ class MiciOffroadAlerts(Scroller):
     self.alert_items.append(update_alert_item)
     self._scroller.add_widget(update_alert_item)
 
-    # Add regular alerts sorted by severity
-    for key, config in sorted(OFFROAD_ALERTS.items(), key=lambda x: x[1].get("severity", 0), reverse=True):
+    # Add regular alerts sorted by severity (BogPilot: the model fallback alert first, severity 1 as on the 3X)
+    alerts = [(BOGPILOT_MODEL_ALERT_KEY, {"severity": 1})] + list(OFFROAD_ALERTS.items())
+    for key, config in sorted(alerts, key=lambda x: x[1].get("severity", 0), reverse=True):
       severity = config.get("severity", 0)
       alert_data = AlertData(key=key, text="", severity=severity, icon=config.get("icon"))
       self.sorted_alerts.append(alert_data)
@@ -260,10 +276,13 @@ class MiciOffroadAlerts(Scroller):
   def _params_worker(self):
     drop_realtime()
     while True:
-      self._pending_params = ({"UpdaterNewDescription": self.params.get("UpdaterNewDescription"),
-                              "UpdaterNewReleaseNotes": self.params.get("UpdaterNewReleaseNotes")} |
-                              {alert_data.key: self.params.get(alert_data.key) for alert_data in self.sorted_alerts})
+      self._pending_params = self.read_params()
       time.sleep(REFRESH_INTERVAL)
+
+  def read_params(self) -> dict:
+    return ({"UpdaterNewDescription": self.params.get("UpdaterNewDescription"),
+             "UpdaterNewReleaseNotes": self.params.get("UpdaterNewReleaseNotes")} |
+            {alert_data.key: read_alert(self.params, alert_data.key) for alert_data in self.sorted_alerts})
 
   def _refresh(self, pending_params: dict) -> int:
     """Refresh alerts from params and return active count."""

@@ -9,6 +9,7 @@ from collections.abc import Callable
 
 import pyray as rl
 
+from opendbc.car.tesla_ap1.stalk_repeat import INITIAL_S as REPEAT_DELAY_S, PERIOD_S as REPEAT_PERIOD_S
 from openpilot.selfdrive.ui.bogpilot import row_model as rm
 from openpilot.selfdrive.ui.mici.widgets.button import BigButton, GreyBigButton
 from openpilot.system.ui.lib.application import FontWeight, MousePos, gui_app
@@ -25,6 +26,38 @@ TEXT_DIM = rl.Color(255, 255, 255, int(255 * 0.35))
 HINT = rl.Color(0xAA, 0xAA, 0xAA, 255)
 AMBER = rl.Color(255, 184, 0, 255)      # value outline while it is not the default (3X HIGHLIGHT_COLOR)
 INFO_CHARS = 88                          # one grey info card holds about this many characters at 36 px
+
+
+# Proper nouns / acronyms kept as written in comma 4 lowercase titles (anything with two or more capitals, or a capital
+# and a digit, is kept too: AP1, AGNOS, VIN, GPS, Pre-AP, BogPilot).
+KEEP_WORDS = frozenset({"BogPilot", "FrogPilot", "Tesla", "Pre-AP", "AP1", "AP2", "AGNOS", "VIN", "km/h", "mph", "Wi-Fi",
+                        "openpilot", "comma", "I"})
+
+
+def _keep(word: str) -> bool:
+  core = word.strip("()[]{}\"'.,:;!?")
+  if not core or core in KEEP_WORDS:
+    return True
+  if "-" in core or "/" in core:
+    return False                 # judged part by part (Stop-and-Go -> stop-and-go), unless listed above
+  caps = sum(c.isupper() for c in core)
+  return caps >= 2 or (caps >= 1 and any(c.isdigit() for c in core)) or (len(core) == 1 and core.isupper() and core != "A")
+
+
+def _lower_word(word: str) -> str:
+  if _keep(word):
+    return word
+  for sep in ("/", "-"):
+    if sep in word:
+      return sep.join(_lower_word(part) for part in word.split(sep))
+  return word.lower()
+
+
+def mici_title(text: str) -> str:
+  """A shared 3X title in stock comma 4 lowercase style ("Lane Change Timer" -> "lane change timer"), keeping proper
+  nouns and acronyms ("Pre-AP Pedal Calibration" -> "Pre-AP pedal calibration"). Slash, then hyphen parts are judged
+  on their own unless the whole word is kept ("Stop-and-Go" -> "stop-and-go", "AP1/Pre-AP" stays)."""
+  return " ".join(_lower_word(word) for word in str(text).split(" "))
 
 
 def chunk_text(text: str, size: int = INFO_CHARS) -> list[str]:
@@ -64,7 +97,7 @@ class LiveCard(BigButton):
 
   def _sync_text(self):
     try:
-      title, value = str(self._title_src()), str(self._value_src())
+      title, value = mici_title(self._title_src()), str(self._value_src())
     except Exception:
       return
     if title != self.text:
@@ -97,7 +130,7 @@ class InfoCard(GreyBigButton):
 
   def _sync(self):
     try:
-      title, value = str(self._title_src()), str(self._value_src())
+      title, value = mici_title(self._title_src()), str(self._value_src())
     except Exception:
       return
     if title != self.text:
@@ -189,14 +222,65 @@ class ChoicePage(NavScroller):
 
 
 class StepButton(Widget):
-  """Round [-] / [+] or a pill (Mute / Min / Reset ...). The minus and plus are drawn shapes, never font glyphs."""
+  """Round [-] / [+] or a pill (Mute / Min / Reset ...). The minus and plus are drawn shapes, never font glyphs.
 
-  def __init__(self, glyph: str, on_tap: Callable[[], object], enabled: Callable[[], bool], label: Callable[[], str] = lambda: ""):
+  With `value` set (the [-] / [+] of a value row) the button repeats while held, with the stalk's timing
+  (opendbc tesla_ap1 stalk_repeat: one step on the press, then one every PERIOD_S after INITIAL_S). Each step is the
+  3X button; the 3X clamps to its range, so a step that leaves the value unchanged means a limit and the repeat
+  stops there. Pills act once, on release."""
+
+  def __init__(self, glyph: str, on_tap: Callable[[], object], enabled: Callable[[], bool], label: Callable[[], str] = lambda: "",
+               value: Callable[[], str] | None = None, clock: Callable[[], float] | None = None):
     super().__init__()
     self.glyph, self._label = glyph, label
-    self.set_click_callback(on_tap)
+    self._on_tap, self._value = on_tap, value
+    self._clock = clock or rl.get_time
+    self._next_t: float | None = None
+    self.steps = 0
+    if value is None:
+      self.set_click_callback(on_tap)
     self.set_enabled(enabled)
     self._font = None
+
+  @property
+  def repeating(self) -> bool:
+    return self._next_t is not None
+
+  def _step(self) -> bool:
+    before = self._value()
+    if not self._on_tap():
+      return False
+    self.steps += 1
+    return self._value() != before
+
+  def _handle_mouse_press(self, mouse_pos: MousePos):
+    super()._handle_mouse_press(mouse_pos)
+    if self._value is not None:
+      self._next_t = self._clock() + REPEAT_DELAY_S if self._step() else None
+
+  def _handle_mouse_release(self, mouse_pos: MousePos):
+    if self._value is not None:
+      self._next_t = None
+      return
+    super()._handle_mouse_release(mouse_pos)
+
+  def hold(self, held: bool) -> None:
+    """One frame of hold-repeat (called from _update_state; tests drive it with their own clock)."""
+    if self._next_t is None:
+      return
+    if not held or not self.enabled:
+      self._next_t = None
+      return
+    now, n = self._clock(), 0
+    while self._next_t is not None and now >= self._next_t and n < 8:
+      n += 1
+      self._next_t += REPEAT_PERIOD_S
+      if not self._step():
+        self._next_t = None
+
+  def _update_state(self):
+    super()._update_state()
+    self.hold(self.is_pressed)
 
   def _render(self, rect):
     color = (PRESSED if self.is_pressed else GREY)
@@ -234,8 +318,8 @@ class StepperPage(NavWidget):
     super().__init__()
     self.row, self._note = row, note
     self.set_rect(rl.Rectangle(0, 0, gui_app.width, gui_app.height))
-    self._minus = self._child(StepButton("minus", row.minus, row.enabled))
-    self._plus = self._child(StepButton("plus", row.plus, row.enabled))
+    self._minus = self._child(StepButton("minus", row.minus, row.enabled, value=row.value))
+    self._plus = self._child(StepButton("plus", row.plus, row.enabled, value=row.value))
     self._extras: list[StepButton] = []
     for i in range(len(row.leading())):
       self._extras.append(self._child(StepButton("pill", lambda i=i: row.press_leading(i), row.enabled,
@@ -268,7 +352,7 @@ class StepperPage(NavWidget):
   def _render(self, rect):
     pad = 20
     x0, y0, w = rect.x + pad, rect.y + 14, rect.width - 2 * pad
-    self._text(self.row.title(), x0, y0, 34, TEXT, FontWeight.BOLD, max_w=w)
+    self._text(mici_title(self.row.title()), x0, y0, 34, TEXT, FontWeight.BOLD, max_w=w)
     note = self._note() if not self.row.enabled() else ""
     if note:
       self._text(note, x0, y0 + 38, 24, AMBER, max_w=w)
@@ -294,4 +378,4 @@ class StepperPage(NavWidget):
         bx += bw + gap
 
 
-__all__ = ["LiveCard", "InfoCard", "cards_for", "RowChoice", "ChoicePage", "StepButton", "StepperPage", "chunk_text"]
+__all__ = ["mici_title", "REPEAT_DELAY_S", "REPEAT_PERIOD_S", "LiveCard", "InfoCard", "cards_for", "RowChoice", "ChoicePage", "StepButton", "StepperPage", "chunk_text"]

@@ -339,7 +339,7 @@ class TestDialogs(NoWindow):
       self.assertTrue(dialogs.install(small))
       from openpilot.system.ui.widgets.confirm_dialog import alert_dialog
       small.push_widget(alert_dialog("hello"))
-      self.assertIsInstance(small.got[0], dialogs.ConfirmPage)
+      self.assertIsInstance(small.got[0], dialogs.AlertPage)          # one OK button: not a confirmation
       marker = object()
       small.push_widget(marker)
       self.assertIs(small.got[1], marker)
@@ -352,10 +352,11 @@ class TestDialogs(NoWindow):
     self.assertTrue(self.policy.changed("vehicle_controls"))
     page = dialogs.to_mici(self.pushed[-1])
     self.assertIsInstance(page, dialogs.ConfirmPage)
-    self.assertIn("Reboot required", dialogs.confirm_text(page.dialog))
+    self.assertIn("Reboot required", page.question)
+    self.assertEqual(page.slider_title, "slide to reboot now")
     self.pushed.clear()
     with mock.patch("openpilot.common.params.Params.put_bool") as put:
-      page.dialog._confirm_button_callback()          # what the comma 4 "Reboot Now" card does
+      page._confirmed()                               # the comma 4 slide-to-confirm finished
       put.assert_not_called()
     self.assertEqual(len(self.pushed), 1)
     self.assertIn("Disengage", dialogs.confirm_text(self.pushed[0]))
@@ -370,6 +371,194 @@ class TestDialogs(NoWindow):
     self.assertIsInstance(page, dialogs.OptionsPage)
     page._pick("Two")
     self.assertEqual((dlg.selection, got), ("Two", [DialogResult.CONFIRM]))
+
+
+class TestSlideToConfirm(NoWindow):
+  def _dialog(self, confirm="Reset", got=None, text="Reset all saved values?"):
+    from openpilot.system.ui.widgets.confirm_dialog import ConfirmDialog
+    return ConfirmDialog(text, confirm, "Cancel", callback=(got if got is not None else []).append)
+
+  def test_slider_confirms_through_the_3x_dialog_and_swipe_is_cancel(self):
+    from openpilot.selfdrive.ui.mici.layouts.settings.bogpilot import dialogs
+    from openpilot.system.ui.widgets import DialogResult
+    from openpilot.system.ui.widgets.slider import RedBigSlider
+    got = []
+    page = dialogs.to_mici(self._dialog(got=got))
+    self.assertIsInstance(page, dialogs.ConfirmPage)
+    self.assertIsInstance(page.slider, RedBigSlider)                # destructive wording: the stock red slider
+    self.assertEqual(page.slider_title, "slide to reset")
+    self.assertTrue(page.slider.enabled)
+    page._confirmed()
+    self.assertEqual(got, [DialogResult.CONFIRM])
+    got2 = []
+    page2 = dialogs.to_mici(self._dialog("Continue", got2, text="Open the pedal calibration?"))
+    self.assertFalse(page2.red)
+    page2._swiped()
+    self.assertEqual(got2, [DialogResult.CANCEL])
+
+  def test_a_locked_row_cannot_be_slid(self):
+    from openpilot.selfdrive.ui.bogpilot import row_model as rm
+    from openpilot.selfdrive.ui.mici.layouts.settings.bogpilot import dialogs
+    from openpilot.system.ui.widgets.list_view import button_item
+    lock, got, pages = {"on": True}, [], []
+    row = rm.Row(button_item("Reset", "RESET", callback=lambda: pages.append(dialogs.to_mici(self._dialog(got=got))),
+                             enabled=lambda: lock["on"]))
+    self.assertTrue(row.press())
+    page = pages[0]
+    self.assertTrue(page.unlocked() and page.slider.enabled)
+    lock["on"] = False                                              # e.g. the car started while the page was open
+    self.assertFalse(page.unlocked())
+    self.assertFalse(page.slider.enabled)                           # disabled widgets get no touches: not slidable
+    page._confirmed()                                               # even a slide that was already under way
+    self.assertEqual(got, [])
+    lock["on"] = True
+    page._confirmed()
+    self.assertEqual(len(got), 1)
+    self.assertIsNone(rm.opening_gate())                            # outside a row action
+
+
+class TestHoldToRepeat(unittest.TestCase):
+  def _button(self, value, lo=0, hi=5):
+    from openpilot.selfdrive.ui.mici.layouts.settings.bogpilot.widgets import StepButton
+    from openpilot.system.ui.lib.application import MousePos
+    self.t = 0.0
+    self.v = value
+    calls = []
+
+    def plus():
+      calls.append(1)
+      self.v = min(hi, self.v + 1)            # the 3X handler clamps to its range
+      return True
+    b = StepButton("plus", plus, lambda: True, value=lambda: str(self.v), clock=lambda: self.t)
+    return b, calls, MousePos(0, 0)
+
+  def test_stalk_timing(self):
+    from opendbc.car.tesla_ap1 import stalk_repeat
+    from openpilot.selfdrive.ui.mici.layouts.settings.bogpilot import widgets
+    self.assertEqual((widgets.REPEAT_DELAY_S, widgets.REPEAT_PERIOD_S), (stalk_repeat.INITIAL_S, stalk_repeat.PERIOD_S))
+    self.assertEqual((widgets.REPEAT_DELAY_S, widgets.REPEAT_PERIOD_S), (0.35, 0.2))
+
+  def test_one_step_on_press_then_repeat_after_the_delay(self):
+    b, calls, pos = self._button(0, hi=50)
+    b._handle_mouse_press(pos)
+    self.assertEqual(self.v, 1)                       # one step on the press
+    for self.t, want in ((0.2, 1), (0.34, 1), (0.35, 2), (0.54, 2), (0.55, 3), (0.75, 4), (0.95, 5)):
+      b.hold(True)
+      self.assertEqual(self.v, want, self.t)
+    b._handle_mouse_release(pos)                      # release: no extra step, repeat stops
+    self.t = 2.0
+    b.hold(True)
+    self.assertEqual(self.v, 5)
+    self.assertFalse(b.repeating)
+
+  def test_no_repeat_past_the_limit(self):
+    b, calls, pos = self._button(3, hi=5)
+    b._handle_mouse_press(pos)
+    self.t = 0.35
+    b.hold(True)
+    self.assertEqual(self.v, 5)
+    self.t = 0.55
+    b.hold(True)                                      # the 3X clamps: value unchanged -> repeat ends
+    self.assertFalse(b.repeating)
+    n = len(calls)
+    self.t = 5.0
+    b.hold(True)
+    self.assertEqual((self.v, len(calls)), (5, n))
+    b2, calls2, _ = self._button(5, hi=5)             # already at the limit: a press, no repeat
+    b2._handle_mouse_press(pos)
+    self.assertFalse(b2.repeating)
+
+  def test_finger_leaving_or_lock_stops_the_repeat(self):
+    b, calls, pos = self._button(0, hi=50)
+    b._handle_mouse_press(pos)
+    self.t = 0.35
+    b.hold(False)                                     # finger slid off the button
+    self.assertFalse(b.repeating)
+    self.assertEqual(self.v, 1)
+
+  def test_pills_act_once_on_release(self):
+    from openpilot.selfdrive.ui.mici.layouts.settings.bogpilot.widgets import StepButton
+    from openpilot.system.ui.lib.application import MousePos
+    hits = []
+    b = StepButton("pill", lambda: hits.append(1), lambda: True, lambda: "Mute")
+    b._handle_mouse_press(MousePos(0, 0))
+    self.assertEqual(hits, [])
+    b._handle_mouse_release(MousePos(0, 0))
+    self.assertEqual(hits, [1])
+
+
+class TestLowercaseTitles(unittest.TestCase):
+  def test_titles(self):
+    from openpilot.selfdrive.ui.mici.layouts.settings.bogpilot.widgets import mici_title
+    for src, want in (("Lane Change Timer", "lane change timer"), ("Pre-AP Pedal Calibration", "Pre-AP pedal calibration"),
+                      ("AP1 Tap From Zero (mph)", "AP1 tap from zero (mph)"), ("BogPilot Backups", "BogPilot backups"),
+                      ("Speed in km/h", "speed in km/h"), ("Show VIN", "show VIN"), ("AGNOS Version", "AGNOS version"),
+                      ("Stop-and-Go Mode", "stop-and-go mode"), ("AP1/Pre-AP Info", "AP1/Pre-AP info"),
+                      ("Record mic audio locally", "record mic audio locally")):
+      self.assertEqual(mici_title(src), want)
+
+  def test_cards_use_lowercase_titles_and_keep_values(self):
+    with mock.patch.object(gui_app, "texture", lambda *a, **k: rl.Texture()), mock.patch.object(gui_app, "font", lambda *a, **k: rl.Font()):
+      from openpilot.selfdrive.ui.mici.layouts.settings.bogpilot.widgets import InfoCard, LiveCard
+      card = LiveCard(lambda: "Lane Change Timer", lambda: "MANAGE")
+      self.assertEqual((card.text, card.value), ("lane change timer", "MANAGE"))
+      self.assertEqual(InfoCard(lambda: "Pre-AP Status", lambda: "On").text, "Pre-AP status")
+
+
+class TestComma4Software(NoWindow):
+  NATIVE = True
+
+  def test_downloads_follow_the_3x_parked_class(self):
+    from openpilot.selfdrive.ui.mici.layouts.settings.software import CheckUpdateButton
+    btn = CheckUpdateButton()
+    st = {"started": True, "parked": False}
+    self.policy.set_state(self.policy.DriveState(started=lambda: st["started"], parked=lambda: st["parked"], engaged=lambda: False))
+    btn._update_state()
+    self.assertFalse(btn.enabled)                     # driving
+    st["parked"] = True
+    btn._update_state()
+    self.assertTrue(btn.enabled)                      # in Park: allowed, as on the 3X
+    st.update(started=False, parked=False)
+    btn._update_state()
+    self.assertTrue(btn.enabled)                      # car off
+
+  def test_uses_the_shared_policy(self):
+    src = (UI / "mici/layouts/settings/software.py").read_text()
+    self.assertIn("onroad_policy.downloads_allowed(", src)
+    self.assertNotIn("if ui_state.started:\n      self.set_enabled(False)", src)
+
+
+class TestComma4ModelFallbackAlert(NoWindow):
+  NATIVE = True
+
+  def test_fallback_alert_shows_and_clears_like_the_3x(self):
+    from openpilot.common.bogpilot_models import alert, selection
+    from openpilot.common.tests import bogpilot_model_fixtures as fx
+    from openpilot.selfdrive.ui.mici.layouts import offroad_alerts as oa
+    self.assertEqual(oa.BOGPILOT_MODEL_ALERT_KEY, "BogPilot_ModelFallback")
+    store = fx.MemStore()
+    with tempfile.TemporaryDirectory() as t:
+      fx.install_model(Path(t), "m", name="Fancy")
+      self.assertTrue(selection.select("m", lambda: True, store, Path(t)).ok)
+      sel = selection.read_selection(store)[0]
+      selection.record_fallback(store, sel, "Fancy", "hash mismatch (file changed or corrupt)", "validate")
+      real = alert.current_alert
+      want = real(store)
+      with mock.patch.object(alert, "current_alert", lambda store_=None: real(store)), \
+           mock.patch.object(oa.threading, "Thread", mock.MagicMock()):
+        w = oa.MiciOffroadAlerts()
+        before = w._refresh(w.read_params())
+        mine = next(a for a in w.sorted_alerts if a.key == oa.BOGPILOT_MODEL_ALERT_KEY)
+        self.assertTrue(mine.visible)
+        self.assertEqual(mine.text, want["text"])     # the 3X text, unchanged
+        self.assertEqual(mine.severity, 1)
+        item = next(i for i in w.alert_items if i.alert_data is mine)
+        self.assertIs(item.icon, item._icon_red)      # stock comma 4 look for a severity-1 offroad alert
+        self.assertGreaterEqual(before, 1)
+        self.assertTrue(selection.select("default", lambda: True, store, Path(t)).ok)
+        after = w._refresh(w.read_params())
+        self.assertFalse(mine.visible)
+        self.assertEqual(after, before - 1)
 
 
 class TestComma4Screens(unittest.TestCase):
@@ -398,6 +587,11 @@ class TestComma4Screens(unittest.TestCase):
     self.assertFalse((mici / "layouts/settings/device/prime.py").exists())
     toggles = (mici / "layouts/settings/toggles.py").read_text()
     self.assertIn('"record cabin camera locally"', toggles)
+    self.assertIn('"record mic audio locally"', toggles)
+    self.assertNotIn("upload mic", toggles)
+    tici = (UI / "layouts/settings/toggles.py").read_text()
+    self.assertIn('tr("Record mic audio locally")', tici)
+    self.assertNotIn("Record and Upload Microphone Audio", tici)
     self.assertNotIn("record & upload cabin camera", toggles)
     self.assertIn('"DisengageOnAccelerator"', toggles)    # on the 3X Toggles panel, so on comma 4 too
     self.assertIn('UnifiedLabel("BogPilot"', (mici / "layouts/home.py").read_text())

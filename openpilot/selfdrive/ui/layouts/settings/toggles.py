@@ -79,7 +79,7 @@ class TogglesLayout(Widget):
         True,
       ),
       "RecordAudio": (
-        lambda: tr("Record and Upload Microphone Audio"),
+        lambda: tr("Record mic audio locally"),
         DESCRIPTIONS["RecordAudio"],
         "microphone.png",
         True,

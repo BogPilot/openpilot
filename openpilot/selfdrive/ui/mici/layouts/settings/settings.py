@@ -42,7 +42,7 @@ class SettingsLayout(NavScroller):
 
     # BogPilot: the same BogPilot menu as the comma 3X settings panel (mici/layouts/settings/bogpilot), BogPilot logo.
     bogpilot_panel = BogPilotLayoutMici()
-    bogpilot_btn = SettingsBigButton("bogpilot", "", gui_app.texture(LOGO, 64, 64))
+    bogpilot_btn = SettingsBigButton("BogPilot", "", gui_app.texture(LOGO, 64, 64))
     bogpilot_btn.set_click_callback(lambda: gui_app.push_widget(bogpilot_panel))
 
     self._scroller.add_widgets([

@@ -409,6 +409,7 @@ LOCK_SITES = {
   "bogpilot/phase2_sounds.py": 'onroad_policy.editor("volume")',
   "bogpilot/phase3_gas_brake.py": 'onroad_policy.editor("gas_brake")',
   "layouts/settings/software.py": "onroad_policy.downloads_allowed(",
+  "mici/layouts/settings/software.py": "onroad_policy.downloads_allowed(",
 }
 
 
