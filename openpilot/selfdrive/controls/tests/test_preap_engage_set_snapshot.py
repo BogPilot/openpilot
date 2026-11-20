@@ -46,7 +46,7 @@ class Counted:
 def _engage(cp=CP_PREAP, adopted=True, **vals):
   st = _store(**vals)
   fn = Counted(st, cp)
-  return sc.PreapEngageSetLimit(cp, store=st, toggles_fn=fn, adopted=adopted), fn
+  return sc.PreapEngageSetLimit(cp, store=st, toggles_fn=fn, adopted=adopted, auto_speed=True), fn
 
 
 class TestEngageSetSnapshot(unittest.TestCase):
@@ -73,7 +73,7 @@ class TestEngageSetSnapshot(unittest.TestCase):
 
   def test_a_refresh_picks_up_a_changed_setting(self):
     st = _store(Offset3="3")
-    e = sc.PreapEngageSetLimit(CP_PREAP, store=st, toggles_fn=lambda: onroad_toggles(st, CP_PREAP), adopted=True)
+    e = sc.PreapEngageSetLimit(CP_PREAP, store=st, toggles_fn=lambda: onroad_toggles(st, CP_PREAP), adopted=True, auto_speed=True)
     self.assertTrue(e.refresh())
     st.vals["Offset3"] = "5"
     self.assertAlmostEqual(e.kph(MOVING, 40 * MPH), (40 + 3) * MPH * 3.6, places=3, msg="snapshot still in force")
@@ -95,7 +95,7 @@ class TestEngageSetSnapshot(unittest.TestCase):
         raise RuntimeError
       return onroad_toggles(st, CP_PREAP)
 
-    e = sc.PreapEngageSetLimit(CP_PREAP, store=st, toggles_fn=toggles, adopted=True)
+    e = sc.PreapEngageSetLimit(CP_PREAP, store=st, toggles_fn=toggles, adopted=True, auto_speed=True)
     self.assertTrue(e.refresh())
     state["boom"] = True
     self.assertFalse(e.refresh(), "a failed refresh reports False")
@@ -104,7 +104,7 @@ class TestEngageSetSnapshot(unittest.TestCase):
   def test_a_failing_read_with_no_snapshot_still_fails_closed(self):
     def boom():
       raise RuntimeError
-    e = sc.PreapEngageSetLimit(CP_PREAP, store=_store(), toggles_fn=boom, adopted=True)
+    e = sc.PreapEngageSetLimit(CP_PREAP, store=_store(), toggles_fn=boom, adopted=True, auto_speed=True)
     self.assertEqual(e.kph(MOVING, 20.0), 0.0)
 
   def test_warm_engage_helpers_fills_the_snapshot(self):
