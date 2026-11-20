@@ -124,10 +124,13 @@ ERR4_SETTLE_FRAMES = 50
 # EPB_epasEACAllow (0x214, 10 Hz) must be 1 and no older than this. The panda allows code 4 only with an EPB
 # allow of 1 received in the last 250 ms (tesla_ap1.h); 200 ms keeps the car side inside that window.
 ERR4_EPB_FRESH_FRAMES = 20
-# Lowest vEgo (m/s, about 5 mph) for a code 4 request. A replay of the recorded drive showed a request
-# starting during a creep from a stop at 0.24 m/s, below controlsd's 0.3 m/s lateral floor (minSteerSpeed is 0
-# here, so that floor did not apply to this path). No measured-wheel request at a standstill or a creep.
-MIN_ERR4_PROBE_SPEED = 2.2
+# Speed (m/s, about 0.7 mph) at or below which a code 4 request is blocked. This matches stock openpilot's 0.3 m/s lateral floor
+# (controlsd treats |vEgo| at or below max(minSteerSpeed, 0.3) as a standstill; minSteerSpeed is 0 here, so
+# this gate is what applies it to this path). The recorded creep from a stop at 0.24 m/s is still blocked, as
+# is a standstill. The comparison is inclusive like controlsd (v_ego <= MIN blocks), so exactly 0.3 m/s is
+# blocked and a request needs vEgo above 0.3 m/s.
+# This is a car side gate only; the panda (tesla_ap1.h) has no speed rule for it.
+MIN_ERR4_PROBE_SPEED = 0.3
 EAC_AVAILABLE = "EAC_AVAILABLE"
 EAC_TMP_FAULT = "EAC_ERROR_TMP_FAULT"
 EAC_IDLE = "EAC_ERROR_IDLE"
@@ -168,7 +171,7 @@ class EpasTmpFaultRecovery:
       return "eac_fault"
     if epb_eac_allow != 1:
       return "epb_allow"
-    if v_ego is None or not math.isfinite(v_ego) or v_ego < MIN_ERR4_PROBE_SPEED:
+    if v_ego is None or not math.isfinite(v_ego) or v_ego <= MIN_ERR4_PROBE_SPEED:
       return "speed"
     if eac_status not in _PROBE_STATUS:
       return "status"

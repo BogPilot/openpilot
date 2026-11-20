@@ -133,8 +133,8 @@ def test_controller_uses_the_epb_age_from_carstate():
 
 # ---- speed gate -----------------------------------------------------------------------------------
 
-def test_min_probe_speed_is_about_5_mph():
-  assert MIN_ERR4_PROBE_SPEED == 2.2
+def test_min_probe_speed_matches_stock_lateral_floor():
+  assert MIN_ERR4_PROBE_SPEED == 0.3
 
 
 def test_no_request_during_a_creep_from_a_stop():
@@ -145,14 +145,36 @@ def test_no_request_during_a_creep_from_a_stop():
   assert not any(_drive_controller(ERR4_SETTLE_FRAMES + 50, v=0.24)), "same through the CarController"
 
 
-@pytest.mark.parametrize("v", [0.0, -0.01, MIN_ERR4_PROBE_SPEED - 0.01, float("nan"), None])
+@pytest.mark.parametrize("v", [0.0, -0.01, MIN_ERR4_PROBE_SPEED, float("nan"), None])
 def test_no_request_at_a_standstill_or_below_the_speed_gate(v):
   rec = EpasTmpFaultRecovery()
   assert not any(run(rec, 1000, v=v))
 
 
-def test_speed_gate_lets_a_request_start_at_the_threshold():
-  started(EpasTmpFaultRecovery(), v=MIN_ERR4_PROBE_SPEED)
+@pytest.mark.parametrize("v", [0.31, 0.35, 1.0, 2.2, 10.0])
+def test_request_allowed_above_the_stock_lateral_floor(v):
+  rec = EpasTmpFaultRecovery()
+  assert EpasTmpFaultRecovery.abort_reason(AV, E4, 0, 1, False, False, v) is None
+  started(rec, v=v)
+  assert not any(_drive_controller(ERR4_SETTLE_FRAMES + 50, v=0.24))
+  assert any(_drive_controller(ERR4_SETTLE_FRAMES + 5, v=0.35)), "through the CarController at 0.35 m/s"
+
+
+@pytest.mark.parametrize("v", [0.0, 0.24, 0.29, 0.3])
+def test_blocked_at_or_below_the_stock_lateral_floor(v):
+  assert EpasTmpFaultRecovery.abort_reason(AV, E4, 0, 1, False, False, v) == "speed"
+  assert not any(run(EpasTmpFaultRecovery(), 1000, v=v))
+
+
+def test_running_request_aborts_when_speed_falls_to_0_3():
+  rec = started(EpasTmpFaultRecovery(), v=0.35)
+  assert run(rec, 2, v=0.35) == [True] * 2
+  assert run(rec, 1, v=0.3) == [False], "exactly 0.3 ends it, as controlsd calls it standstill"
+  assert rec.last_result == "abort:speed" and rec.probes == 1
+
+
+def test_speed_gate_lets_a_request_start_just_above_the_threshold():
+  started(EpasTmpFaultRecovery(), v=MIN_ERR4_PROBE_SPEED + 0.01)
 
 
 def test_running_request_ends_the_moment_speed_drops_below_the_gate():
