@@ -330,6 +330,11 @@ static bool tesla_preap_tx_hook(const CANPacket_t *msg) {
         (desired_angle < -TESLA_PREAP_STEERING_LIMITS.max_angle) || (desired_angle > TESLA_PREAP_STEERING_LIMITS.max_angle)) {
       violation = true;
     }
+    // Lateral-accel bound (stage 1; the rate tables and the 360 deg check above are unchanged).
+    if (steer_angle_lat_accel_check(desired_angle, steer_control_enabled, lateral_allowed, TESLA_PREAP_STEERING_LIMITS,
+                                    TESLA_LEGACY_LAT_ACCEL_PARAMS)) {
+      violation = true;
+    }
     if (steer_control_type > 1) {
       violation = true;
     }

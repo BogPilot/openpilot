@@ -152,6 +152,14 @@ static void tesla_ap1_rx_all_hook(const CANPacket_t *msg) {
   }
 }
 
+// Legacy Model S vehicle model for the lateral-accel bound (AP1 and Pre-AP): steer ratio 15, wheelbase 2.959 m (CarSpecs in
+// car/tesla_ap1/values.py), slip factor as calc_slip_factor() for that car. Must match car/tesla_ap1/lateral_limits.py.
+static const AngleSteeringParams TESLA_LEGACY_LAT_ACCEL_PARAMS = {
+  .slip_factor = -0.0005666,
+  .steer_ratio = 15.,
+  .wheelbase = 2.959,
+};
+
 static bool tesla_ap1_tx_hook(const CANPacket_t *msg) {
   bool tx = true;
   bool violation = false;
@@ -180,6 +188,11 @@ static bool tesla_ap1_tx_hook(const CANPacket_t *msg) {
                                  (steer_control_type != 3);    // DISABLED
 
     if (steer_angle_cmd_checks(desired_angle, steer_control_enabled, TESLA_AP1_STEERING_LIMITS)) {
+      violation = true;
+    }
+    // Lateral-accel bound and +-360 deg on ANGLE commands (stage 1; the rate tables above are unchanged).
+    if (steer_angle_lat_accel_check(desired_angle, steer_control_enabled, controls_allowed, TESLA_AP1_STEERING_LIMITS,
+                                    TESLA_LEGACY_LAT_ACCEL_PARAMS)) {
       violation = true;
     }
     // Never send an active steering command into an EPAS that is INHIBITED, FAULT, SNA or in error.
