@@ -14,7 +14,7 @@ from opendbc.car.tesla_ap1.actuator_plan import (
   longitudinal_command_allowed,
 )
 from opendbc.car.tesla_ap1.cluster import (
-  CLUSTER_BUS, ClusterController, HudInputs, path_from_model_v2,
+  CLUSTER_BUS, ClusterController, HudInputs, lead_distance_from_model_v2, path_from_model_v2,
 )
 from opendbc.car.tesla_ap1.engage_ramp import Ap1EngageSteerRamp
 from opendbc.car.tesla_ap1.epas_gate import EAC_BLOCKING_STATUS, ERR4_EPB_FRESH_FRAMES, EpasGate, EpasTmpFaultRecovery
@@ -266,6 +266,17 @@ class CarController(CarControllerBase):
       self.model_v2_provider = None
       return None
 
+  def _lead_dist_for_cluster(self, enabled, ic_on):
+    """modelV2 lead distance for the engaged lane reach, None when off / not engaged / no lead. A failure only drops the
+    lead term (the lane still reaches the stock range and the floor); it never turns the cluster frames off."""
+    if not ic_on or not enabled or self.model_v2_provider is None:
+      return None
+    try:
+      model = self.model_v2_provider()
+      return None if model is None else lead_distance_from_model_v2(model)
+    except Exception:
+      return None
+
   def _ic_lanes_poly(self, enabled, ic_on, curvature):
     """Lane polynomial while engaged and ICLanes is on, else None.
 
@@ -309,6 +320,7 @@ class CarController(CarControllerBase):
         ic_integration=ic_on,
         model_path=model_path,
         lane_poly=lane_poly,
+        lead_dist_m=self._lead_dist_for_cluster(enabled, ic_on),
         # hudControl.setSpeed is the OP cruise target (m/s); may already include
         # the AP1 SLC raise via controlsd's cluster_display_kph lift. Packed
         # with DBC factor 0.4 so IC dig matches (not 2× from legacy 0.2).

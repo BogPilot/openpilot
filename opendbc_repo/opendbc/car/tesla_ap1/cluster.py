@@ -126,6 +126,15 @@ MODEL_C2_FIT_M = 50.0
 LINE_USAGE_FUSED = 2
 LINE_USAGE_REJECTED = 0
 
+# Lane reach (engaged DAS_virtualLaneViewRange). The cluster stopped drawing the stock camera's lead vehicle while the
+# lane we sent ended short of it: stopped close behind a truck, openpilot's planned path ends a stop gap short of the lead,
+# and that path length was the view range. While engaged the sent range is therefore never shorter than any of: the
+# planned-path range, the stock camera's own range in the frame being replaced, VIEW_RANGE_FLOOR_M (the constant Tinkla
+# always sent, also the shipped fallback) and the modelV2 lead distance + LEAD_REACH_MARGIN_M. Clipped to the DBC range.
+VIEW_RANGE_FLOOR_M = 50
+LEAD_REACH_MARGIN_M = 10.0
+LEAD_PROB_MIN = 0.5
+
 # DBC DAS_virtualLaneC0..C3 clip ranges (opendbc/tesla_can.dbc).
 C0_RANGE = (-3.5, 3.5)
 C1_RANGE = (-0.2, 0.2)
@@ -267,6 +276,9 @@ class HudInputs:
   # ICLanes (ic_lanes.py): DAS-unit C0..C3 from the near lane lines, sent as is
   # (no 2^n scale, C0 / C1 kept). None keeps the shipped model_path mapping.
   lane_poly: ModelPath | None = None
+  # Distance (m) to openpilot's model lead (modelV2.leadsV3[0], prob >= LEAD_PROB_MIN), None without one. Only lengthens
+  # the engaged lane view range (lane_view_range), never the geometry.
+  lead_dist_m: float | None = None
 
 
 def hands_on_state(h):
@@ -392,6 +404,41 @@ def lanes_path_values(h: HudInputs):
   return 0.0, 0.0, lane_c2(h.curvature), 0.0, LANE_VIEW_RANGE_M
 
 
+def _finite_pos(x):
+  try:
+    v = float(x)
+  except (TypeError, ValueError, OverflowError):
+    return None
+  return v if np.isfinite(v) and v > 0.0 else None
+
+
+def lead_distance_from_model_v2(model_v2):
+  """modelV2.leadsV3[0] distance (m) when its prob >= LEAD_PROB_MIN, else None. Never raises."""
+  try:
+    lead = model_v2.leadsV3[0]
+    prob = float(lead.prob)
+    x = _finite_pos(lead.x[0])
+  except Exception:
+    return None
+  if not np.isfinite(prob) or prob < LEAD_PROB_MIN:
+    return None
+  return x
+
+
+def lane_view_range(path_view_m, stock_view_m=None, lead_dist_m=None):
+  """Engaged DAS_virtualLaneViewRange: max(path range, stock camera range, VIEW_RANGE_FLOOR_M, lead + margin), clipped to
+  the DBC range. Missing / junk inputs are skipped, so the result is never below VIEW_RANGE_FLOOR_M."""
+  candidates = [float(VIEW_RANGE_FLOOR_M)]
+  for v in (path_view_m, stock_view_m):
+    v = _finite_pos(v)
+    if v is not None:
+      candidates.append(v)
+  lead = _finite_pos(lead_dist_m)
+  if lead is not None:
+    candidates.append(lead + LEAD_REACH_MARGIN_M)
+  return clamp_view_range_m(max(candidates))
+
+
 def build_autopilot_status(stock, h, stock_lanes, mode):
   """stock: decoded AutopilotStatus values. mode 'engaged' or 'post'."""
   v = dict(stock)
@@ -463,7 +510,8 @@ def build_das_lanes(stock, h):
   v["DAS_virtualLaneC1"] = c1
   v["DAS_virtualLaneC2"] = c2
   v["DAS_virtualLaneC3"] = c3
-  v["DAS_virtualLaneViewRange"] = view
+  # Never end the lane short of the stock camera's range or the lead (see VIEW_RANGE_FLOOR_M).
+  v["DAS_virtualLaneViewRange"] = lane_view_range(view, stock.get("DAS_virtualLaneViewRange"), h.lead_dist_m)
   return pack(DAS_LANES, SIGNALS[DAS_LANES], v)
 
 
