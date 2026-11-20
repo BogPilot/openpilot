@@ -301,6 +301,16 @@ class ListItem(Widget):
     # Cached properties for performance
     self._prev_description: str | None = self.description
 
+  # BogPilot: set by the comma 4 settings mirror (selfdrive/ui/bogpilot/row_model.py) while it draws a 3X page off
+  # screen, to learn which rows that page shows this frame, in order. None (always, on the 3X) does nothing.
+  render_observer: Callable[["ListItem"], None] | None = None
+
+  def render(self, rect: "rl.Rectangle | None" = None) -> "bool | int | None":
+    observer = ListItem.render_observer
+    if observer is not None and self.is_visible:
+      observer(self)
+    return super().render(rect)
+
   def show_event(self):
     super().show_event()
     self._set_description_visible(False)

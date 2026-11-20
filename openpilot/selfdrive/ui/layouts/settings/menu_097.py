@@ -218,6 +218,21 @@ class MenuNavigation:
       self.visible = False
 
 
+def choose_tuning_level(level, *, can_edit: Callable[[], bool], show_warning: Callable[[str], None], store=None) -> bool:
+  """A tap on a Tuning Level (3X segmented control and comma 4 level list alike). Offroad only (`can_edit`, the
+  onroad_policy MENU_CLASS gate). Writes TuningLevel and TuningLevelConfirmed; choosing Developer shows the 0.9.7
+  warning once."""
+  level = tl.clamp(level)
+  if not can_edit():
+    return False
+  before = tl.effective_level(store)
+  if not tl.set_level(level, store):
+    return False
+  if level == tl.DEVELOPER and before != tl.DEVELOPER:
+    show_warning(DEVELOPER_WARNING)
+  return True
+
+
 def page_class_of(navigation: MenuNavigation) -> str | None:
   """Onroad class of what is open: the page, or on a page list the class its visible pages share (None when they differ
   or at home)."""
@@ -397,15 +412,7 @@ def build_menu(sections, store=None, can_edit: Callable[[], bool] | None = None,
 
     def choose_level(self, level) -> bool:
       """Tap on a level. Writes TuningLevel and TuningLevelConfirmed; Developer shows the 0.9.7 warning."""
-      level = tl.clamp(level)
-      if not self._can_edit():
-        return False
-      before = self.level()
-      if not tl.set_level(level, self._store):
-        return False
-      if level == tl.DEVELOPER and before != tl.DEVELOPER:
-        self._show_warning(DEVELOPER_WARNING)
-      return True
+      return choose_tuning_level(level, can_edit=self._can_edit, show_warning=self._show_warning, store=self._store)
 
     # ---- views
     def _build_home(self):
