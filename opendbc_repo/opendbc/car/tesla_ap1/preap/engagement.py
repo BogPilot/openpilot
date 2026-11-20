@@ -196,10 +196,13 @@ class PreAPEngagement:
 
   def update(self, now_ms: int, *, pull_edge: bool, cancel_edge: bool, brake_pressed: bool, op_enabled: bool, pedal: bool,
              gear_d, door_open, epas_drop: bool, stale: bool, di_engaged, v_ego, long_allowed, speed_block: bool = False,
-             cancel_tx_ms: int = 0, gas_pressed: bool = False, pedal_bus_ok: bool = True, tip_edge: bool = False) -> Decision:
+             cancel_tx_ms: int = 0, gas_pressed: bool = False, pedal_bus_ok: bool = True, tip_edge: bool = False,
+             auto_speed: bool = False) -> Decision:
     """One car-state step. pull_edge / cancel_edge are rising edges of the stalk lever (cancel already filtered for our own echo).
     cancel_tx_ms: monotonic ms of the last STW_ACTN_RQ CANCEL actually put on the bus (0 = never).
-    tip_edge: release edge of an up/down tip (SpdCtrlLvr_Stat 4/16 up, 8/32 down; t1401, pedal only)."""
+    tip_edge: release edge of an up/down tip (SpdCtrlLvr_Stat 4/16 up, 8/32 down; t1401, pedal only).
+    auto_speed: the Pre-AP Auto Speed toggle (the car state reads it, this module reads no params). Only with it True does a moving
+    double pull below the from-stop speed get raised to it; False keeps the v5 capture of the rounded current speed."""
     enable_request = cancel_cc = drop_cancel = full_edge = False
     in_d = gear_d is True
     doors_closed = door_open is False
@@ -333,7 +336,7 @@ class PreAPEngagement:
         else:
           self._enter_full()
           full_edge = True
-          self._moving_pull_entry = True   # t1438: a moving double pull is raised to the from-stop speed if below it
+          self._moving_pull_entry = bool(auto_speed)   # t1438: a moving double pull is raised to the from-stop speed if below it, Auto Speed ON only
       else:
         drop_cancel = True
         self._confirm_needs_rise = di_on and self._cancel_req_ms is not None and cancel_tx_ms >= self._cancel_req_ms

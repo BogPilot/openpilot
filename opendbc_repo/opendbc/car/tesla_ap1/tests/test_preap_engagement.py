@@ -5,10 +5,10 @@ from opendbc.car.tesla_ap1.preap.engagement import ENABLE_TIMEOUT_MS, WINDOW_MS,
 
 
 def step(e, t, pull=False, cancel=False, brake=False, op=False, pedal=True, gear_d=True, door_open=False, epas_drop=False,
-         stale=False, di=False, v_ego=10.0, long_allowed=True, speed_block=False, cancel_tx_ms=0, gas=False, pedal_bus_ok=True):
+         stale=False, di=False, v_ego=10.0, long_allowed=True, speed_block=False, cancel_tx_ms=0, gas=False, pedal_bus_ok=True, auto_speed=False):
   return e.update(t, pull_edge=pull, cancel_edge=cancel, brake_pressed=brake, op_enabled=op, pedal=pedal, gear_d=gear_d,
                   door_open=door_open, epas_drop=epas_drop, stale=stale, di_engaged=di, v_ego=v_ego, long_allowed=long_allowed,
-                  speed_block=speed_block, cancel_tx_ms=cancel_tx_ms, gas_pressed=gas, pedal_bus_ok=pedal_bus_ok)
+                  speed_block=speed_block, cancel_tx_ms=cancel_tx_ms, gas_pressed=gas, pedal_bus_ok=pedal_bus_ok, auto_speed=auto_speed)
 
 
 def full(e, t=0, **kw):

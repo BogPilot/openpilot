@@ -7,6 +7,7 @@ import pytest
 from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.tesla_ap1.preap import engagement as eng
 from opendbc.car.tesla_ap1.preap.engagement import Mode, PreAPEngagement
+from opendbc.car.tesla_ap1.preap.params import PreApParamKeys, set_bool
 from opendbc.car.tesla_ap1.tests.test_preap_carstate_controller import PULL, _params_dir, params  # noqa: F401
 from opendbc.car.tesla_ap1.tests.test_preap_engagement import step
 from opendbc.car.tesla_ap1.tests.test_preap_standstill_hold import Car
@@ -52,8 +53,18 @@ def test_moving_double_pull_asks_for_the_from_stop_raise_and_no_hold(v):
   e = PreAPEngagement()
   step(e, 0, pull=True, v_ego=v)
   step(e, 10, op=True, v_ego=v)
-  d = step(e, 250, pull=True, op=True, v_ego=v)
+  d = step(e, 250, pull=True, op=True, v_ego=v, auto_speed=True)   # Pre-AP Auto Speed ON
   assert d.mode == Mode.FULL and d.capture_edge and d.capture_from_stop and not d.capture_tip and not d.standstill_hold
+
+
+@pytest.mark.parametrize("v", [0.5, 3.0, 6.0, 10.0, 20.0])
+def test_moving_double_pull_with_auto_speed_off_is_the_v5_capture(v):
+  # Auto Speed OFF (default): exactly the behaviour before the raise existed, the card keeps the rounded current speed.
+  e = PreAPEngagement()
+  step(e, 0, pull=True, v_ego=v)
+  step(e, 10, op=True, v_ego=v)
+  d = step(e, 250, pull=True, op=True, v_ego=v)
+  assert d.mode == Mode.FULL and d.capture_edge and not d.capture_from_stop and not d.capture_tip and not d.standstill_hold
 
 
 def test_moving_double_pull_raise_off_gives_the_v5_capture(monkeypatch):
@@ -61,7 +72,7 @@ def test_moving_double_pull_raise_off_gives_the_v5_capture(monkeypatch):
   e = PreAPEngagement()
   step(e, 0, pull=True)
   step(e, 10, op=True)
-  d = step(e, 250, pull=True, op=True)
+  d = step(e, 250, pull=True, op=True, auto_speed=True)
   assert d.mode == Mode.FULL and d.capture_edge and not d.capture_from_stop and not d.capture_tip
 
 
@@ -69,7 +80,7 @@ def test_raise_flag_is_one_tick_only():
   e = PreAPEngagement()
   step(e, 0, pull=True, v_ego=3.0)
   step(e, 10, op=True, v_ego=3.0)
-  assert step(e, 250, pull=True, op=True, v_ego=3.0).capture_from_stop
+  assert step(e, 250, pull=True, op=True, v_ego=3.0, auto_speed=True).capture_from_stop
   d = step(e, 300, op=True, v_ego=3.0)
   assert d.mode == Mode.FULL and not d.capture_edge and not d.capture_from_stop
 
@@ -247,7 +258,40 @@ def test_rig_tip_at_a_stop_from_steering_only_is_the_from_stop_hold():
   assert not any(any(e["enabled"]) for e in k.c.log), "no drive-off: the hold stays until the accelerator"
 
 
+def _moving_double_pull(k, mph):
+  v_kph = mph * 1.609344
+  _settle(k, 200, v_kph=v_kph)
+  k.step(stalk=PULL, v_kph=v_kph)
+  _settle(k, 9, v_kph=v_kph)
+  k.step(stalk=PULL, v_kph=v_kph)
+  return _settle(k, 30, v_kph=v_kph)
+
+
+@pytest.mark.parametrize("mph", [3, 8, 14])
+def test_rig_moving_double_pull_auto_speed_off_keeps_the_current_speed(mph):
+  # Auto Speed OFF (the default, key never written): no raise to the from-stop speed, as before the feature.
+  k = Card()
+  _moving_double_pull(k, mph)
+  assert k.c.mode == Mode.FULL and abs(k.mph() - mph) < 0.01
+
+
+def test_rig_moving_double_pull_auto_speed_explicit_off_keeps_the_current_speed():
+  set_bool(PreApParamKeys.AUTO_SPEED, False)
+  k = Card()
+  _moving_double_pull(k, 8)
+  assert k.c.mode == Mode.FULL and abs(k.mph() - 8) < 0.01
+
+
+@pytest.mark.parametrize("mph", [15, 18, 22])
+def test_rig_moving_double_pull_auto_speed_on_at_or_above_from_stop_is_unchanged(mph):
+  set_bool(PreApParamKeys.AUTO_SPEED, True)
+  k = Card()
+  _moving_double_pull(k, mph)
+  assert k.c.mode == Mode.FULL and abs(k.mph() - mph) < 0.01
+
+
 def test_rig_moving_double_pull_below_from_stop_is_raised_to_from_stop():
+  set_bool(PreApParamKeys.AUTO_SPEED, True)   # Pre-AP Auto Speed ON
   k = Card()
   v_kph = 8 * 1.609344
   _settle(k, 200, v_kph=v_kph)

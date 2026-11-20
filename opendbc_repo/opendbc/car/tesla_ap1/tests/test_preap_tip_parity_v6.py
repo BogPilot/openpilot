@@ -193,7 +193,7 @@ def test_tip_never_sets_controls_allowed_in_the_panda_source():
 
 @pytest.mark.parametrize("v", [1.0, 3.0, 6.0])
 def test_tip_below_from_stop_never_asks_for_the_raise_but_a_double_pull_does(v):
-  # t1438: below the from-stop speed a tip latches the current speed (capture_tip, no from-stop); a moving double pull is raised.
+  # t1438: below the from-stop speed a tip latches the current speed (capture_tip, no from-stop); a moving double pull is raised (Auto Speed ON).
   e = PreAPEngagement()
   step(e, 0, pull=True, v_ego=v)
   step(e, 10, op=True, v_ego=v)
@@ -204,5 +204,5 @@ def test_tip_below_from_stop_never_asks_for_the_raise_but_a_double_pull_does(v):
   e = PreAPEngagement()
   step(e, 0, pull=True, v_ego=v)
   step(e, 10, op=True, v_ego=v)
-  d = step(e, 250, pull=True, op=True, v_ego=v)
+  d = step(e, 250, pull=True, op=True, v_ego=v, auto_speed=True)
   assert d.mode == Mode.FULL and d.capture_from_stop and not d.capture_tip

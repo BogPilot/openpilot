@@ -338,7 +338,10 @@ class PreApCarState(CarStateBase):
         epas_drop=bool(self.preap_panda_drop), stale=not bool(getattr(cp, "can_valid", True)),
         di_engaged=(acc_enabled if cruise_state is not None else None), v_ego=float(ret.vEgo),
         long_allowed=bool(self.preap_pedal_detected and is_pedal_calibrated() and self.preap_pedal_bus_ok),
-        speed_block=speed_block, gas_pressed=gas_any, pedal_bus_ok=bool(self.preap_pedal_bus_ok), tip_edge=tip_edge)
+        speed_block=speed_block, gas_pressed=gas_any, pedal_bus_ok=bool(self.preap_pedal_bus_ok), tip_edge=tip_edge,
+        # Auto Speed gates the moving double pull raise to the from-stop speed. Read on a pull edge only (the one frame it matters),
+        # through the card's param snapshot (params.start_step_cache), never a file read per frame.
+        auto_speed=bool(pull_edge) and bool(get_bool(PreApParamKeys.AUTO_SPEED)))
       self.preap_fsm_mode = int(self.decision.mode)
       self.preap_standstill_hold = bool(self.decision.standstill_hold)
       self.preap_capture_edge = bool(self.decision.capture_edge)
