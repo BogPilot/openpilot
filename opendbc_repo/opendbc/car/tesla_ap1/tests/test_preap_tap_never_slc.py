@@ -1,9 +1,9 @@
-"""Pre-AP stalk tap (UP/DN) rules, v6 (Bardo t1421/t1422): a tap never engages openpilot from disengaged and never takes SLC; with the
+"""Pre-AP stalk tap (UP/DN) rules, v6 (t1421/t1422): a tap never engages openpilot from disengaged and never takes SLC; with the
 pedal, a tap while steering only (after the first pull, or after a brake override ended speed control) engages speed control at the
 current speed rounded to a whole display unit; with no pedal a tap never adds speed control (unchanged).
 
 History: the original rule ("a tap never engages speed control or SLC", commit 7cab7e66f) came from copying NAP's engagement
-(NAP preap/engagement.py:126-173 @cc39c7fa: only a second pull adds speed control). Bardo replaced it (t1401 for the from-stop tip,
+(NAP preap/engagement.py:126-173 @cc39c7fa: only a second pull adds speed control). The owner replaced it (t1401 for the from-stop tip,
 t1421/t1422 for identical tip behaviour on AP1 and Pre-AP, following the AP1 tap latch: tesla_ap1/op_long_set_speed.py rules 2-3).
 Pre-AP engages from a stalk pull: the first pull is steering only, a second pull inside the window adds speed control. The tip entry
 is engagement.py PREAP_TIP_ENGAGES_LONG; it needs a first pull (the panda's controls_allowed) and a closed double-pull window.

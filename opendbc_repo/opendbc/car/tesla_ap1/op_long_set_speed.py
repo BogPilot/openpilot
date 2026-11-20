@@ -13,7 +13,7 @@ Rolling (not standstill):
    @568fea947). The offset comes from the card (params), never from bogpilotPlan, so there is no feedback loop.
 2. Otherwise (a fresh UP/DN tap, a pull with no known limit, or no stalk seen): vEgoRaw at the engage edge,
    rounded half-up to a whole display unit (whole mph; km/h when the car's DI_speedUnits is KPH), the same
-   latch a Pre-AP tip gets (v6, Bardo t1421: tip behaviour identical on AP1 and Pre-AP; before v6 the exact
+   latch a Pre-AP tip gets (v6, t1421: tip behaviour identical on AP1 and Pre-AP; before v6 the exact
    vEgoRaw). Rounding never turns the latch into 0 (it then stays exact). Includes below 8 kph. No 8 kph
    clamp-up, no 5 mph rounding. Tinkla ACC_module.py:154-158 @501c7de
    (current-speed latch at engage); BogPilot 0.9.7 slc_raise (tap -> sticky vEgo) @04d560f3e. A known limit
@@ -61,7 +61,7 @@ ENGAGED_STATES = ("ENABLED", "STANDSTILL", "OVERRIDE", "PRE_FAULT", "PRE_CANCEL"
 SET_MIN_KPH = 8.
 # Tinkla ACC_module.py:231-232 @501c7de clips acc_speed_kph to 170 kph.
 SET_MAX_KPH = 170.
-# Stalk tap from 0 (standstill, nothing latched). Default 15 mph. User setting AP1TapFromZeroMs (t1453, Bardo): stored in
+# Stalk tap from 0 (standstill, nothing latched). Default 15 mph. User setting AP1TapFromZeroMs (t1453): stored in
 # m/s, shown and stepped in whole mph (5-30) or, with IsMetric, whole km/h (8-48). Before t1453 it was AP1TapFromZeroMph
 # (whole mph 5-30); system/bogpilot/legacy_migration.migrate_tap_from_zero_ms carries a saved mph value over exactly
 # (N mph -> N * 0.44704 m/s). Missing, non-numeric, non-finite or out-of-range values fall back to 15 mph (never clamped).

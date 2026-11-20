@@ -31,7 +31,7 @@ def _fake_device_type():
 
 def _native_missing() -> str | None:
   """The menus import ui_state (msgq) and Params (libparams); a Mac pyray-stub env has neither built. Those tests run
-  natively (AGNOS3X runner); here they skip with this reason."""
+  natively (AGNOS runner); here they skip with this reason."""
   try:
     from openpilot.common.params import Params
     Params()

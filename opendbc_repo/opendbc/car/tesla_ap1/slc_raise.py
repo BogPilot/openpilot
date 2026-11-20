@@ -128,7 +128,7 @@ def _speed_units(speed_ms: float, round_whole: bool, is_metric: bool) -> tuple[f
 
 
 def round_latch_ms(speed_ms: float, is_metric: bool = False) -> float:
-  """v6 (Bardo t1421): a tip / engage vEgo latch in whole display units (half-up; mph, or km/h when is_metric), as m/s.
+  """v6 (t1421): a tip / engage vEgo latch in whole display units (half-up; mph, or km/h when is_metric), as m/s.
   Same rule as Pre-AP (cruise.preap_round_kph) and op_long_set_speed.round_whole_kph. A result of 0 keeps the exact speed."""
   v = max(float(speed_ms), 0.0)
   unit = CV.MS_TO_KPH if is_metric else CV.MS_TO_MPH

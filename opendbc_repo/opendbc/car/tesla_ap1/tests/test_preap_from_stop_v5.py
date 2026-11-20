@@ -1,4 +1,4 @@
-"""t1401 (Bardo) from-stop rule on Pre-AP with the pedal: a standstill double pull sets the from-stop value on the pull, the accelerator
+"""t1401 from-stop rule on Pre-AP with the pedal: a standstill double pull sets the from-stop value on the pull, the accelerator
 release keeps it (and any tips made while held), and an up/down tip while steering only engages speed control like the AP1 tap."""
 from types import SimpleNamespace as NS
 
@@ -48,7 +48,7 @@ def test_standstill_double_pull_captures_from_stop_on_the_pull_and_not_on_releas
 
 @pytest.mark.parametrize("v", [0.5, 3.0, 6.0, 10.0, 20.0])
 def test_moving_double_pull_asks_for_the_from_stop_raise_and_no_hold(v):
-  # t1438 (Bardo): a moving double pull below the from-stop speed is raised to it; the card takes max(rounded vEgo, from-stop), so
+  # t1438: a moving double pull below the from-stop speed is raised to it; the card takes max(rounded vEgo, from-stop), so
   # above it the current speed is kept. Moving: never a standstill hold.
   e = PreAPEngagement()
   step(e, 0, pull=True, v_ego=v)

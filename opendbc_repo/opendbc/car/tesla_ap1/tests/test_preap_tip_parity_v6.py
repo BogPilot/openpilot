@@ -1,4 +1,4 @@
-"""v6 (Bardo t1421/t1422): the stalk tip behaves the same on AP1 and Pre-AP.
+"""v6 (t1421/t1422): the stalk tip behaves the same on AP1 and Pre-AP.
 
 While lat is active and long is not (after the first pull, or after a brake override ended long), a tip up/down latches the CURRENT
 speed rounded to a whole display unit (mph) and engages long; once long is engaged, tips adjust the set normally. AP1 rounds its tip

@@ -4,7 +4,7 @@ A Pre-AP car brakes by regen only (the Comma Pedal lifts to the drive inverter's
 REGEN_MAX (opendbc tesla_ap1/preap/vdas_constants.py). The planner still plans with the stock decel range, so when it asks for
 more decel than regen gives, the car silently delivers less. This tells the driver to brake.
 
-t1385 (Bardo): one fixed, conservative threshold at every speed: planner aTarget below -ALERT_DECEL (1.2 m/s^2) for more than
+t1385: one fixed, conservative threshold at every speed: planner aTarget below -ALERT_DECEL (1.2 m/s^2) for more than
 HOLD_S (0.3 s) while openpilot longitudinal is active. Tester 1's drive measured regen at about 1.6-1.8 m/s^2, so 1.2 warns
 before the shortfall starts. Once raised it stays up for at least MIN_SHOW_S so it never flickers; a brake press, longitudinal
 going inactive, or another platform clear it at once. No speed-based threshold in this build. Warning only (events.py: red

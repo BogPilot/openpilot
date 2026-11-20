@@ -97,7 +97,7 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
   toggle (IsMetric), whole km/h (8-48, step 1); switching units only changes the display, never the stored m/s.
   A whole-mph value gives the same kph bit for bit as the old whole-mph setting. A rolling no-limit engage or tap still
   latches exact vEgo and does not use this setting.
-- t1453 (Bardo): replaced `AP1TapFromZeroMph` (INT, whole mph 5-30, default 15). A saved N mph is carried over once at
+- t1453: replaced `AP1TapFromZeroMph` (INT, whole mph 5-30, default 15). A saved N mph is carried over once at
   boot, before clear_all and before registered defaults, as exactly N * 0.44704 m/s
   (`legacy_migration.migrate_tap_from_zero_ms`); an existing m/s value is never overwritten; an invalid old value
   (which already read as 15) is not carried, so the 15 mph default applies.
