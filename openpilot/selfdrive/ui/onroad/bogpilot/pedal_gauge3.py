@@ -18,9 +18,9 @@ Power log scale (POWER_LOG_SCALE, default on): with a valid DI_motorRPM the CENT
   shaft power P = |T * rpm| * pi / 30000 kW on a log scale, fill = ln(1 + P / P0) / ln(1 + Pmax / P0): drive Pmax 320 kW
   (the top mark of the Model S power meter), P0 10 kW; regen Pmax REGEN_PEAK_KW (60 kW), P0 5 kW. Without a valid rpm the
   torque fills above are used (fail soft). The driver's pedal on the RIGHT bar is unchanged (pedal position, linear).
-Near-max regen flash: while openpilot controls speed and the regen is at or near the most the car gives (regen torque at
-  REGEN_FLASH_ON_FRAC of the DI regen torque ceiling, or openpilot asking for more regen decel than the motor delivers),
-  the CENTER fill alternates between REGEN_FLASH_RGB and the openpilot regen blue every REGEN_FLASH_MS (see RegenLimitFlash).
+Near-max regen flash: while openpilot controls speed and regen is at the live limit, read from openpilot asking for more
+  regen decel than the motor delivers while the regen has stopped growing (adapts to the car, temperature and charge; no
+  fixed limit), the CENTER fill alternates between REGEN_FLASH_RGB and the openpilot regen blue every REGEN_FLASH_MS (see RegenLimitFlash).
 Colours: one per bar and source. "driver" = the driver's input or openpilot not controlling speed; "op" = openpilot.
 A filled segment gets a 1 px white outline. Missing or invalid inputs give an empty segment (fail closed).
 """
@@ -95,8 +95,9 @@ POWER_DEADBAND_KW = 1.0               # below this a power bar reads empty (coas
 # Near-max regen flash (UI only, openpilot regen colour only).
 REGEN_FLASH_RGB = (214, 234, 255)     # #D6EAFF very light blue, alternates with GAUGE3_PALETTE[(REGEN, OP)]
 REGEN_FLASH_MS = 400                  # phase length: 400 ms light / 400 ms normal (1.25 Hz), slower than the 200 ms LKAS fault
-REGEN_FLASH_ON_FRAC = 0.90            # regen torque >= 90 % of REGEN_FULLSCALE_NM ...
-REGEN_FLASH_OFF_FRAC = 0.80           # ... and stays on until it drops under 80 %
+REGEN_FLASH_TORQUE_RULE = False       # secondary fixed rule (regen torque near the 116 Nm ceiling), off: the shortfall rule
+REGEN_FLASH_ON_FRAC = 0.90            # catches the torque ceiling too whenever openpilot wants more
+REGEN_FLASH_OFF_FRAC = 0.80
 REGEN_FLASH_ON_HOLD_S = 0.25          # steady near-max needed before the flash starts
 REGEN_FLASH_MIN_SHOW_S = 1.0          # once started it shows at least this long (no flicker)
 # Power-limited regen (high speed, cold or full battery): openpilot asks for more regen decel than the motor delivers.
@@ -105,6 +106,9 @@ LIMIT_MIN_SPEED_MS = 4.7              # above the low-speed regen fade (regen_aw
 LIMIT_MIN_REQ_DECEL = 0.3             # m/s^2
 LIMIT_MARGIN = 0.2                    # m/s^2 request beyond the measured regen decel
 LIMIT_HOLD_S = 0.5
+LIMIT_FLAT_NM = 10.0                  # regen torque range over LIMIT_FLAT_S under this = the regen stopped growing (not lag)
+LIMIT_FLAT_S = 0.5
+LIMIT_MIN_REGEN_KW = 8.0              # real regen happening (drag / grade / friction alone do not count)
 
 # 0x108 SNA values (tesla_ap1_can.dbc VAL_ 264): DI_torqueMotor -4096 x 0.25 Nm, DI_motorRPM -32768.
 MOTOR_TORQUE_SNA_NM = -1024.0
@@ -235,15 +239,17 @@ def regen_decel_from_torque(torque_nm) -> float:
 
 
 class RegenLimitFlash:
-  """Near-max regen with hysteresis. update() -> True while the CENTER bar should flash.
+  """Regen at the live limit, with hysteresis. update() -> True while the CENTER bar should flash.
 
-  Near max when, with openpilot controlling speed and a valid regen torque:
-    torque rule: regen torque >= REGEN_FLASH_ON_FRAC * REGEN_FULLSCALE_NM (the DI regen torque ceiling, low / mid speed),
-                 released under REGEN_FLASH_OFF_FRAC;
-    power rule:  above LIMIT_MIN_SPEED_MS, openpilot asks for more than LIMIT_MIN_REQ_DECEL and more than the measured regen
-                 decel + LIMIT_MARGIN for LIMIT_HOLD_S (regen is power-limited: cold or full battery, high speed).
-  Starts after REGEN_FLASH_ON_HOLD_S steady, then shows at least REGEN_FLASH_MIN_SHOW_S. Not long active, a missing torque, a
-  driver brake / pedal or a time jump clears it at once."""
+  Primary (shortfall) rule, with openpilot controlling speed and a valid torque and rpm: above LIMIT_MIN_SPEED_MS,
+  openpilot's request asks for more than LIMIT_MIN_REQ_DECEL and more than the decel the measured regen torque gives +
+  LIMIT_MARGIN, while the regen is real (>= LIMIT_MIN_REGEN_KW) and flat (range < LIMIT_FLAT_NM over LIMIT_FLAT_S), for
+  LIMIT_HOLD_S. It needs no per-car or per-temperature limit: whatever caps the regen (torque ceiling at low speed,
+  battery power limit at speed) shows as a flat regen under a larger request. On AP1 the iBooster covers the rest; on
+  Pre-AP (regen only) the car simply decelerates less.
+  Optional secondary rule (REGEN_FLASH_TORQUE_RULE, off): regen torque >= REGEN_FLASH_ON_FRAC * REGEN_FULLSCALE_NM.
+  Starts after REGEN_FLASH_ON_HOLD_S steady, then shows at least REGEN_FLASH_MIN_SHOW_S. Not long active, a missing torque,
+  a driver brake / pedal or a time jump clears it at once."""
 
   def __init__(self):
     self.reset()
@@ -254,6 +260,7 @@ class RegenLimitFlash:
     self.near_since = None
     self.on_since = None
     self.limit_since = None
+    self.hist = []
     self.t = None
 
   def update(self, now, long_active, torque_nm, rpm=None, op_accel=0.0, driver_input=False) -> bool:
@@ -265,15 +272,24 @@ class RegenLimitFlash:
       return False
     self.t = t
     regen_nm = max(0.0, -tq)
-    frac = regen_nm / REGEN_FULLSCALE_NM
-    torque_near = frac >= (REGEN_FLASH_OFF_FRAC if self.near else REGEN_FLASH_ON_FRAC)
-    # power rule
+    self.hist.append((t, regen_nm))
+    while self.hist and t - self.hist[0][0] > LIMIT_FLAT_S:
+      self.hist.pop(0)
+    torque_near = False
+    if REGEN_FLASH_TORQUE_RULE:
+      frac = regen_nm / REGEN_FULLSCALE_NM
+      torque_near = frac >= (REGEN_FLASH_OFF_FRAC if self.near else REGEN_FLASH_ON_FRAC)
+    # shortfall rule
     v = speed_from_rpm(rpm)
+    kw = regen_power_kw(tq, rpm)
     req = _num(op_accel)
     req_decel = -req if req is not None else 0.0
-    plateau = (v is not None and v > LIMIT_MIN_SPEED_MS and regen_nm > 0.0 and req_decel > LIMIT_MIN_REQ_DECEL and
-               req_decel > regen_decel_from_torque(tq) + LIMIT_MARGIN)
-    if plateau:
+    span = t - self.hist[0][0]
+    vals = [h[1] for h in self.hist]
+    flat = span >= LIMIT_FLAT_S * 0.8 and max(vals) - min(vals) < LIMIT_FLAT_NM
+    shortfall = (v is not None and v > LIMIT_MIN_SPEED_MS and kw is not None and kw >= LIMIT_MIN_REGEN_KW and flat and
+                 req_decel > LIMIT_MIN_REQ_DECEL and req_decel > regen_decel_from_torque(tq) + LIMIT_MARGIN)
+    if shortfall:
       self.limit_since = t if self.limit_since is None else self.limit_since
     else:
       self.limit_since = None

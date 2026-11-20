@@ -120,56 +120,70 @@ class TestBarsOnTheLogScale(unittest.TestCase):
 
 
 class TestRegenFlash(unittest.TestCase):
-  def test_torque_rule_on_after_hold(self):
-    r = Rig()
-    rpm = rpm_at(15)
-    g = r.step(tq=-110.0, rpm=rpm, op=-1.0, n=2)                             # 0.1 s: not yet
-    self.assertFalse(g.regen_flash)
-    g = r.step(tq=-110.0, rpm=rpm, op=-1.0, n=5)                             # past REGEN_FLASH_ON_HOLD_S
-    self.assertTrue(g.regen_flash)
+  ON_STEPS = int((G3.LIMIT_FLAT_S + G3.LIMIT_HOLD_S + G3.REGEN_FLASH_ON_HOLD_S) / DT) + 4
 
-  def test_torque_hysteresis_and_min_show(self):
+  def test_torque_ceiling_with_a_larger_request_flashes(self):
+    rpm = rpm_at(15)                                                         # low speed: regen capped by torque
     r = Rig()
-    rpm = rpm_at(15)
-    r.step(tq=-110.0, rpm=rpm, op=-1.0, n=10)
-    self.assertTrue(r.step(tq=-0.85 * G3.REGEN_FULLSCALE_NM, rpm=rpm, op=-1.0, n=40).regen_flash)   # 85 %: stays on
-    r.step(tq=-0.5 * G3.REGEN_FULLSCALE_NM, rpm=rpm, op=-0.5, n=1)
-    g = r.step(tq=-0.5 * G3.REGEN_FULLSCALE_NM, rpm=rpm, op=-0.5, n=int(G3.REGEN_FLASH_MIN_SHOW_S / DT) + 2)
-    self.assertFalse(g.regen_flash)
-    r2 = Rig()
-    r2.step(tq=-0.85 * G3.REGEN_FULLSCALE_NM, rpm=rpm, op=-1.0, n=40)
-    self.assertFalse(r2.g.flash.on)                                          # 85 % never starts it
+    self.assertFalse(r.step(tq=-113.0, rpm=rpm, op=-1.9, n=8).regen_flash)   # not yet (hold)
+    self.assertTrue(r.step(tq=-113.0, rpm=rpm, op=-1.9, n=self.ON_STEPS).regen_flash)
 
-  def test_min_show_holds_a_short_dip(self):
-    r = Rig()
-    rpm = rpm_at(15)
-    r.step(tq=-110.0, rpm=rpm, op=-1.0, n=8)
-    self.assertTrue(r.step(tq=-40.0, rpm=rpm, op=-0.3, n=3).regen_flash)     # 0.15 s dip, still within the 1 s minimum
-
-  def test_power_rule(self):
+  def test_power_capped_at_speed_flashes(self):
     rpm = rpm_at(60)
     tq = -nm_for_kw(25.0, rpm)                                               # 25 kW cap at 60 mph ~ 34 Nm ~ 0.45 m/s^2
-    r = Rig()
-    self.assertFalse(r.step(tq=tq, rpm=rpm, op=-0.4, n=40).regen_flash)      # request met: no flash
-    r = Rig()
-    self.assertFalse(r.step(tq=tq, rpm=rpm, op=-1.2, n=int(G3.LIMIT_HOLD_S / DT) - 1).regen_flash)
-    self.assertTrue(r.step(tq=tq, rpm=rpm, op=-1.2, n=int(G3.REGEN_FLASH_ON_HOLD_S / DT) + 3).regen_flash)
+    self.assertFalse(Rig().step(tq=tq, rpm=rpm, op=-0.4, n=60).regen_flash)  # request met: no flash
+    self.assertTrue(Rig().step(tq=tq, rpm=rpm, op=-1.2, n=self.ON_STEPS).regen_flash)
 
-  def test_power_rule_not_in_low_speed_fade(self):
-    rpm = rpm_at(5)
-    self.assertFalse(Rig().step(tq=-20.0, rpm=rpm, op=-1.5, n=60).regen_flash)
+  def test_request_met_at_the_ceiling_does_not_flash_by_default(self):
+    self.assertFalse(G3.REGEN_FLASH_TORQUE_RULE)
+    self.assertFalse(Rig().step(tq=-113.0, rpm=rpm_at(15), op=-1.4, n=60).regen_flash)
+
+  def test_optional_torque_rule(self):
+    try:
+      G3.REGEN_FLASH_TORQUE_RULE = True
+      r = Rig()
+      self.assertTrue(r.step(tq=-110.0, rpm=rpm_at(15), op=-1.0, n=10).regen_flash)
+      self.assertTrue(r.step(tq=-0.85 * G3.REGEN_FULLSCALE_NM, rpm=rpm_at(15), op=-1.0, n=40).regen_flash)   # hysteresis
+      self.assertFalse(Rig().step(tq=-0.85 * G3.REGEN_FULLSCALE_NM, rpm=rpm_at(15), op=-1.0, n=40).regen_flash)
+    finally:
+      G3.REGEN_FLASH_TORQUE_RULE = False
+
+  def test_regen_still_ramping_is_lag_not_a_limit(self):
+    rpm = rpm_at(30)
+    r = Rig()
+    out = None
+    for i in range(60):                                                      # regen growing 30 Nm/s under a big request
+      out = r.step(tq=-(20.0 + 1.5 * i), rpm=rpm, op=-2.5)
+      self.assertFalse(out.regen_flash, i)
+
+  def test_drag_or_grade_without_real_regen_does_not_flash(self):
+    rpm = rpm_at(35)
+    self.assertFalse(Rig().step(tq=-nm_for_kw(4.0, rpm), rpm=rpm, op=-1.0, n=60).regen_flash)   # 4 kW: coasting
+
+  def test_low_speed_and_standstill_do_not_flash(self):
+    self.assertFalse(Rig().step(tq=-60.0, rpm=rpm_at(5), op=-1.5, n=60).regen_flash)
+    self.assertFalse(Rig().step(tq=-60.0, rpm=0.0, op=-1.5, n=60).regen_flash)
+    self.assertFalse(Rig().step(tq=-60.0, rpm=None, op=-1.5, n=60).regen_flash)                # no rpm: no flash
+
+  def test_min_show_then_off(self):
+    rpm = rpm_at(15)
+    r = Rig()
+    r.step(tq=-113.0, rpm=rpm, op=-1.9, n=self.ON_STEPS)
+    self.assertTrue(r.step(tq=-113.0, rpm=rpm, op=-1.0, n=3).regen_flash)    # request now met: held by the 1 s minimum
+    self.assertFalse(r.step(tq=-113.0, rpm=rpm, op=-1.0, n=int(G3.REGEN_FLASH_MIN_SHOW_S / DT) + 2).regen_flash)
 
   def test_clears_at_once(self):
     rpm = rpm_at(15)
     for kw in ({"long": False}, {"tq": None}, {"pedal": 0.3}, {"brake": True}):
       r = Rig()
-      r.step(tq=-110.0, rpm=rpm, op=-1.0, n=10)
-      args = dict(tq=-110.0, rpm=rpm, op=-1.0)
+      r.step(tq=-113.0, rpm=rpm, op=-1.9, n=self.ON_STEPS)
+      self.assertTrue(r.g.flash.on)
+      args = dict(tq=-113.0, rpm=rpm, op=-1.9)
       args.update(kw)
       self.assertFalse(r.step(**args).regen_flash, kw)
     r = Rig()
-    r.step(tq=-110.0, rpm=rpm, op=-1.0, n=10)
-    self.assertEqual(r.step(tq=-110.0, rpm=rpm, fresh=False), G3.EMPTY3)
+    r.step(tq=-113.0, rpm=rpm, op=-1.9, n=self.ON_STEPS)
+    self.assertEqual(r.step(tq=-113.0, rpm=rpm, fresh=False), G3.EMPTY3)
 
   def test_cadence_and_colours(self):
     g = G3.Gauge3(regen=0.8, regen_src=G3.OP, regen_flash=True)
