@@ -24,6 +24,7 @@ from opendbc.car import Bus, DT_CTRL, structs
 from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.interfaces import CarStateBase
 from opendbc.car.tesla_ap1.hso import ap1_driver_input
+from opendbc.car.tesla_ap1.steer_rate import SteerRateFallback
 from opendbc.car.tesla_ap1.pedal_signals import pedal_position
 from opendbc.car.tesla_ap1.speed_limit import dashboard_speed_limit_ms, frame_fresh
 from opendbc.car.tesla_ap1.values import BUTTONS, CANBUS, DBC, DOORS, GEAR_MAP
@@ -48,6 +49,8 @@ ButtonType = structs.CarState.ButtonEvent.Type
 class PreApCarState(CarStateBase):
   def __init__(self, CP):
     super().__init__(CP)
+    self.steer_rate = SteerRateFallback(DT_CTRL)   # StW_AnglHP_Spd SNA guard
+    self.steer_rate_source = 0
     self.can_define = CANDefine(DBC[CP.carFingerprint][Bus.chassis])
     self.button_states = {button.event_type: False for button in BUTTONS}
     self.pedal_long = bool(CP.openpilotLongitudinalControl)
@@ -224,7 +227,11 @@ class PreApCarState(CarStateBase):
     self.steer_warning = self.can_define.dv["EPAS_sysStatus"]["EPAS_eacErrorCode"].get(int(epas_status["EPAS_eacErrorCode"]), None)
     self.eac_status = self.can_define.dv["EPAS_sysStatus"]["EPAS_eacStatus"].get(int(epas_status["EPAS_eacStatus"]), None)
     ret.steeringAngleDeg = -epas_status["EPAS_internalSAS"]
-    ret.steeringRateDeg = -cp.vl["STW_ANGLHP_STAT"]["StW_AnglHP_Spd"]
+    # StW_AnglHP_Spd raw 16383 is SNA (+4095.5 deg/s) on some steering-angle sensors; tesla_ap1/steer_rate.py falls back to
+    # the StW_AnglHP difference (same frame, same sensor) so the override detector never sees SNA as a wheel rate.
+    stw = cp.vl["STW_ANGLHP_STAT"]
+    ret.steeringRateDeg = self.steer_rate.update(-stw["StW_AnglHP_Spd"], -stw["StW_AnglHP"], stw["MC_STW_ANGLHP_STAT"])
+    self.steer_rate_source = self.steer_rate.source
     ret.steeringTorque = -epas_status["EPAS_torsionBarTorque"]
     ret.steeringPressed = ap1_driver_input(self.hands_on_level)
     self.eac_fault = self.eac_status == "EAC_FAULT"

@@ -15,6 +15,7 @@ from opendbc.car.tesla_ap1.stalk_follow import dtr_sample, follow_seconds, parse
 from opendbc.car.tesla_ap1.phase3_stalk_controls import StalkControls
 from opendbc.car.tesla_ap1.speed_limit import LIMIT_MAX_AGE_S, dashboard_speed_limit_ms, frame_fresh
 from opendbc.car.tesla_ap1.steer_fault import steer_fault_temporary
+from opendbc.car.tesla_ap1.steer_rate import SteerRateFallback
 from opendbc.car.tesla_ap1.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTTONS, is_ap1_family
 from opendbc.car.interfaces import CarStateBase
 from opendbc.can import CANDefine, CANParser
@@ -29,6 +30,8 @@ OPTIONAL = float('nan')
 class CarState(CarStateBase):
   def __init__(self, CP):
     super().__init__(CP)
+    self.steer_rate = SteerRateFallback(DT_CTRL)   # StW_AnglHP_Spd SNA guard
+    self.steer_rate_source = 0
     self.button_states = {button.event_type: False for button in BUTTONS}
     # Published stalk levels (bogpilot.accelPressed / decelPressed / resumePressed) stay high at least
     # STALK_LEVEL_HOLD_FRAMES from the press, so the 20 Hz planner (DT_MDL 50 ms) cannot miss a short tap or pull,
@@ -122,7 +125,11 @@ class CarState(CarStateBase):
     self.eac_status = steer_status
 
     ret.steeringAngleDeg = -epas_status["EPAS_internalSAS"]
-    ret.steeringRateDeg = -cp.vl["STW_ANGLHP_STAT"]["StW_AnglHP_Spd"] # This is from a different angle sensor, and at different rate
+    # From the steering-column angle sensor (0x00E), not the EPAS, and at a different rate. StW_AnglHP_Spd is SNA on some sensors;
+    # tesla_ap1/steer_rate.py then uses the StW_AnglHP difference so the override detector never sees SNA as a wheel rate.
+    stw = cp.vl["STW_ANGLHP_STAT"]
+    ret.steeringRateDeg = self.steer_rate.update(-stw["StW_AnglHP_Spd"], -stw["StW_AnglHP"], stw["MC_STW_ANGLHP_STAT"])
+    self.steer_rate_source = self.steer_rate.source
     ret.steeringTorque = -epas_status["EPAS_torsionBarTorque"]
     # Any non-zero hands level is driver input (override, grey border), as in
     # frog_ap1. AP1 EPAS reports 0, 1, 3. The AP1 lateral pause stays at
