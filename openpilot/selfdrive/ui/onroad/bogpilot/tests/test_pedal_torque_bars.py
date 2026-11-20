@@ -1,6 +1,7 @@
 """Torque-scaled regen and accel bars (pedals.py / pedal_gauge3.py): regen = -min(0, DI_torqueMotor) / 116 Nm, accel =
 max(0, DI_torqueMotor) / 200 Nm while openpilot long is active, driver pedal unchanged, fallbacks for a missing / SNA /
-stale torque. Pure Python; no window."""
+stale torque. Pure Python; no window. With the power log scale these torque fills are the fallback when DI_motorRPM is
+missing / SNA, so the rig passes no rpm (test_pedal_power_log.py covers the log scale)."""
 import math
 import unittest
 
@@ -21,7 +22,7 @@ class Rig:
     for _ in range(n):
       self.t += DT
       out = self.g.update(ON, fresh, self.t, PED.platform_of(self.fp), brake_pressed=False, brake_level=0.0, pedal_pos=pedal,
-                          op_accel=op, long_active=long, motor_torque_nm=tq, motor_rpm=3000.0, fingerprint=self.fp)
+                          op_accel=op, long_active=long, motor_torque_nm=tq, motor_rpm=None, fingerprint=self.fp)
     return out
 
 

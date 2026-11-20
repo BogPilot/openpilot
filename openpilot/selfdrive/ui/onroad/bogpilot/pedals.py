@@ -122,6 +122,7 @@ class PedalGauge:
 
   def __init__(self):
     self.torque = G3.RegenSmoother()   # signed DI_torqueMotor in Nm; feeds the regen and the accel (torque) bars
+    self.flash = G3.RegenLimitFlash()  # near-max regen flash (openpilot colour only)
     self.reset()
 
   def reset(self):
@@ -130,6 +131,7 @@ class PedalGauge:
     self._req_on = False
     self._pend = {"a": (None, 0.0), "b": (None, 0.0)}
     self.torque.reset()
+    self.flash.reset()
 
   def _settle(self, key, cur, want, now, immediate):
     if want == cur:
@@ -152,8 +154,9 @@ class PedalGauge:
              fingerprint=None) -> G3.Gauge3:
     """now: monotonic seconds. brake_level: carState.deprecated.brake; pedal_pos: carState.deprecated.gas; op_accel:
     carControl.actuators.accel (colour source, and the fill only without a valid torque); motor_torque_nm:
-    bogpilotCarState.ap1MotorTorqueNm (None when stale) drives the regen and the accel bars; motor_rpm and fingerprint
-    are accepted for the callers and no longer scale a bar; brake_pedal_state: bogpilotCarState.ap1BrakePedalState (None
+    bogpilotCarState.ap1MotorTorqueNm (None when stale) drives the regen and the accel bars; motor_rpm (0x108 DI_motorRPM)
+    turns torque into shaft power for the log scale (missing / SNA -> torque fill); fingerprint picks the regen peak kW;
+    brake_pedal_state: bogpilotCarState.ap1BrakePedalState (None
     when stale, AP1 only)."""
     if not policy.show or not fresh:
       self.reset()
@@ -176,7 +179,8 @@ class PedalGauge:
     if self._pedal_on:
       accel = pedal                                                      # the driver's pedal, as before
     elif long_active and tq is not None:
-      accel = G3.accel_torque_fill(tq)                                   # OP's drive torque, hills included
+      pf = G3.accel_power_fill(tq, motor_rpm) if G3.POWER_LOG_SCALE else None
+      accel = pf if pf is not None else G3.accel_torque_fill(tq)         # OP's drive power (log), else torque; hills included
     elif self.accel_src == G3.OP and self._req_on:
       accel = clamp(op / OP_ACCEL_FULL_SCALE, 0.0, 1.0)                  # fallback: OP's request
     else:
@@ -186,9 +190,12 @@ class PedalGauge:
     want_b = G3.OP if op_brake else G3.DRIVER
     self.brake_src = self._settle("b", self.brake_src, want_b, now, want_b == G3.DRIVER and bool(brake_pressed))
     brake = brake_level_of(brake_level)
-    # CENTER: regen torque, smoothed; missing -> empty
-    return G3.gauge_state(brake, None, accel, long_active, regen_nm=tq,
-                          brake_by_op=self.brake_src == G3.OP, accel_by_op=self.accel_src == G3.OP)
+    # CENTER: regen power (log) from the smoothed torque and rpm; no valid rpm -> regen torque; missing torque -> empty
+    rf = G3.regen_power_fill(tq, motor_rpm, fingerprint) if G3.POWER_LOG_SCALE else None
+    flash = self.flash.update(now, long_active, tq, motor_rpm, op, driver_input=self._pedal_on or bool(brake_pressed))
+    kw = {"regen_frac": rf} if rf is not None else {"regen_nm": tq}
+    return G3.gauge_state(brake, None, accel, long_active, brake_by_op=self.brake_src == G3.OP,
+                          accel_by_op=self.accel_src == G3.OP, regen_flash=flash, **kw)
 
 
 def pedal_rect(widget_w: float, rhd: bool, scale: float = 1.0):

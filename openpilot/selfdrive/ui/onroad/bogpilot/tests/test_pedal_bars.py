@@ -73,7 +73,7 @@ class TestBars(unittest.TestCase):
   def test_driver_brake_regen(self):
     g = Rig().step(brake=True, level=0.6, tq=-100.0, rpm=5000.0)
     self.assertEqual((g.brake, g.brake_src, g.regen_src), (0.6, G3.DRIVER, G3.DRIVER))
-    self.assertAlmostEqual(g.regen, 100.0 / G3.REGEN_FULLSCALE_NM)
+    self.assertAlmostEqual(g.regen, G3.regen_power_fill(-100.0, 5000.0, AP1_S))   # log regen power with a valid rpm
 
   def test_engaged_op_brake_and_regen_colours(self):
     r = Rig()
@@ -130,15 +130,18 @@ class TestBars(unittest.TestCase):
     r = Rig()
     r.step(tq=0.0, rpm=5000.0)
     g = r.step(tq=-100.0, rpm=5000.0)
-    want = 100.0 * DT / (G3.REGEN_TAU_S + DT)
-    self.assertAlmostEqual(g.regen, want / G3.REGEN_FULLSCALE_NM, places=6)
+    want = 100.0 * DT / (G3.REGEN_TAU_S + DT)                           # the torque is smoothed, then turned into kW
+    self.assertAlmostEqual(g.regen, G3.regen_power_fill(-want, 5000.0, AP1_S), places=6)
     r.step(tq=None, rpm=None)
-    self.assertAlmostEqual(r.step(tq=-100.0, rpm=5000.0).regen, 100.0 / G3.REGEN_FULLSCALE_NM)
+    self.assertAlmostEqual(r.step(tq=-100.0, rpm=5000.0).regen, G3.regen_power_fill(-100.0, 5000.0, AP1_S))
+    r.step(tq=None, rpm=None)
+    self.assertAlmostEqual(r.step(tq=-100.0, rpm=None).regen, 100.0 / G3.REGEN_FULLSCALE_NM)   # no rpm: torque fill
 
   def test_regen_torque_scale_is_the_same_on_every_platform(self):
-    # the torque bar has one full scale (REGEN_FULLSCALE_NM); the per-model kW table no longer scales it
+    # without a valid rpm the torque bar has one full scale (REGEN_FULLSCALE_NM); with an rpm the per-model peak kW scales it
     for fp in (AP1_S, "TESLA_AP1_MODELX", PREAP):
-      self.assertAlmostEqual(Rig(fp).step(tq=-58.0, rpm=5000.0).regen, 0.5, msg=fp)
+      self.assertAlmostEqual(Rig(fp).step(tq=-58.0, rpm=None).regen, 0.5, msg=fp)
+      self.assertAlmostEqual(Rig(fp).step(tq=-58.0, rpm=5000.0).regen, G3.regen_power_fill(-58.0, 5000.0, fp), msg=fp)
 
 
 class TestFootprint(unittest.TestCase):
