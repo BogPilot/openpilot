@@ -438,12 +438,62 @@ class ConsumerReplayTests(unittest.TestCase):
     new = self.helper(LaneChangeSettings(one_per_signal=False))
     trace = [(car(leftBlinker=False), True, 0.1)] * 5 + [(car(), True, 0.1)] * 5 + [(car(steeringPressed=True, steeringTorque=1), True, 0.1)] * 5
     trace += (
-      [(car(), True, 0)] * 40 + [(car(), False, 0)] * 5 + [(car(leftBlinker=False, rightBlinker=True, steeringPressed=True, steeringTorque=-1), True, 0.1)] * 20
+      [(car(), True, 0)] * 40 + [(car(), False, 0)] * 5 + [(car(leftBlinker=False), False, 0)] * 2 +
+      [(car(leftBlinker=False, rightBlinker=True, steeringPressed=True, steeringTorque=-1), True, 0.1)] * 20
     )
     for cs, active, prob in trace:
       stock.update(cs, active, prob)
       new.update(cs, active, prob, model(), True)
       self.assertEqual((new.lane_change_state, new.lane_change_direction, new.desire), (stock.lane_change_state, stock.lane_change_direction, stock.desire))
+
+  def test_blinker_already_on_at_engage_is_not_a_lane_change_request(self):
+    # Turn exit: right blinker on while disengaged, engage above the 20 mph floor with torque toward the blinker.
+    exit_turn = car(vEgo=21 * 0.44704, leftBlinker=False, rightBlinker=True, steeringPressed=True, steeringTorque=-1.3)
+    for cfg in (LaneChangeSettings(), LaneChangeSettings(nudgeless=True, delay=0)):
+      dh = self.helper(cfg)
+      for _ in range(20):
+        dh.update(exit_turn, False, 0.0, model(), True)
+      for _ in range(40):
+        dh.update(exit_turn, True, 0.0, model(), True)
+        self.assertEqual(dh.lane_change_state, LCS.off)
+        self.assertEqual(dh.desire, log.Desire.none)
+    # A blinker held across a brief lateral drop does not restart a lane change when lateral returns.
+    dh = self.helper(LaneChangeSettings())
+    held = car(steeringPressed=True, steeringTorque=1)
+    dh.update(car(leftBlinker=False), True, 0.0, model(), True)
+    for _ in range(2):
+      dh.update(held, True, 0.5, model(), True)
+    self.assertEqual(dh.lane_change_state, LCS.laneChangeStarting)
+    for _ in range(3):
+      dh.update(held, False, 0.5, model(), True)
+    for _ in range(20):
+      dh.update(held, True, 0.0, model(), True)
+      self.assertEqual(dh.lane_change_state, LCS.off)
+
+  def test_engaged_blinker_then_nudge_still_changes_lanes(self):
+    dh = self.helper(LaneChangeSettings())
+    for _ in range(5):
+      dh.update(car(leftBlinker=False), True, 0.0, model(), True)
+    dh.update(car(), True, 0.0, model(), True)
+    self.assertEqual(dh.lane_change_state, LCS.preLaneChange)
+    self.assertEqual(dh.lane_change_direction, LCD.left)
+    dh.update(car(steeringPressed=True, steeringTorque=1), True, 0.5, model(), True)
+    self.assertEqual(dh.lane_change_state, LCS.laneChangeStarting)
+    self.assertEqual(dh.desire, log.Desire.laneChangeLeft)
+
+  def test_blinker_cycled_after_engage_requests_lane_change(self):
+    dh = self.helper(LaneChangeSettings())
+    held = car(leftBlinker=False, rightBlinker=True)
+    for active in (False, True, True):
+      dh.update(held, active, 0.0, model(), True)
+    self.assertEqual(dh.lane_change_state, LCS.off)
+    dh.update(car(leftBlinker=False), True, 0.0, model(), True)
+    dh.update(held, True, 0.0, model(), True)
+    self.assertEqual(dh.lane_change_state, LCS.preLaneChange)
+    self.assertEqual(dh.lane_change_direction, LCD.right)
+    dh.update(car(leftBlinker=False, rightBlinker=True, steeringPressed=True, steeringTorque=-1), True, 0.5, model(), True)
+    self.assertEqual(dh.lane_change_state, LCS.laneChangeStarting)
+    self.assertEqual(dh.desire, log.Desire.laneChangeRight)
 
   def test_real_desire_timeout_and_nan_model_negative(self):
     dh = self.helper(LaneChangeSettings(nudgeless=True, delay=0))

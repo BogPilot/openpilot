@@ -86,7 +86,9 @@ class DesireHelper:
             self.lane_change_state = LaneChangeState.off
             self.lane_change_direction = LaneChangeDirection.none
 
-    self.prev_one_blinker = one_blinker and lateral_active
+    # BogPilot: track the blinker even while lateral is off, so a blinker that was already on when
+    # openpilot engaged (e.g. still on after a turn) is not taken as a new lane change request.
+    self.prev_one_blinker = one_blinker
 
     self.desire = log.Desire.none
     if self.lane_change_state == LaneChangeState.laneChangeStarting:
