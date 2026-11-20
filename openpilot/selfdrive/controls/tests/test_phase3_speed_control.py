@@ -188,7 +188,7 @@ class TestAp1Stalk(unittest.TestCase):
     run(ctl, sm, 10.0, 20.0)
     self.assertAlmostEqual(run(ctl, sm, 10.0, 20.0, limit=25 * MPH, n=3), 55 * MPH, places=3)      # tip holds
 
-  def test_tip_hold_fallback_and_floor(self):
+  def test_tip_hold_repeat_and_floor(self):
     ctl, sm = make(), Sm()
     self.engage(ctl, sm, 3 * MPH, 0.0, dn=True)                  # sticky 3 mph
     run(ctl, sm, 10.0, 3 * MPH, dn=True, spd=32)
@@ -200,7 +200,7 @@ class TestAp1Stalk(unittest.TestCase):
     ctl2, sm2 = make(), Sm()
     self.engage(ctl2, sm2, 20.0, 45 * MPH, rwd=True)
     run(ctl2, sm2, 10.0, 20.0, up=True, spd=16, n=int(0.45 / DT) + 2)
-    self.assertAlmostEqual(ctl2.holdoff.tip_ms, 55 * MPH, places=3)  # 0.45 s hold upgrades once
+    self.assertAlmostEqual(ctl2.holdoff.tip_ms, 52 * MPH, places=3)  # 50 mph set, 0.5 s shallow hold: +1 on the press, +1 repeat at 0.35 s, never a +5
     self.assertGreater(out, 0)
 
   def test_disengage_clears_and_cap(self):

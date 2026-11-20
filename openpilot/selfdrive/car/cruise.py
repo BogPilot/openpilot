@@ -49,6 +49,14 @@ class VCruiseHelper:
     self.v_cruise_kph_last = 0
     self.button_timers = {ButtonType.decelCruise: 0, ButtonType.accelCruise: 0}
     self.button_change_states = {btn: {"standstill": False, "enabled": False} for btn in self.button_timers}
+    # Tesla Pre-AP with pedal: detent-aware stalk tips (opendbc tesla_ap1/stalk_repeat.py), the same state machine AP1 openpilot long
+    # uses, instead of the stock 50-tick +-5 long press. Other cars keep the stock timer logic untouched.
+    self._tesla_rpt = None
+    self._tesla_press = {"ok": False, "base_units": 0, "dir": 0}
+    self.tesla_dt = 0.01   # card runs at 100 Hz
+    if str(getattr(CP, "carFingerprint", "") or "") == "TESLA_PREAP_MODELS":
+      from opendbc.car.tesla_ap1.stalk_repeat import StalkTipRepeat
+      self._tesla_rpt = StalkTipRepeat()
 
   @property
   def v_cruise_initialized(self):
@@ -60,7 +68,10 @@ class VCruiseHelper:
     if CS.cruiseState.available:
       if not self.CP.pcmCruise:
         # if stock cruise is completely disabled, then we can use our own set speed logic
-        self._update_v_cruise_non_pcm(CS, enabled, is_metric)
+        if self._tesla_rpt is not None:
+          self._update_v_cruise_tesla_detent(CS, enabled, is_metric)
+        else:
+          self._update_v_cruise_non_pcm(CS, enabled, is_metric)
         self.v_cruise_cluster_kph = self.v_cruise_kph
         self.update_button_timers(CS, enabled)
       else:
@@ -123,6 +134,48 @@ class VCruiseHelper:
       self.v_cruise_kph = max(self.v_cruise_kph, CS.vEgo * CV.MS_TO_KPH)
 
     self.v_cruise_kph = np.clip(round(self.v_cruise_kph, 1), V_CRUISE_MIN, V_CRUISE_MAX)
+
+  def _update_v_cruise_tesla_detent(self, CS, enabled, is_metric):
+    """Tesla Pre-AP pedal set speed from the raw SpdCtrlLvr detent (BogPilot 0.11.2).
+    Light (16 up / 32 down): +-1 display unit on the press, then after 0.35 s +-1 every 0.2 s while held.
+    Deep (4 up / 8 down), or light then deep: one step to the next / previous 5, never repeats. Release resets.
+    Whole display unit rounding of the base before every step. The stock guards stay: no change if long was not ours when the lever
+    went down, none on a resume tip out of standstill, and a down tip with the gas pressed never goes below vEgo."""
+    from opendbc.car.tesla_ap1.stalk_repeat import lever_to_dir_deep
+    bp = getattr(CS, "bogpilot", None)
+    try:
+      lvr = int(getattr(bp, "spdCtrlLvr", 0) or 0)
+    except (TypeError, ValueError):
+      lvr = 0
+    direction, deep = lever_to_dir_deep(lvr)
+    events = self._tesla_rpt.update(direction, deep, self.tesla_dt)
+    if direction == 0:
+      self._tesla_press = {"ok": False, "base_units": 0, "dir": 0}
+      return
+    unit = 1.0 if is_metric else CV.MPH_TO_KPH
+    cur_units = lambda: int(math.floor(round(float(self.v_cruise_kph) / unit, 4) + 0.5))
+    for ev in events:
+      if ev in ("press_light", "press_deep"):
+        standstill = bool(CS.cruiseState.standstill)
+        ok = bool(enabled) and not (direction > 0 and standstill)
+        self._tesla_press = {"ok": ok, "base_units": cur_units(), "dir": direction}
+      if not self._tesla_press["ok"]:
+        continue
+      cur = cur_units()
+      if ev == "press_light":
+        new = cur + direction
+      elif ev == "repeat":
+        new = cur + direction
+      else:   # press_deep / upgrade: next / previous multiple of 5 (from the press base unless light repeats already moved the set)
+        ref = cur if self._tesla_rpt.repeats else int(self._tesla_press["base_units"])
+        if direction > 0:
+          new = (ref // 5 + 1) * 5
+        else:
+          new = ref - 5 if ref % 5 == 0 else (ref // 5) * 5
+      v = round(new * unit, 1)
+      if CS.gasPressed and direction < 0:
+        v = max(v, CS.vEgo * CV.MS_TO_KPH)
+      self.v_cruise_kph = float(np.clip(round(v, 1), V_CRUISE_MIN, V_CRUISE_MAX))
 
   def update_button_timers(self, CS, enabled):
     # increment timer for buttons still pressed

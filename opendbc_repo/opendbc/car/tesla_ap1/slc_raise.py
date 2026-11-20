@@ -48,6 +48,7 @@ Not a product. No warranty. The driver remains responsible. Comply with local la
 import math
 
 from opendbc.car.common.conversions import Conversions as CV
+from opendbc.car.tesla_ap1.stalk_repeat import StalkTipRepeat
 
 # Matches selfdrive/controls/lib/drive_helpers.V_CRUISE_UNSET (kph).
 V_CRUISE_UNSET_KPH = 255.0
@@ -212,7 +213,8 @@ class Ap1RaiseHoldoff:
   # used to drop into SLC tracking (raise to posted+offset). Not tied to the
   # SLC posted-limit guard (15 mph floor) — tips may go below 15 mph.
   TIP_MIN_MS = 1.0 * CV.MPH_TO_MS
-  TIP_HOLD_S = 0.45  # fallback only: hold upgrades ±1 → next/prev 5 once
+  # Light-detent hold repeats ±1 (stalk_repeat.py: 0.35 s delay, then every 0.2 s); it never upgrades to ±5. TIP_HOLD_S is unused.
+  TIP_HOLD_S = 0.45
   # Float slack: nine 50 ms ticks sum to 0.44999999999999996, which must count as 0.45 s.
   TIP_HOLD_EPS_S = 1e-6
   V_CRUISE_MAX_MS = 145.0 * CV.KPH_TO_MS
@@ -233,6 +235,8 @@ class Ap1RaiseHoldoff:
     self.tip_dir = 0  # +1 tip-up, -1 tip-down, 0 idle
     self._tip_base_ms = 0.0
     self._tip_hold_s = 0.0
+    self._tip_repeated = False
+    self._tip_rpt = StalkTipRepeat()
     self._tip_press_active = False
     self._tip_upgraded = False
     self._prev_enabled = False
@@ -277,6 +281,8 @@ class Ap1RaiseHoldoff:
     self._tip_hold_s = 0.0
     self._tip_press_active = False
     self._tip_upgraded = False
+    self._tip_repeated = False
+    self._tip_rpt.reset()
 
   def _dn_set_ms(self, base_ms: float, candidate_ms: float) -> float:
     """Clamp a decrease: never below TIP_MIN when the base is at or above it,
@@ -343,6 +349,7 @@ class Ap1RaiseHoldoff:
         base = max(float(self.tip_ms), float(current_set_ms), 0.0)
         self._tip_base_ms = base
         self._tip_hold_s = 0.0
+        self._tip_repeated = False
         self._tip_press_active = True
         self.tip_dir = 1
         if self.tap_from_zero_ms > 0.0 and base <= 0.0 and float(v_ego_ms) < 0.1:
@@ -364,6 +371,7 @@ class Ap1RaiseHoldoff:
         base = max(float(self.tip_ms), float(current_set_ms), 0.0)
         self._tip_base_ms = base
         self._tip_hold_s = 0.0
+        self._tip_repeated = False
         self._tip_press_active = True
         self.tip_dir = -1
         if self.tap_from_zero_ms > 0.0 and base <= 0.0 and float(v_ego_ms) < 0.1:
@@ -379,26 +387,31 @@ class Ap1RaiseHoldoff:
           dn1 = step_1_ms(base, -1, round_whole=True, is_metric=self.is_metric) if self.round_whole else base - self.TIP_STEP_MS
           self.tip_ms = self._dn_set_ms(base, dn1)
           self._tip_upgraded = False
+      rpt_events = self._tip_rpt.update(1 if up_pressed else (-1 if decel_pressed else 0), tip_full, dt)
       if self._tip_press_active and not self._tip_upgraded:
-        # Mid-press reach of pos2, or long hold without detent info
         if tip_full:
+          # Mid-press reach of the deep detent: one upgrade to next / prev 5, never repeats. From the press base, or from the
+          # current tip once light repeats have stepped it (so 62 +1 +1 +1 -> deep gives 70, not a no-op back to 65).
+          ref = float(self.tip_ms) if self._tip_repeated else self._tip_base_ms
           if self.tip_dir > 0:
-            nxt = next_5_ms(self._tip_base_ms, round_whole=self.round_whole, is_metric=self.is_metric)
+            nxt = next_5_ms(ref, round_whole=self.round_whole, is_metric=self.is_metric)
             self.tip_ms = min(max(float(self.tip_ms), nxt), self.V_CRUISE_MAX_MS)
           elif self.tip_dir < 0:
-            self.tip_ms = self._dn_set_ms(self._tip_base_ms, prev_5_ms(self._tip_base_ms, round_whole=self.round_whole, is_metric=self.is_metric))
+            self.tip_ms = self._dn_set_ms(ref, prev_5_ms(ref, round_whole=self.round_whole, is_metric=self.is_metric))
           self._tip_upgraded = True
-        elif self.tip_dir > 0 and up_pressed:
-          self._tip_hold_s += dt
-          if self._tip_hold_s >= self.TIP_HOLD_S - self.TIP_HOLD_EPS_S:
-            nxt = next_5_ms(self._tip_base_ms, round_whole=self.round_whole, is_metric=self.is_metric)
-            self.tip_ms = min(max(float(self.tip_ms), nxt), self.V_CRUISE_MAX_MS)
-            self._tip_upgraded = True
-        elif self.tip_dir < 0 and decel_pressed:
-          self._tip_hold_s += dt
-          if self._tip_hold_s >= self.TIP_HOLD_S - self.TIP_HOLD_EPS_S:
-            self.tip_ms = self._dn_set_ms(self._tip_base_ms, prev_5_ms(self._tip_base_ms, round_whole=self.round_whole, is_metric=self.is_metric))
-            self._tip_upgraded = True
+        else:
+          # Light detent held: +-1 repeat (0.35 s, then every 0.2 s). Never a +-5 from the hold.
+          for ev in rpt_events:
+            if ev != "repeat":
+              continue
+            self._tip_repeated = True
+            cur = float(self.tip_ms)
+            if self.tip_dir > 0:
+              up1 = step_1_ms(cur, 1, round_whole=True, is_metric=self.is_metric) if self.round_whole else cur + self.TIP_STEP_MS
+              self.tip_ms = min(up1, self.V_CRUISE_MAX_MS)
+            elif self.tip_dir < 0:
+              dn1 = step_1_ms(cur, -1, round_whole=True, is_metric=self.is_metric) if self.round_whole else cur - self.TIP_STEP_MS
+              self.tip_ms = self._dn_set_ms(cur, dn1)
       # Release ends hold timing (tip_ms latched value remains until clear)
       if self.tip_dir > 0 and not up_pressed:
         self._tip_press_active = False
@@ -406,6 +419,8 @@ class Ap1RaiseHoldoff:
       if self.tip_dir < 0 and not decel_pressed:
         self._tip_press_active = False
         self._tip_hold_s = 0.0
+    else:
+      self._tip_rpt.reset()
 
     # Engage stalk action: classified on the CRUISE edge (0.9.7 frogpilot_vcruise.py:119 @04d560f3e), not on the
     # longitudinal edge. With the gas held longActive can rise seconds after the stalk, past RECENT_S.

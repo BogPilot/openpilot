@@ -924,10 +924,10 @@ def test_held_stalk_level_short_press_is_stretched_to_the_minimum_width(lever, p
 
 
 @pytest.mark.parametrize("phase", range(5))
-@pytest.mark.parametrize("press_frames,want_mph", [(40, 51), (45, 55)])
-def test_planner_hold_upgrade_follows_the_physical_hold(phase, press_frames, want_mph):
-  """A shallow UP held 0.40 s stays a +1 tip; held 0.45 s (TIP_HOLD_S) it upgrades to next 5. The planner samples the
-  published level at 20 Hz (every 5th frame, any phase)."""
+@pytest.mark.parametrize("press_frames,want_mph", [(30, 51), (45, 52), (62, 53)])
+def test_planner_hold_repeat_follows_the_physical_hold(phase, press_frames, want_mph):
+  """A shallow UP held 0.30 s stays a +1 tip; held 0.45 s it has repeated +1 once (0.35 s); held 0.62 s twice (0.55 s). It never
+  upgrades to next 5 from the hold. The planner samples the published level at 20 Hz (every 5th frame, any phase)."""
   levels = _held_levels(UP_1ST, press_frames, after_frames=20)
   samples = ([False] * phase + levels)[::5]
   hold = Ap1RaiseHoldoff()
