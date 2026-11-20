@@ -24,7 +24,7 @@ from openpilot.selfdrive.ui.layouts.settings.phase3_long_accel_settings import (
 
 PAGE_KEY = "gas_brake"
 PAGE_TITLE = "Gas / Brake"
-TAP_FROM_ZERO_KEY = "AP1TapFromZeroMph"
+TAP_FROM_ZERO_KEY = "AP1TapFromZeroMs"   # stored m/s (t1453); shown and stepped in whole mph or km/h (IsMetric)
 TAP_FROM_ZERO_TITLE = "Standstill Tap Speed"
 TAP_FROM_ZERO_DESC = (
   "AP1: a standstill engage with no known speed limit; the car will drive off to this speed. Pre-AP with the Comma Pedal: "
@@ -107,54 +107,78 @@ def tap_from_zero_visible(store, cp=None) -> bool:
   return mounts.slc_supported(cp) is not False
 
 
+def _is_metric(store) -> bool:
+  return bool(store.get_bool("IsMetric", False))
+
+
+def tap_from_zero_ms(store) -> float:
+  """The stored setting in m/s (missing / invalid -> the 15 mph default, as the card and planner read it)."""
+  from opendbc.car.tesla_ap1.op_long_set_speed import parse_tap_from_zero_ms
+  return parse_tap_from_zero_ms(store.raw(TAP_FROM_ZERO_KEY))
+
+
 def tap_from_zero_value_text(store) -> str:
-  from opendbc.car.tesla_ap1.op_long_set_speed import format_tap_from_zero_display, parse_tap_from_zero_mph
-  return format_tap_from_zero_display(parse_tap_from_zero_mph(store.raw(TAP_FROM_ZERO_KEY)),
-                                      store.get_bool("IsMetric", False))
+  """'15 mph', or '24 km/h' with IsMetric. Display only: switching units never writes the stored m/s."""
+  from opendbc.car.tesla_ap1.op_long_set_speed import format_tap_from_zero_display
+  return format_tap_from_zero_display(tap_from_zero_ms(store), _is_metric(store))
+
+
+def tap_from_zero_default_ms() -> float:
+  """The existing default, 15 mph = 6.7056 m/s (op_long_set_speed.TAP_FROM_ZERO_DEFAULT_MS, the registry row "6.7056"),
+  which parse_tap_from_zero_ms() returns for an unsaved key. No new number."""
+  from opendbc.car.tesla_ap1.op_long_set_speed import parse_tap_from_zero_ms
+  return parse_tap_from_zero_ms(None)
 
 
 def tap_from_zero_default_mph() -> int:
-  """The existing default: what the row shows while nothing is saved. TAP_FROM_ZERO_DEFAULT_MPH = 15
-  (opendbc/car/tesla_ap1/op_long_set_speed.py:50), returned by parse_tap_from_zero_mph() for an unsaved key; the
-  registry row is "15" (openpilot/common/bogpilot_params.py:38). No new number."""
-  from opendbc.car.tesla_ap1.op_long_set_speed import parse_tap_from_zero_mph
-  return parse_tap_from_zero_mph(None)
+  """The default in whole mph (15). Kept for callers that still name the default in mph."""
+  from opendbc.car.tesla_ap1.op_long_set_speed import TAP_FROM_ZERO_DEFAULT_MPH
+  return TAP_FROM_ZERO_DEFAULT_MPH
 
 
 def tap_from_zero_default_text(store) -> str:
   from opendbc.car.tesla_ap1.op_long_set_speed import format_tap_from_zero_display
-  return format_tap_from_zero_display(tap_from_zero_default_mph(), store.get_bool("IsMetric", False))
+  return format_tap_from_zero_display(tap_from_zero_default_ms(), _is_metric(store))
 
 
 def tap_from_zero_is_default(store) -> bool:
-  """The shown (parsed) value is the default. A stored value the parser rejects is shown as the default, so it is too."""
-  from opendbc.car.tesla_ap1.op_long_set_speed import parse_tap_from_zero_mph
-  return parse_tap_from_zero_mph(store.raw(TAP_FROM_ZERO_KEY)) == tap_from_zero_default_mph()
+  """The shown (parsed) value is the default. A stored value the parser rejects is shown as the default, so it is too.
+  Compared in m/s, not in the display unit: 24 km/h (6.667 m/s) is not the 15 mph default even though both round alike."""
+  return abs(tap_from_zero_ms(store) - tap_from_zero_default_ms()) <= 1e-6
 
 
 def reset_tap_from_zero(store, key, value, can_edit=None, long_on=None) -> None:
-  """Section-reset writer: only the tap-speed key, only its existing default, under the same guards as the -/+ buttons
-  (offroad and openpilot longitudinal). A refused write raises so the reset row reports it instead of failing silently."""
-  if key != TAP_FROM_ZERO_KEY or int(value) != tap_from_zero_default_mph():
+  """Section-reset writer: only the tap-speed key, only its existing default (m/s), under the same guards as the -/+
+  buttons (offroad and openpilot longitudinal). A refused write raises so the reset row reports it instead of failing
+  silently."""
+  from opendbc.car.tesla_ap1.op_long_set_speed import format_ms_text
+  try:
+    ok = key == TAP_FROM_ZERO_KEY and abs(float(value) - tap_from_zero_default_ms()) <= 1e-6
+  except (TypeError, ValueError):
+    ok = False
+  if not ok:
     raise PermissionError(f"{key} is not in this section")
   if (can_edit is not None and not can_edit()) or (long_on is not None and not long_on()):
     raise PermissionError(f"{key} was not reset")
-  store.put(TAP_FROM_ZERO_KEY, str(int(value)), block=True)
+  store.put(TAP_FROM_ZERO_KEY, format_ms_text(tap_from_zero_default_ms()), block=True)
 
 
 def nudge_tap_from_zero(store, direction: int, can_edit=None) -> int:
-  """Move the setting by one whole mph if the new value is in 5-30. Returns the stored mph."""
+  """Move the setting by one whole display unit (mph, or km/h with IsMetric) if the new value is in range (5-30 mph,
+  8-48 km/h). The step starts from the shown (rounded) value and stores that whole unit as m/s. Returns the shown value."""
   from opendbc.car.tesla_ap1.op_long_set_speed import (
-    parse_tap_from_zero_mph, TAP_FROM_ZERO_MAX_MPH, TAP_FROM_ZERO_MIN_MPH,
+    format_ms_text, tap_from_zero_display_bounds, tap_from_zero_display_to_ms, tap_from_zero_display_value,
   )
+  metric = _is_metric(store)
+  shown = tap_from_zero_display_value(tap_from_zero_ms(store), metric)
   if can_edit is not None and not can_edit():
-    return parse_tap_from_zero_mph(store.raw(TAP_FROM_ZERO_KEY))
-  mph = parse_tap_from_zero_mph(store.raw(TAP_FROM_ZERO_KEY))
-  nxt = mph + int(direction)
-  if TAP_FROM_ZERO_MIN_MPH <= nxt <= TAP_FROM_ZERO_MAX_MPH:
-    store.put(TAP_FROM_ZERO_KEY, str(nxt), block=True)
+    return shown
+  lo, hi = tap_from_zero_display_bounds(metric)
+  nxt = shown + int(direction)
+  if lo <= nxt <= hi:
+    store.put(TAP_FROM_ZERO_KEY, format_ms_text(tap_from_zero_display_to_ms(nxt, metric)), block=True)
     return nxt
-  return mph
+  return shown
 
 
 def create_gas_brake_layout(store=None, cp_source=None, can_edit=None):
@@ -263,8 +287,8 @@ def create_gas_brake_layout(store=None, cp_source=None, can_edit=None):
                                     default_text=lambda: tap_from_zero_default_text(self.store),
                                     is_default=lambda: tap_from_zero_is_default(self.store), translate=tr)
         items.append(attach_help(tap, TAP_FROM_ZERO_KEY))
-        # Reset writes only AP1TapFromZeroMph back to its existing default (tap_from_zero_default_mph).
-        reset = reset_section_item(lambda: {TAP_FROM_ZERO_KEY: tap_from_zero_default_mph()} if tap_enabled() else {},
+        # Reset writes only AP1TapFromZeroMs back to its existing default (tap_from_zero_default_ms, 15 mph in m/s).
+        reset = reset_section_item(lambda: {TAP_FROM_ZERO_KEY: tap_from_zero_default_ms()} if tap_enabled() else {},
                                    lambda k, v: reset_tap_from_zero(self.store, k, v, self.can_edit, long_on),
                                    title=lambda: tr(RESET_SECTION_TITLE), enabled=tap_enabled)
         attach_help(reset, "section.reset_defaults")

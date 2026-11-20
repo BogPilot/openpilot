@@ -451,17 +451,18 @@ def test_standstill_tap_speed_is_one_value_row_with_its_default_and_a_reset(stor
   assert isinstance(tap.action_item, GatedValueStepAction)
   assert tap.action_item.hint_text == "default: 15 mph" and not tap.action_item.highlighted
   assert "" not in [i.title for i in rows(page) if i.is_visible]  # no blank button row under the value any more
-  press(tap, +1)
-  assert store.get_int(GB.TAP_FROM_ZERO_KEY) == 16 and tap.action_item.highlighted
+  press(tap, +1)   # stored in m/s (t1453): 16 mph exactly
+  assert store.get_float(GB.TAP_FROM_ZERO_KEY) == 16 * 0.44704 and tap.action_item.highlighted
+  assert GB.tap_from_zero_value_text(store) == "16 mph"
   (reset,) = reset_rows(page)
   assert rows(page).index(reset) == rows(page).index(tap) + 1 and reset.is_visible and reset.action_item.enabled
   flag[0] = False                                                # onroad: locked, nothing written, nothing asked
   assert not reset.action_item.enabled and not tap.action_item.enabled
   reset.callback()
-  assert asked == [] and store.get_int(GB.TAP_FROM_ZERO_KEY) == 16
+  assert asked == [] and store.get_float(GB.TAP_FROM_ZERO_KEY) == 16 * 0.44704
   flag[0] = True
   reset.callback()
-  assert len(asked) == 1 and store.get_int(GB.TAP_FROM_ZERO_KEY) == 15 and not tap.action_item.highlighted
+  assert len(asked) == 1 and store.get_float(GB.TAP_FROM_ZERO_KEY) == 15 * 0.44704 and not tap.action_item.highlighted
 
 
 def test_standstill_tap_speed_reset_follows_the_tap_row(store):
@@ -485,15 +486,17 @@ def test_standstill_tap_speed_reset_follows_the_tap_row(store):
 
 def test_standstill_tap_speed_reset_writes_only_its_own_key(store):
   with pytest.raises(PermissionError):
-    GB.reset_tap_from_zero(store, "SpeedLimitController", 15)
+    GB.reset_tap_from_zero(store, "SpeedLimitController", GB.tap_from_zero_default_ms())
   with pytest.raises(PermissionError):
-    GB.reset_tap_from_zero(store, GB.TAP_FROM_ZERO_KEY, 20)     # never a value other than the existing default
+    GB.reset_tap_from_zero(store, GB.TAP_FROM_ZERO_KEY, 20 * 0.44704)     # never a value other than the existing default
   with pytest.raises(PermissionError):
-    GB.reset_tap_from_zero(store, GB.TAP_FROM_ZERO_KEY, 15, can_edit=lambda: False)
+    GB.reset_tap_from_zero(store, GB.TAP_FROM_ZERO_KEY, 15)   # 15 is the old mph default, not the m/s default
+  with pytest.raises(PermissionError):
+    GB.reset_tap_from_zero(store, GB.TAP_FROM_ZERO_KEY, GB.tap_from_zero_default_ms(), can_edit=lambda: False)
   assert store.raw(GB.TAP_FROM_ZERO_KEY) is None
-  GB.reset_tap_from_zero(store, GB.TAP_FROM_ZERO_KEY, 15, can_edit=lambda: True, long_on=lambda: True)
+  GB.reset_tap_from_zero(store, GB.TAP_FROM_ZERO_KEY, GB.tap_from_zero_default_ms(), can_edit=lambda: True, long_on=lambda: True)
   store.invalidate()
-  assert store.raw(GB.TAP_FROM_ZERO_KEY) == "15"
+  assert float(store.raw(GB.TAP_FROM_ZERO_KEY)) == 6.7056   # 15 mph in m/s, exact
 
 
 def slc_page(store, cp=None, offroad=True):

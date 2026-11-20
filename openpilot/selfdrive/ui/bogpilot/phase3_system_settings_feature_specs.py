@@ -17,14 +17,14 @@ FEATURE_SPECS = json.loads(r'''{
     "title": "AP1StandstillEngage",
     "type": "BOOL"
   },
-  "AP1TapFromZeroMph": {
-    "declared_default": "15",
-    "max": 30,
-    "min": 5,
+  "AP1TapFromZeroMs": {
+    "declared_default": "6.7056",
+    "max": 13.4112,
+    "min": 2.2222222222222223,
     "source": "BOGPILOT_PARAMS",
-    "step": 1,
+    "step": null,
     "title": "Standstill Tap Speed",
-    "type": "INT"
+    "type": "FLOAT"
   },
   "AccelerationPath": {
     "declared_default": "1",

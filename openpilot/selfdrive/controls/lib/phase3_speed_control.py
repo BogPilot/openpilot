@@ -959,9 +959,11 @@ class EngageLimitOffset:
 
 
 class EngageTapFromZero:
-  """Card / planner: AP1TapFromZeroMph (whole mph 5-30) as kph, live with a 1 s cache.
+  """Card / planner: AP1TapFromZeroMs (stored m/s; whole mph 5-30 or whole km/h 8-48 in the UI) as kph, live with a 1 s cache.
 
-  Missing, non-integer, or out-of-range values fall back to 15 mph. Any read failure does the same.
+  Missing, non-numeric, non-finite or out-of-range values fall back to 15 mph. Any read failure does the same. A whole-mph
+  value (every value migrated from the pre-t1453 AP1TapFromZeroMph) gives the same kph bit for bit as before
+  (op_long_set_speed.tap_from_zero_kph_from_ms).
   """
 
   def __init__(self, store=None, clock=time.monotonic):
@@ -979,9 +981,9 @@ class EngageTapFromZero:
         if self._store is None:
           from openpilot.common.bogpilot_store import ParamStore
           self._store = ParamStore()
-        self._store.invalidate("AP1TapFromZeroMph")
-        from opendbc.car.tesla_ap1.op_long_set_speed import tap_from_zero_kph_from_param
-        self._kph = float(tap_from_zero_kph_from_param(self._store.raw("AP1TapFromZeroMph")))
+        from opendbc.car.tesla_ap1.op_long_set_speed import TAP_FROM_ZERO_PARAM, tap_from_zero_kph_from_param
+        self._store.invalidate(TAP_FROM_ZERO_PARAM)
+        self._kph = float(tap_from_zero_kph_from_param(self._store.raw(TAP_FROM_ZERO_PARAM)))
       except Exception:
         from opendbc.car.tesla_ap1.op_long_set_speed import TAP_FROM_ZERO_KPH
         self._kph = float(TAP_FROM_ZERO_KPH)

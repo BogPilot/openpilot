@@ -217,7 +217,7 @@ class Car:
       # 11.11 ms Ratekeeper.lagging threshold and raise "System Lagging" (a soft disable). params_thread keeps the
       # snapshot fresh from here on, so later engages do not read /data in the step either.
       warm_engage_helpers(self.preap_engage_set_limit)
-      # t1394: the AP1 from-stop setting (AP1TapFromZeroMph, kph, 1 s cache) for the Pre-AP pedal from-stop capture. Warmed offroad.
+      # t1394: the AP1 from-stop setting (AP1TapFromZeroMs, stored m/s, read as kph, 1 s cache) for the Pre-AP pedal from-stop capture. Warmed offroad.
       from openpilot.selfdrive.controls.lib.phase3_speed_control import EngageTapFromZero
       self.preap_from_stop = EngageTapFromZero()
       try:

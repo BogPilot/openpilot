@@ -50,7 +50,7 @@ PROFILES = {
                "ConditionalExperimental": "1", "Phase3CEMEnabled": "1", "CESpeed": "20",
                "QOLLongitudinal": "1", "IncreasedStoppedDistance": "2", "Phase3StoppedDistanceEnabled": "1",
                "SpeedLimitController": "1", "Phase3SpeedLimitEnabled": "1", "Offset1": "7", "SLCLookaheadLower": "8",
-               "AP1TapFromZeroMph": "20"},
+               "AP1TapFromZeroMs": "8.9408"},
 }
 # Profiles seeded through ParamStore (compiled Params keys go to Params, the rest to the file store). Each of their
 # scenarios gets its own temp PARAMS_ROOT, so a seeded Params key never carries over into a later scenario.

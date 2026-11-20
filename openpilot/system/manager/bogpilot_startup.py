@@ -48,6 +48,26 @@ def _rename_migration(params, directory: Path, result: StartupResult) -> None:
       result.errors.append(f"rename-migration: {type(exc).__name__}")
 
 
+def _tap_speed_migration(params, directory: Path, result: StartupResult) -> None:
+  """t1453: one-time Standstill Tap Speed carry-over, whole mph (AP1TapFromZeroMph) -> m/s (AP1TapFromZeroMs).
+
+  Same placement rule as the rename carry-over: before clear_all (the old key is no longer registered, so clear_all
+  deletes its file) and before registered defaults (the new key's 6.7056 default would look already set).
+  """
+  migration = _optional("openpilot.system.bogpilot.legacy_migration", result)
+  migrate = getattr(migration, "migrate_tap_from_zero_ms", None)
+  done = getattr(migration, "tap_speed_migration_done", None)
+  if migrate is not None and done is not None:
+    try:
+      if not done(directory):
+        moved = migrate(params, file_root=directory)
+        if moved["status"] == "migrated":
+          result.events.append("tap-speed-migration:1")
+        result.errors.extend(f"tap-speed-migration: {e}" for e in moved["errors"])
+    except Exception as exc:
+      result.errors.append(f"tap-speed-migration: {type(exc).__name__}")
+
+
 def before_clear(params, *, file_root: Path | None = None) -> StartupResult:
   """Before manager_init's clear_all. Only the rename carry-over runs here.
 
@@ -58,6 +78,7 @@ def before_clear(params, *, file_root: Path | None = None) -> StartupResult:
   result = StartupResult()
   directory = Path(file_root or os.getenv("BOGPILOT_PARAMS_DIR", "/data/params_bogpilot"))
   _rename_migration(params, directory, result)
+  _tap_speed_migration(params, directory, result)
   return result
 
 
@@ -75,6 +96,7 @@ def before_defaults(params, *, file_root: Path | None = None,
   # Normally already done by before_clear; this pass still serves values kept only under the BogPilot file
   # store, and retries if the pre-clear pass reported an error.
   _rename_migration(params, directory, result)
+  _tap_speed_migration(params, directory, result)
   try:
     known = {k.decode() if isinstance(k, bytes) else k for k in params.all_keys()}
     result.profile_suppressed = "DoToggleResetStock" in known and params.get_bool("DoToggleResetStock")

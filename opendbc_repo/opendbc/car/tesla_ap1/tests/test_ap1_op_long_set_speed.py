@@ -544,7 +544,9 @@ def test_rolling_engage_no_limit_latches_rounded_vego(v_kph, lever):
 
 
 def test_tap_from_zero_setting_default_edges_live_and_display():
-  """AP1TapFromZeroMph: default 15, edges 5 and 30, invalid/missing/out-of-range -> 15, live change, metric text, 0x389."""
+  """Standstill Tap Speed: default 15, edges 5 and 30, invalid/missing/out-of-range -> 15, live change, metric text, 0x389.
+  parse_tap_from_zero_mph is the legacy AP1TapFromZeroMph parser (the t1453 migration's source); the stored setting is
+  now AP1TapFromZeroMs (m/s, test_tap_from_zero_ms.py)."""
   from opendbc.car.tesla_ap1.slc_raise import cruise_set_mph
   assert parse_tap_from_zero_mph(None) == 15
   assert parse_tap_from_zero_mph("") == 15
@@ -560,10 +562,11 @@ def test_tap_from_zero_setting_default_edges_live_and_display():
   assert parse_tap_from_zero_mph(30) == 30
   assert parse_tap_from_zero_mph("15") == 15
   assert tap_from_zero_kph_from_param(None) == pytest.approx(TAP_FROM_ZERO_KPH)
-  assert format_tap_from_zero_display(15, False) == "15 mph"
-  assert format_tap_from_zero_display(15, True) == "15 mph (24 km/h)"
-  assert format_tap_from_zero_display(5, True) == "5 mph (8 km/h)"
-  assert format_tap_from_zero_display(30, True) == "30 mph (48 km/h)"
+  # t1453: the value is m/s and shows in the metric toggle's own unit (km/h when metric, no mph in brackets).
+  assert format_tap_from_zero_display(15 * 0.44704, False) == "15 mph"
+  assert format_tap_from_zero_display(15 * 0.44704, True) == "24 km/h"
+  assert format_tap_from_zero_display(5 * 0.44704, True) == "8 km/h"
+  assert format_tap_from_zero_display(30 * 0.44704, True) == "48 km/h"
 
   car = Car()
   car.step(STANDBY, 0, 0.0, lever=UP)
@@ -678,7 +681,7 @@ def test_standstill_tap_with_known_limit_latches_tap_from_stop_speed(lever, crui
 
 
 def test_standstill_tap_uses_the_tap_from_stop_setting_with_known_limit():
-  """The AP1TapFromZeroMph setting (here 20 mph), not limit + offset, for a standstill tap with a known limit."""
+  """The AP1TapFromZeroMs setting (here 20 mph), not limit + offset, for a standstill tap with a known limit."""
   car = Car(offset_ms=5 * CV.MPH_TO_MS)
   car.state.op_long_tap_from_zero = lambda: 20 * CV.MPH_TO_KPH
   car.step(STANDBY, 0, 0.0, map_limit=MAP_65, lever=UP)
@@ -985,7 +988,7 @@ def test_rolling_tap_at_8_mph_then_stop_within_window_gives_8_mph_car_and_planne
 @pytest.mark.parametrize("stop_s", [0.3, 1.5])
 @pytest.mark.parametrize("tap_zero_mph", [15, 17])
 def test_rolling_tap_at_8_mph_stop_then_new_standstill_tap_gives_tap_from_stop_speed(stop_s, tap_zero_mph):
-  """After the 8 mph rolling tap and the stop, a NEW tap at the stop sets AP1TapFromZeroMph (15 default, 17 on this
+  """After the 8 mph rolling tap and the stop, a NEW tap at the stop sets AP1TapFromZeroMs (15 default, 17 on this
   car) on the car side and in the planner, whether or not the rolling tap is still inside the 0.8 s window."""
   car_ms, plan_ms = _rolling_tap_stop_then_engage(8.0, stop_s, press="tap", tap_zero_mph=tap_zero_mph)
   assert car_ms == pytest.approx(tap_zero_mph * CV.MPH_TO_MS, abs=1e-6)

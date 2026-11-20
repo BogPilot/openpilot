@@ -22,8 +22,7 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
      with no stalk seen, never after a fresh tap (see 3);
   2. moving with no limit: vEgoRaw, floored at openpilot `V_CRUISE_MIN` (8 kph);
   3. standstill after a fresh stalk UP or DN tap (the most recent press), with or without a known limit: the
-     AP1TapFromZeroMph setting (default 15 mph, whole mph
-     5-30). The planner's tip path uses the same value (`slc_raise.Ap1RaiseHoldoff.tap_from_zero_ms`; a sticky 0
+     AP1TapFromZeroMs setting (stored in m/s, default 15 mph; whole mph 5-30, or whole km/h 8-48 when metric). The planner's tip path uses the same value (`slc_raise.Ap1RaiseHoldoff.tap_from_zero_ms`; a sticky 0
      counts as no sticky, AP1 openpilot long only);
   4. standstill, no limit, no tap: nothing is latched, `bogpilot.ap1SpeedLimitUnknown` is set and the new event
      `ap1SpeedLimitUnknown` (NO_ENTRY, "BogPilot not Engaged" / "Speed Limit Unknown", same form as
@@ -87,15 +86,21 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
   converted with the reported units. `dashboardSpeedLimit` is unchanged.
 - Tests: `test_model_x_units_unknown_does_not_latch_metric_like_limit`, `test_model_x_units_known_metric_latches_kph`,
   `test_model_s_units_unknown_or_stale_does_not_latch_metric_like_limit`, `test_model_s_units_known_metric_latches_kph`
-  (`test_ap1_op_long_set_speed.py`).
+  (`test_ap1_op_long_set_speed.py`), `test_tap_from_zero_ms.py`.
 - Credits: Tinkla/BogGyver (units signal and Model X fingerprint).
 
 ### AP1: the standstill tap-from-0 speed is a user setting
-- Our behavior: `AP1TapFromZeroMph` is a BogPilot param (INT, default 15, whole mph 5-30). It is read live (1 s cache,
+- Our behavior: `AP1TapFromZeroMs` is a BogPilot param (FLOAT, m/s, default 6.7056 = 15 mph). It is read live (1 s cache,
   same as the engage-limit offset) and used as the standstill tap-from-0 latch when there is no fresh speed limit.
-  Missing, non-integer, or out-of-range values fall back to 15 (not clamped to 5 or 30). The Gas / Brake page shows
-  the row ("Standstill Tap Speed") for AP1; when the UI is metric the value also shows the km/h equivalent. A rolling
-  no-limit engage or tap still latches exact vEgo and does not use this setting.
+  Missing, non-numeric, non-finite or out-of-range values (outside 8 km/h .. 30 mph) fall back to 15 mph (not clamped).
+  The Gas / Brake page shows the row ("Standstill Tap Speed") for AP1 in whole mph (5-30, step 1) or, with the metric
+  toggle (IsMetric), whole km/h (8-48, step 1); switching units only changes the display, never the stored m/s.
+  A whole-mph value gives the same kph bit for bit as the old whole-mph setting. A rolling no-limit engage or tap still
+  latches exact vEgo and does not use this setting.
+- t1453 (Bardo): replaced `AP1TapFromZeroMph` (INT, whole mph 5-30, default 15). A saved N mph is carried over once at
+  boot, before clear_all and before registered defaults, as exactly N * 0.44704 m/s
+  (`legacy_migration.migrate_tap_from_zero_ms`); an existing m/s value is never overwritten; an invalid old value
+  (which already read as 15) is not carried, so the 15 mph default applies.
 - Why: 0.9.7 used a fixed 15 mph (and at a standstill its vEgo latch was 0). This 0.11 addition keeps that default
   and lets the driver pick 5-30 mph.
 - Tests: `test_tap_from_zero_is_15_mph_exactly`, `test_tap_from_zero_setting_default_edges_live_and_display`
@@ -162,7 +167,7 @@ Entry in the `docs/tesla/DIVERGENCES.md` style, kept in its own file so it can b
   - Car layer: on a rolling engage edge the set is limit plus offset only after a fresh stalk pull (resumeCruise,
     `SpdCtrlLvr_Stat` 2); a fresh UP/DN tap, a pull with no known limit, or no stalk seen latches exact vEgoRaw.
     The most recent fresh press wins (same 0.8 s window). At a standstill a fresh tap gives the tap-from-stop speed
-    (AP1TapFromZeroMph, default 15 mph) even with a known limit, matching the planner's tap from 0; a fresh pull (or
+    (AP1TapFromZeroMs, default 15 mph) even with a known limit, matching the planner's tap from 0; a fresh pull (or
     no stalk seen) with a known limit gives limit plus offset as before. A pull after a tap with no limit still gives
     the tap-from-stop speed, and the NO_ENTRY `ap1SpeedLimitUnknown` refusal is unchanged.
   - Planner: the stalk action is classified on the cruise engage edge (`cruise_on` rising), remembered as

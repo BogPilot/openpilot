@@ -195,3 +195,62 @@ def migrate_legacy_params(params, *, file_root: Path | None = None, params_dir: 
 def migration_done(file_root: Path | None = None) -> bool:
   from openpilot.common.bogpilot_store import bogpilot_dir
   return ((Path(file_root) if file_root is not None else bogpilot_dir()) / MARKER_NAME).exists()
+
+
+# ---- t1453: Standstill Tap Speed, whole mph (AP1TapFromZeroMph) -> m/s (AP1TapFromZeroMs) ----
+TAP_SPEED_OLD_KEY = "AP1TapFromZeroMph"
+TAP_SPEED_NEW_KEY = "AP1TapFromZeroMs"
+TAP_SPEED_MARKER_NAME = "AP1TapFromZeroMsMigrated1"
+
+
+def tap_speed_migration_done(file_root: Path | None = None) -> bool:
+  from openpilot.common.bogpilot_store import bogpilot_dir
+  return ((Path(file_root) if file_root is not None else bogpilot_dir()) / TAP_SPEED_MARKER_NAME).exists()
+
+
+def migrate_tap_from_zero_ms(params, *, file_root: Path | None = None, params_dir: Path | None = None) -> dict:
+  """One-time carry-over of the saved Standstill Tap Speed from whole mph to m/s. Never raises.
+
+  Rule: a saved AP1TapFromZeroMph of N (whole mph 5-30, the only values the old row could save) becomes exactly
+  N * 0.44704 m/s in AP1TapFromZeroMs (stored as repr text, so the float reads back bit for bit). Same rules as the
+  rename carry-over above:
+    * a value already in AP1TapFromZeroMs is never overwritten (status "kept")
+    * the old file is only read, never deleted or rewritten here (clear_all removes it later as an unknown key)
+    * an old value the old parser would have shown as the 15 mph default (missing, blank, non-integer, outside 5-30)
+      is not carried over: nothing is written and the new key keeps its registered default, which is also 15 mph
+    * the done marker is written once the key is settled (migrated, kept, or nothing to carry), so a later removal
+      of the new value (e.g. an archive restore to "unset") never re-imports a stale mph value
+  Returns {"status": "migrated" | "kept" | "absent" | "invalid" | "error", "errors": [...]}. Values are never logged.
+  """
+  from openpilot.common.bogpilot_store import ParamStore, bogpilot_dir
+  from opendbc.car.tesla_ap1.op_long_set_speed import format_ms_text, legacy_mph_valid, mph_to_ms
+  result: dict = {"status": "absent", "errors": []}
+  directory = Path(file_root) if file_root is not None else bogpilot_dir()
+  if params_dir is None:
+    params_dir = params_dir_of(params)
+  try:
+    store = ParamStore(params)
+    if _new_value_present(store, params, directory, TAP_SPEED_NEW_KEY):
+      result["status"] = "kept"
+    else:
+      raw = _read_file(Path(params_dir) / TAP_SPEED_OLD_KEY) if params_dir is not None else None
+      if raw is None:
+        raw = _read_file(directory / TAP_SPEED_OLD_KEY)
+      if raw is not None:
+        text = raw.decode("utf-8", "replace").strip()
+        if legacy_mph_valid(text):
+          _write_new_value(store, params, directory, TAP_SPEED_NEW_KEY, format_ms_text(mph_to_ms(int(text))).encode())
+          result["status"] = "migrated"
+        else:
+          result["status"] = "invalid"
+  except Exception as exc:
+    result["status"] = "error"
+    result["errors"].append(f"{TAP_SPEED_OLD_KEY}: {type(exc).__name__}")
+  if not result["errors"]:
+    try:
+      marker = directory / TAP_SPEED_MARKER_NAME
+      if not marker.exists():
+        _atomic_write(marker, b"1\n")
+    except OSError as exc:
+      result["errors"].append(f"marker: {type(exc).__name__}")
+  return result

@@ -17,7 +17,7 @@ V_CRUISE_INITIAL = 40
 PREAP_FULL_USE_SET_SPEED_LIMIT = True
 # t1394: Pre-AP pedal, no SetSpeedLimit: the first pull (steering only) and the FULL capture use the current speed rounded to the
 # display unit (NAP preap/engagement.py:243-246 @ cc39c7fa), with no 25 mph (V_CRUISE_INITIAL) floor; from a stop the driver's
-# from-stop speed (AP1TapFromZeroMph, the AP1 Standstill Tap Speed row) replaces the floor. False = the v2 behaviour (40 km/h floor).
+# from-stop speed (AP1TapFromZeroMs, the AP1 Standstill Tap Speed row) replaces the floor. False = the v2 behaviour (40 km/h floor).
 PREAP_FROM_STOP_REPLACES_FLOOR = True
 PREAP_STANDSTILL_MS = 0.1   # same bound as preap/engagement.py STANDSTILL_SPEED_MS
 

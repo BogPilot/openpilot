@@ -224,10 +224,10 @@ class TestAp1Stalk(unittest.TestCase):
     self.assertEqual(plan.slcSpeedLimitSource, "Dashboard")
 
   def test_standstill_tap_holds_setting_in_ms(self):
-    """Standstill tap latches AP1TapFromZeroMph in m/s (default 15, also 5 and 30) and later ticks never exceed it."""
+    """Standstill tap latches AP1TapFromZeroMs (stored m/s; 15 mph default, also 5 and 30) and later ticks never exceed it."""
     for mph in (15, 5, 30):
       for press in ({"up": True}, {"dn": True}):
-        store = FakeStore(AP1TapFromZeroMph=str(mph))
+        store = FakeStore(AP1TapFromZeroMs=repr(mph * 0.44704))
         ctl, sm = make(store=store), Sm()
         want = mph * MPH
         out = self.engage(ctl, sm, 0.0, 0.0, **press)

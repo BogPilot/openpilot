@@ -21,7 +21,7 @@ Rolling (not standstill):
 Fresh = pressed while engaged with nothing latched, or at most TAP_WINDOW_S before the engage edge (BogPilot
 0.9.7 slc_raise RECENT_S); the most recent of tap / pull wins, and a press is used once.
 Standstill (a tap never takes SLC here either; only a pull does):
-3. A fresh stalk UP/DN tap as the most recent press: the tap-from-stop speed (AP1TapFromZeroMph, default 15 mph,
+3. A fresh stalk UP/DN tap as the most recent press: the tap-from-stop speed (AP1TapFromZeroMs, m/s; default 15 mph,
    24.14016 kph), even with a known limit. The planner's tap from 0 gives the same set (slc_raise tap_from_zero_ms).
    A tap made while still rolling, then a stop inside the window: the vEgo at the tap (whole display unit, as
    rule 2), the same latch the
@@ -61,20 +61,32 @@ ENGAGED_STATES = ("ENABLED", "STANDSTILL", "OVERRIDE", "PRE_FAULT", "PRE_CANCEL"
 SET_MIN_KPH = 8.
 # Tinkla ACC_module.py:231-232 @501c7de clips acc_speed_kph to 170 kph.
 SET_MAX_KPH = 170.
-# Stalk tap from 0 (standstill, nothing latched). Default 15 mph, user setting AP1TapFromZeroMph (whole mph 5-30).
-# Missing, non-integer, or out-of-range values fall back to 15 (they are not clamped to 5 or 30).
+# Stalk tap from 0 (standstill, nothing latched). Default 15 mph. User setting AP1TapFromZeroMs (t1453, Bardo): stored in
+# m/s, shown and stepped in whole mph (5-30) or, with IsMetric, whole km/h (8-48). Before t1453 it was AP1TapFromZeroMph
+# (whole mph 5-30); system/bogpilot/legacy_migration.migrate_tap_from_zero_ms carries a saved mph value over exactly
+# (N mph -> N * 0.44704 m/s). Missing, non-numeric, non-finite or out-of-range values fall back to 15 mph (never clamped).
 TAP_FROM_ZERO_DEFAULT_MPH = 15
 TAP_FROM_ZERO_MIN_MPH = 5
 TAP_FROM_ZERO_MAX_MPH = 30
+# Metric steps: whole km/h. 8 km/h is openpilot's V_CRUISE_MIN (SET_MIN_KPH, the floor the latch is clamped to anyway)
+# and shows as 5 mph; 48 km/h is the last whole km/h inside 30 mph (48.28 km/h). Both edges stay inside the mph range's
+# display (8 km/h -> "5 mph", 48 km/h -> "30 mph"; 5 mph -> "8 km/h", 30 mph -> "48 km/h").
+TAP_FROM_ZERO_MIN_KPH_DISPLAY = 8
+TAP_FROM_ZERO_MAX_KPH_DISPLAY = 48
+MPH_TO_MS_EXACT = 0.44704   # international mile: 1609.344 m / 3600 s, exact in decimal
+MS_TO_KPH_EXACT = 3.6
 TAP_FROM_ZERO_KPH = TAP_FROM_ZERO_DEFAULT_MPH * CV.MPH_TO_KPH
-TAP_FROM_ZERO_PARAM = "AP1TapFromZeroMph"
-# A tap before the engage edge counts only this long: BogPilot 0.9.7 slc_raise.py:183 RECENT_S @568fea947
-# (the same stalk-to-enable window the 0.9.7 engage classifier uses).
-TAP_WINDOW_S = 0.8
+TAP_FROM_ZERO_DEFAULT_MS = TAP_FROM_ZERO_DEFAULT_MPH * MPH_TO_MS_EXACT   # 6.7056
+TAP_FROM_ZERO_PARAM = "AP1TapFromZeroMs"
+TAP_FROM_ZERO_LEGACY_MPH_PARAM = "AP1TapFromZeroMph"   # pre-t1453 key, read only by the one-time migration
+# Accepted stored range (m/s): the lower of the two unit floors (8 km/h) to the higher of the two ceilings (30 mph).
+_MS_EPS = 1e-6
+TAP_FROM_ZERO_MIN_MS = TAP_FROM_ZERO_MIN_KPH_DISPLAY / MS_TO_KPH_EXACT
+TAP_FROM_ZERO_MAX_MS = TAP_FROM_ZERO_MAX_MPH * MPH_TO_MS_EXACT
 
 
 def parse_tap_from_zero_mph(raw) -> int:
-  """Whole mph in 5-30, else the default 15. Does not clamp an invalid value to an edge."""
+  """Legacy AP1TapFromZeroMph text: whole mph in 5-30, else the default 15. Does not clamp an invalid value to an edge."""
   if raw is None:
     return TAP_FROM_ZERO_DEFAULT_MPH
   if isinstance(raw, (bytes, bytearray)):
@@ -99,16 +111,104 @@ def parse_tap_from_zero_mph(raw) -> int:
   return value
 
 
+def legacy_mph_valid(raw) -> bool:
+  """True when a legacy AP1TapFromZeroMph value is a real saved choice (whole mph 5-30), not the parser's fallback."""
+  if raw is None or isinstance(raw, bool):
+    return False
+  if isinstance(raw, (bytes, bytearray)):
+    raw = raw.decode("utf-8", "replace")
+  if isinstance(raw, str):
+    text = raw.strip()
+    if text == "" or not text.lstrip("-").isdigit():
+      return False
+    value = int(text)
+  elif isinstance(raw, int):
+    value = raw
+  elif isinstance(raw, float) and raw.is_integer():
+    value = int(raw)
+  else:
+    return False
+  return TAP_FROM_ZERO_MIN_MPH <= value <= TAP_FROM_ZERO_MAX_MPH
+
+
+def mph_to_ms(mph: int) -> float:
+  """Whole mph as the stored m/s float (N * 0.44704; the migration and the imperial -/+ use this)."""
+  return int(mph) * MPH_TO_MS_EXACT
+
+
+def kph_to_ms(kph: int) -> float:
+  """Whole km/h as the stored m/s float (N / 3.6; the metric -/+ use this)."""
+  return int(kph) / MS_TO_KPH_EXACT
+
+
+def format_ms_text(ms: float) -> str:
+  """Stored text for a m/s value: repr, so float(text) gives back the exact same float (no %g rounding drift)."""
+  return repr(float(ms))
+
+
+def parse_tap_from_zero_ms(raw) -> float:
+  """AP1TapFromZeroMs text/number as m/s: finite and within 8 km/h .. 30 mph, else the default (15 mph). Never clamped."""
+  if raw is None or isinstance(raw, bool):
+    return TAP_FROM_ZERO_DEFAULT_MS
+  if isinstance(raw, (bytes, bytearray)):
+    raw = raw.decode("utf-8", "replace")
+  try:
+    value = float(raw.strip()) if isinstance(raw, str) else float(raw)
+  except (TypeError, ValueError):
+    return TAP_FROM_ZERO_DEFAULT_MS
+  if not math.isfinite(value):
+    return TAP_FROM_ZERO_DEFAULT_MS
+  if value < TAP_FROM_ZERO_MIN_MS - _MS_EPS or value > TAP_FROM_ZERO_MAX_MS + _MS_EPS:
+    return TAP_FROM_ZERO_DEFAULT_MS
+  return value
+
+
+def tap_from_zero_kph_from_ms(ms: float) -> float:
+  """m/s setting as kph for the card / planner. A value that is a whole mph (every migrated value, every imperial edit)
+  returns N * CV.MPH_TO_KPH, bit-for-bit the kph the pre-t1453 whole-mph setting produced; a whole km/h (metric edit)
+  returns that whole km/h; anything else is ms * 3.6."""
+  ms = float(ms)
+  mph = math.floor(ms / MPH_TO_MS_EXACT + 0.5)
+  if abs(mph * MPH_TO_MS_EXACT - ms) <= _MS_EPS:
+    return mph * CV.MPH_TO_KPH
+  kph = math.floor(ms * MS_TO_KPH_EXACT + 0.5)
+  if abs(kph / MS_TO_KPH_EXACT - ms) <= _MS_EPS:
+    return float(kph)
+  return ms * MS_TO_KPH_EXACT
+
+
 def tap_from_zero_kph_from_param(raw) -> float:
-  return parse_tap_from_zero_mph(raw) * CV.MPH_TO_KPH
+  """AP1TapFromZeroMs (m/s) as kph; invalid/missing -> 15 mph (24.14016 kph)."""
+  return tap_from_zero_kph_from_ms(parse_tap_from_zero_ms(raw))
 
 
-def format_tap_from_zero_display(mph: int, is_metric: bool) -> str:
-  """Settings value: '15 mph', or '15 mph (24 km/h)' when the UI is metric."""
-  mph = int(mph)
+def tap_from_zero_display_value(ms: float, is_metric: bool) -> int:
+  """Whole display unit (half-up) for a m/s value: km/h with IsMetric, else mph. Display only, never written back."""
+  ms = float(ms)
   if is_metric:
-    return f"{mph} mph ({int(round(mph * CV.MPH_TO_KPH))} km/h)"
-  return f"{mph} mph"
+    return int(math.floor(ms * MS_TO_KPH_EXACT + 0.5))
+  return int(math.floor(ms / MPH_TO_MS_EXACT + 0.5))
+
+
+def tap_from_zero_display_bounds(is_metric: bool) -> tuple[int, int]:
+  if is_metric:
+    return TAP_FROM_ZERO_MIN_KPH_DISPLAY, TAP_FROM_ZERO_MAX_KPH_DISPLAY
+  return TAP_FROM_ZERO_MIN_MPH, TAP_FROM_ZERO_MAX_MPH
+
+
+def tap_from_zero_display_to_ms(value: int, is_metric: bool) -> float:
+  return kph_to_ms(value) if is_metric else mph_to_ms(value)
+
+
+def format_tap_from_zero_display(ms: float, is_metric: bool) -> str:
+  """Settings value for a m/s setting: '15 mph', or '24 km/h' when the UI is metric (IsMetric)."""
+  value = tap_from_zero_display_value(ms, is_metric)
+  return f"{value} km/h" if is_metric else f"{value} mph"
+
+
+# A tap before the engage edge counts only this long: BogPilot 0.9.7 slc_raise.py:183 RECENT_S @568fea947
+# (the same stalk-to-enable window the 0.9.7 engage classifier uses).
+TAP_WINDOW_S = 0.8
 
 
 def _clamp_kph(kph: float) -> float:
@@ -168,7 +268,7 @@ class OpLongSetSpeed:
     """
     # Non-finite inputs never become a set: a non-finite limit (or limit plus offset) is an unknown limit, a non-finite
     # vEgoRaw latches nothing (the engage is refused like an unknown limit at a standstill), a non-finite tap-from-stop
-    # setting is the default (as parse_tap_from_zero_mph treats an invalid value).
+    # setting is the default (as parse_tap_from_zero_ms treats an invalid value).
     v_raw = float(v_ego_raw_ms)
     v_ok = math.isfinite(v_raw)
     v_kph = max(v_raw, 0.0) * CV.MS_TO_KPH if v_ok else 0.0

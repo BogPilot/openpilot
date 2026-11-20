@@ -39,7 +39,9 @@ import sys
 # DeveloperHUD stays file-only under /data/params_bogpilot (onroad UI); not registered here.
 # Volume keys (alert volumes): AlertVolumeControl=0, *Volume=101 BogPilot defaults — never AP1 mute (0).
 BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] = {
-  "AP1TapFromZeroMph": ("PERSISTENT", "INT", "15", 1, "15"),
+  # Standstill Tap Speed in m/s (t1453: 15 mph = 6.7056). Replaces AP1TapFromZeroMph (whole mph), which is no longer
+  # registered; system/bogpilot/legacy_migration.migrate_tap_from_zero_ms carries a saved mph value over before clear_all.
+  "AP1TapFromZeroMs": ("PERSISTENT", "FLOAT", "6.7056", 1, "6.7056"),
   "AccelerationPath": ("PERSISTENT", "BOOL", "1", 2, "0"),
   "AccelerationProfile": ("PERSISTENT", "INT", "2", 0, "0"),
   "AdjacentLeadsUI": ("PERSISTENT", "BOOL", "1", 0, "0"),

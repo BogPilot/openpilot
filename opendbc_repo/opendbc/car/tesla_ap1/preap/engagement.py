@@ -47,7 +47,7 @@ STANDSTILL_SPEED_MS = 0.1
 # torque); here the hold sends ENABLE=0, which is stricter. False = option (a): refuse speed control until moving (steering only).
 PREAP_FULL_AT_STANDSTILL = True
 # t1401 (Bardo, from-stop rule). True = a standstill double pull sets the first set speed to the driver's from-stop value
-# (AP1TapFromZeroMph) on the pull itself (capture_edge + capture_from_stop on the FULL entry). The accelerator release only ends
+# (AP1TapFromZeroMs) on the pull itself (capture_edge + capture_from_stop on the FULL entry). The accelerator release only ends
 # the hold and keeps that set, including any up/down tips made while held. False = the v3 behaviour (capture
 # max(rounded vEgo, from-stop) on the accelerator release).
 PREAP_STOP_SET_AT_PULL = True
@@ -56,7 +56,7 @@ PREAP_STOP_SET_AT_PULL = True
 # units and never SetSpeedLimit; at a standstill = the from-stop value with the standstill hold. A first pull (steering, panda
 # controls_allowed) is still required. False = a tip only changes the set speed, as in v3.
 PREAP_TIP_ENGAGES_LONG = True
-# t1438 (Bardo). True = a moving pedal double pull below the from-stop speed (AP1TapFromZeroMph) sets the from-stop speed (no standstill
+# t1438 (Bardo). True = a moving pedal double pull below the from-stop speed (AP1TapFromZeroMs) sets the from-stop speed (no standstill
 # hold, the car is moving). False = it captures the rounded current speed as in v3/v5. Tips are never raised (they latch the current speed).
 PREAP_MOVING_PULL_RAISES_TO_FROM_STOP = True
 # Open choice (single-pull cancel timing): no pedal, when to cancel stock cruise armed by a single pull. True = as soon as it is seen after the pull
