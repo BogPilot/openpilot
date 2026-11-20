@@ -7,11 +7,13 @@ placement); a different screen passes its own rect to paint_gauge3().
 Bars, left to right (the order is kept on RHD):
   LEFT    friction brake pedal only, 0..1: AP1 the 0x39D rod-stroke level, Pre-AP binary press or the iBooster swap
           pedal position. Never aEgo, never a residual after subtracting regen.
-  CENTER  regen POWER from 0x108: kW = DI_torqueMotor (Nm) * DI_motorRPM * pi / 30000 (the same mechanical power as
-          tesla_ap1 regen_aware.regen_power_kw, kept signed here). Regen is negative; the bar fills as kW goes from 0 to
-          the per-model full scale (REGEN_FULLSCALE_KW_*, -55 kW). Drive power (kW > 0) and a small deadband read 0.
-  RIGHT   acceleration request, 0..1: the driver's accelerator pedal, or openpilot's accel request while openpilot
-          controls speed. The driver's pedal wins.
+  CENTER  regen TORQUE from 0x108: fill = -min(0, DI_torqueMotor) / REGEN_FULLSCALE_NM (116 Nm, the regen torque
+          ceiling seen on AP1 logs). Torque, not kW: kW = Nm * rpm is small at the low speeds where regen happens, so a
+          kW bar never filled (full-torque regen read 40-50 %). Drive torque (> 0) and a small deadband read 0. The old
+          kW path (motor_power_kw / regen_fill / REGEN_FULLSCALE_KW_*, -55 kW) stays for gauge_state(regen_kw=...) callers.
+  RIGHT   acceleration, 0..1: the driver's accelerator pedal (always wins), or, while openpilot controls speed, the
+          measured motor drive torque max(0, DI_torqueMotor) / ACCEL_FULLSCALE_NM (200 Nm), the same unit as the foot and
+          including the grade term the request leaves out. Without a valid torque it falls back to openpilot's request.
 Colours: one per bar and source. "driver" = the driver's input or openpilot not controlling speed; "op" = openpilot.
 A filled segment gets a 1 px white outline. Missing or invalid inputs give an empty segment (fail closed).
 """
@@ -59,6 +61,14 @@ REGEN_DEADBAND_KW = 1.0
 REGEN_TAU_S = 0.15
 REGEN_GAP_RESET_S = 1.0               # a longer gap between samples restarts the filter at the new value
 
+# Torque bars (UI only). Regen full scale: the regen torque ceiling seen on every AP1 drive of Nov 19 (peaks -110 to -116 Nm,
+# cold and warm alike). Accel full scale: p99 of the motor drive torque on the same drives (p99.9 233 Nm, max 270 Nm).
+REGEN_FULLSCALE_NM = 116.0
+ACCEL_FULLSCALE_NM = 200.0
+# Below this much torque a torque bar reads empty: the 0x108 decode is within about 1 Nm of the CAN frames, so coasting
+# noise never flickers a bar (under 1 % of either full scale).
+TORQUE_DEADBAND_NM = 1.0
+
 # 0x108 SNA values (tesla_ap1_can.dbc VAL_ 264): DI_torqueMotor -4096 x 0.25 Nm, DI_motorRPM -32768.
 MOTOR_TORQUE_SNA_NM = -1024.0
 MOTOR_RPM_SNA = -32768.0
@@ -93,6 +103,31 @@ def motor_power_kw(torque_nm, rpm) -> float | None:
   if tq is None or n is None or tq <= MOTOR_TORQUE_SNA_NM or n <= MOTOR_RPM_SNA:
     return None
   return tq * n * math.pi / 30000.0
+
+
+def motor_torque_value(torque_nm) -> float | None:
+  """DI_torqueMotor in Nm as a float; None when missing, not finite or SNA (-1024 Nm). Fail closed: the caller then falls
+  back to the previous behaviour (regen bar empty, accel bar from openpilot's request)."""
+  tq = _num(torque_nm)
+  return None if tq is None or tq <= MOTOR_TORQUE_SNA_NM else tq
+
+
+def regen_torque_fill(torque_nm, full_scale_nm: float = REGEN_FULLSCALE_NM, deadband_nm: float = TORQUE_DEADBAND_NM) -> float:
+  """0..1: -min(0, torque) / full_scale for regen beyond the deadband. Missing, SNA, drive torque, or a full scale that is
+  not positive -> 0."""
+  tq, fs = motor_torque_value(torque_nm), _num(full_scale_nm)
+  if tq is None or fs is None or fs <= 0.0 or tq >= -abs(deadband_nm):
+    return 0.0
+  return clamp(-tq / fs, 0.0, 1.0)
+
+
+def accel_torque_fill(torque_nm, full_scale_nm: float = ACCEL_FULLSCALE_NM, deadband_nm: float = TORQUE_DEADBAND_NM) -> float:
+  """0..1: max(0, torque) / full_scale for drive torque beyond the deadband. Missing, SNA, regen or coasting, or a full
+  scale that is not positive -> 0."""
+  tq, fs = motor_torque_value(torque_nm), _num(full_scale_nm)
+  if tq is None or fs is None or fs <= 0.0 or tq <= abs(deadband_nm):
+    return 0.0
+  return clamp(tq / fs, 0.0, 1.0)
 
 
 def regen_fill(regen_kw, full_scale_kw: float = REGEN_FULLSCALE_KW_DEFAULT, deadband_kw: float = REGEN_DEADBAND_KW) -> float:
@@ -133,22 +168,28 @@ class Gauge3:
 EMPTY3 = Gauge3()
 
 
+_UNSET = object()
+
+
 def gauge_state(brake_frac, regen_kw, accel_frac, engaged: bool, *, full_scale_kw: float = REGEN_FULLSCALE_KW_DEFAULT,
                 brake_by_op: bool = False, accel_by_op: bool = False,
-                deadband_kw: float = REGEN_DEADBAND_KW) -> Gauge3:
+                deadband_kw: float = REGEN_DEADBAND_KW, regen_nm=_UNSET) -> Gauge3:
   """The three segments from already-measured inputs. brake_frac / accel_frac: 0..1 (None or negative = missing ->
   empty). regen_kw: signed motor power in kW (negative = regen; None = missing -> empty). engaged: openpilot controls
   speed (carControl.longActive). brake_by_op / accel_by_op: that bar's input is openpilot's, not the driver's (only
-  honoured while engaged)."""
+  honoured while engaged). regen_nm: when given (even None = missing) the regen segment is the torque fill
+  (regen_torque_fill of the signed motor torque in Nm) and regen_kw is ignored."""
   engaged = bool(engaged)
-  return Gauge3(brake=frac01(brake_frac), regen=regen_fill(regen_kw, full_scale_kw, deadband_kw), accel=frac01(accel_frac),
+  regen = regen_fill(regen_kw, full_scale_kw, deadband_kw) if regen_nm is _UNSET else regen_torque_fill(regen_nm)
+  return Gauge3(brake=frac01(brake_frac), regen=regen, accel=frac01(accel_frac),
                 brake_src=OP if engaged and brake_by_op else DRIVER,
                 regen_src=OP if engaged else DRIVER,
                 accel_src=OP if engaged and accel_by_op else DRIVER)
 
 
 class RegenSmoother:
-  """First-order low-pass of the regen kW (time constant tau_s). A missing sample resets it (no stale fill)."""
+  """First-order low-pass of a signed regen value (kW, or the motor torque in Nm; time constant tau_s). A missing sample
+  resets it (no stale fill)."""
 
   def __init__(self, tau_s: float = REGEN_TAU_S):
     self.tau_s = float(tau_s)

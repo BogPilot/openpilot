@@ -73,7 +73,7 @@ class TestBars(unittest.TestCase):
   def test_driver_brake_regen(self):
     g = Rig().step(brake=True, level=0.6, tq=-100.0, rpm=5000.0)
     self.assertEqual((g.brake, g.brake_src, g.regen_src), (0.6, G3.DRIVER, G3.DRIVER))
-    self.assertAlmostEqual(g.regen, 52.35987755982988 / 55.0)
+    self.assertAlmostEqual(g.regen, 100.0 / G3.REGEN_FULLSCALE_NM)
 
   def test_engaged_op_brake_and_regen_colours(self):
     r = Rig()
@@ -121,24 +121,24 @@ class TestBars(unittest.TestCase):
   def test_regen_on_every_platform_and_fail_closed(self):
     for fp in (AP1_S, "TESLA_AP1_MODELX", PREAP):
       self.assertGreater(Rig(fp).step(tq=-60.0, rpm=4000.0).regen, 0.0, fp)
-    for tq, rpm in ((None, None), (None, 4000.0), (-60.0, None), (G3.MOTOR_TORQUE_SNA_NM, 4000.0), (-60.0, G3.MOTOR_RPM_SNA)):
+    for tq, rpm in ((None, None), (None, 4000.0), (G3.MOTOR_TORQUE_SNA_NM, 4000.0)):
       self.assertEqual(Rig().step(tq=tq, rpm=rpm).regen, 0.0, (tq, rpm))
-    self.assertEqual(Rig().step(tq=60.0, rpm=4000.0).regen, 0.0)        # drive power
+    self.assertGreater(Rig().step(tq=-60.0, rpm=None).regen, 0.0)       # the torque bar does not need the RPM
+    self.assertEqual(Rig().step(tq=60.0, rpm=4000.0).regen, 0.0)        # drive torque
 
   def test_regen_is_smoothed_and_reset_by_missing(self):
     r = Rig()
     r.step(tq=0.0, rpm=5000.0)
     g = r.step(tq=-100.0, rpm=5000.0)
-    want = 52.35987755982988 * DT / (G3.REGEN_TAU_S + DT)
-    self.assertAlmostEqual(g.regen, want / 55.0, places=6)
+    want = 100.0 * DT / (G3.REGEN_TAU_S + DT)
+    self.assertAlmostEqual(g.regen, want / G3.REGEN_FULLSCALE_NM, places=6)
     r.step(tq=None, rpm=None)
-    self.assertAlmostEqual(r.step(tq=-100.0, rpm=5000.0).regen, 52.35987755982988 / 55.0)
+    self.assertAlmostEqual(r.step(tq=-100.0, rpm=5000.0).regen, 100.0 / G3.REGEN_FULLSCALE_NM)
 
-  def test_regen_full_scale_follows_the_fingerprint(self):
-    from unittest import mock
-    with mock.patch.dict(G3.REGEN_FULLSCALE_KW, {"TESLA_AP1_MODELX": -26.17993877991494}):
-      self.assertAlmostEqual(Rig("TESLA_AP1_MODELX").step(tq=-50.0, rpm=5000.0).regen, 1.0)
-      self.assertAlmostEqual(Rig(AP1_S).step(tq=-50.0, rpm=5000.0).regen, 26.17993877991494 / 55.0)
+  def test_regen_torque_scale_is_the_same_on_every_platform(self):
+    # the torque bar has one full scale (REGEN_FULLSCALE_NM); the per-model kW table no longer scales it
+    for fp in (AP1_S, "TESLA_AP1_MODELX", PREAP):
+      self.assertAlmostEqual(Rig(fp).step(tq=-58.0, rpm=5000.0).regen, 0.5, msg=fp)
 
 
 class TestFootprint(unittest.TestCase):

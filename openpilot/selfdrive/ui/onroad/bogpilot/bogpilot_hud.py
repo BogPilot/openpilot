@@ -354,8 +354,9 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
         self.bp_arc_live = False
         self.bp_arc_failed = True
     # 3-bar pedal gauge (pedals.py / pedal_gauge3.py): carState (brakePressed, deprecated.brake = brake level,
-    # deprecated.gas = DI_pedalPos / 100), carControl accel while longActive, bogpilotCarState motor torque and RPM (regen
-    # kW, every legacy platform) and DI_brakePedalState (AP1, openpilot braking colour). aEgo is not an input.
+    # deprecated.gas = DI_pedalPos / 100), carControl accel while longActive (colour source; fill fallback), bogpilotCarState motor
+    # torque (regen and accel bars, every legacy platform; RPM no longer used) and DI_brakePedalState (AP1, openpilot braking
+    # colour). aEgo is not an input.
     self.bp_pedals = None
     pol, _rec = self._bp_extras.get(bool(getattr(ui_state, "has_longitudinal_control", False)))
     if pol.show:
