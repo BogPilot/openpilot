@@ -24,7 +24,7 @@ from opendbc.car.tesla_ap1.values import CAR, CarControllerParams
 S, X = CAR.TESLA_AP1_MODELS, CAR.TESLA_AP1_MODELX
 AV, ACT, INH = "EAC_AVAILABLE", "EAC_ACTIVE", "EAC_INHIBITED"
 E4, IDLE = "EAC_ERROR_TMP_FAULT", "EAC_ERROR_IDLE"
-STATUS = {0: INH, 1: AV, 2: ACT, 3: "EAC_FAULT", 4: "EAC_SNA"}
+STATUS = {0: INH, 1: AV, 2: ACT, 3: "EAC_FAULT", 4: "SNA"}
 ERROR = {0: IDLE, 3: "EAC_ERROR_HANDS_ON", 4: E4, 6: "EAC_ERROR_HIGH_ANGLE_REQ"}
 
 
@@ -71,7 +71,7 @@ def test_a_new_engagement_resets_the_count():
 
 
 @pytest.mark.parametrize("kw,reason", [(dict(status=INH), "status"), (dict(status="EAC_FAULT"), "eac_fault"),
-                                       (dict(status="EAC_SNA"), "status"), (dict(fault=True), "eac_fault"),
+                                       (dict(status="SNA"), "status"), (dict(fault=True), "eac_fault"),
                                        (dict(epb=0), "epb_allow"), (dict(epb=2), "epb_allow"),
                                        (dict(hands=2), "hands"), (dict(hands=3), "hands"), (dict(yield_=True), "override"),
                                        (dict(err="EAC_ERROR_HANDS_ON"), "error_code"),

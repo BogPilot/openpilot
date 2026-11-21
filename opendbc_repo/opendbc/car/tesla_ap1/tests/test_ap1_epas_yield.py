@@ -16,12 +16,12 @@ ERRORS = ["EAC_ERROR_IDLE", "EAC_ERROR_MIN_SPEED", "EAC_ERROR_MAX_SPEED", "EAC_E
           "EAC_ERROR_MAX_STEER_DELTA", "EAC_ERROR_HIGH_ANGLE_REQ", "EAC_ERROR_HIGH_ANGLE_RATE_REQ",
           "EAC_ERROR_HIGH_ANGLE_SAFETY", "EAC_ERROR_HIGH_ANGLE_RATE_SAFETY", "EAC_ERROR_HIGH_MMOT_SAFETY",
           "EAC_ERROR_HIGH_TORSION_SAFETY", "EAC_ERROR_LOW_ASSIST", "EAC_ERROR_PINION_VEL_DIFF",
-          "EAC_ERROR_EPB_INHIBIT", "EAC_ERROR_SNA"]
+          "EAC_ERROR_EPB_INHIBIT", "SNA"]
 
 
 # ---- gate -----------------------------------------------------------------------------------------
 
-@pytest.mark.parametrize("status", ["EAC_INHIBITED", "EAC_FAULT", "EAC_SNA"])
+@pytest.mark.parametrize("status", ["EAC_INHIBITED", "EAC_FAULT", "SNA"])
 def test_refusing_status_blocks_on_the_first_frame_whatever_the_error(status):
   for err in ERRORS:
     g = EpasGate()
@@ -97,7 +97,7 @@ def test_planner_active_epas_still_gets_the_planned_angle():
   assert p.steer.enabled and p.steer.angle_deg > 5.0
 
 
-@pytest.mark.parametrize("status", ["EAC_INHIBITED", "EAC_SNA"])
+@pytest.mark.parametrize("status", ["EAC_INHIBITED", "SNA"])
 @pytest.mark.parametrize("err", ["EAC_ERROR_IDLE", "EAC_ERROR_HANDS_ON", "EAC_ERROR_HIGH_ANGLE_REQ", "EAC_ERROR_HIGH_ANGLE_RATE_SAFETY"])
 def test_planner_never_commands_angle_to_a_refusing_epas(status, err):
   for lat in (True, False):

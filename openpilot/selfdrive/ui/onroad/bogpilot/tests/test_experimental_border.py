@@ -15,6 +15,7 @@ from openpilot.selfdrive.ui.onroad.bogpilot.style import TRAFFIC_RED
 from openpilot.selfdrive.ui.onroad.augmented_road_view import BORDER_COLORS
 
 PURPLE = ARC.PURPLE
+BORDER = ARC.EXPERIMENTAL_BORDER_PURPLE
 rgb = lambda c: (c.r, c.g, c.b, c.a)   # noqa: E731
 
 
@@ -37,16 +38,25 @@ class TestPurple(unittest.TestCase):
     ui_state.status = status
     ui_state.sm = {"selfdriveState": SimpleNamespace(experimentalMode=experimental)}
 
-  def test_constant_is_the_steering_arc_purple(self):
-    self.assertEqual(PURPLE, (150, 100, 255))
-    self.assertEqual(A.BORDER_EXPERIMENTAL, PURPLE + (255,))
-    self.assertEqual(A.BORDER_EXPERIMENTAL[:3], A.ARC.PURPLE)
+  def test_arc_purple_unchanged_and_border_is_dimmed_same_hue(self):
+    import colorsys
+    self.assertEqual(PURPLE, (150, 100, 255))              # the steering arc keeps its purple
+    self.assertEqual(A.ARC.EXPERIMENTAL_BORDER_PURPLE, (112, 92, 153))
+    self.assertEqual(A.BORDER_EXPERIMENTAL, BORDER + (255,))
+    hb, sb, vb = colorsys.rgb_to_hsv(*[c / 255 for c in BORDER])
+    ha, sa, va = colorsys.rgb_to_hsv(*[c / 255 for c in PURPLE])
+    self.assertLess(abs(hb - ha) * 360, 1.5)                # same hue
+    self.assertLess(sb, sa)
+    self.assertLess(vb, 0.7 * va)                           # clearly dimmer
+    self.assertGreater(vb, 0.45)                            # still distinguishable from the greys / dark UI
+    self.assertNotEqual(BORDER, tuple(A.BORDER_OVERRIDE[:3]))
+    self.assertNotEqual(BORDER, tuple(A.TRAFFIC_RED[:3]))
 
   def test_3x_every_state(self):
     for status, base in BORDER_COLORS.items():
       for exp in (False, True):
         self.setup(status, exp)
-        want = PURPLE + (255,) if (exp and status == UIStatus.ENGAGED) else rgb(base)
+        want = BORDER + (255,) if (exp and status == UIStatus.ENGAGED) else rgb(base)
         self.assertEqual(rgb(composer().border_color(base)), want, (status, exp))
 
   def test_3x_precedence(self):
@@ -55,7 +65,7 @@ class TestPurple(unittest.TestCase):
     self.assertEqual(rgb(composer(traffic=True).border_color(base)), rgb(TRAFFIC_RED))   # Traffic Mode red wins
     self.assertEqual(rgb(composer(regen=True).border_color(base)), rgb(TRAFFIC_RED))     # regen-limit red wins
     flash = composer(lkas=True).border_color(base)                                         # LKAS-fault flash wins
-    self.assertNotEqual(rgb(flash), PURPLE + (255,))
+    self.assertNotEqual(rgb(flash), BORDER + (255,))
     self.assertNotEqual(rgb(flash), rgb(TRAFFIC_RED))
     self.setup(UIStatus.ENGAGED, False)
     self.assertEqual(rgb(composer(traffic=True).border_color(base)), rgb(TRAFFIC_RED))

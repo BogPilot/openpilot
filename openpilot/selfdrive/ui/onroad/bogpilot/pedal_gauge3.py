@@ -16,7 +16,7 @@ Bars, left to right (the order is kept on RHD):
           including the grade term the request leaves out. Without a valid torque it falls back to openpilot's request.
 Power log scale (POWER_LOG_SCALE, default on): with a valid DI_motorRPM the CENTER and the openpilot RIGHT bar show motor
   shaft power P = |T * rpm| * pi / 30000 kW on a log scale, fill = ln(1 + P / P0) / ln(1 + Pmax / P0): drive Pmax 320 kW
-  (the top mark of the Model S power meter), P0 10 kW; regen Pmax REGEN_PEAK_KW (60 kW), P0 5 kW. Without a valid rpm the
+  (the top mark of the Model S power meter), P0 10 kW; regen Pmax REGEN_PEAK_KW (70 kW), P0 15 kW (25 kW fills 57 %, was 70 %). Without a valid rpm the
   torque fills above are used (fail soft). The driver's pedal on the RIGHT bar is unchanged (pedal position, linear).
 Near-max regen flash: while openpilot controls speed and regen is at the live limit, read from openpilot asking for more
   regen decel than the motor delivers while the regen has stopped growing (adapts to the car, temperature and charge; no
@@ -80,16 +80,16 @@ TORQUE_DEADBAND_NM = 1.0
 POWER_LOG_SCALE = True
 ACCEL_FULLSCALE_KW = 320.0            # drive: the top mark of the Model S power meter (20 / 40 / 80 / 160 / 320 kW)
 ACCEL_LOG_P0_KW = 10.0
-REGEN_PEAK_KW_AP1_S = 60.0            # regen: physical peak regen power per model (proposal, tune per car)
-REGEN_PEAK_KW_AP1_X = 60.0
-REGEN_PEAK_KW_PREAP = 60.0
-REGEN_PEAK_KW_DEFAULT = 60.0
+REGEN_PEAK_KW_AP1_S = 70.0            # regen: physical peak regen power per model (proposal, tune per car)
+REGEN_PEAK_KW_AP1_X = 70.0
+REGEN_PEAK_KW_PREAP = 70.0
+REGEN_PEAK_KW_DEFAULT = 70.0
 REGEN_PEAK_KW = {
   "TESLA_AP1_MODELS": REGEN_PEAK_KW_AP1_S,
   "TESLA_AP1_MODELX": REGEN_PEAK_KW_AP1_X,
   "TESLA_PREAP_MODELS": REGEN_PEAK_KW_PREAP,
 }
-REGEN_LOG_P0_KW = 5.0
+REGEN_LOG_P0_KW = 15.0
 POWER_DEADBAND_KW = 1.0               # below this a power bar reads empty (coasting noise)
 
 # Near-max regen flash (UI only, openpilot regen colour only).

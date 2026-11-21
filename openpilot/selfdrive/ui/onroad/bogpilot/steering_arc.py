@@ -8,7 +8,11 @@ own steering while lateral is off or overriding (6-frame source hysteresis) colo
 openpilot's target during an override.
 
 Signals (0.11.2 names; ordinals verified identical to the 0.9.7 recording for the replay):
-  op     angle / curvature lateral control (AP1: angleState): (curvature*v^2 - roll*g*interp(v,[5,15],[0,1])
+  op     legacy Tesla (CP.brand tesla_ap1: AP1 and Pre-AP) angle control: the commanded steering angle (carOutput
+         actuatorsOutput.steeringAngleDeg, else carControl.actuators.steeringAngleDeg) as lateral acceleration
+         (-VM.calc_curvature(angle, v, roll=0) * v^2 / maxLateralAccel), no roll term, same 17 degree span; the
+         actual wheel is not involved. Every other brand, and torque control:
+         angle / curvature lateral control (AP1: angleState): (curvature*v^2 - roll*g*interp(v,[5,15],[0,1])
          + (desired - actual)) / maxLateralAccel from controlsState.curvature / desiredCurvature, carState.vEgo,
          vehicleParameters.roll, CP.maxLateralAccel. controlsState.curvature = -VM.calc_curvature(steeringAngle): a
          RIGHT turn is positive, a left turn negative and fills LEFT (no extra negation, same as upstream).
@@ -41,6 +45,9 @@ TAP_HALF_W = 280.0
 
 WHITE = (255, 255, 255)
 PURPLE = (150, 100, 255)
+# Experimental Mode screen border only: the arc purple's hue (~259 deg) dimmed (S 40%, V 60%) so it is not glaring at night.
+# The steering arc keeps PURPLE.
+EXPERIMENTAL_BORDER_PURPLE = (112, 92, 153)
 YELLOW = (255, 200, 0)
 ORANGE = (255, 115, 0)
 DOT_GREY = (182, 182, 182)
@@ -64,6 +71,27 @@ def angle_utilization(curvature, desired_curvature, v_ego, roll, max_lat_accel):
   roll_comp = roll * GRAVITY * interp(v_ego, 5.0, 15.0, 0.0, 1.0)
   max_lat = max_lat_accel if max_lat_accel > 0.1 else DEFAULT_MAX_LAT_ACCEL
   return clamp((actual - roll_comp + (desired - actual)) / max_lat, -1.0, 1.0)
+
+
+def commanded_utilization(commanded_curvature, v_ego, max_lat_accel):
+  """Engaged arc on legacy Tesla angle control: the lateral acceleration of the steering angle OP commands, over max
+  lateral acceleration. No road-roll term and no desired-minus-actual term (the command already is the target)."""
+  max_lat = max_lat_accel if max_lat_accel > 0.1 else DEFAULT_MAX_LAT_ACCEL
+  return clamp(commanded_curvature * v_ego * v_ego / max_lat, -1.0, 1.0)
+
+
+def make_commanded_curvature_fn(cp):
+  """-> fn(angle_deg, v_ego) -> curvature in the controlsState.curvature sign convention (a LEFT command, positive
+  steeringAngleDeg, is negative and fills left), or None when the arc should keep the old source: only brand
+  tesla_ap1 (AP1 and Pre-AP) uses it. Same VehicleModel (static CarParams) as the planner's curvature<->angle map."""
+  try:
+    if cp is None or cp.brand != "tesla_ap1":
+      return None
+    from opendbc.car.vehicle_model import VehicleModel
+    vm = VehicleModel(cp)
+  except Exception:
+    return None
+  return lambda angle_deg, v: -vm.calc_curvature(math.radians(angle_deg), v, 0.0)
 
 
 def human_utilization(curvature, steering_angle_deg, v_ego, roll, max_lat_accel):
@@ -110,13 +138,31 @@ def _f(x):
   return x
 
 
+def commanded_angle_deg(car_control, car_output):
+  """Steering angle OP commands: carOutput.actuatorsOutput.steeringAngleDeg (as sent, after the car controller's
+  limits) when carOutput is present, else carControl.actuators.steeringAngleDeg. None when neither is readable."""
+  for src, name in ((car_output, "actuatorsOutput"), (car_control, "actuators")):
+    try:
+      v = float(getattr(getattr(src, name), "steeringAngleDeg"))
+    except Exception:
+      continue
+    if math.isfinite(v):
+      return v
+  return None
+
+
 def inputs_from_messages(controls_state, car_state, car_control, car_output, vehicle_parameters, max_lat_accel,
-                         status: str, experimental: bool) -> ArcInputs:
-  """`status` is "engaged" / "disengaged" / "override" (UIStatus values). vehicle_parameters may be None (roll 0)."""
+                         status: str, experimental: bool, commanded_curvature_fn=None) -> ArcInputs:
+  """`status` is "engaged" / "disengaged" / "override" (UIStatus values). vehicle_parameters may be None (roll 0).
+  commanded_curvature_fn (make_commanded_curvature_fn, legacy Tesla only): engaged angle-control arc from the commanded
+  steering angle instead of desiredCurvature minus roll compensation; the driver (human) source keeps the real wheel."""
   roll = _f(vehicle_parameters.roll) if vehicle_parameters is not None else 0.0
   v = _f(car_state.vEgo)
   curv = _f(controls_state.curvature)
-  if controls_state.lateralControlState.which() in ("angleState", "curvatureState"):
+  cmd = commanded_angle_deg(car_control, car_output) if commanded_curvature_fn is not None else None
+  if cmd is not None and controls_state.lateralControlState.which() == "angleState":
+    op = commanded_utilization(commanded_curvature_fn(cmd, v), v, max_lat_accel)
+  elif controls_state.lateralControlState.which() in ("angleState", "curvatureState"):
     op = angle_utilization(curv, _f(controls_state.desiredCurvature), v, roll, max_lat_accel)
   else:
     op = -_f(car_output.actuatorsOutput.torque) if car_output is not None else 0.0

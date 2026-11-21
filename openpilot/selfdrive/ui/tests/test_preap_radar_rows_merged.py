@@ -7,10 +7,10 @@ import unittest
 
 from opendbc.car.tesla_ap1.preap import params as preap_params
 from openpilot.selfdrive.ui.bogpilot import phase2_vehicle
-from openpilot.selfdrive.ui.bogpilot.phase2_vehicle import (AP1, LONG, PREAP, RADAR, RADAR_DONOR_TYPE, RADAR_DONOR_VIN, RADAR_FLIP,
-                                                            RADAR_OFFSET, RADAR_READ_VIN, VehicleSettings)
+from openpilot.selfdrive.ui.bogpilot.phase2_vehicle import (AP1, LONG, PREAP, RADAR, RADAR_DONOR_TYPE, RADAR_DONOR_VIN, RADAR_EPAS_TYPE,
+                                                            RADAR_FLIP, RADAR_OFFSET, RADAR_READ_VIN, VehicleSettings)
 
-GROUP = (RADAR_READ_VIN, RADAR_DONOR_TYPE, RADAR_DONOR_VIN, RADAR_FLIP, RADAR_OFFSET)
+GROUP = (RADAR_READ_VIN, RADAR_DONOR_TYPE, RADAR_EPAS_TYPE, RADAR_DONOR_VIN, RADAR_FLIP, RADAR_OFFSET)
 
 
 class TestRadarRowsMerged(unittest.TestCase):
@@ -29,7 +29,7 @@ class TestRadarRowsMerged(unittest.TestCase):
     self.model = VehicleSettings(SimpleNamespace(put_bool=lambda *a, **k: None), lambda: self.cp, lambda: self.offroad,
                                  root / "bogpilot", root / LONG)
 
-  def test_all_five_follow_one_gate_pre_ap_with_radar(self):
+  def test_all_six_follow_one_gate_pre_ap_with_radar(self):
     preap_params.set_bool(RADAR, True)
     for key in GROUP:
       self.assertTrue(self.model.visible(key), key)
@@ -46,7 +46,7 @@ class TestRadarRowsMerged(unittest.TestCase):
   def test_editable_rows_locked_while_onroad(self):
     preap_params.set_bool(RADAR, True)
     self.offroad = False
-    for key in (RADAR_DONOR_TYPE, RADAR_DONOR_VIN, RADAR_FLIP, RADAR_OFFSET):
+    for key in (RADAR_DONOR_TYPE, RADAR_EPAS_TYPE, RADAR_DONOR_VIN, RADAR_FLIP, RADAR_OFFSET):
       self.assertTrue(self.model.visible(key), key)
       self.assertFalse(self.model.enabled(key), key)
 
@@ -54,11 +54,12 @@ class TestRadarRowsMerged(unittest.TestCase):
     # The row widgets need the device UI toolkit, so read the registration order from the source.
     src = Path(phase2_vehicle.__file__).read_text()
     pos = {}
-    for key in ("RADAR_DONOR_TYPE", "RADAR_DONOR_VIN", "RADAR_FLIP", "RADAR_OFFSET"):
+    for key in ("RADAR_DONOR_TYPE", "RADAR_EPAS_TYPE", "RADAR_DONOR_VIN", "RADAR_FLIP", "RADAR_OFFSET"):
       m = re.search(r"self\.rows\[%s\] = " % key, src)
       self.assertIsNotNone(m, key)
       pos[key] = m.start()
-    self.assertLess(pos["RADAR_DONOR_TYPE"], pos["RADAR_DONOR_VIN"])
+    self.assertLess(pos["RADAR_DONOR_TYPE"], pos["RADAR_EPAS_TYPE"])
+    self.assertLess(pos["RADAR_EPAS_TYPE"], pos["RADAR_DONOR_VIN"])
     self.assertLess(pos["RADAR_DONOR_VIN"], pos["RADAR_FLIP"])
     self.assertLess(pos["RADAR_FLIP"], pos["RADAR_OFFSET"])
     self.assertEqual(len(re.findall(r"self\.rows\[RADAR_FLIP\] = self\.rows\.pop\(RADAR_FLIP\)", src)), 1)

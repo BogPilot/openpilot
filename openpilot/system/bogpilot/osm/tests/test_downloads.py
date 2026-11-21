@@ -66,6 +66,10 @@ def test_start_cancel_progress_lifecycle(tmp_path):
   assert p.active and not p.done and p.percent == 33
   mem.put("OSMDownloadLocations", "")                 # mapd empties it when finished (even if a cell was skipped)
   p = c.progress()
+  assert p.active and not p.done                      # resume.py still owns the job: it counts the cells on disk
+  assert (p.total_files, p.downloaded_files) == (R.estimate(SEL).unique_cells, 0)
+  c.jobs.clear()                                      # resume.py hand-over (nothing missing / given up)
+  p = c.progress()
   assert p.done and not p.active
   c.cancel()
   assert c.progress() == c.progress().__class__(False, False)

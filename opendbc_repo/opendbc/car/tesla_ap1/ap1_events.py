@@ -10,6 +10,8 @@ Ap1Events.update and adds each returned name as log.OnroadEvent.EventName.
   (steerUnavailable from EAC_FAULT is not rewritten).
 - EPAS INHIBITED for ~1 s while lateral is wanted (and the driver is not
   steering): steerTempUnavailableSilent.
+- Pre-AP: EPAS not ACTIVE (INHIBITED, AVAILABLE or SNA) for 2 s while engaged with
+  lateral wanted and no driver input (hands level 0): preapEpasNotSteering, a warning only.
 """
 from opendbc.car import DT_CTRL
 from opendbc.car.tesla_ap1.hso import ap1_hso_event_names, ap1_steering_pressed
@@ -35,6 +37,18 @@ PREAP_CC_NOT_ARMED = "preapCruiseNotArmed"
 # uses camera leads. The one radar warning; advisory, as NAP / Tinkla (no no-entry, soft disable or disengage).
 PREAP_RADAR_NOT_READY = "preapRadarNotReady"
 INHIBIT_ALERT_FRAMES = int(1.0 / DT_CTRL)  # ~1 s at 100 Hz
+# Pre-AP: the EPAS is not taking our angle commands (carState.bogpilot.preapEpasNotActive: INHIBITED, AVAILABLE or SNA) while
+# openpilot is engaged, carControl.latActive is on, there is no driver input (EPAS_handsOnLevel 0; level 1 already makes the EPAS
+# leave ACTIVE on a normal drive, for up to 3.4 s in the tester 1 logs) and the hands pause is not holding. That is what an
+# unpatched EPAS, or one the flasher refused, looks like: the Pre-AP EpasGate only arms after the first EAC_ACTIVE, so such an
+# EPAS keeps getting ANGLE frames it ignores and nothing else says so; after a block (armed gate) lateral is silently off the
+# same way. Debounce from both testers' logs (EPAS_sysStatus, 25 Hz, engaged, latActive, hands 0): the longest normal not-ACTIVE
+# stretch was 0.52 s (tester 1, p99 0.48 s) and 0.08 s (tester 2); 2 s is ~4x the worst. A warning only: while the EPAS is not
+# ACTIVE our frames do not move the wheel, so disengaging adds no actuation safety; the risk is a driver who thinks the car
+# steers. No NO_ENTRY, soft disable or disengage (PREAP_EPAS_INHIBIT_ALERT_20261120).
+PREAP_EPAS_NOT_STEERING = "preapEpasNotSteering"
+PREAP_EPAS_NOT_STEERING_S = 2.0
+PREAP_EPAS_NOT_STEERING_FRAMES = int(PREAP_EPAS_NOT_STEERING_S / DT_CTRL)
 # How long the "Steering only / Double pull for speed control" banner stays up in one lateral-only stretch.
 # It is a PERMANENT alert (events.py preapSteerOnly), so without this it sat on the screen for the whole drive
 # when the driver chose to stay on steering only. Long enough to read once: it says what mode you are in and what
@@ -51,6 +65,7 @@ PREAP_STEER_ONLY_FRAMES = int(PREAP_STEER_ONLY_SHOW_S / DT_CTRL)
 class Ap1Events:
   def __init__(self):
     self.inhibit_alert_frames = 0
+    self.epas_not_steering_frames = 0  # frames the Pre-AP EPAS has been not ACTIVE while lateral is wanted, no driver input
     self.steer_only_frames = 0        # frames the steering-only banner has been shown in this lateral-only stretch
 
   def update(self, names, enabled: bool, lat_active: bool, bogpilot, steer_fault_permanent: bool = False) -> list[str]:
@@ -73,6 +88,15 @@ class Ap1Events:
       self.inhibit_alert_frames = 0
     if self.inhibit_alert_frames >= INHIBIT_ALERT_FRAMES and STEER_TEMP_SILENT not in out:
       out.append(STEER_TEMP_SILENT)
+
+    # Pre-AP: EPAS not accepting steering (see PREAP_EPAS_NOT_STEERING). Any frame that breaks the condition restarts the count.
+    no_driver_input = int(getattr(bogpilot, "ap1HandsOnLevel", 0) or 0) == 0
+    if (want_lat and no_driver_input and bool(getattr(bogpilot, "preapEpasNotActive", False)) and not steer_fault_permanent):
+      self.epas_not_steering_frames += 1
+    else:
+      self.epas_not_steering_frames = 0
+    if self.epas_not_steering_frames >= PREAP_EPAS_NOT_STEERING_FRAMES and PREAP_EPAS_NOT_STEERING not in out:
+      out.append(PREAP_EPAS_NOT_STEERING)
 
     # Pre-AP: say why when the Comma Pedal goes quiet. It replaces "Cruise Mode Disabled" (cruiseState.available drops with the pedal)
     # because this is the specific cause; while engaged the event disengages immediately (the panda stops allowing controls about a

@@ -25,7 +25,7 @@ static bool tesla_preap_pedal = false;
 static int tesla_preap_pedal_bus = -1;  // G3: first bus the GAS_SENSOR (0x552) is seen on, as in NAP / BogPilot na-preap
 
 // Bosch radar GTW. tesla_preap_radar_emulation is set only when this is the Pre-AP mode and flag 256 is set.
-// Flag 128 without 256 is a no-op (position stays 0, no can_send). epas_type stays 0 (NAP inits it to 0).
+// Flag 128 without 256 is a no-op (position stays 0, no can_send). epas_type is 0 until a 0x560 record 0 sets it (NAP inits it to 0).
 static bool tesla_preap_radar_emulation = false;
 static int tesla_preap_radar_position = 0;
 static int tesla_preap_radar_epas_type = 0;
@@ -230,8 +230,8 @@ static bool tesla_preap_radar_donor_active(void) {
 // NAP preap_apply_radar_vin_msg() (tesla_preap.h:199-228). Records 0..2 only, DLC 8 (TX list). Stricter than NAP:
 // ignored without flag 256 and while engaged or armed, so the radar contract cannot change mid-engagement.
 // Record 0 also carries the 0x2A9 position (bits 1-2, 0..2) and EPAS type (bits 3-5), as in NAP f00c8cb9. The host sends
-// the Radar Donor Type as the position (0 pre-facelift S, 1 facelift S, 2 Model X; NAP NAPRadarPosition) and EPAS 0;
-// flag 128 (behind nosecone) no longer picks the position.
+// the Radar Donor Type as the position (0 pre-facelift S, 1 facelift S, 2 Model X; NAP NAPRadarPosition) and the Radar EPAS
+// Type as the EPAS type (0 Bosch L538 .. 4 Mando VGR66 Gen3, default 0; NAP NAPRadarEpasType); flag 128 (behind nosecone) no longer picks the position.
 static void tesla_preap_radar_apply_vin_msg(const CANPacket_t *msg) {
   if (tesla_preap_radar_emulation && !controls_allowed && !tesla_preap_steer_armed && (GET_LEN(msg) == 8U)) {
     const uint8_t rec = msg->data[0];

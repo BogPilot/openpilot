@@ -1030,6 +1030,18 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
       Priority.LOWEST, VisualAlert.none, AudibleAlert.none, .2),
   },
 
+  # Warning only (carState.bogpilot.preapEpasNotActive, debounced 2 s in opendbc tesla_ap1/ap1_events.py): engaged with lateral
+  # wanted and no driver input, the EPAS has not been ACTIVE (unpatched EPAS, or one the flasher refused). Our angle frames do not
+  # move the wheel then, so this does not disengage; it tells the driver the car is not steering. No NO_ENTRY / SOFT_DISABLE /
+  # IMMEDIATE_DISABLE entry on purpose (PREAP_EPAS_INHIBIT_ALERT_20261120).
+  EventName.preapEpasNotSteering: {
+    ET.WARNING: Alert(
+      "EPAS Not Steering",
+      "Steer manually. The EPAS is not accepting commands",
+      AlertStatus.userPrompt, AlertSize.mid,
+      Priority.MID, VisualAlert.steerRequired, AudibleAlert.promptRepeat, .2),
+  },
+
   EventName.preapSpeedBlocked: {
     ET.WARNING: Alert(
       "Speed control off",

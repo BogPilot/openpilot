@@ -20,10 +20,12 @@ Classes
           the non-destructive Data / Utilities actions).
   REBOOT  editable while driving; the first change on the page while the car is on shows the 0.9.7 reboot prompt
           (Steering / Lane Changes = Lateral, Driving Model, Car Selection, Vehicle Controls incl. Disable Longitudinal,
-          Wheel / Stalk Controls).
+          Wheel / Stalk Controls), and per row: Tuning Level and the Gas / Brake rows whose consumer reads the param once
+          at start (personalities, Human Following, Lead Detection Threshold). The rest of Gas / Brake (Speed Limit
+          Controller and its offsets, profiles, stopping, QOL) is ONROAD: its consumers re-read live.
   PARKED  only with the car off or in Park (downloads, pedal calibration, radar VIN read).
-  LOCKED  only with the car off (Tuning Level, Gas / Brake, destructive Data / Utilities actions, Disable Logging and
-          the Device Settings master, and every stock offroad-only action, which keeps its own stock gate).
+  LOCKED  only with the car off (destructive Data / Utilities actions and every stock offroad-only action, which keeps its
+          own stock gate). Disable Logging and the Device Settings master are ONROAD: the manager re-reads both each loop.
 
 Disable openpilot Longitudinal Control is the one REBOOT row whose consumers also read it live (the planners through
 common/bogpilot_onroad_toggles and phase3_long_stopping). While the car is on its change is staged here and applied
@@ -59,6 +61,7 @@ PAGE_CLASS: dict[str, str] = {
   "alerts": ONROAD,
   # Appearance / Navigation (bogpilot_visuals never had an offroad gate)
   "navigation_widgets": ONROAD,
+  "maps": ONROAD,                # Navigation > Maps: schedule, region picks and Download work while driving; see ROW_CLASS
   "appearance": ONROAD,
   # System Settings: page is ONROAD, the rows in ROW_CLASS below stay PARKED / LOCKED
   "system_data": ONROAD,
@@ -68,7 +71,7 @@ PAGE_CLASS: dict[str, str] = {
   "steering_tuning": REBOOT,     # 0.9.7 Lateral
   "lane_changes": REBOOT,        # 0.9.7 Lateral (lane change rows sit in lateral_settings.cc)
   "driving_model": REBOOT,       # 0.9.7 Model
-  "gas_brake": LOCKED,           # 0.9.7 Longitudinal was live; kept offroad only here (see ONROAD_CAVEATS)
+  "gas_brake": ONROAD,           # 0.9.7 Longitudinal: no lock, no prompt. Rows read once at start are REBOOT in ROW_CLASS
   # Vehicle Settings
   "car_selection": REBOOT,       # 0.9.7 Vehicles: Car Make / Model
   "vehicle_controls": REBOOT,    # 0.9.7 Vehicles: tweaks + Disable openpilot Longitudinal
@@ -78,14 +81,13 @@ PAGE_CLASS: dict[str, str] = {
 
 # Home-page controls that are not pages.
 MENU_CLASS: dict[str, str] = {
-  "tuning_level": LOCKED,        # 0.9.7 allowed it; kept offroad only (see ONROAD_CAVEATS)
+  "tuning_level": REBOOT,        # 0.9.7 allowed it live; a few consumers read the level once at start (see ROW_CLASS)
 }
 
 # Rows inside an ONROAD / REBOOT page that are stricter than their page.
 ROW_CLASS: dict[str, str] = {
   # Device Controls > Device Settings
-  "DeviceManagement": LOCKED,    # master: turning it off re-enables logging mid-drive when Disable Logging is on
-  "NoLogging": LOCKED,           # manager would stop loggerd / encoderd mid-route
+  # DeviceManagement (master) and NoLogging: ONROAD as in 0.9.7 (the manager re-reads both every loop, so they are live)
   # Data
   "data:delete": LOCKED,         # Delete Driving Data / Error Logs / Screen Recordings / Toggle Backups
   "data:rename": LOCKED,
@@ -95,21 +97,28 @@ ROW_CLASS: dict[str, str] = {
   "BogPilotDefaultsReset": LOCKED,
   "DoToggleResetStock": LOCKED,
   "ClearCaches": LOCKED,
+  # Gas / Brake rows whose consumer reads the param once at start (FollowingPlanner at planner init, radard at start):
+  # editable onroad, reboot prompt. Every other Gas / Brake row is read live (1 s ParamStore cache or toggles refresh).
+  **{k: REBOOT for k in ("CustomPersonalities", "HumanFollowing", "LeadDetectionThreshold",
+                         *(f"{p}{s}" for p in ("Aggressive", "Standard", "Relaxed")
+                           for s in ("PersonalityProfile", "Follow", "JerkAcceleration", "JerkDeceleration",
+                                     "JerkDanger", "JerkSpeedDecrease", "JerkSpeed")))},
   # Vehicle Controls rows that keep their own (stricter) gate
   "PedalCalibrate": PARKED,      # vehicle_settings.calibrate_allowed (parked / not moving)
   "TeslaRadarReadVin": PARKED,   # read_vin_blocked: car on, in Park, not engaged
+  "TeslaRadarTest": PARKED,      # preap_radar_tools.blocked_reason: car on, in Park, not engaged
+  "TeslaRadarCalibrate": PARKED,
   # Downloads (0.9.7: !started || parked)
   "downloads": PARKED,
+  # Navigation > Maps (FrogPilot OSM downloader). Map downloads are allowed while driving (pick a state at a
+  # charger, the download keeps going on the road at low priority, resumable). Delete and repair (repair reboots) stay PARKED.
+  "maps:download": ONROAD,
+  "maps:remove": PARKED,
+  "maps:repair": PARKED,
 }
 
-# Groups 0.9.7 allowed onroad that this build keeps stricter, and why (reported with the patch).
+# Groups 0.9.7 allowed onroad that this build still keeps stricter, and why (reported with the patch).
 ONROAD_CAVEATS: dict[str, str] = {
-  "gas_brake": "Gas / Brake (0.9.7 Longitudinal) changes follow distance, personalities, acceleration and stopping live "
-               "in the planner; kept offroad only until the user opts in.",
-  "tuning_level": "Tuning Level decides which saved values the live consumers honour, so a mid-drive change can "
-                  "silently swap tuned values for defaults; kept offroad only.",
-  "NoLogging": "Disable Logging (and the Device Settings master above it) makes the manager stop loggerd and encoderd "
-               "mid-route; kept offroad only.",
   "data:delete": "Delete / rename / restore / stats reset in Data and the reset / clear actions in Utilities are "
                  "destructive (0.9.7 allowed them onroad); kept offroad only.",
 }
@@ -253,6 +262,17 @@ def changed(page_key: str) -> bool:
   return True
 
 
+def row_changed(row_key: str, page_key: str | None = None) -> bool:
+  """A row saved a change. Shows the reboot prompt once per page visit when the ROW is REBOOT class and the car is on
+  (a row inside an ONROAD page, e.g. Gas / Brake personalities, or a menu control such as Tuning Level)."""
+  key = page_key or row_key
+  if not needs_reboot_prompt(row_class(row_key, page_key), is_started()) or key in _prompted:
+    return False
+  _prompted.add(key)
+  (_prompt_ui or _show_reboot_dialog)(key)
+  return True
+
+
 def on_change(page_key: str) -> Callable[..., None]:
   return lambda *_args, **_kw: changed(page_key)
 
@@ -393,6 +413,6 @@ def install(ui_state=None) -> None:
 
 
 __all__ = ["ONROAD", "REBOOT", "PARKED", "LOCKED", "CLASSES", "PAGE_CLASS", "MENU_CLASS", "ROW_CLASS", "ONROAD_CAVEATS",
-           "page_class", "row_class", "allowed", "downloads_allowed", "needs_reboot_prompt", "note", "DriveState",
-           "set_state", "state", "can_edit", "editor", "is_started", "new_visit", "set_prompt_ui", "changed", "on_change",
+           "page_class", "row_class", "row_changed", "allowed", "downloads_allowed", "needs_reboot_prompt", "note", "DriveState",
+           "set_state", "state", "can_edit", "editor", "is_started", "new_visit", "set_prompt_ui", "changed", "row_changed", "on_change",
            "reboot_now", "stage", "pending", "has_pending", "clear_pending", "apply_pending", "register_applier", "install"]

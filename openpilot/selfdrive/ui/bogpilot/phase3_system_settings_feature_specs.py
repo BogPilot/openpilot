@@ -44,6 +44,15 @@ FEATURE_SPECS = json.loads(r'''{
     "title": "Acceleration Profile",
     "type": "INT"
   },
+  "AdaptiveAccelLead": {
+    "declared_default": "0",
+    "max": null,
+    "min": null,
+    "source": "BOGPILOT_PARAMS",
+    "step": null,
+    "title": "Adaptive Accel Near Lead",
+    "type": "BOOL"
+  },
   "AdjacentLeadsUI": {
     "declared_default": "1",
     "max": null,
@@ -366,6 +375,15 @@ FEATURE_SPECS = json.loads(r'''{
     "source": "BOGPILOT_PARAMS",
     "step": null,
     "title": "Lead Detected Ahead",
+    "type": "BOOL"
+  },
+  "CSCMapCurvature": {
+    "declared_default": "0",
+    "max": null,
+    "min": null,
+    "source": "BOGPILOT_PARAMS",
+    "step": null,
+    "title": "Map Curve Speed",
     "type": "BOOL"
   },
   "CameraView": {
@@ -1124,6 +1142,15 @@ FEATURE_SPECS = json.loads(r'''{
     "title": "Map Accel/Decel to Gears",
     "type": "BOOL"
   },
+  "MapdV2": {
+    "declared_default": "0",
+    "max": null,
+    "min": null,
+    "source": "BOGPILOT_PARAMS",
+    "step": null,
+    "title": "Use mapd v2",
+    "type": "BOOL"
+  },
   "MapGears": {
     "declared_default": "0",
     "max": null,
@@ -1269,7 +1296,7 @@ FEATURE_SPECS = json.loads(r'''{
     "type": "BOOL"
   },
   "Offset1": {
-    "declared_default": "5",
+    "declared_default": "4",
     "max": 99,
     "min": -99,
     "source": "BOGPILOT_PARAMS",
@@ -1305,7 +1332,7 @@ FEATURE_SPECS = json.loads(r'''{
     "type": "INT"
   },
   "Offset5": {
-    "declared_default": "10",
+    "declared_default": "7",
     "max": 99,
     "min": -99,
     "source": "BOGPILOT_PARAMS",
@@ -1314,7 +1341,7 @@ FEATURE_SPECS = json.loads(r'''{
     "type": "INT"
   },
   "Offset6": {
-    "declared_default": "10",
+    "declared_default": "8",
     "max": 99,
     "min": -99,
     "source": "BOGPILOT_PARAMS",
@@ -1404,7 +1431,7 @@ FEATURE_SPECS = json.loads(r'''{
     "type": "BOOL"
   },
   "PreferredSchedule": {
-    "declared_default": "2",
+    "declared_default": "1",
     "max": null,
     "min": null,
     "source": "BOGPILOT_PARAMS",

@@ -36,6 +36,12 @@ REF.update(BOGPILOT_ADDED_KEYS)
 # New in 0.11; not in the 367e1fe snapshot. Replaced AP1TapFromZeroMph (whole mph, default "15").
 REQUESTED_AP1_TAP_FROM_ZERO = {"AP1TapFromZeroMs": ["6.7056", 1, "6.7056"]}
 REF.update(REQUESTED_AP1_TAP_FROM_ZERO)
+# Lead-aware accel cap for the legacy Teslas (NAP-style Adaptive Accel Limits): new in this branch, OFF by default, Standard level.
+REQUESTED_ADAPTIVE_ACCEL_LEAD = {"AdaptiveAccelLead": ["0", 2, "0"]}
+REF.update(REQUESTED_ADAPTIVE_ACCEL_LEAD)
+# mapd v2 (map curve speed preview for CSC, live speed limits during downloads): both new, OFF by default.
+REQUESTED_MAPD_V2 = {"CSCMapCurvature": ["0", 2, "0"], "MapdV2": ["0", 0, "0"]}
+REF.update(REQUESTED_MAPD_V2)
 # SLC look-ahead horizon: 5 s default, 0 = off. Fixture stays at the 367e1fe "0".
 REQUESTED_SLC_LOOKAHEAD = {"SLCLookaheadLower": ["5", 2, "0"]}
 REF.update(REQUESTED_SLC_LOOKAHEAD)
@@ -51,7 +57,17 @@ REF.update(REQUESTED_PEDALS_ON)
 # Driver Camera When In Reverse registers on, stock value on too (the 367e1fe snapshot had both off); level unchanged.
 REQUESTED_DRIVER_CAMERA_ON = {"DriverCamera": ["1", 1, "1"]}
 REF.update(REQUESTED_DRIVER_CAMERA_ON)
+# Automatically Update Maps registers Weekly (the 367e1fe snapshot had Monthly, 2); level and stock value unchanged.
+REQUESTED_MAPS_WEEKLY = {"PreferredSchedule": ["1", 0, "0"]}
+REF.update(REQUESTED_MAPS_WEEKLY)
+# Speed Limit Offsets register the BogPilot values 4/5/5/5/7/8/10 mph (slc-offset-defaults; the 367e1fe snapshot had
+# 5/5/5/5/10/10/10). Only Offset1, Offset5 and Offset6 differ; level and stock value unchanged.
+REQUESTED_SLC_OFFSETS = {"Offset1": ["4", 0, "0"], "Offset5": ["7", 0, "0"], "Offset6": ["8", 0, "0"]}
+REF.update(REQUESTED_SLC_OFFSETS)
 STOCK_011_KEYS = set(bp.BOGPILOT_STOCK_KEY_DEFAULTS)
+# Screen Timeout (Onroad) registers 10 s, the stock value (the 367e1fe snapshot had the 0.9.7 value 30).
+REQUESTED_SCREEN_TIMEOUT_ONROAD = {"ScreenTimeoutOnroad": ["10", 2, "10"]}
+REF.update(REQUESTED_SCREEN_TIMEOUT_ONROAD)
 
 
 def test_fixture_is_367e1fe():
@@ -73,6 +89,9 @@ def test_fixture_is_367e1fe():
   assert REF["PedalsOnUI"] == ["1", 1, "0"]
   assert RAW_REF["DriverCamera"] == ["0", 1, "0"]
   assert REF["DriverCamera"] == ["1", 1, "1"]
+  for key, expected in REQUESTED_SCREEN_TIMEOUT_ONROAD.items():
+    assert RAW_REF[key] == ["30", 2, "10"]  # 0.9.7 / 367e1fe snapshot stays 30
+    assert REF[key] == expected
 
 
 @pytest.mark.parametrize("key", sorted(REF))

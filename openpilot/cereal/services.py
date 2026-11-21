@@ -103,6 +103,12 @@ _services: dict[str, tuple] = {
   "bogpilotPlan": (True, 20., 5),
   "bogpilotRadarState": (True, 20., 5),
   "customReservedRawData0": (True, 0.),
+  # mapd v2 (only runs when "Use mapd v2" is on): mapdOut logged at 1 Hz (decimation 20), the rest not logged.
+  # MEDIUM queues: mapd v2.4.0 creates these with 2 MB segments (settings/const.go ServiceQueueSize); every opener
+  # must use the same size or the ring buffers disagree once they wrap.
+  "mapdOut": (True, 20., 20, QueueSize.MEDIUM),
+  "mapdExtendedOut": (False, 1., None, QueueSize.MEDIUM),
+  "mapdIn": (False, 0., None, QueueSize.MEDIUM),
 }
 SERVICE_LIST = {name: Service(*vals) for
                 idx, (name, vals) in enumerate(_services.items())}

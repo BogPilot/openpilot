@@ -126,9 +126,12 @@ class CarState(CarStateBase):
 
     ret.steeringAngleDeg = -epas_status["EPAS_internalSAS"]
     # From the steering-column angle sensor (0x00E), not the EPAS, and at a different rate. StW_AnglHP_Spd is SNA on some sensors;
-    # tesla_ap1/steer_rate.py then uses the StW_AnglHP difference so the override detector never sees SNA as a wheel rate.
+    # tesla_ap1/steer_rate.py then uses the StW_AnglHP difference so the override detector never sees SNA as a wheel rate. A column
+    # frame whose StW_AnglHP_Sens_Stat is not OK (INI / ERR / SNA) is not used at all: the rate then comes from the EPAS angle.
     stw = cp.vl["STW_ANGLHP_STAT"]
-    ret.steeringRateDeg = self.steer_rate.update(-stw["StW_AnglHP_Spd"], -stw["StW_AnglHP"], stw["MC_STW_ANGLHP_STAT"])
+    ret.steeringRateDeg = self.steer_rate.update(-stw["StW_AnglHP_Spd"], -stw["StW_AnglHP"], stw["MC_STW_ANGLHP_STAT"],
+                                                 sens_stat=stw["StW_AnglHP_Sens_Stat"], epas_angle=-epas_status["EPAS_internalSAS"],
+                                                 epas_counter=epas_status["EPAS_sysStatusCounter"])
     self.steer_rate_source = self.steer_rate.source
     ret.steeringTorque = -epas_status["EPAS_torsionBarTorque"]
     # Any non-zero hands level is driver input (override, grey border), as in

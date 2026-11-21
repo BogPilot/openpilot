@@ -172,6 +172,52 @@ class TestEveryRowHasACard(NoWindow):
       self.assertTrue(why.strip(), key)
 
 
+class TestComma4RadarEpasType(NoWindow):
+  """Pre-AP Radar EPAS Type: a comma 4 card (lowercase title, label value) that steps like the 3X row, no wrap."""
+  NATIVE = True
+
+  def test_card_title_value_and_steps(self):
+    from opendbc.car.tesla_ap1.preap import params as pp
+    from openpilot.selfdrive.ui.bogpilot import row_model as rm
+    from openpilot.selfdrive.ui.bogpilot import tuning_level as tl
+    from openpilot.selfdrive.ui.layouts.settings.bogpilot import menu_sections
+    from openpilot.selfdrive.ui.mici.layouts.settings.bogpilot.widgets import cards_for, mici_title
+    from openpilot.selfdrive.ui.ui_state import ui_state
+    tl.invalidate()
+    self.assertTrue(tl.set_level(tl.DEVELOPER))
+    pdir = Path(self.tmp) / "preap"
+    pdir.mkdir(exist_ok=True)
+    old = pp._params_dir
+    pp._params_dir = pdir
+    self.addCleanup(setattr, pp, "_params_dir", old)
+    self.addCleanup(setattr, ui_state, "CP", None)
+    pp.set_bool("TeslaRadarEnabled", True)
+    ui_state.CP = _cp("preap")
+    found = [row for section in menu_sections() for pill in section.pills for page in pill.pages if page.key == "vehicle_controls"
+             for _, row in walk_page(page) if row.title() == "Pre-AP: Radar EPAS Type"]
+    self.assertEqual(len(found), 1)
+    row = found[0]
+    self.assertEqual(row.kind, rm.STEPPER)
+    cards = cards_for(row, lambda *_: None, lambda *_: None)
+    self.assertEqual(len(cards), 1)
+    self.assertEqual(rm.card_labels(row), [(row.title(), "Bosch L538")])
+    self.assertEqual(mici_title(row.title()), "Pre-AP: radar EPAS type")
+    self.assertEqual(cards[0].text, "Pre-AP: radar EPAS type")
+    self.assertEqual(row.value(), "Bosch L538")
+    self.assertTrue(row.plus())
+    self.assertEqual(row.value(), "Bosch L405")
+    for _ in range(5):
+      row.plus()
+    self.assertEqual(row.value(), "Mando VGR66 Gen3")
+    self.assertEqual((pdir / "TeslaRadarEpasType").read_text(), "4")
+    for _ in range(6):
+      row.minus()
+    self.assertEqual(row.value(), "Bosch L538")
+    self.assertTrue(row.enabled())
+    self.policy.set_state(self.policy.DriveState(started=lambda: True, parked=lambda: False, engaged=lambda: False))
+    self.assertTrue(row.enabled())      # reboot-prompt class: editable while driving, applied at the next start
+
+
 class TestNavigation(NoWindow):
   NATIVE = True
 
@@ -231,7 +277,9 @@ class TestNavigation(NoWindow):
     self.assertTrue(self.policy.changed("steering_tuning"))       # a move on the comma 4 starts a new visit
     self.assertEqual(shown, ["steering_tuning", "steering_tuning"])
 
-  def test_tuning_level_is_offroad_only(self):
+  def test_tuning_level_onroad_as_097_with_one_reboot_prompt(self):
+    # FrogPilot 0.9.7 allowed the Tuning Level onroad; it is a REBOOT-class control (onroad_policy ROW_CLASS), so the
+    # comma 4 option list writes while the car is on and shows the reboot prompt once per page visit, like the 3X.
     from openpilot.selfdrive.ui.bogpilot import tuning_level as tl
     from openpilot.selfdrive.ui.mici.layouts.settings.bogpilot.layout import TuningLevelChoice
     root = self.build()
@@ -239,11 +287,20 @@ class TestNavigation(NoWindow):
     tl.set_level(tl.STANDARD if hasattr(tl, "STANDARD") else 1)
     choice = TuningLevelChoice(root)
     self.assertEqual(choice.options(), list(tl.LEVEL_NAMES))
-    self.policy.set_state(self.policy.DriveState(started=lambda: True, parked=lambda: True, engaged=lambda: False))
-    self.assertFalse(choice.enabled())
-    self.assertFalse(choice.choose(2))
+    self.assertEqual(self.policy.row_class("tuning_level", ""), self.policy.REBOOT)
+    prompts = []
+    self.policy.set_prompt_ui(prompts.append)
+    self.policy.new_visit()
+    self.policy.set_state(self.policy.DriveState(started=lambda: True, parked=lambda: False, engaged=lambda: False))
+    self.assertTrue(choice.enabled())
+    self.assertTrue(choice.choose(2))
+    tl.invalidate()
+    self.assertEqual(tl.effective_level(), 2)
+    self.assertTrue(choice.choose(1))
     tl.invalidate()
     self.assertEqual(tl.effective_level(), 1)
+    self.assertEqual(len(prompts), 1)                              # once per page visit
+    self.policy.set_prompt_ui(None)
     self.policy.set_state(self.policy.DriveState(started=lambda: False))
     self.assertTrue(choice.choose(2))
     tl.invalidate()

@@ -20,6 +20,13 @@ cars, no-pedal Pre-AP, toggle off, a stale / invalid modelV2 or carState, short 
 arrays, or a non-finite speed leave the cruise speed alone, release the curve brake and publish
 bogpilotPlan.valid = False so the UI blanks. ShowCSCStatus is display only and is read by the UI, never here.
 
+Map Curve Speed (CSCMapCurvature, default off, mapd v2 only): mapd v2's mapCurveSpeed (the speed for the next mapped
+curve, reported once it is within mapd's braking distance) becomes one more min() candidate on the cruise speed, rescaled
+from mapd's 2.0 m/s^2 to the learned cornering limit (never up). It applies only where the model-based CSC cap could
+(CSC on and gated active, speed control allowed, engaged, no blinker, no reset, above CRUISING_SPEED), only with a fresh
+mapdOut (<= 0.5 s), never below CRUISING_SPEED, follows mapd's value directly (no hold: it drops, rises and releases
+as soon as mapd's value does), and does not touch the curve brake, the learner or the CSC target. Toggle off (or mapd v1): nothing is read.
+
 Units: speeds m/s, road curvature 1/m (signed, daily sign convention), accelerations m/s^2.
 """
 from __future__ import annotations
@@ -42,6 +49,8 @@ TOGGLE_CACHE_S = 1.0
 # Keep the last CSC cap this long after the curve is no longer detected / in-curve,
 # so vCruise does not snap back to the SLC cap mid-curve.
 CSC_HOLD_S = 2.0
+MAP_TOGGLE = "CSCMapCurvature"
+MAP_ENGINE = "MapdV2"
 
 
 def _service_ok(sm, name) -> bool:
@@ -102,6 +111,40 @@ class Ap1CurveSpeed:
     self.road_curvature = 0.0     # bogpilotPlan.roadCurvature (1/m)
     self.v_cruise_out = 0.0       # bogpilotPlan.vCruise (m/s), after the CSC cap
     self.a_brake = 0.0            # curve brake request (<= 0, m/s^2)
+    self.map_cap = 0.0            # Map Curve Speed cap applied this tick (m/s), 0 = none
+    self._map_tick = None         # mapd_v2.SharedTick, created on first use with the toggle on
+
+  def _map_on(self) -> bool:
+    try:
+      return bool(self.store.toggle_bool(MAP_TOGGLE)) and bool(self.store.get_bool(MAP_ENGINE))
+    except Exception:
+      return False
+
+  def _map_curve_speed(self) -> float:
+    try:
+      if self._map_tick is None:
+        from openpilot.system.bogpilot.osm.mapd_v2 import SharedTick
+        self._map_tick = SharedTick()
+      d = self._map_tick.get()
+      return float(d.curve_speed) if d.fresh else 0.0
+    except Exception:
+      return 0.0
+
+  def _apply_map_cap(self, allowed: bool, v_cruise_out: float, dt_s: float) -> float:
+    """min(v_cruise_out, map cap). Only ever lowers; any problem = no cap."""
+    if not allowed or not self._map_on():
+      self.map_cap = 0.0
+      return v_cruise_out
+    from openpilot.system.bogpilot.osm.mapd_v2 import map_curve_cap
+    lat = min(self.csc.effective_lateral_acceleration(), TESLA_CSC_MAX_LAT_ACCEL)
+    cap = map_curve_cap(self._map_curve_speed(), lat)
+    if cap > 0.0:
+      cap = max(cap, float(CRUISING_SPEED))
+    # Raw follow: the cap is mapd's value this tick (0 = none). No hold; lowers, raises and releases immediately.
+    self.map_cap = cap
+    if self.map_cap > 0.0 and math.isfinite(self.map_cap):
+      return min(v_cruise_out, self.map_cap)
+    return v_cruise_out
 
   def _toggle_on(self) -> bool:
     try:
@@ -124,6 +167,7 @@ class Ap1CurveSpeed:
     self.target = v_cruise
     self.road_curvature = 0.0
     self.v_cruise_out = v_cruise
+    self.map_cap = 0.0
     if self.brake is not None:
       if reset_state:
         self.brake.reset()
@@ -211,6 +255,8 @@ class Ap1CurveSpeed:
 
     # Daily merge: a target below CRUISING_SPEED never applies; the result is never above v_cruise.
     self.v_cruise_out = min(self.target, v_cruise) if self.target >= CRUISING_SPEED else v_cruise
+    map_allowed = speed_control_ok and enabled and (not reset_state) and (v_ego > CRUISING_SPEED) and (not blinker)
+    self.v_cruise_out = self._apply_map_cap(map_allowed, self.v_cruise_out, dt_s)
 
     if reset_state:
       self.brake.reset()

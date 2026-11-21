@@ -133,5 +133,86 @@ class TestPreapRadarDonorStricter(DonorCase):
     self.assertIsNone(self.car_config("0281555300000000"))
 
 
+def ref_car_config(src: bytes, position: int, epas_type: int) -> str:
+  """The 0x2A9 bytes NAP's formula gives (no donor VIN): lo/hi patch, hi byte 3 forced to 0x10 by 0x10000000."""
+  lo = int.from_bytes(src[0:4], "little")
+  hi = int.from_bytes(src[4:8], "little")
+  lo = (lo & 0xFFFFF33F) | 0x100 | 0x440
+  hi = (hi & 0xCFFF0F0F) | 0x10000000 | (position << 4) | ((epas_type & 0xF) << 12)
+  return (lo.to_bytes(4, "little") + hi.to_bytes(4, "little")).hex()
+
+
+SOURCES = ("0281555300000000", "0a90555300001700", "0290555300001700", "ffffffffffffffff", "0000000000000000", "5a5a5a5a5a5a5a5a")
+
+
+class TestPreapRadarEpasType(DonorCase):
+  """Radar EPAS Type (NAP nap-dev NAPRadarEpasType, 0 Bosch L538 .. 4 Mando VGR66 Gen3): record 0 bits 3-5 to 0x2A9 bits 12-15."""
+
+  def test_each_type_lands_in_the_epas_nibble(self):
+    for epas_type in range(5):
+      send_donor_config("", position=0, epas_type=epas_type)
+      self.assertEqual(self.car_config("0281555300000000"), "42855553" + "00" + f"{epas_type:x}0" + "0010", epas_type)
+
+  def test_each_type_with_each_position_matches_the_nap_formula(self):
+    for position in range(3):
+      for epas_type in range(5):
+        send_donor_config("", position=position, epas_type=epas_type)
+        for src in SOURCES:
+          self.assertEqual(self.car_config(src), ref_car_config(bytes.fromhex(src), position, epas_type), (position, epas_type, src))
+
+  def test_input_mask_stays_3_bits(self):
+    # Record 0 byte 2 bits 3-7 all tried by hand (donor_config masks to 3 bits like the host): the panda keeps the low 3 bits only.
+    ones = bytes.fromhex("ffffffffffffffff")
+    for field in range(32):
+      self.assertEqual(l.set_safety_hooks(SAFETY_TESLA, self.PARAM), 0)
+      l.init_tests()
+      l.set_controls_allowed(False)
+      rec0 = bytes((0, 1, 1 | (field << 3), 0, 0, 0x20, 0x20, 0x20))
+      for r in (rec0, *donor_config("")[1:]):
+        l.safety_tx_hook(pkt(0x560, r, 0))
+      got = bytes.fromhex(self.car_config("ffffffffffffffff"))
+      self.assertEqual(got.hex(), ref_car_config(ones, 0, field & 7), field)
+      self.assertEqual(got[5] >> 4, field & 7, field)
+      self.assertEqual(got[7], 0xDF, field)                 # all-ones in: top byte is (0xFF & 0xCF) | 0x10 whatever the field, so nothing above the 4-bit field was touched
+
+  def test_epas_type_resets_to_0_on_init(self):
+    send_donor_config("", epas_type=4)
+    self.assertEqual(l.set_safety_hooks(SAFETY_TESLA, self.PARAM), 0)
+    l.init_tests()
+    send_donor_config("", epas_type=0)
+    self.assertEqual(self.car_config("0281555300000000"), "4285555300000010")
+
+  def test_epas_type_with_a_donor_vin_keeps_4wd_patch_and_the_nibble(self):
+    send_donor_config(DONOR_4WD, position=1, epas_type=4)
+    self.assertEqual(self.car_config("0281555300000000"), "4a85555310400010")
+
+  def test_config_ignored_while_controls_allowed_keeps_the_old_epas_type(self):
+    send_donor_config("", epas_type=2)
+    l.set_controls_allowed(True)
+    send_donor_config("", epas_type=4)
+    self.assertEqual(self.car_config("0281555300000000"), "4285555300200010")
+
+
+class TestPreapRadarDefaultFrameUnchanged(DonorCase):
+  """Default EPAS type 0 gives the bytes builds without the setting gave (literal table, also run against the live tip's panda)."""
+  GOLDEN = {
+    ("0281555300000000", 0): "4285555300000010", ("0281555300000000", 1): "4285555310000010",
+    ("0281555300000000", 2): "4285555320000010", ("0a90555300001700", 0): "4a95555300001710",
+    ("0290555300001700", 0): "4295555300001710",
+    ("ffffffffffffffff", 0): "7ff7ffff0f0fffdf", ("5a5a5a5a5a5a5a5a", 2): "5a575a5a2a0a5a5a",
+  }
+
+  def test_default_type_0_frames_are_the_pre_setting_bytes(self):
+    for (src, position), want in self.GOLDEN.items():
+      send_donor_config("", position=position)          # epas_type defaults to 0 in the record
+      self.assertEqual(self.car_config(src), want, (src, position))
+
+  def test_no_record_at_all_is_type_0(self):
+    # A host that never sets the field (an older host build) still gets 0.
+    for r in (bytes((0, 1, 1, 0, 0, 0x20, 0x20, 0x20)), *donor_config("")[1:]):
+      l.safety_tx_hook(pkt(0x560, r, 0))
+    self.assertEqual(self.car_config("0281555300000000"), "4285555300000010")
+
+
 if __name__ == "__main__":
   unittest.main()

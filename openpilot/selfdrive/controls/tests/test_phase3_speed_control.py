@@ -91,8 +91,8 @@ def run(ctl, sm, v_cruise, v_ego, n=1, **kw):
 
 class TestOffsets(unittest.TestCase):
   def test_imperial_bands_and_25_edge(self):
-    t = toggles()  # registry defaults 5,5,5,5,10,10,10 mph
-    self.assertAlmostEqual(sc.offset_for(24 * MPH, t), 5 * MPH)
+    t = toggles()  # registry defaults (BogPilot) 4,5,5,5,7,8,10 mph
+    self.assertAlmostEqual(sc.offset_for(24 * MPH, t), 4 * MPH)
     self.assertAlmostEqual(sc.offset_for(25 * MPH, t), 5 * MPH)
     t2 = toggles(Offset1="1", Offset2="2", Offset5="7", Offset7="9")
     self.assertAlmostEqual(sc.offset_for(25 * MPH, t2), 2 * MPH)   # 25 mph is band 2, not 1 (0.9.7 fix)
@@ -103,7 +103,7 @@ class TestOffsets(unittest.TestCase):
   def test_metric_bands_and_units(self):
     t = toggles(IsMetric="1", Offset3="8")
     self.assertAlmostEqual(sc.offset_for(50 / 3.6, t), 8 / 3.6)   # stored km/h
-    self.assertAlmostEqual(sc.offset_for(29 / 3.6, t), 5 / 3.6)
+    self.assertAlmostEqual(sc.offset_for(29 / 3.6, t), 4 / 3.6)   # band 1 unsaved: the registry default 4
 
   def test_bounds_and_invalid(self):
     self.assertAlmostEqual(sc.clip_offset_ms(500 * MPH, False), 99 * MPH)
@@ -168,7 +168,7 @@ class TestAp1Stalk(unittest.TestCase):
   def test_pull_engage_follows_slc(self):
     ctl, sm = make(), Sm()
     self.assertAlmostEqual(self.engage(ctl, sm, 20.0, 45 * MPH, rwd=True), 50 * MPH, places=4)
-    self.assertAlmostEqual(run(ctl, sm, 10.0, 20.0, limit=55 * MPH, n=3), 65 * MPH, places=4)    # follows a raise (55 + 10 band)
+    self.assertAlmostEqual(run(ctl, sm, 10.0, 20.0, limit=55 * MPH, n=3), 62 * MPH, places=4)    # follows a raise (55 + 7 band)
 
   def test_tip_engage_is_sticky_through_limit_changes(self):
     ctl, sm = make(), Sm()

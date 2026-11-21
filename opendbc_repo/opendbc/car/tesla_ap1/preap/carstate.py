@@ -40,9 +40,12 @@ from opendbc.car.tesla_ap1.preap.cruise import (SPD_CTRL_CANCEL, SPD_CTRL_MAIN, 
 from opendbc.car.tesla_ap1.preap import ibooster as IBST
 from opendbc.car.tesla_ap1.preap.engagement import Decision, PreAPEngagement, preap_epas_refusing, preap_steer_drop
 from opendbc.car.tesla_ap1.preap.params import PreApParamKeys, get_bool, set_bool, set_float  # noqa: F401
+from opendbc.car.tesla_ap1.preap.stalk_retrofit import StalkRetrofitDetector
+from opendbc.car.tesla_ap1.stalk_follow import dtr_sample, follow_seconds, parse_stalk_raw
 from opendbc.car.tesla_ap1.preap.pedal_feedback import PedalFeedback
 
 OPTIONAL = float('nan')   # 0.9.7 frequency 0 (never marks the message missing)
+PREAP_EPAS_NOT_ACTIVE = ("EAC_INHIBITED", "EAC_AVAILABLE", "SNA")   # carState.bogpilot.preapEpasNotActive (DBC VAL_ 880 names)
 ButtonType = structs.CarState.ButtonEvent.Type
 
 
@@ -119,6 +122,13 @@ class PreApCarState(CarStateBase):
     self.preap_last_pull_ms = -1_000_000
     self._enable_request = False
     self.stock_ap_active = False
+    # AP1 follow-distance twist is absent on a stock Pre-AP stalk. Latches per drive after two distinct detents (no menu row).
+    self.stalk_follow = None
+    self.stalk_retrofit = StalkRetrofitDetector()
+    # A saved detection (written once at the first latch of an earlier drive) skips detection: read once here, at init, not in the step.
+    self._retrofit_saved = get_bool(PreApParamKeys.STALK_RETROFIT_DETECTED)
+    if self._retrofit_saved:
+      self.stalk_retrofit.latch()
     # Fresh posted limit for the SetSpeedLimit engage set (m/s, 0 = unknown). Read by the card on the enable edge.
     self.engage_limit_ms = 0.0
 
@@ -228,9 +238,12 @@ class PreApCarState(CarStateBase):
     self.eac_status = self.can_define.dv["EPAS_sysStatus"]["EPAS_eacStatus"].get(int(epas_status["EPAS_eacStatus"]), None)
     ret.steeringAngleDeg = -epas_status["EPAS_internalSAS"]
     # StW_AnglHP_Spd raw 16383 is SNA (+4095.5 deg/s) on some steering-angle sensors; tesla_ap1/steer_rate.py falls back to
-    # the StW_AnglHP difference (same frame, same sensor) so the override detector never sees SNA as a wheel rate.
+    # the StW_AnglHP difference (same frame, same sensor) so the override detector never sees SNA as a wheel rate. A column
+    # frame whose StW_AnglHP_Sens_Stat is not OK (INI / ERR / SNA) is not used at all: the rate then comes from the EPAS angle.
     stw = cp.vl["STW_ANGLHP_STAT"]
-    ret.steeringRateDeg = self.steer_rate.update(-stw["StW_AnglHP_Spd"], -stw["StW_AnglHP"], stw["MC_STW_ANGLHP_STAT"])
+    ret.steeringRateDeg = self.steer_rate.update(-stw["StW_AnglHP_Spd"], -stw["StW_AnglHP"], stw["MC_STW_ANGLHP_STAT"],
+                                                 sens_stat=stw["StW_AnglHP_Sens_Stat"], epas_angle=-epas_status["EPAS_internalSAS"],
+                                                 epas_counter=epas_status["EPAS_sysStatusCounter"])
     self.steer_rate_source = self.steer_rate.source
     ret.steeringTorque = -epas_status["EPAS_torsionBarTorque"]
     ret.steeringPressed = ap1_driver_input(self.hands_on_level)
@@ -438,6 +451,30 @@ class PreApCarState(CarStateBase):
 
     self.msg_stw_actn_req = copy.copy(cp.vl["STW_ACTN_RQ"])
 
+    # Follow-distance twist (DTR_Dist_Rq on the same STW_ACTN_RQ). Inert on a stock constant-0 field. Until the
+    # retrofit detector latches, stalk_follow stays unset so personality sync leaves Traffic Mode and the icon alone.
+    stw = cp.vl.get("STW_ACTN_RQ")
+    ts_map = getattr(cp, "ts_nanos", {}).get("STW_ACTN_RQ", {})
+    det = self.stalk_retrofit
+    if isinstance(stw, dict) and isinstance(ts_map, dict):
+      dtr_ts = ts_map.get("DTR_Dist_Rq", 0)
+      # Detection runs only until the first latch (or a saved flag) and only when a new 10 Hz frame arrives.
+      if det.wants(dtr_ts):
+        det.observe(dtr_sample(stw.get("DTR_Dist_Rq"), dtr_ts), dtr_ts)
+    else:
+      stw, dtr_ts = None, None
+    if det.latched:
+      if not self._retrofit_saved:
+        self._retrofit_saved = True              # once; the write is queued to the params thread (no file IO here)
+        set_bool(PreApParamKeys.STALK_RETROFIT_DETECTED, True)
+      raw = dtr_sample(stw.get("DTR_Dist_Rq"), dtr_ts) if stw is not None else None
+      self.stalk_follow = parse_stalk_raw(raw, self.stalk_follow)
+      stalk_follow_s = follow_seconds(self.stalk_follow)
+    else:
+      self.stalk_follow = None
+      stalk_follow_s = 0.0
+    fp_ret.ap1StalkFollowS = float(stalk_follow_s)
+
     # Continuous stalk levels for the SLC hand-over (same carState fields AP1 publishes).
     fp_ret.spdCtrlLvr = max(0, min(255, int(self.spd_ctrl_lvr)))
     fp_ret.accelPressed = bool(self.button_states.get(ButtonType.accelCruise, False))
@@ -453,6 +490,9 @@ class PreApCarState(CarStateBase):
     fp_ret.ap1MotorTorqueNm = float(di_torque1["DI_torqueMotor"])
     fp_ret.ap1MotorRpm = float(di_torque1["DI_motorRPM"])
     fp_ret.preapPedalUnavailable = bool(self.pedal_unavailable)
+    # EPAS not taking angle commands (raw, every frame): INHIBITED, AVAILABLE or SNA. FAULT is left out (eac_fault, its own fault
+    # path). ap1_events.py debounces it into preapEpasNotSteering only while lateral is wanted and the driver is not steering.
+    fp_ret.preapEpasNotActive = self.eac_status in PREAP_EPAS_NOT_ACTIVE
     fp_ret.preapPedalFailCause = int(self.pedal_fail_cause) if self.pedal_unavailable else 0
     # Pedal longitudinal wanted but the Comma Pedal stream is missing, or its counter has not moved for PEDAL_TIMEOUT_MS (stale).
     # The panda requires the 0x552 stream (steering stops with it), so openpilot says "Pedal Not Responding" (ap1_events.py).

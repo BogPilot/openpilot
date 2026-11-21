@@ -51,6 +51,11 @@ class PreApParamKeys:
   # 1 facelift Model S, 2 Model X. NAP NAPRadarPosition (nap_conf.py:41,256-261; sunnypilot nap.py:287-288 @ 7eb09d2a7).
   # Separate from Radar Behind Nosecone. Read once when the car starts; a missing or bad value is 0.
   RADAR_DONOR_TYPE = "TeslaRadarDonorType"
+  # Donor radar EPAS (steering rack) type sent to the panda in 0x560 record 0 (the 0x2A9 EPAS field): 0 Bosch L538 (default),
+  # 1 Bosch L405, 2 Mando FGR64, 3 Mando VGR66, 4 Mando VGR66 Gen3. NAP nap-dev NAPRadarEpasType (nap_conf.py radar_epas_type,
+  # clamp 0..4; ui layouts/settings/nap.py "Donor EPAS Type"; wiki hardware/bosch-radar). Read once when the car starts; a missing
+  # or bad value is 0, which sends the same 0x2A9 bytes as before this setting existed.
+  RADAR_EPAS_TYPE = "TeslaRadarEpasType"
   # Read Radar VIN button (preap/radar_vin_read.py): request flag set by the UI, cleared by the reader; status words only
   # (never the VIN). Neither is backed up.
   RADAR_READ_VIN = "TeslaRadarReadVin"
@@ -77,6 +82,12 @@ class PreApParamKeys:
   # Read once when the car starts (card and plannerd). File-backed like the keys above: no libparams key, so a missing file is
   # the default and a saved choice is never overwritten.
   AUTO_SPEED = "TeslaPreApAutoSpeed"
+  # AP1 follow-distance stalk retrofit detected on this car (preap/stalk_retrofit.py). Hidden: no menu row, not a toggle, not in the
+  # settings backup or any defaults list. Default 0. The car writes 1 once, when the detector first latches (through the StepCache
+  # thread, never file IO in the 100 Hz step); at startup a 1 skips detection and the dial is read from the first frame. Cleared
+  # by Reset Hardware Settings (preap/hw_tools.py). File-backed like every key above: it is NOT in libparams_c.so, so the
+  # libparams table needs no rebuild (adding it there would, and the July prebuilt would refuse the unknown key at boot).
+  STALK_RETROFIT_DETECTED = "PreAPStalkRetrofitDetected"
 
 
 # Safe defaults (match NotAutopilot DEFAULT_CONFIG).
@@ -100,6 +111,7 @@ DEFAULTS = {
   PreApParamKeys.RADAR_BEHIND_NOSECONE: False,
   PreApParamKeys.RADAR_DONOR_VIN: "",
   PreApParamKeys.RADAR_DONOR_TYPE: 0,
+  PreApParamKeys.RADAR_EPAS_TYPE: 0,
   PreApParamKeys.RADAR_READ_VIN: False,
   PreApParamKeys.RADAR_VIN_READ_STATUS: "",
   PreApParamKeys.RADAR_IGNORE_HW_FAIL: False,
@@ -107,6 +119,7 @@ DEFAULTS = {
   PreApParamKeys.RADAR_FLIP: False,
   PreApParamKeys.RADAR_OFFSET: 0.0,
   PreApParamKeys.AUTO_SPEED: False,
+  PreApParamKeys.STALK_RETROFIT_DETECTED: False,
 }
 
 # Overridable in tests.
@@ -351,6 +364,24 @@ def radar_donor_type() -> int:
   bad file ("inf", "1.5") can never raise or round into a valid type."""
   text = _read_text(PreApParamKeys.RADAR_DONOR_TYPE)
   return int(text) if text in ("0", "1", "2") else 0
+
+
+RADAR_EPAS_TYPE_MAX = 4   # Bosch L538, Bosch L405, Mando FGR64, Mando VGR66, Mando VGR66 Gen3
+
+
+def clamp_radar_epas_type(value) -> int:
+  """0..RADAR_EPAS_TYPE_MAX for an int (bool and anything else that is not an int is 0)."""
+  if type(value) is not int:
+    return 0
+  return max(0, min(RADAR_EPAS_TYPE_MAX, value))
+
+
+def radar_epas_type() -> int:
+  """TeslaRadarEpasType clamped to 0..4, as NAP's radar_epas_type max(0, min(4, ...)). Whole-number text only: missing, empty,
+  "1.5", "inf", "nan" or other text is 0, so a bad file can never raise or round into a type."""
+  text = _read_text(PreApParamKeys.RADAR_EPAS_TYPE)   # surrounding whitespace is already stripped
+  digits = text[1:] if text.startswith("-") else text
+  return clamp_radar_epas_type(int(text)) if digits.isascii() and digits.isdigit() else 0
 
 
 def get_str(key: str, default: str | None = None) -> str:

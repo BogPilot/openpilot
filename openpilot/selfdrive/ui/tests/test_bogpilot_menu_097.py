@@ -12,7 +12,7 @@ from pathlib import Path
 EXPECTED_ROWS = (
   ("alerts_sounds", "Alerts and Sounds", ("MANAGE",)),
   ("driving", "Driving Controls", ("DRIVING MODEL", "GAS / BRAKE", "STEERING")),
-  ("navigation", "Navigation", ("NAVIGATION",)),
+  ("navigation", "Navigation", ("NAVIGATION", "MAPS")),
   ("system", "System Settings", ("DATA", "DEVICE CONTROLS", "UTILITIES")),
   ("theme", "Appearance", ("APPEARANCE",)),
   ("vehicle", "Vehicle Settings", ("VEHICLE SETTINGS", "WHEEL CONTROLS")),
@@ -112,7 +112,7 @@ class TestMapping(MenuCase):
   def test_dropped_pills_are_not_offered(self):
     from openpilot.selfdrive.ui.layouts.settings.bogpilot import menu_sections
     labels = {p.label for s in menu_sections() for p in s.pills}
-    self.assertFalse(labels & {"MAP DATA", "THEME"})
+    self.assertFalse(labels & {"MAP DATA", "THEME"})        # Map Data is back as MAPS; Theme stays folded into Appearance
 
   def test_every_page_is_real_and_reachable_exactly_once(self):
     from openpilot.selfdrive.ui.layouts.settings.bogpilot import menu_sections, working_pages
@@ -120,7 +120,7 @@ class TestMapping(MenuCase):
     self.assertEqual(len(menu), len(set(menu)))
     existing = {pg.key for group in working_pages().values() for pg in group}
     self.assertEqual(existing - set(menu), set(), "a working page has no pill")
-    self.assertEqual(set(menu) - existing, {"navigation_widgets", "appearance"})
+    self.assertEqual(set(menu) - existing, {"navigation_widgets", "appearance", "maps"})
     for s in menu_sections():
       for p in s.pills:
         for pg in p.pages:
@@ -177,7 +177,7 @@ class TestTuningLevel(MenuCase):
     self.assertFalse(self.tl.is_confirmed())
     full = self.shown(nav, 3)
     self.assertEqual(tuple(full), tuple(r[0] for r in EXPECTED_ROWS))
-    self.assertEqual(sum(len(v) for v in full.values()), 11)
+    self.assertEqual(sum(len(v) for v in full.values()), 12)
     # a saved but never confirmed level is ignored: still Developer
     self.save_level(0, confirmed=False)
     self.assertEqual(self.tl.effective_level(), 3)
@@ -512,12 +512,12 @@ class TestMenuNative(NativeCase):
     nav = self.menu.navigation
     expect = {
       "MANAGE": ("manage",), "DRIVING MODEL": ("driving_model", "driving_model"), "GAS / BRAKE": ("gas_brake", "gas_brake"),
-      "STEERING": ("steering",), "NAVIGATION": ("navigation", "navigation_widgets"), "DATA": ("data", "system_data"),
+      "STEERING": ("steering",), "NAVIGATION": ("navigation", "navigation_widgets"), "MAPS": ("maps", "maps"), "DATA": ("data", "system_data"),
       "DEVICE CONTROLS": ("device_controls", "system_device"), "UTILITIES": ("utilities", "system_utilities"),
       "APPEARANCE": ("appearance", "appearance"), "VEHICLE SETTINGS": ("vehicle_settings",),
       "WHEEL CONTROLS": ("wheel_controls", "stalk_controls"),
     }
-    self.assertEqual(len(expect), 11)
+    self.assertEqual(len(expect), 12)
     self.draw()
     for row in self.home_rows()[1:]:
       for label in [p.label for p in nav.pills_of(next(s for s in nav.sections if s.title == row.title))]:

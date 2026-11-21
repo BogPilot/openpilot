@@ -173,10 +173,10 @@ class GatedValueStepAction(GatedMultipleButtonAction):
 
   def __init__(self, buttons, button_width: int, value_index: int, selected_index: int | None = None,
                callback: Callable | None = None, enabled: Enabled = True, selected_source: Callable[[], int] | None = None,
-               hint=None, highlight: Callable[[], bool] | None = None):
+               hint=None, highlight: Callable[[], bool] | None = None, button_widths: Sequence[int] | None = None):
     self._no_selection = selected_index is None
     super().__init__(buttons, button_width, -1 if self._no_selection else selected_index, callback=callback,
-                     enabled=enabled, selected_source=selected_source)
+                     enabled=enabled, selected_source=selected_source, button_widths=button_widths)
     self.value_index = value_index
     self._hint = hint
     self._highlight = highlight
@@ -200,6 +200,8 @@ class GatedValueStepAction(GatedMultipleButtonAction):
       return False   # never raise from render; an unknown value is not highlighted
 
   def value_rect(self, rect) -> rl.Rectangle:
+    if self._button_widths is not None:   # per-pill widths (a long value label)
+      return self.button_rects(rect)[self.value_index]
     x = rect.x + self.value_index * (self.button_width + RIGHT_ITEM_PADDING)
     return rl.Rectangle(x, rect.y + (rect.height - BUTTON_HEIGHT) / 2, self.button_width, BUTTON_HEIGHT)
 
@@ -230,8 +232,8 @@ def gated_value_step_item(title, description, value, on_minus: Callable[[], obje
                           callback: Callable[[int], object] | None = None, selected_index: int | None = None,
                           selected_source: Callable[[], int] | None = None, button_width: int = STEP_BUTTON_WIDTH,
                           icon: str = "", enabled: Enabled = True, default_text=None,
-                          is_default: Callable[[], bool] | None = None, translate: Callable[[str], str] | None = None
-                          ) -> ListItem:
+                          is_default: Callable[[], bool] | None = None, translate: Callable[[str], str] | None = None,
+                          button_widths: Sequence[int] | None = None) -> ListItem:
   """One value row: [leading...] [-] [value] [+] [trailing...], gated like gated_multiple_button_item.
 
   `value` is the live value text (str or callable); the value button ignores taps. Either pass `callback(index)` (the
@@ -256,7 +258,7 @@ def gated_value_step_item(title, description, value, on_minus: Callable[[], obje
   highlight = None if is_default is None else (lambda: not is_default())
   action = GatedValueStepAction(buttons, button_width, value_index, selected_index,
                                 callback=callback if callback is not None else dispatch, enabled=enabled,
-                                selected_source=selected_source, hint=hint, highlight=highlight)
+                                selected_source=selected_source, hint=hint, highlight=highlight, button_widths=button_widths)
   return ListItem(title=title, description=description, icon=icon, action_item=action)
 
 

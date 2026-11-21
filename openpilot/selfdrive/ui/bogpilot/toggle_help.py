@@ -199,6 +199,15 @@ _add("TeslaRadarDonorType", "Pre-AP: Radar Donor Type",
      note="Shown only while Bosch Radar is on. Press to step through the three types. Takes effect the next time the car starts. "
           + _OFFROAD,
      default="Model S pre-facelift")
+_add("TeslaRadarEpasType", "Pre-AP: Radar EPAS Type",
+     "The steering rack (EPAS) of the car the retrofit Bosch radar came from: Bosch L538 (the default), Bosch L405, Mando FGR64, "
+     "Mando VGR66 or Mando VGR66 Gen3. The panda tells the radar this rack type. It must match the donor car: a wrong value can "
+     "make the radar stop updating after about 5 seconds. The default sends exactly what earlier builds sent.",
+     when="If the radar stops updating about 5 seconds after start-up, or reports a steering rack mismatch, and you know which "
+          "rack the donor car had.",
+     note="Shown only while Bosch Radar is on. Use - and + to step through the five types; it stops at both ends. Takes effect "
+          "the next time the car starts. " + _OFFROAD,
+     default="Bosch L538", range="Bosch L538 to Mando VGR66 Gen3")
 _add("TeslaRadarUpsideDown", "Pre-AP: Flip Radar",
      "For a retrofit Bosch radar mounted upside down. Flips every radar track left to right (its sideways position), so a "
      "car on your left shows on the left again. Off (the default) leaves the radar as it reports.",
@@ -268,6 +277,33 @@ _add("PedalCalibrate", "Calibrate Pedal",
      when="Once after installing the pedal, and again if Pre-AP pedal longitudinal feels off or the status says Needs calibration.",
      note="Put the car in Park with the ignition on. Cancel, the car moving, a 90 second timeout or leaving the screen leave the current "
           "calibration unchanged. A reading that fails the sanity check is rejected and never saved.")
+_add("PedalEmergencyDisable", "Pedal Emergency Disable",
+     "A one-tap stop for the Comma Pedal. It clears the pedal calibration, so pedal speed control stops asking for the pedal "
+     "straight away, even while you drive, and it turns Disable Pedal Longitudinal on so pedal control stays off after the restart. "
+     "While the car is on, that switch is applied when the car is turned off (the planners read it live), the same as the "
+     "Disable Pedal Longitudinal row. Steering keeps working. A confirmation comes first.",
+     when="If the pedal misbehaves or you want speed control off right now and for good until you have checked the pedal.",
+     note="Turn the pedal back on by turning Disable Pedal Longitudinal off and running Calibrate Pedal in Park. Cancel leaves everything as it was.")
+_add("TeslaRadarTest", "Pre-AP: Test Radar",
+     "Opens a live picture of what the retrofit Bosch radar sees: a top-down plot, a table of its points and a health label "
+     "(LIVE, NO TRACKS, NO RADAR, FAULT, REJECT, ALIGNING). It reads the radar frames directly, so it works while the car is "
+     "parked and still, which openpilot's own radar filter does not. The points use your Radar Offset and Flip Radar settings. "
+     "Display only: nothing is saved or sent.",
+     when="After fitting or moving the radar, to see that it is alive and where it looks.",
+     note="Shown while Bosch Radar is on. Car on, in Park, not engaged. It closes itself if the car moves or engages.")
+_add("TeslaRadarCalibrate", "Pre-AP: Calibrate Radar",
+     "Helps you aim the radar. Put a car or a large metal object straight ahead, 3 to 14 m from the front bumper. The screen shows how "
+     "far to the left or right the radar sees it (positive is left) and turns green within 0.10 m of centered. Aim the radar until it "
+     "reads 0.00 m, or set the Radar Offset it suggests to cancel what is left. Display only: it never changes a setting.",
+     when="After mounting the radar, or if radar leads sit to one side of the lane.",
+     note="Shown while Bosch Radar is on. Car on, in Park, not engaged. The reading already includes your current Radar Offset and "
+          "Flip Radar. A new offset applies at the next car start.")
+_add("PreApHwReset", "Pre-AP: Reset Hardware Settings",
+     "Puts the Comma Pedal calibration and pedal CAN bus, and every Bosch radar setting (Bosch Radar, Radar Behind Nosecone, Radar "
+     "Donor Type, Radar EPAS Type, Donor VIN, Ignore Radar Hardware Fault, Flip Radar and Radar Offset), back to their defaults. Nothing "
+     "else is touched: Disable Pedal Longitudinal, iBooster, Auto Speed and every non-Pre-AP setting stay as they are. A confirmation comes first.",
+     when="When you moved the hardware to another car or want a clean start for the pedal and radar.",
+     note="Not available while openpilot is engaged. The pedal needs calibrating again, and radar changes apply at the next car start.")
 _add("CarSelection", "Car Selection",
      "Picks the car openpilot should assume when automatic detection finds no car. Auto is the normal setting. The Tesla AP1 "
      "Model S and Model X entries are fallbacks for bench or bring-up use.",
@@ -387,6 +423,23 @@ _add("AccelerationProfile", "Acceleration Profile",
      "highest acceleration, up to 4 m/s^2 at low speed.",
      note=_GB,
      default="Sport", range="Standard, Eco, Sport or Sport+")
+_add("AdaptiveAccelLead", "Adaptive Accel Near Lead",
+     "Caps how hard the car accelerates when it is close behind a lead car. Far from a lead the normal acceleration limit applies; "
+     "as the gap closes toward the following distance the cap blends in to a gentler limit, to stop the car lunging at a slow "
+     "lead and then braking.",
+     when="If the car surges toward a slower car ahead, or you feel gas then regen then gas in traffic.",
+     note="Only limits acceleration. Braking and the following distance are not affected. Based on NAP's (MIT) adaptive accel "
+          "limits. " + _GB,
+     default="Off", default_param="AdaptiveAccelLead")
+_add("CSCMapCurvature", "Map Curve Speed",
+     "Lets Curve Speed Control also slow down for curves it reads from the downloaded OpenStreetMap maps, before the camera can "
+     "see them. The car eases to the map's curve speed for the bend ahead, using the same cornering limit Curve Speed Control "
+     "has learned.",
+     when="If the car enters tight or blind curves too fast and only brakes once it is already turning.",
+     note="Needs Use mapd v2 on (Navigation, then Maps) and maps downloaded for the area. Only ever lowers the speed, never below "
+          "the normal braking limits; lead car braking and stops are not affected. Off by default so you can compare. "
+          "Legacy Teslas only. " + _GB,
+     default="Off", default_param="CSCMapCurvature")
 _add("DecelerationProfile", "Deceleration Profile",
      "How gently openpilot slows down. Standard is the stock limit. Eco allows half of the normal braking and Eco+ a quarter, "
      "so the car coasts more.",
@@ -771,9 +824,10 @@ _add("ScreenTimeout", "Screen Timeout (Offroad)",
      note="Needs Screen Settings on. " + _OFFROAD,
      default="30 seconds", range="5 to 60 seconds, in 5 second steps")
 _add("ScreenTimeoutOnroad", "Screen Timeout (Onroad)",
-     "How long the screen stays on after your last touch while driving.",
-     note="Needs Screen Settings on. " + _OFFROAD,
-     default="10 seconds (stock)", range="5 to 60 seconds, in 5 second steps")
+     "After this long with no touches while driving, open menus close and the driving view comes back.",
+     note="The screen stays on while driving unless Standby Mode is on. If Standby is on, the screen goes dark after this "
+          "timeout and wakes for alerts, engage or disengage, or a tap. Needs Screen Settings on. " + _OFFROAD,
+     default="10 seconds", range="5 to 60 seconds, in 5 second steps")
 _add("StandbyMode", "Standby Mode",
      "Lets the screen go to sleep after the timeout even while the car is on. Alerts and engagement changes wake it.",
      when="If you want a dark screen while driving.",
@@ -921,7 +975,8 @@ _add("menu.alerts_sounds", "Alerts and Sounds",
 _add("menu.driving", "Driving Controls",
      "Choose the driving model, tune gas and brake, and adjust steering and lane changes.")
 _add("menu.navigation", "Navigation",
-     "The navigation widgets shown on the driving screen, such as the posted speed limit tile.")
+     "Navigation: the widgets shown on the driving screen, such as the posted speed limit tile. Maps: download offline "
+     "OpenStreetMap speed limit data that the Speed Limit Controller can use.")
 _add("menu.system", "System Settings",
      "Local data and statistics, device and screen controls, and utilities such as resetting settings to the BogPilot defaults.")
 _add("menu.theme", "Appearance",
@@ -930,8 +985,65 @@ _add("menu.vehicle", "Vehicle Settings",
      "Pick the car, change vehicle controls, set up the stalk controls and see vehicle info.")
 
 
+# ---------------------------------------------------------------- Navigation > Maps (FrogPilot maps_settings.cc)
+_add("MapdV2", "Use mapd v2",
+     "Runs the newer map engine (mapd v2) for speed limits and curves from the downloaded maps. Speed limits keep working while "
+     "maps download, because downloads no longer pause the map engine. Off runs the current engine (mapd v1).",
+     when="Turn on to try map curve speeds (Gas / Brake, then Map Curve Speed) or if speed limits drop out while maps update.",
+     note="The same downloaded maps work with both engines. Takes effect within a few seconds; nothing is downloaded again. "
+          "mapd is MIT licensed (Jacob Pfeifer); map data (c) OpenStreetMap contributors.",
+     default="Off", default_param="MapdV2")
+_add("PreferredSchedule", "Automatically Update Maps",
+     "How often the downloaded maps refresh from OpenStreetMap (OSM) with the latest speed limit information. Weekly updates run "
+     "every Sunday and monthly updates run on the 1st. Manually never updates by itself.",
+     when="Pick Manually to decide yourself when map data is downloaded, for example to save mobile data.",
+     note="A scheduled update runs only while the car is off and the device is on unmetered Wi-Fi (not the phone hotspot or mobile "
+          "data; Download Maps works on any connection), only for the countries and states you picked, "
+          "and at most once a day. The first download of a new selection is due as soon as the map downloader is running. "
+          "Maps only download while the Speed Limit Controller is on: with it off this row is greyed out and nothing updates by itself.",
+     default="Weekly", range="Manually, Weekly or Monthly")
+_add("map_data.download", "Download Maps",
+     "Downloads the map tiles for the countries and states you picked, so the Speed Limit Controller can read speed "
+     "limits from them. While it runs the button turns into CANCEL, and the page shows Progress, Time Elapsed and Time Remaining.",
+     when="After you pick a region, or to refresh the maps before a trip.",
+     note="Works while driving too: a download keeps going in the background at low priority over Wi-Fi, a hotspot or mobile data, "
+          "and picks up where it left off after the connection drops. It stops by itself if free storage falls under 2 GB. "
+          "During a download the map speed limit for where you are driving pauses (the next speed limit source is used). "
+          "Needs the Speed Limit Controller turned on, the device online and enough free storage. The first press also installs the map downloader (mapd), "
+          "which is checked against a pinned fingerprint before it ever runs. Each 2 by 2 degree tile is about 25 MB. CANCEL asks "
+          "you to confirm, stops the downloader and keeps the tiles that already finished.")
+_add("map_data.last_updated", "Last Updated",
+     "The date the maps were last downloaded. Shows Never until the first download finishes. Read only.")
+_add("map_data.sources", "Map Sources",
+     "Choose the countries or U.S. states to download maps for. Countries and U.S. States open their regions; each region lists "
+     "its countries or states as switches. Your choice is saved right away, also while driving or while the Speed Limit "
+     "Controller is off (nothing downloads until you press Download or the schedule runs, and the controller is on).",
+     note="More regions mean bigger downloads and more storage used.")
+_add("map_data.progress", "Progress",
+     "How many map tiles have downloaded out of the total for your selection. Shows Calculating... until the downloader reports "
+     "its totals. Read only.")
+_add("map_data.elapsed", "Time Elapsed", "How long the current download has been running. Read only.")
+_add("map_data.eta", "Time Remaining",
+     "An estimate of the time left, and the clock time the download should finish. It gets better as more tiles finish. Read only.")
+_add("map_data.remove", "Remove Maps",
+     "Deletes every downloaded map tile from this device to free up storage. The map downloader program and your region choices "
+     "are kept.",
+     note="Cannot be undone. Asks you to confirm. Hidden while a download runs, and only works with the car off or in Park.")
+_add("map_data.repair", "Repair Map Downloads",
+     "Use this if map downloads are stuck or keep failing. Stops the map downloader, deletes everything in its folder (the map "
+     "tiles and the downloader program itself) and then reboots the device.",
+     when="Only when downloads are stuck or keep failing.",
+     note="Cannot be undone. Asks you to confirm, then reboots about 5 seconds later. Your region choices and update schedule are "
+          "kept. Hidden while a download runs, and only works with the car off or in Park.")
+_add("map_data.storage", "Storage Used", "How much space the downloaded map tiles use on this device. Read only.")
+_add("map_data.credit", "OpenStreetMap",
+     "The speed limit maps are built from OpenStreetMap data, (c) OpenStreetMap contributors, available under the Open Database "
+     "License (ODbL). The map downloader is mapd by pfeiferj (MIT).")
+
+
 # Row ids that appear on a page more than once under different titles map to the same entry here.
 ALIASES: dict[str, str] = {
+  "map_data.reset": "map_data.repair",          # the row was called Reset Downloader in FrogPilot
   "group:advanced": "AdvancedLongitudinalTune",
   "group:conditional": "ConditionalExperimental",
   "group:profiles": "LongitudinalTune",

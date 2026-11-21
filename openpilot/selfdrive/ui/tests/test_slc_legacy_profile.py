@@ -129,7 +129,8 @@ def test_metric_ui_converted_default_counts_as_default(tmp_path):
 @pytest.mark.parametrize("metric", [False, True])
 def test_marker_set_never_rewrites(tmp_path, car, metric):
   legacy_slc_marker_path(tmp_path).write_text("1\n")
-  p = fresh(car, metric)                                   # an upgraded device: old table values, marker present
+  p = fresh(car, metric)                                   # an upgraded device: old stock values saved, marker present
+  p.vals.update(OLD)
   before = dict(p.vals)
   assert apply_legacy_slc_defaults_once(p, bogpilot_dir=tmp_path, refresh=False) == []
   assert p.vals == before and [p.get(k) for k in OFFSETS] == [OLD[k] for k in OFFSETS]

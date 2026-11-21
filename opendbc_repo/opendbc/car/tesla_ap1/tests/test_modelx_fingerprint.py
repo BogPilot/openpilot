@@ -113,11 +113,11 @@ def test_ap2_and_preap_are_not_platforms():
   assert not hasattr(CAR, "TESLA_AP2_MODELS")
   assert detect_ap1_candidate(_fp(TINKLA_AP2_MODELX)) == X
 
-  # AP2 Model S has no X marker. Empty X evidence keeps the old chassis rule,
-  # so this capture is Model S AP1, not an AP2 platform.
+  # AP2 Model S has no X marker but carries AP2-only bus-0 markers, so it is
+  # not auto-detected as AP1 Model S.
   ap2_s = _fp(TINKLA_AP2_MODELS)
   assert x_evidence(ap2_s) == frozenset()
-  assert detect_ap1_candidate(ap2_s) == S
+  assert detect_ap1_candidate(ap2_s) is None
 
   # PreAP as captured (bus 0 only, no Mobileye) is not AP1.
   preap = {0: dict(TINKLA_PREAP_MODELS)}
@@ -138,7 +138,7 @@ def test_garbage_inputs():
 def test_no_s_x_cross_match():
   own = {
     X: (_fp(TINKLA_AP1_MODELX), _fp(TINKLA_AP2_MODELX)),
-    S: tuple(_fp(v) for v in TINKLA_AP1_MODELS_VARIANTS) + (_fp(TINKLA_AP2_MODELS), _fp(AP1_CHASSIS_SIGNATURE)),
+    S: tuple(_fp(v) for v in TINKLA_AP1_MODELS_VARIANTS) + (_fp(AP1_CHASSIS_SIGNATURE),),
   }
   for expected, fps in own.items():
     other = S if expected == X else X

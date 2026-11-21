@@ -154,3 +154,26 @@ class TestMiciHook(unittest.TestCase):
 
 if __name__ == "__main__":
   unittest.main()
+
+
+class TestCommandedAngleOnC4(unittest.TestCase):
+  """The comma 4 arc is the same ArcState as the 3X: an engaged legacy-Tesla frame with roll fills from the command."""
+
+  def test_engaged_fill_follows_command_not_roll(self):
+    cp = NS(brand="tesla_ap1", wheelbase=2.959, centerToFront=1.33, steerRatio=15.4, rotationalInertiaPerMass=2.0,
+            tireStiffnessFrontPerMass=15.0, tireStiffnessRearPerMass=20.0, maxLateralAccel=3.2)
+    fn = ARC.make_commanded_curvature_fn(cp)
+    ctrl = NS(curvature=-0.0001, desiredCurvature=-0.0001, lateralControlState=NS(which=lambda: "angleState"))
+    car = NS(vEgo=13.0, steeringAngleDeg=0.2)
+    cc = NS(latActive=True, actuators=NS(steeringAngleDeg=0.3))
+    co = NS(actuatorsOutput=NS(torque=0.0, steeringAngleDeg=0.3))
+    vp = NS(roll=0.052)
+    fills = {}
+    for name, f in (("before", None), ("after", fn)):
+      st = ARC.ArcState()
+      for _ in range(80):
+        st.update(ARC.inputs_from_messages(ctrl, car, cc, co, vp, 3.2, "engaged", False, f))
+      fills[name] = A.geometry(st, VIEW)["fill"]
+    span = lambda f: f[1] - f[0]
+    self.assertLess(span(fills["before"]), -0.3)           # roll pulled the old fill left
+    self.assertLess(abs(span(fills["after"])), 0.05)       # now ~ the straight wheel

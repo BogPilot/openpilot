@@ -24,6 +24,7 @@ REQUEST_KEY = "DoToggleResetStock"
 RESET_KEYS = frozenset("""
 AccelerationPath
 AccelerationProfile
+AdaptiveAccelLead
 AdjacentLeadsUI
 AdjacentPath
 AdjacentPathMetrics
@@ -47,6 +48,7 @@ BigMap
 BlindSpotMetrics
 BlindSpotPath
 BorderMetrics
+CSCMapCurvature
 CameraView
 CECurves
 CECurvesLead
@@ -158,6 +160,7 @@ MapAcceleration
 MapDeceleration
 MapGears
 MapStyle
+MapdV2
 MaxDesiredAcceleration
 MinimumLaneChangeSpeed
 Model

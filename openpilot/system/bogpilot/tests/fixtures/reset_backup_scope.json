@@ -45,6 +45,7 @@
   "setting_keys": [
     "AccelerationPath",
     "AccelerationProfile",
+    "AdaptiveAccelLead",
     "AdjacentLeadsUI",
     "AdjacentPath",
     "AdjacentPathMetrics",
@@ -83,6 +84,7 @@
     "CESpeedLead",
     "CEStopLights",
     "CEStoppedLead",
+    "CSCMapCurvature",
     "CameraView",
     "ClusterOffset",
     "Compass",
@@ -182,6 +184,7 @@
     "MapDeceleration",
     "MapGears",
     "MapStyle",
+    "MapdV2",
     "MaxDesiredAcceleration",
     "MinimumLaneChangeSpeed",
     "Model",

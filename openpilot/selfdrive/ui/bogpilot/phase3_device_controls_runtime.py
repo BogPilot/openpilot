@@ -33,7 +33,7 @@ def screen_timeout(store, onroad: bool, stock: int) -> int:
   if not screen_enabled(store):
     return int(stock)
   key = "ScreenTimeoutOnroad" if onroad else "ScreenTimeout"
-  return int(_number(store, key, 30, 5, 60))
+  return int(_number(store, key, 10 if onroad else 30, 5, 60))
 
 
 def screen_brightness(store, onroad: bool, stock: float, attention: bool = False) -> float:

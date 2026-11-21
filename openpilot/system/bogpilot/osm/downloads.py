@@ -48,6 +48,7 @@ class Progress:
   done: bool
   total_files: int = 0
   downloaded_files: int = 0
+  stopped: str = ""          # "no_space": the download stopped itself at the free-space floor (resume.py)
 
   @property
   def percent(self) -> int:
@@ -66,8 +67,10 @@ class DownloadController:
   """UI-facing controller over mapd's download params. All writes go through MemParams (fixed key set)."""
 
   def __init__(self, mem: MemParams, storage: OsmStorage):
+    from openpilot.system.bogpilot.osm.resume import JobStore
     self.mem = mem
     self.storage = storage
+    self.jobs = JobStore(storage)
 
   def can_start(self, sel: regions.Selection, online: bool, parked: bool, mapd_ready: bool) -> tuple[bool, str]:
     """0.9.7 enabled the DOWNLOAD button only when maps selected + online + parked; the extra checks are new."""
@@ -88,17 +91,35 @@ class DownloadController:
     if sel.is_empty():
       return False
     self.mem.remove("OSMDownloadProgress")
-    return self.mem.put("OSMDownloadLocations", sel.to_param())
+    self.mem.remove("OSMDownloadBounds")
+    if not self.mem.put("OSMDownloadLocations", sel.to_param()):
+      return False
+    self.jobs.begin(sel)            # resume.py fills whatever this first pass misses (connection drops, restarts)
+    return True
 
   def cancel(self) -> None:
     """0.9.7 cancel = drop the request + progress and kill mapd (the supervisor restarts it)."""
     self.mem.remove("OSMDownloadLocations")
+    self.mem.remove("OSMDownloadBounds")
     self.mem.remove("OSMDownloadProgress")
+    self.jobs.clear()
 
   def progress(self) -> Progress:
     locations = (self.mem.get_text("OSMDownloadLocations") or "").strip()
     prog = self.mem.get_text("OSMDownloadProgress")
     total, done = parse_progress(prog)
+    if locations:
+      return Progress(True, False, total, done)            # mapd's first pass reports its own counts
+    job = self.jobs.load()
+    if job is not None:
+      from openpilot.system.bogpilot.osm.resume import NO_SPACE, RUNNING, JobStore
+      if job.get("status") == NO_SPACE:
+        return Progress(False, False, stopped=NO_SPACE)
+      if job.get("status") == RUNNING and not JobStore.selection(job).is_empty():
+        # resume.py is filling the cells the first pass missed: count the selection's cells on disk
+        from openpilot.system.bogpilot.osm.resume import cell_present, selection_cells
+        cells = selection_cells(JobStore.selection(job))
+        return Progress(True, False, len(cells), sum(1 for c in cells if cell_present(self.storage, c)))
     if locations:
       return Progress(True, False, total, done)
     if prog:

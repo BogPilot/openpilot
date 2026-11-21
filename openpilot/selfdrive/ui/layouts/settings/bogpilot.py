@@ -94,6 +94,14 @@ def working_pages():
   }
 
 
+MAPS_CONTROLS = ("PreferredSchedule", "MapsSelected", "LastMapsUpdate", "MapdV2")   # map_data_page.CONTROLS (kept here: no raylib import)
+
+
+def _maps_layout():
+  from openpilot.selfdrive.ui.bogpilot.map_data_page import MapDataLayout
+  return MapDataLayout()
+
+
 def _navigation_layout():
   from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import BogPilotVisualsLayout, NAVIGATION_KEYS
   return BogPilotVisualsLayout(keys=NAVIGATION_KEYS)
@@ -107,9 +115,10 @@ def _appearance_layout():
 def menu_sections():
   """The 0.9.7 menu: six sections (plus the Tuning Level row the widget adds on top), each pill opening an existing page.
 
-  Dropped from the 0.9.7 menu because nothing real stands behind them: MAP DATA (no offline map data in this tree) and
-  THEME (the theme options are the Appearance toggles; there is no separate theme page). Lane Changes sits under STEERING,
-  and the Visuals page is APPEARANCE (its two navigation widgets move to NAVIGATION).
+  Navigation > MAPS is FrogPilot's offline OpenStreetMap downloader (0.9.7 MAP DATA): the pinned mapd downloader and the
+  Speed Limit Controller's Map Data source stand behind it. Dropped from the 0.9.7 menu because nothing real stands behind
+  it: THEME (the theme options are the Appearance toggles; there is no separate theme page). Lane Changes sits under
+  STEERING, and the Visuals page is APPEARANCE (its two navigation widgets move to NAVIGATION).
   """
   from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import APPEARANCE_KEYS, NAVIGATION_KEYS
   from openpilot.selfdrive.ui.layouts.settings.menu_097 import Pill, Section
@@ -133,7 +142,8 @@ def menu_sections():
             "menu.driving"),
     Section("navigation", tr_noop("Navigation"), "menu_navigation.png",
             (Pill("navigation", tr_noop("NAVIGATION"), tr_noop("Navigation"),
-                  (Page("navigation_widgets", "Navigation Widgets", _navigation_layout, NAVIGATION_KEYS),)),),
+                  (Page("navigation_widgets", "Navigation Widgets", _navigation_layout, NAVIGATION_KEYS),)),
+             Pill("maps", tr_noop("MAPS"), tr_noop("Maps"), (Page("maps", "Maps", _maps_layout, MAPS_CONTROLS),))),
             "menu.navigation"),
     Section("system", tr_noop("System Settings"), "menu_system.png",
             (Pill("data", tr_noop("DATA"), tr_noop("Data"), pick("system_data")),

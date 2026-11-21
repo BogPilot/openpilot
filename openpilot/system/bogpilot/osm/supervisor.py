@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 
 from openpilot.system.bogpilot.osm import installer, regions
+from openpilot.system.bogpilot.osm.downloads import DownloadController
 from openpilot.system.bogpilot.osm.gps_feed import GpsFeed
 from openpilot.system.bogpilot.osm.memparams import MemParams
 from openpilot.system.bogpilot.osm.storage import OsmStorage
@@ -25,6 +26,7 @@ ADOPTION_MARKER = "Phase3MapDataEnabled"
 ACTIVATION_POLICY = "default_on"
 RESTART_BACKOFF_S = (2.0, 5.0, 15.0, 60.0)
 INSTALL_RETRY_S = 60.0         # 0.9.7 mapd.py: `while not update_mapd(): time.sleep(60)`
+SCHEDULE_TICK_S = 60.0
 
 
 def adopted(store) -> bool:
@@ -97,21 +99,100 @@ def feed_step(sm, feed: GpsFeed, now: float) -> None:
   feed.tick(now)
 
 
+ENGINE_POLL_S = 2.0          # how often the MapdV2 toggle is re-read (switching engines takes effect within this)
+
+
 def run(storage: OsmStorage | None = None, mem: MemParams | None = None, popen=subprocess.Popen, sm=None,
-        sleep=time.sleep, monotonic=time.monotonic, max_ticks: int | None = None, fetch=None) -> dict:
-  """Supervise mapd + GPS feed. Returns counters (launches, installs, ticks) for tests; loops forever in production."""
+        sleep=time.sleep, monotonic=time.monotonic, max_ticks: int | None = None, fetch=None, scheduler=None,
+        resumer=None, prioritize=None, preexec=None, engine=None, fetcher_factory=None, write_settings=None) -> dict:
+  """Supervise mapd + GPS feed. Returns counters (launches, installs, ticks, restarts) for tests; loops forever in production.
+
+  Map downloads run whether the car is parked or driving (pick a state at a charger, the download continues on the
+  road over the hotspot). They are kept out of the way instead:
+  scheduler: optional object with tick() (scheduler.UpdateScheduler): the "Automatically Update Maps" consumer, asked once a minute.
+  resumer: optional resume.Resumer, stepped once a second: fills the cells a download missed, and returns "stalled" /
+    "no_space" when mapd has to be restarted (a hung download, or free space under the floor).
+  prioritize: optional callable(pid, downloading) that sets mapd's CPU / IO priority (priority.apply), called when the
+    download state changes. preexec: popen preexec_fn (priority.preexec_low_priority in production).
+  engine: optional callable -> bool, True = mapd v2 (param MapdV2, re-read every ENGINE_POLL_S). None = always v1.
+    v2: the pinned v2 binary (osm/mapd_v2) runs with BogPilot's MapdSettings (mapd_v2.write_settings) and is never stopped
+    for a download: the resumer gets fetcher_factory() (a resume.FetchProcess) and fetches cells out of process, and a
+    stalled / no-space download only stops that fetch. Switching engines stops the running mapd and starts the other."""
   storage = storage or OsmStorage()
   mem = mem or MemParams()
-  manifest = installer.load_manifest()
+  v2 = False
+  if engine is not None:
+    try:
+      v2 = bool(engine())
+    except Exception:
+      v2 = False
+  manifest = installer.load_engine_manifest(v2)
+  next_engine = 0.0
   fetch = fetch or installer.urllib_fetch
   feed = GpsFeed(mem)
-  proc, launches, installs, ticks, next_start, next_install = None, 0, 0, 0, 0.0, 0.0
+  proc, launches, installs, ticks, next_start, next_install, next_schedule = None, 0, 0, 0, 0.0, 0.0, 0.0
+  restarts, next_resume, downloading = 0, 0.0, None
+  dl = DownloadController(mem, storage)
+
+  def set_fetcher(on):
+    if resumer is None:
+      return
+    cur = getattr(resumer, "fetcher", None)
+    if on and cur is None and fetcher_factory is not None:
+      resumer.fetcher = fetcher_factory()
+    elif not on and cur is not None:
+      cur.stop()
+      resumer.fetcher = None
+  set_fetcher(v2)
   while max_ticks is None or ticks < max_ticks:
     ticks += 1
     now = monotonic()
+    if engine is not None and now >= next_engine:
+      next_engine = now + ENGINE_POLL_S
+      try:
+        want = bool(engine())
+      except Exception:
+        want = False                         # unreadable toggle: the existing engine (v1)
+      if want != v2:
+        v2 = want
+        manifest = installer.load_engine_manifest(v2)
+        set_fetcher(v2)
+        if proc is not None and proc.poll() is None:
+          proc.terminate()                   # switch engines: the other binary starts right away
+          try:
+            proc.wait(timeout=5)
+          except Exception:
+            try:
+              proc.kill()
+            except Exception:
+              pass
+        proc, next_start, next_install, downloading = None, 0.0, 0.0, None
     if sm is not None:
       sm.update(100)                         # blocks up to 100 ms on the GPS poll service (no busy loop)
       feed_step(sm, feed, now)
+    if scheduler is not None and now >= next_schedule:
+      next_schedule = now + SCHEDULE_TICK_S
+      try:
+        scheduler.tick()
+      except Exception:
+        pass                                 # a scheduling problem must never stop mapd or the GPS feed
+    if resumer is not None and now >= next_resume:
+      next_resume = now + 1.0
+      try:
+        r = resumer.step()
+      except Exception:
+        r = "error"
+      if r in ("stalled", "no_space") and not v2 and proc is not None and proc.poll() is None:
+        proc.terminate()                     # mapd v1.12.0 has no cancel and no HTTP timeout: restart it without the request
+        restarts += 1
+      if prioritize is not None and not v2 and proc is not None and proc.poll() is None:
+        try:
+          busy = dl.progress().active
+          if busy != downloading:
+            downloading = busy
+            prioritize(proc.pid, busy)
+        except Exception:
+          pass
     if proc is None or proc.poll() is not None:
       if now >= next_start:
         if not installer.verify_installed(storage, manifest):
@@ -128,19 +209,55 @@ def run(storage: OsmStorage | None = None, mem: MemParams | None = None, popen=s
           continue
         mem.root.mkdir(parents=True, exist_ok=True)
         mem.put("MapdLogLevel", "disabled")
-        proc = popen([str(storage.mapd_path)], cwd=str(storage.root))  # mapd v1.12.0 writes ./offline and tmp/ relative to its cwd
+        kw = {"preexec_fn": preexec} if (preexec is not None and not v2) else {}   # v2 never downloads: normal priority
+        if v2:
+          from openpilot.system.bogpilot.osm.mapd_v2 import launch_env
+          kw["env"] = launch_env()           # openpilot msgq paths (/dev/shm/msgq_*) even before logmessaged is up
+        if v2 and write_settings is not None:
+          try:
+            write_settings()                 # every mapd control off, BogPilot decides (mapd_v2.settings_json)
+          except Exception:
+            pass
+        # mapd v1.12.0 writes ./offline and tmp/ relative to its cwd; v2 uses /data/media/0/osm, the same directory
+        proc = popen([str(installer.binary_path(storage, manifest))], cwd=str(storage.root), **kw)
+        downloading = None
         launches += 1
         next_start = now + backoff(launches - 1)
     if sm is None:
       sleep(0.1)
   if proc is not None and proc.poll() is None:
     proc.terminate()
-  return {"launches": launches, "installs": installs, "ticks": ticks}
+  f = getattr(resumer, "fetcher", None)
+  if f is not None:
+    try:
+      f.stop()
+    except Exception:
+      pass
+  return {"launches": launches, "installs": installs, "ticks": ticks, "restarts": restarts}
 
 
 def main():  # pragma: no cover - process entry
   from cereal import messaging
-  run(sm=messaging.SubMaster(list(GPS_SERVICES), poll=GPS_SERVICES[0]))
+  from openpilot.common.bogpilot_store import ParamStore
+  from openpilot.system.bogpilot.osm import priority
+  from openpilot.system.bogpilot.osm.resume import Resumer
+  from openpilot.system.bogpilot.osm.scheduler import UpdateScheduler
+  from openpilot.system.bogpilot.osm.map_data_controller import downloads_allowed
+  storage, mem = OsmStorage(), MemParams()
+  store = ParamStore()
+
+  def prioritize(pid, downloading):
+    priority.apply(pid, priority.DOWNLOAD_NICE if downloading else priority.BASE_NICE)
+
+  from openpilot.system.bogpilot.osm import mapd_v2
+  from openpilot.system.bogpilot.osm.resume import FetchProcess
+  run(storage=storage, mem=mem, sm=messaging.SubMaster(list(GPS_SERVICES), poll=GPS_SERVICES[0]),
+      scheduler=UpdateScheduler(store, mem=mem, storage=storage),
+      resumer=Resumer(mem, storage, allowed=lambda: downloads_allowed(store)),
+      prioritize=prioritize, preexec=priority.preexec_low_priority,
+      engine=lambda: mapd_v2.engine_v2(store),
+      fetcher_factory=lambda: FetchProcess(storage, preexec=priority.preexec_low_priority),
+      write_settings=mapd_v2.write_settings)
 
 
 if __name__ == "__main__":

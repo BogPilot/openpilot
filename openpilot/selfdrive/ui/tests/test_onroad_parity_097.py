@@ -42,11 +42,11 @@ def drive(tmp_path, monkeypatch):
 
 # ---- the table ------------------------------------------------------------------------------------------------------
 EXPECTED = {
-  "volume": op.ONROAD, "alerts": op.ONROAD, "navigation_widgets": op.ONROAD, "appearance": op.ONROAD,
+  "volume": op.ONROAD, "alerts": op.ONROAD, "navigation_widgets": op.ONROAD, "maps": op.ONROAD, "appearance": op.ONROAD,
   "system_data": op.ONROAD, "system_device": op.ONROAD, "system_utilities": op.ONROAD, "vehicle_info": op.ONROAD,
   "steering_tuning": op.REBOOT, "lane_changes": op.REBOOT, "driving_model": op.REBOOT,
   "car_selection": op.REBOOT, "vehicle_controls": op.REBOOT, "stalk_controls": op.REBOOT,
-  "gas_brake": op.LOCKED,
+  "gas_brake": op.ONROAD,
 }
 
 
@@ -57,15 +57,18 @@ def test_every_menu_page_has_its_chosen_class():
   for key, cls in EXPECTED.items():
     assert op.page_class(key) == cls, key
   assert op.page_class("no_such_page") == op.LOCKED
-  assert op.row_class("tuning_level") == op.LOCKED
+  assert op.row_class("tuning_level") == op.REBOOT
 
 
 def test_rows_stricter_than_their_page():
-  for row in ("DeviceManagement", "NoLogging", "data:delete", "data:rename", "data:restore", "data:stats_reset",
+  for row in ("data:delete", "data:rename", "data:restore", "data:stats_reset",
               "BogPilotDefaultsReset", "DoToggleResetStock", "ClearCaches"):
     assert op.row_class(row, "system_data") == op.LOCKED, row
   for row in ("PedalCalibrate", "TeslaRadarReadVin", "downloads"):
     assert op.row_class(row, "vehicle_controls") == op.PARKED, row
+  for row in ("maps:remove", "maps:repair"):
+    assert op.row_class(row, "maps") == op.PARKED, row
+  assert op.row_class("maps:download", "maps") == op.ONROAD     # map downloads run while driving; models keep Park
   for row in ("ScreenBrightnessOnroad", "ScreenTimeoutOnroad", "StandbyMode", "ScreenManagement", "DebugMode",
               "LocalDebugReport", "data:backup", "data:export", "data:storage_use"):
     assert op.row_class(row, "system_device") == op.ONROAD, row
@@ -101,9 +104,9 @@ def test_editor_follows_the_live_state(drive):
     op.editor("vehicle_controls", "PedalCalibrate")
   assert all(f() for f in (sounds, steer, gas, cal))
   drive.started = True
-  assert sounds() and steer() and not gas() and not cal()
+  assert sounds() and steer() and gas() and not cal()      # Gas / Brake is onroad-editable now (0.9.7 Longitudinal)
   drive.parked = True
-  assert cal() and not gas()
+  assert cal() and gas()
 
 
 def test_page_notes():
@@ -126,7 +129,7 @@ def test_menu_header_note_per_page(drive):
   nav.path = ("driving_model", "driving_model")
   assert "reboot" in m.page_note(nav)
   nav.path = ("gas_brake", "gas_brake")
-  assert m.page_note(nav) == "Locked while the car is on"
+  assert m.page_note(nav) == ""                                                # 0.9.7 Longitudinal: open onroad
   nav.path = ("vehicle_settings",)
   assert m.page_class_of(nav) is None and m.page_note(nav) == ""               # mixed list: each page says its own
   drive.started = False
@@ -288,7 +291,7 @@ def _onroad(page):
   return lambda row: op.can_edit(op.row_class(row, page))
 
 
-def test_device_controls_screen_rows_onroad_logging_locked(drive):
+def test_device_controls_screen_rows_and_logging_onroad(drive):
   from openpilot.selfdrive.ui.bogpilot.phase3_device_controls import (DEVICE_MASTER, SCREEN_MASTER, DeviceControlsMenu,
                                                                      MemoryStore)
   drive.started = True
@@ -297,7 +300,7 @@ def test_device_controls_screen_rows_onroad_logging_locked(drive):
   assert menu.set("ScreenBrightnessOnroad", 50) and menu.set("ScreenTimeoutOnroad", 15)
   assert menu.set(SCREEN_MASTER, True) and menu.set("StandbyMode", True) and menu.set("ScreenRecorder", False)
   assert menu.set("DeviceShutdown", 3) and menu.set("LowVoltageShutdown", 12.0)
-  assert not menu.set("NoLogging", True) and not menu.set(DEVICE_MASTER, False)
+  assert menu.set("NoLogging", True) and menu.set(DEVICE_MASTER, False)   # 0.9.7: both live (manager re-reads each loop)
   assert menu.run_action("start_recording")
   legacy = DeviceControlsMenu(MemoryStore(), offroad=lambda: False)                 # no policy: offroad only
   assert not legacy.set("ScreenBrightnessOnroad", 50) and not legacy.run_action("start_recording")
@@ -445,3 +448,150 @@ def test_staged_store_is_json(drive, tmp_path):
   assert json.loads((tmp_path / op.PENDING_KEY).read_text()) == {"DisableOpenpilotLongitudinal": True}
   op.clear_pending("DisableOpenpilotLongitudinal")
   assert not (tmp_path / op.PENDING_KEY).exists()
+
+
+# ---- 0.9.7 full parity: Gas / Brake, Tuning Level, Disable Logging, Device Settings master -----------------------------
+START_READ_ROWS = ("CustomPersonalities", "HumanFollowing", "LeadDetectionThreshold",
+                   "AggressivePersonalityProfile", "StandardFollow", "RelaxedJerkAcceleration", "AggressiveJerkDeceleration",
+                   "StandardJerkDanger", "RelaxedJerkSpeedDecrease", "AggressiveJerkSpeed")
+LIVE_GAS_ROWS = ("SpeedLimitController", "Offset1", "Offset7", "SLCConfirmation", "AccelerationProfile", "DecelerationProfile",
+                 "HumanAcceleration", "MaxDesiredAcceleration", "StopAccel", "StoppingDecelRate", "LongitudinalActuatorDelay",
+                 "ForceStops", "IncreasedStoppedDistance", "WeatherPresets", "QOLLongitudinal", "HumanLaneChanges",
+                 "AP1TapFromZeroMs")
+
+
+def test_gas_brake_page_is_onroad_and_its_start_read_rows_prompt_for_reboot():
+  assert op.page_class("gas_brake") == op.ONROAD
+  for row in START_READ_ROWS:
+    assert op.row_class(row, "gas_brake") == op.REBOOT, row
+  for row in LIVE_GAS_ROWS:
+    assert op.row_class(row, "gas_brake") == op.ONROAD, row      # SLC and its offsets, profiles, stopping: read live
+  assert op.row_class("tuning_level") == op.REBOOT
+  for row in ("DeviceManagement", "NoLogging"):
+    assert op.row_class(row, "system_device") == op.ONROAD, row   # manager re-reads both every loop
+
+
+def test_gas_brake_editor_is_open_onroad_and_long_lock_is_untouched(drive):
+  from openpilot.selfdrive.ui.bogpilot import menu_locks
+  drive.started = True
+  assert op.editor("gas_brake")() and op.editor("gas_brake", "SpeedLimitController")()
+  # the openpilot-longitudinal requirement is a separate lock and still applies
+  no_long = NS(carFingerprint="TESLA_AP1_MODELS", openpilotLongitudinalControl=False, dashcamOnly=False, passive=False)
+  assert menu_locks.long_lock(no_long) is not None
+  assert menu_locks.long_lock(NS(carFingerprint="TESLA_AP1_MODELS", openpilotLongitudinalControl=True)) is None
+  assert menu_locks.long_lock(None) is menu_locks.NO_CAR
+
+
+def test_row_changed_prompts_once_per_visit_only_for_reboot_rows_while_started(drive):
+  assert not op.row_changed("CustomPersonalities", "gas_brake")             # car off: no prompt
+  drive.started = True
+  for row in LIVE_GAS_ROWS:
+    assert not op.row_changed(row, "gas_brake"), row                        # live rows never prompt
+  assert op.row_changed("CustomPersonalities", "gas_brake")
+  assert not op.row_changed("LeadDetectionThreshold", "gas_brake")          # same visit: once
+  op.new_visit()
+  assert op.row_changed("HumanFollowing", "gas_brake")
+  assert op.row_changed("tuning_level")                                     # menu control, its own key
+  assert drive.shown == ["gas_brake", "gas_brake", "tuning_level"]
+
+
+def test_gas_brake_store_proxy_prompts_after_start_read_writes_only(drive):
+  from openpilot.selfdrive.ui.bogpilot.phase3_gas_brake import _NotifyingStore
+
+  class Store:
+    def __init__(self):
+      self.w = []
+
+    def put(self, k, v, **kw):
+      self.w.append((k, v))
+
+    def put_bool(self, k, v, **kw):
+      self.w.append((k, v))
+
+    def remove(self, k):
+      self.w.append((k, None))
+
+    def get_bool(self, k, default=None):
+      return True
+
+  raw = Store()
+  st = _NotifyingStore(raw)
+  drive.started = True
+  st.put_bool("SpeedLimitController", True)
+  st.put("Offset3", 5)
+  assert drive.shown == [] and st.get_bool("x") is True                     # live rows: written, no prompt, reads pass through
+  st.put_bool("CustomPersonalities", True)
+  st.put("AggressiveFollow", 1.4)                                           # same visit: still one prompt
+  assert drive.shown == ["gas_brake"]
+  assert raw.w == [("SpeedLimitController", True), ("Offset3", 5), ("CustomPersonalities", True), ("AggressiveFollow", 1.4)]
+  drive.started = False
+  op.new_visit()
+  st.put_bool("HumanFollowing", True)
+  assert drive.shown == ["gas_brake"]                                       # car off: no prompt
+
+
+def test_tuning_level_change_while_driving_writes_and_prompts_once(drive, tmp_path):
+  from openpilot.selfdrive.ui.layouts.settings import menu_097 as m
+  from openpilot.selfdrive.ui.bogpilot import tuning_level as tl
+  drive.started = True
+  class Mem:
+    def __init__(self):
+      self.d = {}
+
+    def get_bool(self, k, default=None):
+      return bool(self.d.get(k, default))
+
+    def get_int(self, k, default=None):
+      return int(self.d.get(k, default or 0))
+
+    def put_bool(self, k, v, **kw):
+      self.d[k] = bool(v)
+
+    def put(self, k, v, **kw):
+      self.d[k] = v
+
+    def get(self, k, default=None):
+      return self.d.get(k, default)
+
+    def raw(self, k):
+      return None if k not in self.d else str(self.d[k])
+
+    def remove(self, k):
+      self.d.pop(k, None)
+
+    def invalidate(self, key=None):
+      pass
+
+    def tuning_level(self):
+      return int(self.d.get("TuningLevel", 0)) if self.d.get("TuningLevelConfirmed") else 3
+
+  store, warned = Mem(), []
+  can_edit = op.editor("", "tuning_level")
+  assert can_edit()
+  assert m.choose_tuning_level(1, can_edit=can_edit, show_warning=warned.append, store=store)
+  assert drive.shown == ["tuning_level"]
+  assert m.choose_tuning_level(2, can_edit=can_edit, show_warning=warned.append, store=store)
+  assert drive.shown == ["tuning_level"]                                     # once per visit
+  assert tl.effective_level(store) == 2
+
+
+def test_nologging_and_device_master_writes_go_through_while_driving(drive):
+  from openpilot.selfdrive.ui.bogpilot.phase3_device_controls import DEVICE_MASTER, DeviceControlsMenu, MemoryStore
+  drive.started = True
+  menu = DeviceControlsMenu(MemoryStore(), offroad=lambda: False, onroad_ok=_onroad("system_device"))
+  assert menu.set(DEVICE_MASTER, True) and menu.set("NoLogging", True)
+  assert menu.set("NoLogging", False) and menu.set(DEVICE_MASTER, False)
+  assert not drive.shown                                                     # live: no reboot prompt
+
+
+def test_stock_offroad_only_actions_and_destructive_rows_still_locked(drive):
+  drive.started = True
+  for row in ("data:delete", "data:restore", "BogPilotDefaultsReset", "ClearCaches"):
+    assert not op.can_edit(op.row_class(row, "system_data")), row
+  assert not op.can_edit(op.row_class("PedalCalibrate", "vehicle_controls"))
+  assert not op.ONROAD_CAVEATS.keys() - {"data:delete"}
+
+
+def test_alert_volume_floors_untouched_by_full_parity():
+  src = (UI / "bogpilot/onroad_policy.py").read_text()
+  assert "volume" in src and 'AlertVolumeControl' not in src.split("ROW_CLASS", 1)[1]

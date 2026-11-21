@@ -7,6 +7,7 @@ from opendbc.car.tesla_ap1.regen_aware import (
 )
 
 AP1 = "TESLA_AP1_MODELS"
+PREAP = "TESLA_PREAP_MODELS"
 
 # AP1 cruise (set-speed) reaction shaping, used by longitudinal_planner.get_cruise_accel for AP1 only.
 # Evidence: 0.9.7 drive logs. 0.9.7 planned ~0.24 m/s^2 per m/s of speed error (MPC cruise
@@ -33,6 +34,8 @@ def lead_present(lead):
 class Ap1Planning:
   def __init__(self, CP, dt):
     self.active = CP.carFingerprint == AP1 and CP.openpilotLongitudinalControl
+    # Pre-AP uses the same follow-distance seconds when an AP1 stalk is parsed; regen/comfort stay AP1-only.
+    self.stalk_follow_active = CP.carFingerprint in (AP1, PREAP) and CP.openpilotLongitudinalControl
     self.comfort_brake = ap1_comfort_brake(CP.carFingerprint) if self.active else 2.5
     self.regen_enabled = self.active and regen_aware_enabled(CP.carFingerprint)
     self.dt = dt
@@ -40,7 +43,7 @@ class Ap1Planning:
     self.stop = RegenStopShaper()
 
   def t_follow(self, CS, enabled):
-    if not self.active or not enabled:
+    if not self.stalk_follow_active or not enabled:
       return None
     seconds = float(CS.bogpilot.ap1StalkFollowS)
     if not math.isfinite(seconds) or not 1.0 <= seconds <= 1.75:

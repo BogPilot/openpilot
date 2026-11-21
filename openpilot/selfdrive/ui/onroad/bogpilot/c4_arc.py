@@ -20,7 +20,7 @@ HALO_W = (6, 4, 2)
 
 BORDER_ENGAGED = (0x16, 0x7F, 0x40, 255)
 BORDER_OVERRIDE = (0x89, 0x92, 0x8D, 255)
-BORDER_EXPERIMENTAL = ARC.PURPLE + (255,)   # the steering-arc purple, engaged in Experimental Mode
+BORDER_EXPERIMENTAL = ARC.EXPERIMENTAL_BORDER_PURPLE + (255,)   # dimmed arc-hue purple, engaged in Experimental Mode
 TRAFFIC_RED = (201, 34, 49, 255)
 BSM_RED = (0xC9, 0x22, 0x31, 0xF1)
 BSM_EDGE_BAR = (255, 30, 30, 220)

@@ -31,7 +31,7 @@ from opendbc.car.tesla_ap1.preap.calib import (
 )
 from opendbc.car.tesla_ap1.preap.engagement import ENGAGED_MODES
 from opendbc.car.tesla_ap1.preap.long_controller import PreAPLongController
-from opendbc.car.tesla_ap1.preap.params import PreApParamKeys, get_bool, get_str, radar_donor_type
+from opendbc.car.tesla_ap1.preap.params import PreApParamKeys, get_bool, get_str, radar_donor_type, radar_epas_type
 from opendbc.car.tesla_ap1.preap.pedal_can import PedalCommandCounter
 from opendbc.car.tesla_ap1.preap.radar_donor import RadarDonorStream
 from opendbc.car.tesla_ap1.safety_flags import FLAG_TESLA_PREAP_RADAR_EMULATION
@@ -67,7 +67,8 @@ class PreApCarController(CarControllerBase):
     safety_param = int(configs[-1].safetyParam) if configs else 0
     radar_on = bool(safety_param & FLAG_TESLA_PREAP_RADAR_EMULATION)
     self.radar_donor = RadarDonorStream(radar_on, get_str(PreApParamKeys.RADAR_DONOR_VIN) if radar_on else "",
-                                        radar_donor_type() if radar_on else 0)
+                                        radar_donor_type() if radar_on else 0,
+                                        radar_epas_type() if radar_on else 0)
 
   # ---- pedal calibration (driver press only; the panda is never unlocked for it) ----
   def _reset_calib_capture(self) -> None:

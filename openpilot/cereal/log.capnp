@@ -143,6 +143,7 @@ struct OnroadEvent @0xc4fa6047f024e718 {
     preapRegenLimit @113;     # Pre-AP pedal: the plan asks for more decel than regen can give (alert only, selfdrived/preap_regen.py)
     preapRadarNotReady @114;  # Pre-AP pedal: radar not ready, speed control on camera leads (warning only, never no-entry or disable)
     radarDataInvalid @115;  # Pre-AP only: radar parser invalid while frames arrive, after a short first-contact/resume grace
+    preapEpasNotSteering @116;  # Pre-AP: engaged with lateral wanted, EPAS not ACTIVE for 2 s (unpatched or refusing EPAS). Warning only
 
     lowBatteryDEPRECATED @40;
     soundsUnavailableDEPRECATED @47;
@@ -2665,9 +2666,9 @@ struct Event {
     customReserved14 @140 :Custom.CustomReserved14;
     customReserved15 @141 :Custom.CustomReserved15;
     customReserved16 @142 :Custom.CustomReserved16;
-    customReserved17 @143 :Custom.CustomReserved17;
-    customReserved18 @144 :Custom.CustomReserved18;
-    customReserved19 @145 :Custom.CustomReserved19;
+    mapdExtendedOut @143 :Custom.MapdExtendedOut;
+    mapdIn @144 :Custom.MapdIn;
+    mapdOut @145 :Custom.MapdOut;
 
     # *********** legacy + deprecated ***********
     model @9 :Deprecated.ModelData; # TODO: rename modelV2 and mark this as deprecated

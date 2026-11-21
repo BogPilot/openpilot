@@ -154,7 +154,7 @@ def get_car(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_multip
 
   if candidate is None:
     from opendbc.car.tesla_ap1.modelx_fingerprint import detect_ap1_candidate
-    detected_ap1 = detect_ap1_candidate(fingerprints)
+    detected_ap1 = detect_ap1_candidate(fingerprints, car_fw)
     if detected_ap1 is None:
       # Pre-AP Model S: AP1 detection first; only a positive Comma Pedal + no-Mobileye signature selects it.
       from opendbc.car.tesla_ap1.preap.detection import detect_preap_candidate

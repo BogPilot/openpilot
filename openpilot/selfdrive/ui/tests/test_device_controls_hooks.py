@@ -35,8 +35,9 @@ class TestPowerHooks(unittest.TestCase):
     self.assertGreaterEqual(pm.bp_voltage_cutoff(store, pm.VBATT_PAUSE_CHARGING), pm.VBATT_PAUSE_CHARGING)
 
   def test_fresh_defaults_are_the_097_shipped_table_and_unset_reads_the_same(self):
-    # Device/Screen defaults are the shipped 0.9.7 table values (shutdown 6 h, onroad timeout 30 s, ...),
+    # Device/Screen defaults are the shipped 0.9.7 table values (shutdown 6 h, onroad timeout 10 s (stock), ...),
     # no longer moved to stock at startup, and an unset key reads exactly like the table (no "table 1, page Off").
+    # Screen Timeout (Onroad) is the exception: fresh default is 10 s (stock), not the 0.9.7 table value of 30 s.
     # Saved user values are never rewritten; the hard safety bounds (low-voltage floor, 30 h ceiling) are unchanged.
     import tempfile
     from pathlib import Path
@@ -48,7 +49,7 @@ class TestPowerHooks(unittest.TestCase):
     from openpilot.selfdrive.ui.bogpilot.phase3_device_controls import DEFAULTS, RANGES, MemoryStore
     table = {"DeviceManagement": "1", "DeviceShutdown": "9", "LowVoltageShutdown": "11.8", "ScreenManagement": "1",
              "ScreenBrightness": "101", "ScreenBrightnessOnroad": "101", "ScreenTimeout": "30",
-             "ScreenTimeoutOnroad": "30", "StandbyMode": "0"}
+             "ScreenTimeoutOnroad": "10", "StandbyMode": "0"}
     for key, value in table.items():
       self.assertEqual(P[key][2], value, key)
     # the page's own defaults equal the table
@@ -60,7 +61,7 @@ class TestPowerHooks(unittest.TestCase):
     unset = MemoryStore()
     self.assertTrue(device_enabled(unset) and screen_enabled(unset))
     self.assertEqual(shutdown_time(unset, 30 * 3600.0), 6 * 3600.0)
-    self.assertEqual((screen_timeout(unset, False, 30), screen_timeout(unset, True, 10)), (30, 30))
+    self.assertEqual((screen_timeout(unset, False, 30), screen_timeout(unset, True, 10)), (30, 10))
     self.assertEqual(screen_brightness(unset, True, 55.0), 55.0)   # 101 = Auto = the stock brightness
     self.assertEqual(voltage_cutoff(unset, 11.8), 11.8)
     # explicit master Off is still honoured (stock behaviour)
@@ -68,6 +69,9 @@ class TestPowerHooks(unittest.TestCase):
     self.assertFalse(device_enabled(off) or screen_enabled(off))
     self.assertEqual(shutdown_time(off, 30 * 3600.0), 30 * 3600.0)
     self.assertEqual(screen_timeout(off, True, 10), 10)
+    # a saved onroad timeout of 30 s is kept and used while Screen Settings is on
+    kept = MemoryStore({"ScreenManagement": "1", "ScreenTimeoutOnroad": "30"})
+    self.assertEqual(screen_timeout(kept, True, 10), 30)
     # hard safety bounds are unchanged
     self.assertEqual(RANGES["DeviceShutdown"], (0, 33, 1))
     self.assertEqual(RANGES["LowVoltageShutdown"], (11.8, 12.5, 0.1))

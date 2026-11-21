@@ -20,7 +20,8 @@ CEM_ACK = "Phase3CEMEnabled"
 STOP_ACCEL_ACK = "Phase3StopAccelEnabled"
 STOPPING_RATE_ACK = "Phase3StoppingRateEnabled"
 ROW_ACKS = {"StopAccel": STOP_ACCEL_ACK, "StoppingDecelRate": STOPPING_RATE_ACK}
-PROFILE_KEYS = ("LongitudinalTune", "AccelerationProfile", "DecelerationProfile", "HumanAcceleration")
+PROFILE_KEYS = ("LongitudinalTune", "AccelerationProfile", "DecelerationProfile", "HumanAcceleration", "AdaptiveAccelLead",
+                "CSCMapCurvature")
 # Stop Acceleration / Stopping Rate share the Advanced parent and its single adoption marker
 # (consumed by phase3_long_stopping.read_runtime_stopping in LongControl).
 ADVANCED_KEYS = ("AdvancedLongitudinalTune", "LongitudinalActuatorDelay", "MaxDesiredAcceleration",
@@ -81,13 +82,18 @@ class Profiles:
   acceleration: int = 0
   deceleration: int = 0
   human: bool = False
+  adaptive_lead: bool = False   # AdaptiveAccelLead: lead-aware accel cap (lead_accel_cap.py); off by default
 
   @classmethod
   def read(cls, store, platform=None):
     if not profiles_adopted(store, platform) or not store.toggle_bool("LongitudinalTune"):
       return None
+    try:
+      adaptive_lead = bool(store.toggle_bool("AdaptiveAccelLead"))
+    except Exception:   # a params library built before this key existed: the cap stays off, the other profiles keep working
+      adaptive_lead = False
     return cls(store.toggle_int("AccelerationProfile"), store.toggle_int("DecelerationProfile"),
-               store.toggle_bool("HumanAcceleration"))
+               store.toggle_bool("HumanAcceleration"), adaptive_lead)
 
   def limits(self, v_ego, v_cruise, accel_min, tracking_lead=False, *, eco=False, sport=False,
              map_acceleration=False, map_deceleration=False, force_coast=False, weather_reduction=0.0):
@@ -434,6 +440,16 @@ class LongAccelPort:
       v_ego, v_cruise, accel_min, self.tracking_lead, weather_reduction=weather_reduction,
       eco=eco, sport=sport, map_acceleration=map_acceleration, map_deceleration=map_deceleration,
       force_coast=force_coast)
+
+  def lead_accel_cap(self, v_ego, accel_ceiling, lead, t_follow):
+    """Positive accel ceiling near a lead (AdaptiveAccelLead), or None: toggle off / Longitudinal Tuning off / not a legacy Tesla /
+    no tracked lead / lead far away. Never called into the plan unless it returns a number."""
+    if self.profiles is None or not self.profiles.adaptive_lead or not self.tracking_lead:
+      return None
+    if not profiles_default_on(getattr(self.cp, "carFingerprint", None)):
+      return None
+    from openpilot.selfdrive.controls.lib.lead_accel_cap import lead_accel_cap
+    return lead_accel_cap(accel_ceiling, v_ego, lead.dRel, lead.vLead, t_follow)
 
   def delay(self):
     return advanced_values(self.store, self.cp)[0] if self.cp.openpilotLongitudinalControl else self.cp.longitudinalActuatorDelay

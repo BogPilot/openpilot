@@ -808,4 +808,5 @@ struct BogPilotCarState {
   preapPedalNotResponding @33 :Bool;  # pedal longitudinal is on but the Comma Pedal stream (GAS_SENSOR 0x552) is missing or stale (no new counter for 0.5 s)
   ap1BrakePedalState @40 :UInt8 = 3;  # AP1 DI_torque2 DI_brakePedalState: 0 OFF, 1 ON (iBooster applied, driver or OP), 2 INVALID, 3 SNA / stale / not AP1. Onroad decel bar colour ONLY
   preapRadarNotReady @41 :Bool;     # Pre-AP pedal: radar not VALID (pending, rejected, starved, frozen, silent): its points are kept out of radard, speed control uses camera leads. Warning only
+  preapEpasNotActive @42 :Bool;     # Pre-AP: EPAS_eacStatus is INHIBITED, AVAILABLE or SNA (not ACTIVE, not FAULT). Raw state, no debounce: ap1_events.py raises preapEpasNotSteering after 2 s of it while lateral is wanted. Warning only
 }

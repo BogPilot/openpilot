@@ -516,7 +516,8 @@ def test_speed_limit_controller_value_rows_show_the_panels_unsaved_values_as_def
   assert not any(titled(panel, t).action_item.highlighted for t in hints)
   [i for i in rows(panel) if i.title == "Speed Limit Offsets"][0].callback()
   offsets = [i for i in rows(panel) if i.title.startswith("Speed Offset (")]
-  assert [i.action_item.hint_text for i in offsets] == ["default: +5 mph"] * 4 + ["default: +10 mph"] * 3
+  # BogPilot Speed Limit Offsets defaults 4/5/5/5/7/8/10 mph (slc-offset-defaults)
+  assert [i.action_item.hint_text for i in offsets] == [f"default: +{v} mph" for v in (4, 5, 5, 5, 7, 8, 10)]
   assert "" not in titles(panel)                                    # no blank button rows any more
 
 
@@ -548,7 +549,7 @@ def test_speed_limit_controller_resets_write_only_their_own_section(store, monke
   (offset_reset,) = reset_rows(panel)
   offset_reset.callback()
   store.invalidate()
-  assert [store.get_int(f"Offset{i}") for i in range(1, 8)] == [5, 5, 5, 5, 10, 10, 10]
+  assert [store.get_int(f"Offset{i}") for i in range(1, 8)] == [4, 5, 5, 5, 7, 8, 10]   # BogPilot offset defaults
   assert store.get_int("SLCLookaheadLower") == 5
   # the toggle-only sub pages have no value rows and no reset
   assert page.navigation_back() is True

@@ -36,6 +36,37 @@ RADAR_DONOR_TYPE_TITLE = "Pre-AP: Radar Donor Type"
 RADAR_DONOR_TYPE_DESCRIPTION = ("The car the retrofit radar came from: Model S before the facelift, Model S after it, or Model X. "
                                 "Press to change. Takes effect the next time the car starts.")
 RADAR_DONOR_TYPE_NAMES = ("Model S pre-facelift", "Model S facelift", "Model X")
+RADAR_EPAS_TYPE = "TeslaRadarEpasType"
+RADAR_EPAS_TYPE_TITLE = "Pre-AP: Radar EPAS Type"
+RADAR_EPAS_TYPE_DESCRIPTION = ("The steering rack (EPAS) of the car the retrofit radar came from. It must match that car, or the radar can "
+                               "stop updating after about 5 seconds. Use - and + to change it; the default is Bosch L538. "
+                               "Takes effect the next time the car starts.")
+# NAP nap-dev labels (ui layouts/settings/nap.py "Donor EPAS Type"; wiki hardware/bosch-radar), in NAP's order.
+RADAR_EPAS_TYPE_NAMES = ("Bosch L538", "Bosch L405", "Mando FGR64", "Mando VGR66", "Mando VGR66 Gen3")
+RADAR_EPAS_TYPE_BUTTON_WIDTHS = (110, 340, 110)   # [-] [value] [+]: the longest label does not fit the usual 150
+PEDAL_EMERGENCY = "PedalEmergencyDisable"
+PEDAL_EMERGENCY_TITLE = "Pedal Emergency Disable"
+PEDAL_EMERGENCY_DESCRIPTION = ("One tap, any time, even while driving: pedal speed control stops now and the pedal calibration is cleared. "
+                               "Steering is not affected. Disable Pedal Longitudinal is turned on so it stays off after the restart; "
+                               "while the car is on that is applied when it is turned off. Calibrate the pedal again before using it.")
+PEDAL_EMERGENCY_QUESTION = "Stop pedal speed control now and clear the pedal calibration? Steering is not affected."
+PEDAL_EMERGENCY_DONE = "Pedal speed control is off and the calibration is cleared. Restart the car to finish."
+PEDAL_EMERGENCY_FLAG_FAILED = ("The calibration is cleared and pedal speed control is off, but Disable Pedal Longitudinal could not be saved. "
+                               "Turn it on by hand.")
+RADAR_TEST = "TeslaRadarTest"
+RADAR_TEST_TITLE = "Pre-AP: Test Radar"
+RADAR_TEST_DESCRIPTION = ("Shows the live radar points and the radar's health, so you can check the radar without driving. "
+                          "Car on, in Park, not engaged. Display only: nothing is saved or sent.")
+RADAR_CALIBRATE = "TeslaRadarCalibrate"
+RADAR_CALIBRATE_TITLE = "Pre-AP: Calibrate Radar"
+RADAR_CALIBRATE_DESCRIPTION = ("Aim the radar: put a car or a large metal object straight ahead and read how far to the left or right the "
+                               "radar sees it. Aim until it reads 0.00 m, or use the Radar Offset it suggests. Car on, in Park, not engaged. "
+                               "Display only: nothing is saved or sent.")
+HW_RESET = "PreApHwReset"
+HW_RESET_TITLE = "Pre-AP: Reset Hardware Settings"
+HW_RESET_DESCRIPTION = ("Puts the pedal calibration, the pedal CAN bus and every Bosch radar setting (including Radar Offset and the donor "
+                        "VIN) back to their defaults. Nothing else changes. Not available while engaged. Takes effect the next time the car starts.")
+HW_RESET_CONFIRM = "Reset the pedal calibration, pedal CAN bus, all radar settings and the auto-detected AP1 retrofit stalk to their defaults?"
 RADAR_READ_VIN_TITLE = "Pre-AP: Read Radar VIN"
 RADAR_READ_VIN_DESCRIPTION = ("Reads the VIN stored in the retrofit radar (read only) and saves it as the donor VIN, used from the next car start. "
                               "Car on, in Park, not engaged.")
@@ -168,19 +199,30 @@ class VehicleSettings:
       # Hidden: the radar position now comes from Radar Donor Type (NAP NAPRadarPosition), so this row has no effect.
       # The stored TeslaRadarBehindNosecone value is kept as is (not deleted or migrated); it still only sets flag 128.
       return False
-    if key in (RADAR_READ_VIN, RADAR_DONOR_TYPE, RADAR_DONOR_VIN, RADAR_FLIP, RADAR_OFFSET):
+    if key in (RADAR_READ_VIN, RADAR_DONOR_TYPE, RADAR_EPAS_TYPE, RADAR_DONOR_VIN, RADAR_FLIP, RADAR_OFFSET):
       from opendbc.car.tesla_ap1.preap import params as preap_params
       return is_preap(cp) and preap_params.get_bool(RADAR)
     if key in (BUILD_INFO, PANDA_FIRMWARE):
       return is_preap(cp)              # read-only support info: shown for every Pre-AP car, pedal longitudinal on or off
-    if key in (PEDAL_STATUS, PEDAL_CALIBRATE):
+    if key in (PEDAL_STATUS, PEDAL_CALIBRATE, PEDAL_EMERGENCY):
       # Pedal rows matter only while pedal longitudinal is on for this car.
       return is_preap(cp) and bool(cp.openpilotLongitudinalControl)
+    if key in (RADAR_TEST, RADAR_CALIBRATE):
+      from opendbc.car.tesla_ap1.preap import params as preap_params
+      return is_preap(cp) and preap_params.get_bool(RADAR)       # the screens read the Bosch radar: shown while it is on
+    if key == HW_RESET:
+      return is_preap(cp)
     return False
 
   def enabled(self, key):
     if key == PEDAL_CALIBRATE:
       return self.visible(key) and self.calibrate_allowed()
+    if key == PEDAL_EMERGENCY:
+      return self.visible(key)         # a safety stop: never behind the edit gate, works while driving (NAP Emergency Disable)
+    if key in (RADAR_TEST, RADAR_CALIBRATE):
+      return self.visible(key)         # the tap says why when the car is not parked (radar_screen_blocked)
+    if key == HW_RESET:
+      return self.visible(key) and bool(self.offroad()) and not self.engaged()
     return self.visible(key) and bool(self.offroad())
 
   # ---- Pre-AP Donor VIN typed by hand (opendbc tesla_ap1/preap/radar_donor.py) ----
@@ -259,6 +301,25 @@ class VehicleSettings:
     self.on_change(RADAR_DONOR_TYPE)
     return value
 
+  # ---- Pre-AP Radar EPAS Type (NAP NAPRadarEpasType): 0..4 from the row, no wrap, read once at car start (edit gate: self.offroad) ----
+  def epas_type(self):
+    from opendbc.car.tesla_ap1.preap import params as preap_params
+    return preap_params.radar_epas_type()
+
+  def epas_type_text(self):
+    return RADAR_EPAS_TYPE_NAMES[self.epas_type()]
+
+  def step_epas_type(self, steps):
+    """Pressed - (steps=-1) or + (steps=+1): one type, clamped to 0..4 (no wrap). Refused unless visible and the edit gate allows.
+    Returns the stored value or None. Read once when the car starts (the reboot-prompt class, as Radar Donor Type)."""
+    if not self.enabled(RADAR_EPAS_TYPE):
+      return None
+    from opendbc.car.tesla_ap1.preap import params as preap_params
+    value = preap_params.clamp_radar_epas_type(self.epas_type() + int(steps))
+    preap_params.set_int(preap_params.PreApParamKeys.RADAR_EPAS_TYPE, value)
+    self.on_change(RADAR_EPAS_TYPE)
+    return value
+
   # ---- Pre-AP Radar Offset (Tinkla TinklaRadarOffset): -1.00 .. 1.00 m in 0.05 steps from the row, default 0, read at car start ----
   def radar_offset(self):
     from opendbc.car.tesla_ap1.preap import params as preap_params
@@ -289,6 +350,44 @@ class VehicleSettings:
     vin = normalize_radar_donor_vin(preap_params.get_str(preap_params.PreApParamKeys.RADAR_DONOR_VIN))
     return vin or "Not set"
 
+  # ---- Pre-AP Pedal Emergency Disable (NAP Emergency Disable): works while driving, needs a restart for the flag ----
+  def emergency_disable_pedal(self):
+    """Clear the pedal calibration (the live stop) and turn Disable Pedal Longitudinal on (staged while the car is on, as the
+    row itself does). Returns None on success or the reason it was refused / what did not finish. Never behind the edit gate."""
+    if not self.enabled(PEDAL_EMERGENCY):
+      return "Pedal longitudinal is not on for this car."
+    from opendbc.car.tesla_ap1.preap.hw_tools import clear_pedal_calibration
+    clear_pedal_calibration()                       # first: pedal_long_allowed() is False from the next params refresh
+    try:
+      flagged = self._write_long(True)
+    except Exception:
+      flagged = False
+    self.on_change(PEDAL_EMERGENCY)                 # reboot prompt while the car is on
+    return None if flagged else PEDAL_EMERGENCY_FLAG_FAILED
+
+  # ---- Pre-AP Reset Hardware Settings (NAP Reset to Defaults, pedal / radar / offset only) ----
+  def hw_reset_defaults(self):
+    from opendbc.car.tesla_ap1.preap.hw_tools import hw_reset_defaults
+    return hw_reset_defaults()
+
+  def write_hw_default(self, key, value):
+    """The reset writer: refuses a key outside the table, and refuses while engaged or locked (rechecked at every write)."""
+    if not self.enabled(HW_RESET):
+      raise PermissionError("Reset Hardware Settings is locked now")
+    from opendbc.car.tesla_ap1.preap.hw_tools import write_default
+    write_default(key, value)
+
+  def finish_hw_reset(self):
+    from opendbc.car.tesla_ap1.preap import hw_tools
+    hw_tools.clear_calibration_runtime()            # a calibration that was running is cancelled
+    self.on_change(HW_RESET)
+
+  # ---- Pre-AP Test Radar / Calibrate Radar (preap_radar_tools.py) ----
+  def radar_screen_blocked(self, started, engaged):
+    """Why a radar screen cannot open now, or None. Parked only: Bosch Radar on, car on in Park, not engaged."""
+    from openpilot.selfdrive.ui.bogpilot import preap_radar_tools as tools
+    return tools.blocked_reason(self.visible(RADAR_TEST), bool(started), bool(engaged), self.moving()) or None
+
   # ---- Pre-AP pedal rows ----
   def calibrate_allowed(self):
     """Parked (or offroad with the pedal still heard). Moving blocks it; an unheard pedal blocks it with a message."""
@@ -302,6 +401,16 @@ class VehicleSettings:
   def moving(self):
     mv = getattr(self, "moving_fn", None)
     return bool(mv()) if mv is not None else False
+
+  def engaged(self):
+    """openpilot engaged (fails closed: an engaged_fn that raises counts as engaged). No engaged_fn = not engaged."""
+    eng = getattr(self, "engaged_fn", None)
+    if eng is None:
+      return False
+    try:
+      return bool(eng())
+    except Exception:
+      return True
 
   def pedal_status(self):
     from openpilot.selfdrive.ui.bogpilot import preap_pedal_cal as cal
@@ -362,24 +471,31 @@ class VehicleSettings:
       self.on_change(key)
       return True
     if key == LONG:
-      from openpilot.selfdrive.ui.bogpilot import onroad_policy
-      if self.started():
-        # Car on: stage it. The planners read this live; it must not flip mid-drive (applied with the car off).
-        if not onroad_policy.stage(LONG, state):
-          return False
+      done = self._write_long(state)
+      if done:
         self.on_change(key)
-        return True
-      onroad_policy.clear_pending(LONG)
-      # Existing override has priority over Params. Do not create a new override.
-      self.params.put_bool(LONG, state, block=True)
-      override = self.file_dir / LONG
-      if override.is_file():
-        override.write_text("1" if state else "0")
+      return done
     elif key == CLUSTER:
       self.toggles.set_enable_ic_integration(state, path=self.cluster_path)
     elif key == REGEN:
       self.regen.set_regen_comfort_brake(state, path=self.regen_path)
     self.on_change(key)
+    return True
+
+
+  def _write_long(self, state):
+    """Disable Longitudinal: staged while the car is on (the planners read it live, it must not flip mid-drive; applied with the
+    car off), otherwise the normal write. No visibility / edit-gate check here: callers do their own. Returns True when stored."""
+    from openpilot.selfdrive.ui.bogpilot import onroad_policy
+    state = bool(state)
+    if self.started():
+      return bool(onroad_policy.stage(LONG, state))
+    onroad_policy.clear_pending(LONG)
+    # Existing override has priority over Params. Do not create a new override.
+    self.params.put_bool(LONG, state, block=True)
+    override = self.file_dir / LONG
+    if override.is_file():
+      override.write_text("1" if state else "0")
     return True
 
 
@@ -415,7 +531,7 @@ def create_vehicle_settings_layout(params=None):
   from openpilot.system.ui.widgets.scroller_tici import Scroller
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
   from openpilot.system.ui.widgets.list_view import button_item, text_item
-  from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_value_step_item
+  from openpilot.selfdrive.ui.bogpilot.gated_actions import gated_value_step_item, reset_section_item
   from openpilot.selfdrive.ui.bogpilot import preap_pedal_cal as cal
   from openpilot.selfdrive.ui.bogpilot import onroad_policy
 
@@ -430,6 +546,7 @@ def create_vehicle_settings_layout(params=None):
                                    on_change=onroad_policy.on_change("vehicle_controls"))
       # Speed and gear, not carState.standstill: on Pre-AP that is the DI cruise standstill state (see cal.car_moving).
       self.model.moving_fn = lambda: cal.car_state_moving(ui_state.started, ui_state.sm["carState"])
+      self.model.engaged_fn = lambda: ui_state.engaged
       self._status_cache = (0.0, "")
       self.rows = {key: toggle_item(lambda k=key: tr(self.model.title(k)), lambda k=key: tr(self.model.description(k)), False,
                                    callback=lambda state, k=key: self.set_value(k, state),
@@ -448,6 +565,11 @@ def create_vehicle_settings_layout(params=None):
       attach_help(self.calibrate_row, PEDAL_CALIBRATE)
       self.rows[PEDAL_STATUS] = self.status_row
       self.rows[PEDAL_CALIBRATE] = self.calibrate_row
+      # Emergency Disable: one tap, a confirm, works while driving (NAP Emergency Disable). Red slider on the comma 4 ("clear").
+      self.emergency_row = button_item(lambda: tr(PEDAL_EMERGENCY_TITLE), lambda: tr("DISABLE"), lambda: tr(PEDAL_EMERGENCY_DESCRIPTION),
+                                       callback=self.start_emergency_disable, enabled=lambda: self.model.enabled(PEDAL_EMERGENCY))
+      attach_help(self.emergency_row, PEDAL_EMERGENCY)
+      self.rows[PEDAL_EMERGENCY] = self.emergency_row
       self.rows[BUILD_INFO] = self.build_row
       self.rows[PANDA_FIRMWARE] = self.panda_row
       self.read_vin_row = button_item(lambda: tr(RADAR_READ_VIN_TITLE), lambda: tr(self.model.read_vin_status()),
@@ -460,6 +582,19 @@ def create_vehicle_settings_layout(params=None):
                                         callback=self.model.next_donor_type, enabled=lambda: self.model.enabled(RADAR_DONOR_TYPE))
       attach_help(self.donor_type_row, RADAR_DONOR_TYPE)
       self.rows[RADAR_DONOR_TYPE] = self.donor_type_row
+      # Radar EPAS Type: the shared [-] [value] [+] stepper (Alert Volume rows), right under Radar Donor Type.
+      self.epas_type_row = gated_value_step_item(lambda: tr(RADAR_EPAS_TYPE_TITLE), lambda: tr(RADAR_EPAS_TYPE_DESCRIPTION),
+                                                 lambda: tr(self.model.epas_type_text()),
+                                                 on_minus=lambda: self.model.step_epas_type(-1),
+                                                 on_plus=lambda: self.model.step_epas_type(1),
+                                                 minus=RADAR_OFFSET_MINUS, plus=RADAR_OFFSET_PLUS, selected_index=1,
+                                                 button_width=RADAR_EPAS_TYPE_BUTTON_WIDTHS[0],
+                                                 button_widths=RADAR_EPAS_TYPE_BUTTON_WIDTHS,
+                                                 enabled=lambda: self.model.enabled(RADAR_EPAS_TYPE),
+                                                 default_text=RADAR_EPAS_TYPE_NAMES[0], is_default=lambda: self.model.epas_type() == 0,
+                                                 translate=tr)
+      attach_help(self.epas_type_row, RADAR_EPAS_TYPE)
+      self.rows[RADAR_EPAS_TYPE] = self.epas_type_row
       # Donor VIN typed by hand. The action text is the saved VIN (device only), so the row shows at a glance
       # what the radar will be told without opening the help.
       self.donor_vin_row = button_item(lambda: tr(RADAR_DONOR_VIN_TITLE), lambda: self.model.donor_vin_text().upper(),
@@ -479,6 +614,21 @@ def create_vehicle_settings_layout(params=None):
                                               translate=tr)
       attach_help(self.offset_row, RADAR_OFFSET)
       self.rows[RADAR_OFFSET] = self.offset_row
+      # Parked-only radar screens (preap_radar_tools.py). Tapping while the car is not parked says why instead of opening.
+      self.radar_test_row = button_item(lambda: tr(RADAR_TEST_TITLE), lambda: tr("OPEN"), lambda: tr(RADAR_TEST_DESCRIPTION),
+                                        callback=lambda: self.open_radar_tool("test"), enabled=lambda: self.model.enabled(RADAR_TEST))
+      attach_help(self.radar_test_row, RADAR_TEST)
+      self.rows[RADAR_TEST] = self.radar_test_row
+      self.radar_cal_row = button_item(lambda: tr(RADAR_CALIBRATE_TITLE), lambda: tr("OPEN"), lambda: tr(RADAR_CALIBRATE_DESCRIPTION),
+                                       callback=lambda: self.open_radar_tool("calibrate"), enabled=lambda: self.model.enabled(RADAR_CALIBRATE))
+      attach_help(self.radar_cal_row, RADAR_CALIBRATE)
+      self.rows[RADAR_CALIBRATE] = self.radar_cal_row
+      # Reset Hardware Settings: pedal calibration / bus and the radar settings only. Asks first; locked while engaged.
+      self.reset_row = reset_section_item(self.model.hw_reset_defaults, self.model.write_hw_default, title=lambda: tr(HW_RESET_TITLE),
+                                          description=lambda: tr(HW_RESET_DESCRIPTION), enabled=lambda: self.model.enabled(HW_RESET),
+                                          confirm_text=tr(HW_RESET_CONFIRM), on_done=self.model.finish_hw_reset)
+      attach_help(self.reset_row, HW_RESET)
+      self.rows[HW_RESET] = self.reset_row
       # An empty or short page says why (no car / wrong car / longitudinal control off) instead of showing nothing.
       from openpilot.selfdrive.ui.bogpilot import menu_locks
       from openpilot.selfdrive.ui.bogpilot.vehicle_settings import disable_long_effective
@@ -515,6 +665,37 @@ def create_vehicle_settings_layout(params=None):
           session = cal.PedalCalSession(moving=self.model.moving)
           gui_app.push_widget(cal.create_calibration_screen(session))
       gui_app.push_widget(cal.create_intro_dialog(started))
+
+    def start_emergency_disable(self):
+      """Pedal Emergency Disable pressed: one confirm, then the calibration is cleared at once. Works while driving."""
+      if not self.model.visible(PEDAL_EMERGENCY):
+        gui_app.push_widget(alert_dialog(tr("Pedal longitudinal is not on for this car.")))
+        return
+
+      def confirmed(result):
+        if result != DialogResult.CONFIRM:
+          return
+        problem = self.model.emergency_disable_pedal()      # live guards rechecked; clears the calibration first
+        if problem:
+          gui_app.push_widget(alert_dialog(tr(problem)))
+        elif not ui_state.started:
+          gui_app.push_widget(alert_dialog(tr(PEDAL_EMERGENCY_DONE)))
+        self.refresh()
+      gui_app.push_widget(ConfirmDialog(tr(PEDAL_EMERGENCY_QUESTION), tr("Disable"), callback=confirmed))
+
+    def open_radar_tool(self, mode):
+      """Test Radar / Calibrate Radar pressed: refused with a reason unless parked, else the live screen."""
+      reason = self.model.radar_screen_blocked(ui_state.started, ui_state.engaged)
+      if reason:
+        gui_app.push_widget(alert_dialog(tr(reason)))
+        return
+      from opendbc.car.tesla_ap1.preap import params as preap_params
+      from openpilot.selfdrive.ui.bogpilot import preap_radar_tools as tools
+      offset, flip = preap_params.radar_offset_m(), preap_params.get_bool(RADAR_FLIP)
+      session = tools.RadarToolSession(mode, tools.CanRadarSource(tools.RawRadarReader(offset_m=offset, flip=flip)),
+                                       radar_on=lambda: self.model.visible(RADAR_TEST), started=lambda: ui_state.started,
+                                       engaged=lambda: ui_state.engaged, moving=self.model.moving, offset_m=offset, flip=flip)
+      gui_app.push_widget(tools.create_radar_screen(session))
 
     def start_read_vin(self):
       """Read Radar VIN pressed: refused while engaged / car off / radar off, else a confirm, then the request file."""

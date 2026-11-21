@@ -23,6 +23,7 @@ DEFAULT_BACKUP_ROOT = Path("/cache/bogpilot/settings-backups")
 SETTING_KEYS = frozenset("""
 AccelerationPath
 AccelerationProfile
+AdaptiveAccelLead
 AdjacentLeadsUI
 AdjacentPath
 AdjacentPathMetrics
@@ -46,6 +47,7 @@ BigMap
 BlindSpotMetrics
 BlindSpotPath
 BorderMetrics
+CSCMapCurvature
 CameraView
 CECurves
 CECurvesLead
@@ -160,6 +162,7 @@ MapAcceleration
 MapDeceleration
 MapGears
 MapStyle
+MapdV2
 MaxDesiredAcceleration
 MinimumLaneChangeSpeed
 Model

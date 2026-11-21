@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 from openpilot.system.bogpilot.osm.storage import OsmStorage
 
 MANIFEST_PATH = Path(__file__).with_name("mapd_manifest.json")
+V2_MANIFEST_PATH = Path(__file__).with_name("mapd_v2_manifest.json")   # opt-in engine (param MapdV2), see mapd_v2.py
 ELF_MAGIC = b"\x7fELF"
 EM_AARCH64 = 0xB7
 CHUNK = 256 * 1024
@@ -37,6 +38,20 @@ def load_manifest(path: Path = MANIFEST_PATH) -> dict:
   if len(m["sha256"]) != 64 or int(m["size"]) <= 0:
     raise InstallError("manifest sha256/size invalid")
   return m
+
+
+def load_engine_manifest(v2: bool) -> dict:
+  return load_manifest(V2_MANIFEST_PATH if v2 else MANIFEST_PATH)
+
+
+def binary_path(storage: OsmStorage, manifest: dict) -> Path:
+  """v1: <root>/mapd (unchanged). A manifest with install_name (v2: mapd_v2) installs beside it. Only a bare file name."""
+  name = manifest.get("install_name") or ""
+  if not name:
+    return storage.mapd_path
+  if name != Path(name).name or name in (".", "..") or not name.startswith("mapd"):
+    raise InstallError(f"bad install_name {name!r}")
+  return storage.root / name
 
 
 def sha256_file(path: Path) -> str:
@@ -59,8 +74,8 @@ def verify_installed(storage: OsmStorage, manifest: dict, cached: bool = False) 
 
   The supervisor always calls with cached=False right before every exec, so a replaced file is never run.
   """
-  p = storage.mapd_path
   try:
+    p = binary_path(storage, manifest)
     st = p.lstat()
     if not stat.S_ISREG(st.st_mode) or st.st_size != int(manifest["size"]):
       return False
@@ -73,7 +88,7 @@ def verify_installed(storage: OsmStorage, manifest: dict, cached: bool = False) 
     _VERIFY_CACHE.clear()
     _VERIFY_CACHE[key] = ok
     return ok
-  except OSError:
+  except (OSError, InstallError):
     return False
 
 
@@ -112,8 +127,9 @@ def install(storage: OsmStorage, manifest: dict, fetch: Callable[[str], Iterable
     if require_arch and not is_aarch64_elf(head):
       raise InstallError("not an aarch64 ELF")
     os.chmod(tmp, 0o755)
-    os.replace(tmp, storage.mapd_path)
-    with open(storage.version_path, "w", encoding="utf-8") as f:
+    os.replace(tmp, binary_path(storage, manifest))
+    vpath = storage.version_path if not manifest.get("install_name") else storage.root / (manifest["install_name"] + "_version")
+    with open(vpath, "w", encoding="utf-8") as f:
       f.write(manifest["version"])
       f.flush()
       os.fsync(f.fileno())

@@ -16,7 +16,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 TOGGLE = "toggle"                 # ToggleAction: one card, tap flips the switch
-MANAGE_TOGGLE = "manage_toggle"   # switch + MANAGE button (0.9.7 manage control): a switch card and a MANAGE card
+MANAGE_TOGGLE = "manage_toggle"   # switch + MANAGE button (0.9.7 manage control): a switch card and an indented MANAGE card
 BUTTON = "button"                 # ButtonAction (OPEN / MANAGE / RESET / SELECT ...): one card, tap presses it
 CHOICE = "choice"                 # MultipleButtonAction: card -> list of options
 STEPPER = "stepper"               # GatedValueStepAction [leading] [-] [value] [+] [trailing]: card -> adjuster page
@@ -29,6 +29,7 @@ KINDS = (TOGGLE, MANAGE_TOGGLE, BUTTON, CHOICE, STEPPER, DUAL, INFO)
 # label with anything else would draw as '?'. U+2212 (real minus) is NOT in the atlas: values use ASCII '-', the
 # adjuster's own minus / plus are drawn as shapes, never as glyphs.
 INDENT_MARK = "\u21b3 "           # "↳ ": rows the 3X indents under their parent switch
+MANAGE_CHILD_TITLE = "Customize"   # title of the MANAGE card under a switch + MANAGE row (the switch card has the row title)
 
 
 def _res(value, default=""):
@@ -352,7 +353,8 @@ def card_labels(row: Row) -> list[tuple[str, str]]:
   title = row.title()
   mark = INDENT_MARK if row.indented() else ""
   if row.kind == MANAGE_TOGGLE:
-    return [(mark + title, ""), (mark + title, "MANAGE")]
+    # the switch card carries the title; the MANAGE card is its indented child, so the page does not list the title twice
+    return [(mark + title, ""), (INDENT_MARK + MANAGE_CHILD_TITLE, "MANAGE")]
   if row.kind == DUAL:
     return [(text, "") for text, _vis in row.dual()]
   if row.kind == BUTTON:
@@ -361,4 +363,4 @@ def card_labels(row: Row) -> list[tuple[str, str]]:
 
 
 __all__ = ["TOGGLE", "MANAGE_TOGGLE", "BUTTON", "CHOICE", "STEPPER", "DUAL", "INFO", "UNSUPPORTED", "KINDS",
-           "INDENT_MARK", "kind_of", "Row", "record", "static_rows", "card_labels"]
+           "INDENT_MARK", "MANAGE_CHILD_TITLE", "kind_of", "Row", "record", "static_rows", "card_labels"]

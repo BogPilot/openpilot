@@ -180,11 +180,11 @@ class TestReleaseNotes(unittest.TestCase):
     self.assertIn("what's new", low)
     for phrase in (
       "stalk",
-      "alert volume",
+      "maps",
       "reboot",
       "panda",
       "pre-ap",
-      "code 4",
+      "gas/brake",
       "pedal gauge",
       "regen",
     ):

@@ -237,6 +237,89 @@ def test_carcontroller_streams_from_safety_param(tmp_path):
     assert make(32 | 64 | 128).radar_donor.position == 0, text
 
 
+# ---- Radar EPAS Type (NAP nap-dev NAPRadarEpasType) ----
+
+@pytest.mark.parametrize("text, want", (("0", 0), ("1", 1), ("2", 2), ("3", 3), ("4", 4), ("5", 4), ("9", 4), ("100", 4), ("-1", 0), ("-9", 0),
+                                        ("x", 0), ("1.5", 0), ("inf", 0), ("nan", 0), ("", 0), (" 2\n", 2), ("+3", 0), ("--1", 0), (None, 0)))
+def test_radar_epas_type_param(tmp_path, text, want):
+  if text is not None:
+    (tmp_path / PreApParamKeys.RADAR_EPAS_TYPE).write_text(text)
+  assert params.radar_epas_type() == want
+
+
+def test_radar_epas_type_param_default_and_key():
+  assert PreApParamKeys.RADAR_EPAS_TYPE == "TeslaRadarEpasType"
+  assert params.DEFAULTS[PreApParamKeys.RADAR_EPAS_TYPE] == 0
+  assert params.radar_epas_type() == 0   # nothing stored: the default, so the frame is what it was before the setting
+  assert [params.clamp_radar_epas_type(v) for v in (-5, 0, 4, 5, True, None, 2.0, "3")] == [0, 0, 4, 4, 0, 0, 0, 0]
+
+
+def test_radar_epas_type_is_a_whole_number_file(tmp_path):
+  params.set_int(PreApParamKeys.RADAR_EPAS_TYPE, 3)
+  assert (tmp_path / PreApParamKeys.RADAR_EPAS_TYPE).read_text() == "3"
+  assert params.radar_epas_type() == 3
+
+
+@pytest.mark.parametrize("epas_type", range(5))
+@pytest.mark.parametrize("position", range(3))
+def test_record0_bits_for_each_type(position, epas_type):
+  r0 = create_radar_vin_msg(0, "", True, position, epas_type)
+  assert r0.dat[2] == 1 | (position << 1) | (epas_type << 3)
+  assert (r0.dat[2] >> 3) & 7 == epas_type and (r0.dat[2] >> 1) & 3 == position and r0.dat[2] & 1 == 1
+  assert r0.dat[:2] == b"\x00\x01" and r0.dat[3:5] == b"\x00\x00" and r0.dat[5:] == b"   "
+
+
+def test_default_type_0_record_is_byte_identical_to_the_hardcoded_0():
+  for position in (0, 1, 2):
+    for vin in ("", VIN):
+      want = bytes((0, 1, 1 | (position << 1), 0, 0, *(vin + " " * 17)[0:3].encode()))   # the pre-setting layout: EPAS bits 0
+      assert create_radar_vin_msg(0, vin, True, position, 0).dat == want
+      s = _fresh(vin, position)
+      assert s.epas_type == 0
+      assert _run(s, 30)[0].dat == want
+
+
+def test_stream_sends_each_type_in_record_0_and_clamps():
+  for given, want in ((0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 4), (99, 4), (-1, 0), (None, 0), (True, 0), (2.0, 0), ("3", 0)):
+    s = _fresh(VIN, 1, given)
+    assert s.epas_type == want, given
+    r0 = _run(s, 30)[0]
+    assert (r0.dat[2] >> 3) & 7 == want and (r0.dat[2] >> 1) & 3 == 1, given
+    assert r0.dat[5:] == VIN[0:3].encode()
+
+
+def test_radar_off_always_sends_epas_type_0(tmp_path):
+  (tmp_path / PreApParamKeys.RADAR_EPAS_TYPE).write_text("4")
+  s = RadarDonorStream(False, "", 0, 4)
+  assert s.state == Link.OFF and _run(s, 30) == []
+
+
+def test_carcontroller_reads_the_epas_type_once(tmp_path):
+  from opendbc.car.tesla_ap1.preap.carcontroller import PreApCarController
+  from opendbc.car.tesla_ap1.values import CAR, DBC
+
+  def make(param):
+    CP = SimpleNamespace(carFingerprint=CAR.TESLA_PREAP_MODELS, openpilotLongitudinalControl=True,
+                         safetyConfigs=[SimpleNamespace(safetyParam=param)])
+    return PreApCarController(DBC[CAR.TESLA_PREAP_MODELS], CP)
+
+  for param in (480, 32 | 64 | 256):
+    assert make(param).radar_donor.epas_type == 0                      # nothing stored: 0
+  for text, want in (("0", 0), ("1", 1), ("2", 2), ("3", 3), ("4", 4), ("7", 4), ("bad", 0)):
+    (tmp_path / PreApParamKeys.RADAR_EPAS_TYPE).write_text(text)
+    for param in (480, 32 | 64 | 256):
+      ctl = make(param)
+      assert ctl.radar_donor.epas_type == want, (text, param)
+      ctl.radar_donor.update(0, False, False, link=_link(ok=False))
+      r0 = _run(ctl.radar_donor, 30)[0]
+      assert (r0.dat[2] >> 3) & 7 == want, (text, param)
+    assert make(32 | 64 | 128).radar_donor.epas_type == 0, text          # radar off (no flag 256): nothing is sent, 0
+    (tmp_path / PreApParamKeys.RADAR_EPAS_TYPE).write_text("0")
+    ctl = make(480)
+    (tmp_path / PreApParamKeys.RADAR_EPAS_TYPE).write_text("4")           # a change while running is not picked up (read once)
+    assert ctl.radar_donor.epas_type == 0
+
+
 # ---- Read Radar VIN runner (button path only) ----
 
 def _rx(payload: bytes) -> CanData:

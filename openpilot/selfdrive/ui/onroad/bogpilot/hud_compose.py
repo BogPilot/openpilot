@@ -35,7 +35,7 @@ from openpilot.selfdrive.ui.onroad.alert_renderer import AlertRenderer
 from openpilot.selfdrive.ui.onroad.bogpilot import redesign as R
 from openpilot.selfdrive.ui.onroad.bogpilot.bogpilot_hud import cluster_layout
 from openpilot.selfdrive.ui.onroad.bogpilot.file_toggles import toggles
-from openpilot.selfdrive.ui.onroad.bogpilot.steering_arc import PURPLE as ARC_PURPLE_RGB
+from openpilot.selfdrive.ui.onroad.bogpilot.steering_arc import EXPERIMENTAL_BORDER_PURPLE as EXP_BORDER_RGB
 from openpilot.selfdrive.ui.onroad.bogpilot.style import PILL_LABEL_SPACE, CLUSTER_GAP, TRAFFIC_RED
 from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
 
@@ -669,7 +669,7 @@ class HudComposer:
 
   def experimental_purple(self) -> bool:
     """Experimental Mode active (selfdriveState.experimentalMode, the same source as the steering arc) while engaged
-    (UIStatus.ENGAGED): the border takes the steering-arc purple. Override and disengaged keep their colours."""
+    (UIStatus.ENGAGED): the border takes the dimmed experimental purple. Override and disengaged keep their colours."""
     try:
       return bool(ui_state.status == UIStatus.ENGAGED and ui_state.sm["selfdriveState"].experimentalMode)
     except Exception:
@@ -677,13 +677,13 @@ class HudComposer:
 
   def border_color(self, base):
     """Onroad border colour: LKAS-fault flash first, then the Traffic Mode / Pre-AP regen-limit red, then the
-    Experimental Mode purple (steering-arc purple, engaged only), else the stock colour."""
+    Experimental Mode purple (dimmed arc hue, engaged only), else the stock colour."""
     if self.border_override() is not None:
       return self.border_override()
     if self.traffic_red() or self.regen_red():
       return TRAFFIC_RED
     if self.experimental_purple():
-      return rl.Color(*ARC_PURPLE_RGB, 255)
+      return rl.Color(*EXP_BORDER_RGB, 255)
     return base
 
   def border_override(self, millis=None):

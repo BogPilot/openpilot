@@ -129,7 +129,7 @@ static void tesla_preap_radar_rx_all(const CANPacket_t *to_fwd) {
       uint32_t lo = TESLA_PREAP_RADAR_GET_BYTES_04(to_fwd);
       uint32_t hi = TESLA_PREAP_RADAR_GET_BYTES_48(to_fwd);
       lo = (lo & 0xFFFFF33FU) | 0x100U | 0x440U;  // country=US, radar_type=Bosch
-      hi = (hi & 0xCFFF0F0FU) | 0x10000000U | ((uint32_t)tesla_preap_radar_position << 4) | ((uint32_t)tesla_preap_radar_epas_type << 12);
+      hi = (hi & 0xCFFF0F0FU) | 0x10000000U | ((uint32_t)tesla_preap_radar_position << 4) | (((uint32_t)tesla_preap_radar_epas_type & 0xFU) << 12);
       // Bosch xWD is checked against the VIN on 0x2B9: a donor VIN with char 8 '2' or '4' (dual motor) declares 4WD
       // (NAP tesla_preap.h:353-364). No donor: the car's own 0x398 bit is kept.
       if (tesla_preap_radar_donor_active()) {

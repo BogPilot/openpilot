@@ -483,6 +483,15 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Tests: `openpilot/selfdrive/ui/tests/test_slc_legacy_profile.py`, `openpilot/selfdrive/ui/tests/test_slc_ap1_section_reset.py`.
 - Credits: BogPilot bogpilot-tesla-0.9.7 `e493b5cb7` (AP1 Model S profile SLC values).
 
+## Speed Limit Offsets ship with the BogPilot values on every device, not the stock 5 / 10 mph
+- Platforms: all car types (the registry default is the same on every car; BogPilot's cars are the AP1 Model S / X and Pre-AP Model S).
+- Reference behavior: BogPilot bogpilot-tesla-0.9.7 `e493b5cb7` keeps the stock table default in `params.cc` and moves an AP1 Model S device to 4/5/5/5/7/8/10 mph once, at boot, through `selfdrive/car/tesla/ap1_defaults.py`. A device where that one-time step had not run (car not yet picked or detected at the boot, an earlier marker, a restored backup) kept showing and using the stock 5/5/5/5/10/10/10.
+- Our behavior: the declared defaults of Offset1-7 (params registry, UI defaults catalog, feature spec, generated params header) are 4/5/5/5/7/8/10 mph, the values of the AP1 profile, so the Speed Limit Offsets menu (3X and comma 4 share the panel) and the planner read the same BogPilot numbers whether or not the one-time profile has run. A value the user saved is never touched. The one-time profiles (AP1 Model S, Pre-AP, AP1 Model X) still treat the old stock value (5/5/5/5/10/10/10 mph, or its km/h conversion) as "never changed" and move it to the profile value, as before; any other saved value stays.
+- Metric devices: the declared default is the mph number, as for every other offset default; the one-time profile writes the converted km/h values (6/8/8/8/11/13/16). Unit-aware declared defaults are not part of this change.
+- Native: the params header changed, so the prebuilt `libparams_c` and the native daemons that embed the key table need the usual rebuild in the next build (stack with the Weekly PreferredSchedule rebuild). No Python reader needs it: `Params.get` of an unsaved key returns None and the registry default is used.
+- Safety-relevant: settings defaults only (the planner clips offsets to its existing bounds). Car code and panda are unchanged.
+- Tests: `openpilot/common/tests/test_slc_offset_defaults.py`.
+
 ## "Offset Set Speed by:" row hidden on every car
 - Platforms: all car types.
 - Reference behavior: BogPilot bogpilot-tesla-0.9.7 `e493b5cb7` lists the Set Speed offset (`SetSpeedOffset`) as a numeric row for cars without stock cruise control and with openpilot longitudinal.
@@ -1271,3 +1280,35 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_params_atomic_write.py`,
   `test_preap_params_step_cache.py`.
 - Credits: 07e8bd68f (StepCache write path).
+
+## Pre-AP: "EPAS Not Steering" warning (warning only)
+- Platforms: Pre-AP (`TESLA_PREAP_MODELS`). AP1 unchanged.
+- Reference behavior: Tinkla / NAP have no specific alert. An unpatched EPAS, or one the flasher refused, stays INHIBITED or
+  AVAILABLE and ignores ANGLE frames. Our Pre-AP EpasGate only arms after the first EAC_ACTIVE (it has to, because the Pre-AP
+  EPAS flaps outside a session), so nothing said the car was not steering.
+- Our behavior: CarState publishes `carState.bogpilot.preapEpasNotActive` (EPAS_eacStatus INHIBITED, AVAILABLE or SNA; FAULT
+  keeps its own fault path). `tesla_ap1/ap1_events.py` raises `preapEpasNotSteering` after 2.0 s of it while openpilot is
+  engaged, carControl.latActive is on, EPAS_handsOnLevel is 0, the hands pause is not holding and there is no permanent steer
+  fault. events.py gives it ET.WARNING only: "EPAS Not Steering / Steer manually. The EPAS is not accepting commands", userPrompt,
+  mid, steerRequired, promptRepeat. No NO_ENTRY, soft disable or disengage.
+- Why the debounce: in both testers' logs (engaged, latActive, hands 0) the longest normal not-ACTIVE stretch was 0.52 s (p99
+  0.48 s) and 0.08 s. Hands level 1 is excluded because it takes the EPAS out of ACTIVE on normal drives for up to 3.4 s.
+- Why not a disengage: while the EPAS is not ACTIVE our frames do not move the wheel, so dropping lateral adds no actuation
+  safety. The risk is a driver who thinks the car steers, and the warning covers that.
+- Not covered: Always On Lateral while openpilot is not engaged. A WARNING shows only while engaged.
+- Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_preap_epas_not_steering.py`,
+  `openpilot/selfdrive/selfdrived/tests/test_preap_epas_not_steering.py`.
+
+## AP1 / Pre-AP: column angle sensor status gate for the steering rate
+- Platforms: AP1 and Pre-AP (`tesla_ap1/steer_rate.py`, both car states).
+- Reference behavior: Tinkla reads StW_AnglHP_Sens_Stat (0x00E 33|2: 0 OK, 1 INI, 2 ERR, 3 SNA). Before this change BogPilot used
+  StW_AnglHP and StW_AnglHP_Spd whatever the status said.
+- Our behavior: when the status is not OK, neither the column angle nor its rate is used. carState.steeringRateDeg then comes from
+  a low-pass of the EPAS_internalSAS difference (0x370, alpha 0.5, one step per new frame by EPAS_sysStatusCounter). It is 0
+  when the EPAS angle is SNA or stale too. The same EPAS fallback replaces 0 when the column angle and rate are both SNA.
+- Why this fallback: the EPAS angle is a separate sensor and already the measured wheel angle for control and the panda. 0x003
+  comes from the same column module. A steer fault would take lateral away for a signal only the override detector's RATE and
+  ANGLE_ERROR use. Both testers report OK on every frame, so nothing changes for them.
+- Unchanged: the panda's Pre-AP radar path (`tesla_preap_radar.h`, 0x0E to 0x199) forwards the frame with its status bits,
+  so the radar sees the sensor's own status.
+- Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_steer_rate_sna.py`.

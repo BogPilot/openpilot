@@ -7,6 +7,9 @@ MapContext is what phase3_speed_control.SpeedLimitController consumes each plann
   map           - MapData: mapd's MapSpeedLimit with current + next + distance (look-ahead ceiling is applied in the planner)
   mapbox        - MapboxFiller (only with a user key; see mapbox.py)
 Any problem (missing files, stale, garbage, import error) reads as "no data": Map Data = 0, never an exception.
+
+mapd v2 (param MapdV2, default off): `map` comes from mapdOut (mapd_v2.shared_reader, fresh within 0.5 s) instead of the
+v1 memparams. The same rule holds: no fresh GPS position (GpsFeed keeps running in both modes) = no map limit.
 """
 from __future__ import annotations
 
@@ -19,6 +22,8 @@ from openpilot.system.bogpilot.osm.gps_feed import validate_fix
 from openpilot.system.bogpilot.osm.map_data import NO_DATA, MapData, MapDataReader
 from openpilot.system.bogpilot.osm.mapbox import MapboxFiller
 from openpilot.system.bogpilot.osm.memparams import MemParams
+
+ENGINE_RECHECK_S = 2.0
 
 MIN_VALID_YEAR = 2025     # system clock sanity for the Mapbox monthly budget (0.9.7 used its time_validated flag)
 
@@ -101,7 +106,8 @@ class OwnGps:
 
 class MapContext:
   def __init__(self, mem: MemParams | None = None, store=None, mapbox: MapboxFiller | None = None, wall=time.time,
-               now_dt=lambda: datetime.datetime.now(datetime.timezone.utc), own_gps=None):
+               now_dt=lambda: datetime.datetime.now(datetime.timezone.utc), own_gps=None, engine=None, v2_tick=None,
+               mono=time.monotonic):
     self.mem = mem or MemParams()
     self.reader = MapDataReader(self.mem)
     self.mapbox = mapbox or MapboxFiller(store=store)
@@ -111,6 +117,36 @@ class MapContext:
     self.map: MapData = NO_DATA
     self.own_gps = own_gps if own_gps is not None else OwnGps()
     self.want_own_gps = False     # set by the consumer: Mapbox filler enabled with a key
+    self._store = store
+    self._engine = engine         # callable -> bool (tests); default mapd_v2.engine_v2(store), re-read every 2 s
+    self._v2_tick = v2_tick
+    self._mono = mono
+    self._engine_t = None
+    self.v2 = False
+
+  def _use_v2(self) -> bool:
+    now = self._mono()
+    if self._engine_t is None or now - self._engine_t >= ENGINE_RECHECK_S:
+      self._engine_t = now
+      try:
+        if self._engine is not None:
+          self.v2 = bool(self._engine())
+        else:
+          from openpilot.system.bogpilot.osm import mapd_v2
+          self.v2 = mapd_v2.engine_v2(self._store)
+      except Exception:
+        self.v2 = False
+    return self.v2
+
+  def _read_v2(self) -> MapData:
+    from openpilot.system.bogpilot.osm import mapd_v2
+    if self._v2_tick is None:
+      self._v2_tick = mapd_v2.SharedTick()
+    d = self._v2_tick.get()
+    if not d.fresh or d.speed_limit <= 0.0:
+      return NO_DATA
+    nxt = d.next_speed_limit if d.next_speed_limit > 0.0 else 0.0
+    return MapData(d.speed_limit, d.speed_limit, nxt, d.next_distance if nxt else 0.0, False)
 
   def update(self, v_ego: float, lookahead_higher_s: float, lookahead_lower_s: float) -> MapData:
     """update_map_speed_limit inputs for this tick. 0.9.7 returned early (keeping the last value) without a GPS position;
@@ -120,8 +156,12 @@ class MapContext:
       self.gps_position = read_gps_position(self.mem, now)
       if self.gps_position is None and self.want_own_gps:
         self.gps_position = self.own_gps.update()
-      self.map = self.reader.read(self.gps_position, v_ego, lookahead_higher_s, lookahead_lower_s, now=now) \
-        if self.gps_position else NO_DATA
+      if not self.gps_position:
+        self.map = NO_DATA
+      elif self._use_v2():
+        self.map = self._read_v2()
+      else:
+        self.map = self.reader.read(self.gps_position, v_ego, lookahead_higher_s, lookahead_lower_s, now=now)
     except Exception:
       self.gps_position, self.map = None, NO_DATA
     return self.map

@@ -31,7 +31,7 @@ def test_defaults_and_roundtrip(store):
   store.put_bool("SpeedLimitController", False)
   assert store.get_bool("SpeedLimitController") is False
   store.remove("Offset1")
-  assert store.get_int("Offset1") == 5
+  assert store.get_int("Offset1") == 4          # the BogPilot default, not the stock 5
 
 
 def test_float_text_and_level_gate(store):
@@ -91,7 +91,7 @@ def test_onroad_toggles_formulas(store):
   assert t.human_lane_changes is True
   assert t.speed_limit_controller and t.show_speed_limits
   assert t.slc_fallback_previous_speed_limit and not t.slc_fallback_set_speed
-  assert t.speed_limit_offset1 == pytest.approx(5 * 0.44704)
+  assert t.speed_limit_offset1 == pytest.approx(4 * 0.44704)
   assert t.speed_limit_priority1 == "Navigation" and not t.speed_limit_priority_highest
 
   store.put_bool("DeveloperUI", True)
@@ -102,7 +102,7 @@ def test_onroad_toggles_formulas(store):
   assert onroad_toggles(store, _cp(radar=False)).adjacent_lead_tracking is False
 
   store.put_bool("IsMetric", True)
-  assert onroad_toggles(store, _cp()).speed_limit_offset1 == pytest.approx(5 / 3.6)
+  assert onroad_toggles(store, _cp()).speed_limit_offset1 == pytest.approx(4 / 3.6)
 
   no_long = onroad_toggles(store, _cp(long=False))
   assert not no_long.speed_limit_controller and no_long.speed_limit_offset1 == 0

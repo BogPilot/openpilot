@@ -98,7 +98,7 @@ DEFAULTS = {
   "ScreenBrightness": 101,
   "ScreenBrightnessOnroad": 101,
   "ScreenTimeout": 30,
-  "ScreenTimeoutOnroad": 30,
+  "ScreenTimeoutOnroad": 10,
   "StandbyMode": False,
   "NoLogging": False,       # default OFF: the device records as stock
   "ScreenRecorder": True,   # the driving-screen record button; lives here, not on Appearance

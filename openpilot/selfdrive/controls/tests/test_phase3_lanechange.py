@@ -609,6 +609,7 @@ class ConsumerReplayTests(unittest.TestCase):
       rd.ap1_lead_filters = [AP1FilterSpy(), AP1FilterSpy()]
       # __new__ skips RadarD.__init__; assign lead_threshold as __init__ does, from its own default.
       rd.lead_threshold = inspect.signature(self.radar['RadarD'].__init__).parameters['lead_threshold'].default
+      rd.vision_only_gate = inspect.signature(self.radar['RadarD'].__init__).parameters['vision_only_gate'].default
       return rd
 
     rd = make(False)

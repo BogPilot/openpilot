@@ -1,5 +1,26 @@
 What's new
 =======================
+* Navigation > Maps: pick countries or U.S. states and download their map data on the comma itself. Downloads also work while driving when the Speed Limit Controller is on; they run at low priority and resume if interrupted. Automatic updates default to Weekly and wait for unmetered Wi-Fi. On the comma 4 the region lists open as a 2-column grid of full names
+* Gas/Brake, Tuning Level and Device Settings now open while driving, as in FrogPilot 0.9.7. Rows the car reads only at start ask for a reboot. Pedal calibration, the radar tests, resets and map delete or repair still need Park or the car off
+* Speed Limit Offsets now start at 4 / 5 / 5 / 5 / 7 / 8 / 10 mph. An offset you saved yourself is never changed
+* Screen Timeout (Onroad) now starts at 10 seconds. A saved value is kept
+* Phantom braking: on AP1 and Pre-AP, a car that only the camera sees more than 164 ft ahead now needs more confidence before the car brakes for it, unless you are closing on it faster than 11 mph
+* Pre-AP: a retrofitted AP1 stalk is detected automatically about 2.5 s after the first stalk presses and remembered. Reset Hardware Settings clears it
+* Pre-AP hardware tools: pedal emergency disable, Test Radar and Calibrate Radar screens, and Reset Hardware Settings, which clears only the pedal, radar, radar offset and stalk-detection settings
+* Pre-AP Bosch radar retrofit: new Radar EPAS Type setting (0 to 4, default 0)
+* Pre-AP: an "EPAS Not Steering" warning when the power steering stops taking steering commands, and a column angle sensor check on the steering rate
+* Model X AP1 is now detected as a Model X, and an AP2 Model S is never treated as AP1
+* Adaptive Accel Near Lead (off by default) for AP1 and Pre-AP
+* Pedal gauge: the regen bar scale now peaks at 70 kW, so 25 kW fills 57 % of the bar instead of 70 %
+* The engaged steering arc now draws the angle openpilot is commanding
+* The Experimental Mode screen border is dimmer for night driving
+* comma 4: Driving Personalities is listed once in Gas/Brake, and the Maps pages no longer fail to open
+* Bog to the Future: lane widths are worked out once per frame, so the flames draw faster with the same picture
+* Optional, off by default: Use mapd v2 (a newer map data engine) and Map Curve Speed, which slows for map curves in Speed Limit Controller
+* New panda firmware, which updates itself on the first start after updating
+
+Earlier update
+=======================
 * Holding the stalk tip in the first detent now changes the set speed by 1 every 0.2 s after a short pause, like native AP1 TACC. The deep detent still steps to the next 5. AP1 and Pre-AP with a comma pedal
 * Most settings can now be changed while driving, like FrogPilot 0.9.7, including Alert Volume. Sound minimums are unchanged
   * Steering, Driving Model, Vehicle, Car Selection and Stalk Controls ask for a reboot. Disable Long applies when the car turns off or on Reboot Now, which needs you to disengage first

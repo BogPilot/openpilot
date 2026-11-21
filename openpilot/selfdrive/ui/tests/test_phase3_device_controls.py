@@ -16,7 +16,28 @@ class TestRuntimeConsumers(unittest.TestCase):
   def setUp(self):
     self.store = MemoryStore()
 
+  def test_fresh_onroad_timeout_is_10_and_saved_30_is_kept(self):
+    # unset / fresh default is 10 s onroad; offroad stays 30; a saved 30 is used when Screen Settings is on.
+    self.assertEqual(screen_timeout(self.store, True, 10), 10)
+    self.assertEqual(screen_timeout(self.store, False, 30), 30)
+    self.store.put("ScreenTimeoutOnroad", "30")
+    self.assertEqual(screen_timeout(self.store, True, 10), 30)
+
+  def test_onroad_timeout_path_and_alert_wake(self):
+    # Timed-out with Standby on goes dark while driving; alerts, engage/disengage (attention), or no timeout stay awake.
+    self.store.put_bool("ScreenManagement", True)
+    self.store.put_bool("StandbyMode", True)
+    self.store.put("ScreenTimeoutOnroad", "10")
+    self.assertEqual(screen_timeout(self.store, True, 10), 10)
+    self.assertFalse(screen_awake(self.store, True, True, False, attention=False))
+    self.assertTrue(screen_awake(self.store, True, True, False, attention=True))
+    self.assertTrue(screen_awake(self.store, True, False, False, attention=False))
+    # Standby off: screen stays on while driving even after the timeout
+    self.store.put_bool("StandbyMode", False)
+    self.assertTrue(screen_awake(self.store, True, True, False, attention=False))
+
   def test_screen_timeout_parent_off_preserves_stock(self):
+
     self.store.put("ScreenTimeout", "15")
     self.assertEqual(screen_timeout(self.store, False, 30), 15)   # unset master reads On like the 0.9.7 table
     self.store.put_bool("ScreenManagement", False)                  # explicit Off keeps the stock timeout

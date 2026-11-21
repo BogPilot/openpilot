@@ -235,6 +235,30 @@ class PedalCalPage(NavWidget):
       self._buttons[i].render(rl.Rectangle(bx, rect.y + rect.height - 70, bw, 60))
 
 
+class RadarToolPage(NavWidget):
+  """Pre-AP Test Radar / Calibrate Radar on the comma 4: the same RadarToolSession and ScreenState as the 3X screen, drawn compact
+  (preap_radar_tools.draw_radar_screen). A swipe down closes it, as every comma 4 page; leaving always closes the `can` subscription."""
+
+  def __init__(self, screen):
+    super().__init__()
+    self.screen = screen
+    self.set_rect(rl.Rectangle(0, 0, gui_app.width, gui_app.height))
+
+  def show_event(self):
+    super().show_event()
+    self.screen.show_event()     # session.begin(): opens the can subscription
+
+  def hide_event(self):
+    self.screen.hide_event()     # session.close()
+    super().hide_event()
+
+  def _render(self, rect):
+    from openpilot.selfdrive.ui.bogpilot.preap_radar_tools import draw_radar_screen
+    state = self.screen.session.tick()
+    self.screen.state = state
+    draw_radar_screen(rect, state, compact=True)
+
+
 def to_mici(widget):
   """The comma 4 page for a 3X dialog, or None to push `widget` unchanged."""
   from openpilot.system.ui.widgets.confirm_dialog import ConfirmDialog
@@ -251,6 +275,8 @@ def to_mici(widget):
     return keyboard_page(widget)
   if type(widget).__name__ == "PedalCalibrationScreen" and hasattr(widget, "session") and hasattr(widget, "_press"):
     return PedalCalPage(widget)
+  if type(widget).__name__ == "RadarToolScreen" and hasattr(widget, "session") and hasattr(widget, "_press"):
+    return RadarToolPage(widget)
   return None
 
 
@@ -277,4 +303,4 @@ def install(app=None) -> bool:
   return True
 
 
-__all__ = ["ConfirmPage", "AlertPage", "OptionsPage", "PedalCalPage", "keyboard_page", "to_mici", "install", "confirm_text"]
+__all__ = ["ConfirmPage", "AlertPage", "OptionsPage", "PedalCalPage", "RadarToolPage", "keyboard_page", "to_mici", "install", "confirm_text"]

@@ -2,6 +2,7 @@
 
 The recorder tests run the REAL ffmpeg encoder on synthetic frames in a temporary directory (sandbox only) and check
 the saved files with ffprobe. Nothing here captures a screen or reads private data."""
+import ast
 import datetime
 import json
 import math
@@ -17,6 +18,7 @@ from types import SimpleNamespace
 
 from openpilot.selfdrive.ui.onroad.bogpilot.tests.test_release_adapters import load
 
+ROOT_HUD = Path(__file__).resolve().parents[1]
 SL = load("speed_limit_display")
 ARC = load("steering_arc")
 PED = load("pedals")
@@ -157,6 +159,20 @@ def msgs(curv=0.0, desired=0.0, v=20.0, angle=0.0, lat=True, which="angleState",
           SimpleNamespace(actuatorsOutput=SimpleNamespace(torque=torque)), SimpleNamespace(roll=roll))
 
 
+def with_cmd(m, angle):
+  """msgs() tuple with the commanded steering angle on carControl.actuators and carOutput.actuatorsOutput."""
+  cs, car, cc, co, vp = m
+  cc = SimpleNamespace(latActive=cc.latActive, actuators=SimpleNamespace(steeringAngleDeg=angle))
+  co = SimpleNamespace(actuatorsOutput=SimpleNamespace(torque=co.actuatorsOutput.torque, steeringAngleDeg=angle))
+  return cs, car, cc, co, vp
+
+
+def cp_stub(brand):
+  return SimpleNamespace(brand=brand, wheelbase=2.959, centerToFront=2.959 * 0.45, steerRatio=15.4,
+                         rotationalInertiaPerMass=2.0, tireStiffnessFrontPerMass=15.0, tireStiffnessRearPerMass=20.0,
+                         maxLateralAccel=3.2)
+
+
 class TestSteeringArc(unittest.TestCase):
   def test_signs(self):
     # controlsState.curvature is right-turn positive -> fills right (positive)
@@ -171,6 +187,85 @@ class TestSteeringArc(unittest.TestCase):
     # torque control path: -carOutput.actuatorsOutput.torque (0.11.2 upstream)
     a = ARC.inputs_from_messages(*msgs(which="pidState", torque=0.3), 3.0, "engaged", False)
     self.assertAlmostEqual(a.op, -0.3)
+
+  def test_legacy_tesla_engaged_arc_uses_commanded_angle_without_roll(self):
+    cp = cp_stub("tesla_ap1")
+    fn = ARC.make_commanded_curvature_fn(cp)
+    self.assertIsNotNone(fn)
+    # drive-like case: roll +3 deg (0.052 rad) pushes the old arc left; commanded +0.3 deg, wheel +0.2 deg
+    base = msgs(curv=-0.0001, desired=-0.0001, v=13.0, angle=0.2, roll=0.052)
+    old = ARC.inputs_from_messages(*base, 3.0, "engaged", False)
+    new = ARC.inputs_from_messages(*with_cmd(base, 0.3), 3.0, "engaged", False, fn)
+    self.assertLess(old.op, -0.1)                    # old arc: roll compensation drags it left
+    self.assertLess(abs(new.op), 0.01)               # new arc: ~straight, like the wheel
+    # roll has no effect at all on the commanded arc
+    flat = ARC.inputs_from_messages(*with_cmd(msgs(curv=-0.0001, desired=-0.0001, v=13.0, angle=0.2, roll=0.0), 0.3),
+                                    3.0, "engaged", False, fn)
+    self.assertEqual(new.op, flat.op)
+    # desired curvature / actual curvature do not matter either, only the command
+    other = ARC.inputs_from_messages(*with_cmd(msgs(curv=0.01, desired=-0.02, v=13.0, angle=0.2, roll=0.052), 0.3),
+                                     3.0, "engaged", False, fn)
+    self.assertEqual(new.op, other.op)
+    # signs: left command (positive angle) fills left (negative), right fills right, same convention as before
+    left = ARC.inputs_from_messages(*with_cmd(msgs(v=20.0), 20.0), 3.0, "engaged", False, fn)
+    right = ARC.inputs_from_messages(*with_cmd(msgs(v=20.0), -20.0), 3.0, "engaged", False, fn)
+    self.assertLess(left.op, 0)
+    self.assertAlmostEqual(left.op, -right.op)
+    # same 17 degree span semantics: op is lateral accel / max lateral accel, clamped to +-1
+    big = ARC.inputs_from_messages(*with_cmd(msgs(v=30.0), 500.0), 3.0, "engaged", False, fn)
+    self.assertEqual(big.op, -1.0)
+    v = 20.0
+    k = -fn(10.0, v)
+    self.assertAlmostEqual(ARC.inputs_from_messages(*with_cmd(msgs(v=v), -10.0), 3.0, "engaged", False, fn).op,
+                           k * v * v / 3.0)
+
+  def test_commanded_angle_prefers_carOutput_as_sent(self):
+    cc = SimpleNamespace(actuators=SimpleNamespace(steeringAngleDeg=5.0))
+    co = SimpleNamespace(actuatorsOutput=SimpleNamespace(steeringAngleDeg=2.0))
+    self.assertEqual(ARC.commanded_angle_deg(cc, co), 2.0)
+    self.assertEqual(ARC.commanded_angle_deg(cc, None), 5.0)
+    self.assertEqual(ARC.commanded_angle_deg(cc, SimpleNamespace(actuatorsOutput=SimpleNamespace(steeringAngleDeg=float("nan")))), 5.0)
+    self.assertIsNone(ARC.commanded_angle_deg(SimpleNamespace(), None))
+    # no readable command -> the old source, never a crash
+    fn = ARC.make_commanded_curvature_fn(cp_stub("tesla_ap1"))
+    m = msgs(curv=0.004, desired=0.004)
+    a = ARC.inputs_from_messages(m[0], m[1], SimpleNamespace(latActive=True), None, m[4], 3.0, "engaged", False, fn)
+    self.assertGreater(a.op, 0)
+
+  def test_manual_steering_keeps_the_real_wheel_angle(self):
+    fn = ARC.make_commanded_curvature_fn(cp_stub("tesla_ap1"))
+    base = msgs(curv=-0.01, desired=0.0, v=1.0, angle=90.0)
+    plain = ARC.inputs_from_messages(*base, 3.0, "disengaged", False)
+    with_fn = ARC.inputs_from_messages(*with_cmd(base, 1.0), 3.0, "disengaged", False, fn)
+    self.assertEqual((plain.human, plain.human_lat_weight, plain.steering_angle_deg),
+                     (with_fn.human, with_fn.human_lat_weight, with_fn.steering_angle_deg))
+    self.assertAlmostEqual(with_fn.human, -0.5)      # the wheel at +90 deg, not the commanded +1 deg
+    # override: human source is wheel-based as well
+    ov = ARC.inputs_from_messages(*with_cmd(msgs(curv=-0.004, desired=0.0, v=20.0, angle=30.0), 0.5), 3.0, "override", False, fn)
+    plain_ov = ARC.inputs_from_messages(*msgs(curv=-0.004, desired=0.0, v=20.0, angle=30.0), 3.0, "override", False)
+    self.assertEqual(ov.human, plain_ov.human)
+
+  def test_other_brands_and_other_controls_unchanged(self):
+    self.assertIsNone(ARC.make_commanded_curvature_fn(cp_stub("tesla")))     # AP2 / new Tesla
+    self.assertIsNone(ARC.make_commanded_curvature_fn(cp_stub("toyota")))
+    self.assertIsNone(ARC.make_commanded_curvature_fn(None))
+    for kw in (dict(curv=0.004, desired=0.004), dict(curv=0.0, desired=0.004, roll=0.01), dict(curv=-0.003, desired=-0.001, v=9.0)):
+      m = msgs(**kw)
+      self.assertEqual(ARC.inputs_from_messages(*m, 3.2, "engaged", False),
+                       ARC.inputs_from_messages(*with_cmd(m, 12.0), 3.2, "engaged", False, None))
+    # torque control stays on carOutput torque even with the legacy-Tesla function present
+    fn = ARC.make_commanded_curvature_fn(cp_stub("tesla_ap1"))
+    a = ARC.inputs_from_messages(*with_cmd(msgs(which="pidState", torque=0.3), 9.0), 3.0, "engaged", False, fn)
+    self.assertAlmostEqual(a.op, -0.3)
+
+  def test_both_renderers_pass_the_commanded_function(self):
+    src = (ROOT_HUD / "bogpilot_hud.py").read_text()
+    self.assertEqual(src.count("self._bp_arc_cmd_fn(cp)"), 2)       # 3X arc and comma 4 arc
+    tree = ast.parse(src)
+    cls = {n.name: n for n in tree.body if isinstance(n, ast.ClassDef)}
+    self.assertIn("_bp_arc_cmd_fn", {f.name for f in cls["ClusterState"].body if isinstance(f, ast.FunctionDef)})
+    for n in ("BogPilotHudRenderer", "BogPilotMiciHudRenderer"):
+      self.assertIn("ClusterState", [b.id for b in cls[n].bases])
 
   def test_utilization_formula(self):
     # 0.004 * 20^2 = 1.6 m/s^2 over 3.2 -> 0.5; roll compensation fully on above 15 m/s

@@ -9,7 +9,8 @@ Layout: NAP opendbc/car/tesla/preap/teslacan.py:83-97 (create_radar_vin_msg, the
 nap_conf.py:46-52 (normalize_radar_donor_vin) @ openpilot naponsp-alpha-prebuilt 7eb09d2a7.
 Record 0 also carries the 0x2A9 radar position and EPAS type, which the panda applies (NAP f00c8cb9). Position is the Radar
 Donor Type setting (TeslaRadarDonorType: 0 pre-facelift Model S, 1 facelift Model S, 2 Model X, default 0, as NAP
-NAPRadarPosition), not the Radar Behind Nosecone toggle. EPAS 0.
+NAPRadarPosition), not the Radar Behind Nosecone toggle. The EPAS type is the Radar EPAS Type setting (TeslaRadarEpasType: 0 Bosch
+L538, 1 Bosch L405, 2 Mando FGR64, 3 Mando VGR66, 4 Mando VGR66 Gen3, default 0, clamped 0..4, as NAP nap-dev NAPRadarEpasType).
 Stream: in any gear, including after a card start already in Drive, as long as openpilot is disengaged. NAP f00c8cb9
 sends it at frame % 100 (1/s) whenever the radar is on, engaged or not (opendbc/car/tesla/carcontroller.py:126-134). The
 10 Hz rate (frame % 10) is from nap-dev 851e9e1c (opendbc/car/tesla/carcontroller.py:126-135) and nap-ap1 21a45cf9
@@ -84,10 +85,11 @@ class RadarDonorStream:
   leaving the radar without car data for the whole drive.
   """
 
-  def __init__(self, radar_emulation: bool, donor_vin: str, position: int):
+  def __init__(self, radar_emulation: bool, donor_vin: str, position: int, epas_type: int = 0):
     self.radar_emulation = bool(radar_emulation)
     self.vin = normalize_radar_donor_vin(donor_vin)
     self.position = position if type(position) is int and position in (0, 1, 2) else 0
+    self.epas_type = max(0, min(4, epas_type)) if type(epas_type) is int else 0
     self.idx = 0
     self.state = Link.OFF if not self.radar_emulation else Link.WAIT_SAFETY
     self.frame = 0
@@ -153,7 +155,7 @@ class RadarDonorStream:
       return []
     if enabled or steering or fsm_engaged or (link is not None and link.controls_allowed):
       return []
-    msg = create_radar_vin_msg(self.idx, self.vin, True, self.position, 0)
+    msg = create_radar_vin_msg(self.idx, self.vin, True, self.position, self.epas_type)
     self.idx = (self.idx + 1) % 3
     self.sent += 1
     return [msg]

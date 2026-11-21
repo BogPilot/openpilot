@@ -219,8 +219,8 @@ class MenuNavigation:
 
 
 def choose_tuning_level(level, *, can_edit: Callable[[], bool], show_warning: Callable[[str], None], store=None) -> bool:
-  """A tap on a Tuning Level (3X segmented control and comma 4 level list alike). Offroad only (`can_edit`, the
-  onroad_policy MENU_CLASS gate). Writes TuningLevel and TuningLevelConfirmed; choosing Developer shows the 0.9.7
+  """A tap on a Tuning Level (3X segmented control and comma 4 level list alike). Editable while driving (`can_edit`, the
+  onroad_policy MENU_CLASS gate); a change while the car is on shows the reboot prompt. Writes TuningLevel and TuningLevelConfirmed; choosing Developer shows the 0.9.7
   warning once."""
   level = tl.clamp(level)
   if not can_edit():
@@ -230,6 +230,11 @@ def choose_tuning_level(level, *, can_edit: Callable[[], bool], show_warning: Ca
     return False
   if level == tl.DEVELOPER and before != tl.DEVELOPER:
     show_warning(DEVELOPER_WARNING)
+  if level != before:
+    try:
+      onroad_policy.row_changed("tuning_level")   # 0.9.7 allowed it live; some consumers read the level once at start
+    except Exception:
+      pass
   return True
 
 

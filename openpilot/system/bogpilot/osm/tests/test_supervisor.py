@@ -253,3 +253,53 @@ def test_mapd_is_started_in_the_osm_root(tmp_path):
   finally:
     sup.installer.load_manifest = orig
   assert seen.get("cwd") == str(st.root)
+
+
+# ---------------------------------------------------------------- downloads while driving: resume, priority, no drive gate
+class StepResumer:
+  def __init__(self, results):
+    self.results, self.calls = list(results), 0
+
+  def step(self):
+    self.calls += 1
+    return self.results.pop(0) if self.results else "idle"
+
+
+def _run_with(tmp_path, monkeypatch, **kw):
+  st, _ = installed(tmp_path)
+  mem = MemParams(tmp_path / "d")
+  clk = Clock()
+  procs, kwargs = [], []
+
+  def popen(cmd, **k):
+    kwargs.append(k)
+    procs.append(FakeProc(exits_after=10 ** 9))
+    procs[-1].pid = 4242
+    return procs[-1]
+
+  man = manifest_for(st.mapd_path.read_bytes())
+  monkeypatch.setattr(S.installer, "load_manifest", lambda *a, **k: man)
+  res = S.run(st, mem, popen=popen, sm=None, sleep=clk.sleep, monotonic=clk, max_ticks=60, **kw)
+  return res, procs, kwargs, mem, st
+
+
+def test_stalled_or_full_download_restarts_mapd(tmp_path, monkeypatch):
+  res, procs, _kw, _mem, _st = _run_with(tmp_path, monkeypatch, resumer=StepResumer(["busy", "stalled", "busy", "no_space"]))
+  assert res["restarts"] == 2 and procs[0].terminated
+
+
+def test_priority_follows_the_download_state_and_preexec_is_passed(tmp_path, monkeypatch):
+  seen = []
+  marker = object()
+  st, _ = installed(tmp_path)
+  mem = MemParams(tmp_path / "d")
+  res, procs, kwargs, mem, st = _run_with(tmp_path, monkeypatch, resumer=StepResumer([]),
+                                          prioritize=lambda pid, busy: seen.append((pid, busy)), preexec=marker)
+  assert kwargs[0]["preexec_fn"] is marker and kwargs[0]["cwd"] == str(st.root)
+  assert seen == [(4242, False)]                                  # set once at launch, again only when it changes
+
+
+def test_installs_and_runs_regardless_of_the_car_state():
+  import inspect
+  src = inspect.getsource(S.run).split('"""')[2]                  # the code, without the docstring
+  assert "IsOnroad" not in src and "gearShifter" not in src and "parked" not in src   # map downloads are never drive-gated

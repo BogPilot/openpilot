@@ -141,7 +141,7 @@ def test_other_cars_reset_to_the_general_table(car, metric):
 
 
 def test_general_table_is_unchanged():
-  assert [BOGPILOT_PARAMS[k][2] for k in OFFSETS] == ["5"] * 4 + ["10"] * 3
+  assert [BOGPILOT_PARAMS[k][2] for k in OFFSETS] == ["4", "5", "5", "5", "7", "8", "10"]   # BogPilot defaults
   assert {k: BOGPILOT_PARAMS[k][2] for k in MAIN + VISUALS} == {
     "SLCOverride": "1", "SLCPriority1": "Navigation", "SLCPriority2": "Map Data", "SLCPriority3": "Dashboard",
     "SLCLookaheadLower": "5", "ShowSLCOffset": BOGPILOT_PARAMS["ShowSLCOffset"][2]}

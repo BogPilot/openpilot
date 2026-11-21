@@ -37,6 +37,8 @@ def _registered_keys():
   add("visuals", [bogpilot_visuals.SIDE_KEY])
   add("device", phase3_device_controls.RANGES)
   add("device", [phase3_device_controls.DEVICE_MASTER, phase3_device_controls.SCREEN_MASTER, "StandbyMode"])
+  from openpilot.selfdrive.ui.bogpilot import map_data_page
+  add("maps", map_data_page.HELP_KEYS)
   return keys
 
 
@@ -136,6 +138,24 @@ class TestHelpTable(unittest.TestCase):
     self.assertIn("blind-spot", (HELP["LaneChanges"].note + HELP["NudgelessLaneChange"].note).lower())
     self.assertIn("stock", (HELP["driving_model.default"].what + HELP["driving_model.status"].what).lower())
     self.assertIn("steering only", (HELP["CarSelection"].what + HELP["CarSelection"].note).lower())
+
+  def test_onroad_timeout_help_matches_t1063(self):
+    from openpilot.selfdrive.ui.bogpilot.toggle_help import HELP
+    from openpilot.common.bogpilot_params import BOGPILOT_PARAMS
+    entry = HELP["ScreenTimeoutOnroad"]
+    self.assertEqual(BOGPILOT_PARAMS["ScreenTimeoutOnroad"][2], "10")
+    self.assertEqual(entry.default, "10 seconds")
+    text = " ".join((entry.what, entry.note, entry.default)).lower()
+    for phrase in (
+      "open menus close",
+      "driving view comes back",
+      "stays on while driving unless standby mode is on",
+      "goes dark after this timeout",
+      "alerts",
+      "engage or disengage",
+      "tap",
+    ):
+      self.assertIn(phrase, text, phrase)
 
   def test_aliases_point_at_real_entries(self):
     from openpilot.selfdrive.ui.bogpilot.toggle_help import ALIASES, HELP

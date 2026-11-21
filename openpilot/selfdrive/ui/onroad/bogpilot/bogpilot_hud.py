@@ -139,6 +139,14 @@ def draw_cem_status(hud, rect):
 class ClusterState:
   """Accel graph samples and the validated CSC report, shared by the C3X and C4 renderers."""
 
+  def _bp_arc_cmd_fn(self, cp):
+    """Commanded-angle curvature map for the engaged arc (legacy Tesla only, else None); built once per CarParams."""
+    cached = getattr(self, "_bp_arc_cmd_cache", None)
+    if cached is None or cached[0] is not cp:
+      cached = (cp, ARC.make_commanded_curvature_fn(cp))
+      self._bp_arc_cmd_cache = cached
+    return cached[1]
+
   def _bp_init(self):
     self.bp_graph = AccelGraph(hz=GRAPH_HZ)
     self.bp_csc = L.INVALID_CSC
@@ -347,7 +355,7 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
         max_lat = float(cp.maxLateralAccel) if cp is not None else ARC.DEFAULT_MAX_LAT_ACCEL
         exp = bool(_fresh(sm, "selfdriveState") and sm["selfdriveState"].experimentalMode)
         self.bp_arc.update(ARC.inputs_from_messages(sm["controlsState"], sm["carState"], sm["carControl"], co, vp, max_lat,
-                                                    ui_state.status.value, exp))
+                                                    ui_state.status.value, exp, self._bp_arc_cmd_fn(cp)))
         self.bp_arc_live = True
       except Exception:
         cloudlog.exception("steering arc inputs failed; stock Experimental Mode button kept until the next drive")
@@ -540,7 +548,7 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
       max_lat = float(cp.maxLateralAccel) if cp is not None else ARC.DEFAULT_MAX_LAT_ACCEL
       exp = bool(_fresh(sm, "selfdriveState") and sm["selfdriveState"].experimentalMode)
       self._bp_c4_arc.update(ARC.inputs_from_messages(sm["controlsState"], sm["carState"], sm["carControl"], co, vp,
-                                                      max_lat, ui_state.status.value, exp))
+                                                      max_lat, ui_state.status.value, exp, self._bp_arc_cmd_fn(cp)))
       self.bp_c4_arc_ok = True
     except Exception:
       cloudlog.exception("comma 4 steering arc inputs failed; stock torque bar kept until the next drive")

@@ -156,14 +156,30 @@ def _lane_track(lane: np.ndarray, across: float) -> np.ndarray:
   return np.array([p for p in pts if p is not None], dtype=np.float32)
 
 
-def _lane_width_at_y(lane: np.ndarray, y: float) -> float:
+def _lane_width_profile(lane: np.ndarray) -> tuple[np.ndarray, np.ndarray] | None:
+  """Lane width in pixels against the lane's centre-line y, sorted by y (the table _lane_width_at_y interpolates).
+
+  Built once per frame with whole-array operations, then queried for every segment and tongue with one np.interp."""
   n = len(lane) // 2
   if n < 2:
-    return 0.0
-  ys = np.array([float(_lane_point(lane, i, 0.5)[1]) for i in range(n)])
-  ws = np.array([_lane_width_px(lane, i) for i in range(n)])
+    return None
+  left = lane[n:2 * n]
+  right = lane[n - 1::-1][:n]
+  ys = (left + (right - left) * 0.5)[:, 1].astype(np.float64)
+  ws = np.linalg.norm(left - right, axis=1).astype(np.float64)
   order = np.argsort(ys)
-  return float(np.interp(y, ys[order], ws[order]))
+  return ys[order], ws[order]
+
+
+def _lane_widths_at(profile: tuple[np.ndarray, np.ndarray] | None, ys) -> np.ndarray:
+  ys = np.asarray(ys, dtype=np.float64)
+  if profile is None:
+    return np.zeros(ys.shape)
+  return np.interp(ys, profile[0], profile[1])
+
+
+def _lane_width_at_y(lane: np.ndarray, y: float) -> float:
+  return float(_lane_widths_at(_lane_width_profile(lane), [y])[0])
 
 
 def _extend_down(track: np.ndarray, bottom: float) -> np.ndarray:
@@ -232,22 +248,33 @@ def paint_trail_from_car(lane: np.ndarray, anchor, view, t: float, now_ms: float
   lo, hi = trail_span(t)
   head_u, tail_u = _trail_progress(t)
   w_near = max(6.0, view[2] * 0.011)
-  for tr, across in zip(tracks, TRAIL_ACROSS, strict=True):
+  # Lane widths for every segment and tongue of both tracks: one profile and one vectorised interpolation per frame.
+  tongues = []                                 # per track: (m, index into the track) of the tongues that are lit
+  for _ in tracks:
+    lit = []
+    for m in range(9):
+      u = (m / 9.0 + now_ms / 900.0) % 1.0
+      if tail_u <= u <= head_u:
+        lit.append((m, last - min(last, int(u * last))))
+    tongues.append(lit)
+  query = [np.concatenate((tr[lo:hi, 1], [tr[k, 1] for _, k in lit])) for tr, lit in zip(tracks, tongues, strict=True)]
+  widths = _lane_widths_at(_lane_width_profile(lane), np.concatenate(query))
+  cut = 0
+  for tr, across, lit, q in zip(tracks, TRAIL_ACROSS, tongues, query, strict=True):
+    lws = widths[cut:cut + len(q)]
+    cut += len(q)
     for j in range(lo, hi):
       a, b = tr[j], tr[j + 1]
       u = (last - j) / last                    # 0 at the car, 1 at the screen bottom
-      lw = _lane_width_at_y(lane, float(a[1]))
+      lw = float(lws[j - lo])
       wid = max(2.0, 0.07 * lw if lw > 0 else w_near * (0.35 + 0.65 * u))
       flick = 0.75 + 0.25 * math.sin(now_ms * 0.025 + j * 1.7 + across * 11.0)
       edge = min(1.0, (hi - j) / 4.0)          # soft burnt-out edge at the car end
       alpha = env * edge * (0.5 + 0.5 * _flow(u, now_ms, k=4.0, period_ms=300.0))
       _fire_segment(a, b, wid, alpha, flick)
-    for m in range(9):                         # flame tongues stream down the track
-      u = (m / 9.0 + now_ms / 900.0) % 1.0
-      if not tail_u <= u <= head_u:
-        continue
-      p = tr[last - min(last, int(u * last))]
-      lw = _lane_width_at_y(lane, float(p[1]))
+    for (m, k), lw in zip(lit, lws[max(0, hi - lo):], strict=True):   # flame tongues stream down the track
+      p = tr[k]
+      lw = float(lw)
       wid = max(2.0, 0.07 * lw if lw > 0 else w_near)
       flick = 0.75 + 0.25 * math.sin(now_ms * 0.03 + m * 2.3)
       _tongue(float(p[0]), float(p[1]), wid, FLAME_HEIGHT_SCALE * wid * (3.0 + 1.5 * flick), env, flick)

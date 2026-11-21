@@ -133,8 +133,10 @@ def test_enum_is_last_non_deprecated():
   events = log.OnroadEvent.EventName.schema.enumerants
   assert "radarDataInvalid" in events
   non_dep = {n: v for n, v in events.items() if not n.endswith("DEPRECATED")}
-  assert events["radarDataInvalid"] == max(non_dep.values())
+  # Its ordinal is fixed at 115. Later events take the next ordinals (preapEpasNotSteering @116), so it is no longer the last.
   assert events["radarDataInvalid"] == 115
+  assert all(v > 115 for n, v in non_dep.items() if v >= 115 and n != "radarDataInvalid")
+  assert events["preapEpasNotSteering"] == 116
 
 
 def _fresh_canerror_like(text: str):

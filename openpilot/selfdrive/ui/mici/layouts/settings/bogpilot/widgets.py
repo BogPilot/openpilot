@@ -10,9 +10,11 @@ from collections.abc import Callable
 import pyray as rl
 
 from opendbc.car.tesla_ap1.stalk_repeat import INITIAL_S as REPEAT_DELAY_S, PERIOD_S as REPEAT_PERIOD_S
+from openpilot.selfdrive.ui.bogpilot import region_grid as rg
 from openpilot.selfdrive.ui.bogpilot import row_model as rm
 from openpilot.selfdrive.ui.mici.widgets.button import BigButton, GreyBigButton
 from openpilot.system.ui.lib.application import FontWeight, MousePos, gui_app
+from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.widgets import Widget
 from openpilot.system.ui.widgets.nav_widget import NavWidget
@@ -379,3 +381,49 @@ class StepperPage(NavWidget):
 
 
 __all__ = ["mici_title", "REPEAT_DELAY_S", "REPEAT_PERIOD_S", "LiveCard", "InfoCard", "cards_for", "RowChoice", "ChoicePage", "StepButton", "StepperPage", "chunk_text"]
+
+
+class RegionGridPage(Widget):
+  """One card-sized page of the comma 4 region grid (Maps > Countries / U.S. States): 2 columns x 3 rows of full names
+  (selfdrive/ui/bogpilot/region_grid.py). Green = selected, grey = not. A tap flips the region under the finger; the state is
+  read live every frame, so a refused change (too many regions) shows as it was."""
+
+  def __init__(self, cells: list, selected: Callable[[str], bool], on_tap: Callable[[str], object]):
+    super().__init__()
+    self.cells, self._selected, self._on_tap = list(cells), selected, on_tap
+    self.set_rect(rl.Rectangle(0, 0, rg.PAGE_W, rg.PAGE_H))
+
+  def _render(self, rect):
+    font = gui_app.font(FontWeight.SEMI_BOLD)
+    cw, ch = rg.cell_size()
+
+    def measure(text, size):
+      return measure_text_cached(font, text, size).x
+
+    for i, (code, name) in enumerate(self.cells):
+      ox, oy = rg.cell_origin(i)
+      x, y = rect.x + ox, rect.y + oy
+      color = GREEN if self._selected(code) else (PRESSED if self.is_pressed and self._press == i else GREY)
+      rl.draw_rectangle_rounded(rl.Rectangle(x, y, cw, ch), min(0.35, 24 / ch), 12, color)
+      lines, size = rg.fit_label(tr(name), cw - 2 * rg.PAD_X, measure)
+      total = sum(measure_text_cached(font, ln, size).y for ln in lines)
+      top = y + (ch - total) / 2
+      for ln in lines:
+        m = measure_text_cached(font, ln, size)
+        rl.draw_text_ex(font, ln, rl.Vector2(x + (cw - m.x) / 2, top), size, 0, TEXT)
+        top += m.y
+
+  _press = -1
+
+  def _handle_mouse_press(self, mouse_pos: MousePos):
+    self._press = self.cell_index(mouse_pos)
+
+  def cell_index(self, mouse_pos) -> int | None:
+    idx = rg.cell_at(mouse_pos.x - self._rect.x, mouse_pos.y - self._rect.y, len(self.cells))
+    return idx
+
+  def _handle_mouse_release(self, mouse_pos: MousePos):
+    idx = self.cell_index(mouse_pos)
+    if idx is not None and idx == self._press:       # pressed and released on the same cell
+      self._on_tap(self.cells[idx][0])
+    self._press = -1

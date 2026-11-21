@@ -32,7 +32,8 @@ TAP_FROM_ZERO_DESC = (
 )
 # Consumer-backed control IDs (feeds Page.controls so an empty page is omitted by the navigation).
 CONTROLS = ("LongitudinalActuatorDelay", "MaxDesiredAcceleration", "StopAccel", "StoppingDecelRate",
-            "AccelerationProfile", "DecelerationProfile", "HumanAcceleration",
+            "AccelerationProfile", "DecelerationProfile", "HumanAcceleration", "AdaptiveAccelLead",
+            "CSCMapCurvature",
             "CustomPersonalities", "HumanFollowing", "HumanLaneChanges",
             "LeadDetectionThreshold", "ForceStops", "IncreasedStoppedDistance", "WeatherPresets", "SpeedLimitController")
 
@@ -181,6 +182,40 @@ def nudge_tap_from_zero(store, direction: int, can_edit=None) -> int:
   return shown
 
 
+class _NotifyingStore:
+  """Forwards to the real store; after a write (or remove) of a REBOOT-class row it asks onroad_policy for the 0.9.7
+  reboot prompt (once per page visit, only while the car is on). Reads and every other attribute pass straight through."""
+
+  def __init__(self, store, page_key=PAGE_KEY):
+    object.__setattr__(self, "_store", store)
+    object.__setattr__(self, "_page_key", page_key)
+
+  def __getattr__(self, name):
+    return getattr(self._store, name)
+
+  def _notify(self, key):
+    from openpilot.selfdrive.ui.bogpilot import onroad_policy
+    try:
+      onroad_policy.row_changed(key, self._page_key)
+    except Exception:
+      pass
+
+  def put(self, key, *args, **kw):
+    out = self._store.put(key, *args, **kw)
+    self._notify(key)
+    return out
+
+  def put_bool(self, key, *args, **kw):
+    out = self._store.put_bool(key, *args, **kw)
+    self._notify(key)
+    return out
+
+  def remove(self, key, *args, **kw):
+    out = self._store.remove(key, *args, **kw)
+    self._notify(key)
+    return out
+
+
 def create_gas_brake_layout(store=None, cp_source=None, can_edit=None):
   """Lazy factory for the phase2 navigation Page. All arguments are injectable for native tests."""
   from openpilot.system.ui.widgets import Widget
@@ -194,11 +229,13 @@ def create_gas_brake_layout(store=None, cp_source=None, can_edit=None):
   if store is None:
     from openpilot.common.bogpilot_store import ParamStore
     store = ParamStore()
+  store = _NotifyingStore(store)   # reboot prompt for the start-read rows (onroad_policy.ROW_CLASS)
   if cp_source is None or can_edit is None:
     from openpilot.selfdrive.ui.ui_state import ui_state
     cp_source = cp_source or (lambda: ui_state.CP)
     if can_edit is None:
-      # onroad_policy "gas_brake" = LOCKED: offroad only (0.9.7 allowed Longitudinal live; see ONROAD_CAVEATS).
+      # onroad_policy "gas_brake" = ONROAD (0.9.7 Longitudinal): editable while driving. The rows whose consumer reads
+      # the param once at start are REBOOT in onroad_policy.ROW_CLASS and prompt through _NotifyingStore.
       from openpilot.selfdrive.ui.bogpilot import onroad_policy
       can_edit = onroad_policy.editor("gas_brake")
   cp = LiveCP(cp_source)

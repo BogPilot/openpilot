@@ -270,10 +270,24 @@ class LongitudinalPlanner:
     else:
       output_a_target, self.mpc.source, _ = min(candidates, key=lambda c: c[0])
     self.output_should_stop = any(should_stop for _, _, should_stop in candidates)
+    output_a_target = self._apply_lead_accel_cap(sm, output_a_target, v_ego, t_follow, profile_limits)
     output_a_target = self.ap1_plan.shape_stop(sm, output_a_target, not reset_state)
     self.output_a_target = np.clip(output_a_target, ACCEL_MIN, ACCEL_MAX)
 
     self.v_desired_filter.x = self.v_desired_filter.x + self.dt * (self.output_a_target + a_prev) / 2.0
+
+  def _apply_lead_accel_cap(self, sm, a_target, v_ego, t_follow, profile_limits=None):
+    """AdaptiveAccelLead (legacy Teslas, default off): cap a positive request near a lead. Unchanged when off or on any error."""
+    la = self.long_accel
+    if la is None or a_target <= 0.0:
+      return a_target
+    try:
+      ceiling = profile_limits[1] if profile_limits is not None else get_max_accel(v_ego)   # what the cruise path may ask for now
+      cap = la.lead_accel_cap(v_ego, float(ceiling), sm['radarState'].leadOne, t_follow)
+    except Exception:
+      cloudlog.exception("BogPilot adaptive accel cap unavailable; plan unchanged")
+      return a_target
+    return a_target if cap is None else min(a_target, cap)
 
   def publish(self, sm, pm):
     plan_send = messaging.new_message('longitudinalPlan')

@@ -50,6 +50,12 @@ def test_adoption_policy_still_requires_marker_and_binary(tmp_path, monkeypatch)
   assert S.manager_condition(True, params, None) is False
 
 
+# the only UI file allowed to import the osm package: the Map Data page. The menu reaches it through a lazy factory.
+UI_ALLOWED = ["openpilot/selfdrive/ui/bogpilot/map_data_page.py"]
+# CSC Map Curve Speed (CSCMapCurvature, mapd v2) reads mapdOut through osm.mapd_v2, lazily.
+CSC_ALLOWED = ["openpilot/selfdrive/controls/lib/ap1_curve_speed.py"]
+
+
 def test_only_the_slc_consumer_imports_osm_and_lazily():
   # planner/ui/car must not import the osm package; phase3_speed_control does it inside _wire_map_sources (try/except)
   hits = []
@@ -59,7 +65,9 @@ def test_only_the_slc_consumer_imports_osm_and_lazily():
         continue
       if "bogpilot.osm" in p.read_text(errors="ignore"):
         hits.append(str(p.relative_to(ROOT)))
-  assert hits == ["openpilot/selfdrive/controls/lib/phase3_speed_control.py"]
+  assert sorted(hits) == sorted(["openpilot/selfdrive/controls/lib/phase3_speed_control.py", *CSC_ALLOWED, *UI_ALLOWED]), hits
+  for rel in CSC_ALLOWED:   # Map Curve Speed: mapd_v2 imported only inside methods, after the toggle check
+    assert not re.search(r"^(from|import)\s+\S*bogpilot\.osm", (ROOT / rel).read_text(), re.M), rel
   src = (ROOT / "openpilot/selfdrive/controls/lib/phase3_speed_control.py").read_text()
   head = src.split("def _wire_map_sources")[0]
   assert not re.search(r"^\s*(from|import)\s+\S*bogpilot\.osm", head, re.M)   # no module-level import: a broken osm package cannot break the planner

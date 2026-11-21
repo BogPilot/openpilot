@@ -20,8 +20,8 @@ from openpilot.selfdrive.ui.bogpilot import onroad_policy
 from openpilot.selfdrive.ui.bogpilot import row_model as rm
 from openpilot.selfdrive.ui.bogpilot import tuning_level as tl
 from openpilot.selfdrive.ui.mici.layouts.settings.bogpilot import dialogs
-from openpilot.selfdrive.ui.mici.layouts.settings.bogpilot.widgets import (ChoicePage, InfoCard, LiveCard, StepperPage,
-                                                                           cards_for)
+from openpilot.selfdrive.ui.mici.layouts.settings.bogpilot.widgets import (ChoicePage, InfoCard, LiveCard, RegionGridPage,
+                                                                           StepperPage, cards_for)
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.widgets.scroller import NavScroller
@@ -55,12 +55,18 @@ class PageHost(NavScroller):
 
   def __init__(self, layout: BogPilotLayoutMici, path: tuple, widget, title):
     super().__init__()
-    self._layout, self.path, self.widget = layout, path, widget
+    # not self._layout: that name is Widget._layout(), called by every render (an attribute there made render() raise)
+    self._menu, self.path, self.widget = layout, path, widget
     self._title = title
     self._header = InfoCard(self._title_text, lambda: tr(layout.page_note()))
     self._cards: dict[int, tuple] = {}
     self._ids: tuple = ()
     self.rows: list = []
+    self.grid_pages: list = []             # comma 4 region grid (Maps > Countries / U.S. States), see region_grid.py
+    self._grid_sig: tuple | None = None
+    enable = getattr(widget, "enable_grid_picker", None)
+    if callable(enable):
+      enable(True)
     self._scroller.add_widget(self._header)
 
   def _title_text(self):
@@ -72,18 +78,32 @@ class PageHost(NavScroller):
     self._sync_cards(rows)
     return rows
 
+  def _grid(self):
+    """(signature, cells) of the open region grid, or (None, None) when the page has no grid open."""
+    grid = getattr(self.widget, "grid_cells", None)
+    cells = grid() if callable(grid) else None
+    if cells is None:
+      return None, None
+    return (self.widget.grid_kind(), tuple(code for code, _n in cells)), cells
+
   def _sync_cards(self, items):
     ids = tuple(id(i) for i in items)
-    if ids == self._ids:
+    sig, cells = self._grid()
+    if ids == self._ids and sig == self._grid_sig:
       return
-    self._ids = ids
+    self._ids, self._grid_sig = ids, sig
     cards = [self._header]
+    self.grid_pages = []
+    if cells is not None:
+      from openpilot.selfdrive.ui.bogpilot import region_grid
+      self.grid_pages = [RegionGridPage(page, self.widget.grid_selected, self.widget.grid_tap) for page in region_grid.paginate(cells)]
+      cards.extend(self.grid_pages)
     rows = []
     for item in items:
       cached = self._cards.get(id(item))
       if cached is None or cached[0] is not item:
         row = rm.Row(item)
-        cached = (item, row, cards_for(row, self._layout.open_choice, self._layout.open_stepper))
+        cached = (item, row, cards_for(row, self._menu.open_choice, self._menu.open_stepper))
         self._cards[id(item)] = cached
       rows.append(cached[1])
       cards.extend(cached[2])

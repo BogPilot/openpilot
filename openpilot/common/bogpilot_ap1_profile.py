@@ -200,7 +200,7 @@ AP1_PARAM_PROFILE: dict[str, str] = {
   # (fresh-ON like Green Light) and are never written by this profile either.
 
   # --- System ---
-  "PreferredSchedule": "1",              # OSM map update schedule: Weekly (default Monthly)
+  "PreferredSchedule": "1",              # OSM map update schedule: Weekly (same as the registry default)
   # BogPilot telemetry, stats uploads and device registration are removed from BogPilot entirely, so
   # BogPilotTelemetry is no longer part of the profile (its table default is now 0 and the toggle is hidden).
 }
@@ -281,19 +281,36 @@ def _profile_for_units(params) -> dict[str, str]:
   return profile
 
 
-def _is_converted_default(key, current, table, metric) -> bool:
-  """On a metric device the settings UI converted the mph table default to km/h (truncating), e.g. 5 -> 8.
+# The shipped Offset1-7 table defaults before the BogPilot values (4/5/5/5/7/8/10 mph) became the defaults themselves:
+# stock 5/5/5/5/10/10/10. A device can hold one as a saved value (a reset wrote it, or the old libparams default was
+# read back and stored), so it still counts as "never changed" and the one-time profiles still move it to the BogPilot
+# value, exactly as they did while the table default was the stock value.
+OLD_STOCK_OFFSETS_MPH: dict[str, int] = {"Offset1": 5, "Offset2": 5, "Offset3": 5, "Offset4": 5, "Offset5": 10,
+                                         "Offset6": 10, "Offset7": 10}
 
-  Treat that converted value as "still default" so a metric user who never touched an offset gets the profile.
+
+def _is_converted_default(key, current, table, metric) -> bool:
+  """True when an offset still holds a default nobody chose: the old stock value (as mph, or as the settings UI's km/h
+  conversion of it, e.g. 5 -> 8), or on a metric device the UI's km/h conversion of the table default.
+
+  Treat those as "still default" so a user who never touched an offset gets the profile.
   """
-  if not metric or key not in AP1_SPEED_OFFSETS_MPH:
+  if key not in AP1_SPEED_OFFSETS_MPH:
     return False
   try:
-    default_mph = float(table[key])
     cur = float(_text(current))
-  except (TypeError, ValueError, KeyError):
+  except (TypeError, ValueError):
     return False
-  return cur in (int(default_mph * MPH_TO_KPH), round(default_mph * MPH_TO_KPH))
+  old = OLD_STOCK_OFFSETS_MPH[key]
+  if cur == old:
+    return True
+  if not metric:
+    return False
+  try:
+    table_mph = float(table[key])
+  except (TypeError, ValueError, KeyError):
+    table_mph = float(old)
+  return any(cur in (int(m * MPH_TO_KPH), round(m * MPH_TO_KPH)) for m in (table_mph, float(old)))
 
 
 def is_ap1(params) -> bool:

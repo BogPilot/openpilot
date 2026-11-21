@@ -155,3 +155,14 @@ Do not apply an ID-only filter for 0x32e or 0x33e. That would drop a real radar 
   problems that BogPilot's Pre-AP work fixes: the Comma Pedal sensor bit layout (GAS_SENSOR state and counter nibbles), engaging only on a
   stalk pull, and re-arming on a new pull. Thank you. The Pre-AP code in this repository is BogPilot's own; no code from that fork
   was copied.
+
+## AP1 stalk retrofit auto-detect (follow-distance dial)
+
+A Pre-AP car with an AP1 cruise stalk sends the same up / down / cancel / engage as a stock stalk; the retrofit only adds the
+follow-distance twist (`DTR_Dist_Rq` on `STW_ACTN_RQ`). There is no menu row and no saved setting. The twist is ignored until it is
+seen: two different valid detents (0, 33, 66, 100, 133, 166, 200) each held for 25 consecutive `STW_ACTN_RQ` frames (2.5 s at 10 Hz,
+counted from the CAN frame timestamp, not the 100 Hz loop). SNA, a missing frame or an off-detent value restarts the count. A stock
+stalk keeps the field at a constant 0, so it never latches. Once latched the dial is followed from then on: the first latch is saved once in the hidden file-backed key `PreAPStalkRetrofitDetected`
+(default 0, no menu row, not backed up; written off the 100 Hz loop through the params thread), and a saved 1 makes the next start read the dial from
+the first frame with no detection. Reset Hardware Settings clears it. It then drives the same follow time, Traffic Mode and personality sync as AP1, with pedal longitudinal only.
+To confirm on a car: after starting a drive, turn the dial to a different position than it started in and hold it for about 3 s.

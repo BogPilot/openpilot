@@ -49,9 +49,15 @@ class TestLogMapping(unittest.TestCase):
     want_drive = {5: 12, 10: 20, 25: 36, 50: 51, 100: 69, 200: 87, 300: 98}
     for kw, pct in want_drive.items():
       self.assertEqual(round(100 * G3.log_power_fill(kw, 320.0, 10.0)), pct, kw)
-    want_regen = {5: 27, 10: 43, 25: 70, 50: 93}
+    want_regen = {5: 17, 10: 29, 25: 57, 50: 85}
     for kw, pct in want_regen.items():
-      self.assertEqual(round(100 * G3.log_power_fill(kw, 60.0, 5.0)), pct, kw)
+      self.assertEqual(round(100 * G3.log_power_fill(kw, 70.0, 15.0)), pct, kw)
+
+  def test_regen_25kw_is_not_near_full(self):
+    # A tester saw ~80 % on the bar at 20-25 kW; the old 60 kW / P0 5 kW curve gave 63-70 % there (80 % at 34 kW).
+    self.assertLess(G3.log_power_fill(25.0, G3.REGEN_PEAK_KW_DEFAULT, G3.REGEN_LOG_P0_KW), 0.60)
+    self.assertLess(G3.log_power_fill(34.0, G3.REGEN_PEAK_KW_DEFAULT, G3.REGEN_LOG_P0_KW), 0.70)
+    self.assertGreater(G3.log_power_fill(50.0, G3.REGEN_PEAK_KW_DEFAULT, G3.REGEN_LOG_P0_KW), 0.80)
 
   def test_deadband_and_junk(self):
     for bad in (None, float("nan"), "x", -5.0, 0.5, 1.0):
@@ -91,7 +97,7 @@ class TestBarsOnTheLogScale(unittest.TestCase):
   def test_regen_bar_is_log_regen_power(self):
     rpm = rpm_at(20)
     g = Rig().step(tq=-nm_for_kw(25.0, rpm), rpm=rpm, n=60)
-    self.assertAlmostEqual(g.regen, G3.log_power_fill(25.0, 60.0, 5.0), places=3)   # ~70 %, not full
+    self.assertAlmostEqual(g.regen, G3.log_power_fill(25.0, 70.0, 15.0), places=3)   # ~57 %, not full
     self.assertEqual(g.regen_src, G3.OP)
 
   def test_no_rpm_falls_back_to_torque(self):
