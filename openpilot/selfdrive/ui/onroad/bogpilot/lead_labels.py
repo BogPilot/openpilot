@@ -134,7 +134,7 @@ def distance_tag(box, width, view, keepouts=()):
 
 
 def paint_labels(box, data, view, keepouts=()):
-  """Connect existing painters; caller supplies w1's CURRENT box, never stale anchors.
+  """Connect existing painters; caller supplies the lead lock-on's CURRENT box, never stale anchors.
 
   Units/box/view/keepouts are all screen pixels, so C4/resize never rescales a
   screen anchor twice. Compact composition remains disabled (stock fallback).

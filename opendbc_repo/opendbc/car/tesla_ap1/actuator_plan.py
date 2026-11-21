@@ -131,11 +131,11 @@ def ap1_long_acc_state(camera_acc_state, chassis_das_only):
   """
   # AP1: stock DAS reports accState 0 below ~18 mph with no lead (stock TACC
   # minimum speed). Forwarding that 0 made the DI drop cruise ~100 ms after
-  # every sub-18 mph engage (routes 53/54). Tinkla always sends 4 in drive.
+  # every sub-18 mph engage (logged drives). Tinkla always sends 4 in drive.
   # Stock DAS also sends 13 (ACC_CANCEL_GENERIC_SILENT) on some low-speed
-  # roads (route 57: dirt track / unmarked roads, 16:53:37, 17:03:09, 17:03:23).
+  # roads (a logged drive on a dirt track / unmarked roads).
   # Forwarding it cancelled DI cruise within ~20 ms with no driver input. The
-  # stock DAS is not the cruise owner while openpilot is engaged; driver cancel
+  # stock DAS is not in control of cruise while openpilot is engaged; driver cancel
   # (stalk, brake, gas) uses its own path. Tinkla always sends 4 in drive.
   if chassis_das_only and camera_acc_state in (0, ACC_HOLD, ACC_CANCEL_GENERIC_SILENT):
     return ACC_ON
@@ -207,7 +207,7 @@ def ap1_hold_measured_angle(chassis_das_only, enabled, eac_fault, hands_pause,
                            tmp_fault_probe=False):
   """True when AP1 must command ANGLE at the measured wheel, not the planner.
 
-  EPAS on route 0000000e stayed EAC_INHIBITED with code 6 while openpilot kept
+  In a logged drive EPAS stayed EAC_INHIBITED with code 6 while openpilot kept
   sending planner ANGLE; the wheel never moved and there was no UI fault.
   Hold measured until EAC_ACTIVE (and after soft-start / latched 6 or 3).
   Only while openpilot wants lateral (lat_session, CarControl.latActive) and

@@ -66,7 +66,7 @@ class TestPlanner(unittest.TestCase):
 
 
 class TestNoLimitFallback(unittest.TestCase):
-  """t1385 decision 5: ON + no posted limit -> Experimental Mode's planned speed; the toggle and the rc7 policy are untouched."""
+  """Auto Speed ON + no posted limit -> Experimental Mode's planned speed; the toggle and the rc7 policy are untouched."""
 
   def test_on_no_limit_is_experimental_for_every_fallback_choice(self):
     for fb in ("0", "1", "2"):

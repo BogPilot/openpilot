@@ -154,7 +154,7 @@ def test_preap_already_set_to_eco_plus_is_left_alone(tmp_path):
 
 
 def test_ap1_s_after_its_profile_ran_keeps_a_value_chosen_back_at_the_default(tmp_path):
-  # AP1DefaultsApplied already rewrote every still-default value once, so Eco (the default) now is the owner's choice
+  # AP1DefaultsApplied already rewrote every still-default value once, so Eco (the default) now is the user's choice
   tmp_path.joinpath(P.MARKER_NAME).write_text("1\n")
   p = FakeParams(CarModel="TESLA_AP1_MODELS", DecelerationProfile="1", RelaxedFollow="1.75")
   written = run(p, tmp_path)

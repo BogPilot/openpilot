@@ -65,7 +65,7 @@ WARNING_FLOOR_KEYS = ("PromptVolume", "PromptDistractedVolume", "WarningSoftVolu
 WARNING_FLOOR = 25
 OMITTED = (
   ("CustomAlerts/GreenLightAlert/LeadDepartingAlert/LoudBlindspotAlert/SpeedLimitChangedAlert", "alertsAudio lane"),
-  ("GoatScream", "owner: skip"),
+  ("GoatScream", "skipped"),
   ("per-row test-play button", "0.9.7 ffplay path; no verified raylib/device audio path"),
 )
 

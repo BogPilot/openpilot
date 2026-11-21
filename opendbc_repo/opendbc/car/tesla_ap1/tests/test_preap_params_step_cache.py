@@ -94,7 +94,7 @@ def test_card_starts_the_cache_for_pre_ap_and_moves_its_own_param_read():
   pre = src.split("self.preap_refusals = TxRefusalWatch()", 1)[1].split("\n    if ", 1)[0]
   assert "start_step_cache()" in pre
   step_body = src.split("  def state_update(self)", 1)[1].split("  def params_thread", 1)[0]
-  # Pre-AP keeps the 10 Hz snapshot (07e8bd68f). AP1/unknown keep the 92aa9ee1f 100 Hz read (ab106443b).
+  # Pre-AP keeps the 10 Hz snapshot (07e8bd68f). AP1/unknown keep the 92aa9ee1f 100 Hz read.
   ap1_read = 'distance_pressed = self.params.get_bool("OnroadDistanceButtonPressed")'
   assert ap1_read in step_body
   assert "self.params.get" not in step_body.replace(ap1_read, "")

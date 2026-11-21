@@ -35,7 +35,7 @@ def test_defaults_and_roundtrip(store):
 
 
 def test_float_text_and_level_gate(store):
-  store.put("EngageVolume", "0.000000")  # owner-chosen value (AP1 profile no longer writes volumes)
+  store.put("EngageVolume", "0.000000")  # user-chosen value (AP1 profile no longer writes volumes)
   assert store.get_int("EngageVolume") == 0
   store.put("CustomPersonalities", True)
   assert store.tuning_level() == 3       # unconfirmed level counts as 3 (367e1fe)

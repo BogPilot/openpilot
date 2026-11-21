@@ -15,7 +15,7 @@ from opendbc.car.tesla_ap1.preap import params as preap_params
 from openpilot.selfdrive.ui.bogpilot.phase2_vehicle import (PREAP, RADAR_DONOR_VIN, RADAR_DONOR_VIN_BAD,
                                                             VehicleSettings)
 
-VIN = "5YJSA1E26HF000000"      # 17 valid VIN characters; not a real car
+VIN = "ABCDEFGHJKLMNPRST"      # 17 valid VIN characters; placeholder, not a real car
 
 
 class TestDonorVinRow(unittest.TestCase):
@@ -67,7 +67,7 @@ class TestDonorVinRow(unittest.TestCase):
     self.assertEqual(self.model.donor_vin_text(), VIN)
 
   def test_lowercase_and_separators_are_normalized(self):
-    self.assertIsNone(self.model.set_donor_vin(" 5yjsa1e26-hf0 00000 "))
+    self.assertIsNone(self.model.set_donor_vin(" abcdefgh-jk lmnprst "))
     self.assertEqual(self.stored(), VIN)
 
   def test_an_empty_box_clears_it_back_to_this_car(self):
@@ -80,7 +80,7 @@ class TestDonorVinRow(unittest.TestCase):
 
   def test_a_short_or_long_vin_is_refused_and_changes_nothing(self):
     self.assertIsNone(self.model.set_donor_vin(VIN))
-    for bad in ("5YJSA1E26HF", VIN + "00", "5YJSA1E26HF00000!"):
+    for bad in ("ABCDEFGHJKL", VIN + "00", "ABCDEFGHJKLMNPRS!"):
       self.assertEqual(self.model.set_donor_vin(bad), RADAR_DONOR_VIN_BAD, bad)
       self.assertEqual(self.stored(), VIN, bad)
 

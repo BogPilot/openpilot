@@ -72,7 +72,7 @@ def test_every_other_car_keeps_the_explicit_ack_rule(platform):
 
 
 def test_longitudinal_tune_off_is_respected_on_the_legacy_platforms():
-  # LongitudinalTune=0 is the owner's off switch (and what "Reset to stock" stores): no profile, stock limits
+  # LongitudinalTune=0 is the user's off switch (and what "Reset to stock" stores): no profile, stock limits
   for platform in LEGACY:
     assert Profiles.read(Store(**{**STORED_097, "LongitudinalTune": 0}), platform) is None
 

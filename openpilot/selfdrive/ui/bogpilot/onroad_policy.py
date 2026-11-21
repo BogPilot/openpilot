@@ -105,7 +105,7 @@ ROW_CLASS: dict[str, str] = {
 # Groups 0.9.7 allowed onroad that this build keeps stricter, and why (reported with the patch).
 ONROAD_CAVEATS: dict[str, str] = {
   "gas_brake": "Gas / Brake (0.9.7 Longitudinal) changes follow distance, personalities, acceleration and stopping live "
-               "in the planner; kept offroad only until the owner opts in.",
+               "in the planner; kept offroad only until the user opts in.",
   "tuning_level": "Tuning Level decides which saved values the live consumers honour, so a mid-drive change can "
                   "silently swap tuned values for defaults; kept offroad only.",
   "NoLogging": "Disable Logging (and the Device Settings master above it) makes the manager stop loggerd and encoderd "

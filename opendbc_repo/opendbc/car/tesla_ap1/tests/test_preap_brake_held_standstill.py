@@ -125,7 +125,7 @@ def test_fsm_held_brake_hold_drops_to_steering_only_when_the_car_moves_with_it()
   e = PreAPEngagement()
   step(e, 0, pull=True, v_ego=0.0, brake=True)
   d = step(e, 200, pull=True, op=True, v_ego=0.0, brake=True)
-  assert d.mode == Mode.FULL and d.standstill_hold and d.capture_edge and d.capture_from_stop   # t1401: set on the pull
+  assert d.mode == Mode.FULL and d.standstill_hold and d.capture_edge and d.capture_from_stop   # set on the pull
   d = step(e, 300, op=True, v_ego=STANDSTILL_SPEED_MS, brake=True)
   assert d.mode == Mode.LAT_ONLY and d.lat_only
 
@@ -326,7 +326,7 @@ def test_fsm_gas_release_at_unknown_speed_keeps_the_hold(bad):
   assert d.mode == Mode.FULL and d.standstill_hold, "still held; only a new press and a release while moving ends it"
   step(e, 800, op=True, v_ego=0.0, gas=True)
   d = step(e, 810, op=True, v_ego=1.0)
-  assert not d.standstill_hold and not d.capture_edge   # t1401: the release keeps the set taken on the pull
+  assert not d.standstill_hold and not d.capture_edge   # the release keeps the set taken on the pull
 
 
 def test_rig_raw_speed_from_esp_b_ends_the_exemption_before_the_filtered_speed():

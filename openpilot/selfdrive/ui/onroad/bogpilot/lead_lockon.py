@@ -238,7 +238,7 @@ def _box_keepouts(frame):
 
 
 class LeadLockOnLayer:
-  """w9 composer adapter. Raw current renderer and SubMaster are required.
+  """HUD composer adapter. Raw current renderer and SubMaster are required.
 
   enabled() validates placement before painting the lock-on box. Boxes are drawn under every alert
   (the alert is painted after them, on top); they keep clear of the HUD, the DM and the pill, not of the alert

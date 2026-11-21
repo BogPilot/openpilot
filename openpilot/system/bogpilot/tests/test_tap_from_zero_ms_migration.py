@@ -1,4 +1,4 @@
-"""t1453: one-time carry-over of the Standstill Tap Speed from whole mph (AP1TapFromZeroMph) to m/s (AP1TapFromZeroMs)."""
+"""One-time carry-over of the Standstill Tap Speed from whole mph (AP1TapFromZeroMph) to m/s (AP1TapFromZeroMs)."""
 from pathlib import Path
 
 import pytest

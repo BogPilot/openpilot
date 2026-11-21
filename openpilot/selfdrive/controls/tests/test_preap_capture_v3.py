@@ -1,4 +1,4 @@
-"""t1394: Pre-AP pedal set-speed capture. NAP rounding to the display unit, the AP1 from-stop setting on the standstill-hold release,
+"""Pre-AP pedal set-speed capture. NAP rounding to the display unit, the AP1 from-stop setting on the standstill-hold release,
 and the from-stop speed replacing the 40 km/h first-pull floor. AP1 / stock paths unchanged."""
 import unittest
 from types import SimpleNamespace as NS

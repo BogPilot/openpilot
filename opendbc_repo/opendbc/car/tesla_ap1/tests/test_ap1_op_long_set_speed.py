@@ -545,7 +545,7 @@ def test_rolling_engage_no_limit_latches_rounded_vego(v_kph, lever):
 
 def test_tap_from_zero_setting_default_edges_live_and_display():
   """Standstill Tap Speed: default 15, edges 5 and 30, invalid/missing/out-of-range -> 15, live change, metric text, 0x389.
-  parse_tap_from_zero_mph is the legacy AP1TapFromZeroMph parser (the t1453 migration's source); the stored setting is
+  parse_tap_from_zero_mph is the legacy AP1TapFromZeroMph parser (the migration's source); the stored setting is
   now AP1TapFromZeroMs (m/s, test_tap_from_zero_ms.py)."""
   from opendbc.car.tesla_ap1.slc_raise import cruise_set_mph
   assert parse_tap_from_zero_mph(None) == 15
@@ -562,7 +562,7 @@ def test_tap_from_zero_setting_default_edges_live_and_display():
   assert parse_tap_from_zero_mph(30) == 30
   assert parse_tap_from_zero_mph("15") == 15
   assert tap_from_zero_kph_from_param(None) == pytest.approx(TAP_FROM_ZERO_KPH)
-  # t1453: the value is m/s and shows in the metric toggle's own unit (km/h when metric, no mph in brackets).
+  # the value is m/s and shows in the metric toggle's own unit (km/h when metric, no mph in brackets).
   assert format_tap_from_zero_display(15 * 0.44704, False) == "15 mph"
   assert format_tap_from_zero_display(15 * 0.44704, True) == "24 km/h"
   assert format_tap_from_zero_display(5 * 0.44704, True) == "8 km/h"

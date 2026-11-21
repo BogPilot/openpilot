@@ -91,7 +91,7 @@ print('REAL native Params/schema/config/lifecycle imports; no manager boot/daemo
     native = subprocess.run([sys.executable, "-c", code], cwd=REPO, env=env)
     report["native_exit"] = native.returncode
     result = native if native.returncode else result
-  # Optional w7 stdlib regression suite; absence is an explicit dependency, not pass.
+  # Optional stdlib regression suite; absence is an explicit dependency, not pass.
   firmware = REPO / "panda/tests/test_build_identity.py"
   if firmware.exists():
     fw = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "panda/tests", "-p", "test_build_identity.py"], cwd=REPO, env=env)

@@ -1,4 +1,4 @@
-"""Cross-page contracts (every registered page key has a consumer-backed owner, no forbidden surfaces)."""
+"""Cross-page contracts (every registered page key has a consumer behind it, no forbidden surfaces)."""
 import re
 import unittest
 from pathlib import Path

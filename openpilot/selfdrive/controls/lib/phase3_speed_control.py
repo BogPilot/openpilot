@@ -166,7 +166,7 @@ def preap_auto_speed_on(fixed=None) -> bool:
 
 
 def preap_auto_fallback_toggles(t):
-  """Pre AP Auto Speed ON (t1385): with no posted limit the planner uses Experimental Mode's planned speed, whatever the
+  """Pre AP Auto Speed ON: with no posted limit the planner uses Experimental Mode's planned speed, whatever the
   shared Fallback Speed choice says (Set Speed / Previous Limit are AP1 choices). A copy, so the shared snapshot, the UI and
   AP1 never see it. This is the planner flag only: the ExperimentalMode param is never written (resolve_experimental), the
   rc7 "or" policy still keeps a manual Experimental on, and carState.vCruise (the captured set, stalk tips) stays the cap
@@ -962,7 +962,7 @@ class EngageTapFromZero:
   """Card / planner: AP1TapFromZeroMs (stored m/s; whole mph 5-30 or whole km/h 8-48 in the UI) as kph, live with a 1 s cache.
 
   Missing, non-numeric, non-finite or out-of-range values fall back to 15 mph. Any read failure does the same. A whole-mph
-  value (every value migrated from the pre-t1453 AP1TapFromZeroMph) gives the same kph bit for bit as before
+  value (every value migrated from the previous AP1TapFromZeroMph) gives the same kph bit for bit as before
   (op_long_set_speed.tap_from_zero_kph_from_ms).
   """
 

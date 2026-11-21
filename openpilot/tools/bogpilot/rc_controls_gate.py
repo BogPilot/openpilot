@@ -61,7 +61,7 @@ def main(argv=None):
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--sandbox-root", required=True, type=Path)
   parser.add_argument("--plan", action="store_true")
-  parser.add_argument("--lock-owner", help="attest externally held AGNOS VM build lock owner")
+  parser.add_argument("--lock-owner", help="attest externally held AGNOS VM build lock holder")
   args = parser.parse_args(argv)
   sandbox = args.sandbox_root.expanduser().resolve()
   if sandbox == Path("/") or any(sandbox.is_relative_to(p) for p in (Path("/data"), Path("/cache"))):

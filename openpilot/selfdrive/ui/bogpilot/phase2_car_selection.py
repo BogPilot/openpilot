@@ -93,7 +93,7 @@ def current_choice(params) -> str:
   if saved == PREAP_S_PLATFORM:
     return PREAP_S
   # Unknown / other saved model: surface as Auto for this AP1 picker, but
-  # do not clear it here (owner may have set it elsewhere).
+  # do not clear it here (the user may have set it elsewhere).
   return AUTO
 
 

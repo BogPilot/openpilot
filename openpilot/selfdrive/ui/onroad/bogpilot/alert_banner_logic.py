@@ -48,7 +48,7 @@ class AlertPlan:
   rect: tuple[float, float, float, float] | None   # x, y, w, h in the caller's rect space; None for NONE
   mid: bool = False
   use_native_fill: bool = True                      # False -> NORMAL_BANNER_FILL
-  # HUD hints for w9 (Qt annotated_camera hideCluster / alertHeight semantics)
+  # HUD hints for HUD composition (Qt annotated_camera hideCluster / alertHeight semantics)
   showing: bool = False
   full: bool = False
   hide_cluster: bool = False

@@ -34,7 +34,7 @@ def store(tmp_path, monkeypatch):
   return s
 
 
-GENERIC = "TESLA_MODEL_3"     # not a legacy tesla_ap1 platform: the Longitudinal Tuning group starts OFF until the owner flips it
+GENERIC = "TESLA_MODEL_3"     # not a legacy tesla_ap1 platform: the Longitudinal Tuning group starts OFF until the user flips it
                               # (on TESLA_AP1_MODELS/MODELX/PREAP it starts ON, see test_gas_brake_profiles_default_on.py)
 
 PREAP = "TESLA_PREAP_MODELS"
@@ -451,7 +451,7 @@ def test_standstill_tap_speed_is_one_value_row_with_its_default_and_a_reset(stor
   assert isinstance(tap.action_item, GatedValueStepAction)
   assert tap.action_item.hint_text == "default: 15 mph" and not tap.action_item.highlighted
   assert "" not in [i.title for i in rows(page) if i.is_visible]  # no blank button row under the value any more
-  press(tap, +1)   # stored in m/s (t1453): 16 mph exactly
+  press(tap, +1)   # stored in m/s: 16 mph exactly
   assert store.get_float(GB.TAP_FROM_ZERO_KEY) == 16 * 0.44704 and tap.action_item.highlighted
   assert GB.tap_from_zero_value_text(store) == "16 mph"
   (reset,) = reset_rows(page)

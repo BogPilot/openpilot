@@ -1,4 +1,4 @@
-"""t1401: card wiring for the Pre-AP from-stop rule and the tip latch (source checks; card.py imports msgq, not in this env)."""
+"""Card wiring for the Pre-AP from-stop rule and the tip latch (source checks; card.py imports msgq, not in this env)."""
 import pathlib
 import unittest
 
@@ -32,7 +32,7 @@ class TestCapture(unittest.TestCase):
 
   def test_moving_double_pull_below_from_stop_is_raised_and_above_is_kept(self):
     h = self.helper()
-    h.capture_preap_full(8.4 * CV.MPH_TO_MS, 0.0, is_metric=False, from_stop_kph=15 * MPH)   # t1438: raised
+    h.capture_preap_full(8.4 * CV.MPH_TO_MS, 0.0, is_metric=False, from_stop_kph=15 * MPH)   # raised
     self.assertAlmostEqual(h.v_cruise_kph, 15 * MPH)
     h.capture_preap_full(22.4 * CV.MPH_TO_MS, 0.0, is_metric=False, from_stop_kph=15 * MPH)  # above from-stop: current speed
     self.assertAlmostEqual(h.v_cruise_kph, 22 * MPH)

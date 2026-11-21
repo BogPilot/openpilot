@@ -11,14 +11,14 @@ Whoever runs first (boot or the UI) applies it; the marker makes every later cal
 Original notes:
 One-time BogPilot toggle profile for the Tesla AP1 Model S.
 
-AP1 is never auto-fingerprinted: owners pick "Tesla AP1 Model S" under
+AP1 is never auto-fingerprinted: users pick "Tesla AP1 Model S" under
 Vehicle Settings, which stores CarModel=TESLA_AP1_MODELS. Model X
 (CarModel=TESLA_AP1_MODELX) must not receive this Model S profile. The first time
 BogPilot sees Model S (at boot, or offroad when settings close), it applies the
 maintainer's recommended toggles below, once:
 
   - a Params key is written only if its current value still equals the
-    bogpilot_default_params table default, so anything the owner already
+    bogpilot_default_params table default, so anything the user already
     changed stays put
   - a /data/params_bogpilot file toggle is written only if the file is absent
   - then /data/params_bogpilot/AP1DefaultsApplied is written so it never runs
@@ -69,7 +69,7 @@ FILE_TOGGLE_KEYS = ("ConfidenceBall", "ConfidenceBallSide", "DeveloperHUD", "Rem
 
 # Written as a pair, and only while the tuning level was never confirmed. Without
 # TuningLevelConfirmed=1 the settings panel's first-open popup would drop a new
-# owner to "Minimal" (TuningLevel 0). Terms and training (HasAcceptedTerms,
+# user to "Minimal" (TuningLevel 0). Terms and training (HasAcceptedTerms,
 # CompletedTrainingVersion) are separate keys and are never touched here.
 TUNING_LEVEL_KEYS = ("TuningLevel", "TuningLevelConfirmed")
 
@@ -94,7 +94,7 @@ NEVER_PROFILE_KEYS = frozenset({
   # connectivity, uploads, data sharing, updates
   "SshEnabled", "TetheringEnabled", "GsmRoaming", "NoUploads", "NoLogging", "DisableOnroadUploads",
   "UseKonikServer", "HigherBitrate", "DeviceManagement", "AutomaticUpdates",
-  # units are the owner's locale, not an AP1 recommendation
+  # units are the user's locale, not an AP1 recommendation
   "IsMetric", "Fahrenheit", "UseSI",
   # driving model: a fresh device won't have the maintainer's model downloaded
   "Model",
@@ -172,7 +172,7 @@ AP1_PARAM_PROFILE: dict[str, str] = {
   "DeveloperSidebar": "0",               # 300 px developer sidebar off (keeps the full driving view)
   "LeadInfo": "0",                       # lead metrics off: the Developer HUD already shows lead data
   "FPSCounter": "0",                     # FPS counter off
-  # AdjacentLeadsUI inherits the registry ON default; an owner's saved OFF is never overridden.
+  # AdjacentLeadsUI inherits the registry ON default; a user's saved OFF is never overridden.
   "ShowStoppingPoint": "0",              # model stopping-point marker off
   "ShowStoppingPointMetrics": "0",       # stopping-point distance off
   "ShowSLCOffset": "0",                  # hide the SLC offset under the speed limit
@@ -284,7 +284,7 @@ def _profile_for_units(params) -> dict[str, str]:
 def _is_converted_default(key, current, table, metric) -> bool:
   """On a metric device the settings UI converted the mph table default to km/h (truncating), e.g. 5 -> 8.
 
-  Treat that converted value as "still default" so a metric owner who never touched an offset gets the profile.
+  Treat that converted value as "still default" so a metric user who never touched an offset gets the profile.
   """
   if not metric or key not in AP1_SPEED_OFFSETS_MPH:
     return False
@@ -382,7 +382,7 @@ def _apply_profile(params, directory: Path, default_table: dict | None) -> list[
   metric = _is_metric(params)
   written = []
 
-  # Tuning level: only for an owner who never confirmed one, and only as a pair.
+  # Tuning level: only for a user who never confirmed one, and only as a pair.
   tuning_unset = all(values_equal(params.get(k), table.get(k)) or params.get(k) is None for k in TUNING_LEVEL_KEYS)
 
   for key, value in _profile_for_units(params).items():
@@ -540,11 +540,11 @@ def apply_legacy_slc_defaults_once(params=None, bogpilot_dir: Path | None = None
 # Migration rule (never overwrites a custom setting; applied once per device, marker below, DoToggleReset clears it):
 #   1. only on a legacy Tesla platform (CarModel, else the persistent fingerprint); unknown platform = retry next boot
 #   2. a group is skipped as a whole when its adoption file (Phase3LongAccelProfilesEnabled / Phase3PersonalitiesEnabled /
-#      Phase3HumanFollowingEnabled) is set: the owner already used the new panel, their values are theirs
+#      Phase3HumanFollowingEnabled) is set: the user already used the new panel, their values are theirs
 #   3. a key is written only if it is unset/empty, or its stored value still equals the registry default (the same
 #      "still default" rule as the AP1 profile). Anything else is a user value and stays
 #   4. AP1 Model S with the AP1DefaultsApplied marker: that profile already rewrote every still-default value once, so a
-#      value that is back at the registry default now was chosen by the owner after it: only unset keys are written
+#      value that is back at the registry default now was chosen by the user after it: only unset keys are written
 #   5. "Reset to stock" (AP1StockReset1) suppresses it (bogpilot_startup), and LongitudinalTune=0 keeps the planner off
 #   Known limit (Model X): someone who explicitly picked the registry default itself (for example Eco
 #   deceleration) cannot be told apart from an untouched device and is moved to Eco+; the one-shot never repeats.
@@ -599,7 +599,7 @@ def is_legacy_tesla_platform(params) -> bool:
 
 
 def _adopted_by_owner(params, directory: Path, ack: str) -> bool:
-  """True when the adoption file of a group is set (the owner used the new panel for that group)."""
+  """True when the adoption file of a group is set (the user used the new panel for that group)."""
   on = ("1", "true", "on")
   try:
     value = _text(params.get(ack))

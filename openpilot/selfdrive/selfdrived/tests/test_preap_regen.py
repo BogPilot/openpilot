@@ -1,4 +1,4 @@
-"""Pre-AP regen-limit alert (selfdrived/preap_regen.py), alert only. t1385: one fixed 1.2 m/s^2 threshold at every speed,
+"""Pre-AP regen-limit alert (selfdrived/preap_regen.py), alert only. One fixed 1.2 m/s^2 threshold at every speed,
 0.3 s wait, shown at least 1 s, cleared by the brake, red border + repeating prompt, Pre-AP pedal long only."""
 import math
 import pathlib

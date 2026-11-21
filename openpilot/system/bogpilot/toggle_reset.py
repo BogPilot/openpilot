@@ -1,7 +1,7 @@
 """Explicit stock-toggle reset with C3X shipping policy overlays.
 
 No boot migrations, Params construction, backup implementation or import-time IO.
-Call before normal default initialization, serialized by the startup owner. A failed
+Call before normal default initialization, serialized by the startup code. A failed
 write retains the request and attempts rollback; a durable pre-reset backup is
 mandatory even when rollback succeeds. Caller must not restore stale cache values
 or reapply AP1 profile defaults after a successful stock reset.
@@ -371,7 +371,7 @@ def _atomic_file(path: Path, content: bytes | None) -> None:
 
 
 def reset_requested(params, file_root: Path | str, *, backup: Callable[[], object] | None = None) -> ResetResult:
-  """w10 supplies w5 backup closure; only a truthy durable receipt permits IO.
+  """The caller supplies the backup closure; only a truthy durable receipt permits IO.
 
   Only the active store is mutated; stale typed-key fallback files are outside
   the durable backup scope and are preserved.

@@ -1,6 +1,6 @@
 """C3X alert layer adapter: native raylib alert source + ported redesign banner painter.
 
-w9 (HUD composition) owns where this is called. Contract: render it LAST among onroad content layers (after model,
+HUD composition (hud_compose.py) owns where this is called. Contract: render it LAST among onroad content layers (after model,
 HUD/graph/lead/personality and driver-monitor), so a safety alert is never painted over. See alert_banner_logic.
 """
 from __future__ import annotations
@@ -46,7 +46,7 @@ class BogPilotAlertRenderer(AlertRenderer):
                         redesign=bool(self._redesign_fn()), compact=self._compact)
 
   def hud_state(self) -> L.AlertPlan:
-    """Last frame's plan for w9 (hide_cluster, lkas_fault border, reserved_top)."""
+    """Last frame's plan for HUD composition (hide_cluster, lkas_fault border, reserved_top)."""
     return self.plan
 
   def _render(self, rect: rl.Rectangle):

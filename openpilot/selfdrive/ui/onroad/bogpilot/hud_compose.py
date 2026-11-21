@@ -1,10 +1,10 @@
-"""C3X onroad HUD composition (wave-2 w9): draws the component adapters in the right order.
+"""C3X onroad HUD composition: draws the component adapters in the right order.
 
-w9 owns this file and the call sites in onroad/augmented_road_view.py. Component modules belong to their owners:
-  w1 lead_lockon.make_layer   primary-lead lock-on box (the stock lead chevron is never painted)
-  w3 lead_labels.make_layer   lead speed/distance labels and the personality pill (display only, replaces nothing)
-  w2 driver_monitor.make_layer relocated stock driver-monitor renderer (replaces the stock DM icon while it is enabled)
-  w4 alert_banner.BogPilotAlertRenderer, a drop-in AlertRenderer (native alert source; redesign banner for small and mid)
+This file owns the call sites in onroad/augmented_road_view.py. Component modules belong to their authors:
+  lead_lockon.make_layer   primary-lead lock-on box (the stock lead chevron is never painted)
+  lead_labels.make_layer   lead speed/distance labels and the personality pill (display only, replaces nothing)
+  driver_monitor.make_layer relocated stock driver-monitor renderer (replaces the stock DM icon while it is enabled)
+  alert_banner.BogPilotAlertRenderer, a drop-in AlertRenderer (native alert source; redesign banner for small and mid)
 A missing module is not an error: its slot keeps the stock element. Nothing here invents runtime data. Every frame
 field comes from the current drive's messages or from an existing setting resolved by its tuning-level policy.
 
@@ -49,7 +49,7 @@ MAX_AGE = 0.5
 MAX_FUTURE = 0.25   # TrafficModeReader: update() stamps recv_time with time.monotonic() AFTER the frame clock was read
 FULL = log.SelfdriveState.AlertSize.full
 BP = "openpilot.selfdrive.ui.onroad.bogpilot."
-# the w2 driver-monitor relocation layer (daily 150 px cluster slot, 150/192 scale) is no longer loaded. The
+# the driver-monitor relocation layer (daily 150 px cluster slot, 150/192 scale) is no longer loaded. The
 # driver monitor is ALWAYS the stock 0.11.2 DriverStateRenderer drawn by its own render() at its stock corner and size
 # (self.dm below), so face/head pose/arcs/fade are stock code end to end. driver_monitor.py stays in tree, unused.
 PEER_LAYERS = (("lead_lockon", BP + "lead_lockon"), ("lead_labels", BP + "lead_labels"))
@@ -217,7 +217,7 @@ def load_peer_layers(loader=importlib.import_module, mici=False):
 
 
 def make_alert_renderer(loader=importlib.import_module):
-  """w4's BogPilotAlertRenderer when present (same native alert source), else the stock AlertRenderer."""
+  """BogPilotAlertRenderer when present (same native alert source), else the stock AlertRenderer."""
   try:
     mod = loader(ALERT_MODULE)
     return mod.BogPilotAlertRenderer(redesign_fn=lambda: toggles.get("RedesignUI"))
@@ -327,8 +327,8 @@ class HudComposer:
     """Screen-space reservations.
     keepouts        everything incl. the DM and pill reservations
     lead_keepouts   keepouts without the alert: lead boxes are drawn under every alert (the alert paints on top)
-    dm_keepouts     everything except the DM's own reservation (kept for the unused w2 relocation API)
-    label_keepouts  everything except the pill's own reservation (w3), always including the stock DM corner
+    dm_keepouts     everything except the DM's own reservation (kept for the unused relocation API)
+    label_keepouts  everything except the pill's own reservation, always including the stock DM corner
     the DM is always the stock corner renderer, so the display-only personality pill sits beside it (driver
     side, CLUSTER_GAP from the stock DM rect) instead of in the old daily slot the stock DM covers."""
     rect, s = f.rect, f.scale
@@ -354,7 +354,7 @@ class HudComposer:
     if f.wide and f.onroad_distance_button and f.traffic_mode is not None and ss_ok and not f.full_alert:
       # the driving-personality button takes the stock DM corner (daily: button in the corner, DM beside
       # it); the unmodified stock DM keeps its size and moves toward the centre by button + gap.
-      p = R.personality_rect(f.rhd, rect.width / s)        # design-space disc; w3 adds its own 40 px label band
+      p = R.personality_rect(f.rhd, rect.width / s)        # design-space disc; the label layer adds its own 40 px label band
       pill = to_screen(p, rect, s)
       gap = CLUSTER_GAP * s + LABEL_CLEAR_MARGIN   # lead_labels.clear() refuses the pill within 8 px of a keepout
       pill.x, pill.y = px - pill.width / 2, py - pill.height / 2
@@ -687,7 +687,7 @@ class HudComposer:
     return base
 
   def border_override(self, millis=None):
-    """LKAS-fault flashing border (daily onroad_home) from w4's plan of the real alertType; None = stock colour."""
+    """LKAS-fault flashing border (daily onroad_home) from the alert banner's plan of the real alertType; None = stock colour."""
     if self.frame is None or "alert" in self.disabled:
       return None
     state = getattr(self.alert, "hud_state", None)

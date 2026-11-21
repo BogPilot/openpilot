@@ -1,7 +1,7 @@
-"""t1453: the Standstill Tap Speed is stored in m/s (AP1TapFromZeroMs) and shown in whole mph or whole km/h (IsMetric).
+"""The Standstill Tap Speed is stored in m/s (AP1TapFromZeroMs) and shown in whole mph or whole km/h (IsMetric).
 
 Parser bounds and invalid fallback, both display units, the display round trip, and the kph the car / planner get:
-bit for bit the same as the pre-t1453 whole-mph setting for every value it could hold (5-30 mph).
+bit for bit the same as the previous whole-mph setting for every value it could hold (5-30 mph).
 """
 import math
 
@@ -22,7 +22,7 @@ KPHS = range(8, 49)
 
 
 def old_kph(mph_text):
-  """The pre-t1453 consumer: tap_from_zero_kph_from_param(AP1TapFromZeroMph) = parse_tap_from_zero_mph(raw) * MPH_TO_KPH."""
+  """The previous consumer: tap_from_zero_kph_from_param(AP1TapFromZeroMph) = parse_tap_from_zero_mph(raw) * MPH_TO_KPH."""
   return parse_tap_from_zero_mph(mph_text) * CV.MPH_TO_KPH
 
 

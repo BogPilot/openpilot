@@ -15,7 +15,7 @@ V_CRUISE_INITIAL = 40
 # Open choice (pedal capture speed): Pre-AP pedal FULL capture uses SetSpeedLimit (limit + offset) when it is on and fresh (True,
 # default) or always the exact vEgo (False).
 PREAP_FULL_USE_SET_SPEED_LIMIT = True
-# t1394: Pre-AP pedal, no SetSpeedLimit: the first pull (steering only) and the FULL capture use the current speed rounded to the
+# Pre-AP pedal, no SetSpeedLimit: the first pull (steering only) and the FULL capture use the current speed rounded to the
 # display unit (NAP preap/engagement.py:243-246 @ cc39c7fa), with no 25 mph (V_CRUISE_INITIAL) floor; from a stop the driver's
 # from-stop speed (AP1TapFromZeroMs, the AP1 Standstill Tap Speed row) replaces the floor. False = the v2 behaviour (40 km/h floor).
 PREAP_FROM_STOP_REPLACES_FLOOR = True
@@ -200,7 +200,7 @@ class VCruiseHelper:
     elif is_metric is None:
       self.v_cruise_kph = float(min(max(float(v_ego_ms), 0.0) * CV.MS_TO_KPH, V_CRUISE_MAX))
     else:
-      # t1394: NAP rounding to the display unit. from_stop_kph > 0 only for a FULL that started at a stop. t1401 (default): passed on
+      # NAP rounding to the display unit. from_stop_kph > 0 only for a FULL that started at a stop. Default: passed on
       # the FULL entry itself (vEgo ~0), so the set is exactly the from-stop value; v3 option: on the hold release, as a minimum.
       v = preap_round_kph(v_ego_ms, bool(is_metric))
       if from_stop_kph > 0.0:

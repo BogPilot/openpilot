@@ -130,7 +130,7 @@ def test_profile_non_ap1_no_writes(tmp_path):
   assert "legacy-slc:0" in result.events  # no CarModel, so the hook writes nothing
   # Device/Screen defaults are the shipped 0.9.7 table, so startup writes nothing for them
   assert {k: v for k, v in p.values.items() if k != "BogPilotStats"} == {}   # drive-stats initialises BogPilotStats
-  # Only the assembled w8 one-shot screensaver default-off migration marker may exist; no AP1 profile writes.
+  # Only the assembled one-shot screensaver default-off migration marker may exist; no AP1 profile writes.
   written = {path.name for path in tmp_path.iterdir()}
   assert written <= {"ScreensaverDefaultOff1", "AccelGraphDefaultOff1", "DriveHistory"}   # DriveHistory: drive-stats store init; AccelGraphDefaultOff1: one-shot UI layout migration marker
   assert ("screensaver:migrated" in result.events) == ("ScreensaverDefaultOff1" in written)

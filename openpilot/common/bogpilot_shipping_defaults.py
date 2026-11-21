@@ -1,6 +1,6 @@
 """BogPilot shipping defaults + settings visibility (shipping defaults).
 
-Locked 2026-11-06 for bogpilot-tesla-c3 / bogpilot-tesla-c3x:
+Locked for bogpilot-tesla-c3 / bogpilot-tesla-c3x:
   - Border Metrics at Minimal, default ON (BSM side red via BlindSpotMetrics)
   - Developer HUD / Widgets / 300px Sidebar under Developer, default OFF
   - Sidebar Metrics CPU/GPU/RAM ON; those + approved accel-layout toggles at Minimal

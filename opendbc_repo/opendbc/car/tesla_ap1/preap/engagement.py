@@ -46,17 +46,17 @@ STANDSTILL_SPEED_MS = 0.1
 # control at 0 too (NAP preap/engagement.py:142,243-246 capture 0 as the set speed; carcontroller.py:123-128 holds ENABLE=1 at zero
 # torque); here the hold sends ENABLE=0, which is stricter. False = option (a): refuse speed control until moving (steering only).
 PREAP_FULL_AT_STANDSTILL = True
-# t1401 (from-stop rule). True = a standstill double pull sets the first set speed to the driver's from-stop value
+# True = a standstill double pull sets the first set speed to the driver's from-stop value
 # (AP1TapFromZeroMs) on the pull itself (capture_edge + capture_from_stop on the FULL entry). The accelerator release only ends
 # the hold and keeps that set, including any up/down tips made while held. False = the v3 behaviour (capture
 # max(rounded vEgo, from-stop) on the accelerator release).
 PREAP_STOP_SET_AT_PULL = True
-# t1401. True = with the pedal, an up/down tip (release edge) while steering only enters FULL with the same entry rules as a
+# True = with the pedal, an up/down tip (release edge) while steering only enters FULL with the same entry rules as a
 # second pull, latching like the AP1 tap (tesla_ap1/op_long_set_speed.py rules 2-3): rolling = the current speed in whole display
 # units and never SetSpeedLimit; at a standstill = the from-stop value with the standstill hold. A first pull (steering, panda
 # controls_allowed) is still required. False = a tip only changes the set speed, as in v3.
 PREAP_TIP_ENGAGES_LONG = True
-# t1438. True = a moving pedal double pull below the from-stop speed (AP1TapFromZeroMs) sets the from-stop speed (no standstill
+# True = a moving pedal double pull below the from-stop speed (AP1TapFromZeroMs) sets the from-stop speed (no standstill
 # hold, the car is moving). False = it captures the rounded current speed as in v3/v5. Tips are never raised (they latch the current speed).
 PREAP_MOVING_PULL_RAISES_TO_FROM_STOP = True
 # Open choice (single-pull cancel timing): no pedal, when to cancel stock cruise armed by a single pull. True = as soon as it is seen after the pull
@@ -99,8 +99,8 @@ class Decision:
   standstill_refused: bool = False  # standstill double pull (a): a double pull at a standstill was refused
   standstill_hold: bool = False     # standstill double pull (b): FULL entered at a standstill, pedal ENABLE stays 0 until the accelerator is pressed
   capture_edge: bool = False        # one tick: capture the set speed now (FULL entered; v3 option: or the hold released)
-  capture_from_stop: bool = False   # with capture_edge: the FULL began at a stop (t1401: the from-stop value, set on the entry)
-  capture_tip: bool = False         # with capture_edge: FULL was entered by an up/down tip (t1401: never SetSpeedLimit)
+  capture_from_stop: bool = False   # with capture_edge: the FULL began at a stop (the from-stop value, set on the entry)
+  capture_tip: bool = False         # with capture_edge: FULL was entered by an up/down tip (never SetSpeedLimit)
   cancel_cc: bool = False        # one tick: send one STW_ACTN_RQ CANCEL (no pedal)
   drop_cancel: bool = False      # one tick: a pending CANCEL must not be sent (the second pull beat it)
   full_edge: bool = False        # one tick: FULL was entered on this step (the card re-captures the set speed)
@@ -151,8 +151,8 @@ class PreAPEngagement:
     self.standstill_hold = False
     self._hold_gas_seen = False
     self._hold_release_edge = False
-    self._tip_entry = False   # t1401: the FULL entered on this step came from an up/down tip
-    self._moving_pull_entry = False   # t1438: the FULL entered on this step came from a moving pedal double pull
+    self._tip_entry = False   # the FULL entered on this step came from an up/down tip
+    self._moving_pull_entry = False   # the FULL entered on this step came from a moving pedal double pull
     self._cc_watch_until_ms: int | None = None    # no pedal: a DI engagement before this is attributed to our pull
     self._cc_confirm_until_ms: int | None = None  # no pedal: second pull waiting for the DI to report stock cruise
     self._confirm_needs_rise = False
@@ -200,7 +200,7 @@ class PreAPEngagement:
              auto_speed: bool = False) -> Decision:
     """One car-state step. pull_edge / cancel_edge are rising edges of the stalk lever (cancel already filtered for our own echo).
     cancel_tx_ms: monotonic ms of the last STW_ACTN_RQ CANCEL actually put on the bus (0 = never).
-    tip_edge: release edge of an up/down tip (SpdCtrlLvr_Stat 4/16 up, 8/32 down; t1401, pedal only).
+    tip_edge: release edge of an up/down tip (SpdCtrlLvr_Stat 4/16 up, 8/32 down; pedal only).
     auto_speed: the Pre-AP Auto Speed toggle (the car state reads it, this module reads no params). Only with it True does a moving
     double pull below the from-stop speed get raised to it; False keeps the v5 capture of the rounded current speed."""
     enable_request = cancel_cc = drop_cancel = full_edge = False
@@ -300,7 +300,7 @@ class PreAPEngagement:
 
     if (pedal and PREAP_TIP_ENGAGES_LONG and valid_tip and self._op_enabled_seen
         and (self.mode == Mode.LAT_ONLY or not self._window_open(now_ms))):
-      # t1401: an up/down tip while steering only (openpilot already enabled by a pull, so the panda already allows controls)
+      # an up/down tip while steering only (openpilot already enabled by a pull, so the panda already allows controls)
       # enters FULL, latching like the AP1 tap. Same pedal entry rules as the second pull below. Inside the open double-pull
       # window a tip is still neither a second pull nor an entry (test_preap_tap_never_slc).
       full_edge = self._pedal_full_entry(brake, brake_edge, v_ego, long_allowed, pedal_bus_ok)
@@ -336,7 +336,7 @@ class PreAPEngagement:
         else:
           self._enter_full()
           full_edge = True
-          self._moving_pull_entry = bool(auto_speed)   # t1438: a moving double pull is raised to the from-stop speed if below it, Auto Speed ON only
+          self._moving_pull_entry = bool(auto_speed)   # a moving double pull is raised to the from-stop speed if below it, Auto Speed ON only
       else:
         drop_cancel = True
         self._confirm_needs_rise = di_on and self._cancel_req_ms is not None and cancel_tx_ms >= self._cancel_req_ms
@@ -362,7 +362,7 @@ class PreAPEngagement:
     return self._decision(cancel_cc=cancel_cc, full_edge=self.mode == Mode.FULL)
 
   def _pedal_full_entry(self, brake: bool, brake_edge: bool, v_ego, long_allowed, pedal_bus_ok) -> bool:
-    """t1401: the pedal second-pull entry rules (update(), LAT_PENDING branch) for an up/down tip. True = FULL entered."""
+    """The pedal second-pull entry rules (update(), LAT_PENDING branch) for an up/down tip. True = FULL entered."""
     at_standstill = v_ego is not None and v_ego < STANDSTILL_SPEED_MS
     if (brake and (brake_edge or not at_standstill)) or long_allowed is not True or pedal_bus_ok is not True:
       self.mode = Mode.LAT_ONLY
@@ -405,8 +405,8 @@ class PreAPEngagement:
     moving_pull = bool(full_edge) and self._moving_pull_entry and not capture_tip and PREAP_MOVING_PULL_RAISES_TO_FROM_STOP
     self._moving_pull_entry = False
     if PREAP_STOP_SET_AT_PULL:
-      # t1401: every FULL entry captures; one that starts at a stop takes the from-stop value now. The release only ends the hold.
-      # t1438: a moving pedal double pull below the from-stop speed is raised to it (card: max(rounded vEgo, from-stop), no hold).
+      # every FULL entry captures; one that starts at a stop takes the from-stop value now. The release only ends the hold.
+      # a moving pedal double pull below the from-stop speed is raised to it (card: max(rounded vEgo, from-stop), no hold).
       # A tip entry never raises (it latches the rounded current speed, even below from-stop).
       capture_from_stop = bool(full_edge) and (self.standstill_hold or moving_pull)
       capture_edge = bool(full_edge)

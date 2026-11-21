@@ -49,7 +49,7 @@ def _rename_migration(params, directory: Path, result: StartupResult) -> None:
 
 
 def _tap_speed_migration(params, directory: Path, result: StartupResult) -> None:
-  """t1453: one-time Standstill Tap Speed carry-over, whole mph (AP1TapFromZeroMph) -> m/s (AP1TapFromZeroMs).
+  """One-time Standstill Tap Speed carry-over, whole mph (AP1TapFromZeroMph) -> m/s (AP1TapFromZeroMs).
 
   Same placement rule as the rename carry-over: before clear_all (the old key is no longer registered, so clear_all
   deletes its file) and before registered defaults (the new key's 6.7056 default would look already set).
@@ -104,7 +104,7 @@ def before_defaults(params, *, file_root: Path | None = None,
     # Unknown native key: no speculative reset/profile state changes.
     pass
 
-  # Optional adapter contract for w5. No restore-from-cache path is authorized:
+  # Optional adapter contract for the settings backup. No restore-from-cache path is authorized:
   # current persistent settings are authoritative on every ordinary manager boot.
   backup_module = None
   if backup is None:
@@ -115,7 +115,7 @@ def before_defaults(params, *, file_root: Path | None = None,
       destination = Path(cache_root or os.getenv("BOGPILOT_BACKUP_DIR", "/cache/bogpilot/settings-backups"))
       def snapshot_receipt(reason):
         outcome = snapshot(params, file_root=directory, backup_root=destination, reason=reason)
-        # w5 BackupResult.success is true only after durable snapshot publication.
+        # BackupResult.success is true only after durable snapshot publication.
         # Do not accept a truthy failed-result wrapper.
         return outcome if getattr(outcome, "success", False) is True else None
       try:

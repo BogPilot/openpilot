@@ -197,7 +197,7 @@ def migration_done(file_root: Path | None = None) -> bool:
   return ((Path(file_root) if file_root is not None else bogpilot_dir()) / MARKER_NAME).exists()
 
 
-# ---- t1453: Standstill Tap Speed, whole mph (AP1TapFromZeroMph) -> m/s (AP1TapFromZeroMs) ----
+# ---- Standstill Tap Speed, whole mph (AP1TapFromZeroMph) -> m/s (AP1TapFromZeroMs) ----
 TAP_SPEED_OLD_KEY = "AP1TapFromZeroMph"
 TAP_SPEED_NEW_KEY = "AP1TapFromZeroMs"
 TAP_SPEED_MARKER_NAME = "AP1TapFromZeroMsMigrated1"

@@ -68,7 +68,7 @@ REGEN_DEADBAND_KW = 1.0
 REGEN_TAU_S = 0.15
 REGEN_GAP_RESET_S = 1.0               # a longer gap between samples restarts the filter at the new value
 
-# Torque bars (UI only). Regen full scale: the regen torque ceiling seen on every AP1 drive of Nov 19 (peaks -110 to -116 Nm,
+# Torque bars (UI only). Regen full scale: the regen torque ceiling seen on every AP1 drive (peaks -110 to -116 Nm,
 # cold and warm alike). Accel full scale: p99 of the motor drive torque on the same drives (p99.9 233 Nm, max 270 Nm).
 REGEN_FULLSCALE_NM = 116.0
 ACCEL_FULLSCALE_NM = 200.0

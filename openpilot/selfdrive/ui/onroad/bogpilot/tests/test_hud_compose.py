@@ -1,4 +1,4 @@
-"""w9 HUD composition contract: order, gating, stock fallback, lifecycle and geometry (synthetic, headless).
+"""HUD composition contract: order, gating, stock fallback, lifecycle and geometry (synthetic, headless).
 
 Everything here is mocked/synthetic: no pyray context, no cereal, no device. The real pyray render lives in the
 separate VM script (render_hud_compose.py) and is reported separately."""

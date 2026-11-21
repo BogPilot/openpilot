@@ -24,7 +24,7 @@ from openpilot.selfdrive.ui.layouts.settings.phase3_long_accel_settings import (
 
 PAGE_KEY = "gas_brake"
 PAGE_TITLE = "Gas / Brake"
-TAP_FROM_ZERO_KEY = "AP1TapFromZeroMs"   # stored m/s (t1453); shown and stepped in whole mph or km/h (IsMetric)
+TAP_FROM_ZERO_KEY = "AP1TapFromZeroMs"   # stored m/s; shown and stepped in whole mph or km/h (IsMetric)
 TAP_FROM_ZERO_TITLE = "Standstill Tap Speed"
 TAP_FROM_ZERO_DESC = (
   "AP1: a standstill engage with no known speed limit; the car will drive off to this speed. Pre-AP with the Comma Pedal: "

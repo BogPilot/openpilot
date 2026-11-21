@@ -32,7 +32,7 @@ REF.update(REQUESTED_MINIMAL_LEVELS)
 # BogPilot-added key with no 367e1fe row: the cruise engage / disengage chimes, fresh install ON, Minimal level.
 BOGPILOT_ADDED_KEYS = {"CruiseEngageDisengageChimes": ["1", 0, "1"]}
 REF.update(BOGPILOT_ADDED_KEYS)
-# AP1 standstill tap-from-0 speed, stored in m/s (t1453; UI whole mph 5-30 or km/h 8-48, default 15 mph = 6.7056 m/s).
+# AP1 standstill tap-from-0 speed, stored in m/s (UI whole mph 5-30 or km/h 8-48, default 15 mph = 6.7056 m/s).
 # New in 0.11; not in the 367e1fe snapshot. Replaced AP1TapFromZeroMph (whole mph, default "15").
 REQUESTED_AP1_TAP_FROM_ZERO = {"AP1TapFromZeroMs": ["6.7056", 1, "6.7056"]}
 REF.update(REQUESTED_AP1_TAP_FROM_ZERO)

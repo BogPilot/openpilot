@@ -13,7 +13,7 @@ Rolling (not standstill):
    @568fea947). The offset comes from the card (params), never from bogpilotPlan, so there is no feedback loop.
 2. Otherwise (a fresh UP/DN tap, a pull with no known limit, or no stalk seen): vEgoRaw at the engage edge,
    rounded half-up to a whole display unit (whole mph; km/h when the car's DI_speedUnits is KPH), the same
-   latch a Pre-AP tip gets (v6, t1421: tip behaviour identical on AP1 and Pre-AP; before v6 the exact
+   latch a Pre-AP tip gets (v6: tip behaviour identical on AP1 and Pre-AP; before v6 the exact
    vEgoRaw). Rounding never turns the latch into 0 (it then stays exact). Includes below 8 kph. No 8 kph
    clamp-up, no 5 mph rounding. Tinkla ACC_module.py:154-158 @501c7de
    (current-speed latch at engage); BogPilot 0.9.7 slc_raise (tap -> sticky vEgo) @04d560f3e. A known limit
@@ -61,8 +61,8 @@ ENGAGED_STATES = ("ENABLED", "STANDSTILL", "OVERRIDE", "PRE_FAULT", "PRE_CANCEL"
 SET_MIN_KPH = 8.
 # Tinkla ACC_module.py:231-232 @501c7de clips acc_speed_kph to 170 kph.
 SET_MAX_KPH = 170.
-# Stalk tap from 0 (standstill, nothing latched). Default 15 mph. User setting AP1TapFromZeroMs (t1453): stored in
-# m/s, shown and stepped in whole mph (5-30) or, with IsMetric, whole km/h (8-48). Before t1453 it was AP1TapFromZeroMph
+# Stalk tap from 0 (standstill, nothing latched). Default 15 mph. User setting AP1TapFromZeroMs: stored in
+# m/s, shown and stepped in whole mph (5-30) or, with IsMetric, whole km/h (8-48). Before this change it was AP1TapFromZeroMph
 # (whole mph 5-30); system/bogpilot/legacy_migration.migrate_tap_from_zero_ms carries a saved mph value over exactly
 # (N mph -> N * 0.44704 m/s). Missing, non-numeric, non-finite or out-of-range values fall back to 15 mph (never clamped).
 TAP_FROM_ZERO_DEFAULT_MPH = 15
@@ -78,7 +78,7 @@ MS_TO_KPH_EXACT = 3.6
 TAP_FROM_ZERO_KPH = TAP_FROM_ZERO_DEFAULT_MPH * CV.MPH_TO_KPH
 TAP_FROM_ZERO_DEFAULT_MS = TAP_FROM_ZERO_DEFAULT_MPH * MPH_TO_MS_EXACT   # 6.7056
 TAP_FROM_ZERO_PARAM = "AP1TapFromZeroMs"
-TAP_FROM_ZERO_LEGACY_MPH_PARAM = "AP1TapFromZeroMph"   # pre-t1453 key, read only by the one-time migration
+TAP_FROM_ZERO_LEGACY_MPH_PARAM = "AP1TapFromZeroMph"   # previous key, read only by the one-time migration
 # Accepted stored range (m/s): the lower of the two unit floors (8 km/h) to the higher of the two ceilings (30 mph).
 _MS_EPS = 1e-6
 TAP_FROM_ZERO_MIN_MS = TAP_FROM_ZERO_MIN_KPH_DISPLAY / MS_TO_KPH_EXACT
@@ -165,7 +165,7 @@ def parse_tap_from_zero_ms(raw) -> float:
 
 def tap_from_zero_kph_from_ms(ms: float) -> float:
   """m/s setting as kph for the card / planner. A value that is a whole mph (every migrated value, every imperial edit)
-  returns N * CV.MPH_TO_KPH, bit-for-bit the kph the pre-t1453 whole-mph setting produced; a whole km/h (metric edit)
+  returns N * CV.MPH_TO_KPH, bit-for-bit the kph the previous whole-mph setting produced; a whole km/h (metric edit)
   returns that whole km/h; anything else is ms * 3.6."""
   ms = float(ms)
   mph = math.floor(ms / MPH_TO_MS_EXACT + 0.5)

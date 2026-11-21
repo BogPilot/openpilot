@@ -46,7 +46,7 @@ CSC_KEYS = ("CurveSpeedController", "ShowCSCStatus", "CalibratedLateralAccelerat
 # Metadata params that store nothing today ONLY because no C3X UI renders toggle_metadata.py. Each stays a
 # FAIL the moment any non-test module imports toggle_metadata (see ui.metadata_unrendered).
 KNOWN_UNRENDERED_UNREGISTERED = {
-  "TeslaEarly": "MANAGE panel parent of early-Tesla rows; not in params_keys_bogpilot.h. Register it (owner "
+  "TeslaEarly": "MANAGE panel parent of early-Tesla rows; not in params_keys_bogpilot.h. Register it (maintainer "
                 "review) or make it a non-stored BUTTON/MANAGE panel before any settings UI renders the metadata.",
 }
 

@@ -4,7 +4,7 @@ Pipeline: packed stock 0x399 bytes on bus 2 -> tesla_ap1 CarInterface (CANParser
 -> carState published as card does (cs_send.carState = CS, current schema) -> UI bsm_state.blindspots()
 -> BsmPolicy (AP1 capability; enableBsm is deprecated in 0.11) -> BogPilotModelRenderer fill flags.
 Settings: native BogPilotVisualsLayout registered in SettingsLayout, real toggle clicks write through ParamStore to
-the same owner each onroad consumer reads (typed Params vs /data/params_bogpilot file), defaults untouched.
+the same source each onroad consumer reads (typed Params vs /data/params_bogpilot file), defaults untouched.
 Synthetic CAN bytes only; no car or device.
 """
 import os

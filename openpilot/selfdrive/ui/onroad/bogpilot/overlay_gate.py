@@ -1,6 +1,6 @@
 """Cached on/off gate for the Developer overlays (display only; reads a key through the store, never writes).
 
-The three overlays that share it (FPS counter, Developer Sidebar, sidebar IP address) are off unless the owner turned them on
+The three overlays that share it (FPS counter, Developer Sidebar, sidebar IP address) are off unless the user turned them on
 and the Tuning Level allows the row. A read failure means off.
 """
 from __future__ import annotations

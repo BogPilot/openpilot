@@ -1251,7 +1251,7 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 ## Pre-AP params files: atomic replace so a concurrent reader cannot see a truncated write
 - Platforms: file-backed keys under `/data/params_bogpilot` (`opendbc_repo/opendbc/car/tesla_ap1/preap/params.py`).
   The AP1/unknown card path does not use this helper: `start_step_cache()` runs only for
-  `TESLA_PREAP_MODELS`, and the 92aa9ee1f 100 Hz `OnroadDistanceButtonPressed` read (R5 / ab106443b)
+  `TESLA_PREAP_MODELS`, and the 92aa9ee1f 100 Hz `OnroadDistanceButtonPressed` read
   goes through openpilot Params, not these files.
 - Reference behavior: 07e8bd68f added the 10 Hz StepCache so the Pre-AP 100 Hz step does no
   `/data` file IO. `_write_text_file` still called `Path.write_text`, which truncates the file

@@ -1,4 +1,4 @@
-"""v6 (t1421/t1422): the stalk tip behaves the same on AP1 and Pre-AP.
+"""v6: the stalk tip behaves the same on AP1 and Pre-AP.
 
 While lat is active and long is not (after the first pull, or after a brake override ended long), a tip up/down latches the CURRENT
 speed rounded to a whole display unit (mph) and engages long; once long is engaged, tips adjust the set normally. AP1 rounds its tip
@@ -193,7 +193,7 @@ def test_tip_never_sets_controls_allowed_in_the_panda_source():
 
 @pytest.mark.parametrize("v", [1.0, 3.0, 6.0])
 def test_tip_below_from_stop_never_asks_for_the_raise_but_a_double_pull_does(v):
-  # t1438: below the from-stop speed a tip latches the current speed (capture_tip, no from-stop); a moving double pull is raised (Auto Speed ON).
+  # below the from-stop speed a tip latches the current speed (capture_tip, no from-stop); a moving double pull is raised (Auto Speed ON).
   e = PreAPEngagement()
   step(e, 0, pull=True, v_ego=v)
   step(e, 10, op=True, v_ego=v)

@@ -1,5 +1,5 @@
-"""t1453: Standstill Tap Speed stored in m/s (AP1TapFromZeroMs). Gas / Brake row helpers in both units and the card /
-planner consumers (AP1 tap from stop, Pre-AP from-stop and the t1438 moving double pull raise).
+"""Standstill Tap Speed stored in m/s (AP1TapFromZeroMs). Gas / Brake row helpers in both units and the card /
+planner consumers (AP1 tap from stop, Pre-AP from-stop and the moving double pull raise).
 
 The store is the real shared ParamStore over the BogPilot file store (a Params stand-in that knows no keys), so the
 exact text ParamStore writes and reads is what these tests check.
@@ -40,7 +40,7 @@ def metric(store, on):
 
 
 def old_kph(n):
-  return parse_tap_from_zero_mph(str(n)) * CV.MPH_TO_KPH   # the pre-t1453 kph for a saved n mph
+  return parse_tap_from_zero_mph(str(n)) * CV.MPH_TO_KPH   # the previous kph for a saved n mph
 
 
 # ---- UI row ----
@@ -187,7 +187,7 @@ def test_preap_from_stop_first_pull_and_full_capture_identical(store):
 
 
 def test_preap_moving_double_pull_raise_identical(store):
-  """t1438: a moving double pull below the from-stop speed is raised to it; above it keeps the current speed."""
+  """A moving double pull below the from-stop speed is raised to it; above it keeps the current speed."""
   for n in (5, 15, 20, 30):
     new, old = migrated(store, n)(), old_kph(n)
     for v_mph in (3.4, n - 0.6, n + 2.4):

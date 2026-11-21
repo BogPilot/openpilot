@@ -1,7 +1,7 @@
 """BogPilot file toggles: plain files under /data/params_bogpilot/<Key>.
 
 These predate the 0.11 params rebuild (the 0.9.7 device ran a prebuilt params library that could
-not store new keys), and owners flip them over SSH (`echo 0 > /data/params_bogpilot/<Key>`), so
+not store new keys), and users flip them over SSH (`echo 0 > /data/params_bogpilot/<Key>`), so
 the 19.9 port keeps them as files with exactly the reference read rules:
 
   * text is trimmed; "1"/"true"/"on" = on, "0"/"false"/"off" = off
@@ -33,7 +33,7 @@ FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
   "RedesignUI": (True, "BogPilot onroad redesign"),
   # Telemetry-removal orphans: no uploader/athena/webrtc/hevc_streamd
   # processes remain on feae. Defaults OFF; do NOT register menus. Preserve any existing
-  # owner file values if present; only the missing-file default changes.
+  # user file values if present; only the missing-file default changes.
   "ShowUploadRate": (False, "REMOVED/unsupported: onroad upload-rate readout (no uploader)"),
   "RemoteUIStream": (False, "REMOVED/unsupported: remote UI stream server (no webrtc/stream)"),
   # UI (default off)

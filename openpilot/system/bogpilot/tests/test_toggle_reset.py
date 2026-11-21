@@ -211,7 +211,7 @@ class TestReset(unittest.TestCase):
     self.assertEqual((self.files / "AlwaysOnLateral").read_bytes(), b"unbacked-inactive-original")
 
   def test_file_toggle_with_registered_native_owner_matches_backup_routing(self):
-    # Non-file-only keys may gain a compiled owner; backup uses that active store.
+    # Non-file-only keys may gain a compiled entry; backup uses that active store.
     self.params.known.add("OffroadScreensaver")
     original = self.params.cpp2python
     self.params.cpp2python = lambda k, raw: raw.decode() if k == "OffroadScreensaver" else original(k, raw)

@@ -1,6 +1,6 @@
 """Read-only BogPilot sidebar readings from genuine deviceState telemetry.
 
-Display semantics come from 568fea Sidebar: maxTempC (owner Fahrenheit units),
+Display semantics come from 568fea Sidebar: maxTempC (the user's Fahrenheit units),
 mean CPU load and RAM usage with 70/85 percent warning/danger thresholds.
 Missing/stale/malformed telemetry is unavailable, never an invented zero.
 

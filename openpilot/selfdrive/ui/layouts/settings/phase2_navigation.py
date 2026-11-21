@@ -16,7 +16,7 @@ class Page:
   key: str
   title: str
   factory: Callable[[], object]
-  # Actual active consumer-backed control IDs, supplied by the feature owner.
+  # Actual active consumer-backed control IDs, supplied by the feature code.
   controls: tuple[str, ...] = ()
 
 

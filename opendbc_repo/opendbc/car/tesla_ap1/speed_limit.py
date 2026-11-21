@@ -115,7 +115,7 @@ def units_are_metric(ui_map_speed_limit_units) -> bool:
     return False
 
 
-# Mobileye misread guard (drive 35 seg 11: camera read 80 for 9.6 s while the car's map said 35).
+# Mobileye misread guard (logged drive: camera read 80 for 9.6 s while the car's map said 35).
 # When the camera limit is more than this far ABOVE a valid map limit, the map limit is used instead.
 # Real sign changes seen in drives 2a-35 lead the map by at most 20 mph for about 1 s, so they are untouched.
 IMPLAUSIBLE_RISE_MPH = 20.0

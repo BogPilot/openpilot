@@ -108,8 +108,8 @@ class PreApCarState(CarStateBase):
     self.preap_gas_clear_updates = 0                # updates since both gas tests read released
     self.preap_standstill_hold = False              # Q1 (b) hold, read by the pedal guard
     self.preap_capture_edge = False                 # one update: the card captures the FULL set speed (selfdrive/car/card.py)
-    self.preap_capture_from_stop = False            # with preap_capture_edge: the FULL began at a stop (t1401: from-stop set on entry)
-    self.preap_capture_tip = False                  # with preap_capture_edge: FULL entered by an up/down tip (t1401)
+    self.preap_capture_from_stop = False            # with preap_capture_edge: the FULL began at a stop (from-stop set on entry)
+    self.preap_capture_tip = False                  # with preap_capture_edge: FULL entered by an up/down tip
     self.op_enabled = False          # CarController feeds CC.enabled here every frame
     self.preap_panda_drop = False
     self.preap_epas_refusing = False
@@ -263,7 +263,7 @@ class PreApCarState(CarStateBase):
       self.button_states[button.event_type] = state
 
     pull_edge = any(e.type == ButtonType.resumeCruise and e.pressed for e in button_events)
-    # t1401: up/down tip release edge (values.py BUTTONS: accelCruise 4/16, decelCruise 8/32). The release, so the card's capture
+    # up/down tip release edge (values.py BUTTONS: accelCruise 4/16, decelCruise 8/32). The release, so the card's capture
     # (after VCruiseHelper in the same step) replaces that tip's own +-1 step.
     tip_edge = any(e.type in (ButtonType.accelCruise, ButtonType.decelCruise) and not e.pressed for e in button_events)
     # v6: the panda is the gate (a tip never sets controls_allowed: tesla_preap.h tesla_preap_stalk reads only pull / cancel, and a brake

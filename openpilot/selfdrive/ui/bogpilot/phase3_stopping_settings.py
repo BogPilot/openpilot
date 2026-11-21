@@ -178,7 +178,7 @@ class StoppingSettingsModel:
       return False
     if row.kind == "toggle":
       if key in ("LongitudinalTune", "HumanAcceleration"):
-        # Lane4 is the sole acceleration consumer/adoption owner.
+        # Lane4 is the sole acceleration consumer and adoption handler.
         from openpilot.selfdrive.controls.lib.phase3_long_accel import configure
         configure(self.store, key, bool(value))
         self.store.invalidate()
