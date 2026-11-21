@@ -72,10 +72,11 @@ class TestSlots(unittest.TestCase):
     self.assertEqual(seen, ["storage_left", "storage_used", "memory", "storage_left"])
     seen, mode = [], "status"
     for _ in range(4):
-      writes = SM.cycle_temp(mode)
-      mode = SM.temp_mode(writes["NumericalTemp"], writes["Fahrenheit"])
+      writes = SM.cycle_temp(mode, fahrenheit=False)
+      self.assertEqual(sorted(writes), ["NumericalTemp"])
+      mode = SM.temp_mode(writes["NumericalTemp"], False)
       seen.append(mode)
-    self.assertEqual(seen, ["celsius", "fahrenheit", "status", "celsius"])
+    self.assertEqual(seen, ["celsius", "status", "celsius", "status"])
 
   def test_a_cycle_has_no_off_step_and_writes_exactly_one_content_per_slot(self):
     for current in SM.CHIP_CYCLE:
@@ -100,15 +101,38 @@ class TestSlots(unittest.TestCase):
 
 class TestReadings(unittest.TestCase):
   def test_gpu_and_cpu_chip(self):
-    self.assertEqual(SM.chip_reading(device(), "gpu", fresh=True), SM.Reading("73%", "warning"))
+    gpu = lambda v: (lambda: v)   # noqa: E731
+    self.assertEqual(SM.chip_reading(device(), "gpu", fresh=True, gpu_percent=gpu(73.0)), SM.Reading("73%", "warning"))
     self.assertEqual(SM.chip_reading(device(), "cpu", fresh=True), SM.Reading("20%", "good"))
-    self.assertEqual(SM.chip_reading(device(gpuUsagePercent=90), "gpu", fresh=True).level, "danger")
+    self.assertEqual(SM.chip_reading(device(), "gpu", fresh=True, gpu_percent=gpu(90.0)).level, "danger")
+
+  def test_gpu_parsing_from_the_kgsl_counters(self):
+    self.assertEqual(SM.GPU_BUSY_PATH, "/sys/class/kgsl/kgsl-3d0/gpubusy")
+    self.assertEqual(SM.parse_gpu_busy("73 100\n"), 73.0)
+    self.assertEqual(SM.parse_gpu_busy(b"1 4"), 25.0)
+    self.assertEqual(SM.parse_gpu_busy("0 5000"), 0.0)   # a real idle zero is a number
+    self.assertEqual(SM.parse_gpu_busy("9 4"), 100.0)    # clamped
+    for bad in ("", "0 0", "5", "a b", "1 2 3", "-1 4", "1 -4", None, 5, "nan inf"):
+      self.assertIsNone(SM.parse_gpu_busy(bad), bad)
+
+  def test_gpu_reading_from_a_file_and_unavailable_is_a_dash(self):
+    with tempfile.TemporaryDirectory() as d:
+      f = Path(d) / "gpubusy"
+      f.write_text("730 1000\n")
+      self.assertEqual(SM.read_gpu_percent(str(f)), 73.0)
+      self.assertEqual(SM.chip_reading(device(), "gpu", fresh=True, gpu_percent=lambda: SM.read_gpu_percent(str(f))),
+                       SM.Reading("73%", "warning"))
+      f.write_text("garbage")
+      self.assertIsNone(SM.read_gpu_percent(str(f)))
+      self.assertIsNone(SM.read_gpu_percent(str(Path(d) / "missing")))
+      self.assertIsNone(SM.read_gpu_percent(d))   # a directory is unreadable
+    self.assertEqual(SM.chip_reading(device(), "gpu", fresh=True, gpu_percent=lambda: None), SM.Reading())
 
   def test_unavailable_is_never_zero(self):
     self.assertEqual(SM.chip_reading(device(), "gpu", fresh=False), SM.Reading())
     self.assertEqual(SM.chip_reading(None, "gpu", fresh=True), SM.Reading())
     for bad in (-1, 101, True, "5", float("nan")):
-      self.assertEqual(SM.chip_reading(device(gpuUsagePercent=bad), "gpu", fresh=True), SM.Reading())
+      self.assertEqual(SM.chip_reading(device(), "gpu", fresh=True, gpu_percent=lambda: bad), SM.Reading())
     self.assertEqual(SM.chip_reading(device(cpuUsagePercent=[]), "cpu", fresh=True), SM.Reading())
 
   def test_storage_values_and_colors(self):
@@ -148,6 +172,9 @@ class TestSidebar(unittest.TestCase):
     saved = bt.BOGPILOT_DIR
     bt.BOGPILOT_DIR = Path(tempfile.mkdtemp(prefix="sidebar_slots_"))
     self.addCleanup(setattr, bt, "BOGPILOT_DIR", saved)
+    # A real GPU reading for the layout tests (the sysfs counters do not exist off the device).
+    self.addCleanup(setattr, SM, "read_gpu_percent", SM.read_gpu_percent)
+    SM.read_gpu_percent = lambda *a: 73.0
 
   def draw(self, on, started=False, dev=None):
     m, s = make_sidebar(on)
@@ -164,7 +191,7 @@ class TestSidebar(unittest.TestCase):
     return calls
 
   def test_default_slots_unchanged(self):
-    self.assertEqual(self.draw({"ShowCPU": True, "ShowMemoryUsage": True, "NumericalTemp": True}),
+    self.assertEqual(self.draw({"ShowCPU": True, "ShowMemoryUsage": True, "NumericalTemp": True, "IsMetric": True}),
                      [("TEMP", "50\u00b0C", 338), ("CPU", "20%", 496), ("RAM", "41%", 654)])
 
   def test_gpu_replaces_cpu(self):
@@ -183,9 +210,12 @@ class TestSidebar(unittest.TestCase):
     self.assertEqual([c[0] for c in calls], ["TEMP", "CPU", "RAM"])
 
   def test_temperature_follows_the_saved_mode_onroad_and_offroad(self):
-    self.assertEqual(self.draw({"NumericalTemp": True})[0][1], "50\u00b0C")
-    self.assertEqual(self.draw({"NumericalTemp": True, "Fahrenheit": True})[0][1], "122\u00b0F")
-    self.assertEqual(self.draw({"NumericalTemp": True}, started=True)[0][1], "50\u00b0C")
+    # The unit is the Metric Units toggle: Celsius when on, Fahrenheit when off. The old Fahrenheit param is ignored.
+    self.assertEqual(self.draw({"NumericalTemp": True, "IsMetric": True})[0][1], "50\u00b0C")
+    self.assertEqual(self.draw({"NumericalTemp": True})[0][1], "122\u00b0F")
+    self.assertEqual(self.draw({"NumericalTemp": True, "IsMetric": True, "Fahrenheit": True})[0][1], "50\u00b0C")
+    self.assertEqual(self.draw({"NumericalTemp": True, "Fahrenheit": True}, started=True)[0][1], "122\u00b0F")
+    self.assertEqual(self.draw({"NumericalTemp": True, "IsMetric": True}, started=True)[0][1], "50\u00b0C")
     # status mode draws the GOOD / HIGH box (not yet updated in this bare sidebar, so still dashes), never the number
     self.assertEqual(self.draw({}, started=True)[0][:2], ("TEMP", "--"))
     self.assertEqual(self.draw({})[0][:2], ("TEMP", "--"))
@@ -195,6 +225,8 @@ class TestSidebar(unittest.TestCase):
     """A sidebar with recording params: returns (module, sidebar, writes, tap) where tap(x, y) hits the real handler."""
     m, s = make_sidebar(on)
     writes = {}
+    self.addCleanup(setattr, SM, "fahrenheit_from_metric", SM.fahrenheit_from_metric)
+    SM.fahrenheit_from_metric = lambda: "IsMetric" not in on   # the same Metric Units value the fake params hold
 
     def put_bool(key, value):
       writes[key] = value
@@ -236,23 +268,23 @@ class TestSidebar(unittest.TestCase):
     self.assertEqual(s._slot_memory, "memory")
     self.assertEqual(writes, {"ShowMemoryUsage": True, "ShowStorageLeft": False, "ShowStorageUsed": False})
 
-  def test_tap_in_the_temperature_box_cycles_status_celsius_fahrenheit_power(self):
-    m, s, writes, tap = self.tapper({"ShowCPU": "1", "ShowMemoryUsage": "1"})   # numerical temperature unset in this fake = off
-    self.assertEqual(s._temp_mode, "status")
-    self.assertEqual(s._slot_upper, "status")
-    tap(100, 338 + 60)
-    self.assertEqual((s._temp_mode, s._slot_upper), ("celsius", "celsius"))
-    tap(100, 338 + 60)
-    self.assertEqual((s._temp_mode, s._slot_upper), ("fahrenheit", "fahrenheit"))
-    tap(100, 338 + 60)
-    # Power keeps the last temp-mode params; the next tap returns to status.
-    self.assertEqual(s._slot_upper, "power")
-    self.assertEqual(s._temp_mode, "fahrenheit")
-    tap(100, 338 + 60)
-    self.assertEqual((s._temp_mode, s._slot_upper), ("status", "status"))
+  def test_tap_in_the_temperature_box_cycles_status_one_unit_power(self):
+    # Metric Units off: status -> Fahrenheit -> power -> status. Celsius never shows.
+    # Metric Units on:  status -> Celsius -> power -> status. Fahrenheit never shows.
+    for metric, unit in ((False, "fahrenheit"), (True, "celsius")):
+      on = {"ShowCPU": "1", "ShowMemoryUsage": "1"}   # numerical temperature unset in this fake = off
+      if metric:
+        on["IsMetric"] = "1"
+      m, s, writes, tap = self.tapper(on)
+      seen = [(s._temp_mode, s._slot_upper)]
+      for _ in range(4):
+        tap(100, 338 + 60)
+        seen.append((s._temp_mode, s._slot_upper))
+      self.assertEqual(seen, [("status", "status"), (unit, unit), (unit, "power"), ("status", "status"), (unit, unit)])
+      self.assertNotIn("Fahrenheit", writes)   # the old param is never written by the tap
 
   def test_the_cycle_starts_from_what_is_stored_not_from_zero(self):
-    m, s, writes, tap = self.tapper({"ShowGPU": "1", "ShowMemoryUsage": "1", "NumericalTemp": "1", "Fahrenheit": "1"})
+    m, s, writes, tap = self.tapper({"ShowGPU": "1", "ShowMemoryUsage": "1", "NumericalTemp": "1"})
     self.assertEqual((s._slot_chip, s._temp_mode), ("gpu", "fahrenheit"))
     tap(100, 496 + 60)
     self.assertEqual(s._slot_chip, "cpu")
@@ -270,7 +302,7 @@ class TestSidebar(unittest.TestCase):
     tap(100, 654 + 60)
     self.assertEqual(s._slot_memory, "storage_left")
     tap(100, 338 + 60)
-    self.assertEqual(s._temp_mode, "fahrenheit")
+    self.assertEqual(s._slot_upper, "power")   # Metric Units off: already Fahrenheit, so the next step is power
 
   def test_a_tap_outside_the_boxes_or_on_a_button_changes_nothing(self):
     m, s, writes, tap = self.tapper({"ShowCPU": "1", "ShowMemoryUsage": "1", "NumericalTemp": "1"})
@@ -286,6 +318,11 @@ class TestSidebar(unittest.TestCase):
     s._params.put_bool = boom
     tap(100, 496 + 60)
     self.assertEqual(s._slot_chip, "cpu")
+
+  def test_gpu_box_is_a_dash_when_the_counters_are_unavailable(self):
+    SM.read_gpu_percent = lambda *a: None
+    calls = self.draw({"ShowGPU": True, "ShowMemoryUsage": True, "NumericalTemp": True})
+    self.assertEqual(calls[1], ("GPU", "--", 496))
 
   def test_stale_device_state_shows_dashes(self):
     m, s = make_sidebar({"ShowGPU": True, "ShowStorageLeft": True})

@@ -179,12 +179,13 @@ class TestReleaseNotes(unittest.TestCase):
     low = md.lower()
     self.assertIn("what's new", low)
     for phrase in (
-      "stalk",
       "maps",
-      "reboot",
-      "panda",
-      "pre-ap",
-      "gas/brake",
+      "map downloader",
+      "automatically update maps",
+      "navigation",
+      "sidebar",
+      "metric units",
+      "gpu",
       "pedal gauge",
       "regen",
     ):

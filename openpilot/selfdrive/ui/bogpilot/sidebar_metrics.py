@@ -7,12 +7,12 @@ Missing/stale/malformed telemetry is unavailable, never an invented zero.
 The two metric slots follow 0.9.7: the chip slot shows CPU or GPU, the memory slot shows RAM, storage left or storage
 used (one at a time, the first enabled in that order).
 
-The upper box is Temp (status / °C / °F) by default and can show Power instead (SidebarUpperSlot, a file choice saved
+The upper box is Temp (status / the one unit set by Metric Units: °C when metric, °F when not) by default and can show Power instead (SidebarUpperSlot, a file choice saved
 by tapping it). Power is read from /sys/class/hwmon/hwmon1/power1_input (microwatts / 1e6, displayed as ``%.2f W``),
 with a fallback existence scan of hwmon*/power1_input when that path is missing or unreadable. A missing or unreadable
 file shows "--". The same choice applies offroad and onroad. Power is opt-in; a missing file keeps the current temp mode.
 
-Onroad the chip slot is replaced by the vehicle status box. That box can show CPU instead (SidebarVehicleSlot, a file
+Onroad the chip slot is replaced by the vehicle status box. That box can show CPU, then GPU, instead (SidebarVehicleSlot, a file
 choice saved by tapping it): the same CPU reading and colours as the offroad CPU box. Vehicle status is the default, and
 it always comes back while the panda is not seen ("NO PANDA"), whatever was chosen.
 """
@@ -74,8 +74,8 @@ def device_readings(device_state: Any, *, fresh: bool, fahrenheit: bool = False)
 def metric_visibility_from_params(params) -> "tuple[bool, bool, bool, bool]":
   """(show_cpu, show_memory, numerical_temp, fahrenheit) from a Params-like object.
 
-  Defaults match shipping registry (CPU/RAM/NumericalTemp ON, Fahrenheit OFF) so a
-  missing key preserves prior on-screen behaviour.
+  Defaults match shipping registry (CPU/RAM/NumericalTemp ON). The temperature unit follows the Metric Units toggle
+  (IsMetric): fahrenheit is True only when metric is off. The older Fahrenheit param is kept stored but no longer read.
   """
   def b(key: str, default: bool) -> bool:
     try:
@@ -98,7 +98,7 @@ def metric_visibility_from_params(params) -> "tuple[bool, bool, bool, bool]":
       raw = raw.decode("utf-8", "replace")
     return str(raw).strip().lower() in ("1", "true", "yes", "on")
 
-  return b("ShowCPU", True), b("ShowMemoryUsage", True), b("NumericalTemp", True), b("Fahrenheit", False)
+  return b("ShowCPU", True), b("ShowMemoryUsage", True), b("NumericalTemp", True), not b("IsMetric", False)
 
 
 # --- Sidebar slots: CPU / GPU and memory / storage left / storage used ---
@@ -140,7 +140,25 @@ def slot_choices(flags: dict) -> tuple:
 # --- tap-to-cycle (0.9.7 sidebar.cc:75-120): each tap on a metric box moves that slot to its next content ---
 CHIP_CYCLE = ("cpu", "gpu")
 MEMORY_CYCLE = ("memory", "storage_left", "storage_used")
-TEMP_CYCLE = ("status", "celsius", "fahrenheit")
+TEMP_UNITS = ("celsius", "fahrenheit")
+
+
+def unit_mode(fahrenheit: bool) -> str:
+  """The one temperature unit shown: Celsius when Metric Units is on, Fahrenheit when it is off."""
+  return "fahrenheit" if fahrenheit else "celsius"
+
+
+def temp_cycle(fahrenheit: bool) -> tuple:
+  return ("status", unit_mode(fahrenheit))
+
+
+def fahrenheit_from_metric() -> bool:
+  """True when Metric Units is off. Unreadable: Fahrenheit (the IsMetric default is off)."""
+  try:
+    from openpilot.common.params import Params
+    return not Params().get_bool("IsMetric")
+  except Exception:
+    return True
 
 
 def _next(cycle: tuple, current) -> str:
@@ -162,7 +180,8 @@ def temp_mode(numerical: bool, fahrenheit: bool) -> str:
 
 
 def temp_writes(mode: str) -> dict:
-  return {"NumericalTemp": mode != "status", "Fahrenheit": mode == "fahrenheit"}
+  """Only NumericalTemp is stored; the unit comes from Metric Units, and the old Fahrenheit param is left untouched."""
+  return {"NumericalTemp": mode != "status"}
 
 
 def cycle_chip(chip: str) -> dict:
@@ -173,26 +192,29 @@ def cycle_memory(memory: str) -> dict:
   return memory_writes(_next(MEMORY_CYCLE, memory))
 
 
-def cycle_temp(mode: str) -> dict:
-  return temp_writes(_next(TEMP_CYCLE, mode))
+def cycle_temp(mode: str, fahrenheit: "bool | None" = None) -> dict:
+  if fahrenheit is None:
+    fahrenheit = fahrenheit_from_metric()
+  cycle = temp_cycle(fahrenheit)
+  return temp_writes(_next(cycle, cycle[1] if mode in TEMP_UNITS else mode))
 
 
 # --- onroad middle box: vehicle status or CPU (SidebarVehicleSlot) ---
 VEHICLE_SLOT_KEY = "SidebarVehicleSlot"
-VEHICLE_CYCLE = ("vehicle", "cpu")
+VEHICLE_CYCLE = ("vehicle", "cpu", "gpu")
 
 
 def vehicle_slot_choice(text) -> str:
-  """'cpu' only when exactly that is stored; anything else (nothing stored, junk, unreadable) is the vehicle status."""
+  """'cpu' or 'gpu' only when exactly that is stored; anything else (nothing stored, junk, unreadable) is the vehicle status."""
   if isinstance(text, (bytes, bytearray)):
     text = text.decode("utf-8", "replace")
-  return "cpu" if isinstance(text, str) and text.strip() == "cpu" else "vehicle"
+  return text.strip() if isinstance(text, str) and text.strip() in ("cpu", "gpu") else "vehicle"
 
 
 def vehicle_slot_shown(choice: str, panda_seen: bool) -> str:
-  """What the onroad middle box shows: CPU only when chosen AND the panda is seen. A missing panda is a warning the
+  """What the onroad middle box shows: CPU or GPU only when chosen AND the panda is seen. A missing panda is a warning the
   driver must not lose, so "NO PANDA" always takes the box back."""
-  return "cpu" if choice == "cpu" and panda_seen else "vehicle"
+  return choice if choice in ("cpu", "gpu") and panda_seen else "vehicle"
 
 
 def cycle_vehicle_slot(choice: str) -> str:
@@ -218,7 +240,14 @@ def write_vehicle_slot(choice: str) -> bool:
 
 # --- upper box: temp modes or Power (SidebarUpperSlot); the same choice offroad and onroad ---
 UPPER_SLOT_KEY = "SidebarUpperSlot"
-UPPER_CYCLE = ("status", "celsius", "fahrenheit", "power")
+UPPER_STORED = ("status", "celsius", "fahrenheit", "power")   # values an older save may hold; the unit now follows Metric Units
+
+
+def upper_cycle(fahrenheit: bool) -> tuple:
+  """status -> the one unit chosen by Metric Units -> power -> status."""
+  return (*temp_cycle(fahrenheit), "power")
+
+
 POWER_PATH = "/sys/class/hwmon/hwmon1/power1_input"
 POWER_SCAN_GLOB = "/sys/class/hwmon/hwmon*/power1_input"
 _POWER_CACHE: list = [None]
@@ -320,7 +349,7 @@ def upper_slot_choice(text):
   """Exact stored value, or None when nothing usable is stored (missing, junk, unreadable)."""
   if isinstance(text, (bytes, bytearray)):
     text = text.decode("utf-8", "replace")
-  if isinstance(text, str) and text.strip() in UPPER_CYCLE:
+  if isinstance(text, str) and text.strip() in UPPER_STORED:
     return text.strip()
   return None
 
@@ -330,8 +359,11 @@ def upper_slot_shown(choice, numerical: bool, fahrenheit: bool) -> str:
   return "power" if choice == "power" else temp_mode(numerical, fahrenheit)
 
 
-def cycle_upper_slot(choice: str) -> str:
-  return _next(UPPER_CYCLE, choice)
+def cycle_upper_slot(choice: str, fahrenheit: "bool | None" = None) -> str:
+  if fahrenheit is None:
+    fahrenheit = fahrenheit_from_metric()
+  cycle = upper_cycle(fahrenheit)
+  return _next(cycle, cycle[1] if choice in TEMP_UNITS else choice)
 
 
 def read_upper_slot():
@@ -368,13 +400,45 @@ def slot_flags_from_params(params) -> dict:
   return slot_flags(read_bool, read_raw)
 
 
-def chip_reading(device_state, which: str, *, fresh: bool) -> Reading:
-  """CPU (mean per-core load) or GPU usage; unavailable on stale / malformed data."""
+GPU_BUSY_PATH = "/sys/class/kgsl/kgsl-3d0/gpubusy"   # Adreno (comma 3X and comma 4): "<busy> <total>" counters, as hardwared reads it
+
+
+def parse_gpu_busy(raw) -> "float | None":
+  """GPU utilization percent from the kgsl gpubusy text ("<busy> <total>"), or None when it cannot be known."""
+  if isinstance(raw, (bytes, bytearray)):
+    raw = raw.decode("utf-8", "replace")
+  if not isinstance(raw, str):
+    return None
+  parts = raw.split()
+  if len(parts) != 2:
+    return None
+  try:
+    busy, total = int(parts[0], 10), int(parts[1], 10)
+  except ValueError:
+    return None
+  if total <= 0 or busy < 0:
+    return None
+  return min(100.0, 100.0 * busy / total)
+
+
+def read_gpu_percent(path: str = GPU_BUSY_PATH) -> "float | None":
+  """Local sysfs read; None (shown as a dash) when the file is missing, unreadable or malformed. Never a made-up zero."""
+  try:
+    with open(path, encoding="utf-8") as f:
+      return parse_gpu_busy(f.read())
+  except (OSError, ValueError):
+    return None
+
+
+def chip_reading(device_state, which: str, *, fresh: bool, gpu_percent=None) -> Reading:
+  """CPU (mean per-core load) or GPU usage; unavailable on stale / malformed data. GPU comes from the kgsl sysfs counters
+  (read_gpu_percent), not deviceState, which reports 0 when hardwared cannot read them."""
   if not fresh or device_state is None:
     return Reading()
   try:
     if which == "gpu":
-      return _usage(_number(device_state.gpuUsagePercent, 0, 100))
+      value = read_gpu_percent() if gpu_percent is None else gpu_percent()
+      return Reading() if value is None else _usage(_number(value, 0, 100))
     loads = [_number(v, 0, 100) for v in device_state.cpuUsagePercent]
     return _usage(sum(loads) / len(loads)) if loads else Reading()
   except (AttributeError, ValueError, TypeError, OverflowError):

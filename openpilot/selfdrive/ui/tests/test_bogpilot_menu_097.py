@@ -12,7 +12,7 @@ from pathlib import Path
 EXPECTED_ROWS = (
   ("alerts_sounds", "Alerts and Sounds", ("MANAGE",)),
   ("driving", "Driving Controls", ("DRIVING MODEL", "GAS / BRAKE", "STEERING")),
-  ("navigation", "Navigation", ("NAVIGATION", "MAPS")),
+  ("navigation", "Navigation", ("MAPS", "NAVIGATION")),
   ("system", "System Settings", ("DATA", "DEVICE CONTROLS", "UTILITIES")),
   ("theme", "Appearance", ("APPEARANCE",)),
   ("vehicle", "Vehicle Settings", ("VEHICLE SETTINGS", "WHEEL CONTROLS")),

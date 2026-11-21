@@ -132,12 +132,17 @@ def test_junk_or_unreadable_file_is_not_power(files):
 
 
 def test_tap_cycle_order():
-  assert sm.UPPER_CYCLE == ("status", "celsius", "fahrenheit", "power")
-  assert sm.cycle_upper_slot("status") == "celsius"
-  assert sm.cycle_upper_slot("celsius") == "fahrenheit"
-  assert sm.cycle_upper_slot("fahrenheit") == "power"
-  assert sm.cycle_upper_slot("power") == "status"
-  assert sm.cycle_upper_slot("junk") == "status"
+  assert sm.upper_cycle(False) == ("status", "celsius", "power")
+  assert sm.upper_cycle(True) == ("status", "fahrenheit", "power")
+  for fahrenheit, unit in ((False, "celsius"), (True, "fahrenheit")):
+    other = "fahrenheit" if unit == "celsius" else "celsius"
+    assert sm.cycle_upper_slot("status", fahrenheit) == unit
+    assert sm.cycle_upper_slot(unit, fahrenheit) == "power"
+    assert sm.cycle_upper_slot(other, fahrenheit) == "power"   # a stale other-unit choice never shows
+    assert sm.cycle_upper_slot("power", fahrenheit) == "status"
+    assert sm.cycle_upper_slot("junk", fahrenheit) == "status"
+  assert sm.temp_writes("fahrenheit") == {"NumericalTemp": True}
+  assert sm.temp_writes("status") == {"NumericalTemp": False}
 
 
 def test_choice_persists_in_its_file(files):
@@ -214,7 +219,8 @@ def _sidebar(m, files, choice=None, params=None, power=None):
   s._offroad_temp_status, s._cpu_status, s._ram_status = [m.MetricData(n, '--', m.Colors.GRAY) for n in ['TEMP', 'CPU', 'RAM']]
   s._power_status = m.MetricData('POWER', '--', m.Colors.GRAY)
   s._temp_status, s._panda_status = [m.MetricData(n, '--', m.Colors.GRAY) for n in ['TEMP', 'VEHICLE']]
-  on = params if params is not None else {'ShowCPU', 'ShowMemoryUsage', 'NumericalTemp'}
+  on = params if params is not None else {'ShowCPU', 'ShowMemoryUsage', 'NumericalTemp', 'IsMetric'}
+  sm.fahrenheit_from_metric = lambda: 'IsMetric' not in on   # the Metric Units value these fake params hold
 
   def put_bool(key, value):
     if value:
@@ -267,10 +273,17 @@ def test_sidebar_power_missing_file_is_gray_dashes_on_both_screens(files, monkey
   assert calls[0] == ("POWER", "--", m.Colors.GRAY, 338)
 
 
+@pytest.fixture(autouse=True)
+def _restore_unit_reader():
+  saved = sm.fahrenheit_from_metric
+  yield
+  sm.fahrenheit_from_metric = saved
+
+
 @pytest.mark.parametrize("started", [False, True])
-def test_sidebar_missing_upper_file_keeps_fahrenheit_on_both_screens(files, monkeypatch, started):
+def test_sidebar_missing_upper_file_shows_fahrenheit_when_metric_is_off_on_both_screens(files, monkeypatch, started):
   from openpilot.selfdrive.ui.layouts import sidebar as m
-  s = _sidebar(m, files, params={"ShowCPU", "ShowMemoryUsage", "NumericalTemp", "Fahrenheit"})
+  s = _sidebar(m, files, params={"ShowCPU", "ShowMemoryUsage", "NumericalTemp"})
   calls = _draw_calls(m, s, monkeypatch, started)
   assert calls[0][0] == "TEMP" and calls[0][1] == "129°F" and calls[0][3] == 338
 
@@ -278,11 +291,11 @@ def test_sidebar_missing_upper_file_keeps_fahrenheit_on_both_screens(files, monk
 @pytest.mark.parametrize("started", [False, True])
 def test_visuals_toggle_change_leaves_power(files, monkeypatch, started):
   from openpilot.selfdrive.ui.layouts import sidebar as m
-  params = {"ShowCPU", "ShowMemoryUsage", "NumericalTemp"}
+  params = {"ShowCPU", "ShowMemoryUsage", "NumericalTemp", "IsMetric"}
   s = _sidebar(m, files, "power", params=params, power=lambda: Reading("8.00 W", "good"))
   calls = _draw_calls(m, s, monkeypatch, started)
   assert calls[0][0] == "POWER" and s._slot_upper == "power"
-  params.add("Fahrenheit")
+  params.discard("IsMetric")   # Metric Units off: the unit becomes Fahrenheit
   calls = _draw_calls(m, s, monkeypatch, started)
   assert calls[0][0] == "TEMP" and calls[0][1] == "129°F"
   assert s._slot_upper == "fahrenheit"
@@ -296,18 +309,31 @@ def test_sidebar_tap_cycles_through_power_on_both_screens(files, monkeypatch, st
   calls = _draw_calls(m, s, monkeypatch, started)
   kinds = [kind for _rect, kind in s._metric_hits]
   assert kinds[0] == "temp"
-  # default celsius -> fahrenheit -> power -> status
+  # Metric Units on: celsius -> power -> status -> celsius. Fahrenheit never appears.
   s._cycle("temp")
-  assert s._slot_upper == "fahrenheit" and s._temp_mode == "fahrenheit"
-  assert (files / KEY).read_text().strip() == "fahrenheit"
-  s._cycle("temp")
-  assert s._slot_upper == "power" and s._temp_mode == "fahrenheit"
+  assert s._slot_upper == "power" and s._temp_mode == "celsius"
   assert (files / KEY).read_text().strip() == "power"
   calls = _draw_calls(m, s, monkeypatch, started)
   assert calls[0][0] == "POWER" and calls[0][1] == "3.00 W"
   s._cycle("temp")
   assert s._slot_upper == "status" and s._temp_mode == "status"
   assert (files / KEY).read_text().strip() == "status"
+  s._cycle("temp")
+  assert s._slot_upper == "celsius" and s._temp_mode == "celsius"
+
+
+@pytest.mark.parametrize("started", [False, True])
+def test_sidebar_tap_cycle_with_metric_off_is_fahrenheit_only(files, monkeypatch, started):
+  from openpilot.selfdrive.ui.layouts import sidebar as m
+  s = _sidebar(m, files, params={"ShowCPU", "ShowMemoryUsage", "NumericalTemp"}, power=lambda: Reading("3.00 W", "good"))
+  _draw_calls(m, s, monkeypatch, started)
+  seen = [(s._slot_upper, s._temp_mode)]
+  for _ in range(4):
+    s._cycle("temp")
+    seen.append((s._slot_upper, s._temp_mode))
+  assert seen == [("fahrenheit", "fahrenheit"), ("power", "fahrenheit"), ("status", "status"),
+                  ("fahrenheit", "fahrenheit"), ("power", "fahrenheit")]
+  assert "celsius" not in [x for pair in seen for x in pair]
 
 
 def test_draw_does_not_reread_power(files, monkeypatch):

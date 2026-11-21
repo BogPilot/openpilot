@@ -78,10 +78,10 @@ class MapsPageCase(unittest.TestCase):
 
 
 class TestMainPage(MapsPageCase):
-  def test_rows_in_frogpilot_order_with_the_credit(self):
+  def test_rows_in_order_with_progress_below_the_schedule_and_the_credit(self):
     titles = [r.title() for r in self.rows()]
-    self.assertEqual(titles[1:], ["Automatically Update Maps", "Download Maps", "Last Updated", "Countries", "U.S. States",
-                                  "Progress", "Time Elapsed", "Time Remaining", "Remove Maps", "Repair Map Downloads",
+    self.assertEqual(titles[1:], ["Automatically Update Maps", "Progress", "Time Elapsed", "Time Remaining",
+                                  "Download Maps", "Last Updated", "Countries", "U.S. States", "Remove Maps", "Repair Map Downloads",
                                   "Use mapd v2", "Storage Used", "\u00a9 OpenStreetMap contributors"])
     self.assertIn("\u00a9", EXTRA_FONT_CHARS)
 
@@ -174,8 +174,8 @@ class TestMenu(unittest.TestCase):
   def test_navigation_section_has_maps(self):
     from openpilot.selfdrive.ui.layouts.settings.bogpilot import menu_sections
     nav = next(s for s in menu_sections() if s.key == "navigation")
-    self.assertEqual([p.label for p in nav.pills], ["NAVIGATION", "MAPS"])
-    maps = nav.pills[1]
+    self.assertEqual([p.label for p in nav.pills], ["MAPS", "NAVIGATION"])   # Maps sits left of Navigation (3X pills and comma 4 cards share this order)
+    maps = nav.pills[0]
     self.assertEqual([(pg.key, pg.title) for pg in maps.pages], [("maps", "Maps")])
     from openpilot.selfdrive.ui.bogpilot import map_data_page as P
     self.assertEqual(maps.pages[0].controls, P.CONTROLS)

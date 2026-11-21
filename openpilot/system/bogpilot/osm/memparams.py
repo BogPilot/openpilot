@@ -19,6 +19,7 @@ KEYS = frozenset({
   "LastGPSPosition", "MapSpeedLimit", "NextMapSpeedLimit", "MapAdvisoryLimit", "NextMapAdvisoryLimit",
   "RoadName", "OSMDownloadLocations", "OSMDownloadBounds", "OSMDownloadProgress", "MapdLogLevel", "MapdPrettyLog",
   "MapCurvatures", "MapTargetVelocities", "MapHazard", "NextMapHazard",
+  "BogPilotMapdHeartbeat",   # BogPilot only (mapd never reads it): the bogpilot_mapd supervisor is alive, see supervisor.HEARTBEAT_S
 })
 
 

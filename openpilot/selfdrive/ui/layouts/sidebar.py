@@ -374,7 +374,8 @@ class Sidebar(Widget):
       # The middle box is the vehicle status, or CPU when the driver tapped it to CPU (SidebarVehicleSlot). "NO PANDA"
       # always takes it back, so a missing panda is never hidden.
       shown = vehicle_slot_shown(getattr(self, "_slot_vehicle", "vehicle"), getattr(self, "_panda_seen", True))
-      chosen = [(temp_metric, "temp"), (self._cpu_status if shown == "cpu" else self._panda_status, "vehicle")]
+      middle = {"cpu": self._cpu_status, "gpu": extra.get("gpu", self._panda_status)}.get(shown, self._panda_status)
+      chosen = [(temp_metric, "temp"), (middle, "vehicle")]
       if memory_metric is not None:
         chosen.append((memory_metric, "memory"))
     else:

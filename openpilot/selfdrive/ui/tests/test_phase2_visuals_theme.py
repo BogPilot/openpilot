@@ -200,8 +200,10 @@ class TestSidebarPolicy(unittest.TestCase):
   def test_metric_visibility_from_params(self):
     from openpilot.selfdrive.ui.bogpilot.sidebar_metrics import metric_visibility_from_params
     params = FakeParams({})
-    self.assertEqual(metric_visibility_from_params(params), (True, True, True, False))
-    params.typed.update({"ShowCPU": "0", "ShowMemoryUsage": "0", "NumericalTemp": "0", "Fahrenheit": "1"})
+    self.assertEqual(metric_visibility_from_params(params), (True, True, True, True))
+    params.typed.update({"IsMetric": "1", "Fahrenheit": "1"})
+    self.assertEqual(metric_visibility_from_params(params)[3], False)   # the old Fahrenheit param is ignored
+    params.typed.update({"ShowCPU": "0", "ShowMemoryUsage": "0", "NumericalTemp": "0", "IsMetric": "0"})
     self.assertEqual(metric_visibility_from_params(params), (False, False, False, True))
 
 
@@ -320,7 +322,7 @@ class TestUIStoreConsumer(unittest.TestCase):
   def test_sidebar_prefs_consumers(self):
     from openpilot.selfdrive.ui.bogpilot.sidebar_metrics import device_readings, metric_visibility_from_params
     lay = self.make()
-    lay._write("Fahrenheit", True)
+    lay._write("IsMetric", False)
     lay._write("ShowCPU", False)
     lay._write("ShowMemoryUsage", False)
     lay._write("NumericalTemp", False)

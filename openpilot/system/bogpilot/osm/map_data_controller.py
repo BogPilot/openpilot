@@ -31,6 +31,9 @@ LAST_UPDATE_KEY = "LastMapsUpdate"
 CANCEL_SETTLE_S = 2.5          # 0.9.7 cancelDownload(): QTimer::singleShot(2500)
 RESET_STEP_S = 2.5             # 0.9.7 reset: 2.5 s "Repaired!" then 2.5 s "Rebooting..." before Hardware::reboot()
 WAITING_FOR_DOWNLOADER_S = 45  # active request with no progress after this long: say so instead of "Calculating..." forever
+HEARTBEAT_KEY = "BogPilotMapdHeartbeat"   # refreshed every 2 s by the bogpilot_mapd supervisor (supervisor.HEARTBEAT_S)
+HEARTBEAT_STALE_S = 30.0       # older (or missing) = the supervisor is not running; a synchronous binary install can take a while
+WAITING_FOR_DOWNLOADER_TEXT = "Waiting for the map downloader..."  # no heartbeat: the supervisor is not running
 SIZE_TTL_S = 1.0               # cache of the cheap "does the offline folder exist" stat
 KIND_KEYS = ("nations", "states")
 SLC_KEY = "SpeedLimitController"
@@ -155,7 +158,7 @@ class View:
 class MapDataController:
   def __init__(self, store, *, mem: MemParams | None = None, storage: OsmStorage | None = None, manifest: dict | None = None,
                fetch=None, kill_mapd=None, reboot=None, spawn=None, sleep=time.sleep, monotonic=time.monotonic,
-               now=datetime.datetime.now, keep_awake=None):
+               now=datetime.datetime.now, keep_awake=None, wall=time.time):
     self.store = store
     self.mem = mem or MemParams()
     self.storage = storage or OsmStorage()
@@ -183,6 +186,9 @@ class MapDataController:
     self._ready = False
     self._slc_checked = -1e9
     self._slc = True
+    self._wall = wall
+    self._alive_checked = -1e9
+    self._alive = False
     self.refresh_storage()
 
   # ---------------------------------------------------------------------------------------------------- selection
@@ -295,6 +301,15 @@ class MapDataController:
         self._ready = False
       self._ready_checked = t
     return self._ready
+
+  def downloader_alive(self) -> bool:
+    """The bogpilot_mapd supervisor refreshed its heartbeat recently. Re-read at most once a second."""
+    t = self._mono()
+    if t - self._alive_checked >= SIZE_TTL_S:
+      age = self.mem.age_s(HEARTBEAT_KEY, now=self._wall())
+      self._alive = age is not None and age <= HEARTBEAT_STALE_S
+      self._alive_checked = t
+    return self._alive
 
   # ---------------------------------------------------------------------------------------------------- downloads
   def downloading(self) -> bool:
@@ -459,7 +474,8 @@ class MapDataController:
       elif not self.slc_on():
         progress = SLC_PAUSED_TEXT
       elif elapsed_ms / 1000.0 > WAITING_FOR_DOWNLOADER_S:
-        progress = "Waiting for the map downloader..."
+        # alive: mapd v1 reports nothing until its first 2x2 degree cell (up to ~55 MB) is in, so keep "Calculating..."
+        progress = CALCULATING if self.downloader_alive() else WAITING_FOR_DOWNLOADER_TEXT
     if p.active or cancelling:
       button, enabled, value = "CANCEL", p.active and not cancelling, ""
     else:

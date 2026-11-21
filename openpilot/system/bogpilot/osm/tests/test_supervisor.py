@@ -3,6 +3,8 @@ import json
 import os
 from types import SimpleNamespace
 
+import pytest
+
 from openpilot.system.bogpilot.osm import installer as I
 from openpilot.system.bogpilot.osm import supervisor as S
 from openpilot.system.bogpilot.osm.gps_feed import GpsFeed
@@ -303,3 +305,74 @@ def test_installs_and_runs_regardless_of_the_car_state():
   import inspect
   src = inspect.getsource(S.run).split('"""')[2]                  # the code, without the docstring
   assert "IsOnroad" not in src and "gearShifter" not in src and "parked" not in src   # map downloads are never drive-gated
+
+
+# ---------------------------------------------------------------- heartbeat and crash cleanup (Map Data: stopped vs busy)
+def test_heartbeat_is_written_while_running_and_removed_on_exit(tmp_path, monkeypatch):
+  seen = []
+
+  class BeatResumer(StepResumer):
+    def step(self):
+      seen.append(mem_ref[0].get_text("BogPilotMapdHeartbeat"))
+      return super().step()
+
+  mem_ref = [MemParams(tmp_path / "d")]
+  st, _ = installed(tmp_path)
+  man = manifest_for(st.mapd_path.read_bytes())
+  monkeypatch.setattr(S.installer, "load_manifest", lambda *a, **k: man)
+  clk = Clock()
+  S.run(st, mem_ref[0], popen=lambda cmd, **k: FakeProc(exits_after=10 ** 9), sm=None, sleep=clk.sleep, monotonic=clk,
+        max_ticks=30, resumer=BeatResumer([]))
+  assert seen and all(v == "1" for v in seen)
+  assert mem_ref[0].get("BogPilotMapdHeartbeat") is None
+
+
+def test_an_exception_terminates_mapd_and_propagates_for_main_to_retry(tmp_path, monkeypatch):
+  st, _ = installed(tmp_path)
+  man = manifest_for(st.mapd_path.read_bytes())
+  monkeypatch.setattr(S.installer, "load_manifest", lambda *a, **k: man)
+  mem = MemParams(tmp_path / "d")
+  procs = []
+
+  def popen(cmd, **k):
+    procs.append(FakeProc(exits_after=10 ** 9))
+    return procs[-1]
+
+  class Boom:
+    calls = 0
+
+    def update(self, timeout):
+      Boom.calls += 1
+      if Boom.calls > 3:
+        raise RuntimeError("msgq gone")
+
+  clk = Clock()
+  with pytest.raises(RuntimeError):
+    S.run(st, mem, popen=popen, sm=Boom(), sleep=clk.sleep, monotonic=clk, max_ticks=50)
+  assert procs and procs[0].terminated                           # no orphan mapd for the next run() to duplicate
+  assert mem.get("BogPilotMapdHeartbeat") is None
+
+
+def test_main_restarts_run_after_an_exception(monkeypatch):
+  import sys
+  import types
+  calls = []
+
+  def fake_run(**kw):
+    calls.append(kw)
+    if len(calls) == 1:
+      raise RuntimeError("first run failed")
+    raise KeyboardInterrupt                                      # end the test loop
+
+  monkeypatch.setattr(S, "run", fake_run)
+  monkeypatch.setattr(S.time, "sleep", lambda s: None)
+  fake_messaging = types.SimpleNamespace(SubMaster=lambda *a, **k: object())
+  monkeypatch.setitem(sys.modules, "cereal.messaging", fake_messaging)
+  import cereal
+  monkeypatch.setattr(cereal, "messaging", fake_messaging, raising=False)
+  import openpilot.common.bogpilot_store as bs
+  monkeypatch.setattr(bs, "ParamStore", lambda *a, **k: SimpleNamespace(get_bool=lambda *a, **k: False))
+  with pytest.raises(KeyboardInterrupt):
+    S.main()
+  assert len(calls) == 2
+  assert calls[0]["resumer"]._gap is not None                    # v1 gaps go through cell_fetch, never OSMDownloadBounds

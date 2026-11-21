@@ -26,13 +26,13 @@ def files(tmp_path, monkeypatch):
 # --- the choice ---
 
 def test_default_is_vehicle_status(files):
-  assert bt.FILE_CHOICES[KEY] == ("vehicle", ("vehicle", "cpu"))
+  assert bt.FILE_CHOICES[KEY] == ("vehicle", ("vehicle", "cpu", "gpu"))
   assert not (files / KEY).exists()
   assert sm.read_vehicle_slot() == "vehicle"
 
 
 @pytest.mark.parametrize("text,choice", [(None, "vehicle"), ("", "vehicle"), ("vehicle", "vehicle"), ("cpu", "cpu"),
-                                         ("cpu\n", "cpu"), (b"cpu", "cpu"), ("CPU", "vehicle"), ("gpu", "vehicle"),
+                                         ("cpu\n", "cpu"), (b"cpu", "cpu"), ("CPU", "vehicle"), ("gpu", "gpu"), ("GPU", "vehicle"),
                                          ("1", "vehicle"), (3, "vehicle")])
 def test_only_an_exact_cpu_choice_shows_cpu(text, choice):
   assert sm.vehicle_slot_choice(text) == choice
@@ -46,9 +46,11 @@ def test_junk_or_unreadable_file_is_vehicle(files):
   assert sm.read_vehicle_slot() == "vehicle"
 
 
-def test_tap_cycles_vehicle_cpu_vehicle():
+def test_tap_cycles_vehicle_cpu_gpu_vehicle():
+  assert sm.VEHICLE_CYCLE == ("vehicle", "cpu", "gpu")
   assert sm.cycle_vehicle_slot("vehicle") == "cpu"
-  assert sm.cycle_vehicle_slot("cpu") == "vehicle"
+  assert sm.cycle_vehicle_slot("cpu") == "gpu"
+  assert sm.cycle_vehicle_slot("gpu") == "vehicle"
   assert sm.cycle_vehicle_slot("junk") == "vehicle"
 
 
@@ -63,6 +65,8 @@ def test_choice_persists_in_its_file(files):
 def test_no_panda_always_takes_the_box_back():
   assert sm.vehicle_slot_shown("cpu", panda_seen=True) == "cpu"
   assert sm.vehicle_slot_shown("cpu", panda_seen=False) == "vehicle"
+  assert sm.vehicle_slot_shown("gpu", panda_seen=True) == "gpu"
+  assert sm.vehicle_slot_shown("gpu", panda_seen=False) == "vehicle"
   assert sm.vehicle_slot_shown("vehicle", panda_seen=True) == "vehicle"
   assert sm.vehicle_slot_shown("vehicle", panda_seen=False) == "vehicle"
 
@@ -151,7 +155,7 @@ def _sidebar(m, files, choice=None, panda_seen=None):
   s = m.Sidebar.__new__(m.Sidebar)
   s._offroad_temp_status, s._cpu_status, s._ram_status = [m.MetricData(n, '--', m.Colors.GRAY) for n in ['TEMP', 'CPU', 'RAM']]
   s._temp_status, s._panda_status = [m.MetricData(n, '--', m.Colors.GRAY) for n in ['TEMP', 'VEHICLE']]
-  s._params = SimpleNamespace(get_bool=lambda key: key in {'ShowCPU', 'ShowMemoryUsage', 'NumericalTemp'},
+  s._params = SimpleNamespace(get_bool=lambda key: key in {'ShowCPU', 'ShowMemoryUsage', 'NumericalTemp', 'IsMetric'},
                               put_bool=lambda key, value: None)
   if panda_seen is not None:
     s._panda_seen = panda_seen
@@ -211,6 +215,8 @@ def test_sidebar_tap_on_middle_box_cycles_and_saves(files, monkeypatch):
   s._cycle("vehicle")
   assert (files / KEY).read_text().strip() == "cpu" and s._slot_vehicle == "cpu"
   s._cycle("vehicle")
+  assert (files / KEY).read_text().strip() == "gpu" and s._slot_vehicle == "gpu"
+  s._cycle("vehicle")
   assert (files / KEY).read_text().strip() == "vehicle" and s._slot_vehicle == "vehicle"
 
 
@@ -229,17 +235,51 @@ def test_sidebar_tap_during_no_panda_is_ignored_and_not_saved(files, monkeypatch
     s._cycle("vehicle")
   assert writes == [] and s._slot_vehicle == "cpu"
   assert (files / KEY).read_text().strip() == "cpu"
-  # the panda is back: the chosen CPU returns, and taps flip it again
+  # the panda is back: the chosen CPU returns, and taps step it on (CPU, then GPU)
   s._panda_seen = True
   assert _onroad_calls(m, s, monkeypatch)[1][0] == 'CPU'
   s._handle_mouse_release(tap)
-  assert writes == ["vehicle"] and s._slot_vehicle == "vehicle"
+  assert writes == ["gpu"] and s._slot_vehicle == "gpu"
 
 
 def test_sidebar_tap_flips_at_any_time_the_panda_is_seen(files, monkeypatch):
   from openpilot.selfdrive.ui.layouts import sidebar as m
   s = _sidebar(m, files, panda_seen=True)
   _onroad_calls(m, s, monkeypatch)
-  for expect in ("cpu", "vehicle", "cpu"):
+  for expect in ("cpu", "gpu", "vehicle", "cpu"):
     s._cycle("vehicle")
     assert s._slot_vehicle == expect and (files / KEY).read_text().strip() == expect
+
+
+# --- onroad GPU: drawn from the kgsl counters, a dash when unavailable, never a made-up 0 ---
+
+def test_sidebar_gpu_choice_draws_gpu_with_ram(files, monkeypatch):
+  from openpilot.selfdrive.ui.layouts import sidebar as m
+  monkeypatch.setattr(sm, "read_gpu_percent", lambda *a: 42.0)
+  calls = _onroad_calls(m, _sidebar(m, files, "gpu"), monkeypatch)
+  assert [(c[0], c[1], c[2]) for c in calls] == [('TEMP', calls[0][1], 338), ('GPU', '42%', 496), ('RAM', '41%', 654)]
+
+
+def test_sidebar_gpu_choice_is_a_dash_when_unavailable(files, monkeypatch):
+  from openpilot.selfdrive.ui.layouts import sidebar as m
+  monkeypatch.setattr(sm, "read_gpu_percent", lambda *a: None)
+  calls = _onroad_calls(m, _sidebar(m, files, "gpu"), monkeypatch)
+  assert calls[1] == ('GPU', '--', 496)
+
+
+def test_sidebar_gpu_choice_no_panda_takes_the_box_back(files, monkeypatch):
+  from openpilot.selfdrive.ui.layouts import sidebar as m
+  monkeypatch.setattr(sm, "read_gpu_percent", lambda *a: 42.0)
+  calls = _onroad_calls(m, _sidebar(m, files, "gpu", panda_seen=False), monkeypatch)
+  assert calls[1][0] == 'VEHICLE'
+
+
+def test_sidebar_offroad_unchanged_by_gpu_choice(files, monkeypatch):
+  from openpilot.selfdrive.ui.layouts import sidebar as m
+  s = _sidebar(m, files, "gpu")
+  s._update_hardware_metrics(device(), fresh=True)
+  calls = []
+  s._draw_metric = lambda rect, metric, y: calls.append((metric.label, y))
+  monkeypatch.setattr(m, 'ui_state', SimpleNamespace(started=False))
+  s._draw_metrics(m.rl.Rectangle(0, 0, 300, 1080))
+  assert calls == [('TEMP', 338), ('CPU', 496), ('RAM', 654)]

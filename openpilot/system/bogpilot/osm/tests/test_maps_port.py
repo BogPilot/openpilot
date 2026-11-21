@@ -74,5 +74,6 @@ def test_slc_off_means_no_process_even_with_maps_selected(monkeypatch):
 def test_supervisor_wires_the_slc_rule_into_the_resumer_and_scheduler():
   import inspect
   src = inspect.getsource(S.main)
-  assert "Resumer(mem, storage, allowed=lambda: downloads_allowed(store))" in src
+  assert "Resumer(mem, storage, allowed=lambda: downloads_allowed(store)," in src
+  assert "gap_fetcher=FetchProcess(storage" in src                     # v1 gaps by cell_fetch: mapd v1.12.0 panics on Bounds
   assert "UpdateScheduler(store" in src                               # the scheduler's own default allowed= is downloads_allowed

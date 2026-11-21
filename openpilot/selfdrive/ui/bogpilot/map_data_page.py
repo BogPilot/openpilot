@@ -59,11 +59,12 @@ REPAIR_Q = tr_noop("Repair map downloads? This clears all downloaded maps and th
 ATTRIBUTION = "\u00a9 OpenStreetMap contributors"     # U+00A9 is in the font atlas (system/ui/lib/application.py EXTRA_FONT_CHARS)
 LICENSE_LINE = tr_noop("Map data is available under the Open Database License (ODbL).")
 
-MAIN_ROWS = ("schedule", "download", "last_updated", "countries", "states", "progress", "elapsed", "eta", "remove", "repair",
+# The download progress rows (shown only while a download runs) sit directly below the Automatically Update Maps row.
+MAIN_ROWS = ("schedule", "progress", "elapsed", "eta", "download", "last_updated", "countries", "states", "remove", "repair",
              "engine", "storage", "credit")
-HELP_KEYS = ("PreferredSchedule", "map_data.download", "map_data.last_updated", "map_data.sources", "map_data.sources",
-             "map_data.progress", "map_data.elapsed", "map_data.eta", "map_data.remove", "map_data.repair", "MapdV2", "map_data.storage",
-             "map_data.credit")
+HELP_KEYS = ("PreferredSchedule", "map_data.progress", "map_data.elapsed", "map_data.eta", "map_data.download",
+             "map_data.last_updated", "map_data.sources", "map_data.sources", "map_data.remove", "map_data.repair", "MapdV2",
+             "map_data.storage", "map_data.credit")
 KIND_TITLES = {"nations": tr_noop("Countries"), "states": tr_noop("U.S. States")}
 OPEN = tr_noop("OPEN")
 

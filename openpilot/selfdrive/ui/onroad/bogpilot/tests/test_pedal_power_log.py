@@ -55,9 +55,27 @@ class TestLogMapping(unittest.TestCase):
 
   def test_regen_25kw_is_not_near_full(self):
     # A tester saw ~80 % on the bar at 20-25 kW; the old 60 kW / P0 5 kW curve gave 63-70 % there (80 % at 34 kW).
-    self.assertLess(G3.log_power_fill(25.0, G3.REGEN_PEAK_KW_DEFAULT, G3.REGEN_LOG_P0_KW), 0.60)
-    self.assertLess(G3.log_power_fill(34.0, G3.REGEN_PEAK_KW_DEFAULT, G3.REGEN_LOG_P0_KW), 0.70)
-    self.assertGreater(G3.log_power_fill(50.0, G3.REGEN_PEAK_KW_DEFAULT, G3.REGEN_LOG_P0_KW), 0.80)
+    self.assertLess(G3.log_power_fill(25.0, 70.0, G3.REGEN_LOG_P0_KW), 0.60)
+    self.assertLess(G3.log_power_fill(34.0, 70.0, G3.REGEN_LOG_P0_KW), 0.70)
+    self.assertGreater(G3.log_power_fill(50.0, 70.0, G3.REGEN_LOG_P0_KW), 0.80)
+
+  def test_logged_full_regen_reads_near_full(self):
+    # Logged full-regen peaks: 41 kW (p99.9 about 35 kW). Linear on 42 kW: 41 kW about 98 %, 35 kW 83 %, 22.5 kW 54 %.
+    for kw, lo, hi in ((41.0, 0.96, 1.0), (38.0, 0.88, 0.92), (35.0, 0.82, 0.85), (22.5, 0.52, 0.55), (60.0, 1.0, 1.0)):
+      rpm = rpm_at(50)
+      v = G3.regen_power_fill(-nm_for_kw(kw, rpm), rpm, AP1_S)
+      self.assertTrue(lo <= v <= hi, (kw, v))
+
+  def test_regen_curve_is_linear_and_log_switch_still_works(self):
+    rpm = rpm_at(30)
+    a, b = (G3.regen_power_fill(-nm_for_kw(k, rpm), rpm, AP1_S) for k in (10.0, 20.0))
+    self.assertAlmostEqual(b, 2 * a, places=6)
+    old = G3.REGEN_LINEAR
+    try:
+      G3.REGEN_LINEAR = False
+      self.assertAlmostEqual(G3.regen_power_fill(-nm_for_kw(20.0, rpm), rpm, AP1_S), G3.log_power_fill(20.0, 42.0, 15.0), places=6)
+    finally:
+      G3.REGEN_LINEAR = old
 
   def test_deadband_and_junk(self):
     for bad in (None, float("nan"), "x", -5.0, 0.5, 1.0):
@@ -94,10 +112,10 @@ class TestBarsOnTheLogScale(unittest.TestCase):
     self.assertLess(Rig().step(tq=200.0, rpm=rpm, n=60).accel, 0.95)        # the old 100 %: 200 Nm ~ 174 kW at 70 mph
     self.assertAlmostEqual(Rig().step(tq=nm_for_kw(320.0, rpm), rpm=rpm, n=60).accel, 1.0, places=3)
 
-  def test_regen_bar_is_log_regen_power(self):
+  def test_regen_bar_is_linear_regen_power_on_calibrated_peak(self):
     rpm = rpm_at(20)
     g = Rig().step(tq=-nm_for_kw(25.0, rpm), rpm=rpm, n=60)
-    self.assertAlmostEqual(g.regen, G3.log_power_fill(25.0, 70.0, 15.0), places=3)   # ~57 %, not full
+    self.assertAlmostEqual(g.regen, 25.0 / 42.0, places=3)   # about 60 %, not full
     self.assertEqual(g.regen_src, G3.OP)
 
   def test_no_rpm_falls_back_to_torque(self):

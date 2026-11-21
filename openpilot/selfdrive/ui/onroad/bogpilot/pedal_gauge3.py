@@ -80,16 +80,19 @@ TORQUE_DEADBAND_NM = 1.0
 POWER_LOG_SCALE = True
 ACCEL_FULLSCALE_KW = 320.0            # drive: the top mark of the Model S power meter (20 / 40 / 80 / 160 / 320 kW)
 ACCEL_LOG_P0_KW = 10.0
-REGEN_PEAK_KW_AP1_S = 70.0            # regen: physical peak regen power per model (proposal, tune per car)
-REGEN_PEAK_KW_AP1_X = 70.0
-REGEN_PEAK_KW_PREAP = 70.0
-REGEN_PEAK_KW_DEFAULT = 70.0
+# Regen shaft power (0x108 torque x rpm) tops out near 41 kW on this car's drives (p99.9 about 35 kW), torque-limited below about
+# 4000 rpm and power-limited above. 42 kW is the full-bar point; the CENTER bar is linear in kW (like the Tesla energy graph).
+REGEN_PEAK_KW_AP1_S = 42.0            # regen: calibrated peak regen shaft power per model
+REGEN_PEAK_KW_AP1_X = 42.0
+REGEN_PEAK_KW_PREAP = 42.0
+REGEN_PEAK_KW_DEFAULT = 42.0
 REGEN_PEAK_KW = {
   "TESLA_AP1_MODELS": REGEN_PEAK_KW_AP1_S,
   "TESLA_AP1_MODELX": REGEN_PEAK_KW_AP1_X,
   "TESLA_PREAP_MODELS": REGEN_PEAK_KW_PREAP,
 }
 REGEN_LOG_P0_KW = 15.0
+REGEN_LINEAR = True                   # CENTER bar linear in kW (True) or the log curve above (False)
 POWER_DEADBAND_KW = 1.0               # below this a power bar reads empty (coasting noise)
 
 # Near-max regen flash (UI only, openpilot regen colour only).
@@ -224,7 +227,11 @@ def accel_power_fill(torque_nm, rpm) -> float | None:
 def regen_power_fill(torque_nm, rpm, fingerprint=None) -> float | None:
   """Log regen-power fill, or None when rpm / torque is missing (the caller then uses the torque fill)."""
   kw = regen_power_kw(torque_nm, rpm)
-  return None if kw is None else log_power_fill(kw, regen_peak_kw(fingerprint), REGEN_LOG_P0_KW)
+  if kw is None:
+    return None
+  if REGEN_LINEAR:
+    return 0.0 if kw <= POWER_DEADBAND_KW else clamp(kw / regen_peak_kw(fingerprint), 0.0, 1.0)
+  return log_power_fill(kw, regen_peak_kw(fingerprint), REGEN_LOG_P0_KW)
 
 
 def speed_from_rpm(rpm) -> float | None:

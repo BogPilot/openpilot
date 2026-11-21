@@ -9,11 +9,17 @@ This module keeps a small job file next to the tiles (`download_job.json`: the s
 the `bogpilot_mapd` supervisor, once a second:
   * mapd busy: watch the progress file; no new cell for STALL_S -> report "stalled" (the supervisor restarts mapd);
   * mapd idle: list the selection's cells that are not on disk (offline/<lat>/<lon>/ has files only after a cell
-    downloaded and unpacked) and ask mapd for the next missing one through OSMDownloadBounds (exactly one cell), waiting
-    for the network with a backoff while offline; a cell that keeps failing is given up after MAX_CELL_ATTEMPTS
-    (some cells do not exist on the server);
+    downloaded and unpacked) and fetch the next missing one with cell_fetch.py in its own process (the same archive
+    URL and layout mapd uses), waiting for the network with a backoff while offline; a cell that keeps failing is given
+    up after MAX_CELL_ATTEMPTS (some cells do not exist on the server);
   * free space below SPACE_FLOOR_BYTES: stop cleanly ("no_space"), drop the request, keep what downloaded.
 Finished cells are never fetched again, so a resume costs only the missing cells. No region selected -> no job.
+
+Never OSMDownloadBounds: mapd v1.12.0 panics on it (download.go DownloadBounds writes
+progress.LocationDetails["CUSTOM"], a map entry DownloadIfTriggered never creates: nil pointer, recovered by loop()),
+so the request is never cleared and nothing downloads. Seen with the real binary on the AGNOS VM. mapd v1 also wipes
+OSMDownloadLocations when it starts (ResetParams), so a request written just before mapd launched is lost; the job file
+and the gap fetch below finish that download anyway. A leftover OSMDownloadBounds is removed on every step.
 """
 from __future__ import annotations
 
@@ -71,7 +77,8 @@ def missing_cells(storage: OsmStorage, sel: regions.Selection) -> list[tuple[int
 
 
 def cell_bounds(cell) -> str:
-  """OSMDownloadBounds JSON (mapd Bounds: min_lat/min_lon/max_lat/max_lon) that adjustedBounds clips to exactly this cell."""
+  """OSMDownloadBounds JSON (mapd Bounds: min_lat/min_lon/max_lat/max_lon) that adjustedBounds clips to exactly this cell.
+  Kept for reference and tests only: the resumer never writes OSMDownloadBounds (mapd v1.12.0 panics on it)."""
   lat, lon = cell
   g = regions.GROUP_AREA_BOX_DEGREES
   return json.dumps({"min_lat": lat + 0.25, "min_lon": lon + 0.25, "max_lat": lat + g - 0.25, "max_lon": lon + g - 0.25})
@@ -171,23 +178,39 @@ class FetchProcess:
 
 
 class Resumer:
-  def __init__(self, mem: MemParams, storage: OsmStorage, online=default_online, clock=time.time, allowed=None, fetcher=None):
+  def __init__(self, mem: MemParams, storage: OsmStorage, online=default_online, clock=time.time, allowed=None, fetcher=None,
+               gap_fetcher=None):
     self.mem, self.storage, self.jobs = mem, storage, JobStore(storage)
     self._online, self._clock = online, clock
     self._allowed = allowed or (lambda: True)   # Speed Limit Controller on (supervisor passes downloads_allowed)
-    # None = mapd v1 asks mapd for cells (OSMDownloadBounds). A FetchProcess = mapd v2: cells are fetched out of process.
+    # fetcher: None = mapd v1 (mapd downloads the OSMDownloadLocations pass). A FetchProcess = mapd v2: every cell out of process.
     self.fetcher = fetcher
+    # gap_fetcher: mapd v1 only, a FetchProcess for the cells mapd's pass missed (None = lazily a real FetchProcess)
+    self._gap = gap_fetcher
+
+  def gap_fetcher(self):
+    if self._gap is None:
+      self._gap = FetchProcess(self.storage)
+    return self._gap
+
+  def _gap_running(self) -> bool:
+    return self._gap is not None and self._gap.running()
+
+  def _stop_gap(self) -> None:
+    if self._gap is not None:
+      self._gap.stop()
 
   def _busy(self) -> bool:
     if self.fetcher is not None:
       return self.fetcher.running()
-    return bool((self.mem.get_text("OSMDownloadLocations") or "").strip() or (self.mem.get_text("OSMDownloadBounds") or "").strip())
+    return bool((self.mem.get_text("OSMDownloadLocations") or "").strip()) or self._gap_running()
 
   def _drop_request(self) -> None:
     self.mem.remove("OSMDownloadLocations")
     self.mem.remove("OSMDownloadBounds")
     if self.fetcher is not None:
       self.fetcher.stop()
+    self._stop_gap()
 
   def _finish(self, total: int, done: int) -> None:
     """Hand the result to the usual completion path (DownloadController: no job + progress present = done)."""
@@ -197,12 +220,15 @@ class Resumer:
   def step(self) -> str:
     now = self._clock()
     job = self.jobs.load()
+    self.mem.remove("OSMDownloadBounds")       # never used: mapd v1.12.0 panics on it every loop (see the module doc)
     if self.fetcher is not None:
       # mapd v2 never reads the v1 request params; the job file alone drives the download
       self.mem.remove("OSMDownloadLocations")
-      self.mem.remove("OSMDownloadBounds")
+      self._stop_gap()                         # switched from v1 mid-download: the v2 fetcher takes over
       if job is None or job.get("status") != RUNNING:
         self.fetcher.stop()                    # cancelled / stopped: end a running fetch too
+    elif job is None or job.get("status") != RUNNING:
+      self._stop_gap()
     if job is None:
       return "idle"
     if job.get("status") != RUNNING:
@@ -223,13 +249,14 @@ class Resumer:
       return NO_SPACE
     if self._busy():
       # stall watch: mapd rewrites the progress param after every finished cell; no change for STALL_S = hung
-      text = self.fetcher.token() if self.fetcher is not None else (self.mem.get_text("OSMDownloadProgress") or "")
+      fetching = self.fetcher if self.fetcher is not None else (self._gap if self._gap_running() else None)
+      text = fetching.token() if fetching is not None else (self.mem.get_text("OSMDownloadProgress") or "")
       watch = job.get("watch")
       if not isinstance(watch, list) or len(watch) != 2 or watch[0] != text:
         job["watch"] = [text, now]
         self.jobs.save(job)
         return "busy"
-      if now - float(watch[1]) > (FETCH_STALL_S if self.fetcher is not None else STALL_S):
+      if now - float(watch[1]) > (FETCH_STALL_S if fetching is not None else STALL_S):
         self._drop_request()
         job["stalls"] = int(job.get("stalls", 0)) + 1
         job["watch"] = None
@@ -256,14 +283,9 @@ class Resumer:
     cell = todo[0]
     attempts[cell_key(cell)] = int(attempts.get(cell_key(cell), 0)) + 1
     job["offline"], job["requested_at"], job["watch"] = 0, now, None
-    if self.fetcher is not None:
-      job["next_try"] = now + 1.0
-      self.jobs.save(job)
-      self.fetcher.start(cell)
-      return "requested"
-    job["next_try"] = now + 5.0          # let mapd pick the request up (it polls once a second) before looking again
+    job["next_try"] = now + 1.0
     self.jobs.save(job)
-    self.mem.put("OSMDownloadBounds", cell_bounds(cell))
+    (self.fetcher if self.fetcher is not None else self.gap_fetcher()).start(cell)
     return "requested"
 
   def counts(self, job: dict) -> tuple[int, int]:

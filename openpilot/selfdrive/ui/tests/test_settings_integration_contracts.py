@@ -24,8 +24,8 @@ class TestIntegrationContracts(unittest.TestCase):
       def get_bool(self, k):
         return self.d.get(k)
 
-    self.assertEqual(metric_visibility_from_params(P()), (True, True, True, False))
-    self.assertEqual(metric_visibility_from_params(P(ShowCPU=False, ShowMemoryUsage=False, NumericalTemp=False, Fahrenheit=True)),
+    self.assertEqual(metric_visibility_from_params(P()), (True, True, True, True))
+    self.assertEqual(metric_visibility_from_params(P(ShowCPU=False, ShowMemoryUsage=False, NumericalTemp=False, IsMetric=False)),
                      (False, False, False, True))
     src = (ROOT / "openpilot/selfdrive/ui/layouts/sidebar.py").read_text()
     self.assertIn("metric_visibility_from_params(self._params)", src)  # lane commit + patch applied atomically

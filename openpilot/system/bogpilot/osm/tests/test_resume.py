@@ -12,6 +12,33 @@ from openpilot.system.bogpilot.osm.storage import OsmStorage
 SEL = R.Selection((), ("RI",))       # a small state: few cells
 
 
+class FakeFetch:
+  """resume.FetchProcess stand-in: records the cells asked for; `finish()` ends the fetch (optionally with the cell on disk)."""
+
+  def __init__(self, rig=None):
+    self.rig, self.started, self.cell, self.alive, self.stops = rig, [], None, False, 0
+
+  def start(self, cell):
+    self.started.append(tuple(cell))
+    self.cell, self.alive = tuple(cell), True
+    return True
+
+  def running(self):
+    return self.alive
+
+  def stop(self):
+    self.stops += 1
+    self.alive = False
+
+  def token(self):
+    return f"{self.cell}"
+
+  def finish(self, ok=True):
+    if ok and self.rig is not None:
+      self.rig.put_cell(self.cell)
+    self.alive = False
+
+
 class Rig:
   def __init__(self, tmp_path, free=50 * 1024 ** 3):
     self.mem = MemParams(tmp_path / "d")
@@ -21,7 +48,8 @@ class Rig:
     self.t = 1000.0
     self.online = True
     self.dl = DownloadController(self.mem, self.storage)
-    self.r = RS.Resumer(self.mem, self.storage, online=lambda: self.online, clock=lambda: self.t)
+    self.gap = FakeFetch(self)
+    self.r = RS.Resumer(self.mem, self.storage, online=lambda: self.online, clock=lambda: self.t, gap_fetcher=self.gap)
     self.cells = RS.selection_cells(SEL)
 
   def put_cell(self, cell):
@@ -33,7 +61,8 @@ class Rig:
     for c in cells_done:
       self.put_cell(c)
     self.mem.put("OSMDownloadLocations", "")
-    self.mem.put("OSMDownloadBounds", "")
+    if self.gap.alive:
+      self.gap.finish(ok=False)
 
 
 @pytest.fixture
@@ -63,11 +92,10 @@ def test_first_pass_busy_then_missing_cells_are_requested_one_at_a_time(rig):
   p = rig.dl.progress()
   assert p.active and (p.total_files, p.downloaded_files) == (len(rig.cells), len(rig.cells) - 1)
   assert rig.r.step() == "requested"
-  b = json.loads(rig.mem.get_text("OSMDownloadBounds"))
   last = rig.cells[-1]
-  assert last[0] < b["min_lat"] < last[0] + 2 and last[1] < b["min_lon"] < last[1] + 2
-  assert rig.r.step() == "busy"                                  # mapd has the request
-  rig.mapd_finishes_pass([last])
+  assert rig.gap.started == [last] and rig.mem.get("OSMDownloadBounds") is None   # cell_fetch, never mapd's Bounds
+  assert rig.r.step() == "busy"                                  # the gap fetch runs
+  rig.gap.finish()
   rig.t += 10
   assert rig.r.step() == "complete"
   p = rig.dl.progress()
@@ -87,13 +115,13 @@ def test_offline_waits_with_backoff_then_resumes(rig):
   rig.t += RS.RETRY_BACKOFF_S[1]
   rig.online = True
   assert rig.r.step() == "requested"
-  assert rig.mem.get_text("OSMDownloadBounds")
+  assert rig.gap.started == [rig.cells[0]]
 
 
 def test_finished_cells_are_never_fetched_again(rig):
   assert rig.dl.start(SEL)
   rig.mapd_finishes_pass(rig.cells)
-  assert rig.r.step() == "complete" and not (rig.mem.get_text("OSMDownloadBounds") or "").strip()
+  assert rig.r.step() == "complete" and rig.gap.started == []
 
 
 def test_a_cell_missing_on_the_server_is_given_up_and_the_download_ends(rig):
@@ -162,11 +190,68 @@ def test_slc_off_pauses_the_job_and_slc_on_resumes_it(tmp_path):
   mem, storage = MP(tmp_path / "d"), OS(tmp_path / "osm")
   storage.disk_free = lambda: 50 * 1024 ** 3
   slc = {"on": False}
-  r = RS2.Resumer(mem, storage, online=lambda: True, clock=lambda: 1000.0, allowed=lambda: slc["on"])
+  r = RS2.Resumer(mem, storage, online=lambda: True, clock=lambda: 1000.0, allowed=lambda: slc["on"], gap_fetcher=FakeFetch())
   r.jobs.begin(R2.parse_selection('{"nations": [], "states": ["RI"]}'))
   mem.put("OSMDownloadLocations", '{"nations": [], "states": ["RI"]}')
   assert r.step() == "slc_off"
   assert mem.get("OSMDownloadLocations") is None and mem.get("OSMDownloadBounds") is None
   assert r.jobs.load() is not None                                    # job kept
   slc["on"] = True
-  assert r.step() == "requested" and mem.get_text("OSMDownloadBounds")
+  assert r.step() == "requested" and mem.get("OSMDownloadBounds") is None and r.gap_fetcher().cell == tuple(RS2.selection_cells(r.jobs.selection(r.jobs.load()))[0])
+
+
+# ---------------------------------------------------------------- mapd v1.12.0 never gets OSMDownloadBounds (it panics on it)
+def test_a_leftover_bounds_request_is_removed_and_never_written(rig):
+  """mapd v1.12.0 DownloadBounds writes progress.LocationDetails["CUSTOM"], which DownloadIfTriggered never creates: a nil
+  pointer panic that loop() recovers from every second, so the request is never cleared (real binary, AGNOS VM)."""
+  rig.mem.put("OSMDownloadBounds", RS.cell_bounds(rig.cells[0]))     # left by the previous build's resumer
+  assert rig.r.step() == "idle"
+  assert rig.mem.get("OSMDownloadBounds") is None
+  assert rig.dl.start(SEL)
+  rig.mapd_finishes_pass([])
+  for _ in range(5):
+    rig.r.step()
+    rig.t += 2
+  assert rig.mem.get("OSMDownloadBounds") is None
+
+
+def test_request_wiped_by_mapd_start_is_finished_by_the_gap_fetch(rig):
+  """mapd v1 ResetParams() empties OSMDownloadLocations when it starts: a Download pressed (or scheduled) just before mapd
+  launched used to sit at '0 / N (0%)' forever. The job file survives, so every cell is fetched by cell_fetch instead."""
+  assert rig.dl.start(SEL)
+  rig.mem.put("OSMDownloadLocations", "")                         # mapd started and wiped the request
+  for cell in rig.cells:
+    assert rig.r.step() == "requested" and rig.gap.started[-1] == cell
+    assert rig.r.step() == "busy"
+    p = rig.dl.progress()
+    assert p.active and p.total_files == len(rig.cells)               # the page shows counts, never "Waiting..."
+    rig.gap.finish()
+    rig.t += 2
+  assert rig.r.step() == "complete" and rig.dl.progress().done
+
+
+def test_a_hung_gap_fetch_uses_the_short_fetch_stall_window(rig):
+  assert rig.dl.start(SEL)
+  rig.mapd_finishes_pass([])
+  assert rig.r.step() == "requested"
+  assert rig.r.step() == "busy"
+  rig.t += RS.FETCH_STALL_S + 1
+  assert rig.r.step() == "stalled" and not rig.gap.alive and rig.r.jobs.load() is not None
+
+
+def test_cancel_stops_a_running_gap_fetch(rig):
+  assert rig.dl.start(SEL)
+  rig.mapd_finishes_pass([])
+  assert rig.r.step() == "requested" and rig.gap.alive
+  rig.dl.cancel()
+  assert rig.r.step() == "idle" and not rig.gap.alive
+
+
+def test_switching_to_v2_mid_download_stops_the_v1_gap_fetch(rig):
+  assert rig.dl.start(SEL)
+  rig.mapd_finishes_pass([])
+  assert rig.r.step() == "requested" and rig.gap.alive
+  rig.r.fetcher = FakeFetch(rig)                                  # supervisor set_fetcher(True)
+  rig.t += 2
+  rig.r.step()
+  assert not rig.gap.alive

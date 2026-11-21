@@ -56,7 +56,7 @@ def test_sidebar_offroad_metrics_and_onroad_navigation(monkeypatch):
   sidebar = m.Sidebar.__new__(m.Sidebar)
   sidebar._offroad_temp_status, sidebar._cpu_status, sidebar._ram_status = [m.MetricData(n, '--', m.Colors.GRAY) for n in ['TEMP', 'CPU', 'RAM']]
   sidebar._temp_status, sidebar._panda_status = [m.MetricData(n, '--', m.Colors.GRAY) for n in ['TEMP', 'VEHICLE']]
-  sidebar._params = SimpleNamespace(get_bool=lambda key: key in {'Fahrenheit', 'ShowCPU', 'ShowMemoryUsage', 'NumericalTemp'})  # visualsTheme gating keys (compiled defaults ON)
+  sidebar._params = SimpleNamespace(get_bool=lambda key: key in {'ShowCPU', 'ShowMemoryUsage', 'NumericalTemp'})  # visualsTheme gating keys (compiled defaults ON)
   sidebar._update_hardware_metrics(device(), fresh=True)
   assert [r.value for r in [sidebar._offroad_temp_status, sidebar._cpu_status, sidebar._ram_status]] == ['129°F', '25%', '41%']
   calls = []

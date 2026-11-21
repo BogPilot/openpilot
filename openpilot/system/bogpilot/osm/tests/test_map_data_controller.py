@@ -256,12 +256,33 @@ def test_eta_counts_down_with_the_clock_and_only_moves_when_a_file_finishes():
 
 
 def test_waiting_for_downloader_message_after_a_long_silence(env):
+  # no supervisor heartbeat: bogpilot_mapd is not running, so nobody will pick the request up. The row keeps the
+  # existing "Waiting for the map downloader..." text (no new on-screen wording in this build)
   env.ctl.set_region("states", "OH", True)
   env.ctl.start_download(True, True)
   env.clock.t += M.WAITING_FOR_DOWNLOADER_S - 1
   assert env.ctl.view(True, True).progress == "Calculating..."
   env.clock.t += 5
-  assert env.ctl.view(True, True).progress == "Waiting for the map downloader..."
+  assert env.ctl.view(True, True).progress == M.WAITING_FOR_DOWNLOADER_TEXT == "Waiting for the map downloader..."
+
+
+def test_a_live_downloader_keeps_calculating_while_the_first_cell_downloads(env):
+  # mapd v1 writes no progress until its first 2x2 degree cell (up to ~55 MB) is in: slow, not stuck
+  import time as _t
+  env.ctl.set_region("states", "OH", True)
+  env.ctl.start_download(True, True)
+  env.mem.put(M.HEARTBEAT_KEY, "1")
+  env.clock.t += M.WAITING_FOR_DOWNLOADER_S + 5
+  assert env.ctl.view(True, True).progress == "Calculating..."
+  hb = env.mem._path(M.HEARTBEAT_KEY)
+  old = _t.time() - M.HEARTBEAT_STALE_S - 5
+  import os as _os
+  _os.utime(hb, (old, old))                                            # the supervisor stopped refreshing it
+  env.clock.t += 2                                                     # past the 1 s re-read
+  assert env.ctl.view(True, True).progress == M.WAITING_FOR_DOWNLOADER_TEXT
+  env.mem.remove(M.HEARTBEAT_KEY)
+  env.clock.t += 2
+  assert env.ctl.view(True, True).progress == M.WAITING_FOR_DOWNLOADER_TEXT
 
 
 def test_finished_download_stamps_last_updated_and_clears_progress(env):
