@@ -20,6 +20,16 @@ def state(**kw):
 
 
 class TestGeometry(unittest.TestCase):
+  def test_driver_arc_size_follows_wheel_angle(self):
+    lo = A.geometry(state(human=True, angle=ARC.HUMAN_ORANGE_START_DEG, torque=1.0), VIEW)
+    self.assertAlmostEqual(lo["thickness"], 14.0)
+    hi = A.geometry(state(human=True, angle=ARC.LOCK_DEG, torque=0.1), VIEW)
+    self.assertAlmostEqual(hi["thickness"], 56.0)
+    mid = A.geometry(state(human=True, angle=-(ARC.HUMAN_ORANGE_START_DEG + ARC.LOCK_DEG) / 2, torque=0.1), VIEW)
+    self.assertAlmostEqual(mid["thickness"], 35.0)
+    # openpilot arc (not human): size still follows torque
+    self.assertAlmostEqual(A.geometry(state(human=False, angle=430.0, torque=0.2), VIEW)["thickness"], 14.0)
+
   def test_stock_curve_raised(self):
     g = A.geometry(state(torque=0.0), VIEW)
     self.assertAlmostEqual(g["cx"], VIEW.x + VIEW.width / 2 + 8)

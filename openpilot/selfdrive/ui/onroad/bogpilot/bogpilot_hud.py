@@ -27,6 +27,8 @@ from openpilot.selfdrive.ui.onroad.bogpilot import developer_hud_logic as DEV
 from openpilot.selfdrive.ui.onroad.bogpilot import developer_hud as DEVP
 from openpilot.selfdrive.ui.onroad.bogpilot import fps_counter as FPS
 from openpilot.selfdrive.ui.onroad.bogpilot import overlay_gate as OVG
+from openpilot.selfdrive.ui.onroad.bogpilot import upload_stats_paint as USP
+from openpilot.selfdrive.ui.bogpilot import upload_stats as US
 from openpilot.selfdrive.ui.onroad.bogpilot.style import record_hit_rect
 from openpilot.selfdrive.ui.onroad.exp_button import ExpButton
 from openpilot.system.ui.widgets import Widget
@@ -316,6 +318,7 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
     self._bp_fps_gate = OVG.OverlayGate("FPSCounter", stored_only=True)
     self._bp_fps = FPS.FpsTracker()
     self._bp_fps_drive = None
+    self._bp_upload = US.UploadStatsReader()   # Custom Log Upload Stats; reads nothing while the toggle is off
 
   def _update_state(self):
     super()._update_state()
@@ -426,6 +429,7 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
     if wide:
       self._bp_render_developer(rect, redesign and self.bp_arc_live and not self.bp_arc_failed)
       self._bp_render_fps(rect)
+      self._bp_render_upload_stats(rect)
     draw_cem_status(self, rect)
 
   def _bp_render_developer(self, rect, arc_layout):
@@ -455,6 +459,21 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
       FPS.paint(self._bp_fps.text(), rect)
     except Exception:
       cloudlog.exception("FPS counter failed")
+
+  def _bp_render_upload_stats(self, rect):
+    """Custom Log Upload Stats panel, bottom corner away from the driver. Hidden behind a full-screen alert. Display only."""
+    try:
+      view = self._bp_upload.update()
+      if view is None:
+        return
+      sm = ui_state.sm
+      if _fresh(sm, "selfdriveState") and str(sm["selfdriveState"].alertSize) == "full":
+        return
+      drawn = USP.paint(view, rect, self.bp_rhd, self.bp_extra_keepouts)
+      if drawn is not None:
+        self.bp_extra_keepouts.append(drawn)
+    except Exception:
+      cloudlog.exception("upload stats panel failed")
 
   def _bp_render_extras(self, rect):
     scale = min(1.0, rect.width / 2160.0, rect.height / 1080.0)

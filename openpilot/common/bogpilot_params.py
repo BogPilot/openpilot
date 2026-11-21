@@ -76,6 +76,7 @@ BOGPILOT_PARAMS: dict[str, tuple[str, str, str | None, int | None, str | None]] 
   "BlindSpotPath": ("PERSISTENT", "BOOL", "1", 1, "0"),
   "BorderMetrics": ("PERSISTENT", "BOOL", "1", 0, "0"),
   "CSCMapCurvature": ("PERSISTENT", "BOOL", "0", 2, "0"),
+  "CSCTeslaSmoothing": ("PERSISTENT", "BOOL", "0", 2, "0"),
   "CalibratedLateralAcceleration": ("PERSISTENT", "FLOAT", "2.0", 2, "2.0"),
   "CalibrationProgress": ("PERSISTENT", "FLOAT", "0", 3, "0"),
   "CameraView": ("PERSISTENT", "INT", "0", 2, "0"),

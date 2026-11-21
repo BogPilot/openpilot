@@ -49,6 +49,7 @@ BlindSpotMetrics
 BlindSpotPath
 BorderMetrics
 CSCMapCurvature
+CSCTeslaSmoothing
 CameraView
 CECurves
 CECurvesLead

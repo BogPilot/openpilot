@@ -319,7 +319,8 @@ class TestPreApVehicleRows(PedalCase):
     from openpilot.selfdrive.ui.bogpilot import phase2_vehicle as pv
     m = self.model(preap_cp())
     vis = {k for k in (pv.LONG, pv.CLUSTER, pv.REGEN, pv.DOUBLE_PULL, pv.PEDAL_STATUS, pv.PEDAL_CALIBRATE) if m.visible(k)}
-    self.assertEqual(vis, {pv.LONG, pv.PEDAL_STATUS, pv.PEDAL_CALIBRATE})          # no inert Double Pull switch
+    # no inert Double Pull switch; RegenComfortBrake is live on Pre-AP with openpilot long (comfort regen v2)
+    self.assertEqual(vis, {pv.LONG, pv.REGEN, pv.PEDAL_STATUS, pv.PEDAL_CALIBRATE})
     self.assertEqual(m.title(pv.LONG), "Disable Pedal Longitudinal")
     from unittest import mock
     with mock.patch.object(pp, "aol_available", lambda: True):                       # what a future approved AOL would unlock

@@ -1312,3 +1312,17 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Unchanged: the panda's Pre-AP radar path (`tesla_preap_radar.h`, 0x0E to 0x199) forwards the frame with its status bits,
   so the radar sees the sensor's own status.
 - Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_steer_rate_sna.py`.
+
+## AP1 Model X openpilot longitudinal (experimental opt-in)
+
+- Platforms: AP1 Model X only (`TESLA_AP1_MODELX`, strictly detected, not dashcam-only). Every other car is unchanged.
+- Setting: Vehicle Settings, Vehicle Controls, "Tesla AP1 Model X: openpilot Longitudinal (Experimental)". File-backed
+  (`/data/params_bogpilot/AP1XOpenpilotLong`, no Params key), default OFF, read once at car start. Untested on a real Model X.
+- Off (default): identical to before. The Model X is lateral only (safety param 8) and keeps its own cruise control.
+- On: `CarParams.openpilotLongitudinalControl` and the AP1 safety `LONG_CONTROL` flag are set together (param 9). The Model S chassis `0x2b9`
+  path is used, with the Model S accel smoother and jerk limits. Standstill stays Model S only. AEB events are never sent and stock AEB
+  passes through. `DisableOpenpilotLongitudinal` still wins.
+- The panda needs no firmware change: the AP1 safety mode keys on flag bits only. The lateral-accel bound in the panda still uses the
+  Model S wheelbase (2.959 m); the real X wheelbase (2.965 m, in `CarSpecs`) is 0.2% longer, so the panda bound is marginally tighter on the X.
+- Params: wheelbase 2.965 m, steerRatio 15 (Model S value, kept until measured), own torque row `[nan, 2.5, nan]`. Curb mass 2400 kg plus the
+  136 kg cargo allowance is recorded in `values.py`; nothing reads a mass in this tree.

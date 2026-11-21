@@ -7,6 +7,7 @@ from openpilot.common.version import get_build_metadata
 from openpilot.selfdrive.ui.widgets.offroad_alerts import UpdateAlert, OffroadAlert
 from openpilot.selfdrive.ui.widgets.exp_mode_button import ExperimentalModeButton
 from openpilot.selfdrive.ui.widgets.bogpilot_stats import BogPilotStatsWidget
+from openpilot.selfdrive.ui.widgets.bogpilot_upload_stats import UploadStatsCard
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.lib.application import gui_app, FontWeight, MousePos, TextAlignment
 from openpilot.system.ui.lib.multilang import tr, trn
@@ -56,6 +57,9 @@ class HomeLayout(Widget):
     self.alert_notif_rect = rl.Rectangle(0, 0, 220, HEADER_HEIGHT - 10)
 
     self._stats_widget = BogPilotStatsWidget(self.params)
+    # Custom Log Upload Stats: drawn under the Experimental Mode button only while the toggle is on and a manually
+    # installed uploader reports fresh status; otherwise the column stays as it is.
+    self._upload_card = UploadStatsCard()
 
     self._exp_mode_button = ExperimentalModeButton()
     self._setup_callbacks()
@@ -198,6 +202,12 @@ class HomeLayout(Widget):
       self.right_column_rect.x, self.right_column_rect.y, self.right_column_rect.width, exp_height
     )
     self._exp_mode_button.render(exp_rect)
+    if self._upload_card.refresh():
+      top = exp_rect.y + exp_height + SPACING
+      room = self.right_column_rect.y + self.right_column_rect.height - top
+      if room > 0:
+        self._upload_card.render(rl.Rectangle(self.right_column_rect.x, top, self.right_column_rect.width,
+                                              min(self._upload_card.height(), room)))
 
 
   def _refresh(self):

@@ -1,7 +1,6 @@
 """AP1-only planner bridge. No solver layout changes or weakened braking limits."""
 import math
 import numpy as np
-from opendbc.car.tesla_ap1.regen_brake import ap1_comfort_brake
 from opendbc.car.tesla_ap1.regen_aware import (
   RegenPowerEstimator, RegenStopShaper, regen_aware_enabled, lead_stop_distance, model_stop_distance,
 )
@@ -34,9 +33,11 @@ def lead_present(lead):
 class Ap1Planning:
   def __init__(self, CP, dt):
     self.active = CP.carFingerprint == AP1 and CP.openpilotLongitudinalControl
-    # Pre-AP uses the same follow-distance seconds when an AP1 stalk is parsed; regen/comfort stay AP1-only.
+    # Pre-AP uses the same follow-distance seconds when an AP1 stalk is parsed; regen stop shaping stays AP1-only.
     self.stalk_follow_active = CP.carFingerprint in (AP1, PREAP) and CP.openpilotLongitudinalControl
-    self.comfort_brake = ap1_comfort_brake(CP.carFingerprint) if self.active else 2.5
+    # Stock 2.5 m/s^2 always: the v1 regen gap widening is retired. RegenComfortBrake now drives the add-only comfort
+    # layer (comfort_regen.py) after the stock plan, so the MPC lead gap stays exactly stock.
+    self.comfort_brake = 2.5
     self.regen_enabled = self.active and regen_aware_enabled(CP.carFingerprint)
     self.dt = dt
     self.power = RegenPowerEstimator()

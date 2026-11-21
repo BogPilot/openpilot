@@ -41,6 +41,7 @@ DEFAULT_ROWS: tuple[tuple[str, str, int, str], ...] = (
   ('BlindSpotPath', '1', 1, '0'),
   ('BorderMetrics', '1', 0, '0'),
   ('CSCMapCurvature', '0', 2, '0'),
+  ('CSCTeslaSmoothing', '0', 2, '0'),
   ('CalibratedLateralAcceleration', '2.0', 2, '2.0'),
   ('CalibrationProgress', '0', 3, '0'),
   ('CameraView', '0', 2, '0'),

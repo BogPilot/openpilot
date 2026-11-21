@@ -16,6 +16,8 @@ PANDA_FIRMWARE = "PreApPandaFirmware"
 LONG = "DisableOpenpilotLongitudinal"
 CLUSTER = "EnableICIntegration"
 REGEN = "RegenComfortBrake"
+X_LONG = "AP1XOpenpilotLong"
+AP1_X = "TESLA_AP1_MODELX"
 RADAR = "TeslaRadarEnabled"
 RADAR_NOSECONE = "TeslaRadarBehindNosecone"
 IBOOSTER = "TeslaHasIBooster"
@@ -80,6 +82,7 @@ RADAR_DONOR_VIN_BAD = "A VIN is 17 letters or digits. Clear the box instead to u
 TITLES = {LONG: "Disable openpilot Longitudinal Control",
           CLUSTER: "Tesla AP1: Dash Cluster Integration",
           REGEN: "Tesla AP1: Earlier, Gentler Regen Stops",
+          X_LONG: "Tesla AP1 Model X: openpilot Longitudinal (Experimental)",
           DOUBLE_PULL: "Pre-AP: Double Pull to Engage Pedal Longitudinal",
           RADAR: "Pre-AP: Bosch Radar",
           RADAR_NOSECONE: "Pre-AP: Radar Behind Nosecone",
@@ -106,7 +109,10 @@ PEDAL_CALIBRATE_DESCRIPTION = ("Guided calibration. Put the car in Park with the
 DESCRIPTIONS = {
   LONG: "Use the car's stock ACC instead of openpilot longitudinal control. Takes effect the next time the car starts.",
   CLUSTER: "Show openpilot information on the Tesla dash cluster. Off leaves the cluster stock. Takes effect immediately.",
-  REGEN: "Start slowing for a lead earlier with regen-sized comfort braking. Emergency braking limits and stopped distance are unchanged. "
+  X_LONG: ("Experimental and untested on a real Model X. Lets openpilot control speed and braking on an AP1 Model X, the way it does on the "
+           "Model S. Off keeps the Model X on steering only with its own cruise control. Takes effect the next time the car starts."),
+  REGEN: "Start slowing gently (up to about 2 mph per second) for a slower car the radar sees. It only adds braking; following "
+         "distance, emergency braking and cut-in response are unchanged. "
          "Takes effect the next time the planner starts (normally the next drive).",
   DOUBLE_PULL: "Hidden in this build: the saved setting is kept but not applied. A single pull engages steering only, and a "
                "double pull adds speed control. A pull or the brake while speed control is on goes back to steering only. "
@@ -139,6 +145,11 @@ def supported(cp):
           and not getattr(cp, "dashcamOnly", True))
 
 
+def is_x(cp):
+  """Strictly detected AP1 Model X (never a dashcam-only or unknown car)."""
+  return cp is not None and str(cp.carFingerprint) == AP1_X and not getattr(cp, "dashcamOnly", True)
+
+
 def is_preap(cp):
   return supported(cp) and str(cp.carFingerprint) == PREAP
 
@@ -164,9 +175,12 @@ class VehicleSettings:
     self.params_file = Path(params_file) if params_file is not None else toggles.DISABLE_OP_LONG_PATHS[1]
     self.cluster_path = self.file_dir / CLUSTER if file_dir is not None else toggles._ic_integration_path
     self.regen_path = self.file_dir / REGEN if file_dir is not None else regen_brake._regen_comfort_path
+    self.x_long_path = self.file_dir / X_LONG if file_dir is not None else toggles._ap1x_op_long_path
 
   def visible(self, key):
     cp = self.cp()
+    if key == X_LONG:
+      return is_x(cp)                  # Model X only; every other car (Model S, Pre-AP, unknown) never sees the row
     if not supported(cp):
       return False
     if key == LONG:
@@ -175,7 +189,7 @@ class VehicleSettings:
     if key == CLUSTER:
       return not is_preap(cp)          # AP1 cluster frames: Pre-AP never sends them
     if key == REGEN:
-      return bool(cp.openpilotLongitudinalControl) and not is_preap(cp)
+      return bool(cp.openpilotLongitudinalControl)   # AP1 Model S and Pre-AP (comfort regen v2)
     if key == DOUBLE_PULL:
       # Hidden (never an inert switch) while Always On Lateral is unavailable. The saved TeslaPreApDoublePull value is kept
       # and not applied; NAP-style double pull is always on (opendbc tesla_ap1/preap/engagement.py).
@@ -449,6 +463,12 @@ class VehicleSettings:
     if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE, IBOOSTER, RADAR_IGNORE_HW_FAIL, RADAR_FLIP, AUTO_SPEED):
       from opendbc.car.tesla_ap1.preap import params as preap_params
       return preap_params.get_bool(key)
+    if key == X_LONG:
+      try:
+        stored = self.x_long_path.read_text(encoding="utf-8", errors="replace")
+      except OSError:
+        stored = ""
+      return self.toggles.ap1x_op_long(AP1_X if is_x(self.cp()) else "", stored=stored)   # default off
     # Missing/unreadable files have the consumer's default-on semantics.
     path = self.cluster_path if key == CLUSTER else self.regen_path
     try:
@@ -475,6 +495,8 @@ class VehicleSettings:
       if done:
         self.on_change(key)
       return done
+    elif key == X_LONG:
+      self.toggles.set_ap1x_op_long(state, path=self.x_long_path)
     elif key == CLUSTER:
       self.toggles.set_enable_ic_integration(state, path=self.cluster_path)
     elif key == REGEN:
@@ -744,7 +766,7 @@ def create_vehicle_settings_layout(params=None):
       if not self.model.enabled(key):
         self.refresh()
         return
-      if key != LONG or not state:
+      if key not in (LONG, X_LONG) or not state:
         self.model.write(key, state)
         self.refresh()
         return
@@ -755,9 +777,12 @@ def create_vehicle_settings_layout(params=None):
         if result == DialogResult.CONFIRM and ui_state.CP is original_cp:
           self.model.write(key, state)
         self.refresh()
-      question = "Disable pedal longitudinal control on the next car start?" if is_preap(ui_state.CP) else "Disable openpilot longitudinal control on the next car start?"
+      if key == X_LONG:
+        question = "Turn on experimental openpilot longitudinal control for this Model X? It is untested on a real Model X."
+      else:
+        question = "Disable pedal longitudinal control on the next car start?" if is_preap(ui_state.CP) else "Disable openpilot longitudinal control on the next car start?"
       gui_app.push_widget(ConfirmDialog(tr(question),
-                                        tr("Disable"), callback=done))
+                                        tr("Turn On" if key == X_LONG else "Disable"), callback=done))
 
     def refresh(self):
       for key, row in self.rows.items():

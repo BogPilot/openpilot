@@ -148,12 +148,20 @@ _add("EnableICIntegration", "Tesla AP1: Dash Cluster Integration",
      note="Takes effect immediately. Model S only. " + _OFFROAD,
      default="On")
 _add("RegenComfortBrake", "Tesla AP1: Earlier, Gentler Regen Stops",
-     "The Model S AP1 brake pedal is friction only, and regen is limited to about 1 to 1.5 m/s^2. With this on, openpilot starts "
-     "slowing for a lead earlier and uses regen-sized braking instead of the stock 2.5 m/s^2 comfort braking.",
+     "With this on, openpilot starts slowing gently for a slower car ahead that the radar sees, so it settles at the normal "
+     "following distance using all the room available, at no more than about 2 mph per second. If more than that is needed, "
+     "the normal openpilot braking takes over. It only ever adds braking, never removes it.",
      when="If approaches to a slower lead feel late or need friction brakes.",
-     note="Emergency braking limits and the stopped distance are unchanged, so collision braking still has full authority. "
+     note="The following distance, emergency braking and cut-in response are the same as stock. AP1 Model S and Pre-AP. "
           "Needs openpilot longitudinal control. Takes effect the next time the planner starts, normally the next drive.",
      default="On")
+_add("AP1XOpenpilotLong", "Tesla AP1 Model X: openpilot Longitudinal (Experimental)",
+     "Experimental and untested on a real Model X. Lets openpilot control speed and braking on an AP1 Model X through the same "
+     "chassis cruise messages the Model S uses. Off keeps the Model X on steering only with its own cruise control.",
+     when="Only if you have an AP1 Model X and want to try it.",
+     note="Shown only for a detected AP1 Model X. Standstill and stop-and-go are not enabled, and the car's own emergency braking "
+          "is untouched. Takes effect the next time the car starts. Be ready to take over.",
+     default="Off")
 _add("TeslaPreApDoublePull", "Pre-AP: Double Pull to Engage Pedal Longitudinal",
      "This row is hidden in this build, and the saved setting is kept but not applied. Pre-AP engagement does not use this "
      "switch: a single pull engages steering only, and a double pull adds speed control. A pull or the brake while speed "
@@ -440,6 +448,15 @@ _add("CSCMapCurvature", "Map Curve Speed",
           "the normal braking limits; lead car braking and stops are not affected. Off by default so you can compare. "
           "Legacy Teslas only. " + _GB,
      default="Off", default_param="CSCMapCurvature")
+_add("CSCTeslaSmoothing", "Smooth Curve Braking",
+     "Makes Curve Speed Control slow the car for a curve in one smooth regen pull instead of brake, ease, brake. Braking "
+     "starts as soon as a curve needs it and is held steady through the curve rather than easing off each time the curve "
+     "estimate changes.",
+     when="If the car pumps regen on and off on the way into or through a curve.",
+     note="Only adds braking: never brakes less than without it, never slows below the safe curve speed, and never brakes "
+          "harder than the normal curve-braking limit. Lead car braking and stops are not affected. Works whenever Curve "
+          "Speed Control is on. Legacy Teslas only. " + _GB,
+     default="Off", default_param="CSCTeslaSmoothing")
 _add("DecelerationProfile", "Deceleration Profile",
      "How gently openpilot slows down. Standard is the stock limit. Eco allows half of the normal braking and Eco+ a quarter, "
      "so the car coasts more.",
@@ -745,6 +762,16 @@ _add("ShowAccelGraph", "Show Accel Graph",
      "Shows the acceleration request graph on the driving screen. It can slow UI draw time, so it is off by default "
      "and lives under Developer. Display only.",
      default="Off", default_param="ShowAccelGraph")
+_add("CustomLogUploadStats", "Custom Log Upload Stats",
+     "Shows upload stats on screen for an uploader you installed yourself, such as an rsync or Nextcloud script that copies "
+     "realdata logs and screen recordings to your own private storage. The driving screen shows the upload rate in the "
+     "corner away from the driver, and the home screen shows the upload rate, how much is still waiting and how many "
+     "segments are left.",
+     when="Turn it on if you run such an uploader and want to see it working without opening an SSH session.",
+     note="BogPilot does not include or start an uploader. It only shows what the uploader reports, and hides the stats "
+          "when the uploader has not reported for 15 seconds. With no uploader running the screen looks the same as with "
+          "this off. Display only.",
+     default="Off", default_param="CustomLogUploadStats")
 _add("DeveloperHUD", "Developer HUD",
      "Shows a live data panel at the top right of the driving screen, two columns of ten values: acceleration, distance to the "
      "lead car, lead speed, speed relative to the lead, desired lateral acceleration, real steering angle, desired steering "

@@ -32,7 +32,7 @@ CONTRACT = {
   "ScreenRecorder": Setting("typed", "1", UI + "onroad/bogpilot/bogpilot_hud.py", 's.toggle_bool("ScreenRecorder", level)', "ScreenManagement + tuning level; DebugMode override"),
   "DeveloperHUD": Setting("file", "0", None, gate="reserved; no live consumer in baseline; DO NOT expose"),
   "OffroadScreensaver": Setting("file", "0", None, gate="reserved; no C3X implementation; DO NOT expose"),
-  "EnableICIntegration": Setting("car-file", None, AP1 + "toggles.py", "IC_INTEGRATION_PATH", "AP1 fingerprint default ON, otherwise OFF"),
+  "EnableICIntegration": Setting("car-file", None, AP1 + "toggles.py", "IC_INTEGRATION_PATH", "AP1 Model S and Pre-AP default ON (comfort layer v2), otherwise OFF"),
   "RegenComfortBrake": Setting("car-file", None, AP1 + "regen_brake.py", "REGEN_COMFORT_PATH", "AP1 fingerprint default ON, otherwise OFF"),
   "RegenAwareStop": Setting("car-file", None, AP1 + "regen_aware.py", "_TOGGLE_PATH", "AP1 fingerprint default ON, otherwise OFF"),
   "DisableOpenpilotLongitudinal": Setting("typed+legacy-file", "0", AP1 + "toggles.py", "DISABLE_OP_LONG_PATHS", "legacy file precedence then typed path; restart required"),

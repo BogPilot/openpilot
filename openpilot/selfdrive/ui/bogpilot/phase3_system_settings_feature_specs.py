@@ -8,6 +8,15 @@ Source: own current registry + safe_feature_whitelist audit @ aee7f1bd9.
 import json
 
 FEATURE_SPECS = json.loads(r'''{
+  "AP1XOpenpilotLong": {
+    "declared_default": null,
+    "max": null,
+    "min": null,
+    "source": "FILE_TOGGLES",
+    "step": null,
+    "title": "AP1XOpenpilotLong",
+    "type": "BOOL"
+  },
   "AP1StandstillEngage": {
     "declared_default": null,
     "max": null,
@@ -384,6 +393,15 @@ FEATURE_SPECS = json.loads(r'''{
     "source": "BOGPILOT_PARAMS",
     "step": null,
     "title": "Map Curve Speed",
+    "type": "BOOL"
+  },
+  "CSCTeslaSmoothing": {
+    "declared_default": "0",
+    "max": null,
+    "min": null,
+    "source": "BOGPILOT_PARAMS",
+    "step": null,
+    "title": "Smooth Curve Braking",
     "type": "BOOL"
   },
   "CameraView": {

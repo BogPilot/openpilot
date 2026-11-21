@@ -50,6 +50,8 @@ HISTORICAL_DESCRIPTIONS = {'AdvancedLongitudinalTune': '<b>Advanced acceleration
                       'and then braking. Only limits acceleration; braking is not affected.',
  'CSCMapCurvature': '<b>Slow for curves from the downloaded maps</b> before the camera sees them (needs Use mapd v2). '
                     'Only ever lowers the speed.',
+ 'CSCTeslaSmoothing': '<b>One smooth regen pull for curves</b> instead of brake, ease, brake. Curve Speed Control starts '
+                      'braking as soon as a curve needs it and holds it through the curve. Only adds braking.',
  'StopAccel': '<b>The acceleration openpilot commands to hold a stop.</b> More negative brakes harder; the '
               'current tree default is kept until you change it. Cannot be set above -0.5 m/s^2.',
  'StoppingDecelRate': '<b>How quickly the braking command ramps toward Stop Acceleration</b> while stopping. '
@@ -87,6 +89,7 @@ ROWS = (
   Row("HumanAcceleration", "Human-Like Acceleration"),
   Row("AdaptiveAccelLead", "Adaptive Accel Near Lead"),
   Row("CSCMapCurvature", "Map Curve Speed"),
+  Row("CSCTeslaSmoothing", "Smooth Curve Braking"),
   Row("CESpeed", "Below", "number", low=0, high=99, unit=" mph"),
   Row("CESpeedLead", "With Lead", "number", low=0, high=99, unit=" mph"),
   Row("CECurves", "Curve Detected Ahead"),
@@ -112,7 +115,8 @@ GROUPS = {
                ("LongitudinalActuatorDelay", "MaxDesiredAcceleration", "StopAccel", "StoppingDecelRate")),
   "profiles": ("LongitudinalTune", "Longitudinal Tuning", PROFILE_ACK,
                ("AccelerationProfile", "DecelerationProfile", "HumanAcceleration", "AdaptiveAccelLead",
-                "CSCMapCurvature")),
+                "CSCMapCurvature",
+                "CSCTeslaSmoothing")),
   "conditional": ("ConditionalExperimental", "Conditional Experimental Mode", CEM_ACK,
                   tuple(r.key for r in ROWS[[r.key for r in ROWS].index("CESpeed"):])),
 }
@@ -193,7 +197,7 @@ class SettingsController:
         continue  # old UI only presents the simple stop-light switch below the time control's level
       if row.parent and not self.parent_on(row.parent):
         continue
-      if key in ("AdaptiveAccelLead", "CSCMapCurvature") and not profiles_default_on(self.platform()):
+      if key in ("AdaptiveAccelLead", "CSCMapCurvature", "CSCTeslaSmoothing") and not profiles_default_on(self.platform()):
         continue  # only the legacy Teslas have a consumer: no inert row on any other car (or before the car is known)
       if row.capability and not self.enabled(row):
         continue  # no consumer-less rows: hidden until its real producer is connected (saved value kept)

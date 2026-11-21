@@ -1,10 +1,12 @@
 {
   "file_keys": [
     "AP1StandstillEngage",
+    "AP1XOpenpilotLong",
     "BSMFlameTracks",
     "BogPilotDrivingModel",
     "ConfidenceBall",
     "ConfidenceBallSide",
+    "CustomLogUploadStats",
     "SidebarVehicleSlot",
     "SidebarUpperSlot",
     "DeveloperHUD",
@@ -85,6 +87,7 @@
     "CEStopLights",
     "CEStoppedLead",
     "CSCMapCurvature",
+    "CSCTeslaSmoothing",
     "CameraView",
     "ClusterOffset",
     "Compass",

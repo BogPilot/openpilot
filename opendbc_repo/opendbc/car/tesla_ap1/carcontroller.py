@@ -69,10 +69,11 @@ class CarController(CarControllerBase):
     self.ap1_steer_ramp = Ap1EngageSteerRamp() if is_ap1_family(CP.carFingerprint) else None
     # Structural AP1: 0x488 phase and counter follow the stock DAS (steer_counter.py).
     self.ap1_steer_sync = Ap1SteerCounterSync() if is_ap1_family(CP.carFingerprint) else None
-    # Model S only. Accel slew is longitudinal tuning and stays off on Model X.
-    self.ap1_accel_smoother = Ap1AccelSmoother() if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
-    # Model S only. Jerk limits are longitudinal tuning and stay off on Model X.
-    self.ap1_jerk_limit = Ap1JerkLimit() if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
+    # Accel slew and comfort-band jerk limits: Model S, and a Model X only while its opt-in openpilot long is on (so the X never sends
+    # raw planner accel with the +-8 default jerk). Both are off on a lateral-only Model X.
+    long_tuned = CP.carFingerprint == CAR.TESLA_AP1_MODELS or (CP.carFingerprint == CAR.TESLA_AP1_MODELX and bool(CP.openpilotLongitudinalControl))
+    self.ap1_accel_smoother = Ap1AccelSmoother() if long_tuned else None
+    self.ap1_jerk_limit = Ap1JerkLimit() if long_tuned else None
     # Model S only. Standstill experiment follows the Model S safety param.
     configs = list(getattr(CP, "safetyConfigs", []) or [])
     self.ap1_standstill = (CP.carFingerprint == CAR.TESLA_AP1_MODELS and len(configs) > 0 and
@@ -83,7 +84,7 @@ class CarController(CarControllerBase):
 
     # Structural AP1 (Model S and Model X): hands pause, no hands-on cancel,
     # chassis DAS only, and the lateral session. Longitudinal messages still
-    # follow openpilotLongitudinalControl, which stays false on Model X.
+    # follow openpilotLongitudinalControl, which is false on Model X unless its opt-in is on.
     ap1 = is_ap1_family(self.CP.carFingerprint)
     hands_on_fault = (not ap1) and CS.steer_warning == "EAC_ERROR_HANDS_ON" and CS.hands_on_level >= 3
     # AP1 longitudinal is chassis 0x2b9. Do not also plan powertrain 0x2bf.

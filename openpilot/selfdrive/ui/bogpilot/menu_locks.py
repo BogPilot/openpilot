@@ -40,7 +40,8 @@ DASHCAM = Lock("dashcam", "Dashcam mode",
                "Nothing in the BogPilot menus changes that.", "")
 STEERING_ONLY = Lock("steering_only", "Steering only",
                      "This vehicle is steering only in this build: the car keeps its own cruise control for speed. "
-                     "There is no setting that turns openpilot longitudinal control on for it.", "")
+                     "The only way to try openpilot longitudinal control on a Model X is the experimental, untested Model X row "
+                     "in Vehicle Controls.", "")
 RESTART = Lock("restart", "Restart the car",
                "openpilot longitudinal control is set to on, but the car has not been restarted since it was last off. "
                "Turn the car off and on again, then open this page again.", "")
@@ -119,6 +120,9 @@ NO_CAR_VEHICLE = Lock("no_car", "No car detected",
                       "start the car once with the harness connected, then open this page again.", "")
 MODEL_X = Lock("steering_only", "Model X: steering only",
                "Model X runs steering only in this build, so it has no settings on this page.", "")
+MODEL_X_VEHICLE = Lock("steering_only", "Model X: steering only",
+                       "Model X runs steering only unless you turn on the experimental openpilot longitudinal row on this page. "
+                       "It is untested on a real Model X and applies the next time the car starts.", "")
 WHEEL_AP1_ONLY = Lock("unsupported_vehicle", "Model S AP1 only",
                       "Wheel Controls are for a Tesla Model S with AP1. This vehicle has none of them.", "")
 
@@ -139,6 +143,9 @@ def page_note(cp, kind: str, disable_toggle_on: bool = False) -> Lock | None:
   if _dashcam(cp):
     return DASHCAM
   if fingerprint == AP1_X:
+    if kind == "vehicle_controls":
+      # The experimental Model X row lives here; once openpilot long is on for the X there is nothing to explain.
+      return None if bool(getattr(cp, "openpilotLongitudinalControl", False)) else MODEL_X_VEHICLE
     return MODEL_X
   allowed = (AP1_S, PREAP) if kind == "vehicle_controls" else (AP1_S,)
   if not _supported(cp, allowed):

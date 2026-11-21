@@ -30,8 +30,13 @@ BORDER_ROUNDNESS = 0.2 * 1.02          # the stock view's rounded corner (augmen
 
 def geometry(state, rect, raise_px=C4.ARC_RAISE_PX):
   at = abs(state.torque)
-  offset = ARC.interp(at, 0.5, 1.0, 22.0, 26.0) + raise_px
-  thickness = ARC.interp(at, 0.5, 1.0, 14.0, 56.0)
+  if state.human:   # driver steering: size follows the wheel angle (steering_arc.human_size_t), not the fill length
+    t = ARC.human_size_t(state.angle)
+    offset = 22.0 + 4.0 * t + raise_px
+    thickness = 14.0 + 42.0 * t
+  else:
+    offset = ARC.interp(at, 0.5, 1.0, 22.0, 26.0) + raise_px
+    thickness = ARC.interp(at, 0.5, 1.0, 14.0, 56.0)
   cx = rect.x + rect.width / 2 + 8
   cy = rect.y + rect.height + RADIUS - offset
   top = -90.0

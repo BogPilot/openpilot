@@ -10,7 +10,7 @@ from opendbc.car.tesla_ap1.preap import params as preap_params
 from opendbc.car.tesla_ap1.preap.carcontroller import PreApCarController
 from opendbc.car.tesla_ap1.preap.carstate import PreApCarState
 from opendbc.car.tesla_ap1.preap.vdas_constants import PEDAL_LONG_K_BP, PEDAL_LONG_KI_V
-from opendbc.car.tesla_ap1.toggles import ap1_standstill_engage, disable_openpilot_long
+from opendbc.car.tesla_ap1.toggles import ap1_standstill_engage, ap1x_op_long, disable_openpilot_long
 from opendbc.car.tesla_ap1.values import CAR, ForcedFingerprint, is_preap, match_ap1_chassis
 
 
@@ -52,13 +52,17 @@ class CarInterface(CarInterfaceBase):
     # 0.9.7: openpilot long = not DisableOpenpilotLongitudinal (default off, so
     # long is ON). Chassis 0x2b9 only, no 0x2bf powertrain DAS. AP1StandstillEngage
     # only matters with openpilot long on.
-    # Model X is lateral-only until bench/vehicle verification. Tinkla's X long
-    # path also sends AP2-style DAS_control on powertrain bus 4, which needs a
-    # second panda this tree does not have. Chassis-only long is unverified on X,
-    # so openpilot longitudinal stays off and the car keeps stock ACC.
-    long_on = candidate == CAR.TESLA_AP1_MODELS and not ret.dashcamOnly and not disable_openpilot_long()
-    standstill = long_on and ap1_standstill_engage(candidate)
-    safety_params = flags_for_candidate(candidate, fingerprint, standstill=standstill)
+    # Model X is lateral-only by default. Tinkla's X long path also sends AP2-style DAS_control on powertrain bus 4, which needs a
+    # second panda this tree does not have. Chassis-only long (the Model S path) is untested on a real X, so it is an explicit
+    # opt-in: AP1XOpenpilotLong (file-backed, default off, read once here at car start), only for a strictly detected X that is
+    # not dashcam-only and not disabled by DisableOpenpilotLongitudinal. It sets both layers together: openpilotLongitudinalControl
+    # and the AP1 safety LONG_CONTROL flag. Standstill stays Model S only. With the opt-in off the X is exactly as before.
+    s_long = candidate == CAR.TESLA_AP1_MODELS and not ret.dashcamOnly and not disable_openpilot_long()
+    x_long = (candidate == CAR.TESLA_AP1_MODELX and not ret.dashcamOnly and not disable_openpilot_long()
+              and ap1x_op_long(candidate))
+    long_on = s_long or x_long
+    standstill = s_long and ap1_standstill_engage(candidate)
+    safety_params = flags_for_candidate(candidate, fingerprint, standstill=standstill, x_long=x_long)
     ret.openpilotLongitudinalControl = long_on
     if ret.dashcamOnly:
       ret.safetyConfigs = [get_safety_config(structs.CarParams.SafetyModel.noOutput)]

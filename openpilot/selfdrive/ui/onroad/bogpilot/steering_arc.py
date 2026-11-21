@@ -37,6 +37,18 @@ HUMAN_FULL_ANGLE_DEG = 180.0
 HUMAN_ANGLE_SPEED_LO, HUMAN_ANGLE_SPEED_HI = 5.0, 9.0
 SOURCE_HYSTERESIS_FRAMES = 6
 LOCK_DEG = 430.0
+# Driver-steering arc (human source only; the openpilot commanded-angle arc is untouched):
+#   0 .. HUMAN_ORANGE_START_DEG   blue, minimum size (OFFSET_LO / THICKNESS_LO)
+#   HUMAN_ORANGE_START_DEG .. HUMAN_MARKER_DEG   size grows linearly; colour is blue, then fades blue -> orange over the
+#                                 last HUMAN_FADE_BAND_DEG ending at the marker
+#   HUMAN_MARKER_DEG .. LOCK_DEG  colour blends evenly orange -> pink, size keeps growing to max at full lock
+HUMAN_ORANGE_START_DEG = 120.0     # where the old arc started turning orange
+# The measured driver marker angle (deg, magnitude), rounded to 260. Must be > HUMAN_ORANGE_START_DEG.
+HUMAN_MARKER_DEG = 260.0
+HUMAN_FADE_BLUE = (90, 205, 255)
+HUMAN_FADE_YELLOW = (255, 215, 0)  # the fade passes through this at the middle of the band
+HUMAN_FADE_ORANGE = (255, 140, 0)  # reached at the marker
+HUMAN_FADE_BAND_DEG = 20.0         # blue -> orange fade band, ending at the marker (never starts below HUMAN_ORANGE_START_DEG)
 GRAVITY = 9.81
 FILTER_K = (0.05 / 0.1) / (1.0 + 0.05 / 0.1)   # earlier-build FirstOrderFilter(rc 0.1 s, dt 1/20 s), applied at 20 Hz
 UPDATE_HZ = 20.0
@@ -107,15 +119,29 @@ def _blend(a, b, k):
   return tuple(a[i] + (b[i] - a[i]) * k for i in range(len(a)))
 
 
+def human_fade_start_deg():
+  return max(HUMAN_ORANGE_START_DEG, HUMAN_MARKER_DEG - HUMAN_FADE_BAND_DEG)
+
+
 def human_angle_color(a):
-  blue, orange_a, orange_deep, hot_pink = (90, 205, 255), (255, 140, 0), (255, 80, 0), (255, 20, 147)
-  if a <= 120.0:
-    return blue
-  if a <= 180.0:
-    return _blend(blue, orange_a, (a - 120.0) / 60.0)
-  if a <= 360.0:
-    return _blend(orange_a, orange_deep, (a - 180.0) / 180.0)
-  return _blend(orange_deep, hot_pink, min(1.0, (a - 360.0) / (LOCK_DEG - 360.0)))
+  """Driver arc colour by |wheel angle|: blue; over the band ending at the marker, blue -> yellow at the band middle ->
+  orange at the marker (linear RGB in each half); then an even orange -> pink blend to full lock."""
+  hot_pink = (255, 20, 147)
+  a = abs(a)
+  f0 = human_fade_start_deg()
+  if a < f0:
+    return HUMAN_FADE_BLUE
+  if a < HUMAN_MARKER_DEG:
+    mid = (f0 + HUMAN_MARKER_DEG) / 2.0
+    if a <= mid:
+      return _blend(HUMAN_FADE_BLUE, HUMAN_FADE_YELLOW, (a - f0) / (mid - f0))
+    return _blend(HUMAN_FADE_YELLOW, HUMAN_FADE_ORANGE, (a - mid) / (HUMAN_MARKER_DEG - mid))
+  return _blend(HUMAN_FADE_ORANGE, hot_pink, (a - HUMAN_MARKER_DEG) / (LOCK_DEG - HUMAN_MARKER_DEG))
+
+
+def human_size_t(a):
+  """Driver arc size 0..1 by |wheel angle|: 0 (minimum size) up to where orange used to start, then linear to 1 at full lock."""
+  return interp(abs(a), HUMAN_ORANGE_START_DEG, LOCK_DEG, 0.0, 1.0)
 
 
 @dataclass
@@ -232,8 +258,13 @@ def geometry(state: ArcState, rect):
   """Pure arc geometry in screen pixels: dict with centre, radii, angles (for tests and painting)."""
   s = view_scale(rect)
   at = abs(state.torque)
-  offset = interp(at, 0.5, 1.0, OFFSET_LO, OFFSET_HI) * s
-  thickness = interp(at, 0.5, 1.0, THICKNESS_LO, THICKNESS_HI) * s
+  if state.human:   # driver steering: size follows the wheel angle, not the fill length
+    t = human_size_t(state.angle)
+    offset = (OFFSET_LO + (OFFSET_HI - OFFSET_LO) * t) * s
+    thickness = (THICKNESS_LO + (THICKNESS_HI - THICKNESS_LO) * t) * s
+  else:
+    offset = interp(at, 0.5, 1.0, OFFSET_LO, OFFSET_HI) * s
+    thickness = interp(at, 0.5, 1.0, THICKNESS_LO, THICKNESS_HI) * s
   radius = RADIUS * s
   top = -90.0
   return {"s": s, "cx": rect.x + rect.width / 2, "cy": rect.y + rect.height + radius - offset, "radius": radius,

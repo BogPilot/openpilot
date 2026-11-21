@@ -159,9 +159,10 @@ class TestCatalog(unittest.TestCase):
     for k in NEW_VISUAL_KEYS:
       # the sidebar contents are saved by tapping the sidebar boxes, so those keys have no menu row
       self.assertEqual(k in VISUAL_KEYS, k not in SIDEBAR_TAP_KEYS, k)
-    # plus "Bog to the Future" (BSMFlameTracks), the one row with no entry in the theme audit, plus the Confidence Ball (first row)
+    # plus "Bog to the Future" (BSMFlameTracks), the one row with no entry in the theme audit, plus the Confidence Ball (first row),
+    # plus Custom Log Upload Stats (file-backed, no theme-audit entry)
     from openpilot.selfdrive.ui.layouts.settings.bogpilot_visuals import DEVELOPER_KEYS
-    self.assertEqual(len(VISUAL_KEYS), len(EXISTING_VISUAL_KEYS) + len(NEW_VISUAL_KEYS) - len(SIDEBAR_TAP_KEYS) + 2 + len(DEVELOPER_KEYS))
+    self.assertEqual(len(VISUAL_KEYS), len(EXISTING_VISUAL_KEYS) + len(NEW_VISUAL_KEYS) - len(SIDEBAR_TAP_KEYS) + 3 + len(DEVELOPER_KEYS))
     self.assertEqual(VISUAL_KEYS[0], "ConfidenceBall")
     self.assertIn("BSMFlameTracks", VISUAL_KEYS)
 

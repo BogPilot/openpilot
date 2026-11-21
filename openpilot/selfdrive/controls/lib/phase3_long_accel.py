@@ -21,7 +21,8 @@ STOP_ACCEL_ACK = "Phase3StopAccelEnabled"
 STOPPING_RATE_ACK = "Phase3StoppingRateEnabled"
 ROW_ACKS = {"StopAccel": STOP_ACCEL_ACK, "StoppingDecelRate": STOPPING_RATE_ACK}
 PROFILE_KEYS = ("LongitudinalTune", "AccelerationProfile", "DecelerationProfile", "HumanAcceleration", "AdaptiveAccelLead",
-                "CSCMapCurvature")
+                "CSCMapCurvature",
+                "CSCTeslaSmoothing")
 # Stop Acceleration / Stopping Rate share the Advanced parent and its single adoption marker
 # (consumed by phase3_long_stopping.read_runtime_stopping in LongControl).
 ADVANCED_KEYS = ("AdvancedLongitudinalTune", "LongitudinalActuatorDelay", "MaxDesiredAcceleration",

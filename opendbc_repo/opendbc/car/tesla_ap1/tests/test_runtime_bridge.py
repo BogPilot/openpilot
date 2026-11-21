@@ -39,7 +39,7 @@ def test_default_regen_helpers_on_ap1_only(monkeypatch):
   monkeypatch.setattr(rb, "_read_regen_comfort_file", lambda: "")
   monkeypatch.setattr("openpilot.selfdrive.controls.lib.ap1_planning.regen_aware_enabled", lambda fp: fp == AP1)
   p = planner()
-  assert p.comfort_brake == 1.0
+  assert p.comfort_brake == 2.5   # comfort regen v2: the MPC lead gap stays stock
   assert p.regen_enabled
   for fp in ("TESLA_MODEL_3", "TESLA_MODEL_Y", "PREAP"):
     p = planner(fp)

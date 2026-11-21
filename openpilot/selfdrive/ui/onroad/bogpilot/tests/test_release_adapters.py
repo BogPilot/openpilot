@@ -134,7 +134,7 @@ def hud_stubs():
       pass
   hidden = SimpleNamespace(visible=False)
   cem = SimpleNamespace(HIDDEN=hidden, read_status=lambda *a, **k: hidden, paint_status=lambda *a, **k: None)  # gas lane CEM badge
-  return {"CEM": cem, "SL": load("speed_limit_display"), "ARC": load("steering_arc"), "PED": load("pedals"), "DEV": load("developer_hud_logic"), "DEVP": SimpleNamespace(paint=lambda *a, **k: None), "FPS": load("fps_counter"), "OVG": load("overlay_gate"), "math": __import__("math"),
+  return {"CEM": cem, "SL": load("speed_limit_display"), "ARC": load("steering_arc"), "PED": load("pedals"), "DEV": load("developer_hud_logic"), "DEVP": SimpleNamespace(paint=lambda *a, **k: None), "FPS": load("fps_counter"), "OVG": load("overlay_gate"), "US": SimpleNamespace(UploadStatsReader=lambda: SimpleNamespace(update=lambda: None)), "USP": SimpleNamespace(paint=lambda *a, **k: None), "math": __import__("math"),
           "UI_CONFIG": SimpleNamespace(button_size=192, wheel_icon_size=144), "ExpButton": _Widget, "Widget": _Widget,
           "cloudlog": SimpleNamespace(exception=lambda *a: None), "REC_CX": 126, "REC_CY": 696, "REC_HIT": 174,
           "rl": SimpleNamespace(Color=lambda *c: c)}

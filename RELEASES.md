@@ -1,15 +1,19 @@
 What's new
 =======================
+* AP1 and Pre-AP: Earlier, Gentler Regen Stops now adds a gentle braking layer on top of the stock braking, up to about 2 mph per second, for a slower car the radar sees. It only adds braking: following distance, emergency braking and cut-in response are unchanged
+* Tesla AP1 Model X: new experimental setting, openpilot Longitudinal (Experimental), in Vehicle Settings. It is off by default, only shown on a detected AP1 Model X, untested on a real Model X, and applies the next time the car starts. Standstill is not included. The Model X wheelbase is now 2.965 m
+* Driver steering arc: small and blue at first, it grows as you turn, fades through yellow to orange, then goes from orange to pink toward full lock (the 260° marker). It follows the wheel you are turning; the arc that shows what openpilot is commanding is unchanged
+* Smooth Curve Braking (off by default, Gas/Brake on AP1 and Pre-AP): when Curve Speed Control slows for a curve, the braking comes as one smooth pull instead of brake, ease, brake. It only adds braking, never slows below the safe curve speed
+* Custom Log Upload Stats (Appearance, off by default): on-screen upload rate and segments left for a self-installed rsync or Nextcloud uploader
+
+Earlier update
+=======================
 * Pedal gauge: the regen bar now fills in a straight line up to 42 kW, so full regen reads close to full (38 kW fills 90 % of the bar) and 22 kW fills about half
 * Maps: a download no longer stays on "Waiting for the map downloader..." until a reboot. The map downloader restarts itself if it stops, and with mapd v1 the map pieces a download missed are fetched again
 * Maps: the download progress, time elapsed and time remaining rows now sit directly below Automatically Update Maps
 * BogPilot > Navigation: the Maps pill now sits to the left of Navigation, on the comma 3X and the comma 4
 * comma 3X sidebar: the temperature box shows °C when Metric Units is on and °F when it is off, instead of both
-* comma 3X sidebar: GPU usage joins the rotation. Offroad the CPU box taps between CPU and GPU, and while driving the middle box taps through vehicle status, CPU and GPU. It shows a dash when the GPU reading is unavailable
-
-Earlier update
-=======================
-* Navigation > Maps: pick countries or U.S. states and download their map data on the comma itself. Downloads also work while driving when the Speed Limit Controller is on; they run at low priority and resume if interrupted. Automatic updates default to Weekly and wait for unmetered Wi-Fi. On the comma 4 the region lists open as a 2-column grid of full names
+* comma 3X sidebar: GPU usage joins the rotation. Offroad the CPU box taps between CPU and GPU, and while driving the middle box taps through vehicle status, CPU and GPU. It shows a dash when the GPU reading is unavailable* Navigation > Maps: pick countries or U.S. states and download their map data on the comma itself. Downloads also work while driving when the Speed Limit Controller is on; they run at low priority and resume if interrupted. Automatic updates default to Weekly and wait for unmetered Wi-Fi. On the comma 4 the region lists open as a 2-column grid of full names
 * Gas/Brake, Tuning Level and Device Settings now open while driving, as in FrogPilot 0.9.7. Rows the car reads only at start ask for a reboot. Pedal calibration, the radar tests, resets and map delete or repair still need Park or the car off
 * Speed Limit Offsets now start at 4 / 5 / 5 / 5 / 7 / 8 / 10 mph. An offset you saved yourself is never changed
 * Screen Timeout (Onroad) now starts at 10 seconds. A saved value is kept

@@ -1,4 +1,4 @@
-"""Model X specs, safety flags, and get_params. Model S longitudinal stays on."""
+"""Model X specs, safety flags, and get_params. Model S longitudinal stays on; Model X long is an opt-in (default off)."""
 import pytest
 
 from opendbc.car import structs
@@ -6,9 +6,17 @@ from opendbc.car.tesla_ap1.interface import CarInterface
 from opendbc.car.tesla_ap1.safety_flags import flags_for_candidate
 from opendbc.car.tesla_ap1.tests.tinkla_modelx_data import TINKLA_AP1_MODELX
 from opendbc.car.tesla_ap1.tests.test_release_interface import params as model_s_params
+from opendbc.car.tesla_ap1 import toggles
 from opendbc.car.tesla_ap1.values import CAR
 
 X = CAR.TESLA_AP1_MODELX
+
+
+@pytest.fixture(autouse=True)
+def _no_device_files(tmp_path, monkeypatch):
+  """Hermetic: no opt-in file and no Disable Longitudinal file, whatever the machine has."""
+  monkeypatch.setattr(toggles, "_ap1x_op_long_path", tmp_path / "AP1XOpenpilotLong")
+  monkeypatch.setattr(toggles, "DISABLE_OP_LONG_PATHS", (tmp_path / "Disable1", tmp_path / "Disable2"))
 MOBILEYE = {0x399: 8, 0x2B9: 8, 0x488: 4}
 
 
@@ -18,13 +26,13 @@ def _x_fp():
 
 def test_model_x_specs():
   specs = X.config.specs
-  assert specs.wheelbase == pytest.approx(2.964)
+  assert specs.wheelbase == pytest.approx(2.965)   # real Model X, not the Model S 2.959 / 2.960
   assert specs.steerRatio == pytest.approx(15.0)
   assert specs.centerToFrontRatio == pytest.approx(0.5)
   cp = CarInterface.get_params(X, _x_fp(), [], False, False, False)
-  assert cp.wheelbase == pytest.approx(2.964)
+  assert cp.wheelbase == pytest.approx(2.965)
   assert cp.steerRatio == pytest.approx(15.0)
-  assert cp.centerToFront == pytest.approx(1.482)
+  assert cp.centerToFront == pytest.approx(1.4825)
 
 
 def test_model_x_matching_fingerprint_is_lateral_only():

@@ -27,6 +27,7 @@ UI_ROW_LEVELS: dict[str, int] = {
   "ConfidenceBallSide": MINIMAL,
   "BSMFlameTracks": MINIMAL,    # "Bog to the Future": unique to this fork, so it shows at every level
   "LowerSpeedLimitsBox": MINIMAL,  # everyday layout option when a rear-view mirror covers the top
+  "CustomLogUploadStats": MINIMAL,  # shows nothing unless a manually installed uploader reports status
   "ShowAccelGraph": DEVELOPER,     # can slow UI draw time; lives with the other Developer overlays
 }
 

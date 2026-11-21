@@ -139,10 +139,14 @@ class TestLongLock(unittest.TestCase):
     pre = self.lock(cp("TESLA_PREAP_MODELS", long_on=False), True)
     self.assertIn("Disable Pedal Longitudinal", pre.detail)
     # a reason that has no setting behind it must not point at one
-    for car, disabled in ((None, False), (cp("TESLA_AP1_MODELX", long_on=False), False), (cp(long_on=False, dashcam=True), False)):
+    for car, disabled in ((None, False), (cp(long_on=False, dashcam=True), False)):
       lock = self.lock(car, disabled)
       self.assertEqual(lock.unlock_toggle, "")
       self.assertNotIn("Vehicle Controls", lock.detail)
+    # Model X: the only way in is the experimental Model X row, which is not the Disable toggle, so there is still no unlock toggle
+    x_lock = self.lock(cp("TESLA_AP1_MODELX", long_on=False), False)
+    self.assertEqual(x_lock.unlock_toggle, "")
+    self.assertIn("experimental", x_lock.detail)
 
   def test_text_is_ascii_and_has_no_angle_brackets(self):
     from openpilot.selfdrive.ui.bogpilot import menu_locks as m

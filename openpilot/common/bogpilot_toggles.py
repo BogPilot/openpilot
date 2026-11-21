@@ -21,7 +21,8 @@ CAR_DEPENDENT = None
 
 # key: (default, description)
 # Legacy UI keys that the onroad UI keeps file-backed only (never Params get/put).
-FILE_ONLY_UI_KEYS = frozenset({"RedesignUI", "BSMFlameTracks", "SwapSpeedGraph", "HideAccelGraph", "DeveloperHUD", "ShowAccelGraph", "LowerSpeedLimitsBox"})
+FILE_ONLY_UI_KEYS = frozenset({"RedesignUI", "BSMFlameTracks", "SwapSpeedGraph", "HideAccelGraph", "DeveloperHUD", "ShowAccelGraph", "LowerSpeedLimitsBox",
+                               "CustomLogUploadStats"})
 
 FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
   # UI (default on)
@@ -37,6 +38,8 @@ FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
   "ShowUploadRate": (False, "REMOVED/unsupported: onroad upload-rate readout (no uploader)"),
   "RemoteUIStream": (False, "REMOVED/unsupported: remote UI stream server (no webrtc/stream)"),
   # UI (default off)
+  # Appearance > Custom Log Upload Stats. New key; the removed ShowUploadRate above is not read or migrated.
+  "CustomLogUploadStats": (False, "On-screen upload stats for a manually installed rsync or Nextcloud log uploader"),
   "DeveloperHUD": (False, "Developer HUD"),
   "SwapSpeedGraph": (True, "Legacy file key; layout is now LowerSpeedLimitsBox + ShowAccelGraph"),
   "HideAccelGraph": (False, "Legacy file key; replaced by ShowAccelGraph (default off)"),
@@ -49,9 +52,11 @@ FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
   "HevcStream": (False, "REMOVED/unsupported: hevc_streamd live route video stream"),
   # Car code (Tesla AP1); default decided by the car port
   "EnableICIntegration": (CAR_DEPENDENT, "AP1 instrument-cluster substitution"),
-  "RegenComfortBrake": (CAR_DEPENDENT, "AP1 regen-sized lead approaches"),
+  "RegenComfortBrake": (CAR_DEPENDENT, "AP1/Pre-AP gentle early slowing for a radar lead"),
   "RegenAwareStop": (CAR_DEPENDENT, "AP1 regen-aware stopping"),
   "AP1StandstillEngage": (CAR_DEPENDENT, "AP1 standstill engage"),
+  # AP1 Model X experimental openpilot longitudinal (tesla_ap1/toggles.py ap1x_op_long). Default OFF, Model X only, read at car start.
+  "AP1XOpenpilotLong": (False, "AP1 Model X experimental openpilot longitudinal"),
   # Pre-AP Bosch radar retrofit (tesla_ap1/preap/params.py). Default OFF. Backed up and restored; never reset.
   "TeslaRadarEnabled": (False, "Pre-AP Bosch radar retrofit"),
   "TeslaRadarBehindNosecone": (False, "Pre-AP Bosch radar behind the nosecone"),

@@ -109,16 +109,18 @@ class TestPhase2Vehicle(unittest.TestCase):
     self.assertIn('next time the planner starts', DESCRIPTIONS[REGEN])
     self.assertIn('next time the car starts', DESCRIPTIONS[LONG])
 
-  def test_planner_samples_regen_at_construction(self):
+  def test_planner_mpc_gap_is_stock_and_comfort_layer_samples_setting(self):
     from openpilot.selfdrive.controls.lib.ap1_planning import Ap1Planning
+    from openpilot.selfdrive.controls.lib.comfort_regen import ComfortRegen
     from unittest.mock import patch
-    with patch('openpilot.selfdrive.controls.lib.ap1_planning.ap1_comfort_brake', return_value=1.0) as read:
-      planner = Ap1Planning(self.cp, 0.05)
-      self.assertEqual(planner.comfort_brake, 1.0)
+    self.assertEqual(Ap1Planning(self.cp, 0.05).comfort_brake, 2.5)
+    with patch('opendbc.car.tesla_ap1.regen_brake.regen_comfort_brake_enabled', return_value=True) as read:
+      layer = ComfortRegen(self.cp, 0.05)
+      self.assertTrue(layer.enabled)
       read.assert_called_once_with(AP1)
-      read.return_value = 2.5
-      self.assertEqual(planner.comfort_brake, 1.0)
-      self.assertEqual(Ap1Planning(self.cp, 0.05).comfort_brake, 2.5)
+      read.return_value = False
+      self.assertTrue(layer.enabled)          # sampled once at construction
+      self.assertFalse(ComfortRegen(self.cp, 0.05).enabled)
 
 
 if __name__ == '__main__':

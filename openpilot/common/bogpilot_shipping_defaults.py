@@ -57,6 +57,7 @@ FILE_TOGGLE_DEFAULTS: dict[str, bool] = {
   'BSMFlameTracks': True,
   'OffroadScreensaver': False,
   'ConfidenceBall': True,
+  'CustomLogUploadStats': False,
 }
 
 REPARENT_TO_CUSTOM_UI: frozenset[str] = frozenset({

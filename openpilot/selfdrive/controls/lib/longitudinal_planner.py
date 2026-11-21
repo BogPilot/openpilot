@@ -19,6 +19,7 @@ from openpilot.selfdrive.controls.lib.ap1_planning import (
   Ap1Planning, AP1_CRUISE_GAIN, AP1_CRUISE_J_SCALE,
 )
 from openpilot.selfdrive.controls.lib.ap1_curve_speed import Ap1CurveSpeed
+from openpilot.selfdrive.controls.lib.comfort_regen import ComfortRegen
 from openpilot.selfdrive.controls.lib.ap1_curve_arbitration import CurveArbiter, ModelClock
 try:  # optional Gas/Brake consumers: import/init failure falls back to the stock planner
   from openpilot.selfdrive.controls.lib.phase3_long_accel import LongAccelPort
@@ -101,6 +102,12 @@ class LongitudinalPlanner:
     self.following = FollowingPlanner(CP, dt=dt)
     self.effective_t_follow = get_T_FOLLOW()
     self.speed_control = Ap1SpeedControl(CP)
+    # Comfort regen v2 (RegenComfortBrake, AP1/Pre-AP): add-only layer after the stock plan; read once per planner start.
+    try:
+      self.comfort_regen = ComfortRegen(CP, dt)
+    except Exception:
+      cloudlog.exception("BogPilot comfort regen unavailable at init; stock planner behaviour")
+      self.comfort_regen = ComfortRegen(None, dt, enabled=False)
     self.experimental = False
     self.allow_throttle = True
     # AP1-only allowThrottle smoothing (tesla_ap1/throttle_gate.py); None on every other car.
@@ -272,9 +279,25 @@ class LongitudinalPlanner:
     self.output_should_stop = any(should_stop for _, _, should_stop in candidates)
     output_a_target = self._apply_lead_accel_cap(sm, output_a_target, v_ego, t_follow, profile_limits)
     output_a_target = self.ap1_plan.shape_stop(sm, output_a_target, not reset_state)
+    output_a_target = self._apply_comfort_regen(sm, output_a_target, v_ego, t_follow, reset_state)
     self.output_a_target = np.clip(output_a_target, ACCEL_MIN, ACCEL_MAX)
 
     self.v_desired_filter.x = self.v_desired_filter.x + self.dt * (self.output_a_target + a_prev) / 2.0
+
+  def _apply_comfort_regen(self, sm, a_target, v_ego, t_follow, reset_state):
+    """Comfort regen v2: final = min(stock, comfort). Never raises a_target; any error returns a_target unchanged."""
+    cr = self.comfort_regen
+    if not cr.enabled:
+      return a_target
+    try:
+      cs = sm['carState']
+      out = cr.update(a_target, engaged=not reset_state, gas_pressed=bool(cs.gasPressed), standstill=bool(cs.standstill),
+                      v_ego=v_ego, lead=sm['radarState'].leadOne, t_follow=t_follow)
+    except Exception:
+      cloudlog.exception("BogPilot comfort regen failed; stock plan unchanged")
+      cr.reset()
+      return a_target
+    return min(a_target, out)
 
   def _apply_lead_accel_cap(self, sm, a_target, v_ego, t_follow, profile_limits=None):
     """AdaptiveAccelLead (legacy Teslas, default off): cap a positive request near a lead. Unchanged when off or on any error."""

@@ -1,16 +1,21 @@
-"""AP1 regen-sized comfort braking preference.
+"""Legacy Tesla comfort regen braking setting (RegenComfortBrake).
 
-On 2012–2016 Model S AP1 the brake pedal is friction-only; regen happens on
-accelerator lift and tops out around 1–1.5 m/s² (about 1.0 at 30–35 mph). Stock openpilot COMFORT_BRAKE
-is 2.5 m/s², so lead approaches start late and need friction. This module
-exposes a file-backed toggle and the AP1 comfort-brake target used by the
-longitudinal MPC lead cost (runtime x_obstacle adjustment; acados solver
-unchanged).
+v2 (current): the setting turns on the add-only comfort layer in
+openpilot/selfdrive/controls/lib/comfort_regen.py for AP1 Model S and Pre-AP.
+That layer runs after the stock planner and can only ask for more braking
+(final = min(stock, comfort)), gently (at most about 0.9 m/s^2), for a
+radar-confirmed closing lead. Stock COMFORT_BRAKE (2.5 m/s^2), the stock lead
+gap and MPC constraints are unchanged in both states.
 
-July prebuilt params_pyx.so cannot store new Tesla* Params keys, so this is
-file-backed under /data/params_bogpilot/RegenComfortBrake (same pattern as
-EnableICIntegration). Absent file + AP1 fingerprint => on. Explicit 0/false/off
-=> off. Non-AP1 => always off (stock 2.5 m/s²).
+v1 (retired): the setting used to lower the lead MPC comfort brake to
+1.0 m/s^2, which widened the desired gap and produced hard braking at long
+range when a lead braked briefly. ap1_comfort_brake() now always returns the
+stock value; an existing on/off file keeps its meaning (on = comfort layer,
+off = stock).
+
+File-backed under /data/params_bogpilot/RegenComfortBrake (the July prebuilt
+params_pyx.so cannot store new Tesla* keys). Absent file on AP1 Model S or
+Pre-AP => on. Explicit 0/false/off => off. Other cars => always off.
 
 Change on device:
   echo 0 > /data/params_bogpilot/RegenComfortBrake   # off (stock)
@@ -18,8 +23,6 @@ Change on device:
 then restart openpilot.
 
 Not applied to CarParams, panda safety, or the ACCEL_MIN braking floor.
-Hard accel limits stay at ACCEL_MIN so FCW/AEB/cut-in/danger still get full
-braking. STOP_DISTANCE is unchanged.
 """
 
 from pathlib import Path
@@ -28,12 +31,6 @@ from pathlib import Path
 # (acados) from this lightweight toggle helper.
 STOCK_COMFORT_BRAKE = 2.5
 
-# Regen-sized comfort target for AP1 lead approaches (m/s²).
-# Logged drive: at 30–35 mph regen alone topped out near 1.0 m/s² actual
-# decel before the friction brakes joined, so the comfort target is 1.0.
-# At v = 0 the lead cost reduces to STOP_DISTANCE for any value here, so the
-# stopped gap does not change.
-AP1_REGEN_COMFORT_BRAKE = 1.0
 
 REGEN_COMFORT_DIR = Path("/data/params_bogpilot")
 REGEN_COMFORT_PATH = REGEN_COMFORT_DIR / "RegenComfortBrake"
@@ -42,13 +39,13 @@ _regen_comfort_path = REGEN_COMFORT_PATH
 
 
 def regen_comfort_brake_enabled(fingerprint: str | None, stored: str | bytes | None = None) -> bool:
-  """Whether AP1 regen-sized comfort braking is active.
+  """Whether comfort regen braking (v2 comfort layer) is on.
 
-  Non-AP1 fingerprints are always off. AP1: default on when the file is absent.
+  AP1 Model S and Pre-AP: default on when the file is absent. Other fingerprints are always off.
   `stored` overrides the file when not None (tests).
   """
   from opendbc.car.tesla_ap1.values import CAR
-  if fingerprint != CAR.TESLA_AP1_MODELS:
+  if fingerprint not in (CAR.TESLA_AP1_MODELS, CAR.TESLA_PREAP_MODELS):
     return False
   if stored is not None:
     text = _as_text(stored)
@@ -64,12 +61,7 @@ def regen_comfort_brake_enabled(fingerprint: str | None, stored: str | bytes | N
 
 
 def ap1_comfort_brake(fingerprint: str | None, stored: str | bytes | None = None) -> float:
-  """Comfort-brake (m/s²) for the lead MPC desired-distance cost.
-
-  AP1 with toggle on => AP1_REGEN_COMFORT_BRAKE. Otherwise stock.
-  """
-  if regen_comfort_brake_enabled(fingerprint, stored=stored):
-    return AP1_REGEN_COMFORT_BRAKE
+  """Comfort brake (m/s²) for the lead MPC. Always stock: the v1 gap widening is retired (see module doc)."""
   return STOCK_COMFORT_BRAKE
 
 

@@ -55,6 +55,13 @@ _FLAME = (("BSMFlameTracks", tr_noop("Bog to the Future"),
            tr_noop("Draw burning tire tracks down the lane beside you behind a car that passes faster than 88 mph. "
                    "Display only; needs the blind spot lane fill.")),)
 
+# Custom Log Upload Stats (selfdrive/ui/bogpilot/upload_stats.py). File-only key, default off. It reads the status line a
+# manually installed rsync or Nextcloud uploader writes; with no uploader reporting, nothing is drawn.
+_UPLOAD = (("CustomLogUploadStats", tr_noop("Custom Log Upload Stats"),
+            tr_noop("Show the upload rate and segments left on screen for an rsync or Nextcloud uploader you installed "
+                    "yourself to copy realdata and screen recordings to your own storage. Hidden while no uploader is "
+                    "reporting. Display only.")),)
+
 # Developer overlays (0.9.7). DeveloperHUD is file-backed like the other onroad UI toggles and is read by the onroad HUD
 # (developer_hud.py); ShowIP is read by layouts/sidebar.py.
 _DEVELOPER = (
@@ -106,7 +113,7 @@ def car_row_allowed(key, CP) -> bool:
   return not (CP is not None and str(getattr(CP, "carFingerprint", "") or "") == PREAP)
 
 
-VISUAL_TOGGLES = _BALL + _EXISTING[:3] + _FLAME + _EXISTING[3:] + _NEW + _DEVELOPER
+VISUAL_TOGGLES = _BALL + _EXISTING[:3] + _FLAME + _EXISTING[3:] + _NEW + _UPLOAD + _DEVELOPER
 VISUAL_KEYS = tuple(k for k, _, _ in VISUAL_TOGGLES)
 DEVELOPER_KEYS = tuple(k for k, _, _ in _DEVELOPER)
 # FPS Display registers OFF. Counted only when stored, so a device whose compiled key table still carries the old default (on)
@@ -132,6 +139,7 @@ TREE = (
   ("AdjacentLeadsUI", ()),
   ("BlindSpotMetrics", ()),
   ("LowerSpeedLimitsBox", ()),
+  ("CustomLogUploadStats", ()),
   ("ShowAccelGraph", ()),
   ("DeveloperHUD", ()),
   ("FPSCounter", ()),

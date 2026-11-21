@@ -14,6 +14,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 from types import SimpleNamespace
 
 from openpilot.selfdrive.ui.onroad.bogpilot.tests.test_release_adapters import load
@@ -319,8 +320,84 @@ class TestSteeringArc(unittest.TestCase):
 
   def test_human_angle_colour_ramp(self):
     self.assertEqual(ARC.human_angle_color(0), (90, 205, 255))
-    self.assertEqual(tuple(round(c) for c in ARC.human_angle_color(180)), (255, 140, 0))
     self.assertEqual(tuple(round(c) for c in ARC.human_angle_color(500)), (255, 20, 147))
+
+  def _geo(self, angle, human=True, torque=0.9):
+    st = ARC.ArcState()
+    st.human, st.angle, st.torque = human, angle, torque
+    return ARC.geometry(st, SimpleNamespace(x=0, y=0, width=ARC.VIEW_W, height=ARC.VIEW_H))
+
+  def test_human_arc_blue_fade_to_orange_then_pink(self):
+    M, L, B = ARC.HUMAN_MARKER_DEG, ARC.LOCK_DEG, ARC.HUMAN_FADE_BAND_DEG
+    f0 = ARC.human_fade_start_deg()
+    self.assertEqual(f0, max(ARC.HUMAN_ORANGE_START_DEG, M - B))
+    self.assertGreaterEqual(f0, ARC.HUMAN_ORANGE_START_DEG)
+    self.assertLess(f0, M)
+    self.assertLess(M, L)
+    blue, orange, pink = (90, 205, 255), (255, 140, 0), (255, 20, 147)
+    rnd = lambda c: tuple(round(x) for x in c)
+    for a in (0, 60, ARC.HUMAN_ORANGE_START_DEG, f0):          # blue up to and including the band start
+      self.assertEqual(rnd(ARC.human_angle_color(a)), blue, a)
+    yellow = (255, 215, 0)
+    self.assertEqual((ARC.HUMAN_FADE_BLUE, ARC.HUMAN_FADE_YELLOW, ARC.HUMAN_FADE_ORANGE), (blue, yellow, orange))
+    mid = (f0 + M) / 2
+    self.assertEqual(tuple(ARC.human_angle_color(f0)), blue)               # band start exact
+    self.assertEqual(tuple(ARC.human_angle_color(mid)), yellow)            # band middle exact
+    for k in (0.1, 0.25, 0.5, 0.75, 0.9):                                  # each half is linear RGB
+      c = ARC.human_angle_color(f0 + k * (mid - f0))
+      for i in range(3):
+        self.assertAlmostEqual(c[i], blue[i] + (yellow[i] - blue[i]) * k, places=6)
+      c = ARC.human_angle_color(mid + k * (M - mid))
+      for i in range(3):
+        self.assertAlmostEqual(c[i], yellow[i] + (orange[i] - yellow[i]) * k, places=6)
+    self.assertEqual(rnd(ARC.human_angle_color(M)), orange)      # no jump: continuous at the marker
+    self.assertEqual(rnd(ARC.human_angle_color(M - 1e-6)), orange)     # continuous at the marker
+    self.assertEqual(rnd(ARC.human_angle_color(L)), pink)
+    self.assertEqual(rnd(ARC.human_angle_color(L + 50)), pink)
+    pm = ARC.human_angle_color((M + L) / 2)                    # marker -> lock still an even orange -> pink
+    for i in range(3):
+      self.assertAlmostEqual(pm[i], (orange[i] + pink[i]) / 2, places=6)
+
+  def test_human_fade_band_clamped_at_orange_start(self):
+    with mock.patch.object(ARC, "HUMAN_MARKER_DEG", 130.0):   # marker 130 with a 20 deg band would start at 110 < 120
+      self.assertEqual(ARC.human_fade_start_deg(), ARC.HUMAN_ORANGE_START_DEG)
+      self.assertEqual(tuple(round(c) for c in ARC.human_angle_color(120.0)), (90, 205, 255))
+      self.assertEqual(tuple(round(c) for c in ARC.human_angle_color(130.0)), (255, 140, 0))
+      self.assertEqual(tuple(round(c) for c in ARC.human_angle_color(110.0)), (90, 205, 255))
+      self.assertEqual(tuple(ARC.human_angle_color(125.0)), (255, 215, 0))   # clamped band 120..130, middle 125
+    with mock.patch.object(ARC, "HUMAN_FADE_BAND_DEG", 0.0):  # zero band: hard edge, no division by zero
+      self.assertEqual(tuple(round(c) for c in ARC.human_angle_color(ARC.HUMAN_MARKER_DEG - 1)), (90, 205, 255))
+      self.assertEqual(tuple(round(c) for c in ARC.human_angle_color(ARC.HUMAN_MARKER_DEG)), (255, 140, 0))
+
+  def test_human_arc_symmetric_left_right(self):
+    f0 = ARC.human_fade_start_deg()
+    for a in (30, 130, f0, f0 + 7, ARC.HUMAN_MARKER_DEG, ARC.HUMAN_MARKER_DEG + 40, 400):
+      self.assertEqual(ARC.human_angle_color(a), ARC.human_angle_color(-a))
+      self.assertEqual(ARC.human_size_t(a), ARC.human_size_t(-a))
+
+  def test_human_arc_size_small_then_grows_to_max_at_lock(self):
+    S = ARC.HUMAN_ORANGE_START_DEG
+    for a in (0, 50, S):
+      g = self._geo(a)
+      self.assertAlmostEqual(g["thickness"], ARC.THICKNESS_LO)
+      self.assertAlmostEqual(g["cy"] - g["radius"], ARC.VIEW_H - ARC.OFFSET_LO)
+    prev = ARC.THICKNESS_LO
+    for a in (S + 10, S + 60, ARC.HUMAN_MARKER_DEG, ARC.HUMAN_MARKER_DEG + 60, ARC.LOCK_DEG - 10):
+      th = self._geo(a)["thickness"]
+      self.assertGreater(th, prev)
+      prev = th
+    g = self._geo(ARC.LOCK_DEG)
+    self.assertAlmostEqual(g["thickness"], ARC.THICKNESS_HI)
+    self.assertAlmostEqual(g["cy"] - g["radius"], ARC.VIEW_H - ARC.OFFSET_HI)
+    self.assertAlmostEqual(self._geo(ARC.LOCK_DEG + 40)["thickness"], ARC.THICKNESS_HI)
+
+  def test_human_size_ignores_fill_length_and_commanded_path_unchanged(self):
+    # fill length (torque) does not change the driver arc size; the openpilot (non-human) size still follows torque
+    self.assertAlmostEqual(self._geo(30, torque=1.0)["thickness"], ARC.THICKNESS_LO)
+    self.assertAlmostEqual(self._geo(430, torque=0.1)["thickness"], ARC.THICKNESS_HI)
+    for torque, th in ((0.3, ARC.THICKNESS_LO), (0.75, (ARC.THICKNESS_LO + ARC.THICKNESS_HI) / 2), (1.0, ARC.THICKNESS_HI)):
+      g = self._geo(400, human=False, torque=torque)   # large wheel angle is ignored when not the human source
+      self.assertAlmostEqual(g["thickness"], th)
 
 
 class TestPedals(unittest.TestCase):

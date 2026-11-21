@@ -11,8 +11,12 @@ FLAG_TESLA_LONG_CONTROL = int(TeslaAp1SafetyFlags.LONG_CONTROL)
 FLAG_TESLA_AP1_STANDSTILL = int(TeslaAp1SafetyFlags.STANDSTILL)
 
 
-def flags_for_candidate(candidate, fingerprint=None, standstill=False):
-  """Safety params tuple (one config) for the teslaAp1 safety model."""
+def flags_for_candidate(candidate, fingerprint=None, standstill=False, x_long=False):
+  """Safety params tuple (one config) for the teslaAp1 safety model.
+
+  x_long is the opt-in AP1 Model X openpilot longitudinal (AP1XOpenpilotLong, experimental). It adds LONG_CONTROL only; the X never
+  gets standstill. Default False keeps the Model X lateral-only (flag 8), identical to before.
+  """
   if FLAG_TESLA_AP1 != 8:
     raise RuntimeError("TESLA_FLAG_AP1 must be 8")
   flags = 0
@@ -21,8 +25,10 @@ def flags_for_candidate(candidate, fingerprint=None, standstill=False):
     if standstill:
       flags |= FLAG_TESLA_AP1_STANDSTILL
   elif candidate == CAR.TESLA_AP1_MODELX:
-    # Model X is lateral only: AP1 chassis safety, no long control, no standstill.
+    # Model X is lateral only unless the opt-in x_long is passed: AP1 chassis safety, LONG_CONTROL only on opt-in, never standstill.
     flags |= FLAG_TESLA_AP1
+    if x_long:
+      flags |= FLAG_TESLA_LONG_CONTROL
   return (flags,)
 
 

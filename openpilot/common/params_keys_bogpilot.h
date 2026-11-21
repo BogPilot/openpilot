@@ -35,6 +35,7 @@
     {"BlindSpotPath", {PERSISTENT, BOOL, "1"}},
     {"BorderMetrics", {PERSISTENT, BOOL, "1"}},
     {"CSCMapCurvature", {PERSISTENT, BOOL, "0"}},
+    {"CSCTeslaSmoothing", {PERSISTENT, BOOL, "0"}},
     {"CalibratedLateralAcceleration", {PERSISTENT, FLOAT, "2.0"}},
     {"CalibrationProgress", {PERSISTENT, FLOAT, "0"}},
     {"CameraView", {PERSISTENT, INT, "0"}},

@@ -23,6 +23,17 @@ Inputs are path geometry: per-node distance (position.x), yaw rate (orientationR
 node speed used only to turn yaw rate into curvature (1/m) and to skip near-stop nodes. The
 model's own speed choice is never used as a target.
 
+Smooth Curve Braking (CSCTeslaSmoothing, default OFF): regen-blended hold for the same curve.
+The stock brake has a gas-car deadband: a request must pass 0.15 m/s^2 for 0.3 s before anything happens,
+and it eases back toward zero (even to throttle) whenever the model's curve estimate wobbles, then brakes
+again harder (brake / ease / brake). On a Tesla regen follows every wobble at once (measured command to
+aEgo lag about 0.19 s), so each one is felt. With the toggle on, a second envelope runs beside the stock
+request: it starts as soon as the request passes SMOOTH_FLOOR (no debounce), ramps in at
+SMOOTH_ONSET_JERK, and while the curve still limits the car (landing cap > 0) it may only ease at
+SMOOTH_HOLD_LEAK. The output is min(stock request, envelope): never less braking than the stock brake
+on any frame, never past the landing cap (so never below the curve speed), never below A_MIN.
+The switch is latched only while both requests are idle, so toggling mid-curve never drops braking.
+
 Safety: the planner uses min(plan, request), so this can only ADD braking. Panda safety is not
 touched. C3X only: the planner builds it where CSC is supported (AP1, or Pre-AP with a calibrated pedal, csc_platform.py).
 """
@@ -47,6 +58,10 @@ MIN_MODEL_SPEED = 5.0          # m/s, skip nodes the model plans to drive slower
 MIN_CURVATURE = 1e-4           # 1/m, straighter than this never limits speed
 MIN_DISTANCE = 5.0             # m, floor on the braking distance (a node inside the lead distance
                                # must not ask for a huge decel)
+# Smooth Curve Braking (CSCTeslaSmoothing, default OFF). Only ever adds braking to the stock request.
+SMOOTH_FLOOR = 0.15            # m/s^2, the envelope starts past this request at once (no ON_DEBOUNCE_S wait)
+SMOOTH_ONSET_JERK = 1.0        # m/s^3, envelope ramp-in (the stock request keeps ONSET_JERK as the floor)
+SMOOTH_HOLD_LEAK = 0.3         # m/s^3, how fast the held envelope may ease while the curve still limits the car
 
 AP1_FINGERPRINT = "TESLA_AP1_MODELS"
 
@@ -129,9 +144,21 @@ class TeslaCurveBrake:
 
   def __init__(self, dt: float = 0.05):
     self.dt = dt
+    self.smooth = False          # Smooth Curve Braking in effect (latched, see set_smooth)
+    self.smooth_wanted = False
     self.reset()
 
+  def set_smooth(self, wanted: bool) -> None:
+    """Request Smooth Curve Braking on/off. Applied only while the stock and smooth requests are both idle."""
+    self.smooth_wanted = bool(wanted)
+    if self.smooth_wanted != self.smooth and self.a_request == 0.0 and self.env_out == 0.0:
+      self.smooth, self.env, self.env_out = self.smooth_wanted, 0.0, 0.0
+
   def reset(self):
+    self.env = 0.0               # Smooth Curve Braking envelope target (<= 0)
+    self.env_out = 0.0           # envelope after its onset / release jerk limits (<= 0)
+    if getattr(self, "smooth_wanted", None) is not None:
+      self.smooth = self.smooth_wanted
     self.a_request = 0.0
     self.a_raw = 0.0
     self.braking = False     # past the deadband (with hysteresis)
@@ -174,7 +201,26 @@ class TeslaCurveBrake:
       self.a_request = max(a, self.a_request - ONSET_JERK * self.dt)
     else:
       self.a_request = min(a, self.a_request + RELEASE_JERK * self.dt)
-    return self.a_request
+    if not self.smooth:
+      return self.a_request
+    return min(self.a_request, self._smooth_update(csc_active, raw))
+
+  def _smooth_update(self, csc_active, raw) -> float:
+    """Smooth Curve Braking envelope (<= 0). Same inputs as the stock request: raw path decel and the landing cap."""
+    cap = self.landing_cap if csc_active else 0.0
+    e = max(float(raw), A_MIN, -cap)
+    if e > -SMOOTH_FLOOR:
+      e = 0.0
+    if csc_active and cap > 0.0:
+      env = min(e, self.env + SMOOTH_HOLD_LEAK * self.dt)        # hold: ease only slowly while the curve still limits
+    else:
+      env = e if e < self.env else min(0.0, self.env + RELEASE_JERK * self.dt)
+    self.env = max(env, -cap, A_MIN)
+    if self.env < self.env_out:
+      self.env_out = max(self.env, self.env_out - SMOOTH_ONSET_JERK * self.dt)
+    else:
+      self.env_out = min(self.env, self.env_out + RELEASE_JERK * self.dt)
+    return self.env_out
 
 
 def ap1_curve_brake_for(CP, dt: float = 0.05, pedal_ok: bool | None = None):

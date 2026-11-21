@@ -187,3 +187,31 @@ def set_ap1_tip_round(enabled: bool, path: Path | None = None) -> None:
   target = path if path is not None else _ap1_tip_round_path
   target.parent.mkdir(parents=True, exist_ok=True)
   target.write_text("1" if enabled else "0")
+
+
+# AP1 Model X openpilot longitudinal (AP1XOpenpilotLong). EXPERIMENTAL, untested on a real Model X. File-backed, default OFF:
+# /data/params_bogpilot/AP1XOpenpilotLong. Only an explicit 1/true/on turns it on; a missing, empty, unreadable or any other
+# value is off. Read once at car init (interface.py): it makes the strictly detected AP1 Model X use openpilot longitudinal
+# (CarParams.openpilotLongitudinalControl plus the AP1 safety LONG_CONTROL flag). Never applies to any other car.
+AP1X_OP_LONG_PATH = IC_INTEGRATION_DIR / "AP1XOpenpilotLong"
+_ap1x_op_long_path = AP1X_OP_LONG_PATH
+
+
+def ap1x_op_long(fingerprint: str | None, stored: str | bytes | None = None) -> bool:
+  """AP1 Model X only. On only when the file (or `stored`) says 1/true/on. Everything else is off."""
+  from opendbc.car.tesla_ap1.values import CAR
+  if fingerprint != CAR.TESLA_AP1_MODELX:
+    return False
+  if stored is None:
+    try:
+      stored = _ap1x_op_long_path.read_text(encoding="utf-8", errors="replace") if _ap1x_op_long_path.is_file() else ""
+    except OSError:
+      stored = ""
+  return _as_text(stored).lower() in ("1", "true", "on")
+
+
+def set_ap1x_op_long(enabled: bool, path: Path | None = None) -> None:
+  """Write the file-backed AP1XOpenpilotLong preference (the Vehicle row)."""
+  target = path if path is not None else _ap1x_op_long_path
+  target.parent.mkdir(parents=True, exist_ok=True)
+  target.write_text("1" if enabled else "0")

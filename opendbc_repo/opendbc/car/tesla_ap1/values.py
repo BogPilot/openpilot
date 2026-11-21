@@ -41,11 +41,14 @@ class CAR(Platforms):
     [CarDocs("Tesla Model S (Pre-Autopilot) 2012-14", "Pre-Autopilot", support_type=SupportType.COMMUNITY, support_link="#community")],
     CarSpecs(wheelbase=2.959, steerRatio=15.0),
   )
-  # Tinkla mass is 2560 + 136 kg. CarSpecs in 0.11.2 has no mass field.
+  # Real Model X specs: wheelbase 2.965 m (the Model S is 2.959). steerRatio 15 is the Model S value, kept until a real X drive
+  # gives a measured one. Curb mass for AP1-era 75D/90D is 2400 kg per Tesla's published Model X specifications (75D 2387 kg),
+  # plus the standard openpilot cargo allowance (136 kg) = 2536 kg. CarSpecs in 0.11.2 has no mass field and the vehicle model
+  # works per unit mass, so nothing reads the mass: it is recorded here only. Tinkla's 2560 + 136 kg is a TODO value, not used.
   # centerToFront is 0.5 * wheelbase via the CarSpecs default centerToFrontRatio.
   TESLA_AP1_MODELX = TeslaAp1PlatformConfig(
     [CarDocs("Tesla Model X (Autopilot 1) 2016", "Autopilot", support_type=SupportType.COMMUNITY, support_link="#community")],
-    CarSpecs(wheelbase=2.964, steerRatio=15.0),
+    CarSpecs(wheelbase=2.965, steerRatio=15.0),
   )
 
 

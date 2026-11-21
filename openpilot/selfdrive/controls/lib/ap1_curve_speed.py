@@ -45,6 +45,7 @@ from openpilot.selfdrive.controls.lib.csc_platform import csc_gate, csc_supporte
 
 AP1 = "TESLA_AP1_MODELS"
 TOGGLE = "CurveSpeedController"
+SMOOTH_TOGGLE = "CSCTeslaSmoothing"   # Smooth Curve Braking (ap1_curve_brake.py), default OFF
 TOGGLE_CACHE_S = 1.0
 # Keep the last CSC cap this long after the curve is no longer detected / in-curve,
 # so vCruise does not snap back to the SLC cap mid-curve.
@@ -152,6 +153,12 @@ class Ap1CurveSpeed:
     except Exception:
       return False
 
+  def _smooth_on(self) -> bool:
+    try:
+      return bool(self.store.toggle_bool(SMOOTH_TOGGLE))
+    except Exception:
+      return False
+
   def _inactive(self, v_cruise, reset_state):
     self.curvature_filter.reset()
     self.detector.reset()
@@ -186,6 +193,8 @@ class Ap1CurveSpeed:
 
     dt_s = self.clock.step(sm)
     self.enabled_toggle = self._toggle_on()
+    if self.brake is not None:
+      self.brake.set_smooth(self._smooth_on())
     path = model_path(sm['modelV2']) if _service_ok(sm, 'modelV2') else None
     fresh = path is not None and _service_ok(sm, 'carState') and math.isfinite(v_ego) and math.isfinite(v_cruise)
     if not self.enabled_toggle or not fresh:
