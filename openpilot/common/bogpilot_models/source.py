@@ -38,24 +38,20 @@ GITHUB_ASSET_HOSTS = frozenset({
   "github-releases.githubusercontent.com",
 })
 
-# No models are published on our GitHub releases yet. An item needs a redistributable license, a pinned sha256 and
-# size for every file, and a 0.11.2-compatible interface (checked again after download by registry.validate_entry).
-CATALOG: tuple[dict, ...] = ()
-
-# Prepared but NOT offered. A PENDING item is never shown or fetched: catalog_entries() only reads CATALOG and skips
-# anything marked "published": False, and installer.screen() refuses an unpublished item. To publish one: upload the
-# pkl, the ONNX and the notice to the release below, flip "published", and move it to CATALOG.
+# Hosted models offered on the settings page. An item needs a redistributable license, a pinned sha256 and size for
+# every file, and a 0.11.2-compatible interface (checked again after download by registry.validate_entry). The built-in
+# stock model is not listed here: it ships with openpilot and stays the Default.
+# Releases live in BogPilot/models (any BogPilot repo's releases pass allowed_source_url).
 CHEDDAR_ONNX_SHA256 = "350a47ea36e554fb71634c7361b2c2a2a3da07ecb211a4c6cff3d2c3013d1d82"
 CHEDDAR_ONNX_SIZE = 69671018
-# Placeholder release: the repository and tag are not created yet (no push, no publish).
-CHEDDAR_RELEASE = f"https://github.com/{RELEASE_ORG}/openpilot/releases/download/cheddar-b3ab22efe-0.11.2"
-PENDING: tuple[dict, ...] = (
+CHEDDAR_RELEASE = f"https://github.com/{RELEASE_ORG}/models/releases/download/cheddar-b3ab22efe-0.11.2"
+CHEDDAR: dict = \
   {"id": "cheddar", "name": "Cheddar (comma.ai)", "version": "b3ab22efe", "openpilot": "0.11.2", "license": "MIT",
    "onnx_sha256": CHEDDAR_ONNX_SHA256,
    "description": "comma.ai's Cheddar driving model (openpilot b3ab22efe), compiled for 0.11.2. "
                   "It steers and sets speed from its own action output. Not the default.",
    "credit": "comma.ai openpilot b3ab22efe (#39255), MIT; see notices/cheddar_b3ab22efe_MIT.txt",
-   "published": False,
+   "published": True,
    "url": f"{CHEDDAR_RELEASE}/driving_tinygrad.pkl",
    # bench comma 3X QCOM compile, 2026-11-22, tinygrad tree 1a561665 (same pipeline reproduced the stock pkl and both
    # warps bit-for-bit); warps are not shipped because Cheddar uses the stock warp programs unchanged
@@ -66,14 +62,19 @@ PENDING: tuple[dict, ...] = (
       "url": f"{CHEDDAR_RELEASE}/driving_tinygrad.pkl"},
    ],
    # published next to the pkl for provenance; not downloaded by the device (onnx_sha256 pins it)
-   "release_assets": ("driving_supercombo.onnx", "cheddar_b3ab22efe_MIT.txt")},
-)
+   "release_assets": ("driving_supercombo.onnx", "cheddar_b3ab22efe_MIT.txt")}
+CATALOG: tuple[dict, ...] = (CHEDDAR,)
+
+# Prepared but NOT offered. A PENDING item is never shown or fetched: catalog_entries() only reads CATALOG and skips
+# anything not marked "published": True, and installer.screen() refuses an unpublished item. To publish one: upload
+# its files to a BogPilot GitHub release, flip "published", and move it to CATALOG.
+PENDING: tuple[dict, ...] = ()
 
 # Reviewed 2026-11-22 and NOT offered (names only: nothing below is fetched, copied or hosted).
 # Compatibility is the "fits the 0.11.2 driving code" check in compat.check_driving_abi: the four inputs modeld fills
 # (new_img, desire, traffic_convention, action_t), only the three history queues (state_img_q, state_desire_q,
 # state_feat_q, length from the metadata), one `outputs` vector with the slices the 0.11.2 parser reads (an
-# `action` head is allowed). comma.ai Cheddar fits and is prepared above (PENDING).
+# `action` head is allowed). comma.ai Cheddar fits and is offered above (CATALOG).
 EXCLUDED: tuple[tuple[str, str], ...] = (
   ("comma.ai models of openpilot 0.11.1 and older",
    "MIT, but not compatible: split driving_vision + driving_policy programs; 0.11.2 runs one fused program"),

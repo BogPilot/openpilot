@@ -11,10 +11,9 @@ paraphrased. The only inputs are this tree's own modeld.py contract and the ship
   only from our own GitHub releases (org BogPilot; redirects only to GitHub release-asset hosts,
   `source.py`), checks every file's pinned sha256 and size, stages it in a hidden directory, runs the full
   validation below, and only then renames it into `/data/bogpilot/models/<id>/`. A failed update keeps the old
-  install. Installing never changes the choice. The shipped catalog (`source.CATALOG`) is empty. comma.ai's Cheddar
-  (openpilot b3ab22efe, MIT) fits the 0.11.2 driving code and is prepared in `source.PENDING` (not offered: its
-  QCOM-compiled `driving_tinygrad.pkl` does not exist yet, so its file hash is empty and `published` is False).
-  `source.EXCLUDED` lists the reviewed models that are not offered and why. Notice: `bogpilot_models/notices/`.
+  install. Installing never changes the choice. The shipped catalog (`source.CATALOG`) offers comma.ai's Cheddar (openpilot b3ab22efe, MIT), hosted on the
+  BogPilot/models release `cheddar-b3ab22efe-0.11.2` (bench-compiled QCOM `driving_tinygrad.pkl` sha256 050d74e9..., the
+  ONNX and the MIT notice); Default stays the stock model. `source.EXCLUDED` lists the reviewed models that are not offered and why. Notice: `bogpilot_models/notices/`.
   Sideloading a directory under `/data/bogpilot/models/` (override: `BOGPILOT_MODELS_DIR`) still works.
 
 ## Registry format

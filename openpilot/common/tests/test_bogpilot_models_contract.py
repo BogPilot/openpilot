@@ -176,29 +176,34 @@ class TestContractRules(unittest.TestCase):
     self.assertRejected(a, "run program")
 
 
-class TestCheddarPending(unittest.TestCase):
+class TestCheddarPublished(unittest.TestCase):
   def item(self):
-    return next(i for i in source.PENDING if i["id"] == "cheddar")
+    return next(i for i in source.CATALOG if i["id"] == "cheddar")
 
-  def test_prepared_entry(self):
+  def test_published_entry(self):
     c = self.item()
     self.assertEqual(c["onnx_sha256"], CHEDDAR_SHA)
     self.assertEqual(c["license"], "MIT")
     self.assertEqual(c["openpilot"], "0.11.2")
-    self.assertIs(c["published"], False)
+    self.assertIs(c["published"], True)
     self.assertNotEqual(c["id"], STOCK_ID)
     self.assertIn("b3ab22efe", c["credit"])
+    rel = "https://github.com/BogPilot/models/releases/download/cheddar-b3ab22efe-0.11.2/"
     for f in c["files"]:
+      self.assertEqual(f["url"], rel + f["name"])
       self.assertTrue(source.allowed_source_url(f["url"]), f["url"])
+    self.assertEqual(c["url"], rel + "driving_tinygrad.pkl")
     self.assertTrue(source.allowed_source_url(c["url"]))
 
-  def test_not_offered_or_fetchable_until_published(self):
-    self.assertEqual(source.CATALOG, ())
-    self.assertEqual(source.catalog_entries(), ())
-    self.assertEqual(source.catalog_entries(source.PENDING), ())
-    self.assertIn("not published", installer.screen(self.item()))
+  def test_offered_and_default_stays_stock(self):
+    self.assertEqual([i["id"] for i in source.CATALOG], ["cheddar"])
+    self.assertEqual([i["id"] for i in source.catalog_entries()], ["cheddar"])
+    self.assertNotIn(STOCK_ID, [i["id"] for i in source.CATALOG])
+    self.assertEqual(source.PENDING, ())
+    self.assertEqual(installer.screen(self.item()), "")
     for bad in (False, None, "yes", 1):
       self.assertIn("not published", installer.screen(dict(self.item(), published=bad)))
+      self.assertEqual(source.catalog_entries((dict(self.item(), published=bad),)), ())
 
   def test_pinned_qcom_compile(self):
     f = self.item()["files"][0]
@@ -206,11 +211,6 @@ class TestCheddarPending(unittest.TestCase):
     self.assertEqual(f["sha256"], "050d74e9dd0c17980f6679f5bdad2eb25e951d58fb73f764de65896107e494cd")
     self.assertEqual(f["size"], 82394323)
     self.assertEqual(len(self.item()["files"]), 1)  # stock warps are reused
-
-  def test_screen_passes_only_once_published(self):
-    flipped = dict(self.item(), published=True)
-    self.assertEqual(installer.screen(flipped), "")
-    self.assertEqual([i["id"] for i in source.catalog_entries((flipped,))], ["cheddar"])
 
   def test_notice_ships_with_the_tree(self):
     p = ROOT / "openpilot/common/bogpilot_models/notices/cheddar_b3ab22efe_MIT.txt"
