@@ -37,11 +37,12 @@ def test_defaults_and_roundtrip(store):
 def test_float_text_and_level_gate(store):
   store.put("EngageVolume", "0.000000")  # user-chosen value (AP1 profile no longer writes volumes)
   assert store.get_int("EngageVolume") == 0
-  store.put("CustomPersonalities", True)
+  store.put("CustomPersonalities", False)
   assert store.tuning_level() == 3       # unconfirmed level counts as 3 (367e1fe)
+  assert store.toggle_bool("CustomPersonalities") is False  # honoured at level 3
   store.put("TuningLevelConfirmed", "1")
   store.put("TuningLevel", 0)
-  assert store.toggle_bool("CustomPersonalities") is False  # level 2 key above level 0 reads its default
+  assert store.toggle_bool("CustomPersonalities") is True   # level 2 key above level 0 reads its default (on)
   assert store.toggle_bool("SpeedLimitController") is True
 
 

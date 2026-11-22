@@ -1,4 +1,6 @@
-"""Comfort regen braking v2 for legacy Tesla (AP1 Model S and Pre-AP), setting RegenComfortBrake.
+"""Comfort regen braking v2 for legacy Tesla (AP1 Model S, AP1 Model X and Pre-AP), setting RegenComfortBrake.
+
+Only with openpilot longitudinal. On the AP1 Model X that is the AP1XOpenpilotLong opt-in; with stock cruise the X is unchanged.
 
 The stock 0.11.2 lead MPC, its desired gap and its constraints stay unmodified. This layer runs after the planner has picked
 its acceleration and can only ask for more braking: final = min(stock, comfort).
@@ -42,7 +44,8 @@ def comfort_regen_platform(CP):
     from opendbc.car.tesla_ap1.values import CAR
   except Exception:
     return False
-  return str(CP.carFingerprint) in (str(CAR.TESLA_AP1_MODELS), str(CAR.TESLA_PREAP_MODELS)) and bool(CP.openpilotLongitudinalControl)
+  return (str(CP.carFingerprint) in (str(CAR.TESLA_AP1_MODELS), str(CAR.TESLA_AP1_MODELX), str(CAR.TESLA_PREAP_MODELS))
+          and bool(CP.openpilotLongitudinalControl))
 
 
 def comfort_regen_enabled(CP):

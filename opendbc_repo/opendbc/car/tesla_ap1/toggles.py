@@ -165,14 +165,17 @@ def disable_openpilot_long(stored: str | bytes | None = None, paths=None) -> boo
 # value saved earlier (either way) is preserved and a fresh install is on. When on, Ap1RaiseHoldoff rounds the software set to a whole
 # display unit (km/h when IsMetric, else mph) before a +-1 / next-5 / prev-5 tip, so a 14.8 mph tip-engage latch + full tip up gives
 # 20, not 15. Settings > Vehicle > Stalk Controls > Round Set Speed Tips writes the same file (offroad only).
+# AP1 Model S and AP1 Model X. The rounding lives in the openpilot set-speed path, which the X only uses with openpilot
+# longitudinal (AP1XOpenpilotLong); with stock cruise the X set speed is the car's own and nothing is rounded.
 AP1_TIP_ROUND_PATH = IC_INTEGRATION_DIR / "AP1TipRoundSet"
 _ap1_tip_round_path = AP1_TIP_ROUND_PATH
 
 
 def ap1_tip_round_set(fingerprint: str | None, stored: str | bytes | None = None) -> bool:
-  """AP1 only. Off only when the file (or `stored`) says 0/false/off. Missing, empty, unreadable, or any other text = on."""
+  """AP1 Model S and Model X. Off only when the file (or `stored`) says 0/false/off. Missing, empty, unreadable, or any other
+  text = on."""
   from opendbc.car.tesla_ap1.values import CAR
-  if fingerprint != CAR.TESLA_AP1_MODELS:
+  if fingerprint not in (CAR.TESLA_AP1_MODELS, CAR.TESLA_AP1_MODELX):
     return False
   if stored is None:
     try:
@@ -189,16 +192,20 @@ def set_ap1_tip_round(enabled: bool, path: Path | None = None) -> None:
   target.write_text("1" if enabled else "0")
 
 
-# AP1 Model X openpilot longitudinal (AP1XOpenpilotLong). EXPERIMENTAL, untested on a real Model X. File-backed, default OFF:
-# /data/params_bogpilot/AP1XOpenpilotLong. Only an explicit 1/true/on turns it on; a missing, empty, unreadable or any other
-# value is off. Read once at car init (interface.py): it makes the strictly detected AP1 Model X use openpilot longitudinal
-# (CarParams.openpilotLongitudinalControl plus the AP1 safety LONG_CONTROL flag). Never applies to any other car.
+# AP1 Model X openpilot longitudinal (AP1XOpenpilotLong). EXPERIMENTAL. File-backed, default ON for a detected AP1 Model X:
+# /data/params_bogpilot/AP1XOpenpilotLong. Only an explicit 0/false/off turns it off (the user's choice for stock TACC); a missing,
+# empty, unreadable or any other value is on. A one-time migration (openpilot/common/bogpilot_ap1_profile.py
+# force_ap1x_op_long_on_once) writes 1 once on a detected X, even over a saved 0, and never again. Read once at car init
+# (interface.py): it makes the strictly detected AP1 Model X use openpilot longitudinal (CarParams.openpilotLongitudinalControl
+# plus the AP1 safety LONG_CONTROL flag). Never applies to any other car; the panda and safety limits are the Model S ones.
 AP1X_OP_LONG_PATH = IC_INTEGRATION_DIR / "AP1XOpenpilotLong"
 _ap1x_op_long_path = AP1X_OP_LONG_PATH
+AP1X_OP_LONG_DEFAULT = True
+AP1X_OP_LONG_OFF = ("0", "false", "off")
 
 
 def ap1x_op_long(fingerprint: str | None, stored: str | bytes | None = None) -> bool:
-  """AP1 Model X only. On only when the file (or `stored`) says 1/true/on. Everything else is off."""
+  """AP1 Model X only. On unless the file (or `stored`) says 0/false/off. Every other car is off."""
   from opendbc.car.tesla_ap1.values import CAR
   if fingerprint != CAR.TESLA_AP1_MODELX:
     return False
@@ -207,7 +214,7 @@ def ap1x_op_long(fingerprint: str | None, stored: str | bytes | None = None) -> 
       stored = _ap1x_op_long_path.read_text(encoding="utf-8", errors="replace") if _ap1x_op_long_path.is_file() else ""
     except OSError:
       stored = ""
-  return _as_text(stored).lower() in ("1", "true", "on")
+  return _as_text(stored).lower() not in AP1X_OP_LONG_OFF
 
 
 def set_ap1x_op_long(enabled: bool, path: Path | None = None) -> None:

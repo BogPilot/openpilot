@@ -533,6 +533,26 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Tests: `opendbc/car/tesla_ap1/tests/test_ap1_epas_tmp_fault_recovery.py` (state machine, planner, open-loop replay of a recorded 12 s window with the code 4 event, closed-loop clear and hand-back).
 - Credits: Tinkla/BogGyver `501c7de` and BogPilot 0.9.7 (measured-wheel ANGLE while engaged).
 
+## AP1 steering: 0x488 restarts cleanly after a card stall
+- Platforms: AP1 Model S and AP1 Model X (`opendbc/car/tesla_ap1/steer_resync.py`, `carcontroller.py`). Pre-AP is unchanged (own controller, no counter sync).
+- Reference behavior: Tinkla/BogGyver and BogPilot 0.9.7 send 0x488 every step with a counter of their own; after a pause they carry on where they left off. Upstream openpilot has no AP1 interceptor.
+- Previous behavior here: after a step stall of more than 100 ms, the panda forwarded the stock DAS 0x488 (type NONE) to the EPAS, then card resumed with the counter it had reached before the stall (a duplicate of a forwarded stock counter) and, while draining the queued steps, sent several ANGLE frames within a few ms. A recorded bench event (a system stall of about 130 ms with no 0x488 from card) went ACTIVE, AVAILABLE, INHIBITED with EAC_ERROR_HIGH_ANGLE_RATE_REQ (7), then AVAILABLE with code 7 latched.
+- Our behavior: `Ap1SteerResync` watches the stream only while openpilot owns it. A clock gap over 60 ms, or 3 or more stock counters arriving in one step (or a stock counter jump of 3 or more), counts as a stall. From then on no 0x488 is sent, so only stock frames reach the EPAS, until 3 steps in a row each carry exactly one new stock counter (+1) at least 8 ms apart, or 30 steps pass with no stock frame. The counter sync is then forgotten and taken again from the next stock frame (stock + 2, as at engage), and the 30-frame soft start ramps from the measured wheel, as at engage. While held, the last applied angle tracks the measured wheel.
+- Why: a duplicated counter and a burst of ANGLE frames right after the stock frames is what the EPAS answered with a code 7 refusal.
+- Safety-relevant: yes (0x488 timing). It only adds silence (about 60 ms on the recorded event) after a stall; angle, rate and panda limits are unchanged.
+- Tests: `opendbc/car/tesla_ap1/tests/test_ap1_steer_resync.py` (state machine, counter forget, replay of the recorded 1.8 s window on Model S and X: no send on the drain step, counter = latest stock + 2 and never a recently forwarded one, spacing, monotonic counters; with the EPAS held ACTIVE, the restart is at the measured wheel).
+- Credits: BogPilot (counter sync and soft start this builds on).
+
+## AP1 steering: bounded recovery from a latched EAC_ERROR_HIGH_ANGLE_RATE_REQ (code 7)
+- Platforms: AP1 Model S and AP1 Model X (`opendbc/car/tesla_ap1/epas_gate.py`, `steer_fault.py`). Pre-AP is unchanged (own controller and panda mode).
+- Reference behavior: as for code 4: Tinkla and BogPilot 0.9.7 keep the measured-wheel ANGLE hold whatever the error code, which clears a latched code.
+- Previous behavior here: code 7 was a temporary fault on the car side and a refusing error in the panda, and only code 4 had a recovery. The EPAS keeps code 7 latched while AVAILABLE, so a code 7 left lateral off until the car was power cycled (recorded bench event).
+- Our behavior: the same `EpasTmpFaultRecovery` with every code 4 rule (settle, length, spacing, count, speed, hands, EPB, aborts), one difference: for code 7 a request starts and continues only while the EPAS says AVAILABLE. ACTIVE with code 7 aborts the request (code 4 keeps AVAILABLE or ACTIVE). Requests are at the measured wheel. Code 7 is still a temporary fault, so latActive stays off until the EPAS clears it.
+- Panda: see the panda entry: code 7 is let through only with AVAILABLE and a fresh EPB allow of 1. Must ship with that panda rule (`tools/bogpilot/err4_panda_pairing.py`).
+- Safety-relevant: yes (when ANGLE is sent). No other error code or status is relaxed.
+- Tests: `opendbc/car/tesla_ap1/tests/test_ap1_epas_rate_req_recovery.py` (state machine, AVAILABLE only, aborts, hand-back, replay of the recorded code 7 latch: one bounded request at the measured wheel only while the recording says AVAILABLE/7).
+- Credits: as for code 4.
+
 ## Conditional Experimental Mode off on every legacy Tesla
 - Platforms: AP1 Model S, AP1 Model X and Pre-AP Model S (`openpilot/common/bogpilot_ap1_profile.py` `LEGACY_TESLA_PLATFORMS`). AP2 is not a platform in this tree, so nothing changes for it here. Every other car type is unchanged.
 - Reference behavior: BogPilot ships Conditional Experimental Mode on (registry default `1`); the AP1 Model S profile from bogpilot-tesla-0.9.7 `e493b5cb7` turns it off on that car only.
@@ -554,7 +574,7 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Tests: `openpilot/selfdrive/pandad/tests/test_pandad_cold_start.py`, `openpilot/selfdrive/pandad/tests/test_panda_firmware_record.py`.
 - Credits: upstream openpilot 0.11.2 (structure of the wrapper loop).
 
-## Panda (AP1): no active steering into a refusing EPAS, with a latched TMP_FAULT exception
+## Panda (AP1): no active steering into a refusing EPAS, with latched TMP_FAULT and HIGH_ANGLE_RATE_REQ exceptions
 - Platforms: AP1 Model S and Model X (`TESLA_FLAG_AP1`).
 - Reference behavior: BogPilot 0.9.7 `panda/board/safety/safety_tesla.h` (0x370 RX and the 0x488 TX check) and
   Tinkla/BogGyver panda `board/safety/safety_tesla.h` do not read `EPAS_eacStatus` or `EPAS_eacErrorCode` at all.
@@ -564,20 +584,21 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - Our behavior: `opendbc/safety/modes/tesla_ap1.h` drops an active 0x488 frame (type 1 or 2) while the last 0x370
   says INHIBITED, FAULT or SNA, or carries an error other than IDLE, HANDS_ON (3) or HIGH_ANGLE_REQ (6). One
   exception: EAC_ERROR_TMP_FAULT (4) is let through while the same 0x370 frame says AVAILABLE or ACTIVE and the last
-  EPB_epasControl (0x214, bus 0) said EPB_epasEACAllow = 1 less than 250 ms ago. controls_allowed, the angle rate
-  table and every other check still apply.
+  EPB_epasControl (0x214, bus 0) said EPB_epasEACAllow = 1 less than 250 ms ago. A second exception, with the same
+  EPB condition: EAC_ERROR_HIGH_ANGLE_RATE_REQ (7) is let through only while the same 0x370 frame says AVAILABLE
+  (never ACTIVE). controls_allowed, the angle rate table and every other check still apply.
 - 0x214 is not an RX check. The panda only runs a mode's RX hook for messages in its RX-check list, and every entry
   in that list is required. So `safety.h` gets the optional `rx_all` hook from NAP (`opendbc/safety/safety.h`
   `safety_rx_hook`, `declarations.h` `safety_hooks.rx_all`) and BogPilot 0.9.7 (`panda/board/safety.h`): it is called
   for every received message, before the whitelist. It is NULL in every mode except Tesla, where only AP1 uses it to
   keep the last EPB_epasEACAllow value and its time. A missing or stale 0x214 never touches controls_allowed or the
-  RX-check health; it only keeps code 4 blocked, as before this change. 0x214 has no checksum or counter, so the
+  RX-check health; it only keeps codes 4 and 7 blocked, as before this change. 0x214 has no checksum or counter, so the
   frame is used as received.
-- Why: the EPAS keeps codes 3, 4 and 6 latched until it is commanded again. Blocking code 4 for good turned one
+- Why: the EPAS keeps codes 3, 4, 6 and 7 latched until it is commanded again. Blocking code 4 or 7 for good turned one
   transient EPAS fault into a lateral lockout for the rest of the drive. Every other code stays blocked, and
   INHIBITED/FAULT/SNA always block.
 - Safety-relevant: yes. Stricter than BogPilot 0.9.7, Tinkla and NAP for every error and status value.
-- Tests: `opendbc/safety/tests/test_tesla_ap1_epas_refusal.py`, `opendbc/safety/tests/test_tesla_ap1_epas_tmp_fault.py`.
+- Tests: `opendbc/safety/tests/test_tesla_ap1_epas_refusal.py`, `opendbc/safety/tests/test_tesla_ap1_epas_tmp_fault.py`, `opendbc/safety/tests/test_tesla_ap1_epas_rate_req.py`.
 - Credits: BogPilot 0.9.7; Tinkla/BogGyver; NAP (the `rx_all` hook).
 
 ## AP1 dashboard speed limit: a rise the car's base map does not know is checked against the camera limit

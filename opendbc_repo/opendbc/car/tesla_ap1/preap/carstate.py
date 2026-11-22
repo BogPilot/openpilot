@@ -25,6 +25,7 @@ from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.interfaces import CarStateBase
 from opendbc.car.tesla_ap1.hso import ap1_driver_input
 from opendbc.car.tesla_ap1.steer_rate import SteerRateFallback
+from opendbc.car.tesla_ap1 import trims
 from opendbc.car.tesla_ap1.pedal_signals import pedal_position
 from opendbc.car.tesla_ap1.speed_limit import dashboard_speed_limit_ms, frame_fresh
 from opendbc.car.tesla_ap1.values import BUTTONS, CANBUS, DBC, DOORS, GEAR_MAP
@@ -53,6 +54,12 @@ class PreApCarState(CarStateBase):
   def __init__(self, CP):
     super().__init__(CP)
     self.steer_rate = SteerRateFallback(DT_CTRL)   # StW_AnglHP_Spd SNA guard
+    # Trim detection (trims.py): Pre-AP is rear-motor only (single motor), so only the rear rpm per m/s is learned.
+    try:
+      seed = trims.read_detected()
+    except Exception:
+      seed = None
+    self.drive_detect = trims.DriveDetector(CP.carFingerprint, DT_CTRL, front_possible=False, seed=seed)
     self.steer_rate_source = 0
     self.can_define = CANDefine(DBC[CP.carFingerprint][Bus.chassis])
     self.button_states = {button.event_type: False for button in BUTTONS}
@@ -308,9 +315,10 @@ class PreApCarState(CarStateBase):
       # (card.py initialize_v_cruise / capture_preap_full), as NAP does.
       # Everything Pre-AP reads itself is taken above or off button_states, never off these types:
       # pull_edge / cancel_edge (:255, here), the pull FSM, update_button_enable and fp_ret.resumePressed.
-      # Only what leaves carstate changes. Side effect, intended and NAP-parity: cruise.py:144 restores
-      # v_cruise_kph_last on an accelCruise / resumeCruise edge, so a re-engage now re-captures the set
-      # from ego (or the posted limit) instead of restoring the previous set.
+      # Only what leaves carstate changes. The stock restore (cruise.py initialize_v_cruise, v_cruise_kph_last on an
+      # accelCruise / resumeCruise edge) therefore never runs; the card restores the last speed-control set of the drive
+      # itself on a pull re-engage (selfdrive/car/cruise.py PreapPullPolicy), and the first engage of a drive
+      # captures from ego (or the posted limit).
       for e in button_events:
         e.type = remap_preap_pedal_button_type(e.type)
     ret.buttonEvents = button_events
@@ -369,8 +377,11 @@ class PreApCarState(CarStateBase):
       self.preap_capture_tip = bool(self.decision.capture_edge and self.decision.capture_tip)
       self._enable_request = bool(self.decision.enable_request)
       ret.cruiseState.enabled = bool(self.decision.engaged)
+      # Calibration is not required for availability: a pull is steering only; speed control is refused (long_allowed above,
+      # the CarController and the panda) and preapSpeedBlocked says to calibrate. (An uncalibrated pedal used to raise
+      # wrongCarMode on every pull, so the car could not engage at all.)
       ret.cruiseState.available = pedal_cruise_available(
-        detected=bool(self.preap_pedal_detected), calibrated=is_pedal_calibrated(),
+        detected=bool(self.preap_pedal_detected),
         # a failed pedal acquisition (pedal_unavailable) is retried with back-off and reported by its own alert. It no longer
         # makes cruise "unavailable": that was a latch (wrongCarMode blocked the engage that would have cleared it).
         faulted=bool(ret.accFaulted))
@@ -394,7 +405,10 @@ class PreApCarState(CarStateBase):
       if self.decision.cancel_cc:
         self.preap_cc_cancel_needed = True
       ret.cruiseState.enabled = bool(self.decision.engaged)
-      ret.cruiseState.available = (cruise_state == "STANDBY") or acc_enabled
+      # No pedal: steering only never needs stock cruise, so stock cruise being off (not STANDBY) must not make the car
+      # unavailable (wrongCarMode would refuse the steering-only pull). Only a DI cruise FAULT does. Arming stock cruise on the
+      # second pull still needs it: the FSM stays steering only and says "Stock cruise did not arm" (cc_not_armed).
+      ret.cruiseState.available = not bool(ret.accFaulted)
       fp_ret.preapLatOnly = bool(self.decision.lat_only)
       self._enable_request = False
 
@@ -424,7 +438,8 @@ class PreApCarState(CarStateBase):
       self.preap_steer_brake_seen = True
     fp_ret.preapSteerLatch = bool(self.preap_steer_armed and self.preap_steer_brake_seen)
     fp_ret.preapFsmMode = int(self.decision.mode)
-    fp_ret.preapSpeedBlocked = bool(self.decision.speed_blocked or self.decision.standstill_refused or self.decision.cc_not_armed)
+    fp_ret.preapSpeedBlocked = bool(self.decision.speed_blocked or self.decision.standstill_refused or self.decision.cc_not_armed
+                                    or self.decision.long_not_ready)
     # Stock cruise: while the panda waits for a fresh pull it keeps controls off, so stock TACC coming on without that pull must not
     # engage openpilot. blockPcmEnable stops only the pcmEnable rising edge (selfdrive/car/car_events.py); cruiseState.enabled, pcmDisable
     # and every disengage path are unchanged, and no alert is added. NAP gets the same result by setting cruiseState.enabled only from a
@@ -489,6 +504,15 @@ class PreApCarState(CarStateBase):
     di_torque1 = cp.vl["DI_torque1"]
     fp_ret.ap1MotorTorqueNm = float(di_torque1["DI_torqueMotor"])
     fp_ret.ap1MotorRpm = float(di_torque1["DI_motorRPM"])
+    # Trim detection (display / comfort only): single motor, no 0x186 front motor; the rear rpm per m/s is learned live.
+    self.drive_detect.update(ret.vEgoRaw, fp_ret.ap1MotorRpm)
+    fp_ret.ap1FrontMotorTorqueNm = float("nan")
+    fp_ret.ap1FrontMotorRpm = float("nan")
+    fp_ret.ap1DriveLayout = int(self.drive_detect.layout)
+    fp_ret.ap1PerfRear = int(self.drive_detect.perf)
+    fp_ret.ap1RearRpmPerMs = float(self.drive_detect.rear_k)
+    fp_ret.ap1FrontRpmPerMs = float("nan")
+    fp_ret.ap1RpmPerMsMeasured = bool(self.drive_detect.measured)
     fp_ret.preapPedalUnavailable = bool(self.pedal_unavailable)
     # EPAS not taking angle commands (raw, every frame): INHIBITED, AVAILABLE or SNA. FAULT is left out (eac_fault, its own fault
     # path). ap1_events.py debounces it into preapEpasNotSteering only while lateral is wanted and the driver is not steering.

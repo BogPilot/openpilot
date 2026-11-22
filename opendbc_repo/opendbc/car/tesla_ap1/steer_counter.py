@@ -81,6 +81,12 @@ class Ap1SteerCounterSync:
     self.last_counter = int(counter) % COUNTER_MOD
     self.last_commit_frame = frame
 
+  def forget(self):
+    """Drop openpilot's last counter (steer_resync.py, after a stall): the next frame is stock + COUNTER_LEAD with no
+    push from a counter the EPAS saw before the stock frames the panda forwarded in between."""
+    self.last_counter = None
+    self.last_commit_frame = None
+
   def _owned(self, frame):
     if self.last_counter is None:
       return False

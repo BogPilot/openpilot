@@ -89,13 +89,23 @@ class TestSpeedLimitView(unittest.TestCase):
     self.assertEqual((v.limit, v.offset, v.source), ("65", "", "dashboard"))
 
   def test_real_slc_plan_wins_with_badge(self):
-    v = SL.speed_limit_view(ON, 60 / MPH, plan(slc_speed_limit=65 / MPH, slc_speed_limit_offset=5 / MPH), MPH)
+    on = SL.LimitPolicy(show_speed_limits=True, speed_limit_controller=True, show_speed_limit_offset=True)
+    v = SL.speed_limit_view(on, 60 / MPH, plan(slc_speed_limit=65 / MPH, slc_speed_limit_offset=5 / MPH), MPH)
     self.assertEqual((v.limit, v.offset, v.source), ("65", "+5", "slc"))
-    self.assertAlmostEqual(v.color_limit, 70, places=3)                   # ShowSLCOffset off: offset in the comparison
+    self.assertAlmostEqual(v.color_limit, 70, places=3)                   # colour compares against limit + offset
     v = SL.speed_limit_view(SL.LimitPolicy(show_speed_limits=True, show_speed_limit_offset=True), 0,
                             plan(slc_speed_limit=65 / MPH, slc_speed_limit_offset=-5 / MPH), MPH)
     self.assertEqual(v.offset, "-5")
-    self.assertAlmostEqual(v.color_limit, 65, places=3)
+    self.assertAlmostEqual(v.color_limit, 60, places=3)
+
+  def test_offset_badge_follows_the_show_offset_setting(self):
+    p = plan(slc_speed_limit=65 / MPH, slc_speed_limit_offset=5 / MPH)
+    off = SL.speed_limit_view(ON, 60 / MPH, p, MPH)                       # ShowSLCOffset off: no badge, same sign and colour
+    on = SL.speed_limit_view(SL.LimitPolicy(show_speed_limits=True, speed_limit_controller=True, show_speed_limit_offset=True),
+                             60 / MPH, p, MPH)
+    self.assertEqual((off.limit, off.offset, off.limit_opacity), ("65", "", 1.0))
+    self.assertEqual((on.limit, on.offset, on.limit_opacity), ("65", "+5", 1.0))
+    self.assertAlmostEqual(off.color_limit, on.color_limit, places=6)
 
   def test_override_and_no_limit(self):
     v = SL.speed_limit_view(ON, 0, plan(slc_speed_limit=65 / MPH, slc_overridden_speed=72 / MPH, slc_speed_limit_offset=5 / MPH), MPH)
@@ -376,8 +386,8 @@ class TestSteeringArc(unittest.TestCase):
       self.assertEqual(ARC.human_size_t(a), ARC.human_size_t(-a))
 
   def test_human_arc_size_small_then_grows_to_max_at_lock(self):
-    S = ARC.HUMAN_ORANGE_START_DEG
-    for a in (0, 50, S):
+    S = ARC.HUMAN_GROW_START_DEG
+    for a in (0, 50, 87.9, S, -S):
       g = self._geo(a)
       self.assertAlmostEqual(g["thickness"], ARC.THICKNESS_LO)
       self.assertAlmostEqual(g["cy"] - g["radius"], ARC.VIEW_H - ARC.OFFSET_LO)
@@ -390,6 +400,25 @@ class TestSteeringArc(unittest.TestCase):
     self.assertAlmostEqual(g["thickness"], ARC.THICKNESS_HI)
     self.assertAlmostEqual(g["cy"] - g["radius"], ARC.VIEW_H - ARC.OFFSET_HI)
     self.assertAlmostEqual(self._geo(ARC.LOCK_DEG + 40)["thickness"], ARC.THICKNESS_HI)
+
+  def test_human_arc_grows_from_88_degrees(self):
+    # The driver arc stays small and blue below 88 deg and starts growing at 88 deg (was 120)
+    self.assertEqual(ARC.HUMAN_GROW_START_DEG, 88.0)
+    self.assertEqual((ARC.HUMAN_MARKER_DEG, ARC.HUMAN_FADE_BAND_DEG, ARC.LOCK_DEG), (260.0, 20.0, 430.0))   # unchanged
+    self.assertEqual(ARC.human_size_t(0), 0.0)
+    self.assertEqual(ARC.human_size_t(87.99), 0.0)
+    self.assertEqual(ARC.human_size_t(88.0), 0.0)
+    self.assertGreater(ARC.human_size_t(88.5), 0.0)
+    self.assertAlmostEqual(ARC.human_size_t(120.0), 32.0 / 342.0)
+    self.assertAlmostEqual(ARC.human_size_t(-259.0), 171.0 / 342.0)
+    self.assertEqual(ARC.human_size_t(430.0), 1.0)
+    self.assertLess(self._geo(87.0)["thickness"] + 1e-9, self._geo(100.0)["thickness"])
+    # colour does not move with it: still blue from 88 deg up to the fade start (240), then through yellow to orange at 260
+    blue = (90, 205, 255)
+    self.assertEqual(ARC.human_fade_start_deg(), 240.0)
+    for a in (88.0, 100.0, 120.0, 200.0, 240.0):
+      self.assertEqual(tuple(round(c) for c in ARC.human_angle_color(a)), blue, a)
+    self.assertEqual(tuple(ARC.human_angle_color(250.0)), ARC.HUMAN_FADE_YELLOW)
 
   def test_human_size_ignores_fill_length_and_commanded_path_unchanged(self):
     # fill length (torque) does not change the driver arc size; the openpilot (non-human) size still follows torque

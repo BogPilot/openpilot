@@ -41,14 +41,16 @@ class CAR(Platforms):
     [CarDocs("Tesla Model S (Pre-Autopilot) 2012-14", "Pre-Autopilot", support_type=SupportType.COMMUNITY, support_link="#community")],
     CarSpecs(wheelbase=2.959, steerRatio=15.0),
   )
-  # Real Model X specs: wheelbase 2.965 m (the Model S is 2.959). steerRatio 15 is the Model S value, kept until a real X drive
-  # gives a measured one. Curb mass for AP1-era 75D/90D is 2400 kg per Tesla's published Model X specifications (75D 2387 kg),
+  # Real Model X specs: wheelbase 2.965 m (the Model S is 2.959). steerRatio 16.8 is measured on a real AP1 Model X drive
+  # (26 min, lateral engaged): paramsd learned 16.66-16.98 (median 16.78) with tire stiffness 0.99, and a steady-turn fit
+  # of wheel angle against yaw rate gave 16.4-17.1. It is only paramsd's starting value; the panda and host lateral-accel
+  # bounds keep the Model S numbers. Curb mass for AP1-era 75D/90D is 2400 kg per Tesla's published Model X specifications (75D 2387 kg),
   # plus the standard openpilot cargo allowance (136 kg) = 2536 kg. CarSpecs in 0.11.2 has no mass field and the vehicle model
   # works per unit mass, so nothing reads the mass: it is recorded here only. Tinkla's 2560 + 136 kg is a TODO value, not used.
   # centerToFront is 0.5 * wheelbase via the CarSpecs default centerToFrontRatio.
   TESLA_AP1_MODELX = TeslaAp1PlatformConfig(
     [CarDocs("Tesla Model X (Autopilot 1) 2016", "Autopilot", support_type=SupportType.COMMUNITY, support_link="#community")],
-    CarSpecs(wheelbase=2.965, steerRatio=15.0),
+    CarSpecs(wheelbase=2.965, steerRatio=16.8),
   )
 
 
@@ -126,6 +128,13 @@ class TeslaAp1SafetyFlags(IntFlag):
   # (opendbc cc39c7fa values.py FLAG_RADAR_BEHIND_NOSECONE / FLAG_RADAR_EMULATION).
   PREAP_RADAR_BEHIND_NOSECONE = 128
   PREAP_RADAR_EMULATION = 256
+
+
+class TeslaAp1Flags(IntFlag):
+  # CarParams.flags (not safety). PREAP_NO_PEDAL: pedal longitudinal was wanted (DisableOpenpilotLongitudinal off) but no Comma
+  # Pedal (GAS_SENSOR 0x552) was on the bus at car start, so this drive runs the no-pedal mode: steering only on a pull, stock
+  # cruise on the second pull. selfdrived uses it to say so.
+  PREAP_NO_PEDAL = 1
 
 
 # Chassis-only recognition is insufficient: Pre-AP shares these messages.

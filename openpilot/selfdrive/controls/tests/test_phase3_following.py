@@ -118,7 +118,9 @@ def test_profile_off_uses_defaults_and_tuning_levels():
   assert t.relaxed_follow == 2.2                         # level 2 honoured
   assert t.relaxed_jerk[0] == 1.0                        # Jerk rows are level 3 -> default at level 2
   s.put("TuningLevel", 1)
-  assert F.FollowingToggles.read(s, CP()).custom_personalities is False   # level < 2 -> default "0"
+  assert F.FollowingToggles.read(s, CP()).relaxed_follow == 2.0          # level < 2 -> registry default 2.0
+  s.put("CustomPersonalities", False)
+  assert F.FollowingToggles.read(s, CP()).custom_personalities is True    # level < 2 -> default "1": on at every Tuning Level
 
 
 def test_no_openpilot_longitudinal_disables_everything():
@@ -358,7 +360,7 @@ def test_ui_visibility_and_guards():
   assert ed.label("RelaxedFollow") == "2.00"   # pill shows the number only; the unit stays in the hint
   s.put("RelaxedFollow", 1.0)
   assert ed.label("RelaxedFollow") == "1.00"
-  assert ed.default_shown("RelaxedFollow") == "1.75 seconds"
+  assert ed.default_shown("RelaxedFollow") == "2.00 seconds"
 
 
 @pytest.mark.usefixtures("adoption_mode")
@@ -372,7 +374,7 @@ def test_ui_write_reaches_consumer():
   fp = F.FollowingPlanner(CP(), store=s)             # next drive
   assert upd(fp, personality=F.RELAXED).t_follow == pytest.approx(2.2)
   assert ed.reset("Relaxed")
-  assert upd(F.FollowingPlanner(CP(), store=s), personality=F.RELAXED).t_follow == pytest.approx(1.75)
+  assert upd(F.FollowingPlanner(CP(), store=s), personality=F.RELAXED).t_follow == pytest.approx(2.0)   # Reset to Defaults: 2.0
   assert ed.write("LeadDetectionThreshold", 30)
   assert F.lead_detection_threshold(F.FollowingToggles.read(s, CP())) == pytest.approx(0.30)
 

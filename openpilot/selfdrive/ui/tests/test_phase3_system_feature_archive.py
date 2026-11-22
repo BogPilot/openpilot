@@ -39,7 +39,7 @@ class FeatureArchiveTests(unittest.TestCase):
                                   specs=self.specs, defaults=lambda:{'Fahrenheit':'0','ScreenTimeout':'30','NoLogging':'0'})
 
   def test_full_frozen_scope_not_generic_secret_dump(self):
-    self.assertEqual(len(f.FEATURE_SPECS),267)   # + TeslaPreApAutoSpeed, + AdaptiveAccelLead, + CSCMapCurvature, + MapdV2, + CSCTeslaSmoothing, + AP1XOpenpilotLong
+    self.assertEqual(len(f.FEATURE_SPECS),268)   # + TeslaPreApFromStopSpeed, + TeslaPreApAutoSpeed, + AdaptiveAccelLead, + CSCMapCurvature, + MapdV2, + CSCTeslaSmoothing, + AP1XOpenpilotLong
     self.assertFalse(set(f.FEATURE_SPECS)&set(f.PROTECTED_EXCLUSIONS))
     for key in ('SshEnabled','CarParams','CalibrationParams','SecOCKey','DongleId','ForceFingerprint','AlwaysOnDM','RemoteUIStream'):
       self.assertNotIn(key,f.FEATURE_SPECS)

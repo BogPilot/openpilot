@@ -141,7 +141,8 @@ def test_setting_mapping(monkeypatch):
   assert comfort_regen_enabled(NS(carFingerprint="TESLA_PREAP_MODELS", openpilotLongitudinalControl=True))
   assert not comfort_regen_enabled(NS(carFingerprint="TESLA_AP1_MODELS", openpilotLongitudinalControl=False))
   assert not comfort_regen_enabled(NS(carFingerprint="TESLA_MODEL_3", openpilotLongitudinalControl=True))
-  assert not comfort_regen_enabled(NS(carFingerprint="TESLA_AP1_MODELX", openpilotLongitudinalControl=True))
+  assert comfort_regen_enabled(NS(carFingerprint="TESLA_AP1_MODELX", openpilotLongitudinalControl=True))
+  assert not comfort_regen_enabled(NS(carFingerprint="TESLA_AP1_MODELX", openpilotLongitudinalControl=False))
   monkeypatch.setattr(rb, "_read_regen_comfort_file", lambda: "0")
   assert not comfort_regen_enabled(NS(carFingerprint="TESLA_AP1_MODELS", openpilotLongitudinalControl=True))
   # v1 gap widening is retired in both states

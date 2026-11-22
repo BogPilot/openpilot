@@ -262,6 +262,28 @@ def pedal_retrying_alert(CP: car.CarParams, CS: car.CarState, sm: messaging.SubM
                AlertStatus.userPrompt, AlertSize.mid, Priority.MID, VisualAlert.none, AudibleAlert.none, .2)
 
 
+def preap_speed_blocked_alert(CP: car.CarParams, CS: car.CarState, sm: messaging.SubMaster, metric: bool, soft_disable_time: int, personality) -> Alert:
+  # Pre-AP pedal: a heard but uncalibrated pedal refuses speed control on every double pull, so "retry" would not help.
+  bp = getattr(CS, "bogpilot", None)
+  uncalibrated = bool(getattr(bp, "preapPedalDetected", False)) and not bool(getattr(bp, "preapPedalCalibrated", False))
+  detail = "Steering only. Calibrate the pedal while parked" if uncalibrated else "Steering only. Double pull to retry"
+  return Alert("Speed control off", detail, AlertStatus.normal, AlertSize.mid, Priority.LOW, VisualAlert.none, AudibleAlert.prompt, 3.)
+
+
+PREAP_NO_PEDAL_FLAG = 1   # opendbc tesla_ap1/values.py TeslaAp1Flags.PREAP_NO_PEDAL (CarParams.flags)
+
+
+def preap_no_pedal(CP: car.CarParams) -> bool:
+  return CP.brand == "tesla_ap1" and bool(int(CP.flags) & PREAP_NO_PEDAL_FLAG)
+
+
+def preap_steer_only_alert(CP: car.CarParams, CS: car.CarState, sm: messaging.SubMaster, metric: bool, soft_disable_time: int, personality) -> Alert:
+  # Pre-AP with no Comma Pedal at car start: the drive runs the no-pedal mode, so say why speed control is the stock cruise.
+  if preap_no_pedal(CP):
+    return NormalPermanentAlert("Steering only: no Comma Pedal found", "Double pull for stock cruise")
+  return NormalPermanentAlert("Steering only", "Double pull for speed control")
+
+
 def startup_master_alert(CP: car.CarParams, CS: car.CarState, sm: messaging.SubMaster, metric: bool, soft_disable_time: int, personality) -> Alert:
   branch = get_short_branch()  # Ensure get_short_branch is cached to avoid lags on startup
   if "REPLAY" in os.environ:
@@ -1007,7 +1029,7 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
 
   # Pre-AP pull FSM (opendbc tesla_ap1/preap/engagement.py). Pre-AP has no brake actuation: no text may suggest the car brakes or holds.
   EventName.preapSteerOnly: {
-    ET.PERMANENT: NormalPermanentAlert("Steering only", "Double pull for speed control"),
+    ET.PERMANENT: preap_steer_only_alert,
   },
 
   # Alert only (selfdrived/preap_regen.py): the plan wants more than 1.2 m/s^2 of decel (fixed, conservative vs ~1.6-1.8 regen)
@@ -1043,11 +1065,7 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   EventName.preapSpeedBlocked: {
-    ET.WARNING: Alert(
-      "Speed control off",
-      "Steering only. Double pull to retry",
-      AlertStatus.normal, AlertSize.mid,
-      Priority.LOW, VisualAlert.none, AudibleAlert.prompt, 3.),
+    ET.WARNING: preap_speed_blocked_alert,
   },
 
   # NAP teslaCCNotArmed parity ("Arm Stock Cruise to Enable Speed Control", NAP selfdrive/selfdrived/events.py:1063-1065 @ e99f4dc75).

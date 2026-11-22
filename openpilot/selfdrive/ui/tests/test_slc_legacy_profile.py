@@ -34,7 +34,7 @@ def expected(car, metric):
     out["SLCOverride"] = "2"
     out.update({k: f"{v:.6f}" for k, v in zip(OFFSETS, offsets(metric))})
   if car == AP1X:
-    out["ShowSLCOffset"] = "0"                             # the X gets the AP1 S profile's SLC keys, this one too
+    out["ShowSLCOffset"] = "1"                             # the X gets the AP1 S profile's SLC keys, this one too (on)
   return out
 
 
@@ -194,8 +194,9 @@ def test_ap1x_section_reset_returns_the_ap1_slc_values(metric):
                                               "SLCPriority3": "Navigation", "SLCLookaheadLower": "5"}
   assert store.vals["ShowSLCOffset"] == "1"
   assert ed.profile_reset_rows(("ShowSLCOffset",)) == ("ShowSLCOffset",)
+  store.vals["ShowSLCOffset"] = "0"                       # a saved off is only changed by the reset
   reset(ed, ("ShowSLCOffset",))
-  assert store.vals["ShowSLCOffset"] == "0"
+  assert store.vals["ShowSLCOffset"] == "1"
   assert store.vals["SLCFallback"] == "0" and "SLCLookaheadHigher" not in store.vals
 
 

@@ -203,12 +203,14 @@ def test_native_params_personality_sync_roundtrip():
 
 
 def test_default_on_uses_097_registry_defaults():
-  """0.9.7 defaults apply from the first drive (HumanFollowing ON, Lead Detection 35 %, CustomPersonalities OFF)."""
+  """Defaults apply from the first drive (HumanFollowing ON, Lead Detection 35 %, Driving Personalities ON with Relaxed 2.0 s:
+  the defaults)."""
   s = native_store()
   assert F.ACTIVATION_POLICY == "default_on"
   t = F.FollowingToggles.read(s, ap1_cp())
   assert t.human_following is True
-  assert t.custom_personalities is False
+  assert t.custom_personalities is True and t.relaxed_follow == pytest.approx(2.0)
+  assert (t.aggressive_follow, t.standard_follow) == (pytest.approx(1.25), pytest.approx(1.45))
   assert F.lead_detection_threshold(t) == pytest.approx(0.35)
   p = LongitudinalPlanner(ap1_cp(), init_v=0.0)
   assert p.following.active is True

@@ -809,4 +809,12 @@ struct BogPilotCarState {
   ap1BrakePedalState @40 :UInt8 = 3;  # AP1 DI_torque2 DI_brakePedalState: 0 OFF, 1 ON (iBooster applied, driver or OP), 2 INVALID, 3 SNA / stale / not AP1. Onroad decel bar colour ONLY
   preapRadarNotReady @41 :Bool;     # Pre-AP pedal: radar not VALID (pending, rejected, starved, frozen, silent): its points are kept out of radard, speed control uses camera leads. Warning only
   preapEpasNotActive @42 :Bool;     # Pre-AP: EPAS_eacStatus is INHIBITED, AVAILABLE or SNA (not ACTIVE, not FAULT). Raw state, no debounce: ap1_events.py raises preapEpasNotSteering after 2 s of it while lateral is wanted. Warning only
+  # Tesla trim detection (tesla_ap1/trims.py DriveDetector), display and comfort layers only. 0x186 front drive inverter.
+  ap1FrontMotorTorqueNm @43 :Float32;  # NaN when no fresh 0x186 frame (single-motor car, or not seen yet)
+  ap1FrontMotorRpm @44 :Float32;       # NaN when no fresh 0x186 frame
+  ap1DriveLayout @45 :UInt8;           # 0 unknown, 1 single motor, 2 dual motor
+  ap1PerfRear @46 :UInt8;              # dual only: 0 unknown, 1 standard rear motor, 2 Performance rear motor
+  ap1RearRpmPerMs @47 :Float32;        # rear motor rpm per m/s (learned this drive, else the seed)
+  ap1FrontRpmPerMs @48 :Float32;       # front motor rpm per m/s; NaN on a single-motor car
+  ap1RpmPerMsMeasured @49 :Bool;       # ap1RearRpmPerMs was learned this drive (not the seed)
 }

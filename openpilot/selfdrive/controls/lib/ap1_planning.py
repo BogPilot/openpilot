@@ -2,10 +2,11 @@
 import math
 import numpy as np
 from opendbc.car.tesla_ap1.regen_aware import (
-  RegenPowerEstimator, RegenStopShaper, regen_aware_enabled, lead_stop_distance, model_stop_distance,
+  RegenPowerEstimator, RegenStopShaper, regen_aware_enabled, regen_car, lead_stop_distance, model_stop_distance,
 )
 
 AP1 = "TESLA_AP1_MODELS"
+AP1_X = "TESLA_AP1_MODELX"
 PREAP = "TESLA_PREAP_MODELS"
 
 # AP1 cruise (set-speed) reaction shaping, used by longitudinal_planner.get_cruise_accel for AP1 only.
@@ -30,6 +31,33 @@ def lead_present(lead):
   return bool(getattr(lead, "present", getattr(lead, "status", False)))
 
 
+def _trim_profile(fingerprint):
+  try:
+    from opendbc.car.tesla_ap1.trims import profile_for
+    return profile_for(fingerprint)
+  except Exception:
+    return None
+
+
+def _finite(x):
+  try:
+    x = float(x)
+  except (TypeError, ValueError):
+    return None
+  return x if math.isfinite(x) else None
+
+
+def drive_inputs(bp):
+  """(front torque Nm, front rpm, rear rpm per m/s, front rpm per m/s) from carState.bogpilot. The front values are None
+  unless the car is a detected dual-motor car with a fresh 0x186 frame; the rpm per m/s are None when not positive."""
+  dual = int(getattr(bp, "ap1DriveLayout", 0) or 0) == 2
+  front_tq = _finite(getattr(bp, "ap1FrontMotorTorqueNm", None)) if dual else None
+  front_rpm = _finite(getattr(bp, "ap1FrontMotorRpm", None)) if dual else None
+  rear_k = _finite(getattr(bp, "ap1RearRpmPerMs", None))
+  front_k = _finite(getattr(bp, "ap1FrontRpmPerMs", None)) if dual else None
+  return (front_tq, front_rpm, rear_k if rear_k and rear_k > 0 else None, front_k if front_k and front_k > 0 else None)
+
+
 class Ap1Planning:
   def __init__(self, CP, dt):
     self.active = CP.carFingerprint == AP1 and CP.openpilotLongitudinalControl
@@ -38,10 +66,16 @@ class Ap1Planning:
     # Stock 2.5 m/s^2 always: the v1 regen gap widening is retired. RegenComfortBrake now drives the add-only comfort
     # layer (comfort_regen.py) after the stock plan, so the MPC lead gap stays exactly stock.
     self.comfort_brake = 2.5
-    self.regen_enabled = self.active and regen_aware_enabled(CP.carFingerprint)
+    # Regen-aware stop shaping: AP1 Model S and AP1 Model X with openpilot longitudinal, each with its own car physics
+    # (regen_aware.MODEL_S / MODEL_X). The set-speed reaction shaping above (self.active) stays Model S only.
+    regen_platform = CP.carFingerprint in (AP1, AP1_X) and CP.openpilotLongitudinalControl
+    self.regen_enabled = bool(regen_platform) and regen_aware_enabled(CP.carFingerprint)
     self.dt = dt
-    self.power = RegenPowerEstimator()
-    self.stop = RegenStopShaper()
+    # Trim profile (opendbc tesla_ap1/trims.py), read once here at planner start: the picked trim's mass (Auto keeps the
+    # base mass), the rpm per m/s seeds and, on a dual-motor car, the front + rear regen. Never fails the planner.
+    car = regen_car(CP.carFingerprint, _trim_profile(CP.carFingerprint) if regen_platform else None)
+    self.power = RegenPowerEstimator(car=car)
+    self.stop = RegenStopShaper(car=car)
 
   def t_follow(self, CS, enabled):
     if not self.stalk_follow_active or not enabled:
@@ -58,7 +92,9 @@ class Ap1Planning:
       self.stop.reset()
       return a_plan
     bp = CS.bogpilot
-    p_kw = self.power.update(CS.vEgo, a_plan, bp.ap1MotorTorqueNm, bp.ap1MotorRpm, bp.ap1AmbientTempC, self.dt)
+    front_tq, front_rpm, rear_k, front_k = drive_inputs(bp)
+    p_kw = self.power.update(CS.vEgo, a_plan, bp.ap1MotorTorqueNm, bp.ap1MotorRpm, bp.ap1AmbientTempC, self.dt,
+                             front_torque_nm=front_tq, front_rpm=front_rpm, rpm_per_ms=rear_k, front_rpm_per_ms=front_k)
     lead = sm['radarState'].leadOne
     distance = lead_stop_distance(lead_present(lead), lead.dRel, lead.vLead, 6.0)
     model = sm['modelV2']

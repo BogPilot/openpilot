@@ -53,6 +53,14 @@ def test_rule_missing_blocks_even_with_the_expected_identity(tmp_path):
     m.check(_tree(tmp_path, rule=False), m.ERR4_PANDA_IDENTITY)
 
 
+def test_code4_only_rule_blocks(tmp_path):
+  """A panda rule with the code 4 exception but not the code 7 one refuses the code 7 requests."""
+  root = _tree(tmp_path)
+  rule = root / m.PANDA_RULE_FILE
+  rule.write_text(rule.read_text().replace("tesla_ap1_epas_rate_req_ready", "x"))
+  with pytest.raises(ValueError, match="tesla_ap1_epas_rate_req_ready"):
+    m.check(root, m.ERR4_PANDA_IDENTITY)
+
 def test_no_recovery_no_requirement(tmp_path):
   assert m.check(_tree(tmp_path, recovery=False, rule=False), "886d9623").startswith("PASS")
 

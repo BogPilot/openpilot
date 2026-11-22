@@ -82,6 +82,12 @@ class PreApParamKeys:
   # Read once when the car starts (card and plannerd). File-backed like the keys above: no libparams key, so a missing file is
   # the default and a saved choice is never overwritten.
   AUTO_SPEED = "TeslaPreApAutoSpeed"
+  # Pre-AP From-Stop Speed. Default OFF: NAP standstill engage. A speed-control engage at a standstill restores the last set of
+  # this drive, else captures the current speed (0) as NAP does (NAP preap/engagement.py:142,243-246 @ e99f4dc75); either way
+  # the car is held at 0 until the accelerator. ON: a standstill engage (pull or tip) sets the driver's from-stop speed (the AP1
+  # Standstill Tap Speed, AP1TapFromZeroMs) instead. Applies with Pre AP Auto Speed OFF only (Auto Speed ON always uses the
+  # from-stop speed from a stop). Pedal longitudinal only. Read once when the car starts (card). File-backed like the keys above.
+  FROM_STOP_SPEED = "TeslaPreApFromStopSpeed"
   # AP1 follow-distance stalk retrofit detected on this car (preap/stalk_retrofit.py). Hidden: no menu row, not a toggle, not in the
   # settings backup or any defaults list. Default 0. The car writes 1 once, when the detector first latches (through the StepCache
   # thread, never file IO in the 100 Hz step); at startup a 1 skips detection and the dial is read from the first frame. Cleared
@@ -119,6 +125,7 @@ DEFAULTS = {
   PreApParamKeys.RADAR_FLIP: False,
   PreApParamKeys.RADAR_OFFSET: 0.0,
   PreApParamKeys.AUTO_SPEED: False,
+  PreApParamKeys.FROM_STOP_SPEED: False,
   PreApParamKeys.STALK_RETROFIT_DETECTED: False,
 }
 
@@ -433,6 +440,14 @@ def preap_auto_speed() -> bool:
   """Pre AP Auto Speed (default OFF). Any read problem reads as OFF (NAP-style engage at the current speed)."""
   try:
     return bool(get_bool(PreApParamKeys.AUTO_SPEED))
+  except Exception:
+    return False
+
+
+def preap_from_stop_speed() -> bool:
+  """Pre-AP From-Stop Speed (default OFF = NAP standstill engage). Any read problem reads as OFF."""
+  try:
+    return bool(get_bool(PreApParamKeys.FROM_STOP_SPEED))
   except Exception:
     return False
 

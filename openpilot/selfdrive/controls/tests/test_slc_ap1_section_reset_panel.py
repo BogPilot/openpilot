@@ -32,14 +32,15 @@ def test_ap1_s_panel_resets_to_the_ap1_profile(store, monkeypatch):
   offset_reset.callback()
   store.invalidate()
   assert [store.get_int(f"Offset{i}") for i in range(1, 8)] == [4, 5, 5, 5, 7, 8, 10]
-  # Visual Settings: one reset row on AP1 S, for Show Speed Limit Offset (profile: off)
+  # Visual Settings: one reset row on AP1 S, for Show Speed Limit Offset (profile: on)
   assert page.navigation_back() is True
   [i for i in rows(panel) if i.title == "Visual Settings"][0].callback()
   assert store.get_bool("ShowSLCOffset") is True                    # registry default on
+  store.put("ShowSLCOffset", "0", block=True)                      # a saved off is only changed by the reset
   (visual_reset,) = reset_rows(panel)
   visual_reset.callback()
   store.invalidate()
-  assert store.get_bool("ShowSLCOffset") is False
+  assert store.get_bool("ShowSLCOffset") is True
   assert len(asked) == 3
   # Quality of Life has no row the profile writes: still no reset
   assert page.navigation_back() is True

@@ -85,6 +85,9 @@ static std::map<std::string, service> services = {
   { "bogpilotPlan", {"bogpilotPlan", true, 20.000000, 5, 256000}},
   { "bogpilotRadarState", {"bogpilotRadarState", true, 20.000000, 5, 256000}},
   { "customReservedRawData0", {"customReservedRawData0", true, 0.000000, -1, 256000}},
+  { "mapdOut", {"mapdOut", true, 20.000000, 20, 2097152}},
+  { "mapdExtendedOut", {"mapdExtendedOut", false, 1.000000, -1, 2097152}},
+  { "mapdIn", {"mapdIn", false, 0.000000, -1, 2097152}},
 };
 #endif
 

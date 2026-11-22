@@ -118,16 +118,35 @@ def test_model_s_captures_do_not_move():
     assert detect_ap1_candidate(fp, []) == S
 
 
-def test_params_from_real_capture_are_lateral_only():
+@pytest.fixture
+def x_long(tmp_path, monkeypatch):
+  """AP1XOpenpilotLong in a temp file (default on; write "0" for the user's Off / stock TACC)."""
+  from opendbc.car.tesla_ap1 import toggles
+  path = tmp_path / "AP1XOpenpilotLong"
+  monkeypatch.setattr(toggles, "_ap1x_op_long_path", path)
+  return path
+
+
+def test_params_from_real_capture_default_to_openpilot_long(x_long):
+  cp = CarInterface.get_params(X, _fp(), [_eps()], False, False, False)
+  assert cp.openpilotLongitudinalControl is True and cp.safetyConfigs[0].safetyParam == 8 | 1   # AP1 + LONG_CONTROL
+  assert cp.dashcamOnly is False
+
+
+def test_params_from_real_capture_are_lateral_only(x_long):
+  x_long.write_text("0")                                  # the user's Off: stock TACC, steering only
   cp = CarInterface.get_params(X, _fp(), [_eps()], False, False, False)
   assert cp.brand == "tesla_ap1"
   assert cp.dashcamOnly is False
   assert cp.steerControlType == structs.CarParams.SteerControlType.angle
   assert str(cp.safetyConfigs[0].safetyModel) == "tesla"
   assert cp.safetyConfigs[0].safetyParam == 8
-  # No engaged drive exists for this car, so openpilot longitudinal stays off.
   assert cp.openpilotLongitudinalControl is False
   assert flags_for_candidate(X, _fp()) == (8,)
+
+
+# 0x208 GTW_ESP1 is 4 bytes on the X (8 in the DBC). Only GTW_ambientTemperature (byte 1) is read.
+SHORT_LIVE_FRAMES_OK = {0x208: 4}
 
 
 def _parser_messages(parser):
@@ -140,6 +159,11 @@ def test_carstate_messages_exist_at_the_live_length_and_rate():
   for bus, live, hz in ((Bus.chassis, OBSERVED_AP1_MODELX_BUS0, BUS0_HZ), (Bus.cam, BUS2, BUS2_HZ)):
     for addr, state in _parser_messages(parsers[bus]).items():
       assert addr in live, (state.name, hex(addr))
+      if addr in SHORT_LIVE_FRAMES_OK:
+        # The X sends this frame shorter than the DBC; every signal we read must sit inside the live bytes.
+        assert live[addr] == SHORT_LIVE_FRAMES_OK[addr] < state.size, (state.name, hex(addr), live[addr], state.size)
+        assert all(max(sig.start_bit, sig.msb) // 8 < live[addr] for sig in state.signals), (state.name, hex(addr))
+        continue
       assert live[addr] == state.size, (state.name, hex(addr), live[addr], state.size)
       if state.frequency > 0 and addr in hz:
         assert hz[addr] >= min(state.frequency, 25), (state.name, hex(addr), hz[addr], state.frequency)
@@ -230,7 +254,8 @@ def _get_car(monkeypatch, fingerprints, car_fw):
   return car_helpers.get_car(lambda: [], lambda msgs: None, lambda x: None, False, False)
 
 
-def test_get_car_selects_model_x_from_the_real_capture(monkeypatch):
+def test_get_car_selects_model_x_from_the_real_capture(monkeypatch, x_long):
+  x_long.write_text("0")
   car = _get_car(monkeypatch, _fp(), [_eps()])
   assert car.CP.carFingerprint == X
   assert car.CP.openpilotLongitudinalControl is False

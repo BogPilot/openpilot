@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Package-time check: the AP1 EPAS code 4 recovery ships only with the panda rule that allows it.
+"""Package-time check: the AP1 EPAS code 4 / code 7 recovery ships only with the panda rule that allows it.
 
 The car-side recovery (opendbc/car/tesla_ap1/epas_gate.py, EpasTmpFaultRecovery) sends ANGLE frames while the EPAS
-reports a latched EAC_ERROR_TMP_FAULT (4). A panda without the matching AP1 rule refuses those frames, and once no
+reports a latched EAC_ERROR_TMP_FAULT (4), or a latched EAC_ERROR_HIGH_ANGLE_RATE_REQ (7) while AVAILABLE. A panda
+without the matching AP1 rule (both codes) refuses those frames, and once no
 ANGLE frame has been accepted for 100 ms it forwards the stock DAS 0x488 again. So a build that has the recovery
 must have the panda firmware source with that rule: the reviewed identity below (source_sha256[:8] of
 panda/build_identity.py's inventory) and the rule itself in tesla_ap1.h. Change ERR4_PANDA_IDENTITY only together
@@ -15,11 +16,11 @@ import json
 from pathlib import Path
 import sys
 
-ERR4_PANDA_IDENTITY = "85ce0ac7"
+ERR4_PANDA_IDENTITY = "26e9875d"
 RECOVERY_FILE = "opendbc_repo/opendbc/car/tesla_ap1/epas_gate.py"
 RECOVERY_MARKER = "class EpasTmpFaultRecovery"
 PANDA_RULE_FILE = "opendbc_repo/opendbc/safety/modes/tesla_ap1.h"
-PANDA_RULE_MARKERS = ("tesla_ap1_epas_tmp_fault_ready", "tesla_ap1_rx_all_hook")
+PANDA_RULE_MARKERS = ("tesla_ap1_epas_tmp_fault_ready", "tesla_ap1_epas_rate_req_ready", "tesla_ap1_rx_all_hook")
 
 
 def recovery_present(root: Path) -> bool:

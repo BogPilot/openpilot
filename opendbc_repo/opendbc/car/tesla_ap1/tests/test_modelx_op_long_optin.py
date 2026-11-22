@@ -1,4 +1,5 @@
-"""AP1 Model X openpilot longitudinal opt-in (AP1XOpenpilotLong): default off, both layers together, S and others unchanged."""
+"""AP1 Model X openpilot longitudinal (AP1XOpenpilotLong): default on for a detected X, an explicit Off keeps stock TACC, both
+layers together, S and others unchanged."""
 import tomllib
 from pathlib import Path
 
@@ -39,18 +40,31 @@ def _x(fp=None):
   return CarInterface.get_params(X, _fp() if fp is None else fp, [], False, False, False)
 
 
-def test_default_is_off_and_lateral_only():
-  cp = _x()
-  assert cp.openpilotLongitudinalControl is False
-  assert cp.safetyConfigs[0].safetyParam == AP1_FLAG
-  assert toggles.ap1x_op_long(X) is False
+def test_default_is_on_with_both_layers():
+  cp = _x()                                                         # no file: default on
+  assert cp.openpilotLongitudinalControl is True
+  assert cp.safetyConfigs[0].safetyParam == AP1_FLAG | LONG_FLAG
+  assert toggles.ap1x_op_long(X) is True
+  assert toggles.AP1X_OP_LONG_DEFAULT is True
 
 
-@pytest.mark.parametrize("text", ["", "0", "false", "off", "2", "yes", "garbage", " \n"])
-def test_only_explicit_on_enables(_files, text):
+@pytest.mark.parametrize("text", ["0", "false", "off", "OFF", "0\n", " off "])
+def test_explicit_off_keeps_stock_tacc_lateral_only(_files, text):
   _opt_in(_files, text)
   cp = _x()
   assert cp.openpilotLongitudinalControl is False and cp.safetyConfigs[0].safetyParam == AP1_FLAG
+
+
+@pytest.mark.parametrize("text", ["", "2", "yes", "garbage", " \n"])
+def test_anything_but_off_is_the_default_on(_files, text):
+  _opt_in(_files, text)
+  cp = _x()
+  assert cp.openpilotLongitudinalControl is True and cp.safetyConfigs[0].safetyParam == AP1_FLAG | LONG_FLAG
+
+
+@pytest.mark.parametrize("fp", [S, CAR.TESLA_PREAP_MODELS, "TESLA_MODEL_Y", "", None])
+def test_never_on_for_any_other_car(fp):
+  assert toggles.ap1x_op_long(fp) is False and toggles.ap1x_op_long(fp, stored="1") is False
 
 
 @pytest.mark.parametrize("text", ["1", "true", "on", "ON", "1\n"])
@@ -127,7 +141,7 @@ def test_setter_round_trip(_files):
 
 
 def test_x_specs_and_own_torque_row():
-  assert X.config.specs.wheelbase == pytest.approx(2.965) and X.config.specs.steerRatio == pytest.approx(15.0)
+  assert X.config.specs.wheelbase == pytest.approx(2.965) and X.config.specs.steerRatio == pytest.approx(16.8)
   override = tomllib.loads((TORQUE_DIR / "override.toml").read_text())
   substitute = tomllib.loads((TORQUE_DIR / "substitute.toml").read_text())
   assert "TESLA_AP1_MODELX" in override and "TESLA_AP1_MODELX" not in substitute          # its own row, not the Model 3 substitution
@@ -135,10 +149,12 @@ def test_x_specs_and_own_torque_row():
   assert substitute["TESLA_AP1_MODELS"] == "TESLA_MODEL_3"                                 # Model S untouched
 
 
-def test_comfort_regen_v2_still_excludes_model_x_even_with_long_on(_files):
+def test_comfort_regen_v2_model_x_default_on_and_saved_value_kept(_files):
+  # The preference is default on for the X (the consumer, comfort_regen.py, also needs X openpilot long).
   from opendbc.car.tesla_ap1 import regen_brake
   _opt_in(_files)
-  assert regen_brake.regen_comfort_brake_enabled(X) is False
-  assert regen_brake.regen_comfort_brake_enabled(X, stored="1") is False
+  assert regen_brake.regen_comfort_brake_enabled(X, stored="") is True
+  assert regen_brake.regen_comfort_brake_enabled(X, stored="1") is True
+  assert regen_brake.regen_comfort_brake_enabled(X, stored="0") is False
   assert regen_brake.regen_comfort_brake_enabled(S, stored="1") is True
   assert regen_brake.regen_comfort_brake_enabled(CAR.TESLA_PREAP_MODELS, stored="1") is True

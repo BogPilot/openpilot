@@ -17,9 +17,14 @@ SPD_CTRL_CANCEL = 1  # FWD — push away
 SPD_CTRL_MAIN = 2    # RWD — pull toward driver (engage)
 
 
-def pedal_cruise_available(*, detected: bool, calibrated: bool, faulted: bool = False) -> bool:
-  """True when pedal long may show cruise available (not stock DI-armed)."""
-  return bool(detected and calibrated and not faulted)
+def pedal_cruise_available(*, detected: bool, faulted: bool = False) -> bool:
+  """True when pedal long may show cruise available (not stock DI-armed): the pedal is heard and the DI is not faulted.
+
+  Calibration is not an input. A pull engages steering only, which never uses the pedal; speed control needs a calibrated
+  pedal and is gated by the pull FSM (long_allowed), the CarController (pedal_long_allowed) and the panda. Requiring it here
+  made an uncalibrated pedal block every engage with wrongCarMode ("Enable Adaptive Cruise to Engage").
+  """
+  return bool(detected and not faulted)
 
 
 def remap_preap_pedal_button_type(event_type):

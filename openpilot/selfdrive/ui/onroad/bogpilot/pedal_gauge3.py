@@ -29,6 +29,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 
+from opendbc.car.tesla_ap1.trims import DUAL_REGEN_PEAK_KW, chassis_of as _chassis_of
+
 DRIVER, OP = "driver", "op"
 BRAKE, REGEN, ACCEL = "brake", "regen", "accel"
 
@@ -83,7 +85,11 @@ ACCEL_LOG_P0_KW = 10.0
 # Regen shaft power (0x108 torque x rpm) tops out near 41 kW on this car's drives (p99.9 about 35 kW), torque-limited below about
 # 4000 rpm and power-limited above. 42 kW is the full-bar point; the CENTER bar is linear in kW (like the Tesla energy graph).
 REGEN_PEAK_KW_AP1_S = 42.0            # regen: calibrated peak regen shaft power per model
-REGEN_PEAK_KW_AP1_X = 42.0
+# Dual-motor cars (trim profiles, opendbc tesla_ap1/trims.py): the CENTER bar sums the front motor (0x186) and the rear motor
+# (0x108), and the full bar is the measured front + rear peak of that chassis (trims.DUAL_REGEN_PEAK_KW: Model S 53.1 kW,
+# Model X 71.6 kW). This supersedes the rear-only 49 kW the AP1 Model X used. A single-motor car (no 0x186) keeps the
+# per-platform value below, unchanged. The X is always dual motor; its entry is the front + rear value.
+REGEN_PEAK_KW_AP1_X = DUAL_REGEN_PEAK_KW["X"]
 REGEN_PEAK_KW_PREAP = 42.0
 REGEN_PEAK_KW_DEFAULT = 42.0
 REGEN_PEAK_KW = {
@@ -183,7 +189,11 @@ def regen_fill(regen_kw, full_scale_kw: float = REGEN_FULLSCALE_KW_DEFAULT, dead
   return clamp(kw / fs, 0.0, 1.0)
 
 
-def regen_peak_kw(fingerprint) -> float:
+def regen_peak_kw(fingerprint, dual: bool = False) -> float:
+  """Full-bar regen kW: the chassis' front + rear peak on a dual-motor car (dual=True), else the per-platform value."""
+  chassis = _chassis_of(fingerprint)
+  if dual and chassis in DUAL_REGEN_PEAK_KW:
+    return DUAL_REGEN_PEAK_KW[chassis]
   return REGEN_PEAK_KW.get(str(fingerprint or ""), REGEN_PEAK_KW_DEFAULT)
 
 
@@ -218,31 +228,67 @@ def regen_power_kw(torque_nm, rpm) -> float | None:
   return max(0.0, -tq) * abs(n) * math.pi / 30000.0
 
 
-def accel_power_fill(torque_nm, rpm) -> float | None:
-  """Log drive-power fill, or None when rpm / torque is missing (the caller then uses the torque fill)."""
-  kw = drive_power_kw(torque_nm, rpm)
+def _sum_power(fn, torque_nm, rpm, front_torque_nm=None, front_rpm=None) -> float | None:
+  """Sum of a per-motor power (torque x that motor's own rpm) over the motors given. torque None = that motor left out (dead
+  or missing); a motor given with a missing rpm makes the sum unknown (None, the caller then uses the torque fill)."""
+  parts = [(t, n) for (t, n) in ((torque_nm, rpm), (front_torque_nm, front_rpm)) if t is not None]
+  if not parts:
+    return None
+  kws = [fn(t, n) for (t, n) in parts]
+  return None if any(k is None for k in kws) else sum(kws)
+
+
+def accel_power_fill(torque_nm, rpm, front_torque_nm=None, front_rpm=None) -> float | None:
+  """Log drive-power fill, or None when rpm / torque is missing (the caller then uses the torque fill). On a dual-motor car
+  (fresh 0x186) the front motor's drive power is added: P = Tr x wr + Tf x wf."""
+  kw = _sum_power(drive_power_kw, torque_nm, rpm, front_torque_nm, front_rpm)
   return None if kw is None else log_power_fill(kw, ACCEL_FULLSCALE_KW, ACCEL_LOG_P0_KW)
 
 
-def regen_power_fill(torque_nm, rpm, fingerprint=None) -> float | None:
-  """Log regen-power fill, or None when rpm / torque is missing (the caller then uses the torque fill)."""
-  kw = regen_power_kw(torque_nm, rpm)
+def regen_power_fill(torque_nm, rpm, fingerprint=None, front_torque_nm=None, front_rpm=None) -> float | None:
+  """Log regen-power fill, or None when rpm / torque is missing (the caller then uses the torque fill). With a front motor
+  (0x186 torque and rpm, dual-motor car) its regen is added (rear None = front only) and the full bar is the combined
+  front + rear peak."""
+  dual = front_torque_nm is not None
+  kw = _sum_power(regen_power_kw, torque_nm, rpm, front_torque_nm, front_rpm)
   if kw is None:
     return None
+  return regen_kw_fill(kw, fingerprint, dual=dual)
+
+
+def regen_kw_fill(kw, fingerprint=None, dual: bool = False) -> float:
+  """0..1 fill for a regen power in kW (>= 0) on the same scale as regen_power_fill."""
+  p = _num(kw)
+  if p is None:
+    return 0.0
+  peak = regen_peak_kw(fingerprint, dual=dual)
   if REGEN_LINEAR:
-    return 0.0 if kw <= POWER_DEADBAND_KW else clamp(kw / regen_peak_kw(fingerprint), 0.0, 1.0)
-  return log_power_fill(kw, regen_peak_kw(fingerprint), REGEN_LOG_P0_KW)
+    return 0.0 if p <= POWER_DEADBAND_KW else clamp(p / peak, 0.0, 1.0)
+  return log_power_fill(p, peak, REGEN_LOG_P0_KW)
 
 
-def speed_from_rpm(rpm) -> float | None:
+def _rpm_per_ms(k) -> float:
+  """Motor rpm per m/s: the live measured value (trim profiles) when valid, else the fixed 9.73 / 0.35 m constants."""
+  v = _num(k)
+  return v if v is not None and v > 0.0 else GEAR_RATIO * 60.0 / (2.0 * math.pi * WHEEL_RADIUS_M)
+
+
+def speed_from_rpm(rpm, rpm_per_ms=None) -> float | None:
   n = motor_rpm_value(rpm)
-  return None if n is None else abs(n) / GEAR_RATIO * 2.0 * math.pi * WHEEL_RADIUS_M / 60.0
+  return None if n is None else abs(n) / _rpm_per_ms(rpm_per_ms)
 
 
-def regen_decel_from_torque(torque_nm) -> float:
-  """Positive decel (m/s^2) the regen torque gives (regen_aware.regen_decel_from_torque)."""
+def regen_decel_from_torque(torque_nm, rpm_per_ms=None, mass_kg=None, front_torque_nm=None, front_rpm_per_ms=None) -> float:
+  """Positive decel (m/s^2) the regen torque gives (regen_aware.regen_decel_from_torque): torque x G / r / mass, with G / r =
+  rpm per m/s x 2 pi / 60, plus the front motor when given."""
+  m = _num(mass_kg)
+  m = m if m is not None and m > 0.0 else MASS_KG
   tq = motor_torque_value(torque_nm)
-  return 0.0 if tq is None else max(0.0, -tq) * GEAR_RATIO / WHEEL_RADIUS_M / MASS_KG
+  force = 0.0 if tq is None else max(0.0, -tq) * _rpm_per_ms(rpm_per_ms) * 2.0 * math.pi / 60.0
+  ftq = motor_torque_value(front_torque_nm)
+  if ftq is not None:
+    force += max(0.0, -ftq) * _rpm_per_ms(front_rpm_per_ms if front_rpm_per_ms is not None else rpm_per_ms) * 2.0 * math.pi / 60.0
+  return force / m
 
 
 class RegenLimitFlash:
@@ -270,15 +316,19 @@ class RegenLimitFlash:
     self.hist = []
     self.t = None
 
-  def update(self, now, long_active, torque_nm, rpm=None, op_accel=0.0, driver_input=False) -> bool:
+  def update(self, now, long_active, torque_nm, rpm=None, op_accel=0.0, driver_input=False, front_torque_nm=None,
+             front_rpm=None, rpm_per_ms=None, front_rpm_per_ms=None, mass_kg=None) -> bool:
+    """front_*: the 0x186 front motor on a dual-motor car (None = single motor, the previous behaviour); rpm_per_ms /
+    mass_kg: the live measured rpm per m/s and the trim mass (None = the fixed constants)."""
     t = _num(now)
     tq = motor_torque_value(torque_nm)
+    ftq = motor_torque_value(front_torque_nm)
     if t is None or not long_active or tq is None or driver_input or (self.t is not None and not 0.0 <= t - self.t <= REGEN_GAP_RESET_S):
       self.reset()
       self.t = t
       return False
     self.t = t
-    regen_nm = max(0.0, -tq)
+    regen_nm = max(0.0, -tq) + (max(0.0, -ftq) if ftq is not None else 0.0)
     self.hist.append((t, regen_nm))
     while self.hist and t - self.hist[0][0] > LIMIT_FLAT_S:
       self.hist.pop(0)
@@ -287,15 +337,18 @@ class RegenLimitFlash:
       frac = regen_nm / REGEN_FULLSCALE_NM
       torque_near = frac >= (REGEN_FLASH_OFF_FRAC if self.near else REGEN_FLASH_ON_FRAC)
     # shortfall rule
-    v = speed_from_rpm(rpm)
+    v = speed_from_rpm(rpm, rpm_per_ms)
     kw = regen_power_kw(tq, rpm)
+    if kw is not None and ftq is not None:
+      kw += regen_power_kw(ftq, front_rpm) or 0.0
     req = _num(op_accel)
     req_decel = -req if req is not None else 0.0
     span = t - self.hist[0][0]
     vals = [h[1] for h in self.hist]
     flat = span >= LIMIT_FLAT_S * 0.8 and max(vals) - min(vals) < LIMIT_FLAT_NM
     shortfall = (v is not None and v > LIMIT_MIN_SPEED_MS and kw is not None and kw >= LIMIT_MIN_REGEN_KW and flat and
-                 req_decel > LIMIT_MIN_REQ_DECEL and req_decel > regen_decel_from_torque(tq) + LIMIT_MARGIN)
+                 req_decel > LIMIT_MIN_REQ_DECEL and
+                 req_decel > regen_decel_from_torque(tq, rpm_per_ms, mass_kg, ftq, front_rpm_per_ms) + LIMIT_MARGIN)
     if shortfall:
       self.limit_since = t if self.limit_since is None else self.limit_since
     else:

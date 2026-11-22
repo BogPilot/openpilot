@@ -375,6 +375,7 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
       motor_tq = None
       motor_rpm = None
       brake_state = None
+      drive = {}
       psm = self._plan_sm()
       try:
         if psm is not None and "bogpilotCarState" in getattr(psm, "data", psm) and psm.valid["bogpilotCarState"] and \
@@ -383,10 +384,13 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
           motor_tq = float(psm["bogpilotCarState"].ap1MotorTorqueNm)      # 0x108 DI_torqueMotor, Nm
           motor_rpm = float(psm["bogpilotCarState"].ap1MotorRpm)          # 0x108 DI_motorRPM
           brake_state = int(psm["bogpilotCarState"].ap1BrakePedalState)   # iBooster applied (AP1), bar colour only
+          # trim profiles: 0x186 front motor (dual-motor cars), live rpm per m/s, trim mass
+          drive = PED.drive_kwargs(psm["bogpilotCarState"], getattr(ui_state.CP, "carFingerprint", "") if ui_state.CP else "")
       except (KeyError, AttributeError, TypeError, ValueError):
         motor_tq = None
         motor_rpm = None
         brake_state = None
+        drive = {}
       long_active = bool(_fresh(sm, "carControl") and sm["carControl"].longActive)
       op_accel = float(sm["carControl"].actuators.accel) if long_active else 0.0
       cp = ui_state.CP
@@ -395,7 +399,7 @@ class BogPilotHudRenderer(ClusterState, HudRenderer):
                                                  brake_pressed=bool(cs.brakePressed), brake_level=cs.deprecated.brake,
                                                  pedal_pos=cs.deprecated.gas, op_accel=op_accel, long_active=long_active,
                                                  motor_torque_nm=motor_tq, motor_rpm=motor_rpm,
-                                                 brake_pedal_state=brake_state, fingerprint=fp)
+                                                 brake_pedal_state=brake_state, fingerprint=fp, **drive)
 
   def user_interacting(self) -> bool:
     return super().user_interacting() or self._bp_arc_btn.is_pressed or self._bp_rec_btn.is_pressed
@@ -620,6 +624,7 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
     else:
       cs = sm["carState"]
       motor_tq = motor_rpm = brake_state = None
+      drive = {}
       psm = self._plan_sm()
       try:
         if psm is not None and "bogpilotCarState" in getattr(psm, "data", psm) and psm.valid["bogpilotCarState"] and \
@@ -628,8 +633,10 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
           bcs = psm["bogpilotCarState"]
           motor_tq, motor_rpm = float(bcs.ap1MotorTorqueNm), float(bcs.ap1MotorRpm)
           brake_state = int(bcs.ap1BrakePedalState)
+          drive = PED.drive_kwargs(bcs, getattr(ui_state.CP, "carFingerprint", "") if ui_state.CP else "")   # trim profiles
       except (KeyError, AttributeError, TypeError, ValueError):
         motor_tq = motor_rpm = brake_state = None
+        drive = {}
       long_active = bool(_fresh(sm, "carControl") and sm["carControl"].longActive)
       cp = ui_state.CP
       fp = getattr(cp, "carFingerprint", "") if cp is not None else ""
@@ -639,7 +646,7 @@ class BogPilotMiciHudRenderer(ClusterState, MiciHudRenderer):
                                                    pedal_pos=cs.deprecated.gas,
                                                    op_accel=float(sm["carControl"].actuators.accel) if long_active else 0.0,
                                                    long_active=long_active, motor_torque_nm=motor_tq, motor_rpm=motor_rpm,
-                                                   brake_pedal_state=brake_state, fingerprint=fp)
+                                                   brake_pedal_state=brake_state, fingerprint=fp, **drive)
 
   def _draw_set_speed(self, rect):
     if not toggles.get("RedesignUI") and not self.bp_c4:

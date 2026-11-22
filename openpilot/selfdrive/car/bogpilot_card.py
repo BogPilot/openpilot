@@ -15,6 +15,8 @@ MIRRORED_FIELDS = (
   "decelPressed", "distancePressed", "distanceLongPressed", "distanceVeryLongPressed", "ecoGear", "forceCoast",
   "pauseLateral", "pauseLongitudinal", "sportGear", "trafficModeEnabled", "resumePressed", "spdCtrlLvr",
   "ap1AmbientTempC", "ap1MotorTorqueNm", "ap1MotorRpm", "ap1BrakePedalState",
+  "ap1FrontMotorTorqueNm", "ap1FrontMotorRpm", "ap1DriveLayout", "ap1PerfRear", "ap1RearRpmPerMs", "ap1FrontRpmPerMs",
+  "ap1RpmPerMsMeasured",
 )
 
 

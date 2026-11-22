@@ -2,6 +2,9 @@
 from pathlib import Path
 
 AP1 = "TESLA_AP1_MODELS"
+AP1_X = "TESLA_AP1_MODELX"
+# The AP1 alert-volume defaults apply to the AP1 Model S and the AP1 Model X (alerts only, no driving effect).
+AP1_VOLUME_PLATFORMS = frozenset({AP1, AP1_X})
 
 
 def read_option(params, key, default=""):
@@ -25,7 +28,7 @@ def apply_ap1_volume_defaults(CP, params, store=None, profile=None):
   Existing user choices belong to the settings/migration code (shipping defaults).
   No legacy mute profile is copied into vehicle/runtime code.
   """
-  if CP.carFingerprint != AP1:
+  if str(CP.carFingerprint) not in AP1_VOLUME_PLATFORMS:
     return []
   if profile is None:
     from openpilot.common.bogpilot_alert_volumes import AP1_VOLUME_PROFILE

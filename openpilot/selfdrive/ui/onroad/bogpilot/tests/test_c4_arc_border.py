@@ -21,12 +21,16 @@ def state(**kw):
 
 class TestGeometry(unittest.TestCase):
   def test_driver_arc_size_follows_wheel_angle(self):
-    lo = A.geometry(state(human=True, angle=ARC.HUMAN_ORANGE_START_DEG, torque=1.0), VIEW)
+    lo = A.geometry(state(human=True, angle=ARC.HUMAN_GROW_START_DEG, torque=1.0), VIEW)
     self.assertAlmostEqual(lo["thickness"], 14.0)
     hi = A.geometry(state(human=True, angle=ARC.LOCK_DEG, torque=0.1), VIEW)
     self.assertAlmostEqual(hi["thickness"], 56.0)
-    mid = A.geometry(state(human=True, angle=-(ARC.HUMAN_ORANGE_START_DEG + ARC.LOCK_DEG) / 2, torque=0.1), VIEW)
+    mid = A.geometry(state(human=True, angle=-(ARC.HUMAN_GROW_START_DEG + ARC.LOCK_DEG) / 2, torque=0.1), VIEW)
     self.assertAlmostEqual(mid["thickness"], 35.0)
+    # small below 88 deg, growing from 88 deg (the C4 arc shares steering_arc.human_size_t)
+    self.assertAlmostEqual(A.geometry(state(human=True, angle=87.0, torque=1.0), VIEW)["thickness"], 14.0)
+    self.assertGreater(A.geometry(state(human=True, angle=89.0, torque=1.0), VIEW)["thickness"], 14.0)
+    self.assertAlmostEqual(A.geometry(state(human=True, angle=120.0, torque=1.0), VIEW)["thickness"], 14.0 + 42.0 * 32.0 / 342.0)
     # openpilot arc (not human): size still follows torque
     self.assertAlmostEqual(A.geometry(state(human=False, angle=430.0, torque=0.2), VIEW)["thickness"], 14.0)
 

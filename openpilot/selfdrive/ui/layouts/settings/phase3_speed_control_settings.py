@@ -72,7 +72,7 @@ ROWS = (
            "plus your speed limit offset. Pre-AP with the pedal only. Needs a current dashboard limit; otherwise, "
            "and when engaging at a stop or with the gas pressed, the normal engage speed is used."), PARENT_KEY, "SLCQOL"),
   ("ShowSLCOffset", "toggle", tr_noop("Show Speed Limit Offset"),
-   tr_noop("<b>Show the current offset from the posted limit</b> on the driving screen."), PARENT_KEY, "SLCVisuals"),
+   tr_noop("<b>Show the green speed limit offset</b> (for example +5) in the corner of the speed limit sign on the driving screen. On by default; turn it off to hide the number."), PARENT_KEY, "SLCVisuals"),
 )
 ACTIVE_KEYS = tuple(r[0] for r in ROWS)
 SUB_PANELS = {"SLCOffsets": tr_noop("Speed Limit Offsets"), "SLCQOL": tr_noop("Quality of Life"),

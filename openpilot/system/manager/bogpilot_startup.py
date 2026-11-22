@@ -257,4 +257,16 @@ def after_defaults(params, *, file_root: Path | None = None, startup: StartupRes
     result.events.append(f"legacy-tesla-ce-off:{len(changed)}")
   except Exception as exc:
     result.errors.append(f"legacy-tesla-ce-off: {type(exc).__name__}")
+  try:
+    from openpilot.common.bogpilot_ap1_profile import apply_ap1x_visual_defaults_once
+    changed = apply_ap1x_visual_defaults_once(params, bogpilot_dir=directory)
+    result.events.append(f"ap1x-visual:{len(changed)}")
+  except Exception as exc:
+    result.errors.append(f"ap1x-visual: {type(exc).__name__}")
+  try:
+    from openpilot.common.bogpilot_ap1_profile import force_ap1x_op_long_on_once
+    forced = force_ap1x_op_long_on_once(params, bogpilot_dir=directory)
+    result.events.append(f"ap1x-long-on:{int(forced)}")
+  except Exception as exc:
+    result.errors.append(f"ap1x-long-on: {type(exc).__name__}")
   return result

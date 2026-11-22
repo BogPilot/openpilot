@@ -20,6 +20,49 @@ PREAP_FULL_USE_SET_SPEED_LIMIT = True
 # from-stop speed (AP1TapFromZeroMs, the AP1 Standstill Tap Speed row) replaces the floor. False = the v2 behaviour (40 km/h floor).
 PREAP_FROM_STOP_REPLACES_FLOOR = True
 PREAP_STANDSTILL_MS = 0.1   # same bound as preap/engagement.py STANDSTILL_SPEED_MS
+# Pre-AP pedal re-engage: a pull that re-engages speed control restores the LAST speed-control set of this drive. Always on (no
+# toggle, no constant). An up/down tip entry always latches the current speed instead. With Pre AP Auto Speed ON a pull engages
+# the automatic speed and never restores (PreapPullPolicy). The first engage of a drive (nothing stored) captures as before. The
+# stored set lives in card's memory only, so a new drive (card restart) starts empty.
+# A re-engage at a standstill restores too (True): the standstill hold keeps the car at 0 until the driver presses and releases
+# the accelerator, so the restored set only applies once the driver has started moving. False = a standstill re-engage
+# captures as a first engage does (NAP 0, or the from-stop speed with that toggle on).
+PREAP_RESTORE_AT_STANDSTILL = True
+
+
+class PreapPullPolicy:
+  """Pre-AP pedal: what a pull engage of speed control sets, from the two Pre-AP toggles (read once when card starts).
+
+  auto_speed (Pre AP Auto Speed, default OFF): ON = the pull engages an automatic speed (SetSpeedLimit / the planner SLC);
+  it never restores, and from a stop it uses the from-stop speed (the behaviour before this toggle split).
+  from_stop (Pre-AP From-Stop Speed, default OFF, Auto Speed OFF only): OFF = NAP. A standstill engage with nothing to
+  restore captures the current speed (0) and the driver tips up or uses the accelerator. ON = a standstill engage (pull or
+  tip) takes the from-stop speed (AP1TapFromZeroMs), and that wins over restoring the last set at a standstill.
+  A moving pull with Auto Speed OFF restores the last set, else the rounded current speed. A tip entry never restores."""
+
+  def __init__(self, auto_speed: bool = False, from_stop: bool = False):
+    self.auto_speed = bool(auto_speed)
+    self.from_stop_toggle = bool(from_stop)
+
+  @classmethod
+  def read(cls) -> "PreapPullPolicy":
+    """Both toggles from opendbc tesla_ap1/preap/params.py; any read problem is OFF (the defaults)."""
+    try:
+      from opendbc.car.tesla_ap1.preap.params import preap_auto_speed, preap_from_stop_speed
+      return cls(preap_auto_speed(), preap_from_stop_speed())
+    except Exception:
+      return cls()
+
+  def use_from_stop(self) -> bool:
+    """A FULL that starts at a stop (or the first pull's display set at a stop) takes the from-stop speed."""
+    return self.auto_speed or self.from_stop_toggle
+
+  def restore_allowed(self, v_ego_ms: float) -> bool:
+    """A pull may restore the last set: never with Auto Speed ON; at a standstill not while the from-stop toggle is ON."""
+    if self.auto_speed:
+      return False
+    standstill = not (float(v_ego_ms) >= PREAP_STANDSTILL_MS)
+    return not (standstill and self.from_stop_toggle)
 
 
 def preap_round_kph(v_ego_ms: float, is_metric: bool) -> float:
@@ -54,7 +97,10 @@ class VCruiseHelper:
     self._tesla_rpt = None
     self._tesla_press = {"ok": False, "base_units": 0, "dir": 0}
     self.tesla_dt = 0.01   # card runs at 100 Hz
-    if str(getattr(CP, "carFingerprint", "") or "") == "TESLA_PREAP_MODELS":
+    # Pre-AP pedal: the last speed-control set of this drive (kph), restored by a pull re-engage (always on).
+    self.preap_last_set_kph: float | None = None
+    self._preap = str(getattr(CP, "carFingerprint", "") or "") == "TESLA_PREAP_MODELS"
+    if self._preap:
       from opendbc.car.tesla_ap1.stalk_repeat import StalkTipRepeat
       self._tesla_rpt = StalkTipRepeat()
 
@@ -153,7 +199,15 @@ class VCruiseHelper:
       self._tesla_press = {"ok": False, "base_units": 0, "dir": 0}
       return
     unit = 1.0 if is_metric else CV.MPH_TO_KPH
-    cur_units = lambda: int(math.floor(round(float(self.v_cruise_kph) / unit, 4) + 0.5))
+
+    def cur_units() -> int:
+      v = float(self.v_cruise_kph)
+      if v < V_CRUISE_MIN and direction > 0:
+        # a 0 set (NAP standstill engage, nothing restored): an up tip steps from the current speed, as NAP's accel tip
+        # max(set, current) (NAP preap/engagement.py:217-222 @ cc39c7fa), so a tip after driving off with the accelerator
+        # starts where the car is. A down tip never lifts a 0 set (below).
+        v = max(v, preap_round_kph(float(getattr(CS, "vEgo", 0.0) or 0.0), bool(is_metric)))
+      return int(math.floor(round(v / unit, 4) + 0.5))
     for ev in events:
       if ev in ("press_light", "press_deep"):
         standstill = bool(CS.cruiseState.standstill)
@@ -175,6 +229,8 @@ class VCruiseHelper:
       v = round(new * unit, 1)
       if CS.gasPressed and direction < 0:
         v = max(v, CS.vEgo * CV.MS_TO_KPH)
+      if direction < 0 and v < V_CRUISE_MIN and float(self.v_cruise_kph) < V_CRUISE_MIN:
+        continue   # a down tip on a 0 set stays 0 (NAP clamps at 0); the 8 km/h floor would raise it
       self.v_cruise_kph = float(np.clip(round(v, 1), V_CRUISE_MIN, V_CRUISE_MAX))
 
   def update_button_timers(self, CS, enabled):
@@ -189,12 +245,32 @@ class VCruiseHelper:
         self.button_timers[b.type.raw] = 1 if b.pressed else 0
         self.button_change_states[b.type.raw] = {"standstill": CS.cruiseState.standstill, "enabled": enabled}
 
+  def note_preap_long_set(self, long_active: bool) -> None:
+    """Pre-AP pedal: remember the set speed while speed control is active (carControl.longActive). Steering-only sets (the
+    first-pull display set, tips while steering only) are never stored. Tips in speed control update it as they move the set."""
+    if self._preap and long_active and self.v_cruise_initialized and V_CRUISE_MIN <= float(self.v_cruise_kph) <= V_CRUISE_MAX:
+      self.preap_last_set_kph = float(self.v_cruise_kph)
+
+  def preap_restore_kph(self, v_ego_ms: float) -> float | None:
+    """The set a Pre-AP pull re-engage restores, or None (not Pre-AP, first engage of the drive, or a standstill re-engage
+    with PREAP_RESTORE_AT_STANDSTILL False): then the caller captures as before. The caller applies PreapPullPolicy first."""
+    if not self._preap or self.preap_last_set_kph is None:
+      return None
+    if not PREAP_RESTORE_AT_STANDSTILL and not (float(v_ego_ms) >= PREAP_STANDSTILL_MS):
+      return None
+    return float(min(self.preap_last_set_kph, V_CRUISE_MAX))
+
+  def restore_preap_set(self, kph: float) -> None:
+    self.v_cruise_kph = float(kph)
+    self.v_cruise_cluster_kph = self.v_cruise_kph
+
   def capture_preap_full(self, v_ego_ms: float, set_limit_kph: float = 0.0, is_metric: bool | None = None,
                          from_stop_kph: float = 0.0) -> None:
     """Pre-AP pedal: set speed on the FULL capture edge (second pull while moving, or the standstill hold released by the
     accelerator). SetSpeedLimit fresh -> limit + offset (clipped as initialize_v_cruise does); otherwise the exact vEgo, as NAP
     captures the current speed (NAP preap/engagement.py:142,243-246 @ e99f4dc75; NAP rounds to the display unit). Never
-    V_CRUISE_INITIAL (40) and never the V_CRUISE_MIN (8) floor. No resume path: the old set speed is never restored here."""
+    V_CRUISE_INITIAL (40) and never the V_CRUISE_MIN (8) floor. No resume path here: a pull re-engage restores the last set
+    through preap_restore_kph / restore_preap_set (card.py) instead of calling this."""
     if set_limit_kph > 0.0:
       self.v_cruise_kph = int(round(np.clip(set_limit_kph, V_CRUISE_MIN, V_CRUISE_MAX)))
     elif is_metric is None:
@@ -209,9 +285,14 @@ class VCruiseHelper:
     self.v_cruise_cluster_kph = self.v_cruise_kph
 
   def initialize_v_cruise(self, CS, experimental_mode: bool, set_limit_kph: float = 0.0, preap_from_stop_kph: float | None = None,
-                          is_metric: bool = False) -> None:
+                          is_metric: bool = False, preap_restore_kph: float | None = None) -> None:
     # initializing is handled by the PCM
     if self.CP.pcmCruise:
+      return
+
+    if preap_restore_kph is not None and self._preap:
+      # Pre-AP pedal pull re-engage: show (and keep) the last speed-control set of this drive; wins over SetSpeedLimit.
+      self.restore_preap_set(preap_restore_kph)
       return
 
     if preap_from_stop_kph is not None and PREAP_FROM_STOP_REPLACES_FLOOR and set_limit_kph <= 0.0:

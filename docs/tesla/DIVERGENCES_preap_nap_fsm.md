@@ -34,8 +34,14 @@ the brake behavior and the no-pedal cancel; BogPilot 0.9.7 na-preap 568fea947 fo
 
 ## Display and sound
 - "Steering only / Double pull for speed control" (`events.py` preapSteerOnly), "Speed control off / Steering only. Double pull to retry"
-  (preapSpeedBlocked), "Stock cruise did not arm / Double pull again" (preapCruiseNotArmed, NAP teslaCCNotArmed parity). No text
+  (preapSpeedBlocked; with the pedal heard but not calibrated it reads "Speed control off / Steering only. Calibrate the pedal while
+  parked", and a single pull still engages steering only), "Stock cruise did not arm / Double pull again" (preapCruiseNotArmed, NAP teslaCCNotArmed parity). No text
   mentions braking or a hold: Pre-AP has no brake actuation. NAP has no steering-only banner.
+- No Comma Pedal at car start (a Pre-AP chassis fingerprint without GAS_SENSOR 0x552): the drive runs the no-pedal mode (PREAP
+  safety param without PEDAL, stock cruise for speed, CarParams.flags PREAP_NO_PEDAL) instead of pedal longitudinal, whose RX checks
+  would never allow controls. A single pull engages steering only with "Steering only: no Comma Pedal found / Double pull for stock
+  cruise" (preapSteerOnly). Stock cruise does not have to be in standby: only a DI fault makes cruise unavailable, so the pull is
+  never refused with wrongCarMode. Panda safety code and limits are unchanged.
 - User-facing text (these alerts and PREAP_PORT.md) names the gestures "single pull" and "double pull", after the "Double-pull vs
   single-pull" section of NAP docs-nap/engagement.md:49-57 @ e99f4dc75, and leaves the timing out. NAP's doc itself describes a
   first and a second pull inside a window; the window (strict `< 400 ms`) is unchanged and stays in the table above.

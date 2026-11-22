@@ -152,16 +152,31 @@ _add("RegenComfortBrake", "Tesla AP1: Earlier, Gentler Regen Stops",
      "following distance using all the room available, at no more than about 2 mph per second. If more than that is needed, "
      "the normal openpilot braking takes over. It only ever adds braking, never removes it.",
      when="If approaches to a slower lead feel late or need friction brakes.",
-     note="The following distance, emergency braking and cut-in response are the same as stock. AP1 Model S and Pre-AP. "
-          "Needs openpilot longitudinal control. Takes effect the next time the planner starts, normally the next drive.",
+     note="The following distance, emergency braking and cut-in response are the same as stock. AP1 Model S, AP1 Model X "
+          "and Pre-AP. Needs openpilot longitudinal control (on the Model X, its openpilot Longitudinal setting). Takes effect the next time the planner starts, normally the next drive.",
      default="On")
 _add("AP1XOpenpilotLong", "Tesla AP1 Model X: openpilot Longitudinal (Experimental)",
-     "Experimental and untested on a real Model X. Lets openpilot control speed and braking on an AP1 Model X through the same "
-     "chassis cruise messages the Model S uses. Off keeps the Model X on steering only with its own cruise control.",
-     when="Only if you have an AP1 Model X and want to try it.",
+     "Experimental. Lets openpilot control speed and braking on an AP1 Model X through the same chassis cruise messages the "
+     "Model S uses. On by default. Off keeps the Model X on steering only with its own cruise control (stock TACC).",
+     when="Turn it off if you prefer the car's own cruise control.",
      note="Shown only for a detected AP1 Model X. Standstill and stop-and-go are not enabled, and the car's own emergency braking "
-          "is untouched. Takes effect the next time the car starts. Be ready to take over.",
-     default="Off")
+          "is untouched. Turning it on or off takes effect the next time the car starts; no reboot is needed. A change made "
+          "with the car on is applied when the car is turned off. Be ready to take over.",
+     default="On")
+_add("TeslaTrim", "Trim",
+     "Pick the battery and Ludicrous version of your Model S or Model X. The car reports its motors (single or dual motor, and "
+     "whether the rear motor is the Performance one), so only matching trims are listed. The trim sets the mass the regen "
+     "braking math and the pedal gauge use: Tesla's published curb weight plus 136 kg for people and cargo.",
+     when="Set it once for your car. Leave it on Auto if you are not sure.",
+     note="Auto keeps the base AP1 Model S or AP1 Model X tune. A saved trim that the car contradicts is kept and marked, and "
+          "the values read from the car are used. Steering, the panda and the safety limits are the same for every trim. "
+          "Takes effect the next time the car starts.",
+     default="Auto")
+_add("TeslaTrimDetected", "Detected",
+     "What the car reported about its motors on the last drive: single or dual motor, and on a dual-motor car whether the "
+     "rear motor is the Performance one. It also learns how fast each motor turns per mph, which replaces the fixed gear "
+     "ratio and wheel size in the regen math.",
+     note="Read only. Battery size and Ludicrous are not sent by the car, so pick them under Trim.")
 _add("TeslaPreApDoublePull", "Pre-AP: Double Pull to Engage Pedal Longitudinal",
      "This row is hidden in this build, and the saved setting is kept but not applied. Pre-AP engagement does not use this "
      "switch: a single pull engages steering only, and a double pull adds speed control. A pull or the brake while speed "
@@ -253,7 +268,8 @@ _add("TeslaHasIBooster", "Pre-AP: iBooster Swap",
      default="Off")
 _add("TeslaPreApAutoSpeed", "Pre AP Auto Speed",
      "Chooses who sets the speed on a Pre-AP car with pedal longitudinal. Off (default): when speed control engages, the set "
-     "speed is your current speed, as NotAutopilot does; only the stalk changes it. On: BogPilot's Speed Limit Controller sets "
+     "speed is your current speed, as NotAutopilot does, or the last set speed of this drive when you engage again; stalk "
+     "up / down then change it (1 at a time, held repeats, a deep press goes to the next 5). On: BogPilot's Speed Limit Controller sets "
      "and changes it, as on AP1: engage at the posted limit plus your offset when Set Speed Limit is on, and the set follows the "
      "posted limit as it changes. With no posted limit, the speed comes from Experimental Mode's plan (the Experimental Mode "
      "toggle itself is not changed), never above your set speed. Stalk up / down still sets a lower or higher speed. Pre-AP "
@@ -261,6 +277,15 @@ _add("TeslaPreApAutoSpeed", "Pre AP Auto Speed",
      when="Turn on if you want the speed to follow posted limits. Review Speed Limit Controller settings (offsets, Set Speed "
           "Limit) first. On Pre-AP the Fallback Speed is always Experimental Mode while this is on.",
      note="Pre-AP with pedal longitudinal only. The posted limit is shown either way. Takes effect the next time the car "
+          "starts. " + _OFFROAD,
+     default="Off")
+_add("TeslaPreApFromStopSpeed", "Pre-AP: From-Stop Speed",
+     "What the set speed is when you engage speed control while stopped. Off (default): the last set speed of this drive, or 0 "
+     "if you have not used speed control yet, as NotAutopilot does. On: your AP1 Standstill Tap Speed. Either way the car stays "
+     "stopped until you press and release the accelerator. A tip up / down while stopped (from steering only) sets 0 when off, "
+     "the Standstill Tap Speed when on.",
+     when="Experimental. Try it if you would rather start from a fixed low speed than your last set speed.",
+     note="Pre-AP with pedal longitudinal only, shown while Pre AP Auto Speed is off. Takes effect the next time the car "
           "starts. " + _OFFROAD,
      default="Off")
 _add("PedalStatus", "Comma Pedal",
@@ -491,7 +516,7 @@ _add("CustomPersonalities", "Driving Personalities",
      "button or the stalk is the one that applies.",
      when="If the stock following distance or the way the car speeds up and brakes behind a lead car does not suit you.",
      note="Takes effect on the next drive. Reset to Defaults restores one profile and asks you to confirm. " + _GB,
-     default="Off", default_param="CustomPersonalities")
+     default="On", default_param="CustomPersonalities")
 _add("SpeedLimitController", "Speed Limit Controller",
      "Follows the speed limit shown on the car's dashboard: the speed the car drives to follows the limit plus the offset you set "
      "for that speed band. You choose what it does when no limit is known and after you drive faster than the limit.",

@@ -30,6 +30,9 @@ class PedalRig(Rig):
     """One 10 ms car frame; the pedal sends every 2nd frame (50 Hz) while it is alive."""
     if pedal and (int(CLOCK[0] * 100) % 2 == 0):
       self.pedal_frame(advance=advance)
+    elif not pedal:
+      # card updates every parser every step; an update with no GAS_SENSOR frame empties vl_all, as on the car
+      self.parsers[Bus.cam].update([(self.nanos, [])])
     return self.frame()
 
   def run_ms(self, ms, **kw):

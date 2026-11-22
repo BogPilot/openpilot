@@ -1,7 +1,9 @@
 """Legacy Tesla comfort regen braking setting (RegenComfortBrake).
 
 v2 (current): the setting turns on the add-only comfort layer in
-openpilot/selfdrive/controls/lib/comfort_regen.py for AP1 Model S and Pre-AP.
+openpilot/selfdrive/controls/lib/comfort_regen.py for AP1 Model S, Pre-AP and
+the AP1 Model X. The layer only runs with openpilot longitudinal (on the X:
+the AP1XOpenpilotLong opt-in), so with stock cruise the X is unchanged.
 That layer runs after the stock planner and can only ask for more braking
 (final = min(stock, comfort)), gently (at most about 0.9 m/s^2), for a
 radar-confirmed closing lead. Stock COMFORT_BRAKE (2.5 m/s^2), the stock lead
@@ -14,8 +16,9 @@ stock value; an existing on/off file keeps its meaning (on = comfort layer,
 off = stock).
 
 File-backed under /data/params_bogpilot/RegenComfortBrake (the July prebuilt
-params_pyx.so cannot store new Tesla* keys). Absent file on AP1 Model S or
-Pre-AP => on. Explicit 0/false/off => off. Other cars => always off.
+params_pyx.so cannot store new Tesla* keys). Absent file on AP1 Model S,
+AP1 Model X or Pre-AP => on. Explicit 0/false/off => off. Other cars =>
+always off. A saved value is kept either way (no migration).
 
 Change on device:
   echo 0 > /data/params_bogpilot/RegenComfortBrake   # off (stock)
@@ -41,11 +44,12 @@ _regen_comfort_path = REGEN_COMFORT_PATH
 def regen_comfort_brake_enabled(fingerprint: str | None, stored: str | bytes | None = None) -> bool:
   """Whether comfort regen braking (v2 comfort layer) is on.
 
-  AP1 Model S and Pre-AP: default on when the file is absent. Other fingerprints are always off.
+  AP1 Model S, AP1 Model X and Pre-AP: default on when the file is absent. Other fingerprints are always off.
+  The consumer (comfort_regen.py) additionally needs openpilot longitudinal.
   `stored` overrides the file when not None (tests).
   """
   from opendbc.car.tesla_ap1.values import CAR
-  if fingerprint not in (CAR.TESLA_AP1_MODELS, CAR.TESLA_PREAP_MODELS):
+  if fingerprint not in (CAR.TESLA_AP1_MODELS, CAR.TESLA_AP1_MODELX, CAR.TESLA_PREAP_MODELS):
     return False
   if stored is not None:
     text = _as_text(stored)

@@ -23,6 +23,7 @@ from opendbc.car.tesla_ap1.hso import AP1_HANDS_ON_LEVEL, Ap1DriverYield, ap1_la
 from opendbc.car.tesla_ap1.override import DriverOverrideDetector, read_sensitivity_level
 from opendbc.car.tesla_ap1.long_smooth import Ap1AccelSmoother, Ap1JerkLimit, ap1_brake_urgent, ap1_fcw
 from opendbc.car.tesla_ap1.steer_counter import Ap1SteerCounterSync
+from opendbc.car.tesla_ap1.steer_resync import Ap1SteerResync
 from opendbc.car.tesla_ap1.teslacan import TeslaCAN
 from opendbc.car.tesla_ap1.slc_raise import cruise_set_mph
 from opendbc.car.tesla_ap1.toggles import enable_ic_integration
@@ -69,6 +70,9 @@ class CarController(CarControllerBase):
     self.ap1_steer_ramp = Ap1EngageSteerRamp() if is_ap1_family(CP.carFingerprint) else None
     # Structural AP1: 0x488 phase and counter follow the stock DAS (steer_counter.py).
     self.ap1_steer_sync = Ap1SteerCounterSync() if is_ap1_family(CP.carFingerprint) else None
+    # Structural AP1: after a card stall or a 0x488 gap (the panda forwarded the stock DAS), send nothing until the
+    # stock stream is live again, then restart from the measured wheel (steer_resync.py).
+    self.ap1_steer_resync = Ap1SteerResync() if is_ap1_family(CP.carFingerprint) else None
     # Accel slew and comfort-band jerk limits: Model S, and a Model X only while its opt-in openpilot long is on (so the X never sends
     # raw planner accel with the +-8 default jerk). Both are off on a lateral-only Model X.
     long_tuned = CP.carFingerprint == CAR.TESLA_AP1_MODELS or (CP.carFingerprint == CAR.TESLA_AP1_MODELX and bool(CP.openpilotLongitudinalControl))
@@ -94,6 +98,7 @@ class CarController(CarControllerBase):
     epas_yield = False
     tmp_fault_probe = False
     lat_session = None
+    resync_hold = False
     # AP1 lateral session: engaged, or Always On Lateral steering while not engaged. controlsd only
     # sets latActive without enabled when bogpilotCarState.alwaysOnLateralEnabled is true, so with
     # AOL off steer_session == CC.enabled and nothing below changes.
@@ -112,7 +117,7 @@ class CarController(CarControllerBase):
       # this frame. Both the end of that block and a new latActive start the measured-angle soft-start.
       lat_session = bool(CC.latActive)
       epas_yield = self.ap1_epas_gate.update(lat_session, CS.eac_status, CS.steer_warning, bool(CS.eac_fault))
-      # Latched code 4 recovery: every rule is in epas_gate.EpasTmpFaultRecovery. Engaged only (CC.enabled,
+      # Latched code 4 / code 7 recovery: every rule is in epas_gate.EpasTmpFaultRecovery. Engaged only (CC.enabled,
       # not Always On Lateral). Like the panda it needs a recent 0x214: missing or stale is passed as None.
       was_probe, probe_n = self.ap1_tmp_fault.active, self.ap1_tmp_fault.probes
       epb_age = getattr(CS, "epb_eac_allow_age", None)
@@ -121,10 +126,19 @@ class CarController(CarControllerBase):
                                                   CS.hands_on_level, getattr(CS, "epb_eac_allow", None) if epb_fresh else None,
                                                   bool(CS.eac_fault), driver_yield, v_ego=float(CS.out.vEgo))
       if tmp_fault_probe and not was_probe:
-        carlog.warning(f"tesla ap1 epas code 4: measured-angle request {self.ap1_tmp_fault.probes}")
+        carlog.warning(f"tesla ap1 epas latched {CS.steer_warning}: measured-angle request {self.ap1_tmp_fault.probes}")
       elif was_probe and not tmp_fault_probe:
-        carlog.warning(f"tesla ap1 epas code 4: request {probe_n} ended {self.ap1_tmp_fault.last_result}")
-      if self.ap1_yield.resumed or self.ap1_epas_gate.resumed or (lat_session and not self.ap1_prev_lat_session):
+        carlog.warning(f"tesla ap1 epas latched code: request {probe_n} ended {self.ap1_tmp_fault.last_result}")
+      # 0x488 restart after a stall: no frame while it holds; its end resumes like an engage (fresh counter, soft-start).
+      was_resync = self.ap1_steer_resync.active
+      resync_hold = self.ap1_steer_resync.update(getattr(CS, "stock_steer_counters", ()), self.frame, now_nanos)
+      if resync_hold and not was_resync:
+        carlog.warning(f"tesla ap1 0x488 stall ({self.ap1_steer_resync.last_reason}): holding until the stock stream is live")
+      if self.ap1_steer_resync.resumed:
+        self.ap1_steer_sync.forget()
+        carlog.warning("tesla ap1 0x488 stall: resuming from the measured wheel")
+      if (self.ap1_yield.resumed or self.ap1_epas_gate.resumed or self.ap1_steer_resync.resumed or
+          (lat_session and not self.ap1_prev_lat_session)):
         # Resume from the measured wheel through the engage soft-start.
         self.ap1_engage_frame = self.frame
       self.ap1_prev_lat_session = lat_session
@@ -205,17 +219,25 @@ class CarController(CarControllerBase):
       v_ego_raw=float(getattr(CS.out, "vEgoRaw", CS.out.vEgo)),  # lateral-accel bound input (stage 1)
     )
     self.apply_angle_last = plan.apply_angle_last
-    if plan.steer is not None:
-      self.ap1_cmd_deg = plan.steer.angle_deg if plan.steer.enabled else None
+    steer = plan.steer
+    if resync_hold:
+      # Nothing on 0x488 while resyncing; the next command starts from the wheel.
+      steer = None
+      self.apply_angle_last = CS.out.steeringAngleDeg
+      self.ap1_cmd_deg = None
+    if steer is not None:
+      self.ap1_cmd_deg = steer.angle_deg if steer.enabled else None
     elif not steer_session:
       self.ap1_cmd_deg = None
-    if plan.steer is not None and self.ap1_steer_sync is not None:
-      self.ap1_steer_sync.commit(plan.steer.counter, self.frame)
+    if steer is not None and self.ap1_steer_sync is not None:
+      self.ap1_steer_sync.commit(steer.counter, self.frame)
+    if steer is not None and self.ap1_steer_resync is not None:
+      self.ap1_steer_resync.sent(self.frame, now_nanos)
 
     can_sends = []
 
-    if plan.steer is not None:
-      can_sends.append(self.tesla_can.create_steering_control(plan.steer.angle_deg, plan.steer.enabled, plan.steer.counter))
+    if steer is not None:
+      can_sends.append(self.tesla_can.create_steering_control(steer.angle_deg, steer.enabled, steer.counter))
 
     # Longitudinal control (in sync with stock message, about 40Hz)
     chassis_only = DAS_CONTROL_POWERTRAIN not in plan.longitudinal_addrs

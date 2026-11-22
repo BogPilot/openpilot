@@ -33,7 +33,8 @@ V_EGO_STATIONARY = 4.   # no stationary object flag below this speed
 
 RADAR_TO_CAMERA = 1.52  # RADAR is ~ 1.5m ahead from center of mesh frame
 
-# AP1 Model S and Pre-AP Model S (docs/tesla/DIVERGENCES_ap1_vision_only_lead_gate.md): a camera-only lead (no radar track matched) farther than
+# AP1 Model S and Pre-AP Model S, and the AP1 Model X with openpilot longitudinal (docs/tesla/DIVERGENCES_ap1_vision_only_lead_gate.md):
+# a camera-only lead (no radar track matched) farther than
 # VISION_ONLY_FAR_M needs a model prob of VISION_ONLY_FAR_PROB, unless ego is closing on it at VISION_ONLY_CLOSING_MS or more.
 VISION_ONLY_FAR_M = 50.
 VISION_ONLY_FAR_PROB = .6
@@ -49,9 +50,18 @@ def vision_only_lead_blocked(v_ego: float, lead_msg: capnp._DynamicStructReader,
   return (v_ego - lead_msg.v[0]) < VISION_ONLY_CLOSING_MS
 
 
-def vision_only_gate_platform(car_fingerprint) -> bool:
-  """The camera-only lead gate runs on the AP1 Model S and the Pre-AP Model S only."""
-  return str(car_fingerprint) == "TESLA_AP1_MODELS" or is_preap(car_fingerprint)
+def vision_only_gate_platform(car_fingerprint, op_long: bool = False) -> bool:
+  """The camera-only lead gate runs on the AP1 Model S and the Pre-AP Model S, and on the AP1 Model X only while
+  openpilot longitudinal is on (AP1XOpenpilotLong). With stock cruise the X keeps the stock lead selection."""
+  fp = str(car_fingerprint)
+  return fp == "TESLA_AP1_MODELS" or is_preap(car_fingerprint) or (fp == "TESLA_AP1_MODELX" and bool(op_long))
+
+
+def ap1_lead_filter_platform(car_fingerprint, op_long: bool = False) -> bool:
+  """The AP1 radar lead one-frame glitch filter (lead_filter.py) runs on the AP1 Model S, and on the AP1 Model X only
+  while openpilot longitudinal is on. Every other car (and the X with stock cruise) keeps the stock leads."""
+  fp = str(car_fingerprint)
+  return fp == "TESLA_AP1_MODELS" or (fp == "TESLA_AP1_MODELX" and bool(op_long))
 
 
 class KalmanParams:
@@ -214,7 +224,7 @@ class RadarD:
   def __init__(self, delay: float = 0.0, ap1_lead_filter: bool = False, stopping_runtime=None, lane_change_settings=None,
                lead_threshold: float = .5, preap: bool = False, vision_only_gate: bool = False):
     self.lead_threshold = lead_threshold
-    self.vision_only_gate = vision_only_gate  # AP1 and Pre-AP Model S; False everywhere else (stock behaviour)
+    self.vision_only_gate = vision_only_gate  # AP1 and Pre-AP Model S, AP1 Model X with op long; else False (stock)
     # Pre-AP Bosch retrofit only: docs/tesla/DIVERGENCES_preap_radar_filters.md (2). None everywhere else.
     self.stuck_filter = StuckTrackFilter() if preap else None
     # Pre-AP: no radar-only low-speed lead; Tinkla, NAP and 0.9.7 keep the stock override (DIVERGENCES (3)).
@@ -379,9 +389,10 @@ def main() -> None:
   except Exception:
     cloudlog.exception("radard: lane change settings unavailable; stock behaviour")
     lane_settings = None
-  RD = RadarD(CP.radarDelay, ap1_lead_filter=CP.carFingerprint == "TESLA_AP1_MODELS", stopping_runtime=stopping,
+  op_long = bool(CP.openpilotLongitudinalControl)
+  RD = RadarD(CP.radarDelay, ap1_lead_filter=ap1_lead_filter_platform(CP.carFingerprint, op_long), stopping_runtime=stopping,
               lane_change_settings=lane_settings, lead_threshold=lead_threshold, preap=is_preap(CP.carFingerprint),
-              vision_only_gate=vision_only_gate_platform(CP.carFingerprint))
+              vision_only_gate=vision_only_gate_platform(CP.carFingerprint, op_long))
   BP = BogPilotRadar(CP)
 
   while 1:

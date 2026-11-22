@@ -775,7 +775,7 @@ GAS_BRAKE_TOGGLES = (
   ToggleDefinition(
     title=("Following Distance"),
     param="RelaxedFollow",
-    description=("<b>How many seconds openpilot follows behind lead vehicles when using the \"Relaxed\" profile.</b> Increase for more space; decrease for tighter gaps.<br><br>Default: 1.75 seconds."),
+    description=("<b>How many seconds openpilot follows behind lead vehicles when using the \"Relaxed\" profile.</b> Increase for more space; decrease for tighter gaps.<br><br>Default: 2.0 seconds."),
     max_value=3,
     min_value=1,
     parent_param="RelaxedPersonalityProfile",
@@ -1470,7 +1470,7 @@ GAS_BRAKE_TOGGLES = (
   ToggleDefinition(
     title=("Show Speed Limit Offset"),
     param="ShowSLCOffset",
-    description=("<b>Show the current offset from the posted limit</b> on the driving screen."),
+    description=("<b>Show the green speed limit offset</b> (for example +5) in the corner of the speed limit sign on the driving screen. On by default; turn it off to hide the number."),
     parent_param="SLCVisuals",
     tuning_level=0,
   ),
@@ -2848,7 +2848,7 @@ TESLA_EARLY_TOGGLES = (
   ToggleDefinition(
     title=("Regen comfort braking"),
     param="RegenComfortBrake",
-    description=("<b>Gentle early slowing for a radar lead.</b> Default on for AP1 Model S and Pre-AP, off otherwise. When on, an add-only layer after the stock planner asks for the constant decel that settles at the stock following gap (at most ~0.9 m/s²) for a radar-confirmed closing lead; final accel = min(stock, comfort). Stock gap, MPC, ACCEL_MIN, FCW and cut-in braking unchanged. July prebuilt params_pyx.so cannot store this key; it is file-backed at /data/params_bogpilot/RegenComfortBrake (echo 0 or 1). The on-device vehicle panel does not render this metadata. Not applied to CarParams or panda safety."),
+    description=("<b>Gentle early slowing for a radar lead.</b> Default on for AP1 Model S, AP1 Model X and Pre-AP, off otherwise; needs openpilot longitudinal. When on, an add-only layer after the stock planner asks for the constant decel that settles at the stock following gap (at most ~0.9 m/s²) for a radar-confirmed closing lead; final accel = min(stock, comfort). Stock gap, MPC, ACCEL_MIN, FCW and cut-in braking unchanged. July prebuilt params_pyx.so cannot store this key; it is file-backed at /data/params_bogpilot/RegenComfortBrake (echo 0 or 1). The on-device vehicle panel does not render this metadata. Not applied to CarParams or panda safety."),
     parent_param="TeslaEarly",
     tuning_level=2,
   ),

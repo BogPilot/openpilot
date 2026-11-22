@@ -19,7 +19,7 @@ AP1 = 8 | 1          # 1 is LONG_CONTROL
 AP1_NO_LONG = 8
 
 INHIBITED, AVAILABLE, ACTIVE, FAULT, SNA = 0, 1, 2, 3, 4
-IDLE, HANDS_ON, TMP_FAULT, HIGH_ANGLE_REQ = 0, 3, 4, 6
+IDLE, HANDS_ON, TMP_FAULT, HIGH_ANGLE_REQ, HIGH_ANGLE_RATE_REQ = 0, 3, 4, 6, 7
 OK_ERRORS = (IDLE, HANDS_ON, HIGH_ANGLE_REQ)
 READY = (AVAILABLE, ACTIVE)
 EPB_TIMEOUT_US = 250000
@@ -78,7 +78,9 @@ def expected(status, error, epb_case):
     return False
   if error in OK_ERRORS:
     return True
-  return error == TMP_FAULT and epb_case is not None and epb_case[0] == 1 and epb_case[1] < EPB_TIMEOUT_US
+  epb_fresh = epb_case is not None and epb_case[0] == 1 and epb_case[1] < EPB_TIMEOUT_US
+  # Code 7 has the same exception, from AVAILABLE only (test_tesla_ap1_epas_rate_req.py).
+  return epb_fresh and (error == TMP_FAULT or (error == HIGH_ANGLE_RATE_REQ and status == AVAILABLE))
 
 
 class TestTeslaAp1EpasTmpFault(unittest.TestCase):
@@ -141,11 +143,18 @@ class TestTeslaAp1EpasTmpFault(unittest.TestCase):
       self.assertEqual(self.tx(0), status in READY, (status, error))
 
   def test_other_codes_stay_blocked_even_with_epb_allow(self):
-    for status, error in itertools.product(READY, (1, 2, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15)):
+    # 7 has its own AVAILABLE-only exception (test_tesla_ap1_epas_rate_req.py); ACTIVE/7 stays blocked
+    for status, error in itertools.product(READY, (1, 2, 5, 8, 9, 10, 11, 12, 13, 14, 15)):
       self.init()
       self.wheel(0.0, status, error)
       self.set_epb((1, 0))
       self.assertFalse(self.tx(0), (status, error))
+
+  def test_active_with_code_7_stays_blocked_even_with_epb_allow(self):
+    self.init()
+    self.wheel(0.0, ACTIVE, HIGH_ANGLE_RATE_REQ)
+    self.set_epb((1, 0))
+    self.assertFalse(self.tx(0))
 
   def test_tmp_fault_with_inhibited_fault_sna_stays_blocked(self):
     for status in (INHIBITED, FAULT, SNA, 5, 6, 7):

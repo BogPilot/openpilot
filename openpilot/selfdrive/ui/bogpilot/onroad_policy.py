@@ -308,7 +308,7 @@ def _show_reboot_dialog(_page_key: str) -> None:
 
 # ---- staged changes (applied with the car off) ------------------------------------------------------------------------
 PENDING_KEY = "OnroadPendingChanges"     # file store (/data/params_bogpilot), JSON {key: value}
-STAGED_KEYS = ("DisableOpenpilotLongitudinal",)
+STAGED_KEYS = ("DisableOpenpilotLongitudinal", "AP1XOpenpilotLong")
 _appliers: dict[str, Callable[[object], bool]] = {}
 
 
@@ -324,6 +324,9 @@ def _default_applier(key: str):
   if key == "DisableOpenpilotLongitudinal":
     from openpilot.selfdrive.ui.bogpilot.phase2_vehicle import apply_staged_long
     return apply_staged_long
+  if key == "AP1XOpenpilotLong":
+    from openpilot.selfdrive.ui.bogpilot.phase2_vehicle import apply_staged_x_long
+    return apply_staged_x_long
   return None
 
 

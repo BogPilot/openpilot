@@ -56,7 +56,16 @@ def test_unavailable_preap_long_off():
   assert not P.csc_supported(SimpleNamespace(carFingerprint="TESLA_PREAP_MODELS", openpilotLongitudinalControl=True), pedal_ok=True)
 
 
-@pytest.mark.parametrize("fp", ["TESLA_AP1_MODELX", "TESLA_MODEL_3", "HONDA_CIVIC", ""])
+def test_available_ap1_model_x_op_long_only():
+  assert P.csc_supported(cp("TESLA_AP1_MODELX"))
+  assert not P.csc_supported(cp("TESLA_AP1_MODELX", long=False))      # stock cruise: never
+  assert P.csc_row_visible(cp("TESLA_AP1_MODELX")) and not P.csc_row_visible(cp("TESLA_AP1_MODELX", long=False))
+  assert isinstance(ap1_curve_brake_for(cp("TESLA_AP1_MODELX")), TeslaCurveBrake)
+  assert ap1_curve_brake_for(cp("TESLA_AP1_MODELX", long=False)) is None
+  assert P.csc_gate(P.is_preap(cp("TESLA_AP1_MODELX")), SimpleNamespace()) == (True, True)   # AP1 gate, no Pre-AP pedal rules
+
+
+@pytest.mark.parametrize("fp", ["TESLA_MODEL_3", "HONDA_CIVIC", ""])
 def test_unavailable_other_cars(fp):
   assert not P.csc_supported(cp(fp), pedal_ok=True)
   assert not P.csc_supported(None, pedal_ok=True)

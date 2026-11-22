@@ -40,8 +40,8 @@ DASHCAM = Lock("dashcam", "Dashcam mode",
                "Nothing in the BogPilot menus changes that.", "")
 STEERING_ONLY = Lock("steering_only", "Steering only",
                      "This vehicle is steering only in this build: the car keeps its own cruise control for speed. "
-                     "The only way to try openpilot longitudinal control on a Model X is the experimental, untested Model X row "
-                     "in Vehicle Controls.", "")
+                     "On a Model X, openpilot longitudinal control is the experimental Model X row in Vehicle Controls: it is "
+                     "turned off, or the car has not restarted since it was turned on.", "")
 RESTART = Lock("restart", "Restart the car",
                "openpilot longitudinal control is set to on, but the car has not been restarted since it was last off. "
                "Turn the car off and on again, then open this page again.", "")
@@ -121,8 +121,8 @@ NO_CAR_VEHICLE = Lock("no_car", "No car detected",
 MODEL_X = Lock("steering_only", "Model X: steering only",
                "Model X runs steering only in this build, so it has no settings on this page.", "")
 MODEL_X_VEHICLE = Lock("steering_only", "Model X: steering only",
-                       "Model X runs steering only unless you turn on the experimental openpilot longitudinal row on this page. "
-                       "It is untested on a real Model X and applies the next time the car starts.", "")
+                       "Model X runs steering only while the experimental openpilot longitudinal row on this page is off. "
+                       "Turning it on takes effect the next time the car starts.", "")
 WHEEL_AP1_ONLY = Lock("unsupported_vehicle", "Model S AP1 only",
                       "Wheel Controls are for a Tesla Model S with AP1. This vehicle has none of them.", "")
 

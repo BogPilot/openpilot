@@ -48,7 +48,7 @@ def test_profile_values_used_by_the_reset():
                                    "Offset7": 10}
   slc = {k: AP1_PARAM_PROFILE[k] for k in AP1_PARAM_PROFILE if k.startswith("SLC") or k == "ShowSLCOffset"}
   assert slc == {"SLCOverride": "2", "SLCPriority1": "Dashboard", "SLCPriority3": "Navigation",
-                 "SLCLookaheadHigher": "0", "SLCLookaheadLower": "5", "ShowSLCOffset": "0"}
+                 "SLCLookaheadHigher": "0", "SLCLookaheadLower": "5", "ShowSLCOffset": "1"}
   assert expected_offsets(False) == [4, 5, 5, 5, 7, 8, 10]
   assert expected_offsets(True) == [6, 8, 8, 8, 11, 13, 16]
 
@@ -66,8 +66,9 @@ def test_ap1_s_reset_writes_the_ap1_profile_values(metric):
   assert {k: store.vals[k] for k in MAIN} == {"SLCOverride": "2", "SLCPriority1": "Dashboard", "SLCPriority2": "Map Data",
                                               "SLCPriority3": "Navigation", "SLCLookaheadLower": "5"}
   assert store.vals["ShowSLCOffset"] == "1"
+  store.vals["ShowSLCOffset"] = "0"                   # a saved off is only changed by the reset
   reset(ed, VISUALS)
-  assert store.vals["ShowSLCOffset"] == "0"
+  assert store.vals["ShowSLCOffset"] == "1"
   # rows outside the reset sections are never touched by any reset
   assert (store.vals["SLCFallback"], store.vals["SLCConfirmation"], store.vals["SetSpeedLimit"]) == ("0", "1", "1")
   assert "SLCLookaheadHigher" not in store.vals      # profile key without a row: not written by the panel
@@ -197,7 +198,7 @@ def test_settings_reset_clears_the_marker_and_the_profile_reapplies(tmp_path, me
   assert set(OFFSETS) <= set(written) and marker_path(tmp_path).exists()
   assert [float(p.get(k)) for k in OFFSETS] == [float(v) for v in expected_offsets(metric == "1")]
   assert (p.get("SLCOverride"), p.get("SLCPriority1"), p.get("SLCPriority3"), p.get("ShowSLCOffset")) == \
-         ("2", "Dashboard", "Navigation", "0")
+         ("2", "Dashboard", "Navigation", "1")
 
 
 def test_settings_reset_runs_both_steps():

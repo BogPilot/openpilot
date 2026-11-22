@@ -153,8 +153,12 @@ def test_personalities_toggle_and_profile_values_reach_the_planner_reader(store)
   page, _ = page_for(store, cp)
   root = titled(page, "Driving Personalities")
   assert hasattr(root.action_item, "toggle") and hasattr(root.action_item, "manage")
-  assert root.action_item.manage_enabled() is False                    # MANAGE only while the switch is on
+  assert root.action_item.manage_enabled() is True                     # ships on (default)
+  assert F.FollowingToggles.read(store, cp).custom_personalities is True
+  switch(page, "Driving Personalities")
+  assert store.get_bool("CustomPersonalities") is False
   assert F.FollowingToggles.read(store, cp).custom_personalities is False
+  assert root.action_item.manage_enabled() is False                    # MANAGE only while the switch is on
   switch(page, "Driving Personalities")
   assert store.get_bool("CustomPersonalities") is True
   assert F.FollowingToggles.read(store, cp).custom_personalities is True
@@ -180,7 +184,7 @@ def test_personalities_toggle_and_profile_values_reach_the_planner_reader(store)
 def test_a_profile_switch_shows_and_hides_only_its_own_rows(store):
   cp = make_cp()
   page, _ = page_for(store, cp)
-  switch(page, "Driving Personalities")
+  ensure_on(store, page, "Driving Personalities", "CustomPersonalities")
   manage(page, "Driving Personalities").callback()
   ensure_on(store, page.panel, "Aggressive", "AggressivePersonalityProfile")
   assert len([i for i in rows(page.panel) if i.title == "Aggressive"]) == 1
@@ -197,7 +201,7 @@ def test_a_profile_switch_shows_and_hides_only_its_own_rows(store):
 
 def test_back_hands_the_inline_page_back_to_the_gas_brake_page(store):
   page, _ = page_for(store)
-  switch(page, "Driving Personalities")
+  ensure_on(store, page, "Driving Personalities", "CustomPersonalities")
   manage(page, "Driving Personalities").callback()
   assert page.navigation_title == "Driving Personalities"            # header stays on the group name
   assert page.navigation_back() is True and page.panel is None       # no inner pages: the Gas / Brake page closes the panel
@@ -211,7 +215,7 @@ def test_reset_to_defaults_only_runs_after_the_confirmation_says_yes(store, monk
   monkeypatch.setattr("openpilot.selfdrive.ui.bogpilot.phase3_gas_brake_mounts._request_confirm",
                       lambda text, on_yes: asked.append((text, on_yes)))   # the section reset asks through the mount
   page, _ = page_for(store, cp)
-  switch(page, "Driving Personalities")
+  ensure_on(store, page, "Driving Personalities", "CustomPersonalities")
   manage(page, "Driving Personalities").callback()
   panel = page.panel
   ensure_on(store, panel, "Aggressive", "AggressivePersonalityProfile")
@@ -227,8 +231,8 @@ def test_reset_to_defaults_only_runs_after_the_confirmation_says_yes(store, monk
 def test_personality_writes_are_refused_while_the_car_is_on(store):
   page, flag = page_for(store)
   flag[0] = False
-  switch(page, "Driving Personalities")
-  assert store.raw("CustomPersonalities") in (None, "0") and not store.get_bool("CustomPersonalities")
+  switch(page, "Driving Personalities")                                 # would turn the default-on switch off
+  assert store.raw("CustomPersonalities") is None and store.get_bool("CustomPersonalities")   # nothing written
 
 
 # ---------------------------------------------------------------------------------------------- Longitudinal Tuning rows

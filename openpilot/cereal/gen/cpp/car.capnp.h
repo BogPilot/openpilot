@@ -938,7 +938,7 @@ struct BogPilotCarState {
   class Pipeline;
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(f9808f7c5e2fbd25, 4, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(f9808f7c5e2fbd25, 7, 0)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
@@ -5316,6 +5316,24 @@ public:
 
   inline  ::uint8_t getAp1BrakePedalState() const;
 
+  inline bool getPreapRadarNotReady() const;
+
+  inline bool getPreapEpasNotActive() const;
+
+  inline float getAp1FrontMotorTorqueNm() const;
+
+  inline float getAp1FrontMotorRpm() const;
+
+  inline  ::uint8_t getAp1DriveLayout() const;
+
+  inline  ::uint8_t getAp1PerfRear() const;
+
+  inline float getAp1RearRpmPerMs() const;
+
+  inline float getAp1FrontRpmPerMs() const;
+
+  inline bool getAp1RpmPerMsMeasured() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -5466,6 +5484,33 @@ public:
 
   inline  ::uint8_t getAp1BrakePedalState();
   inline void setAp1BrakePedalState( ::uint8_t value);
+
+  inline bool getPreapRadarNotReady();
+  inline void setPreapRadarNotReady(bool value);
+
+  inline bool getPreapEpasNotActive();
+  inline void setPreapEpasNotActive(bool value);
+
+  inline float getAp1FrontMotorTorqueNm();
+  inline void setAp1FrontMotorTorqueNm(float value);
+
+  inline float getAp1FrontMotorRpm();
+  inline void setAp1FrontMotorRpm(float value);
+
+  inline  ::uint8_t getAp1DriveLayout();
+  inline void setAp1DriveLayout( ::uint8_t value);
+
+  inline  ::uint8_t getAp1PerfRear();
+  inline void setAp1PerfRear( ::uint8_t value);
+
+  inline float getAp1RearRpmPerMs();
+  inline void setAp1RearRpmPerMs(float value);
+
+  inline float getAp1FrontRpmPerMs();
+  inline void setAp1FrontRpmPerMs(float value);
+
+  inline bool getAp1RpmPerMsMeasured();
+  inline void setAp1RpmPerMsMeasured(bool value);
 
 private:
   ::capnp::_::StructBuilder _builder;
@@ -11816,6 +11861,132 @@ inline  ::uint8_t BogPilotCarState::Builder::getAp1BrakePedalState() {
 inline void BogPilotCarState::Builder::setAp1BrakePedalState( ::uint8_t value) {
   _builder.setDataField< ::uint8_t>(
       ::capnp::bounded<29>() * ::capnp::ELEMENTS, value, 3u);
+}
+
+inline bool BogPilotCarState::Reader::getPreapRadarNotReady() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<174>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getPreapRadarNotReady() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<174>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setPreapRadarNotReady(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<174>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getPreapEpasNotActive() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<175>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getPreapEpasNotActive() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<175>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setPreapEpasNotActive(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<175>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotCarState::Reader::getAp1FrontMotorTorqueNm() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotCarState::Builder::getAp1FrontMotorTorqueNm() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAp1FrontMotorTorqueNm(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotCarState::Reader::getAp1FrontMotorRpm() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotCarState::Builder::getAp1FrontMotorRpm() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAp1FrontMotorRpm(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint8_t BogPilotCarState::Reader::getAp1DriveLayout() const {
+  return _reader.getDataField< ::uint8_t>(
+      ::capnp::bounded<30>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint8_t BogPilotCarState::Builder::getAp1DriveLayout() {
+  return _builder.getDataField< ::uint8_t>(
+      ::capnp::bounded<30>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAp1DriveLayout( ::uint8_t value) {
+  _builder.setDataField< ::uint8_t>(
+      ::capnp::bounded<30>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint8_t BogPilotCarState::Reader::getAp1PerfRear() const {
+  return _reader.getDataField< ::uint8_t>(
+      ::capnp::bounded<31>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint8_t BogPilotCarState::Builder::getAp1PerfRear() {
+  return _builder.getDataField< ::uint8_t>(
+      ::capnp::bounded<31>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAp1PerfRear( ::uint8_t value) {
+  _builder.setDataField< ::uint8_t>(
+      ::capnp::bounded<31>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotCarState::Reader::getAp1RearRpmPerMs() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotCarState::Builder::getAp1RearRpmPerMs() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAp1RearRpmPerMs(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotCarState::Reader::getAp1FrontRpmPerMs() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotCarState::Builder::getAp1FrontRpmPerMs() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAp1FrontRpmPerMs(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getAp1RpmPerMsMeasured() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<384>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getAp1RpmPerMsMeasured() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<384>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setAp1RpmPerMsMeasured(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<384>() * ::capnp::ELEMENTS, value);
 }
 
 }  // namespace

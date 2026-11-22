@@ -228,8 +228,8 @@ def test_update_events_ap1_and_unknown_keep_canerror(monkeypatch, cp):
 
 
 def test_update_events_modelx_without_op_long_does_not_map_radar(monkeypatch):
-  # Model X is lateral-only by default; the radar-event branch is behind OP long.
-  cp = _ap1_cp(CAR.TESLA_AP1_MODELX)
+  # Model X with openpilot longitudinal off (the user's Off; the default is on): the radar-event branch is behind OP long.
+  cp = _ap1_cp(CAR.TESLA_AP1_MODELX, long_control=False)
   assert not cp.openpilotLongitudinalControl
   sd, _ = _make_sd(monkeypatch, cp, can_error=True)
   names = _event_names(sd)

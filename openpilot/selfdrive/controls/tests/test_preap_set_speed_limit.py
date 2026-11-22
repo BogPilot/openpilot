@@ -186,7 +186,8 @@ class TestCardWiring(unittest.TestCase):
   def test_enable_edge_passes_limit(self):
     self.assertIn('self.preap_engage_set_limit.kph(self.CS_prev, getattr(self.CI.CS, "engage_limit_ms", 0.0))', self.SRC)
     self.assertIn("initialize_v_cruise(self.CS_prev, self.experimental_mode, set_limit_kph,", self.SRC)
-    self.assertIn("preap_from_stop_kph=from_stop, is_metric=self.is_metric)", self.SRC)
+    self.assertIn("preap_from_stop_kph=from_stop, is_metric=self.is_metric,", self.SRC)
+    self.assertIn("preap_restore_kph=restore)", self.SRC)   # Pre-AP pull re-engage restore (test_preap_restore_last_set.py)
 
 
 class TestSettingsRow(unittest.TestCase):

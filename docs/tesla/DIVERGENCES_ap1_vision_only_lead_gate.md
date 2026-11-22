@@ -1,6 +1,6 @@
 # AP1 and Pre-AP: far camera-only leads need a higher model confidence
 
-AP1 Model S (`TESLA_AP1_MODELS`) and Pre-AP Model S (`TESLA_PREAP_MODELS`). Nothing changes on Model X, AP2 or any other platform.
+AP1 Model S (`TESLA_AP1_MODELS`) and Pre-AP Model S (`TESLA_PREAP_MODELS`), and the AP1 Model X (`TESLA_AP1_MODELX`) only while openpilot longitudinal is on (AP1XOpenpilotLong). Nothing changes on the X with stock cruise, AP2 or any other platform. The real Model X data this rests on: the same Bosch radar and comma camera, and a Model X drive shows far, low-probability camera-only leads that this gate would ignore.
 
 ## Reference behaviour
 - Stock openpilot 0.11.2 `radard.get_lead` uses a camera lead (prob above the detection threshold) with no radar track
@@ -14,7 +14,7 @@ AP1 Model S (`TESLA_AP1_MODELS`) and Pre-AP Model S (`TESLA_PREAP_MODELS`). Noth
   (`v_ego - lead.v >= 5`). Otherwise it is not used as a lead, and the low-speed override and radar-matched leads work as before.
 - Applies to both lead slots. Radar-matched leads, leads within 50 m, the AP1 glitch filter and the Pre-AP radar point filters (stuck track, Bosch point gate) are unchanged. On Pre-AP the gate sees only what is left after those filters: a track the stuck filter withholds becomes a camera-only lead, and the gate then applies to it beyond 50 m.
 - Constants: `VISION_ONLY_FAR_M`, `VISION_ONLY_FAR_PROB`, `VISION_ONLY_CLOSING_MS` in `selfdrive/controls/radard.py`.
-  Wired as `RadarD(vision_only_gate=...)`, on when `vision_only_gate_platform(CP.carFingerprint)` is true (AP1 Model S and Pre-AP Model S). No toggle.
+  Wired as `RadarD(vision_only_gate=...)`, on when `vision_only_gate_platform(CP.carFingerprint, CP.openpilotLongitudinalControl)` is true (AP1 Model S and Pre-AP Model S; AP1 Model X with openpilot longitudinal). No toggle.
 - Why: an AP1 drive showed phantom braking from weak camera-only leads (prob 0.35 to 0.6) far ahead with no radar
   confirmation, caused by the 0.35 threshold. Raising the threshold itself delays real leads; this rule does not.
 

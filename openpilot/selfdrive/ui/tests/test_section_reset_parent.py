@@ -400,7 +400,7 @@ def test_ap1_x_slc_values_are_unchanged_and_ce_resets_off(profile_store):
   assert {k: ed.store.vals[k] for k in MAIN} == {"SLCOverride": "2", "SLCPriority1": "Dashboard",
                                                  "SLCPriority2": "Map Data", "SLCPriority3": "Navigation",
                                                  "SLCLookaheadLower": "5"}
-  assert ed.store.vals["ShowSLCOffset"] == "0"
+  assert ed.store.vals["ShowSLCOffset"] == "1"
   # CE section reset: off on every legacy Tesla, and no other CE key comes from the AP1 profile on the X
   c = SettingsController("conditional", profile_store, cp=stop_cp())
   assert c.change("ConditionalExperimental", True) and c.change("CECurves", False)

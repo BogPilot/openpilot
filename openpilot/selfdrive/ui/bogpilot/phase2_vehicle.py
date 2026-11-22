@@ -5,7 +5,8 @@ No generic make/model overrides or stored-but-unconsumed preferences.
 """
 from pathlib import Path
 
-# Model S only. Model X is lateral-only and does not get these toggles.
+# Model S and Pre-AP rows. The AP1 Model X sees only its own rows: AP1XOpenpilotLong, and RegenComfortBrake while that
+# opt-in is on.
 AP1 = "TESLA_AP1_MODELS"
 PREAP = "TESLA_PREAP_MODELS"
 DOUBLE_PULL = "TeslaPreApDoublePull"
@@ -22,6 +23,7 @@ RADAR = "TeslaRadarEnabled"
 RADAR_NOSECONE = "TeslaRadarBehindNosecone"
 IBOOSTER = "TeslaHasIBooster"
 AUTO_SPEED = "TeslaPreApAutoSpeed"
+FROM_STOP = "TeslaPreApFromStopSpeed"
 RADAR_IGNORE_HW_FAIL = "TeslaRadarIgnoreHwFail"
 RADAR_READ_VIN = "TeslaRadarReadVin"
 RADAR_FLIP = "TeslaRadarUpsideDown"
@@ -46,6 +48,30 @@ RADAR_EPAS_TYPE_DESCRIPTION = ("The steering rack (EPAS) of the car the retrofit
 # NAP nap-dev labels (ui layouts/settings/nap.py "Donor EPAS Type"; wiki hardware/bosch-radar), in NAP's order.
 RADAR_EPAS_TYPE_NAMES = ("Bosch L538", "Bosch L405", "Mando FGR64", "Mando VGR66", "Mando VGR66 Gen3")
 RADAR_EPAS_TYPE_BUTTON_WIDTHS = (110, 340, 110)   # [-] [value] [+]: the longest label does not fit the usual 150
+TRIM = "TeslaTrim"
+TRIM_DETECTED = "TeslaTrimDetected"
+TRIM_TITLE = "Trim"
+TRIM_DESCRIPTION = ("Pick the battery and Ludicrous version of your car. The motors (single or dual, Performance rear) are read from the "
+                    "car, so only trims that match it are listed. Auto keeps the base tune. The trim sets the mass the regen braking "
+                    "math uses (Tesla curb weight plus 136 kg for people and cargo); steering and the safety limits are the same for "
+                    "every trim. Takes effect the next time the car starts.")
+TRIM_DETECTED_TITLE = "Detected"
+TRIM_DETECTED_DESCRIPTION = ("What the car reported about its motors on the last drive: single or dual motor, and on a dual-motor car "
+                             "whether the rear motor is the Performance one. Battery size and Ludicrous are not sent by the car.")
+TRIM_MISMATCH = "does not match the car"
+TRIM_BUTTON_WIDTHS = (110, 340, 110)   # [-] [value] [+]: "P100D Ludicrous" does not fit the usual 150
+# AP1 Model X openpilot longitudinal: read once when the car starts (card CarParams + panda safety param), and every process that
+# holds it (card, controlsd, selfdrived, plannerd, radard; pandad re-reads CarParams on each onroad transition) restarts with
+# the ignition, so no reboot is needed. Car off: saved for the next start. Car on (driving, parked or engaged): queued, written
+# when the car is turned off, the next start uses it.
+X_LONG_ON_PROMPT = "Turn on openpilot longitudinal control for this Model X? It is experimental. It takes effect the next time the car starts."
+X_LONG_ON_CONFIRM = "Turn On"
+X_LONG_ON_NEXT_START = "Saved. openpilot longitudinal control turns on the next time the car starts. No reboot needed."
+X_LONG_QUEUED_ON = ("Saved. openpilot longitudinal control turns on the next time the car starts: the change is applied when the car "
+                    "is turned off. No reboot needed.")
+X_LONG_OFF_NEXT_START = "Saved. The Model X uses its own cruise control (stock TACC) from the next time the car starts."
+X_LONG_QUEUED_OFF = ("Saved. The Model X uses its own cruise control (stock TACC) from the next time the car starts: the change is "
+                     "applied when the car is turned off. No reboot needed.")
 PEDAL_EMERGENCY = "PedalEmergencyDisable"
 PEDAL_EMERGENCY_TITLE = "Pedal Emergency Disable"
 PEDAL_EMERGENCY_DESCRIPTION = ("One tap, any time, even while driving: pedal speed control stops now and the pedal calibration is cleared. "
@@ -88,6 +114,7 @@ TITLES = {LONG: "Disable openpilot Longitudinal Control",
           RADAR_NOSECONE: "Pre-AP: Radar Behind Nosecone",
           IBOOSTER: "Pre-AP: iBooster Swap",
           AUTO_SPEED: "Pre AP Auto Speed",
+          FROM_STOP: "Pre-AP: From-Stop Speed",
           RADAR_IGNORE_HW_FAIL: "Ignore Radar Hardware Fault (Pre-AP)",
           RADAR_FLIP: "Pre-AP: Flip Radar"}
 # Pre-AP wording for the shared Disable row (AP1 keeps the stock text).
@@ -109,8 +136,9 @@ PEDAL_CALIBRATE_DESCRIPTION = ("Guided calibration. Put the car in Park with the
 DESCRIPTIONS = {
   LONG: "Use the car's stock ACC instead of openpilot longitudinal control. Takes effect the next time the car starts.",
   CLUSTER: "Show openpilot information on the Tesla dash cluster. Off leaves the cluster stock. Takes effect immediately.",
-  X_LONG: ("Experimental and untested on a real Model X. Lets openpilot control speed and braking on an AP1 Model X, the way it does on the "
-           "Model S. Off keeps the Model X on steering only with its own cruise control. Takes effect the next time the car starts."),
+  X_LONG: ("Experimental. Lets openpilot control speed and braking on an AP1 Model X, the way it does on the Model S. On by "
+           "default. Off keeps the Model X on steering only with its own cruise control (stock TACC). Changes take effect the "
+           "next time the car starts; no reboot is needed."),
   REGEN: "Start slowing gently (up to about 2 mph per second) for a slower car the radar sees. It only adds braking; following "
          "distance, emergency braking and cut-in response are unchanged. "
          "Takes effect the next time the planner starts (normally the next drive).",
@@ -126,11 +154,15 @@ DESCRIPTIONS = {
   IBOOSTER: "Turn on only if the car has an aftermarket iBooster fitted on the chassis bus. The brake bar on the driving screen "
             "then follows how far the brake pedal is pressed instead of showing full or empty. Display only. "
             "Takes effect the next time the car starts.",
-  AUTO_SPEED: "Off: when you engage speed control, the set speed is your current speed, as NotAutopilot does, and only the stalk "
-              "changes it. On: the Speed Limit Controller sets and changes the speed for you, as on AP1, using the posted limit "
+  AUTO_SPEED: "Off: when you engage speed control, the set speed is your current speed, as NotAutopilot does, or the last set "
+              "speed of this drive when you engage again; stalk up / down then change it. On: the Speed Limit Controller sets and changes the speed for you, as on AP1, using the posted limit "
               "and your offsets. With no posted limit it uses Experimental Mode's planned speed, capped by your set speed. "
               "Review the Speed Limit Controller settings before turning this on. "
               "Takes effect the next time the car starts.",
+  FROM_STOP: "Off: engaging speed control while stopped keeps the last set speed of this drive (or 0 if there is none, as "
+             "NotAutopilot does); the car stays stopped until you press the accelerator. On: engaging while stopped sets your "
+             "AP1 Standstill Tap Speed instead. Experimental. Shown while Pre AP Auto Speed is off. "
+             "Takes effect the next time the car starts.",
   RADAR_IGNORE_HW_FAIL: "Turn this on if the retrofit radar keeps showing Radar Error: Restart the Car even though the radar is "
                         "working. Openpilot can then engage and uses camera leads; radar points stay out of speed control and a "
                         "Radar not ready - using camera lead warning still shows. Other radar faults are unchanged. "
@@ -176,11 +208,16 @@ class VehicleSettings:
     self.cluster_path = self.file_dir / CLUSTER if file_dir is not None else toggles._ic_integration_path
     self.regen_path = self.file_dir / REGEN if file_dir is not None else regen_brake._regen_comfort_path
     self.x_long_path = self.file_dir / X_LONG if file_dir is not None else toggles._ap1x_op_long_path
+    self._custom_dir = file_dir is not None
 
   def visible(self, key):
     cp = self.cp()
+    if key in (TRIM, TRIM_DETECTED):
+      return supported(cp) or is_x(cp)  # AP1 Model S, AP1 Model X and Pre-AP
     if key == X_LONG:
       return is_x(cp)                  # Model X only; every other car (Model S, Pre-AP, unknown) never sees the row
+    if key == REGEN and is_x(cp):
+      return bool(cp.openpilotLongitudinalControl)   # AP1 Model X: only with its openpilot longitudinal opt-in
     if not supported(cp):
       return False
     if key == LONG:
@@ -205,6 +242,10 @@ class VehicleSettings:
       return is_preap(cp)              # Pre-AP swap only; AP1 cars have the factory iBooster (0x39D brake level)
     if key == AUTO_SPEED:
       return is_preap(cp) and bool(cp.openpilotLongitudinalControl)   # pedal longitudinal only; AP1 never shows the row
+    if key == FROM_STOP:
+      # pedal longitudinal only, and only while Pre AP Auto Speed is off (Auto Speed on always uses the from-stop speed)
+      from opendbc.car.tesla_ap1.preap import params as preap_params
+      return is_preap(cp) and bool(cp.openpilotLongitudinalControl) and not preap_params.get_bool(AUTO_SPEED)
     if key == RADAR_IGNORE_HW_FAIL:
       from opendbc.car.tesla_ap1.preap import params as preap_params
       # Pre-AP only, and only while Bosch Radar is on. Hidden while the car is unknown (no fingerprint yet).
@@ -237,7 +278,70 @@ class VehicleSettings:
       return self.visible(key)         # the tap says why when the car is not parked (radar_screen_blocked)
     if key == HW_RESET:
       return self.visible(key) and bool(self.offroad()) and not self.engaged()
+    if key == TRIM_DETECTED:
+      return False                     # read-only line
     return self.visible(key) and bool(self.offroad())
+
+  # ---- Trim (opendbc tesla_ap1/trims.py): one picker, filtered by what CAN detected; read once at car start ----
+  def _trims(self):
+    from opendbc.car.tesla_ap1 import trims
+    return trims
+
+  def trim_path(self):
+    return self.file_dir / TRIM if getattr(self, "_custom_dir", False) else self._trims()._trim_path
+
+  def detected_path(self):
+    return self.file_dir / TRIM_DETECTED if getattr(self, "_custom_dir", False) else self._trims()._detected_path
+
+  def trim_fingerprint(self):
+    cp = self.cp()
+    return str(cp.carFingerprint) if (supported(cp) or is_x(cp)) else ""
+
+  def detection(self):
+    return self._trims().read_detected(path=self.detected_path())
+
+  def trim(self):
+    try:
+      stored = self.trim_path().read_text(encoding="utf-8", errors="replace")
+    except OSError:
+      stored = ""
+    return self._trims().read_trim(stored)
+
+  def trim_keys(self):
+    return self._trims().picker_keys(self.trim_fingerprint(), self._det_for_car(), self.trim())
+
+  def _det_for_car(self):
+    trims = self._trims()
+    det = self.detection()
+    chassis = trims.chassis_of(self.trim_fingerprint())
+    return det if det.chassis == chassis else trims.Detected(chassis)
+
+  def trim_mismatch(self):
+    trims = self._trims()
+    t = trims.TRIM_BY_KEY.get(self.trim())
+    return t is not None and not trims.consistent(t, self._det_for_car())
+
+  def trim_text(self):
+    label = self._trims().trim_label(self.trim())
+    return f"{label} ({TRIM_MISMATCH})" if self.trim_mismatch() else label
+
+  def detected_text(self):
+    return self._trims().detected_text(self._det_for_car(), self.trim_fingerprint())
+
+  def step_trim(self, steps):
+    """Pressed - (steps=-1) or + (steps=+1): the previous / next trim in the filtered list, clamped (no wrap). Refused unless
+    visible and the edit gate allows. Returns the stored key or None. Read when the car starts (reboot-prompt class)."""
+    if not self.enabled(TRIM):
+      return None
+    keys = self.trim_keys()
+    cur = self.trim()
+    i = keys.index(cur) if cur in keys else 0
+    key = keys[max(0, min(len(keys) - 1, i + int(steps)))]
+    if key == cur:
+      return key
+    self._trims().write_trim(key, path=self.trim_path())
+    self.on_change(TRIM)
+    return key
 
   # ---- Pre-AP Donor VIN typed by hand (opendbc tesla_ap1/preap/radar_donor.py) ----
   def set_donor_vin(self, text):
@@ -460,15 +564,19 @@ class VehicleSettings:
       if staged is not None:
         return bool(staged)
       return self.toggles.disable_openpilot_long(paths=(self.file_dir / LONG, self.params_file))
-    if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE, IBOOSTER, RADAR_IGNORE_HW_FAIL, RADAR_FLIP, AUTO_SPEED):
+    if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE, IBOOSTER, RADAR_IGNORE_HW_FAIL, RADAR_FLIP, AUTO_SPEED, FROM_STOP):
       from opendbc.car.tesla_ap1.preap import params as preap_params
       return preap_params.get_bool(key)
     if key == X_LONG:
+      from openpilot.selfdrive.ui.bogpilot import onroad_policy
+      staged = onroad_policy.pending(X_LONG)
+      if staged is not None and is_x(self.cp()):
+        return bool(staged)                                    # queued while driving: show what the car will start with
       try:
         stored = self.x_long_path.read_text(encoding="utf-8", errors="replace")
       except OSError:
         stored = ""
-      return self.toggles.ap1x_op_long(AP1_X if is_x(self.cp()) else "", stored=stored)   # default off
+      return self.toggles.ap1x_op_long(AP1_X if is_x(self.cp()) else "", stored=stored)   # default on (X only)
     # Missing/unreadable files have the consumer's default-on semantics.
     path = self.cluster_path if key == CLUSTER else self.regen_path
     try:
@@ -478,14 +586,15 @@ class VehicleSettings:
     if key == CLUSTER:
       return self.toggles.enable_ic_integration(AP1 if supported(self.cp()) else "", stored=stored)
     if key == REGEN:
-      return self.regen.regen_comfort_brake_enabled(AP1 if supported(self.cp()) else "", stored=stored)
+      cp = self.cp()
+      return self.regen.regen_comfort_brake_enabled(AP1 if supported(cp) else (AP1_X if is_x(cp) else ""), stored=stored)
     raise KeyError(key)
 
   def write(self, key, state):
     if not self.enabled(key):
       return False
     state = bool(state)
-    if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE, IBOOSTER, RADAR_IGNORE_HW_FAIL, RADAR_FLIP, AUTO_SPEED):
+    if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE, IBOOSTER, RADAR_IGNORE_HW_FAIL, RADAR_FLIP, AUTO_SPEED, FROM_STOP):
       from opendbc.car.tesla_ap1.preap import params as preap_params
       preap_params.set_bool(key, state)
       self.on_change(key)
@@ -505,6 +614,45 @@ class VehicleSettings:
     return True
 
 
+  # ---- AP1 Model X openpilot longitudinal: saved with the car off, queued while the car is on; never a reboot ----
+  def x_long_change(self, state):
+    """The X long row was flipped. Returns (action, message):
+    ("confirm", prompt): turning on with the car off: confirm (experimental), then confirm_x_long_on().
+    ("queued", text): changed with the car on (driving, parked or engaged): staged (onroad_policy), written when the car is
+    turned off, so the next start uses it.
+    ("saved", text): turned off with the car off: written, the next car start uses it.
+    ("refused", None): row not shown or not editable now. Nothing is written for confirm / refused.
+    No reboot in any case: the setting is read when the car starts, and every process holding it restarts with the ignition."""
+    from openpilot.selfdrive.ui.bogpilot import onroad_policy
+    if not self.enabled(X_LONG):
+      return ("refused", None)
+    state = bool(state)
+    if state == self.read(X_LONG) and onroad_policy.pending(X_LONG) is None:
+      return ("saved", None)
+    if self.started():
+      onroad_policy.stage(X_LONG, state)
+      return ("queued", X_LONG_QUEUED_ON if state else X_LONG_QUEUED_OFF)
+    if state:
+      return ("confirm", X_LONG_ON_PROMPT)
+    onroad_policy.clear_pending(X_LONG)
+    self.toggles.set_ap1x_op_long(False, path=self.x_long_path)
+    self.on_change(X_LONG)
+    return ("saved", X_LONG_OFF_NEXT_START)
+
+  def confirm_x_long_on(self):
+    """Turn On confirmed. Re-checked: if the car was started while the dialog was open the change is queued instead of written
+    (the running drive keeps its CarParams either way). Returns (action, message) like x_long_change, or ("refused", None)."""
+    from openpilot.selfdrive.ui.bogpilot import onroad_policy
+    if not self.enabled(X_LONG):
+      return ("refused", None)
+    if self.started():
+      onroad_policy.stage(X_LONG, True)
+      return ("queued", X_LONG_QUEUED_ON)
+    onroad_policy.clear_pending(X_LONG)
+    self.toggles.set_ap1x_op_long(True, path=self.x_long_path)
+    self.on_change(X_LONG)
+    return ("saved", X_LONG_ON_NEXT_START)
+
   def _write_long(self, state):
     """Disable Longitudinal: staged while the car is on (the planners read it live, it must not flip mid-drive; applied with the
     car off), otherwise the normal write. No visibility / edit-gate check here: callers do their own. Returns True when stored."""
@@ -519,6 +667,17 @@ class VehicleSettings:
     if override.is_file():
       override.write_text("1" if state else "0")
     return True
+
+
+def apply_staged_x_long(value) -> bool:
+  """onroad_policy applier for an AP1 Model X openpilot long change queued while driving: written with the car off, so the next
+  car start uses it. Only while the persisted car is still an AP1 Model X."""
+  from opendbc.car.tesla_ap1 import toggles
+  from openpilot.selfdrive.ui.ui_state import ui_state
+  if not is_x(ui_state.CP):
+    return False
+  toggles.set_ap1x_op_long(bool(value))
+  return True
 
 
 def apply_staged_long(value) -> bool:
@@ -651,6 +810,21 @@ def create_vehicle_settings_layout(params=None):
                                           confirm_text=tr(HW_RESET_CONFIRM), on_done=self.model.finish_hw_reset)
       attach_help(self.reset_row, HW_RESET)
       self.rows[HW_RESET] = self.reset_row
+      # Trim: a read-only Detected line, then the shared [-] [value] [+] stepper (Alert Volume rows). First on the page.
+      self.detected_row = text_item(lambda: tr(TRIM_DETECTED_TITLE), lambda: tr(self.model.detected_text()),
+                                    lambda: tr(TRIM_DETECTED_DESCRIPTION))
+      attach_help(self.detected_row, TRIM_DETECTED)
+      self.trim_row = gated_value_step_item(lambda: tr(TRIM_TITLE), lambda: tr(TRIM_DESCRIPTION),
+                                            lambda: tr(self.model.trim_text()),
+                                            on_minus=lambda: self.model.step_trim(-1),
+                                            on_plus=lambda: self.model.step_trim(1),
+                                            minus=RADAR_OFFSET_MINUS, plus=RADAR_OFFSET_PLUS, selected_index=1,
+                                            button_width=TRIM_BUTTON_WIDTHS[0], button_widths=TRIM_BUTTON_WIDTHS,
+                                            enabled=lambda: self.model.enabled(TRIM),
+                                            default_text="Auto", is_default=lambda: self.model.trim() == "Auto",
+                                            translate=tr)
+      attach_help(self.trim_row, TRIM)
+      self.rows = {TRIM_DETECTED: self.detected_row, TRIM: self.trim_row, **self.rows}
       # An empty or short page says why (no car / wrong car / longitudinal control off) instead of showing nothing.
       from openpilot.selfdrive.ui.bogpilot import menu_locks
       from openpilot.selfdrive.ui.bogpilot.vehicle_settings import disable_long_effective
@@ -766,7 +940,10 @@ def create_vehicle_settings_layout(params=None):
       if not self.model.enabled(key):
         self.refresh()
         return
-      if key not in (LONG, X_LONG) or not state:
+      if key == X_LONG:
+        self._set_x_long(state)
+        return
+      if key != LONG or not state:
         self.model.write(key, state)
         self.refresh()
         return
@@ -777,12 +954,26 @@ def create_vehicle_settings_layout(params=None):
         if result == DialogResult.CONFIRM and ui_state.CP is original_cp:
           self.model.write(key, state)
         self.refresh()
-      if key == X_LONG:
-        question = "Turn on experimental openpilot longitudinal control for this Model X? It is untested on a real Model X."
-      else:
-        question = "Disable pedal longitudinal control on the next car start?" if is_preap(ui_state.CP) else "Disable openpilot longitudinal control on the next car start?"
-      gui_app.push_widget(ConfirmDialog(tr(question),
-                                        tr("Turn On" if key == X_LONG else "Disable"), callback=done))
+      question = "Disable pedal longitudinal control on the next car start?" if is_preap(ui_state.CP) else "Disable openpilot longitudinal control on the next car start?"
+      gui_app.push_widget(ConfirmDialog(tr(question), tr("Disable"), callback=done))
+
+    def _set_x_long(self, state):
+      """Car off: turning on confirms (experimental) then saves; off saves. Car on: queued for the next start. Never reboots."""
+      action, message = self.model.x_long_change(state)
+      if action == "confirm":
+        original_cp = ui_state.CP
+
+        def done(result):
+          # Reject a stale confirmation even if another supported car is now loaded.
+          if result == DialogResult.CONFIRM and ui_state.CP is original_cp:
+            _action, text = self.model.confirm_x_long_on()
+            if text:
+              gui_app.push_widget(alert_dialog(tr(text)))
+          self.refresh()
+        gui_app.push_widget(ConfirmDialog(tr(message), tr(X_LONG_ON_CONFIRM), callback=done))
+      elif message:
+        gui_app.push_widget(alert_dialog(tr(message)))
+      self.refresh()
 
     def refresh(self):
       for key, row in self.rows.items():

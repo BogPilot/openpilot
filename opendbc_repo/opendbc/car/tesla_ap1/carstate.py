@@ -16,6 +16,7 @@ from opendbc.car.tesla_ap1.phase3_stalk_controls import StalkControls
 from opendbc.car.tesla_ap1.speed_limit import LIMIT_MAX_AGE_S, dashboard_speed_limit_ms, frame_fresh
 from opendbc.car.tesla_ap1.steer_fault import steer_fault_temporary
 from opendbc.car.tesla_ap1.steer_rate import SteerRateFallback
+from opendbc.car.tesla_ap1 import trims
 from opendbc.car.tesla_ap1.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTTONS, is_ap1_family
 from opendbc.car.interfaces import CarStateBase
 from opendbc.can import CANDefine, CANParser
@@ -26,6 +27,17 @@ STALK_LEVEL_HOLD_FRAMES = 6
 
 # 0.9.7 frequency 0 (never marks the message missing) is NaN in the 0.11 parser.
 OPTIONAL = float('nan')
+# 0x186 (100 Hz on the logs) counts as present when seen within this; 0x398 is slow (about 1 Hz), so a longer window.
+FRONT_MOTOR_MAX_AGE_S = 0.2
+CAR_CONFIG_MAX_AGE_S = 5.0
+
+
+def _saved_detection():
+  try:
+    return trims.read_detected()
+  except Exception:
+    return None
+
 
 class CarState(CarStateBase):
   def __init__(self, CP):
@@ -88,6 +100,9 @@ class CarState(CarStateBase):
     self.op_long_tap_from_zero = None
     # DI_cruiseSet DBC factor 0.5 halves the AP1 value (cruise_set.py, BogPilot x2 fix). Default ON, read once.
     self.cruise_set_scale = cruise_set_scale(cruise_set_scale_fix_enabled())
+    # Trim detection (trims.py): motor layout from 0x186 / GTW_fourWheelDrive, Performance rear from the rpm ratio, and the
+    # live rpm per m/s of each motor. Seeded from the last drive's saved detection (read once here, at car start).
+    self.drive_detect = trims.DriveDetector(CP.carFingerprint, DT_CTRL, front_possible=True, seed=_saved_detection())
 
   def update(self, can_parsers) -> structs.CarState:
     cp = can_parsers[Bus.chassis]
@@ -139,7 +154,7 @@ class CarState(CarStateBase):
     # TinklaHandsOnLevel 2 in CarController (hso.ap1_steering_pressed).
     # Structural AP1 (Model S and Model X): hands override and EAC fault handling.
     ap1 = is_ap1_family(self.CP.carFingerprint)
-    # Model S only. Cluster, stalk follow, standstill, and regen stay off on Model X.
+    # Model S only. Cluster, stalk follow and standstill stay off on Model X (the regen inputs below are read on both).
     ap1_s = self.CP.carFingerprint == CAR.TESLA_AP1_MODELS
     if ap1:
       ret.steeringPressed = ap1_driver_input(self.hands_on_level)
@@ -322,11 +337,14 @@ class CarState(CarStateBase):
 
     # 0x108 motor torque (Nm) and RPM, raw decoded values (SNA stays -1024 Nm / -32768 rpm). Published for Model S and
     # Model X: the onroad pedal gauge's regen bar reads them on every legacy platform. The regen-aware stop shaping
-    # (regen_aware.py via ap1_planning) stays Model S only; it is gated on the fingerprint, not on these fields.
+    # (regen_aware.py via ap1_planning) runs on the Model S and the Model X with openpilot longitudinal; it is gated on the
+    # fingerprint, not on these fields.
     fp_ret.ap1MotorTorqueNm = float(cp.vl["DI_torque1"]["DI_torqueMotor"])
     fp_ret.ap1MotorRpm = float(cp.vl["DI_torque1"]["DI_motorRPM"])
-    if ap1_s:
-      # Model S only. Regen-aware stop braking inputs (regen_aware.py): ambient temperature.
+    self._update_drive_detect(cp, ret.vEgoRaw, fp_ret)
+    if ap1_s or self.CP.carFingerprint == CAR.TESLA_AP1_MODELX:
+      # Model S and Model X. Regen-aware stop braking inputs (regen_aware.py): ambient temperature. The Model X sends
+      # 0x208 as a 4-byte frame (the DBC says 8); GTW_ambientTemperature is byte 1, so it decodes the same.
       amb = cp.vl.get("GTW_ESP1", {})
       amb_seen = getattr(cp, "ts_nanos", {}).get("GTW_ESP1", {}).get("GTW_ambientTemperature", 0)
       fp_ret.ap1AmbientTempC = float(amb["GTW_ambientTemperature"]) if amb_seen else float("nan")
@@ -357,6 +375,29 @@ class CarState(CarStateBase):
     fp_ret.ap1StalkFollowS = float(stalk_follow_s) if ap1_s else 0.0
 
     return ret
+
+  def _update_drive_detect(self, cp, v_ego_raw, fp_ret) -> None:
+    """0x186 front motor (NaN unless a fresh frame), the drive layout / Performance rear and the rpm per m/s of each motor.
+    Display and comfort layers only (pedal gauge, regen-aware stop shaper); nothing in CarParams, the panda or safety."""
+    front_seen = frame_fresh(cp, "DI_torque1Front", FRONT_MOTOR_MAX_AGE_S)
+    front = cp.vl.get("DI_torque1Front", {}) if front_seen else {}
+    front_tq = float(front["DI_torqueMotorFront"]) if front_seen else float("nan")
+    front_rpm = float(front["DI_motorRPMFront"]) if front_seen else float("nan")
+    fwd = None
+    if frame_fresh(cp, "GTW_carConfig", CAR_CONFIG_MAX_AGE_S):
+      try:
+        fwd = int(cp.vl["GTW_carConfig"]["GTW_fourWheelDrive"])
+      except (KeyError, TypeError, ValueError):
+        fwd = None
+    det = self.drive_detect
+    det.update(v_ego_raw, fp_ret.ap1MotorRpm, front_rpm, front_seen, fwd)
+    fp_ret.ap1FrontMotorTorqueNm = front_tq
+    fp_ret.ap1FrontMotorRpm = front_rpm
+    fp_ret.ap1DriveLayout = int(det.layout)
+    fp_ret.ap1PerfRear = int(det.perf)
+    fp_ret.ap1RearRpmPerMs = float(det.rear_k)
+    fp_ret.ap1FrontRpmPerMs = float(det.front_k)
+    fp_ret.ap1RpmPerMsMeasured = bool(det.measured)
 
   def _held_stalk_levels(self, ButtonType) -> dict:
     """Continuous UP/DN/RWD levels from button_states, each at least STALK_LEVEL_HOLD_FRAMES wide from the press.
@@ -431,6 +472,10 @@ class CarState(CarStateBase):
       ("BrakeMessage", 50),
       # 0x39D brake level for the onroad decel bar (display only). Frequency 0 so a car without it does not trip canValid.
       ("BrakeBoosterStroke", OPTIONAL),
+      # Trim detection (trims.py, display and comfort only): 0x186 front drive inverter (dual-motor cars only) and 0x398
+      # GTW_carConfig. Frequency 0: a single-motor car (no 0x186) or a missing 0x398 never trips canValid.
+      ("DI_torque1Front", OPTIONAL),
+      ("GTW_carConfig", OPTIONAL),
     ]
 
     # Model X seatbelt is RCM_status (0x211). SDM1 stays in this slot for Model S.
@@ -452,11 +497,13 @@ class CarState(CarStateBase):
       messages.append(("GTW_ESP1", OPTIONAL))
     elif CP.carFingerprint == CAR.TESLA_AP1_MODELX:
       # Model X dashboard SLC uses the same GTW map / mpp frames as Model S.
-      # Ambient (regen) stays Model S only. Frequency 0 so missing frames do not trip canValid.
+      # Frequency 0 so missing frames do not trip canValid.
       messages.append(("UI_driverAssistMapData", OPTIONAL))
       messages.append(("UI_gpsVehicleSpeed", OPTIONAL))
       messages.append(("UI_driverAssistRoadSign", OPTIONAL))
       messages.append(("EPB_epasControl", OPTIONAL))
+      # 0x208 outside air temperature for regen_aware.py (cold regen ceiling). Frequency 0 (no canValid effect).
+      messages.append(("GTW_ESP1", OPTIONAL))
 
     cam_messages = [
       # sig_address, frequency

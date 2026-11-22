@@ -15,6 +15,8 @@ Code: `opendbc_repo/opendbc/car/tesla_ap1/preap/`, panda mode `opendbc_repo/open
 - A single pull engages steering only; a double pull adds speed control. From speed control a brake press or a single pull
   goes back to steering only (speed-off chime, "Steering only" banner, blue path); hands on or an EPAS refusal disengages and needs a
   fresh pull. Without the pedal a single pull cancels a stock cruise it armed and the driver's double pull re-arms it.
+- No Comma Pedal at all: when the car starts without the pedal on the bus, the drive uses the no-pedal mode. A single pull steers,
+  with the banner "Steering only: no Comma Pedal found", and the double pull uses stock cruise for speed.
 - The pedal is enabled only in speed control, never while braking or with the accelerator pressed, and at a stop it holds at 0 until
   the accelerator is pressed and released while moving. See DIVERGENCES_preap_nap_fsm.md.
 

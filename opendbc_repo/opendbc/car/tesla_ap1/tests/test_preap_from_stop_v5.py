@@ -177,10 +177,13 @@ def test_constants_off_give_v3(monkeypatch):
 # Car rig (real Pre-AP car state + carcontroller) with the card's set-speed order: VCruiseHelper, then the enable-edge init, then
 # the capture (selfdrive/car/card.py).
 class Card:
+  """card.py's Pre-AP set speed path. The pull policy (Pre AP Auto Speed, Pre-AP From-Stop Speed) is read once at construction,
+  as card reads it once at start, so a test sets the params first."""
   def __init__(self, is_metric=False):
-    from openpilot.selfdrive.car.cruise import VCruiseHelper
+    from openpilot.selfdrive.car.cruise import PreapPullPolicy, VCruiseHelper
     self.c = Car()
     self.vc = VCruiseHelper(NS(pcmCruise=False))
+    self.policy = PreapPullPolicy.read()
     self.is_metric = is_metric
     self.prev_op = False
 
@@ -189,10 +192,11 @@ class Card:
     cs = self.c.rig.cs
     self.vc.update_v_cruise(out, self.c.op, self.is_metric)
     if self.c.op and not self.prev_op:
-      self.vc.initialize_v_cruise(out, False, 0.0, preap_from_stop_kph=FROM_STOP_KPH, is_metric=self.is_metric)
+      self.vc.initialize_v_cruise(out, False, 0.0, preap_from_stop_kph=FROM_STOP_KPH if self.policy.use_from_stop() else 0.0,
+                                  is_metric=self.is_metric)
     self.prev_op = self.c.op
     if cs.preap_capture_edge:
-      fs = FROM_STOP_KPH if cs.preap_capture_from_stop else 0.0
+      fs = FROM_STOP_KPH if (cs.preap_capture_from_stop and self.policy.use_from_stop()) else 0.0
       self.vc.capture_preap_full(float(out.vEgo), 0.0, is_metric=self.is_metric, from_stop_kph=fs)
     return out
 
@@ -207,6 +211,7 @@ def _settle(k, n, **kw):
 
 
 def test_rig_standstill_double_pull_sets_from_stop_tips_down_and_release_keeps_it():
+  set_bool(PreApParamKeys.FROM_STOP_SPEED, True)   # Pre-AP From-Stop Speed ON (default OFF = NAP, below)
   k = Card()
   _settle(k, 20)
   k.step(stalk=PULL)
@@ -245,7 +250,47 @@ def test_rig_rolling_tip_from_steering_only_latches_the_current_speed():
   assert abs(k.mph() - 11) < 0.1, "a later tip changes the set by 1 mph"
 
 
+def test_rig_standstill_double_pull_default_is_nap_zero_held_until_the_accelerator():
+  k = Card()                               # From-Stop Speed OFF, Auto Speed OFF, nothing to restore (first engage)
+  _settle(k, 20)
+  k.step(stalk=PULL)
+  _settle(k, 9)
+  k.step(stalk=PULL)
+  out = _settle(k, 50)
+  assert k.c.mode == Mode.FULL and k.c.rig.cs.preap_standstill_hold and not out.bogpilot.preapLatOnly
+  assert abs(k.mph()) < 0.01, "NAP: the double pull at a stop captures the current speed, 0"
+  assert not any(any(e["enabled"]) for e in k.c.log), "still held: no pedal ENABLE"
+  _settle(k, 20, gas=40.0, v_kph=30.0)    # pull away on the accelerator
+  _settle(k, 30, gas=0.8, v_kph=30.0)     # lift off while moving: the hold ends, the set is still 0 (tip up to set one)
+  assert not k.c.rig.cs.preap_standstill_hold and k.c.mode == Mode.FULL and abs(k.mph()) < 0.01
+
+
+def test_rig_auto_speed_on_standstill_double_pull_still_sets_from_stop():
+  set_bool(PreApParamKeys.AUTO_SPEED, True)
+  k = Card()
+  _settle(k, 20)
+  k.step(stalk=PULL)
+  _settle(k, 9)
+  k.step(stalk=PULL)
+  _settle(k, 50)
+  assert k.c.rig.cs.preap_standstill_hold and abs(k.mph() - 15) < 0.01
+
+
+def test_rig_tip_at_a_stop_default_latches_zero_held():
+  k = Card()
+  _settle(k, 20)
+  k.step(stalk=PULL)
+  _settle(k, 60)
+  k.step(stalk=TIP_UP)
+  out = k.step(stalk=0)
+  assert k.c.mode == Mode.FULL and k.c.rig.cs.preap_standstill_hold and not out.bogpilot.preapLatOnly
+  assert abs(k.mph()) < 0.01
+  _settle(k, 100)
+  assert not any(any(e["enabled"]) for e in k.c.log), "no drive-off: the hold stays until the accelerator"
+
+
 def test_rig_tip_at_a_stop_from_steering_only_is_the_from_stop_hold():
+  set_bool(PreApParamKeys.FROM_STOP_SPEED, True)
   k = Card()
   _settle(k, 20)
   k.step(stalk=PULL)

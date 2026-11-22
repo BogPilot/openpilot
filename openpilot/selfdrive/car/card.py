@@ -24,7 +24,7 @@ from opendbc.car.fw_versions import ObdCallback
 from opendbc.car.car_helpers import get_car, interfaces
 from opendbc.car.interfaces import CarInterfaceBase, RadarInterfaceBase
 from openpilot.selfdrive.pandad import can_capnp_to_list, can_list_to_can_capnp
-from openpilot.selfdrive.car.cruise import VCruiseHelper, PREAP_FULL_USE_SET_SPEED_LIMIT
+from openpilot.selfdrive.car.cruise import VCruiseHelper, PreapPullPolicy, PREAP_FULL_USE_SET_SPEED_LIMIT
 from openpilot.selfdrive.car.ap1_runtime import apply_ap1_volume_defaults
 from openpilot.selfdrive.car.bogpilot_card import bogpilot_car_state_msg
 
@@ -179,6 +179,7 @@ class Car:
     # Pre-AP with pedal (pcmCruise=False): 0.9.7 SetSpeedLimit engage set from a fresh posted limit.
     self.preap_engage_set_limit = None
     self.preap_from_stop = None
+    self.preap_pull_policy = PreapPullPolicy()
     self.preap_tx_sample = None
     self.preap_refusals = None
     self.preap_sent_560 = 0
@@ -224,6 +225,8 @@ class Car:
         self.preap_from_stop()
       except Exception:
         pass
+      # Pre AP Auto Speed + Pre-AP From-Stop Speed, read once here (offroad): restore / from-stop choice of a pull engage
+      self.preap_pull_policy = PreapPullPolicy.read()
     self._cluster_floor = None
     if self.ap1_cluster_lift:
       from openpilot.selfdrive.controls.lib.phase3_speed_control import EngageClusterFloor
@@ -252,6 +255,12 @@ class Car:
     if use_10hz_distance_button(self.CP.carFingerprint):
       self.onroad_distance_button = False
     self.step_timer = StepOverrunCounter(cloudlog.warning) if use_step_overrun_counter(self.CP.carFingerprint) else None
+    # Tesla trim detection (opendbc tesla_ap1/trims.py): saved from the params thread when something new is known.
+    from openpilot.selfdrive.car.tesla_trim_persist import TrimPersist
+    self.trim_persist = TrimPersist(self.CP.carFingerprint) if self.CP.brand == "tesla_ap1" else None
+    # Once per drive: the longitudinal mode this car started in (openpilot / stock; on the AP1 Model X, X long on / off).
+    from openpilot.selfdrive.car.bogpilot_long_mode import log_long_mode
+    log_long_mode(self.CP)
 
   def state_update(self) -> tuple[car.CarState, structs.RadarDataT | None]:
     """carState update loop, driven by can"""
@@ -323,6 +332,9 @@ class Car:
       self.can_log_mono_time = messaging.log_from_bytes(can_strs[0]).logMonoTime
 
     self.v_cruise_helper.update_v_cruise(CS, self.sm['carControl'].enabled, self.is_metric)
+    if self.preap_engage_set_limit is not None:
+      # Pre-AP pedal only: remember the speed-control set; a pull re-engage restores it (cruise.py PreapPullPolicy)
+      self.v_cruise_helper.note_preap_long_set(bool(self.sm['carControl'].longActive))
     if self.sm['carControl'].enabled and not self.CC_prev.enabled:
       # Use CarState w/ buttons from the step selfdrived enables on
       set_limit_kph = 0.0
@@ -330,12 +342,17 @@ class Car:
         set_limit_kph = self.preap_engage_set_limit.kph(self.CS_prev, getattr(self.CI.CS, "engage_limit_ms", 0.0))
       from_stop = None
       if self.preap_from_stop is not None:
+        # From-Stop Speed OFF and Auto Speed OFF (NAP): 0.0, so a first pull at a stop shows the current speed (0)
         try:
-          from_stop = float(self.preap_from_stop())
+          from_stop = float(self.preap_from_stop()) if self.preap_pull_policy.use_from_stop() else 0.0
         except Exception:
           from_stop = None
+      restore = None
+      if self.preap_engage_set_limit is not None and self.preap_pull_policy.restore_allowed(float(self.CS_prev.vEgo)):
+        restore = self.v_cruise_helper.preap_restore_kph(float(self.CS_prev.vEgo))
       self.v_cruise_helper.initialize_v_cruise(self.CS_prev, self.experimental_mode, set_limit_kph,
-                                               preap_from_stop_kph=from_stop, is_metric=self.is_metric)
+                                               preap_from_stop_kph=from_stop, is_metric=self.is_metric,
+                                               preap_restore_kph=restore)
 
     if getattr(self.CI.CS, "preap_capture_edge", False) and not self.CP.pcmCruise:
       # Pre-AP pedal FULL capture edge (opendbc tesla_ap1/preap/engagement.py capture_edge). Pedal capture speed choice: SetSpeedLimit gives limit + offset
@@ -346,12 +363,21 @@ class Car:
       if PREAP_FULL_USE_SET_SPEED_LIMIT and self.preap_engage_set_limit is not None and not tip_entry:
         set_limit_kph = self.preap_engage_set_limit.kph(CS, getattr(self.CI.CS, "engage_limit_ms", 0.0))
       from_stop = 0.0
-      if getattr(self.CI.CS, "preap_capture_from_stop", False) and self.preap_from_stop is not None:
+      if (getattr(self.CI.CS, "preap_capture_from_stop", False) and self.preap_from_stop is not None
+          and self.preap_pull_policy.use_from_stop()):
         try:
           from_stop = float(self.preap_from_stop())
         except Exception:
           from_stop = 0.0
-      self.v_cruise_helper.capture_preap_full(float(CS.vEgo), set_limit_kph, is_metric=self.is_metric, from_stop_kph=from_stop)
+      # a pull re-engage restores the last speed-control set of this drive (Auto Speed OFF; at a stop not with From-Stop Speed
+      # ON); a tip entry always latches the current speed
+      restore = None
+      if not tip_entry and self.preap_pull_policy.restore_allowed(float(CS.vEgo)):
+        restore = self.v_cruise_helper.preap_restore_kph(float(CS.vEgo))
+      if restore is not None:
+        self.v_cruise_helper.restore_preap_set(restore)
+      else:
+        self.v_cruise_helper.capture_preap_full(float(CS.vEgo), set_limit_kph, is_metric=self.is_metric, from_stop_kph=from_stop)
 
     # TODO: mirror the carState.cruiseState struct?
     CS.vCruise = float(self.v_cruise_helper.v_cruise_kph)
@@ -549,6 +575,8 @@ class Car:
         if now - last_engage_set >= PREAP_ENGAGE_SET_REFRESH_S:
           last_engage_set = now
           self.preap_engage_set_limit.refresh()
+      if self.trim_persist is not None:
+        self.trim_persist.poll(getattr(self, "CS_prev", None), time.monotonic())
       time.sleep(0.1)
 
   def card_thread(self):

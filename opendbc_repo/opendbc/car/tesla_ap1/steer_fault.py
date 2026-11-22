@@ -24,6 +24,11 @@ AP1_LATCHED_ANGLE_ERRORS = ("EAC_ERROR_HIGH_ANGLE_REQ", "EAC_ERROR_HANDS_ON")
 # (pre-AP 0.9.7-era capture: AVAILABLE + code 4 from boot, EAC_ACTIVE + IDLE on the first ANGLE frame).
 # epas_gate.EpasTmpFaultRecovery sends that bounded measured-wheel request; nothing else does.
 AP1_RECOVERABLE_TMP_FAULT = "EAC_ERROR_TMP_FAULT"
+# AP1: EAC_ERROR_HIGH_ANGLE_RATE_REQ (7) also stays a temporary fault here. The EPAS latched it after a 0x488 gap
+# (INHIBITED/7, then AVAILABLE/7 for the rest of the drive) and kept it until a new EAC session; the same bounded
+# measured-wheel request (epas_gate.EpasTmpFaultRecovery) clears it, only while the EPAS reports AVAILABLE with it.
+AP1_RECOVERABLE_RATE_REQ = "EAC_ERROR_HIGH_ANGLE_RATE_REQ"
+AP1_RECOVERABLE_LATCHED = (AP1_RECOVERABLE_TMP_FAULT, AP1_RECOVERABLE_RATE_REQ)
 
 
 def steer_fault_temporary(steer_warning, ap1):

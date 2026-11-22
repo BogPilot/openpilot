@@ -38,11 +38,14 @@ HUMAN_ANGLE_SPEED_LO, HUMAN_ANGLE_SPEED_HI = 5.0, 9.0
 SOURCE_HYSTERESIS_FRAMES = 6
 LOCK_DEG = 430.0
 # Driver-steering arc (human source only; the openpilot commanded-angle arc is untouched):
-#   0 .. HUMAN_ORANGE_START_DEG   blue, minimum size (OFFSET_LO / THICKNESS_LO)
-#   HUMAN_ORANGE_START_DEG .. HUMAN_MARKER_DEG   size grows linearly; colour is blue, then fades blue -> orange over the
+#   0 .. HUMAN_GROW_START_DEG     blue, minimum size (OFFSET_LO / THICKNESS_LO)
+#   HUMAN_GROW_START_DEG .. HUMAN_MARKER_DEG   size grows linearly; colour is blue, then fades blue -> orange over the
 #                                 last HUMAN_FADE_BAND_DEG ending at the marker
 #   HUMAN_MARKER_DEG .. LOCK_DEG  colour blends evenly orange -> pink, size keeps growing to max at full lock
-HUMAN_ORANGE_START_DEG = 120.0     # where the old arc started turning orange
+# Where the driver arc starts growing (deg, magnitude): 88 (was 120, the old orange start).
+# Size only: the colour bands below do not use it.
+HUMAN_GROW_START_DEG = 88.0
+HUMAN_ORANGE_START_DEG = 120.0     # where the old arc started turning orange (lower clamp of the fade band only)
 # The measured driver marker angle (deg, magnitude), rounded to 260. Must be > HUMAN_ORANGE_START_DEG.
 HUMAN_MARKER_DEG = 260.0
 HUMAN_FADE_BLUE = (90, 205, 255)
@@ -140,8 +143,8 @@ def human_angle_color(a):
 
 
 def human_size_t(a):
-  """Driver arc size 0..1 by |wheel angle|: 0 (minimum size) up to where orange used to start, then linear to 1 at full lock."""
-  return interp(abs(a), HUMAN_ORANGE_START_DEG, LOCK_DEG, 0.0, 1.0)
+  """Driver arc size 0..1 by |wheel angle|: 0 (minimum size) up to HUMAN_GROW_START_DEG, then linear to 1 at full lock."""
+  return interp(abs(a), HUMAN_GROW_START_DEG, LOCK_DEG, 0.0, 1.0)
 
 
 @dataclass

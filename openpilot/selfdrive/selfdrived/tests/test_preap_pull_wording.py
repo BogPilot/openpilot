@@ -2,6 +2,7 @@
 import re
 from pathlib import Path
 
+from opendbc.car.structs import car
 from openpilot.cereal import log
 from openpilot.selfdrive.selfdrived.events import EVENTS, ET
 
@@ -23,12 +24,35 @@ def _repo_root() -> Path:
   raise AssertionError("docs/tesla/PREAP_PORT.md not found above this test")
 
 
+def _resolve(a, calibrated=True, flags=0):
+  # preapSpeedBlocked names pedal calibration when the pedal is heard but not calibrated; preapSteerOnly names a missing
+  # pedal when CarParams.flags has PREAP_NO_PEDAL (no Comma Pedal at car start)
+  if not callable(a):
+    return a
+  CP = car.CarParams.new_message()
+  CP.brand = "tesla_ap1"
+  CP.flags = flags
+  CS = car.CarState.new_message()
+  CS.bogpilot.preapPedalDetected = True
+  CS.bogpilot.preapPedalCalibrated = calibrated
+  return a(CP, CS, None, False, 0, 0)
+
+
 def _alerts():
   return {
-    "preapSteerOnly": EVENTS[EventName.preapSteerOnly][ET.PERMANENT],
-    "preapSpeedBlocked": EVENTS[EventName.preapSpeedBlocked][ET.WARNING],
-    "preapCruiseNotArmed": EVENTS[EventName.preapCruiseNotArmed][ET.PERMANENT],
+    "preapSteerOnly": _resolve(EVENTS[EventName.preapSteerOnly][ET.PERMANENT]),
+    "preapSpeedBlocked": _resolve(EVENTS[EventName.preapSpeedBlocked][ET.WARNING]),
+    "preapCruiseNotArmed": _resolve(EVENTS[EventName.preapCruiseNotArmed][ET.PERMANENT]),
   }
+
+
+def _all_alert_variants():
+  return list(_alerts().values()) + [_resolve(EVENTS[EventName.preapSpeedBlocked][ET.WARNING], calibrated=False),
+                                     _no_pedal_alert()]
+
+
+def _no_pedal_alert():
+  return _resolve(EVENTS[EventName.preapSteerOnly][ET.PERMANENT], flags=1)
 
 
 def _section(text: str, heading: str) -> str:
@@ -59,7 +83,7 @@ def test_port_notes_say_single_and_double_pull():
 
 def test_user_facing_pull_text_has_no_timing_and_no_other_feature():
   assert OTHER_FEATURE.search("Pre-AP: " + _FEATURE.title()) and OTHER_FEATURE.search(_INITIALS + " on")  # the check itself works
-  texts = [a.alert_text_1 + " " + a.alert_text_2 for a in _alerts().values()] + _port_pull_sections()
+  texts = [a.alert_text_1 + " " + a.alert_text_2 for a in _all_alert_variants()] + _port_pull_sections()
   for t in texts:
     flat = " ".join(t.split())
     assert not OTHER_FEATURE.search(flat), flat
@@ -69,5 +93,5 @@ def test_user_facing_pull_text_has_no_timing_and_no_other_feature():
 
 def test_developer_notes_quote_the_current_alerts():
   text = " ".join((_repo_root() / "docs" / "tesla" / "DIVERGENCES_preap_nap_fsm.md").read_text().split())
-  for a in _alerts().values():
+  for a in _all_alert_variants():
     assert f'"{a.alert_text_1} / {a.alert_text_2}"' in text, (a.alert_text_1, a.alert_text_2)

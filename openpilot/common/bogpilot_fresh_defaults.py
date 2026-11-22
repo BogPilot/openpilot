@@ -11,8 +11,11 @@ Runs from bogpilot_startup.before_defaults, i.e. before manager_init writes the 
   is needed, and a boot interrupted before that loop just retries the same unset-only writes.
 
 Values:
-- ExperimentalMode = off: the drive mode starts in Chill. LongitudinalPersonality keeps its compiled default
-  (Standard / Regular).
+- ExperimentalMode = off: the drive mode starts in Chill.
+- LongitudinalPersonality = Relaxed (cereal LongitudinalPersonality.relaxed = 2). The compiled default in params_keys.h
+  stays Standard (stock), so an upgraded device that never picked a personality keeps Standard; only a new install
+  starts on Relaxed (default: Driving Personalities on, Relaxed 2.0 s).
+  The distance button, the AP1 stalk and selfdrived change it as before.
 - ExperimentalModeConfirmed = on, only while FRESH_INSTALL_CONFIRM_EXPERIMENTAL is True. It lets the AP1 stalk hold
   (opendbc tesla_ap1/phase3_stalk_controls.py apply_experimental_toggle) switch modes on the first drive without
   the settings confirmation dialog first. The stock dialog (selfdrive/ui/layouts/settings/toggles.py; NAP has the
@@ -34,6 +37,11 @@ FRESH_INSTALL_CONFIRM_EXPERIMENTAL = True
 
 FRESH_INSTALL_KEY = "HasAcceptedTerms"
 
+# Selected driving personality on a fresh install: Relaxed (log.capnp LongitudinalPersonality: aggressive 0, standard 1,
+# relaxed 2). Written unset-only, like the values below.
+FRESH_INSTALL_PERSONALITY_KEY = "LongitudinalPersonality"
+FRESH_INSTALL_PERSONALITY = 2
+
 
 def fresh_install_defaults(confirm_experimental: bool | None = None) -> tuple[tuple[str, bool], ...]:
   confirm = FRESH_INSTALL_CONFIRM_EXPERIMENTAL if confirm_experimental is None else confirm_experimental
@@ -54,4 +62,7 @@ def apply_fresh_install_defaults(params, confirm_experimental: bool | None = Non
     if params.get(key) is None:
       params.put_bool(key, value, block=True)
       written.append(key)
+  if params.get(FRESH_INSTALL_PERSONALITY_KEY) is None:
+    params.put(FRESH_INSTALL_PERSONALITY_KEY, FRESH_INSTALL_PERSONALITY, block=True)
+    written.append(FRESH_INSTALL_PERSONALITY_KEY)
   return written

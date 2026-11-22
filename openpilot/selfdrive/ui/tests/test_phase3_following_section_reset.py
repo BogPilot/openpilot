@@ -18,7 +18,7 @@ from openpilot.selfdrive.ui.bogpilot.step_defaults import reset_section
 
 HEADLESS = pytest.mark.skipif(os.getenv("RAYLIB_BACKEND") != "headless", reason="requires authorized native headless render")
 
-FOLLOW_DEFAULTS = {"Aggressive": 1.25, "Standard": 1.45, "Relaxed": 1.75}
+FOLLOW_DEFAULTS = {"Aggressive": 1.25, "Standard": 1.45, "Relaxed": 2.0}   # Relaxed 2.0 s: default
 # Catalog: bogpilot_defaults.py / bogpilot_params.py. Aggressive jerks 50 except Danger 100; Standard/Relaxed 100.
 JERK_DEFAULTS = {
   "AggressiveJerkAcceleration": 50, "AggressiveJerkDeceleration": 50, "AggressiveJerkDanger": 100,
@@ -90,29 +90,29 @@ def test_highlight_follows_the_value(store):
   e = editor(store)
   assert e.write("CustomPersonalities", True)
   assert e.at_default("RelaxedFollow") and e.at_default("RelaxedJerkAcceleration") and e.at_default("LeadDetectionThreshold")
-  assert e.write("RelaxedFollow", 2.00) and e.write("LeadDetectionThreshold", 40)
+  assert e.write("RelaxedFollow", 1.75) and e.write("LeadDetectionThreshold", 40)
   assert not e.at_default("RelaxedFollow") and not e.at_default("LeadDetectionThreshold")
-  assert e.write("RelaxedFollow", 1.75) and e.write("LeadDetectionThreshold", 35)
+  assert e.write("RelaxedFollow", 2.00) and e.write("LeadDetectionThreshold", 35)
   assert e.at_default("RelaxedFollow") and e.at_default("LeadDetectionThreshold")
 
 
 def test_section_reset_touches_only_that_profiles_keys(store):
   e = editor(store)
   assert e.write("CustomPersonalities", True)
-  assert e.write("RelaxedFollow", 2.00) and e.write("RelaxedJerkAcceleration", 150)
+  assert e.write("RelaxedFollow", 2.50) and e.write("RelaxedJerkAcceleration", 150)
   assert e.write("StandardFollow", 2.00) and e.write("LeadDetectionThreshold", 40)
   table = e.section_defaults(U.profile_value_keys("Relaxed"))
   assert set(table) == set(U.profile_value_keys("Relaxed"))
-  assert table["RelaxedFollow"] == 1.75 and table["RelaxedJerkAcceleration"] == 100
+  assert table["RelaxedFollow"] == 2.0 and table["RelaxedJerkAcceleration"] == 100
   reset_section(table, e.write)
-  assert e.value("RelaxedFollow") == 1.75 and e.value("RelaxedJerkAcceleration") == 100
+  assert e.value("RelaxedFollow") == 2.0 and e.value("RelaxedJerkAcceleration") == 100
   assert e.value("StandardFollow") == 2.00 and e.value("LeadDetectionThreshold") == 40
 
 
 def test_reset_skips_locked_keys(store):
   box = {"offroad": True}
   e = U.FollowingEditor(CP(), store, lambda: box["offroad"])
-  assert e.write("CustomPersonalities", True) and e.write("RelaxedFollow", 2.00)
+  assert e.write("CustomPersonalities", True) and e.write("RelaxedFollow", 2.50)
   box["offroad"] = False
   assert e.section_defaults(U.profile_value_keys("Relaxed")) == {}
   box["offroad"] = True
@@ -170,13 +170,13 @@ def test_value_rows_are_shared_rows_with_hints(layout_env, store):
   follow = row(layout, "Following Distance").action_item
   assert isinstance(follow, GatedValueStepAction)
   assert follow.buttons[0] == "-" and follow.buttons[-1] == "+" and follow.value_index == 1
-  assert follow.hint_text == "default: 1.75 seconds" and not follow.highlighted
+  assert follow.hint_text == "default: 2.00 seconds" and not follow.highlighted
   jerk = row(layout, "Acceleration Smoothness").action_item
   assert isinstance(jerk, GatedValueStepAction)
   assert jerk.buttons[0] == "-" and jerk.buttons[-1] == "+"
   assert jerk.hint_text == "default: 100%" and not jerk.highlighted
   follow.callback(2)  # plus
-  assert store.get_float("RelaxedFollow") == pytest.approx(1.76)
+  assert store.get_float("RelaxedFollow") == pytest.approx(2.01)
   assert row(layout, "Following Distance").action_item.highlighted
 
 
@@ -191,13 +191,13 @@ def test_section_resets_follow_their_rows_and_ask_first(layout_env, store):
   assert len(found) == 3
   assert all(item.title == "Reset section to defaults" and item.indent == INDENT for item in found)
   assert all(item.is_visible for item in found)  # profile defaults are on
-  e.write("RelaxedFollow", 2.00)
+  e.write("RelaxedFollow", 2.50)
   e.write("StandardFollow", 2.00)
   relaxed = found[PROFILES.index("Relaxed")]
   relaxed.callback()
-  assert len(page.asked) == 1 and e.value("RelaxedFollow") == 2.00  # nothing before the yes
+  assert len(page.asked) == 1 and e.value("RelaxedFollow") == 2.50  # nothing before the yes
   page.asked[0][1]()
-  assert e.value("RelaxedFollow") == 1.75 and e.value("StandardFollow") == 2.00
+  assert e.value("RelaxedFollow") == 2.0 and e.value("StandardFollow") == 2.00
   page.box["offroad"] = False
   assert not relaxed.action_item.enabled
   relaxed.callback()
@@ -271,7 +271,7 @@ def test_refused_section_reset_is_reported(layout_env, store, monkeypatch):
   told = []
   monkeypatch.setattr(gated_actions, "_alert", told.append)
   e = editor(store)
-  assert e.write("CustomPersonalities", True) and e.write("RelaxedFollow", 2.00)
+  assert e.write("CustomPersonalities", True) and e.write("RelaxedFollow", 2.50)
   page = make(store, "Relaxed", layout_env)
   page.show_event()
   monkeypatch.setattr(page.editor, "write", lambda *a, **k: False)
@@ -280,7 +280,7 @@ def test_refused_section_reset_is_reported(layout_env, store, monkeypatch):
   page.asked[-1][1]()
   assert told == [gated_actions.RESET_FAILED_TEXT]
   # The live editor used by the test helper still has the changed value (the layout's writer was the one that refused).
-  assert e.value("RelaxedFollow") == 2.00
+  assert e.value("RelaxedFollow") == 2.50
 
 
 @HEADLESS

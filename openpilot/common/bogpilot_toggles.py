@@ -55,8 +55,9 @@ FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
   "RegenComfortBrake": (CAR_DEPENDENT, "AP1/Pre-AP gentle early slowing for a radar lead"),
   "RegenAwareStop": (CAR_DEPENDENT, "AP1 regen-aware stopping"),
   "AP1StandstillEngage": (CAR_DEPENDENT, "AP1 standstill engage"),
-  # AP1 Model X experimental openpilot longitudinal (tesla_ap1/toggles.py ap1x_op_long). Default OFF, Model X only, read at car start.
-  "AP1XOpenpilotLong": (False, "AP1 Model X experimental openpilot longitudinal"),
+  # AP1 Model X experimental openpilot longitudinal (tesla_ap1/toggles.py ap1x_op_long). Default ON for a detected AP1 Model X
+  # (car code owns it; every other car ignores it), read at car start.
+  "AP1XOpenpilotLong": (CAR_DEPENDENT, "AP1 Model X experimental openpilot longitudinal"),
   # Pre-AP Bosch radar retrofit (tesla_ap1/preap/params.py). Default OFF. Backed up and restored; never reset.
   "TeslaRadarEnabled": (False, "Pre-AP Bosch radar retrofit"),
   "TeslaRadarBehindNosecone": (False, "Pre-AP Bosch radar behind the nosecone"),
@@ -66,6 +67,8 @@ FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
   "TeslaHasIBooster": (False, "Pre-AP iBooster swap brake bar"),
   # Pre AP Auto Speed (tesla_ap1/preap/params.py). Default OFF = NAP-style engage at the current speed. Backed up and restored; never reset.
   "TeslaPreApAutoSpeed": (False, "Pre-AP SLC auto set speed"),
+  # Pre-AP From-Stop Speed (tesla_ap1/preap/params.py). Default OFF = NAP standstill engage. Backed up and restored; never reset.
+  "TeslaPreApFromStopSpeed": (False, "Pre-AP from-stop set speed"),
 }
 
 # key: (default, allowed values) for the few text-valued files

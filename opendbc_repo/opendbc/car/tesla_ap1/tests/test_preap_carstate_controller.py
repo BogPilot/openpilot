@@ -215,15 +215,24 @@ def test_no_pedal_mode_engages_only_from_a_pull():
   assert out.cruiseState.enabled and out.bogpilot.preapLatOnly
 
 
-def test_available_needs_pedal_detected_and_calibrated():
+def test_available_needs_pedal_detected_not_calibration():
   r = Rig()
-  assert not r.frame().cruiseState.available
+  assert not r.frame().cruiseState.available          # pedal not heard
   calib.apply_calibration_result(calib.compute_calibration(0.8, 107.0))
   assert not r.frame().cruiseState.available          # calibrated but pedal not detected
-  r.cs.preap_pedal_detected = True
-  r.cs.pedal_timeout = False
+  _pedal_frame(r, 1)
   out = r.frame()
-  assert out.bogpilot.preapPedalCalibrated
+  assert out.bogpilot.preapPedalDetected and out.bogpilot.preapPedalCalibrated and out.cruiseState.available
+
+
+def test_available_with_a_heard_uncalibrated_pedal():
+  # Regression (c31952e67): heard + uncalibrated was "unavailable", so every pull ended in wrongCarMode.
+  r = Rig()
+  assert not calib.is_pedal_calibrated()
+  _pedal_frame(r, 1)
+  out = r.frame()
+  assert out.bogpilot.preapPedalDetected and not out.bogpilot.preapPedalCalibrated
+  assert out.cruiseState.available
 
 
 def _cc(enabled=False, lat=False, long_active=False, angle=0.0):
@@ -357,7 +366,9 @@ def test_e2e_uncalibrated_or_no_pedal_never_drives():
   assert not calib.is_pedal_calibrated()
   enabled, outs = _drive(rig, ctl, 0, 200, pulls={20})
   assert enabled == 0
-  assert not outs[-1][0], "not available (uncalibrated): the pull must not engage"
+  # A heard but uncalibrated pedal: the pull engages steering only (it used to be refused with wrongCarMode, so the car could
+  # not engage at all); speed control and the pedal stay off.
+  assert outs[-1][0] and not outs[-1][1], "steering only: never long active while uncalibrated"
 
 
 # ---- regression: a spoofed STW_ACTN_RQ must never change the wiper stalk position (WprSw6Posn) or other live stalk fields ----

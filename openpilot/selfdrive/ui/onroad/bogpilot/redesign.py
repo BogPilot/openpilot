@@ -31,6 +31,13 @@ SIGN_INK = C(14, 14, 14)
 SIGN_LABEL = C(55, 55, 55)
 CSC_AMBER = C(255, 176, 32)
 
+# SLC offset badge: 2x the original 20 px / 30 px box / 18 px padding (readable on the 3X), same anchor on the sign's corner.
+OFFSET_BADGE_SCALE = 2.0
+OFFSET_BADGE_PX = 20 * OFFSET_BADGE_SCALE
+OFFSET_BADGE_H = 30 * OFFSET_BADGE_SCALE
+OFFSET_BADGE_PAD = 18 * OFFSET_BADGE_SCALE
+OFFSET_BADGE_INSET = 4   # keep the badge this far inside the pill's right edge
+
 WHITE_BELOW_V = 3.58   # m/s, 8 mph
 ADJ_SPEED_MIN = 5
 ADJ_LABEL_MARGIN = 8
@@ -107,9 +114,10 @@ def speed_row_geometry(inp: SpeedRowInputs) -> SpeedRowGeometry:
     tile = rect_lrtb(tx0, ty0, tx1, ty1)
     x1 = max(tx1 + 44, SPEED_ROW_MIN_RIGHT)
     if inp.offset:
-      bw = text_width(inp.offset, 20, W.BOLD) + 18
+      bw = text_width(inp.offset, OFFSET_BADGE_PX, W.BOLD) + OFFSET_BADGE_PAD
       bx, by = tx1 - 4, max(ty0 + 2, y0 + 22)
-      badge = rect(bx - bw / 2, by - 15, bw, 30)
+      bx = min(bx, x1 - OFFSET_BADGE_INSET - bw / 2)           # never past the pill's right edge
+      badge = rect(bx - bw / 2, by - OFFSET_BADGE_H / 2, bw, OFFSET_BADGE_H)
   return SpeedRowGeometry(rect_lrtb(EDGE, y0, x1, y1), tile, badge)
 
 
@@ -206,9 +214,10 @@ def paint_speed_row(inp: SpeedRowInputs, ox: float, oy: float) -> SpeedRowGeomet
 
     if g.badge is not None:
       b = _o(g.badge, ox, oy)
-      fill_rounded(b, 15, BADGE_GREEN)
-      stroke_rounded(b, 15, 2, C(14, 17, 22))
-      draw_text_centred(inp.offset, b.x + b.width / 2, b.y + b.height / 2 + 7, 20, C(255, 255, 255), W.BOLD)
+      fill_rounded(b, b.height / 2, BADGE_GREEN)
+      stroke_rounded(b, b.height / 2, 2, C(14, 17, 22))
+      draw_text_centred(inp.offset, b.x + b.width / 2, b.y + b.height / 2 + cap_height(OFFSET_BADGE_PX) / 2,
+                        OFFSET_BADGE_PX, C(255, 255, 255), W.BOLD)
   return g
 
 

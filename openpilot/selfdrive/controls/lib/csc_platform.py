@@ -6,6 +6,10 @@ included; road curvature came from modelV2 only (frogpilot_utilities.py:104-115 
 This tree keeps the AP1 gate and adds Pre-AP back, stricter than 0.9.7:
 
   * AP1 (TESLA_AP1_MODELS) with openpilot longitudinal: unchanged.
+  * AP1 Model X (TESLA_AP1_MODELX) with openpilot longitudinal (the AP1XOpenpilotLong opt-in): the same as the AP1
+    Model S (same Curve Speed Control, Smooth Curve Braking, Map Curve Speed, the same 2.0 m/s^2 cornering cap). With
+    stock cruise the X never runs it. The cap is provisional on the X: no X drive with openpilot longitudinal and
+    real cornering exists yet, so nothing in X data justifies a different value.
   * Pre-AP (TESLA_PREAP_MODELS) only with openpilot longitudinal (pcmCruise False) AND a stored, detected and
     calibrated Comma Pedal (preap/calib.py pedal_long_allowed). Never on a no-pedal Pre-AP car: stock cruise
     owns speed there.
@@ -19,6 +23,7 @@ Userspace only: no panda, safety, DBC or CAN signal is added or changed.
 from __future__ import annotations
 
 AP1 = "TESLA_AP1_MODELS"
+AP1_X = "TESLA_AP1_MODELX"
 PREAP = "TESLA_PREAP_MODELS"
 PREAP_FSM_FULL = 4   # opendbc tesla_ap1/preap/engagement.py Mode.FULL, published as carState.bogpilot.preapFsmMode
 
@@ -33,11 +38,11 @@ def stored_pedal_ok() -> bool:
 
 
 def csc_supported(CP, pedal_ok: bool | None = None) -> bool:
-  """CSC is available on this car: AP1 + openpilot long, or Pre-AP + openpilot long + a calibrated pedal."""
+  """CSC is available on this car: AP1 Model S or Model X + openpilot long, or Pre-AP + openpilot long + a calibrated pedal."""
   if CP is None or not bool(getattr(CP, "openpilotLongitudinalControl", False)):
     return False
   fp = str(getattr(CP, "carFingerprint", "") or "")
-  if fp == AP1:
+  if fp in (AP1, AP1_X):
     return True
   if fp == PREAP:
     if bool(getattr(CP, "pcmCruise", True)):
@@ -80,6 +85,6 @@ def csc_gate(preap: bool, CS) -> tuple[bool, bool]:
 
 
 def csc_row_visible(CP, pedal_ok: bool | None = None) -> bool:
-  """Settings row for CurveSpeedController (and its children): AP1 + openpilot long, or Pre-AP with a calibrated
+  """Settings row for CurveSpeedController (and its children): AP1 Model S or X + openpilot long, or Pre-AP with a calibrated
   pedal (stored state, so it shows offroad once calibrated). Hidden on a no-pedal Pre-AP car and without CarParams."""
   return csc_supported(CP, pedal_ok)

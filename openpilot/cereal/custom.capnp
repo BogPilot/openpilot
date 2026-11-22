@@ -150,6 +150,15 @@ struct BogPilotCarStateMsg @0xda96579883444c35 {
   # AP1 DI_torque2 (0x118) DI_brakePedalState: 0 OFF, 1 ON (iBooster applied, driver or OP), 2 INVALID, 3 SNA / stale /
   # not AP1 (default). Read by the onroad decel bar colour ONLY (pedals.py); no controls, planner or safety reader.
   ap1BrakePedalState @21 :UInt8 = 3;
+  # Tesla trim detection (opendbc tesla_ap1/trims.py), mirrored from carState.bogpilot: 0x186 front motor (NaN when absent),
+  # layout 0 unknown / 1 single / 2 dual, Performance rear 0 unknown / 1 no / 2 yes, rpm per m/s per motor.
+  ap1FrontMotorTorqueNm @22 :Float32;
+  ap1FrontMotorRpm @23 :Float32;
+  ap1DriveLayout @24 :UInt8;
+  ap1PerfRear @25 :UInt8;
+  ap1RearRpmPerMs @26 :Float32;
+  ap1FrontRpmPerMs @27 :Float32;
+  ap1RpmPerMsMeasured @28 :Bool;
 
   struct ButtonEvent {
     enum Type {

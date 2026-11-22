@@ -11,7 +11,10 @@ pull of BogPilot 0.9.7 na-preap @ 568fea947 (selfdrive/car/tesla/preap/engagemen
 - window expiry: steering only stays (NAP engagement.py:95-98).
 - a single pull in FULL demotes to steering only and opens a new window (NAP engagement.py:156,162-163).
 - brake in FULL (pedal): speed control off, steering stays (NAP engagement.py:100-110). Speed control comes back only with a new double
-  pull, with a fresh set speed, never the old one.
+  pull. The set speed is chosen by the card (selfdrive/car/cruise.py PreapPullPolicy): a pull re-engage restores the last
+  speed-control set of the drive (moving or at a stop; not with Pre AP Auto Speed ON, which engages the automatic speed), a tip
+  entry latches the current speed, the first engage of a drive takes current speed / limit. Once latched, tips step the set
+  (+-1 with hold-repeat, deep = next / previous 5).
 - cancel (stalk away, outside the echo windows), leaving D, a door, stale data: everything off.
 - hands on (level 3), EPAS refusal or EPAS fault: LOCKOUT, re-engaging needs a fresh pull (panda tesla_preap.h tesla_preap_epas_state,
   as NAP / na-preap; NAP engagement.py:40-54).
@@ -46,14 +49,16 @@ STANDSTILL_SPEED_MS = 0.1
 # control at 0 too (NAP preap/engagement.py:142,243-246 capture 0 as the set speed; carcontroller.py:123-128 holds ENABLE=1 at zero
 # torque); here the hold sends ENABLE=0, which is stricter. False = option (a): refuse speed control until moving (steering only).
 PREAP_FULL_AT_STANDSTILL = True
-# True = a standstill double pull sets the first set speed to the driver's from-stop value
-# (AP1TapFromZeroMs) on the pull itself (capture_edge + capture_from_stop on the FULL entry). The accelerator release only ends
+# True = a standstill double pull captures on the pull itself (capture_edge + capture_from_stop on the FULL entry). The card picks
+# the set (selfdrive/car/cruise.py PreapPullPolicy): the restored last set, else NAP's current speed (0), or the driver's from-stop
+# value (AP1TapFromZeroMs) with Pre-AP From-Stop Speed or Pre AP Auto Speed ON. The accelerator release only ends
 # the hold and keeps that set, including any up/down tips made while held. False = the v3 behaviour (capture
 # max(rounded vEgo, from-stop) on the accelerator release).
 PREAP_STOP_SET_AT_PULL = True
 # True = with the pedal, an up/down tip (release edge) while steering only enters FULL with the same entry rules as a
 # second pull, latching like the AP1 tap (tesla_ap1/op_long_set_speed.py rules 2-3): rolling = the current speed in whole display
-# units and never SetSpeedLimit; at a standstill = the from-stop value with the standstill hold. A first pull (steering, panda
+# units and never SetSpeedLimit; at a standstill = 0 with the standstill hold (the from-stop value with Pre-AP From-Stop Speed or
+# Pre AP Auto Speed ON). A first pull (steering, panda
 # controls_allowed) is still required. False = a tip only changes the set speed, as in v3.
 PREAP_TIP_ENGAGES_LONG = True
 # True = a moving pedal double pull below the from-stop speed (AP1TapFromZeroMs) sets the from-stop speed (no standstill
@@ -97,6 +102,8 @@ class Decision:
   speed_blocked: bool = False    # left FULL because a pedal ENABLE frame was blocked (userspace guard or panda)
   cc_not_armed: bool = False     # no pedal: the second pull did not arm stock cruise
   standstill_refused: bool = False  # standstill double pull (a): a double pull at a standstill was refused
+  long_not_ready: bool = False   # pedal: a double pull or tip was refused because long_allowed was False (pedal not ready,
+                                 # e.g. never set up or not heard); steering only, the warning says why
   standstill_hold: bool = False     # standstill double pull (b): FULL entered at a standstill, pedal ENABLE stays 0 until the accelerator is pressed
   capture_edge: bool = False        # one tick: capture the set speed now (FULL entered; v3 option: or the hold released)
   capture_from_stop: bool = False   # with capture_edge: the FULL began at a stop (the from-stop value, set on the entry)
@@ -148,6 +155,7 @@ class PreAPEngagement:
     self.speed_blocked = False
     self.cc_not_armed = False
     self.standstill_refused = False
+    self.long_not_ready = False
     self.standstill_hold = False
     self._hold_gas_seen = False
     self._hold_release_edge = False
@@ -181,6 +189,7 @@ class PreAPEngagement:
     self.window_start_ms = now_ms
     self.cc_not_armed = False
     self.standstill_refused = False
+    self.long_not_ready = False
     self._cc_confirm_until_ms = None
     if not pedal:
       self._cc_watch_until_ms = now_ms + NOPEDAL_PULL_CC_WATCH_MS
@@ -191,6 +200,7 @@ class PreAPEngagement:
     self.speed_blocked = False
     self.cc_not_armed = False
     self.standstill_refused = False
+    self.long_not_ready = False
     self._cc_watch_until_ms = None
     self._cc_confirm_until_ms = None
 
@@ -324,6 +334,7 @@ class PreAPEngagement:
         if (brake and (brake_edge or not at_standstill)) or long_allowed is not True or pedal_bus_ok is not True:
           self.mode = Mode.LAT_ONLY
           self.window_start_ms = None
+          self.long_not_ready = long_allowed is not True
         elif v_ego is None or v_ego < STANDSTILL_SPEED_MS:
           if PREAP_FULL_AT_STANDSTILL and v_ego is not None:   # unknown speed is never a hold: refused (fail closed)
             self._enter_full()           # standstill double pull (b): FULL, held at 0 by the pedal guard until the accelerator is pressed
@@ -367,6 +378,7 @@ class PreAPEngagement:
     if (brake and (brake_edge or not at_standstill)) or long_allowed is not True or pedal_bus_ok is not True:
       self.mode = Mode.LAT_ONLY
       self.window_start_ms = None
+      self.long_not_ready = long_allowed is not True
       return False
     if v_ego is None or v_ego < STANDSTILL_SPEED_MS:
       if PREAP_FULL_AT_STANDSTILL and v_ego is not None:   # unknown speed is never a hold: refused (fail closed)
@@ -417,6 +429,7 @@ class PreAPEngagement:
                     lat_only=engaged and self.mode != Mode.FULL, aol_lat=False, mode=int(self.mode),
                     speed_blocked=engaged and self.speed_blocked, cc_not_armed=engaged and self.cc_not_armed,
                     standstill_refused=engaged and self.standstill_refused,
+                    long_not_ready=engaged and self.long_not_ready,
                     standstill_hold=self.mode == Mode.FULL and self.standstill_hold, cancel_cc=bool(cancel_cc),
                     drop_cancel=bool(drop_cancel), full_edge=bool(full_edge), capture_edge=capture_edge,
                     capture_from_stop=capture_from_stop, capture_tip=capture_tip)

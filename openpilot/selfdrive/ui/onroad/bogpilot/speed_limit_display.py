@@ -6,7 +6,7 @@ Daily 04d560f3e (annotated_camera.cc updateState / drawRedesignHud):
   shown     = (show_speed_limits || speed_limit_controller) and (not hide_speed_limit or plan.speedLimitChanged)
               MUTCD tile, or a Vienna roundel with UseVienna
   number    = the POSTED limit (bogpilotPlan.slcSpeedLimit); an SLC override shows the overridden speed at 25 % opacity
-  badge     = bogpilotPlan.slcSpeedLimitOffset as a separate green "+N" badge, hidden when 0
+  badge     = bogpilotPlan.slcSpeedLimitOffset as a separate green "+N" badge, hidden when 0 or when ShowSLCOffset is off
   set speed = engaged and a limit: colour white -> orange -> red at limit + 5 / 15 / 25 (display units); not set: grey
 Daily BogPilot only publishes a non-zero offset when the Speed Limit Controller actually drives the cruise target
 (bogpilot_vcruise.py: show-only mode publishes offset 0).
@@ -160,9 +160,10 @@ def speed_limit_view(policy: LimitPolicy, dashboard_ms: float | None, plan, disp
   else:
     posted = posted_ms * display_conv
     limit = str(int(round(posted))) if posted > 1 else NO_LIMIT
-    offset = format_offset(offset_ms * display_conv) if (posted > 1 and source == "slc") else ""
-    # annotated_camera.cc:129-131: the offset is added to the comparison limit unless ShowSLCOffset is on
-    color_limit = posted + (0.0 if policy.show_speed_limit_offset else offset_ms * display_conv) if posted > 1 else 0.0
+    offset = format_offset(offset_ms * display_conv) if (posted > 1 and source == "slc" and policy.show_speed_limit_offset) else ""
+    # The set-speed colour always compares against limit + offset (the live behaviour with the toggle off). ShowSLCOffset
+    # only shows or hides the badge, so turning the badge on never moves the colour thresholds.
+    color_limit = posted + offset_ms * display_conv if posted > 1 else 0.0
   return SpeedLimitView(show_limit=True, vienna=policy.vienna, limit=limit, offset=offset,
                         limit_opacity=0.25 if overridden else 1.0, color_limit=color_limit, source=source)
 

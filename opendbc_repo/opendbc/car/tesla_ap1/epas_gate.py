@@ -114,6 +114,12 @@ class EpasGate:
 #     drops below it.
 # A clear (error IDLE) hands over to the normal path: steerFaultTemporary drops, latActive returns and
 # the controller restarts from the measured wheel through the engage soft-start.
+#
+# EAC_ERROR_HIGH_ANGLE_RATE_REQ (7) uses the same class and every rule above, with one tighter status rule: a request
+# starts and runs with code 7 only while the EPAS reports AVAILABLE (never ACTIVE with code 7), matching the panda
+# (tesla_ap1.h allows ANGLE with code 7 only from an AVAILABLE frame). ACTIVE with code 7 aborts. Recorded event: after
+# a 130 ms card stall the EPAS went ACTIVE/0 -> AVAILABLE/0 -> INHIBITED/7 (40 ms) -> AVAILABLE/7 and kept code 7 for
+# the rest of the drive, through five re-engagements.
 
 ERR4_PROBE_FRAMES = 30    # 0.3 s at 100 Hz
 ERR4_WAIT_FRAMES = 200    # 2 s at 100 Hz
@@ -134,16 +140,21 @@ ERR4_EPB_FRESH_FRAMES = 20
 MIN_ERR4_PROBE_SPEED = 0.3
 EAC_AVAILABLE = "EAC_AVAILABLE"
 EAC_TMP_FAULT = "EAC_ERROR_TMP_FAULT"
+EAC_RATE_REQ = "EAC_ERROR_HIGH_ANGLE_RATE_REQ"
+# Latched codes this recovery may clear, and the EPAS statuses each one may be commanded in.
+_LATCHED_ERRORS = (EAC_TMP_FAULT, EAC_RATE_REQ)
 EAC_IDLE = "EAC_ERROR_IDLE"
 # While a request is running the EPAS may go ACTIVE before it drops the code.
 _PROBE_STATUS = (EAC_AVAILABLE, EAC_ACTIVE)
-_PROBE_ERRORS = (EAC_TMP_FAULT, EAC_IDLE)
+_PROBE_ERRORS = (EAC_TMP_FAULT, EAC_RATE_REQ, EAC_IDLE)
+_ERROR_STATUS = {EAC_TMP_FAULT: _PROBE_STATUS, EAC_RATE_REQ: (EAC_AVAILABLE,), EAC_IDLE: _PROBE_STATUS}
 
 R_IDLE, R_PROBE, R_WAIT, R_DONE = "idle", "probe", "wait", "done"
 
 
 class EpasTmpFaultRecovery:
-  """Bounded measured-wheel ANGLE request for a latched EAC_ERROR_TMP_FAULT. One update per control step."""
+  """Bounded measured-wheel ANGLE request for a latched EAC_ERROR_TMP_FAULT (4) or, from AVAILABLE only,
+  EAC_ERROR_HIGH_ANGLE_RATE_REQ (7). One update per control step."""
 
   def __init__(self):
     self.reset()
@@ -182,6 +193,8 @@ class EpasTmpFaultRecovery:
       return "override"
     if steer_warning not in _PROBE_ERRORS:
       return "error_code"
+    if eac_status not in _ERROR_STATUS[steer_warning]:
+      return "status"
     return None
 
   def _end(self, result):
@@ -224,8 +237,8 @@ class EpasTmpFaultRecovery:
       self.settle = 0
     if self.state == R_DONE:
       return False
-    # R_IDLE: start only on a latched code 4 with an AVAILABLE EPAS and latActive held off by it, held for the settle.
-    if reason is None and not lat_session and eac_status == EAC_AVAILABLE and steer_warning == EAC_TMP_FAULT:
+    # R_IDLE: start only on a latched code 4 or 7 with an AVAILABLE EPAS and latActive held off by it, held for the settle.
+    if reason is None and not lat_session and eac_status == EAC_AVAILABLE and steer_warning in _LATCHED_ERRORS:
       self.settle += 1
     else:
       self.settle = 0

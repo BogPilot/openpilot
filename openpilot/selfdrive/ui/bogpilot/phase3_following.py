@@ -40,7 +40,7 @@ _P_DESC = {
   "Standard": "Designed for balanced driving with moderate gaps.",
   "Relaxed": "Designed for smoother, more comfortable driving with larger gaps.",
 }
-_P_FOLLOW_DEFAULT = {"Aggressive": "1.25", "Standard": "1.45", "Relaxed": "1.75"}
+_P_FOLLOW_DEFAULT = {"Aggressive": "1.25", "Standard": "1.45", "Relaxed": "2.0"}
 _SUB = (
   ("JerkAcceleration", "Acceleration Smoothness", "<b>How smoothly openpilot accelerates with the \"{p}\" profile.</b> Increase for gentler starts; decrease for faster but more abrupt takeoffs."),
   ("JerkDeceleration", "Braking Smoothness", "<b>How smoothly openpilot brakes with the \"{p}\" profile.</b> Increase for gentler stops; decrease for quicker but sharper braking."),

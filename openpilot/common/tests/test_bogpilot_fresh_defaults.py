@@ -61,6 +61,7 @@ def test_switch_is_on_for_this_build():
   assert fresh.FRESH_INSTALL_CONFIRM_EXPERIMENTAL is True
   assert dict(fresh.fresh_install_defaults()) == {"ExperimentalMode": False, "ExperimentalModeConfirmed": True}
   assert dict(fresh.fresh_install_defaults(False)) == {"ExperimentalMode": False}
+  assert (fresh.FRESH_INSTALL_PERSONALITY_KEY, fresh.FRESH_INSTALL_PERSONALITY) == ("LongitudinalPersonality", 2)
 
 
 def test_fresh_install_gets_defaults(tmp_path, confirm):
@@ -103,9 +104,29 @@ def test_upgrade_never_confirms_experimental(tmp_path, confirm):
 
 def test_fresh_install_keeps_any_value_already_set(confirm):
   p = DeviceParams()
-  p.values.update({"ExperimentalMode": True, "ExperimentalModeConfirmed": False})
+  p.values.update({"ExperimentalMode": True, "ExperimentalModeConfirmed": False, "LongitudinalPersonality": 1})
   assert fresh.apply_fresh_install_defaults(p) == []
   assert p.values["ExperimentalMode"] is True and p.values["ExperimentalModeConfirmed"] is False
+  assert p.values["LongitudinalPersonality"] == 1            # a personality already picked is kept
+
+
+def test_fresh_install_selects_relaxed(tmp_path, confirm):
+  # default: a new install starts on the Relaxed personality (log.capnp relaxed = 2)
+  p = boot(tmp_path, DeviceParams())
+  assert p.values["LongitudinalPersonality"] == fresh.FRESH_INSTALL_PERSONALITY == 2
+  assert p.history.index(("put", "LongitudinalPersonality")) < p.history.index(("put", "HasAcceptedTerms"))
+
+
+@pytest.mark.parametrize("saved", [None, 0, 1, 2])
+def test_upgrade_never_changes_the_selected_personality(tmp_path, confirm, saved):
+  # an upgraded device keeps its personality, including one never picked (the compiled default, Standard, still applies)
+  p = DeviceParams()
+  p.values["HasAcceptedTerms"] = "2"
+  if saved is not None:
+    p.values["LongitudinalPersonality"] = saved
+  boot(tmp_path, p)
+  assert p.values.get("LongitudinalPersonality") == saved
+  assert ("put", "LongitudinalPersonality") not in p.history
 
 
 def test_stalk_from_chill_on_first_install(tmp_path, confirm):

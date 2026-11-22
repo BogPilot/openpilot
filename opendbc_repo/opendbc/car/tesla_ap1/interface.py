@@ -11,7 +11,8 @@ from opendbc.car.tesla_ap1.preap.carcontroller import PreApCarController
 from opendbc.car.tesla_ap1.preap.carstate import PreApCarState
 from opendbc.car.tesla_ap1.preap.vdas_constants import PEDAL_LONG_K_BP, PEDAL_LONG_KI_V
 from opendbc.car.tesla_ap1.toggles import ap1_standstill_engage, ap1x_op_long, disable_openpilot_long
-from opendbc.car.tesla_ap1.values import CAR, ForcedFingerprint, is_preap, match_ap1_chassis
+from opendbc.car.tesla_ap1.preap.detection import pedal_present, preap_chassis_signature
+from opendbc.car.tesla_ap1.values import CAR, ForcedFingerprint, TeslaAp1Flags, is_preap, match_ap1_chassis
 
 
 class CarInterface(CarInterfaceBase):
@@ -31,7 +32,7 @@ class CarInterface(CarInterfaceBase):
     ret.brand = "tesla_ap1"
 
     if is_preap(candidate):
-      return CarInterface._get_preap_params(ret, candidate)
+      return CarInterface._get_preap_params(ret, candidate, fingerprint, docs)
 
     # There is no safe way to do steer blending with user torque, so the
     # steering behaves like autopilot. AP1 is an explicit user exception for
@@ -70,11 +71,25 @@ class CarInterface(CarInterfaceBase):
       ret.safetyConfigs = [get_safety_config(structs.CarParams.SafetyModel.tesla, safety_params[0])]
 
     ret.steerLimitTimer = 1.0
-    ret.steerActuatorDelay = 0.25
+    # Model X: lagd measured 0.34-0.36 s total lateral lag on a real AP1 Model X drive (status estimated, std <= 0.03),
+    # which is steerActuatorDelay 0.15 under lagd's "steerActuatorDelay + 0.2" start value. Model S keeps 0.25.
+    ret.steerActuatorDelay = 0.15 if candidate == CAR.TESLA_AP1_MODELX else 0.25
     return ret
 
   @staticmethod
-  def _get_preap_params(ret: structs.CarParams, candidate) -> structs.CarParams:
+  def preap_no_pedal(fingerprint, docs=False) -> bool:
+    """True when the car-start fingerprint is a real Pre-AP chassis bus (the AP1 chassis signature on bus 0) with no Comma Pedal
+    GAS_SENSOR (0x552, 6 bytes) on bus 0 or 2. A Pre-AP car without a pedal is only ever a user-selected model (detection needs
+    the pedal). An empty or unknown fingerprint (docs, tests, replays without CAN) is never "no pedal": the old behaviour."""
+    if docs or not isinstance(fingerprint, dict):
+      return False
+    try:
+      return preap_chassis_signature(fingerprint) and not pedal_present(fingerprint)
+    except Exception:
+      return False
+
+  @staticmethod
+  def _get_preap_params(ret: structs.CarParams, candidate, fingerprint=None, docs=False) -> structs.CarParams:
     """Pre-AP Model S. Lateral always. Longitudinal only when the user wants openpilot long (DisableOpenpilotLongitudinal
     off); whether the pedal is then actually driven is gated at CarController time (detected + calibrated + longActive).
     Radar only with the Bosch radar retrofit toggle (default off, read once here at car start)."""
@@ -83,7 +98,15 @@ class CarInterface(CarInterfaceBase):
     radar_on = preap_params.get_bool(preap_params.PreApParamKeys.RADAR_ENABLED)
     nosecone = radar_on and preap_params.get_bool(preap_params.PreApParamKeys.RADAR_BEHIND_NOSECONE)
     ret.radarUnavailable = not radar_on  # NotAutopilot preap/interface.py:54@cc39c7fa
-    long_on = not disable_openpilot_long()
+    long_wanted = not disable_openpilot_long()
+    # No Comma Pedal on the bus at car start: run the no-pedal mode for this drive instead of pedal long. The pedal safety mode
+    # requires the 0x552 stream (its RX check), so pedal long without a pedal could never steer either, and cruiseState stayed
+    # unavailable (wrongCarMode on every pull). The no-pedal mode is the existing PREAP safety mode, unchanged: a pull is steering
+    # only, the second pull arms stock cruise. Read once here, like the rest of CarParams; the next car start checks again.
+    no_pedal = long_wanted and CarInterface.preap_no_pedal(fingerprint, docs)
+    long_on = long_wanted and not no_pedal
+    if no_pedal:
+      ret.flags |= int(TeslaAp1Flags.PREAP_NO_PEDAL)
     ret.openpilotLongitudinalControl = long_on
     ret.pcmCruise = not long_on          # pedal long: openpilot owns the engage state (PreAPEngagement)
     safety_param = flags_for_preap(pedal=long_on, radar=radar_on, behind_nosecone=nosecone)

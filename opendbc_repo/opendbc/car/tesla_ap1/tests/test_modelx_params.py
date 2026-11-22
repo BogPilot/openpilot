@@ -27,15 +27,19 @@ def _x_fp():
 def test_model_x_specs():
   specs = X.config.specs
   assert specs.wheelbase == pytest.approx(2.965)   # real Model X, not the Model S 2.959 / 2.960
-  assert specs.steerRatio == pytest.approx(15.0)
+  assert specs.steerRatio == pytest.approx(16.8)  # measured on a real AP1 Model X drive
   assert specs.centerToFrontRatio == pytest.approx(0.5)
   cp = CarInterface.get_params(X, _x_fp(), [], False, False, False)
   assert cp.wheelbase == pytest.approx(2.965)
-  assert cp.steerRatio == pytest.approx(15.0)
+  assert cp.steerRatio == pytest.approx(16.8)
   assert cp.centerToFront == pytest.approx(1.4825)
 
 
-def test_model_x_matching_fingerprint_is_lateral_only():
+def test_model_x_matching_fingerprint_is_lateral_only(tmp_path, monkeypatch):
+  # AP1XOpenpilotLong defaults on; with the user's Off (stock TACC) the X is steering only, exactly as before
+  from opendbc.car.tesla_ap1 import toggles
+  (tmp_path / "AP1XOpenpilotLong").write_text("0")
+  monkeypatch.setattr(toggles, "_ap1x_op_long_path", tmp_path / "AP1XOpenpilotLong")
   cp = CarInterface.get_params(X, _x_fp(), [], False, False, False)
   assert cp.brand == "tesla_ap1"
   assert cp.steerControlType == structs.CarParams.SteerControlType.angle
@@ -44,7 +48,7 @@ def test_model_x_matching_fingerprint_is_lateral_only():
   assert cp.openpilotLongitudinalControl is False
   assert cp.dashcamOnly is False
   assert cp.steerLimitTimer == pytest.approx(1.0)
-  assert cp.steerActuatorDelay == pytest.approx(0.25)
+  assert cp.steerActuatorDelay == pytest.approx(0.15)  # lagd on a real AP1 Model X: 0.34-0.36 s = 0.15 + 0.2
   assert flags_for_candidate(X) == (8,)
   assert flags_for_candidate(X, standstill=True) == (8,)
 
@@ -68,5 +72,6 @@ def test_model_s_params_unchanged():
   assert str(cp.safetyConfigs[0].safetyModel) == "tesla"
   assert cp.safetyConfigs[0].safetyParam == 25
   assert cp.wheelbase == pytest.approx(2.959)
+  assert cp.steerActuatorDelay == pytest.approx(0.25)
   assert flags_for_candidate(CAR.TESLA_AP1_MODELS, standstill=True) == (25,)
   assert flags_for_candidate(CAR.TESLA_AP1_MODELS) == (9,)

@@ -1,19 +1,33 @@
 What's new
 =======================
+* Tesla AP1 Model X: openpilot Longitudinal is now on by default on a detected AP1 Model X. It is switched on once on the first start after updating; if you turn it off after that, it stays off. A change applies the next time the car starts, with no reboot. Standstill is not included
+* Tesla AP1 Model X: steering uses a steer ratio of 16.8 and a steering delay of 0.15 s, measured on a real Model X. With openpilot Longitudinal on, the Model S comfort defaults are on for the X too (Earlier, Gentler Regen Stops, the phantom-brake gate, Round Set Speed Tips, Curve Speed Control, Smooth Curve Braking and Map Curve Speed), and regen stops use Model X numbers
+* Trim detection on AP1 and Pre-AP: single or dual motor, and Performance, are read from the car. Vehicle Options has a new Trim picker (default Auto) with a Detected line. On dual-motor cars the front motor's regen now counts in the pedal gauge and in regen stops. This changes the display and comfort braking only
+* Pedal gauge: dual-motor cars show front plus rear motor power. When the motor torque reads a flat zero at high motor speed, the bars keep showing what openpilot asks for instead of going empty
+* Pre-AP: a Comma Pedal that is wired but not calibrated no longer stops you from engaging. A pull engages steering only, and "Speed control off" tells you to calibrate the pedal while parked
+* Pre-AP: with no Comma Pedal at car start, a pull engages steering only and the banner says "Steering only: no Comma Pedal found / Double pull for stock cruise". A Pre-AP car without a pedal is chosen in Car Selection
+* Pre-AP: re-engaging speed control with a pull brings back the last set speed of the drive, also at a stop. New setting Pre-AP: From-Stop Speed (off by default, shown when Pre AP Auto Speed is off) uses the Standstill Tap Speed at a stop instead
+* AP1 steering: after a short pause in openpilot's steering commands, steering restarts cleanly instead of tripping a power steering fault, and a latched power steering code 7 (high angle rate request) now recovers without a power cycle
+* New panda firmware, which updates itself on the first start after updating:
+  * AP1: a steering command is allowed with power steering code 7 only while the power steering reports available and the parking brake module allows it, the same rule as code 4. All other limits are unchanged
+* Show Speed Limit Offset now shows or hides the green offset badge on the speed limit sign, and is on by default. The badge text is larger and stays inside the sign. A value you saved yourself is kept
+* Driver steering arc: it starts growing at 88° of wheel angle (was 120°). Colours, the 260° marker and the commanded-angle arc are unchanged
+* Driving Personalities is on by default with Relaxed at 2.0 s, and a fresh install starts on Relaxed. Saved settings are kept
+
+Earlier update
+=======================
 * AP1 and Pre-AP: Earlier, Gentler Regen Stops now adds a gentle braking layer on top of the stock braking, up to about 2 mph per second, for a slower car the radar sees. It only adds braking: following distance, emergency braking and cut-in response are unchanged
 * Tesla AP1 Model X: new experimental setting, openpilot Longitudinal (Experimental), in Vehicle Settings. It is off by default, only shown on a detected AP1 Model X, untested on a real Model X, and applies the next time the car starts. Standstill is not included. The Model X wheelbase is now 2.965 m
 * Driver steering arc: small and blue at first, it grows as you turn, fades through yellow to orange, then goes from orange to pink toward full lock (the 260° marker). It follows the wheel you are turning; the arc that shows what openpilot is commanding is unchanged
 * Smooth Curve Braking (off by default, Gas/Brake on AP1 and Pre-AP): when Curve Speed Control slows for a curve, the braking comes as one smooth pull instead of brake, ease, brake. It only adds braking, never slows below the safe curve speed
 * Custom Log Upload Stats (Appearance, off by default): on-screen upload rate and segments left for a self-installed rsync or Nextcloud uploader
-
-Earlier update
-=======================
 * Pedal gauge: the regen bar now fills in a straight line up to 42 kW, so full regen reads close to full (38 kW fills 90 % of the bar) and 22 kW fills about half
 * Maps: a download no longer stays on "Waiting for the map downloader..." until a reboot. The map downloader restarts itself if it stops, and with mapd v1 the map pieces a download missed are fetched again
 * Maps: the download progress, time elapsed and time remaining rows now sit directly below Automatically Update Maps
 * BogPilot > Navigation: the Maps pill now sits to the left of Navigation, on the comma 3X and the comma 4
 * comma 3X sidebar: the temperature box shows °C when Metric Units is on and °F when it is off, instead of both
-* comma 3X sidebar: GPU usage joins the rotation. Offroad the CPU box taps between CPU and GPU, and while driving the middle box taps through vehicle status, CPU and GPU. It shows a dash when the GPU reading is unavailable* Navigation > Maps: pick countries or U.S. states and download their map data on the comma itself. Downloads also work while driving when the Speed Limit Controller is on; they run at low priority and resume if interrupted. Automatic updates default to Weekly and wait for unmetered Wi-Fi. On the comma 4 the region lists open as a 2-column grid of full names
+* comma 3X sidebar: GPU usage joins the rotation. Offroad the CPU box taps between CPU and GPU, and while driving the middle box taps through vehicle status, CPU and GPU. It shows a dash when the GPU reading is unavailable
+* Navigation > Maps: pick countries or U.S. states and download their map data on the comma itself. Downloads also work while driving when the Speed Limit Controller is on; they run at low priority and resume if interrupted. Automatic updates default to Weekly and wait for unmetered Wi-Fi. On the comma 4 the region lists open as a 2-column grid of full names
 * Gas/Brake, Tuning Level and Device Settings now open while driving, as in FrogPilot 0.9.7. Rows the car reads only at start ask for a reboot. Pedal calibration, the radar tests, resets and map delete or repair still need Park or the car off
 * Speed Limit Offsets now start at 4 / 5 / 5 / 5 / 7 / 8 / 10 mph. An offset you saved yourself is never changed
 * Screen Timeout (Onroad) now starts at 10 seconds. A saved value is kept

@@ -149,7 +149,7 @@ AP1_PARAM_PROFILE: dict[str, str] = {
   "CECurves": "1",                       # CE child: switch to EM for curves (inert while CE is off)
   "CENavigationIntersections": "1",      # CE child: EM for nav intersections (inert while CE is off)
   "CustomPersonalities": "1",            # custom follow-distance personalities on
-  "RelaxedFollow": "2.000000",           # Relaxed personality follow time 2.0 s (default 1.75 s)
+  "RelaxedFollow": "2.000000",           # Relaxed personality follow time 2.0 s (registry default)
   # Profile enums (longitudinal_settings.cc): acceleration 0 Standard, 1 Eco, 2 Sport, 3 Sport+;
   # deceleration 0 Standard, 1 Eco, 2 Eco+.
   "AccelerationProfile": "2",            # acceleration profile Sport (same as the table default, listed on purpose)
@@ -175,7 +175,7 @@ AP1_PARAM_PROFILE: dict[str, str] = {
   # AdjacentLeadsUI inherits the registry ON default; a user's saved OFF is never overridden.
   "ShowStoppingPoint": "0",              # model stopping-point marker off
   "ShowStoppingPointMetrics": "0",       # stopping-point distance off
-  "ShowSLCOffset": "0",                  # hide the SLC offset under the speed limit
+  "ShowSLCOffset": "1",                  # show the green SLC offset badge on the speed limit sign (registry default on)
   "OnroadDistanceButton": "1",           # driving-personality button on the driving screen
   "CameraView": "0",                     # camera view Auto (also the registered default)
   "DriverCamera": "1",                   # show driver camera in reverse
@@ -336,6 +336,7 @@ def clear_ap1_defaults_marker(bogpilot_dir: Path | None = None) -> None:
   directory = Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR)
   for path in (marker_path(bogpilot_dir), theme_marker_path(bogpilot_dir), legacy_slc_marker_path(bogpilot_dir),
                legacy_tesla_long_marker_path(bogpilot_dir), legacy_tesla_ce_marker_path(bogpilot_dir),
+               ap1x_visual_marker_path(bogpilot_dir),
                *(directory / n for n in OLD_THEME_MARKER_NAMES), *(directory / n for n in OLD_LEGACY_SLC_MARKER_NAMES)):
     try:
       path.unlink(missing_ok=True)
@@ -742,6 +743,123 @@ def apply_legacy_tesla_ce_off_once(params=None, bogpilot_dir: Path | None = None
     return written
   except Exception:
     return []
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# AP1 Model X visual profile: the AP1 Model S profile's screen, sidebar and theme choices, and nothing else.
+#
+# The X gets only the display keys of AP1_PARAM_PROFILE (after the shipping overlay, as the S receives them) and the
+# display file toggles of the AP1 file profile. No driving, lateral, personality or speed key: those keep their own X
+# rules (legacy long-tune and SLC defaults above), and ShowSLCOffset stays with the X SLC profile. Alert volumes are not
+# part of any profile (selfdrive/car/ap1_runtime.py writes the AP1 volume defaults for unset keys on the S and the X).
+# Rule: once per device (marker below, DoToggleReset clears it). A Params key is written only while it is unset or still
+# at its registry default, a file toggle only while its file is absent, so a saved value is never changed. Unlike the
+# S there is no stock-look theme step: a saved "stock" theme stays stock. Never raises.
+AP1X_VISUAL_PLATFORMS = frozenset({"TESLA_AP1_MODELX"})
+AP1X_VISUAL_MARKER_NAME = "AP1XVisualDefaultsApplied1"
+AP1X_VISUAL_KEYS = ("ShowMemoryUsage", "ShowGPU", "ShowCPU", "SidebarMetrics", "DeveloperWidgets", "DeveloperUI",
+                    "BorderMetrics", "DeveloperSidebar", "LeadInfo", "FPSCounter", "ShowStoppingPoint",
+                    "ShowStoppingPointMetrics", "OnroadDistanceButton", "CameraView", "DriverCamera", "MapStyle",
+                    "PersonalizeOpenpilot", "RandomThemes", *THEME_KEYS)
+AP1X_VISUAL_FILE_KEYS = ("SwapSpeedGraph", "DeveloperHUD")
+
+
+def ap1x_visual_marker_path(bogpilot_dir: Path | None = None) -> Path:
+  return Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR) / AP1X_VISUAL_MARKER_NAME
+
+
+def is_ap1x_visual_platform(params) -> bool:
+  """AP1 Model X (CarModel, else the persistent fingerprint). Never the AP1 Model S (that uses the full S profile)."""
+  return _legacy_slc_fingerprint(params) in AP1X_VISUAL_PLATFORMS and not is_ap1(params)
+
+
+def ap1x_visual_profile() -> tuple[dict[str, str], dict[str, str]]:
+  """(Params values, file toggle values) the AP1 Model X visual profile offers: the S profile's values for those keys."""
+  from openpilot.common.bogpilot_shipping_defaults import patch_ap1_file_profile, patch_ap1_param_profile
+  param_profile = patch_ap1_param_profile(dict(AP1_PARAM_PROFILE))
+  file_profile = patch_ap1_file_profile(dict(AP1_FILE_TOGGLE_PROFILE))
+  return ({key: param_profile[key] for key in AP1X_VISUAL_KEYS if key in param_profile},
+          {key: file_profile[key] for key in AP1X_VISUAL_FILE_KEYS if key in file_profile})
+
+
+def apply_ap1x_visual_defaults_once(params=None, bogpilot_dir: Path | None = None, default_table: dict | None = None,
+                                    refresh: bool = True) -> list[str]:
+  """Apply the AP1 Model X visual profile once (rule above). Returns the keys written ([] when it did nothing)."""
+  try:
+    if params is None:
+      params = StoreParams()
+    elif not hasattr(params, "invalidate"):
+      params = StoreParams(_shared_store(params))
+    directory = Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR)
+    marker = ap1x_visual_marker_path(directory)
+    if marker.exists() or not is_ap1x_visual_platform(params):
+      return []
+    table = default_table if default_table is not None else _default_table()
+    param_values, file_values = ap1x_visual_profile()
+    written: list[str] = []
+    for key, value in param_values.items():
+      if key not in table or key in NEVER_PROFILE_KEYS:
+        continue
+      current = params.get(key)
+      still_default = _unset(current) or values_equal(current, table[key])
+      if still_default and not values_equal(current, value):
+        params.put(key, value, block=True)      # persisted before the once-only marker below
+        written.append(key)
+    directory.mkdir(parents=True, exist_ok=True)
+    for key, value in file_values.items():
+      path = directory / key
+      if not path.exists():
+        path.write_text(value)
+        written.append(key)
+    _write_marker_durable(marker, "1\n")
+    if written and refresh:
+      try:
+        params.invalidate()
+      except Exception:
+        pass
+    return written
+  except Exception:
+    return []
+
+
+# ---- AP1 Model X openpilot longitudinal: one-time forced ON (versioned) ----
+# AP1XOpenpilotLong defaults on for a detected AP1 Model X (opendbc tesla_ap1/toggles.py ap1x_op_long). Devices that saved it off
+# under the earlier default-off builds get it turned on ONCE by this migration, on the first start that knows the car is an
+# AP1 Model X; the marker then stops it for good, so a later user Off (stock TACC) is respected. Bump the number in the marker
+# name only to force it once more in a future build. Never touches any other car.
+AP1X_LONG_FORCE_MARKER_NAME = "AP1XOpenpilotLongForcedOn1"
+AP1X_LONG_KEY = "AP1XOpenpilotLong"
+
+
+def ap1x_long_force_marker_path(bogpilot_dir: Path | None = None) -> Path:
+  return Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR) / AP1X_LONG_FORCE_MARKER_NAME
+
+
+def force_ap1x_op_long_on_once(params=None, bogpilot_dir: Path | None = None) -> bool:
+  """Write AP1XOpenpilotLong=1 once on a detected AP1 Model X (even over a saved 0), then the once-only marker.
+  True when it wrote the value. Never raises; no car known yet = nothing written and no marker (it runs on a later start)."""
+  try:
+    if params is None:
+      params = StoreParams()
+    elif not hasattr(params, "invalidate"):
+      params = StoreParams(_shared_store(params))
+    directory = Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR)
+    marker = ap1x_long_force_marker_path(directory)
+    if marker.exists() or not is_ap1x_visual_platform(params):
+      return False
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / AP1X_LONG_KEY
+    try:
+      before = path.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+      before = None
+    wrote = before != "1"
+    if wrote:
+      _write_marker_durable(path, "1")         # the value first, durably; a lost marker only repeats this same write
+    _write_marker_durable(marker, "1\n")
+    return wrote
+  except Exception:
+    return False
 
 
 def _write_marker_durable(marker: Path, text: str) -> None:

@@ -89,11 +89,16 @@ def test_empty_lead_fields_do_not_raise():
   assert not vision_only_lead_blocked(V_EGO, m, 0.5)
 
 
-def test_platform_selection_is_ap1_model_s_and_preap_model_s_only():
-  assert vision_only_gate_platform("TESLA_AP1_MODELS")
-  assert vision_only_gate_platform("TESLA_PREAP_MODELS")
-  for other in ("TESLA_AP1_MODELX", "TESLA_AP2_MODELS", "TESLA_MODEL_3", "TOYOTA_COROLLA", "MOCK", "", None):
-    assert not vision_only_gate_platform(other)
+def test_platform_selection_is_ap1_model_s_and_preap_model_s_and_model_x_with_op_long():
+  for op_long in (False, True):
+    assert vision_only_gate_platform("TESLA_AP1_MODELS", op_long)
+    assert vision_only_gate_platform("TESLA_PREAP_MODELS", op_long)
+  assert vision_only_gate_platform("TESLA_AP1_MODELS") and vision_only_gate_platform("TESLA_PREAP_MODELS")
+  assert not vision_only_gate_platform("TESLA_AP1_MODELX")               # stock cruise: stock lead selection
+  assert not vision_only_gate_platform("TESLA_AP1_MODELX", False)
+  assert vision_only_gate_platform("TESLA_AP1_MODELX", True)             # X openpilot long
+  for other in ("TESLA_AP2_MODELS", "TESLA_MODEL_3", "TOYOTA_COROLLA", "MOCK", "", None):
+    assert not vision_only_gate_platform(other) and not vision_only_gate_platform(other, True)
 
 
 def preap_gated(**kw):
