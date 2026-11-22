@@ -25,6 +25,7 @@ from opendbc.car.tesla_ap1.long_smooth import Ap1AccelSmoother, Ap1JerkLimit, ap
 from opendbc.car.tesla_ap1.steer_counter import Ap1SteerCounterSync
 from opendbc.car.tesla_ap1.steer_resync import Ap1SteerResync
 from opendbc.car.tesla_ap1.teslacan import TeslaCAN
+from opendbc.car.tesla_ap1 import ride_height
 from opendbc.car.tesla_ap1.slc_raise import cruise_set_mph
 from opendbc.car.tesla_ap1.toggles import enable_ic_integration
 from opendbc.car.tesla_ap1.values import DBC, CANBUS, CAR, TeslaAp1SafetyFlags, is_ap1_family
@@ -41,6 +42,8 @@ class CarController(CarControllerBase):
     self.packer = CANPacker(dbc_names[Bus.chassis])
     self.pt_packer = CANPacker(DBC[CP.carFingerprint][Bus.pt])
     self.tesla_can = TeslaCAN(self.packer, self.pt_packer)
+    # Lower on Park (ride_height.py): AP1 Model S / X only. Pre-AP and every other car never build a 0x308.
+    self.lower_on_park = ride_height.LowerOnPark() if is_ap1_family(CP.carFingerprint) else None
     # Model S only. Dash cluster substitution is not used on Model X.
     self.cluster = ClusterController() if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
     # modelV2 path for the cluster lanes. opendbc cannot subscribe to messaging,
@@ -260,6 +263,11 @@ class CarController(CarControllerBase):
     if ap1_should_send_hold_clear(chassis_das_only, long_allowed, CS.acc_state, self.frame):
       can_sends.append(self.tesla_can.create_ap1_hold_clear())
 
+    # Lower on Park (ride_height.py): one 2 s 0x308 burst per Park entry, never while engaged. Not an actuator frame.
+    rh = self.lower_on_park_frame(CC, CS)
+    if rh is not None:
+      can_sends.append(self.tesla_can.create_ride_height_request(rh))
+
     # AP1 cluster frames. Display only. Added after every actuator frame and
     # never read by the actuator plan above.
     if self.cluster is not None:
@@ -272,6 +280,26 @@ class CarController(CarControllerBase):
 
     self.frame += 1
     return new_actuators, can_sends
+
+  def lower_on_park_frame(self, CC, CS):
+    """The 0x308 payload to send this step, or None. AP1 Model S / X only; inert unless the panda allows it this drive."""
+    if self.lower_on_park is None:
+      return None
+    try:
+      param = int(self.CP.safetyConfigs[-1].safetyParam)
+    except (AttributeError, IndexError, TypeError, ValueError):
+      param = 0
+    # The panda flag is fixed at car start, so without it no burst can start this drive: skip the step entirely.
+    if not ride_height.tx_supported(param):
+      return None
+    gear = getattr(CS.out, "gearShifter", GearShifter.unknown)
+    return self.lower_on_park.update(
+      in_park=gear == GearShifter.park, gear_known=gear != GearShifter.unknown,
+      can_tx=True,
+      controls_active=bool(CC.enabled or CC.latActive or CC.longActive), v_ego=getattr(CS.out, "vEgo", 0.0),
+      source=getattr(CS, "ride_height_last", None), source_age_s=getattr(CS, "ride_height_age_s", float("inf")),
+      new_sources=getattr(CS, "ride_height_frames", ()),
+      prefs=lambda: (ride_height.enabled(), ride_height.level_for()))
 
   def _model_path_for_cluster(self, enabled, ic_on):
     """modelV2 path only while the toggle is on and engaged.

@@ -328,6 +328,7 @@ def make_settings(group, store=None, capabilities=Capabilities(), cp=None, can_e
   from openpilot.system.ui.lib.multilang import tr
   from openpilot.system.ui.widgets.scroller_tici import Scroller
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
+  from openpilot.selfdrive.ui.bogpilot.tesla_start_values import start_text
   from openpilot.selfdrive.ui.bogpilot.nesting import indent_under
   if store is None:
     from openpilot.common.bogpilot_store import ParamStore
@@ -399,7 +400,8 @@ def make_settings(group, store=None, capabilities=Capabilities(), cp=None, can_e
                                        default_text=(lambda k=row.key: c.default_text(k)) if has_default else None,
                                        is_default=(lambda k=row.key: c.at_default(k)) if has_default else None,
                                        translate=tr)
-        attach_help(item, row.key)
+        # Tesla starting values for this car (the delay shown above is the live CarParams value; the others are the code defaults).
+        attach_help(item, row.key, extra=lambda k=row.key: start_text(k, c.platform()))
         self.items[row.key] = item
         items.append(item)
       self.reset = None

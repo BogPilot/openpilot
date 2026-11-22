@@ -46,7 +46,7 @@ EXPECTED = {
   "system_data": op.ONROAD, "system_device": op.ONROAD, "system_utilities": op.ONROAD, "vehicle_info": op.ONROAD,
   "steering_tuning": op.REBOOT, "lane_changes": op.REBOOT, "driving_model": op.REBOOT,
   "car_selection": op.REBOOT, "vehicle_controls": op.REBOOT, "stalk_controls": op.REBOOT,
-  "gas_brake": op.ONROAD,
+  "gas_brake": op.ONROAD, "tesla_tuning": op.LOCKED,
 }
 
 

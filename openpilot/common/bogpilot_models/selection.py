@@ -5,11 +5,14 @@ Both records live in the shared BogPilot setting store (Params when the key is c
 needs raw(key) -> str | None, put(key, text) and remove(key).
 
 Selection is applied by modeld exactly once per start (modeld only runs onroad), so a change can never take
-effect mid-drive; select() additionally refuses to write unless the device is offroad.
+effect mid-drive; select() additionally refuses to write unless the device is offroad. The choice carries its write
+time `t`, and the first modeld start of a drive latches it (state "latch"), so a modeld restarted by the manager in
+the same drive keeps that drive's model and a choice recorded after the drive started waits for the next drive.
 """
 from __future__ import annotations
 
 import json
+import math
 import time
 from dataclasses import dataclass
 from typing import Callable
@@ -26,6 +29,13 @@ class Selection:
   id: str
   pin_model: str
   pin_manifest: str
+  t: float = 0.0  # wall time the choice was recorded (0: unknown, an older record)
+
+  def to_json(self) -> dict:
+    d = {"v": 1, "id": self.id, "pin_model": self.pin_model, "pin_manifest": self.pin_manifest}
+    if self.t:
+      d["t"] = self.t
+    return d
 
 
 @dataclass(frozen=True)
@@ -49,7 +59,9 @@ def parse_selection(raw: str | None) -> Selection | None:
     d = json.loads(raw or "")
     if (d.get("v") == 1 and isinstance(d.get("id"), str) and d["id"] and isinstance(d.get("pin_model"), str)
             and isinstance(d.get("pin_manifest"), str)):
-      return Selection(d["id"], d["pin_model"], d["pin_manifest"])
+      t = d.get("t", 0.0)
+      t = float(t) if isinstance(t, (int, float)) and not isinstance(t, bool) and math.isfinite(t) and t > 0 else 0.0
+      return Selection(d["id"], d["pin_model"], d["pin_manifest"], t)
   except (ValueError, AttributeError, TypeError):
     pass
   return None
@@ -103,6 +115,20 @@ def record_fallback(store, requested: Selection | None, name: str, reason: str, 
   _write_state(store, st)
 
 
+def read_latch(store, drive_token: str) -> tuple[Selection | None, bool]:
+  """(latched selection, found) for this drive. found with None selection means the latch is unreadable."""
+  latch = read_state(store).get("latch")
+  if not isinstance(latch, dict) or latch.get("drive") != drive_token:
+    return None, False
+  return parse_selection(json.dumps(latch.get("sel"))), True
+
+
+def write_latch(store, drive_token: str, sel: Selection) -> None:
+  st = read_state(store)
+  st["latch"] = {"drive": drive_token, "sel": sel.to_json()}
+  _write_state(store, st)
+
+
 def clear_fallback(store) -> None:
   st = read_state(store)
   if st.pop("fallback", None) is not None:
@@ -127,8 +153,8 @@ def select(model_id: str, is_offroad: Callable[[], bool], store=None, root=None,
   v = registry.validate_entry(entry)  # always fresh (never cached): the pins written below must describe the files as they are now
   if not v.ok:
     return SelectResult(False, f"{entry.name} cannot be used: {v.reason}")
-  store.put(KEY_SELECTION, json.dumps({"v": 1, "id": entry.id, "pin_model": v.model_sha256,
-                                        "pin_manifest": v.manifest_sha256}, sort_keys=True))
+  chosen = Selection(entry.id, v.model_sha256, v.manifest_sha256, round(time.time(), 3))
+  store.put(KEY_SELECTION, json.dumps(chosen.to_json(), sort_keys=True))
   clear_fallback(store)
   return SelectResult(True, f"{entry.name} selected. It applies at the next drive start; "
                             "if it fails validation or loading the Default (stock) model is used instead.")

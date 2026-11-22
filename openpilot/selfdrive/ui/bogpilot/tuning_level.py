@@ -30,6 +30,9 @@ UI_ROW_LEVELS: dict[str, int] = {
   "CustomLogUploadStats": MINIMAL,  # shows nothing unless a manually installed uploader reports status
   "ShowAccelGraph": DEVELOPER,     # can slow UI draw time; lives with the other Developer overlays
 }
+# Tesla Tuning rows (opendbc tesla_ap1/tesla_tuning.py): Advanced, like the Advanced Longitudinal / Lateral rows.
+from opendbc.car.tesla_ap1.tesla_tuning import KEYS as _TESLA_TUNING_KEYS  # noqa: E402
+UI_ROW_LEVELS.update({k: ADVANCED for k in _TESLA_TUNING_KEYS})
 
 _CACHE_S = 0.5
 _store = None

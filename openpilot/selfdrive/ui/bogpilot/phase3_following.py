@@ -172,7 +172,7 @@ class FollowingEditor:
     """The existing default a value row shows as "default: X", or None when there is none to show.
 
     Following Distance uses the table already in this file (`_P_FOLLOW_DEFAULT`: Aggressive 1.25, Standard 1.45,
-    Relaxed 1.75) and the same numbers in bogpilot_defaults.py (AggressiveFollow, StandardFollow, RelaxedFollow),
+    Relaxed 2.0) and the same numbers in bogpilot_defaults.py (AggressiveFollow, StandardFollow, RelaxedFollow),
     unless this car's reset profile sets the key (AP1 Model S: RelaxedFollow 2.0 s from the AP1 profile).
     Jerk rows and Lead Detection use store.default(key), the same source value() already falls back to:
     Aggressive jerks 50 except Danger 100; Standard/Relaxed jerks 100 (bogpilot_defaults.py); Lead Detection 35.

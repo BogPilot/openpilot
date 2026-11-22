@@ -134,7 +134,7 @@ class CanRadarSource:
     self._sock = None
 
   def open(self) -> None:
-    from cereal import messaging
+    from openpilot.cereal import messaging
     self._sock = messaging.sub_sock("can", conflate=False, timeout=0)
 
   def close(self) -> None:
@@ -144,7 +144,7 @@ class CanRadarSource:
     can_list = []
     if self._sock is not None:
       try:
-        from cereal import messaging
+        from openpilot.cereal import messaging
         from openpilot.selfdrive.pandad import can_capnp_to_list
         can_list = can_capnp_to_list(messaging.drain_sock_raw(self._sock))
       except Exception:

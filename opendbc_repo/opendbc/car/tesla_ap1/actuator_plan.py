@@ -27,6 +27,7 @@ from opendbc.car.tesla_ap1.epas_gate import EAC_BLOCKING_STATUS
 from opendbc.car.tesla_ap1.hso import AP1_HANDS_ON_LEVEL
 from opendbc.car.tesla_ap1.lateral_limits import limit_lat_accel_angle, panda_rate_ceiling
 from opendbc.car.tesla_ap1.steer_fault import AP1_LATCHED_ANGLE_ERRORS
+from opendbc.car.tesla_ap1 import tesla_tuning as _tt
 from opendbc.car.tesla_ap1.values import CarControllerParams
 
 
@@ -60,10 +61,10 @@ ACC_CANCEL_GENERIC_SILENT = 13
 # setSpeed 0, accel [-1.4, +1.8], jerk [-0.46, +0.476] "so we can enable at
 # 0 km/h". BogPilot sends the same but with accelMax 0 (no positive request
 # while not engaged); the panda rejects any other shape while long is not allowed.
-AP1_STANDBY_ACCEL_MIN = -1.4
+AP1_STANDBY_ACCEL_MIN = _tt.get("AP1StandbyAccelMin", -1.4)
 AP1_STANDBY_ACCEL_MAX = 0.0
-AP1_STANDBY_JERK_MIN = -0.46
-AP1_STANDBY_JERK_MAX = 0.476
+AP1_STANDBY_JERK_MIN = _tt.get("AP1StandbyJerkMin", -0.46)
+AP1_STANDBY_JERK_MAX = _tt.get("AP1StandbyJerkMax", 0.476)
 
 
 def ap1_standby_allowed(standstill_flag, openpilot_longitudinal_control, enabled, in_drive, stock_ap_active):

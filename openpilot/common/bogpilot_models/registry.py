@@ -1,8 +1,9 @@
 """Local model registry: the built-in stock Default plus any models a user installed under the models dir.
 
 Layout:  <models_dir>/<id>/manifest.json  (+ the files it lists, plain file names in the same directory)
-Default models_dir is /data/bogpilot/models; BOGPILOT_MODELS_DIR overrides it. Nothing is ever downloaded:
-installing a model means putting a directory there. Fresh installs have no such directory at all.
+Default models_dir is /data/bogpilot/models; BOGPILOT_MODELS_DIR overrides it. Installing a model means putting
+a directory there. Fresh installs have no such directory at all. A later downloader may only fetch from our
+GitHub releases (see source.py); this module never contacts a network.
 """
 from __future__ import annotations
 
@@ -27,7 +28,8 @@ FILE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$")
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
 RESERVED_IDS = frozenset({STOCK_ID, "stock", "none", "auto"})
 STOCK_LICENSE = "MIT (openpilot)"
-ROLES = tuple(ROLE_STOCK_FILES)
+ONNX_ROLE = "driving_onnx"
+ROLES = tuple(ROLE_STOCK_FILES) + (ONNX_ROLE,)
 
 
 def models_dir() -> Path:
@@ -61,6 +63,7 @@ class Manifest:
   abi_digest: str | None
   description: str
   sha256: str  # of the raw manifest bytes; selection pins it
+  onnx_sha256: str = ""  # required for installed models: sha256 of the ONNX the driving program was compiled from
 
   def file(self, role: str) -> FileSpec | None:
     return next((f for f in self.files if f.role == role), None)
@@ -81,6 +84,11 @@ class Entry:
   @property
   def model_sha256(self) -> str:
     return next((h for r, _, h in self.file_names if r == "driving_model"), "")
+
+  @property
+  def onnx_sha256(self) -> str:
+    """The source ONNX hash a manifest declares (always "" for the built-in Default)."""
+    return self.manifest.onnx_sha256 if self.manifest is not None else ""
 
 
 @dataclass
@@ -154,8 +162,12 @@ def parse_manifest(raw: bytes) -> Manifest:
   digest = d.get("abi_digest")
   if digest is not None and (not isinstance(digest, str) or not SHA_RE.match(digest)):
     raise ManifestError("abi_digest must be 64 lowercase hex characters")
+  onnx = d.get("onnx_sha256")
+  if not isinstance(onnx, str) or not SHA_RE.match(onnx):
+    raise ManifestError("onnx_sha256 is required and must be 64 lowercase hex characters")
   return Manifest(mid, _text(d, "name", 60), _text(d, "version", 40), _text(d, "openpilot", 20), lic.strip(),
-                  tuple(specs), digest, _text(d, "description", 300, required=False), hashlib.sha256(raw).hexdigest())
+                  tuple(specs), digest, _text(d, "description", 300, required=False), hashlib.sha256(raw).hexdigest(),
+                  onnx)
 
 
 def stock_entry() -> Entry:
@@ -276,6 +288,12 @@ def _validate(entry: Entry, cache: dict | None) -> Validation:
       v.problems.append(why)
     else:
       v.paths[spec.role] = p
+  if not SHA_RE.match(m.onnx_sha256):
+    v.problems.append("onnx_sha256 is required and must be 64 lowercase hex characters")
+  else:
+    onnx_spec = m.file(ONNX_ROLE)
+    if onnx_spec is not None and onnx_spec.sha256 != m.onnx_sha256:
+      v.problems.append("ONNX hash mismatch")
   if v.problems:
     v.ok = False
     return v
@@ -286,8 +304,8 @@ def _validate(entry: Entry, cache: dict | None) -> Validation:
     v.problems += compat.check_driving_abi(abi)
     if m.abi_digest is not None and m.abi_digest != v.abi_digest:
       v.problems.append("manifest abi_digest does not match the model")
-    for role in ROLES[1:]:
-      if role in v.paths:
+    for role in ROLE_STOCK_FILES:
+      if role != "driving_model" and role in v.paths:
         v.problems += compat.check_warp_abi(abi_mod.read_warp_abi(v.paths[role]), role)
   except abi_mod.AbiError as e:
     v.problems.append(f"model unreadable: {e}")

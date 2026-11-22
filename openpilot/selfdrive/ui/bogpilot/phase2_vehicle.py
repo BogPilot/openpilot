@@ -18,7 +18,14 @@ LONG = "DisableOpenpilotLongitudinal"
 CLUSTER = "EnableICIntegration"
 REGEN = "RegenComfortBrake"
 X_LONG = "AP1XOpenpilotLong"
+SIDE_CHECK = "AP1LeadSideCheck"
 AP1_X = "TESLA_AP1_MODELX"
+LOWER_ON_PARK = "LowerOnPark"
+LOWER_ON_PARK_HEIGHT = "LowerOnParkHeight"
+AIR_SUSPENSION_DETECTED = "AirSuspensionDetected"
+LOWER_ON_PARK_HEIGHT_TITLE = "Lower on Park: Height"
+LOWER_ON_PARK_HEIGHT_DESCRIPTION = ("The height Lower on Park asks for when you shift into Park: Low (default) or Medium. "
+                                    "Press to change. Used from the next shift into Park.")
 RADAR = "TeslaRadarEnabled"
 RADAR_NOSECONE = "TeslaRadarBehindNosecone"
 IBOOSTER = "TeslaHasIBooster"
@@ -108,7 +115,9 @@ RADAR_DONOR_VIN_BAD = "A VIN is 17 letters or digits. Clear the box instead to u
 TITLES = {LONG: "Disable openpilot Longitudinal Control",
           CLUSTER: "Tesla AP1: Dash Cluster Integration",
           REGEN: "Tesla AP1: Earlier, Gentler Regen Stops",
+          SIDE_CHECK: "Tesla AP1: Ignore Radar Cars to the Side (Experimental)",
           X_LONG: "Tesla AP1 Model X: openpilot Longitudinal (Experimental)",
+          LOWER_ON_PARK: "Tesla AP1: Lower on Park",
           DOUBLE_PULL: "Pre-AP: Double Pull to Engage Pedal Longitudinal",
           RADAR: "Pre-AP: Bosch Radar",
           RADAR_NOSECONE: "Pre-AP: Radar Behind Nosecone",
@@ -139,6 +148,13 @@ DESCRIPTIONS = {
   X_LONG: ("Experimental. Lets openpilot control speed and braking on an AP1 Model X, the way it does on the Model S. On by "
            "default. Off keeps the Model X on steering only with its own cruise control (stock TACC). Changes take effect the "
            "next time the car starts; no reboot is needed."),
+  LOWER_ON_PARK: ("When you shift into Park, lowers the air suspension once to the height set below (Low by default), so the car's "
+                  "own location-based raise still lifts it at a driveway or garage you saved. Never sent while openpilot is engaged "
+                  "or the car is moving; tapping a height on the touchscreen cancels it. Shown only for a car with air suspension. "
+                  "Takes effect the next time the car starts."),
+  SIDE_CHECK: ("Experimental, off by default. At 34 mph and up, a radar car more than about 8 ft to the side of the car the camera "
+               "sees ahead is not used as your lead, so a car in the next lane does not slow you down. The camera's lead is used "
+               "instead; nothing changes below 34 mph. Takes effect the next time the car starts."),
   REGEN: "Start slowing gently (up to about 2 mph per second) for a slower car the radar sees. It only adds braking; following "
          "distance, emergency braking and cut-in response are unchanged. "
          "Takes effect the next time the planner starts (normally the next drive).",
@@ -208,6 +224,14 @@ class VehicleSettings:
     self.cluster_path = self.file_dir / CLUSTER if file_dir is not None else toggles._ic_integration_path
     self.regen_path = self.file_dir / REGEN if file_dir is not None else regen_brake._regen_comfort_path
     self.x_long_path = self.file_dir / X_LONG if file_dir is not None else toggles._ap1x_op_long_path
+    from opendbc.car.tesla_ap1 import ride_height
+    self.ride_height = ride_height
+    self.lop_path = self.file_dir / LOWER_ON_PARK if file_dir is not None else ride_height._enable_path
+    self.lop_height_path = self.file_dir / LOWER_ON_PARK_HEIGHT if file_dir is not None else ride_height._height_path
+    self.air_detected_path = self.file_dir / AIR_SUSPENSION_DETECTED if file_dir is not None else ride_height._detected_path
+    from opendbc.car.tesla_ap1 import lead_side_check
+    self.side_check = lead_side_check
+    self.side_check_path = self.file_dir / SIDE_CHECK if file_dir is not None else lead_side_check._side_check_path
     self._custom_dir = file_dir is not None
 
   def visible(self, key):
@@ -216,6 +240,18 @@ class VehicleSettings:
       return supported(cp) or is_x(cp)  # AP1 Model S, AP1 Model X and Pre-AP
     if key == X_LONG:
       return is_x(cp)                  # Model X only; every other car (Model S, Pre-AP, unknown) never sees the row
+    if key == LOWER_ON_PARK:
+      # AP1 Model S and Model X with air suspension (0x398, written by car state), and only when this build's panda allows the
+      # 0x308 request. Pre-AP and unknown cars never see it.
+      ap1_car = is_x(cp) or (supported(cp) and not is_preap(cp))
+      return (ap1_car and self.ride_height.PANDA_TX_SUPPORTED
+              and self.ride_height.air_suspension_detected(path=self.air_detected_path))
+    if key == LOWER_ON_PARK_HEIGHT:
+      return self.visible(LOWER_ON_PARK) and self.read(LOWER_ON_PARK)
+    if key == SIDE_CHECK:
+      # AP1 Model S with openpilot longitudinal, and the AP1 Model X with its openpilot longitudinal opt-in. Never Pre-AP.
+      op_long = bool(getattr(cp, "openpilotLongitudinalControl", False))
+      return op_long and (is_x(cp) or (supported(cp) and not is_preap(cp)))
     if key == REGEN and is_x(cp):
       return bool(cp.openpilotLongitudinalControl)   # AP1 Model X: only with its openpilot longitudinal opt-in
     if not supported(cp):
@@ -281,6 +317,23 @@ class VehicleSettings:
     if key == TRIM_DETECTED:
       return False                     # read-only line
     return self.visible(key) and bool(self.offroad())
+
+  # ---- Lower on Park height (opendbc tesla_ap1/ride_height.py): Low / Medium, read at each shift into Park ----
+  def lop_height(self):
+    return self.ride_height.height(path=self.lop_height_path)
+
+  def lop_height_text(self):
+    return self.ride_height.HEIGHT_LABELS[self.lop_height()]
+
+  def next_lop_height(self):
+    """Pressed: Low -> Medium -> Low. Refused unless shown and the edit gate allows. Returns the stored value or None."""
+    if not self.enabled(LOWER_ON_PARK_HEIGHT):
+      return None
+    heights = self.ride_height.HEIGHTS
+    value = heights[(heights.index(self.lop_height()) + 1) % len(heights)]
+    self.ride_height.set_height(value, path=self.lop_height_path)
+    self.on_change(LOWER_ON_PARK_HEIGHT)
+    return value
 
   # ---- Trim (opendbc tesla_ap1/trims.py): one picker, filtered by what CAN detected; read once at car start ----
   def _trims(self):
@@ -567,6 +620,10 @@ class VehicleSettings:
     if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE, IBOOSTER, RADAR_IGNORE_HW_FAIL, RADAR_FLIP, AUTO_SPEED, FROM_STOP):
       from opendbc.car.tesla_ap1.preap import params as preap_params
       return preap_params.get_bool(key)
+    if key == LOWER_ON_PARK:
+      return self.ride_height.enabled(path=self.lop_path)          # default off
+    if key == SIDE_CHECK:
+      return self.side_check.side_check_enabled(path=self.side_check_path)    # default off
     if key == X_LONG:
       from openpilot.selfdrive.ui.bogpilot import onroad_policy
       staged = onroad_policy.pending(X_LONG)
@@ -604,12 +661,16 @@ class VehicleSettings:
       if done:
         self.on_change(key)
       return done
+    elif key == LOWER_ON_PARK:
+      self.ride_height.set_enabled(state, path=self.lop_path)
     elif key == X_LONG:
       self.toggles.set_ap1x_op_long(state, path=self.x_long_path)
     elif key == CLUSTER:
       self.toggles.set_enable_ic_integration(state, path=self.cluster_path)
     elif key == REGEN:
       self.regen.set_regen_comfort_brake(state, path=self.regen_path)
+    elif key == SIDE_CHECK:
+      self.side_check.set_side_check(state, path=self.side_check_path)
     self.on_change(key)
     return True
 
@@ -825,6 +886,17 @@ def create_vehicle_settings_layout(params=None):
                                             translate=tr)
       attach_help(self.trim_row, TRIM)
       self.rows = {TRIM_DETECTED: self.detected_row, TRIM: self.trim_row, **self.rows}
+      # Lower on Park height: a Low / Medium button right under the Lower on Park switch.
+      self.lop_height_row = button_item(lambda: tr(LOWER_ON_PARK_HEIGHT_TITLE), lambda: tr(self.model.lop_height_text()).upper(),
+                                        lambda: tr(LOWER_ON_PARK_HEIGHT_DESCRIPTION),
+                                        callback=self.model.next_lop_height, enabled=lambda: self.model.enabled(LOWER_ON_PARK_HEIGHT))
+      attach_help(self.lop_height_row, LOWER_ON_PARK_HEIGHT)
+      ordered = {}
+      for key, row in self.rows.items():
+        ordered[key] = row
+        if key == LOWER_ON_PARK:
+          ordered[LOWER_ON_PARK_HEIGHT] = self.lop_height_row
+      self.rows = ordered
       # An empty or short page says why (no car / wrong car / longitudinal control off) instead of showing nothing.
       from openpilot.selfdrive.ui.bogpilot import menu_locks
       from openpilot.selfdrive.ui.bogpilot.vehicle_settings import disable_long_effective

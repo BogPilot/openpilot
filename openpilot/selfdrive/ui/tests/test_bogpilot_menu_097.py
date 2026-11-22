@@ -15,7 +15,7 @@ EXPECTED_ROWS = (
   ("navigation", "Navigation", ("MAPS", "NAVIGATION")),
   ("system", "System Settings", ("DATA", "DEVICE CONTROLS", "UTILITIES")),
   ("theme", "Appearance", ("APPEARANCE",)),
-  ("vehicle", "Vehicle Settings", ("VEHICLE SETTINGS", "WHEEL CONTROLS")),
+  ("vehicle", "Vehicle Settings", ("VEHICLE SETTINGS", "WHEEL CONTROLS", "TESLA TUNING")),
 )
 
 
@@ -172,12 +172,18 @@ class TestTuningLevel(MenuCase):
     return {s.key: tuple(p.key for p in nav.pills_of(s, level)) for s in nav.visible_sections(level)}
 
   def test_default_keeps_todays_full_set(self):
+    from unittest import mock
+    from openpilot.selfdrive.ui.bogpilot import tesla_tuning_menu
+    # TESLA TUNING follows the car (AP1 / Pre-AP only); with an AP1 Model S known, the full set is every pill.
+    patcher = mock.patch.object(tesla_tuning_menu, "current_car", lambda: "TESLA_AP1_MODELS")
+    patcher.start()
+    self.addCleanup(patcher.stop)
     nav = self.nav()
     self.assertEqual(self.tl.effective_level(), 3)
     self.assertFalse(self.tl.is_confirmed())
     full = self.shown(nav, 3)
     self.assertEqual(tuple(full), tuple(r[0] for r in EXPECTED_ROWS))
-    self.assertEqual(sum(len(v) for v in full.values()), 12)
+    self.assertEqual(sum(len(v) for v in full.values()), 13)
     # a saved but never confirmed level is ignored: still Developer
     self.save_level(0, confirmed=False)
     self.assertEqual(self.tl.effective_level(), 3)

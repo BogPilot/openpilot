@@ -252,7 +252,7 @@ def run(storage: OsmStorage | None = None, mem: MemParams | None = None, popen=s
 
 
 def main():  # pragma: no cover - process entry
-  from cereal import messaging
+  from openpilot.cereal import messaging
   from openpilot.common.bogpilot_store import ParamStore
   from openpilot.system.bogpilot.osm import priority
   from openpilot.system.bogpilot.osm.resume import Resumer

@@ -147,6 +147,15 @@ _add("EnableICIntegration", "Tesla AP1: Dash Cluster Integration",
      when="Turn it off if you want the dash to look exactly as Tesla made it.",
      note="Takes effect immediately. Model S only. " + _OFFROAD,
      default="On")
+_add("AP1LeadSideCheck", "Tesla AP1: Ignore Radar Cars to the Side (Experimental)",
+     "At 34 mph and up, a radar car more than about 8 ft (2.5 m) to the side of the car the camera sees ahead is not used as "
+     "your lead. It is meant to stop slowdowns for a car in the next lane. If no radar car lines up, the camera's lead is used, "
+     "so openpilot always keeps a lead.",
+     when="If openpilot slows on the highway for cars in the next lane.",
+     note="AP1 Model S, and the AP1 Model X with openpilot longitudinal. Nothing changes below 34 mph. The camera's speed for a "
+          "car is less exact than the radar's, so a short slowdown can come a little earlier or later. Takes effect the next time "
+          "the car starts.",
+     default="Off")
 _add("RegenComfortBrake", "Tesla AP1: Earlier, Gentler Regen Stops",
      "With this on, openpilot starts slowing gently for a slower car ahead that the radar sees, so it settles at the normal "
      "following distance using all the room available, at no more than about 2 mph per second. If more than that is needed, "
@@ -163,6 +172,18 @@ _add("AP1XOpenpilotLong", "Tesla AP1 Model X: openpilot Longitudinal (Experiment
           "is untouched. Turning it on or off takes effect the next time the car starts; no reboot is needed. A change made "
           "with the car on is applied when the car is turned off. Be ready to take over.",
      default="On")
+_add("LowerOnPark", "Tesla AP1: Lower on Park",
+     "When you shift into Park, BogPilot asks the air suspension once for the height set in Lower on Park: Height (Low by "
+     "default). The car's own location-based raise is left on, so it still lifts the car at a driveway or garage you saved.",
+     when="If you like the car low when parked but want the automatic raise at home to keep working.",
+     note="Shown only for an AP1 Model S or Model X with air suspension. Sent for about 2 seconds after each shift into Park, never "
+          "while openpilot is engaged or the car is moving. Leaving Park or tapping a height on the touchscreen stops it at once. "
+          "Turning it on or off takes effect the next time the car starts.",
+     default="Off")
+_add("LowerOnParkHeight", "Lower on Park: Height",
+     "The height Lower on Park asks for when you shift into Park: Low or Medium.",
+     note="Used from the next shift into Park.",
+     default="Low")
 _add("TeslaTrim", "Trim",
      "Pick the battery and Ludicrous version of your Model S or Model X. The car reports its motors (single or dual motor, and "
      "whether the rear motor is the Performance one), so only matching trims are listed. The trim sets the mass the regen "
@@ -429,23 +450,24 @@ _add("AdvancedLongitudinalTune", "Advanced Longitudinal Tuning",
 _add("LongitudinalActuatorDelay", "Actuator Delay",
      "The time between openpilot's throttle or brake command and the car's response. Raise it if the car feels slow to react, "
      "lower it if it feels too eager or overshoots.",
-     note="Until you change it, the car's own value is used. " + _GB,
-     default="The car's own value", range="0 to 1 second, in 0.01 steps")
+     note="Until you change it, the car's own value is used. This row does not apply in Experimental mode (end-to-end): there the "
+          "driving model uses the car's built-in delay instead. " + _GB,
+     default="AP1 Model S 0.35 s; AP1 Model X 0.35 s; Pre-AP Model S 0.4 s", range="0 to 1 second, in 0.01 steps")
 _add("MaxDesiredAcceleration", "Maximum Acceleration",
      "Limits the strongest acceleration openpilot can command.",
      when="Lower it for gentler launches.",
-     note=_GB,
-     default="4.0 m/s^2", range="0.1 to 4.0 m/s^2, in 0.1 steps")
+     note="On the Pre-AP Model S the pedal path never asks for more than 2.5 m/s^2, so a higher value changes nothing there. " + _GB,
+     default="4.0 m/s^2 on the AP1 Model S, AP1 Model X and Pre-AP Model S", range="0.1 to 4.0 m/s^2, in 0.1 steps")
 _add("StopAccel", "Stop Acceleration",
      "How hard openpilot brakes to hold a stop. More negative brakes harder.",
      note="Never softer than -0.5 m/s^2, so the car always holds a stop. Out-of-range saved values are clamped. Until you change "
           "this row, the car's own value is used. " + _GB,
-     default="The car's own value", range="-4.0 to -0.5 m/s^2, in 0.01 steps")
+     default="-2.0 m/s^2 on the AP1 Model S, AP1 Model X and Pre-AP Model S", range="-4.0 to -0.5 m/s^2, in 0.01 steps")
 _add("StoppingDecelRate", "Stopping Rate",
      "How fast the stopping brake ramps in as the car comes to a stop. Lower is gentler.",
      note="Never below 0.1 m/s^3, because a near-zero rate would ramp braking far too slowly. Out-of-range saved values are "
           "clamped. Until you change this row, the stock rate is used. " + _GB,
-     default="1.0 m/s^3", range="0.1 to 1.0 m/s^3, in 0.01 steps")
+     default="1.0 m/s^3 on the AP1 Model S, AP1 Model X and Pre-AP Model S", range="0.1 to 1.0 m/s^3, in 0.01 steps")
 _add("LongitudinalTune", "Longitudinal Tuning",
      "Opens the acceleration and deceleration profiles, Human-Like Acceleration, Human-Like Following, Human-Like Lane Changes "
      "and Lead Detection Confidence Threshold. " + _ADOPT,
@@ -455,7 +477,7 @@ _add("AccelerationProfile", "Acceleration Profile",
      "How quickly openpilot speeds up. Standard is the stock limits, Eco is gentle, Sport is firmer, and Sport+ allows the "
      "highest acceleration, up to 4 m/s^2 at low speed.",
      note=_GB,
-     default="Sport", range="Standard, Eco, Sport or Sport+")
+     default="Sport on the AP1 Model S, AP1 Model X and Pre-AP Model S", range="Standard, Eco, Sport or Sport+")
 _add("AdaptiveAccelLead", "Adaptive Accel Near Lead",
      "Caps how hard the car accelerates when it is close behind a lead car. Far from a lead the normal acceleration limit applies; "
      "as the gap closes toward the following distance the cap blends in to a gentler limit, to stop the car lunging at a slow "
@@ -487,7 +509,7 @@ _add("DecelerationProfile", "Deceleration Profile",
      "so the car coasts more.",
      note="When following a lead car, full braking is always restored, so a gentler profile never weakens braking behind a "
           "lead. " + _GB,
-     default="Eco", range="Standard, Eco or Eco+")
+     default="Eco+ on the AP1 Model S (its profile sets it once); Eco on the AP1 Model X and Pre-AP Model S", range="Standard, Eco or Eco+")
 _add("HumanAcceleration", "Human-Like Acceleration",
      "Eases the throttle at low set speeds and as you approach the set speed, instead of accelerating at the full limit.",
      note="Only limits acceleration. Braking is not affected. " + _GB,
@@ -622,11 +644,11 @@ _add("AdvancedLateralTune", "Advanced Lateral Tuning",
 _add("SteerDelay", "Actuator Delay (steering)",
      "Seconds between a steering command and the car's response. If you never set it, the auto-learned value is kept.",
      note="Stays inside the learner's own limits. " + _ST,
-     default="Auto-learned (starts at the car's delay plus 0.2 s)", range="0.15 to 0.65 seconds, in 0.01 steps")
+     default="Auto-learned. Starts at 0.45 s on the AP1 Model S, 0.35 s on the AP1 Model X, 0.30 s on the Pre-AP Model S", range="0.15 to 0.65 seconds, in 0.01 steps")
 _add("SteerRatio", "Steer Ratio",
      "The ratio of steering wheel angle to road wheel angle. Reset returns to the auto-learned value.",
      note=_ST,
-     default="Auto-learned", range="0.5 to 1.5 times the car's own value, in 0.01 steps")
+     default="Auto-learned. Starts at 15.0 on the AP1 Model S, 16.8 on the AP1 Model X, 15.0 on the Pre-AP Model S", range="0.5 to 1.5 times the car's own value, in 0.01 steps")
 _add("SteerFriction", "Friction",
      "Torque-controlled cars only. Compensates for steering friction.",
      note="Needs Force Auto-Tune Off on cars that have live tuning. " + _ST,
@@ -692,18 +714,30 @@ def override_sensitivity_help_key(car_fingerprint=None):
 _add("driving_model.status", "Driving Model",
      "Shows which driving model is in use. Only the Default (stock) model ships with BogPilot. Models added later appear on "
      "this page.",
-     note="A model is only used if it passes a hash check and the 0.11.2 compatibility check. If one fails, the stock model "
-          "is used instead and an alert tells you why.")
+     note="A model is only used if it passes a hash check, a matching ONNX hash, and the 0.11.2 compatibility check. If one "
+          "fails, the stock model is used instead and an alert tells you why.")
 _add("driving_model.default", "Default (stock) model",
      "The stock openpilot driving model. It is always listed first, it is the default, and it is what the car uses whenever "
      "another model is missing or fails its checks.",
      when="Pick it to go back to stock after trying another model.",
      default="Selected")
 _add("driving_model.entry", "Installed model",
-     "A model installed on this device. Its hashes and compatibility with 0.11.2 are checked before it can be selected. "
-     "\"Not usable\" means a check failed and it cannot be selected.",
-     note="A switch only takes effect when the car is off, from the next drive. It is checked again at start, and the stock "
-          "model is used if it fails.")
+     "A model installed on this device. Its file hashes, ONNX hash and compatibility with 0.11.2 are checked before it can "
+     "be selected. \"Not usable\" means a check failed and it cannot be selected.",
+     note="A switch can only be made when the car is off, and it takes effect from the next drive. The page will not change "
+          "the model while driving. It is checked again at start, and the stock model is used if it fails. If the driving "
+          "software restarts during a drive, it keeps the model that drive started with.")
+
+_add("driving_model.inline", "Driving Model",
+     "Steps through the models on this device that passed their checks, Default (stock) first. Tap - or + and confirm to "
+     "pick the next one. The row shows the model the next drive will use.",
+     note="The running model never changes during a drive: a pick applies from the next drive start, and the model is "
+          "checked again then. If it fails, the stock model drives and an alert tells you why.",
+     default="Default (stock)")
+_add("driving_model.download", "Downloadable model",
+     "A model we publish on BogPilot's GitHub releases. Download fetches only from there, checks every file against its "
+     "pinned hash, and installs it only if it passes the 0.11.2 compatibility check. It is not selected until you pick it.",
+     note="Downloads only run while the car is off. Only models whose license allows redistribution are offered.")
 
 # ---------------------------------------------------------------- Visuals
 _add("ConfidenceBall", "Confidence Ball",
@@ -1109,6 +1143,18 @@ ALIASES: dict[str, str] = {
   "system:Screen Settings": "ScreenManagement",
   "driving_model": "driving_model.entry",
 }
+
+
+# ---------------------------------------------------------------- Vehicle Settings > Tesla Tuning (one entry per row)
+def _add_tesla_tuning():
+  from opendbc.car.tesla_ap1.tesla_tuning import KEYS
+  from openpilot.selfdrive.ui.bogpilot.tesla_start_values import tuning_help
+  for key in KEYS:
+    title, what, when, note, default, rng = tuning_help(key)
+    _add(key, title, what, when=when, note=note, default=default, range=rng)
+
+
+_add_tesla_tuning()
 
 
 def resolve(key: str) -> HelpEntry | None:

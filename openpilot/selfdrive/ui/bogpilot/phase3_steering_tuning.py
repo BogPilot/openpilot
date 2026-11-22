@@ -215,6 +215,7 @@ def make_layout(cp, store, offroad, on_change=None):
   from openpilot.system.ui.lib.multilang import tr
   from openpilot.system.ui.widgets.scroller_tici import Scroller
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help, override_sensitivity_help_key
+  from openpilot.selfdrive.ui.bogpilot.tesla_start_values import start_text
   from openpilot.selfdrive.ui.bogpilot.nesting import indent_under
   from openpilot.selfdrive.ui.bogpilot import tuning_level
 
@@ -300,7 +301,8 @@ def make_layout(cp, store, offroad, on_change=None):
       for key in NUMERIC_ORDER:
         title = {"SteerDelay": "Actuator Delay", "SteerRatio": "Steer Ratio", "SteerFriction": "Friction", "SteerLatAccel": "Lateral Acceleration"}[key]
         numeric_rows_shown.append(add(attach_help(stepper(key, title, lambda k=key: e.hint(k), MINUS, PLUS,
-                                                          lambda k=key: e.step(k, -1), lambda k=key: e.step(k, 1)), key), key))
+                                                          lambda k=key: e.step(k, -1), lambda k=key: e.step(k, 1)), key,
+                                                    extra=lambda k=key: start_text(k, None if e.cp is None else e.cp.carFingerprint)), key))
       toggle("ForceAutoTuneOff", "Force Auto-Tune Off", "Torque cars with live tuning: use the set Friction and Lateral Acceleration instead of live values.")
       toggle("ForceAutoTune", "Force Auto-Tune On", "Torque cars without native live tuning: learn Friction and Lateral Acceleration live (validity gate stays).")
       # Removing a numeric key is its existing reset: the value goes back to the default shown in its hint.

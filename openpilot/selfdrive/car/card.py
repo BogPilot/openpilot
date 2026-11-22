@@ -11,9 +11,7 @@ from opendbc.car.structs import car
 from openpilot.common.params import Params
 from openpilot.common.traffic_mode_hold import TrafficModeHold
 from openpilot.common.realtime import config_realtime_process, Priority, Ratekeeper
-from openpilot.selfdrive.car.step_overrun import StepOverrunCounter
-from openpilot.selfdrive.car.preap_card_step import (PREAP_ENGAGE_SET_REFRESH_S, use_10hz_distance_button,
-                                                      use_step_overrun_counter)
+from openpilot.selfdrive.car.preap_card_step import PREAP_ENGAGE_SET_REFRESH_S, use_10hz_distance_button
 from openpilot.common.swaglog import cloudlog, ForwardingHandler
 
 from opendbc.car import DT_CTRL, structs
@@ -248,13 +246,10 @@ class Car:
 
     # card is driven by can recv, expected at 100Hz
     self.rk = Ratekeeper(100, print_delay_threshold=None)
-    # 07e8bd68f moved OnroadDistanceButtonPressed to the 10 Hz params thread and
-    # added a log-only step-overrun counter on every car. The button read is 10 Hz
-    # on Pre-AP and AP1; the overrun timer is Pre-AP only. Unknown cars keep the
-    # 92aa9ee1f path (read the button every 100 Hz step).
+    # OnroadDistanceButtonPressed is read in the 10 Hz params thread on Pre-AP and AP1.
+    # Unknown cars keep the 92aa9ee1f path (read the button every 100 Hz step).
     if use_10hz_distance_button(self.CP.carFingerprint):
       self.onroad_distance_button = False
-    self.step_timer = StepOverrunCounter(cloudlog.warning) if use_step_overrun_counter(self.CP.carFingerprint) else None
     # Tesla trim detection (opendbc tesla_ap1/trims.py): saved from the params thread when something new is known.
     from openpilot.selfdrive.car.tesla_trim_persist import TrimPersist
     self.trim_persist = TrimPersist(self.CP.carFingerprint) if self.CP.brand == "tesla_ap1" else None
@@ -585,12 +580,7 @@ class Car:
     try:
       t.start()
       while True:
-        if self.step_timer is not None:
-          t0 = time.monotonic()
-          self.step()
-          self.step_timer.record(time.monotonic() - t0, t0)
-        else:
-          self.step()
+        self.step()
         self.rk.monitor_time()
     finally:
       e.set()

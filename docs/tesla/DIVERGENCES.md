@@ -1152,20 +1152,20 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   `openpilot/selfdrive/selfdrived/tests/test_preap_radar_not_ready.py`, `openpilot/system/hardware/tests/test_thermal_stale_scope.py`.
 - Credits: NAP, Tinkla/BogGyver.
 
-## card: no Pre-AP param file IO in the 100 Hz step, step overrun counter
+## card: no Pre-AP param file IO in the 100 Hz step
 - Platforms: Pre-AP only. AP1 and an unknown car are unchanged.
 - Reference behavior: stock card does no file IO per step; NAP and BogPilot 0.9.7 Pre-AP code read and write param files
   from the control step. 92aa9ee1f reads `OnroadDistanceButtonPressed` on every 100 Hz card step and has no step-overrun
-  counter. 07e8bd68f moved that Params read to the 10 Hz params thread and added a log-only overrun counter for every car.
+  counter. 07e8bd68f moved that Params read to the 10 Hz params thread; its log-only step-overrun counter was later removed (it timed
+  the wait for pandad's CAN packet, not card's work, and nothing read it).
 - Our behavior: Pre-AP param reads in card's step come from an in-memory snapshot that a background thread refreshes every
   0.1 s, and writes are flushed by that thread (`opendbc_repo/opendbc/car/tesla_ap1/preap/params.py` StepCache; values are
   never logged). On Pre-AP only, `OnroadDistanceButtonPressed` is read in card's params thread (10 Hz), so a Traffic Mode
-  long-press can register up to about 0.1 s later, and card counts steps over their 10 ms slot, logging the count and the
-  worst step at most every 10 s (`openpilot/selfdrive/car/step_overrun.py`). AP1 and unknown cars keep the 92aa9ee1f path:
-  the button is read every 100 Hz step, and the overrun timer does not run.
+  long-press can register up to about 0.1 s later. AP1 and unknown cars keep the 92aa9ee1f path:
+  the button is read every 100 Hz step.
 - Why: file IO in the 100 Hz loop can stall a step on Pre-AP. AP1 keeps the last good build's behaviour.
-- Safety-relevant: no (button timing and a log-only timer; neither changes control).
-- Tests: `test_preap_params_step_cache.py`, `openpilot/selfdrive/car/tests/test_step_overrun.py`,
+- Safety-relevant: no (button timing; does not change control).
+- Tests: `test_preap_params_step_cache.py`,
   `openpilot/selfdrive/car/tests/test_preap_distance_button_read.py`.
 - Credits: BogPilot.
 
@@ -1347,3 +1347,19 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   Model S wheelbase (2.959 m); the real X wheelbase (2.965 m, in `CarSpecs`) is 0.2% longer, so the panda bound is marginally tighter on the X.
 - Params: wheelbase 2.965 m, steerRatio 15 (Model S value, kept until measured), own torque row `[nan, 2.5, nan]`. Curb mass 2400 kg plus the
   136 kg cargo allowance is recorded in `values.py`; nothing reads a mass in this tree.
+
+## Driving Model selector: independent implementation, one model per drive, required ONNX id, GitHub-only hosting
+- Platforms: all cars; device software only (modeld start-up and the settings page).
+- Reference behavior: stock openpilot 0.11.2 always loads `selfdrive/modeld/models/driving_tinygrad.pkl` (one fused driving program; its tensor specs and output slices are inside the pickle) plus `driving_warp_<w>x<h>_tinygrad.pkl` (`selfdrive/modeld/modeld.py` `ModelState.__init__`, `helpers.modeld_pkl_path`). Some openpilot forks let the user pick the driving model; that general idea is the only thing taken from them. Switch timing follows public model-settings documentation of another fork (selection is offroad only, while parked with ignition off; those docs do not require a reboot), not its source code, catalog or strings.
+- Our behavior: an independent implementation written for this tree. No code, data format, schema, catalog or text from any other fork's model manager is used. Models live under `/data/bogpilot/models/<id>/` (a readable id and a readable `name`, not a hash folder) with a `manifest.json` that pins every file by sha256 and size. The page is Settings > BogPilot > Driving Controls > Driving Model (`selfdrive/ui/bogpilot/bogpilot_model_selector.py`). modeld starts through `common/bogpilot_models/launcher.py`.
+  - A choice can only be made while the car is off. The page and `selection.select` both refuse onroad and write no param. The choice is recorded with its time and applies at the next offroad-to-onroad transition, never mid-drive.
+  - The first modeld start of a drive latches the choice (`resolve.resolve_for_modeld`, drive identity from the boot id and the `IsOffroad` param the manager writes at the onroad transition, `resolve.drive_context`). If the manager restarts modeld during the drive, it keeps that drive's model; a choice recorded after the drive started waits for the next drive.
+  - An installed manifest must declare `onnx_sha256`, the hash of the ONNX the program was built from. If a `driving_onnx` file is listed, its sha256 must match that field. A missing, invalid or mismatched ONNX hash cannot be selected or loaded; the Default (stock) model is used instead. The built-in Default is exempt (its pickles are pinned in `stock.py`). The page shows the ONNX id.
+  - Downloads (`common/bogpilot_models/installer.py`) run only while the car is off and only from our own GitHub releases (org BogPilot, `common/bogpilot_models/source.py`); any other host is refused before a transport is used. Each file must match its pinned sha256 and size, and the staged model must pass the 0.11.2 interface check before it is moved into place. Only models with a clear redistributable license will be hosted. The catalog is empty today: the reviewed candidates are either not 0.11.2-compatible or not license-clear (`source.EXCLUDED`). Sideload under the models dir still works and does not use the network.
+  - The page has an inline `[-] model [+]` row (Alert Volume style) once a second model is installed; it asks before saving.
+  - Hook for a later merge with the Jetlink branch: `common/bogpilot_models/big_model_param.py` names the param `JetlinkBigModel` and turns the choice into `{"sha256", "displayName"}` (or no value for Default). This branch does not write that param yet. When the branches meet, the selector will write it, matching Jetlink's default (the comma's pick is what the attached computer runs; a newer pick on the computer is written back). This entry and `docs/tesla/DIVERGENCES_jetlink.md` on the Jetlink branch both describe that pick and must be folded together at merge time.
+- Fail-closed: with nothing selected, modeld runs the untouched stock path. A bad hash, ONNX mismatch, missing file, unreadable choice or latch, unknown id, load or warm-up failure, or non-finite output uses the exact stock model, and an offroad alert names the reason. Chestnut setups always use the stock models.
+- Why: the maintainer asked for a driving-model picker of our own, since other forks' pickers cannot be ported under their licenses, with a required ONNX pin, offroad-only next-drive switching, and downloads only from our GitHub.
+- Safety-relevant: yes, a different model changes the plan. Only a model whose interface matches 0.11.2 exactly and whose ONNX hash matches can load, and the stock model is the fallback for every failure. Controls, car code and panda are unchanged.
+- Tests: `openpilot/common/tests/test_bogpilot_model_drive_latch.py`, `test_bogpilot_models_big_model.py`, `test_bogpilot_models_source.py`, `test_bogpilot_models_installer.py`, `test_bogpilot_model_launcher.py`, `test_bogpilot_models_registry.py`, `test_bogpilot_models_selection.py`; `openpilot/selfdrive/ui/tests/test_bogpilot_model_selector.py`, `test_bogpilot_model_selector_onnx.py`, `test_bogpilot_model_selector_inline.py`.
+- Credits: comma.ai openpilot (MIT) for the modeld structure and model files; Jetlink (MIT) for the large-model param shape; public model-settings documentation of another fork for offroad-only, next-drive switching (its code was not read).

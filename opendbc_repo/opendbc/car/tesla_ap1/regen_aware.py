@@ -71,6 +71,8 @@ from pathlib import Path
 
 import numpy as np
 
+from opendbc.car.tesla_ap1 import tesla_tuning as _tt   # Settings > Vehicle > Tesla Tuning (shipped value unless saved)
+
 MASS_KG = 2100.0
 ETA = 0.9
 GEAR_RATIO = 9.73
@@ -91,12 +93,12 @@ A_CAP_MAX = 1.6           # never assume more regen decel than seen (~1.5 m/s^2)
 A_GENTLE_MIN = 0.6
 A_GENTLE_MAX = 1.0
 A_GENTLE_FLOOR = 0.3      # at highway speed 30 kW is only ~0.5 m/s^2
-GENTLE_FRAC = 0.9         # stay a bit below estimated capacity
-ONSET_FRAC = 0.85         # start when the required constant decel reaches this x gentle
+GENTLE_FRAC = _tt.get("StopShaperGentleFrac", 0.9)         # stay a bit below estimated capacity
+ONSET_FRAC = _tt.get("StopShaperOnsetFrac", 0.85)         # start when the required constant decel reaches this x gentle
 RELEASE_FRAC = 0.4        # hysteresis
 MIN_SPEED = 1.0           # m/s, below this the planner's stopping logic owns it
-ONSET_JERK = 0.6          # m/s^3, ramp the added braking in smoothly
-RELEASE_JERK = 1.5
+ONSET_JERK = _tt.get("StopShaperOnsetJerk", 0.6)          # m/s^3, ramp the added braking in smoothly
+RELEASE_JERK = _tt.get("StopShaperReleaseJerk", 1.5)
 STOP_LOST_HOLD_S = 0.5
 
 LIMIT_MIN_SPEED = 4.7     # only judge limiting above the fade band

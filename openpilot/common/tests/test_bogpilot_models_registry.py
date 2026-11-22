@@ -17,6 +17,7 @@ STOCK_DIR = ROOT / "openpilot/selfdrive/modeld/models"
 def good_manifest(**edits):
   data = fx.driving_pickle_bytes()
   m = {"schema": 1, "id": "m1", "name": "M One", "version": "1", "openpilot": "0.11.2", "license": "MIT",
+       "onnx_sha256": fx.DEFAULT_ONNX_SHA256,
        "files": [{"role": "driving_model", "name": "d.pkl", "sha256": fx.sha(data), "size": len(data)}]}
   m.update(edits)
   return json.dumps(m).encode()
@@ -67,7 +68,7 @@ class TestStockPins(unittest.TestCase):
         (d / fname).write_bytes(data)
         files.append({"role": role, "name": fname, "sha256": fx.sha(data), "size": len(data)})
       (d / "manifest.json").write_text(json.dumps({"schema": 1, "id": "copy", "name": "Copy", "version": "1", "openpilot": "0.11.2",
-                                                   "license": "MIT", "files": files}))
+                                                   "license": "MIT", "onnx_sha256": fx.DEFAULT_ONNX_SHA256, "files": files}))
       v = registry.validate_entry(registry.get_entry("copy", t))
       self.assertTrue(v.ok, v.reason)
       self.assertEqual(v.abi_digest, abi.digest(STOCK_DRIVING_ABI))
@@ -118,6 +119,9 @@ class TestManifest(unittest.TestCase):
       "huge size": file_(size=10**10),
       "bool size": file_(size=True),
       "bad abi digest": with_(abi_digest="nope"),
+      "no onnx": json.dumps({k: v for k, v in base.items() if k != "onnx_sha256"}).encode(),
+      "empty onnx": with_(onnx_sha256=""),
+      "uppercase onnx": with_(onnx_sha256=fx.DEFAULT_ONNX_SHA256.upper()),
       "name too long": with_(name="x" * 80),
       "control char": with_(version="1\n2"),
       "oversized": b" " * (registry.MAX_MANIFEST_BYTES + 1),

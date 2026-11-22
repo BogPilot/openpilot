@@ -71,6 +71,7 @@ def working_pages():
     ACTIVE_CONTROLS as STEER_CONTROLS, PAGE_KEY as STEER_KEY, PAGE_TITLE as STEER_TITLE, create_steering_tuning_layout)
   from openpilot.selfdrive.ui.bogpilot import phase3_gas_brake as gas_brake
   from openpilot.selfdrive.ui.bogpilot import bogpilot_model_selector as model_selector
+  from openpilot.selfdrive.ui.bogpilot import tesla_tuning_menu
   return {
     "alerts_sounds": (Page("volume", "Alert Volume Controller", create_volume_layout, ("AlertVolumeControl", *VOLUME_KEYS)),
                       Page("alerts", "BogPilot Alerts", create_alerts_layout, tuple(ALERT_PAGE_KEYS))),
@@ -83,6 +84,8 @@ def working_pages():
                      ("CarMake", "CarModel", "CarModelName", "ForceFingerprint")),
                 Page("vehicle_controls", "Vehicle Controls", create_vehicle_settings_layout, tuple(TITLES)),
                 Page("stalk_controls", "Stalk Controls", create_stalk_controls_layout, STALK_CONTROLS),
+                Page(tesla_tuning_menu.PAGE_KEY, tesla_tuning_menu.PAGE_TITLE, tesla_tuning_menu.create_tesla_tuning_layout,
+                     tesla_tuning_menu.controls()),
                 Page("vehicle_info", "Vehicle Info", _vehicle_info_layout, ("read-only CarParams",))),
     "system": (Page("system_data", "Data", _system_data_layout,
                     ("LocalDataActions", "StorageUse", "SystemPreferenceArchives", "BogPilotStats")),
@@ -124,6 +127,7 @@ def menu_sections():
   from openpilot.selfdrive.ui.layouts.settings.menu_097 import Pill, Section
   from openpilot.system.ui.lib.multilang import tr_noop
   from openpilot.selfdrive.ui.bogpilot import phase3_gas_brake as gas_brake
+  from openpilot.selfdrive.ui.bogpilot import tesla_tuning_menu
   pages = working_pages()
   by_key = {page.key: page for group in pages.values() for page in group}
 
@@ -157,7 +161,10 @@ def menu_sections():
     Section("vehicle", tr_noop("Vehicle Settings"), "menu_vehicle.png",
             (Pill("vehicle_settings", tr_noop("VEHICLE SETTINGS"), tr_noop("Vehicle Settings"),
                   pick("car_selection", "vehicle_controls", "vehicle_info")),
-             Pill("wheel_controls", tr_noop("WHEEL CONTROLS"), tr_noop("Wheel Controls"), pick("stalk_controls"))),
+             Pill("wheel_controls", tr_noop("WHEEL CONTROLS"), tr_noop("Wheel Controls"), pick("stalk_controls")),
+             # AP1 / Pre-AP only; the Tuning Level (Advanced) comes from the page's rows (tuning_level.UI_ROW_LEVELS).
+             Pill("tesla_tuning", tr_noop("TESLA TUNING"), tr_noop("Tesla Tuning"), pick("tesla_tuning"),
+                  visible=tesla_tuning_menu.pill_visible)),
             "menu.vehicle"),
   )
 

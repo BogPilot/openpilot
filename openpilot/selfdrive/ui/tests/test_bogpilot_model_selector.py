@@ -21,6 +21,7 @@ from openpilot.selfdrive.ui.bogpilot.bogpilot_model_selector import (
 )
 
 DEFAULT_DETAIL = "Built in | License MIT (openpilot) | model 6398a4b0e474 | Ships with openpilot 0.11.2"
+ONNX_SHA = "c3" * 32
 
 
 class MemStore:
@@ -78,6 +79,7 @@ def _install(root: Path, model_id: str, name: str, flip_model: bool):
     "version": "1.0",
     "openpilot": "0.11.2",
     "license": {"name": "MIT"},
+    "onnx_sha256": ONNX_SHA,
     "files": files,
   }
   (dest / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
@@ -204,7 +206,7 @@ class TestInstalledModels(unittest.TestCase):
     self.assertEqual(snap.rows[0].detail, DEFAULT_DETAIL)
     alt = self._rows(snap)["alternate"]
     self.assertEqual(alt.title, "Alternate")
-    self.assertEqual(alt.detail, "Version 1.0 | License MIT | model 6398a4b0e474 | Compatible with 0.11.2")
+    self.assertEqual(alt.detail, f"Version 1.0 | License MIT | model 6398a4b0e474 | ONNX {ONNX_SHA[:12]} | Compatible with 0.11.2")
     self.assertTrue(alt.selectable)
     self.assertFalse(alt.selected)
     self.assertEqual(alt.problem, "")

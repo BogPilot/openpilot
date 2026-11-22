@@ -98,6 +98,11 @@ def sha(b: bytes) -> str:
   return hashlib.sha256(b).hexdigest()
 
 
+# Valid placeholder used when a test does not care about the ONNX id. Tests that need a specific hash, or a
+# missing field, pass extra_manifest or rewrite the manifest after install.
+DEFAULT_ONNX_SHA256 = "c3" * 32
+
+
 def install_model(root: Path, model_id: str = "test-model", name: str = "Test Model", version: str = "1.0", *,
                   driving: bytes | None = None, warps: dict | None = None, license="MIT", openpilot: str = "0.11.2",
                   declared_driving: bytes | None = None, extra_manifest: dict | None = None) -> Path:
@@ -111,7 +116,8 @@ def install_model(root: Path, model_id: str = "test-model", name: str = "Test Mo
   for role, data in (warps or {}).items():
     (d / f"{role}.pkl").write_bytes(data)
     files.append({"role": role, "name": f"{role}.pkl", "sha256": sha(data), "size": len(data)})
-  manifest = {"schema": 1, "id": model_id, "name": name, "version": version, "openpilot": openpilot, "license": license, "files": files}
+  manifest = {"schema": 1, "id": model_id, "name": name, "version": version, "openpilot": openpilot, "license": license,
+              "onnx_sha256": DEFAULT_ONNX_SHA256, "files": files}
   manifest.update(extra_manifest or {})
   (d / "manifest.json").write_text(json.dumps(manifest))
   return d

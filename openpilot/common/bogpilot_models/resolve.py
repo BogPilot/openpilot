@@ -1,6 +1,7 @@
 """What modeld should load this start: the selected model if it validates, else the exact stock model."""
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -22,16 +23,59 @@ class Resolution:
     return self.kind == "alternate"
 
 
+@dataclass(frozen=True)
+class DriveContext:
+  """One drive: `token` is stable for every modeld start in it, `started` is its wall start time."""
+  token: str
+  started: float
+
+
+BOOT_ID_PATH = "/proc/sys/kernel/random/boot_id"
+
+
+def drive_context(offroad_param_path=None, boot_id_path: str = BOOT_ID_PATH) -> DriveContext | None:
+  """The current drive, from the kernel boot id and the IsOffroad param, which the manager writes ("0") exactly at
+  the onroad transition (system/manager/manager.py). None when not onroad or unreadable. Never raises."""
+  try:
+    if offroad_param_path is None:
+      from openpilot.common.params import Params
+      offroad_param_path = Params().get_param_path("IsOffroad")
+    with open(offroad_param_path, encoding="utf-8") as f:
+      if f.read().strip() != "0":
+        return None
+    st = os.stat(offroad_param_path)
+    with open(boot_id_path, encoding="utf-8") as f:
+      boot = f.read().strip()
+    if not boot:
+      return None
+    return DriveContext(f"{boot}:{st.st_mtime_ns}", st.st_mtime)
+  except Exception:
+    return None
+
+
 def _stock(reason: str = "", fallback: bool = False, sel=None) -> Resolution:
   return Resolution("stock", registry.stock_entry(), sel, {}, fallback, reason)
 
 
-def resolve_for_modeld(store=None, root=None, cache: dict | None = None) -> Resolution:
-  """Never raises. Any problem yields stock plus a recorded fallback (which the offroad alert reports)."""
+def resolve_for_modeld(store=None, root=None, cache: dict | None = None, drive: DriveContext | None = None) -> Resolution:
+  """Never raises. Any problem yields stock plus a recorded fallback (which the offroad alert reports).
+
+  With a drive context, the first start of a drive latches the choice and later starts in the same drive reuse it;
+  a choice recorded after the drive started is deferred to the next drive (stock until then, no alert)."""
   store = selection.default_store() if store is None else store
   sel = None
   try:
     sel, corrupt = selection.read_selection(store)
+    if drive is not None:
+      latched, found = selection.read_latch(store, drive.token)
+      if found and latched is None:
+        return _fail(store, None, "unknown", "the model choice saved for this drive is unreadable", "select")
+      if found:
+        sel, corrupt = latched, False
+      elif not corrupt and sel is not None and sel.id != STOCK_ID:
+        if sel.t > drive.started:
+          return _stock("chosen during this drive; it applies from the next drive", False, sel)
+        selection.write_latch(store, drive.token, sel)
     if corrupt:
       selection.record_fallback(store, None, "unknown", "the saved model choice is unreadable", "select")
       return _stock("the saved model choice is unreadable", True)

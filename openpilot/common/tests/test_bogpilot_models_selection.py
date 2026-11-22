@@ -69,6 +69,22 @@ class TestSelect(Base):
       self.assertIn("cannot be used", res.message)
     self.assertEqual(self.store.writes, [])
 
+  def test_select_refused_when_onnx_hash_does_not_match(self):
+    onnx, other = b"onnx-A", b"onnx-B"
+    d = fx.install_model(self.root, "m")
+    (d / "model.onnx").write_bytes(other)
+    driving = d / "driving.pkl"
+    fx.rewrite_manifest(d, onnx_sha256=fx.sha(onnx), files=[
+      {"role": "driving_model", "name": "driving.pkl", "sha256": fx.sha(driving.read_bytes()), "size": driving.stat().st_size},
+      {"role": "driving_onnx", "name": "model.onnx", "sha256": fx.sha(other), "size": len(other)},
+    ])
+    res = self.select("m")
+    self.assertFalse(res.ok)
+    self.assertIn("cannot be used", res.message)
+    self.assertIn("ONNX hash mismatch", res.message)
+    self.assertEqual(self.store.writes, [])
+    self.assertEqual(self.resolve().kind, "stock")
+
   def test_selecting_default_removes_selection_and_clears_fallback(self):
     fx.install_model(self.root, "m")
     self.select("m")
@@ -146,6 +162,19 @@ class TestResolve(Base):
     self.assertTrue(self.select("m").ok)  # explicit retry clears the block and the alert
     self.assertIsNone(alert.current_alert(self.store))
     self.assertEqual(self.resolve().kind, "alternate")
+
+  def test_onnx_hash_mismatch_falls_back_to_default(self):
+    onnx, other = b"onnx-A", b"onnx-B"
+    d = fx.install_model(self.root, "m", extra_manifest={"onnx_sha256": fx.sha(onnx)})
+    (d / "model.onnx").write_bytes(onnx)
+    driving = d / "driving.pkl"
+    fx.rewrite_manifest(d, onnx_sha256=fx.sha(onnx), files=[
+      {"role": "driving_model", "name": "driving.pkl", "sha256": fx.sha(driving.read_bytes()), "size": driving.stat().st_size},
+      {"role": "driving_onnx", "name": "model.onnx", "sha256": fx.sha(onnx), "size": len(onnx)},
+    ])
+    self.assertTrue(self.select("m").ok)
+    (d / "model.onnx").write_bytes(other)
+    self.fell_back("hash mismatch")
 
   def test_selector_exceptions_resolve_to_stock(self):
     class Broken(fx.MemStore):

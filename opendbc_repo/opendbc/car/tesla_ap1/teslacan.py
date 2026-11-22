@@ -130,3 +130,8 @@ class TeslaCAN:
     Returned as CanData(address, dat, src).
     """
     return CanData(0x349, b"\x00" * 8, bus)
+
+  @staticmethod
+  def create_ride_height_request(dat: bytes, bus=CANBUS.chassis):
+    """Lower on Park: one 0x308 frame, the newest received screen frame with byte 0 = 0x40 + level (ride_height.py)."""
+    return CanData(0x308, bytes(dat), bus)

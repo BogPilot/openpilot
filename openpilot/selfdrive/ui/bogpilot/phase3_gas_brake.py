@@ -24,11 +24,14 @@ from openpilot.selfdrive.ui.layouts.settings.phase3_long_accel_settings import (
 
 PAGE_KEY = "gas_brake"
 PAGE_TITLE = "Gas / Brake"
+from opendbc.car.tesla_ap1.op_long_set_speed import TAP_FROM_ZERO_DEFAULT_MPH  # noqa: E402
+
 TAP_FROM_ZERO_KEY = "AP1TapFromZeroMs"   # stored m/s; shown and stepped in whole mph or km/h (IsMetric)
 TAP_FROM_ZERO_TITLE = "Standstill Tap Speed"
 TAP_FROM_ZERO_DESC = (
   "AP1: a standstill engage with no known speed limit; the car will drive off to this speed. Pre-AP with the Comma Pedal: "
-  "a double pull at a stop sets this speed. Press the accelerator to pull away. Tip the stalk up or down to change it."
+  "a double pull at a stop sets this speed. Press the accelerator to pull away. Tip the stalk up or down to change it. "
+  f"Starts at {TAP_FROM_ZERO_DEFAULT_MPH:g} mph (about {TAP_FROM_ZERO_DEFAULT_MPH * 1.609344:.0f} km/h) on the AP1 Model S, AP1 Model X and Pre-AP Model S."
 )
 # Consumer-backed control IDs (feeds Page.controls so an empty page is omitted by the navigation).
 CONTROLS = ("LongitudinalActuatorDelay", "MaxDesiredAcceleration", "StopAccel", "StoppingDecelRate",

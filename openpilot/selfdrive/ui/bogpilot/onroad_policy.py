@@ -76,6 +76,7 @@ PAGE_CLASS: dict[str, str] = {
   "car_selection": REBOOT,       # 0.9.7 Vehicles: Car Make / Model
   "vehicle_controls": REBOOT,    # 0.9.7 Vehicles: tweaks + Disable openpilot Longitudinal
   "stalk_controls": REBOOT,      # 0.9.7 Wheel Controls (vehicle tweak)
+  "tesla_tuning": LOCKED,        # Tesla Tuning: read when the car starts, so no edits while the car is on
   "vehicle_info": ONROAD,        # read only
 }
 

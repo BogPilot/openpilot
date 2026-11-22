@@ -16,7 +16,7 @@ from opendbc.car.tesla_ap1.phase3_stalk_controls import StalkControls
 from opendbc.car.tesla_ap1.speed_limit import LIMIT_MAX_AGE_S, dashboard_speed_limit_ms, frame_fresh
 from opendbc.car.tesla_ap1.steer_fault import steer_fault_temporary
 from opendbc.car.tesla_ap1.steer_rate import SteerRateFallback
-from opendbc.car.tesla_ap1 import trims
+from opendbc.car.tesla_ap1 import ride_height, trims
 from opendbc.car.tesla_ap1.values import CAR, DBC, CANBUS, GEAR_MAP, DOORS, BUTTONS, is_ap1_family
 from opendbc.car.interfaces import CarStateBase
 from opendbc.can import CANDefine, CANParser
@@ -103,6 +103,12 @@ class CarState(CarStateBase):
     # Trim detection (trims.py): motor layout from 0x186 / GTW_fourWheelDrive, Performance rear from the rpm ratio, and the
     # live rpm per m/s of each motor. Seeded from the last drive's saved detection (read once here, at car start).
     self.drive_detect = trims.DriveDetector(CP.carFingerprint, DT_CTRL, front_possible=True, seed=_saved_detection())
+    # Lower on Park (ride_height.py), AP1 Model S / X: the screen's 0x308 frames received this step (raw bytes, oldest first),
+    # the newest one and its age, and the 0x398 air suspension flag (None until a fresh 0x398).
+    self.ride_height_frames = []
+    self.ride_height_last = None
+    self.ride_height_age_s = float("inf")
+    self.air_suspension = None
 
   def update(self, can_parsers) -> structs.CarState:
     cp = can_parsers[Bus.chassis]
@@ -342,6 +348,8 @@ class CarState(CarStateBase):
     fp_ret.ap1MotorTorqueNm = float(cp.vl["DI_torque1"]["DI_torqueMotor"])
     fp_ret.ap1MotorRpm = float(cp.vl["DI_torque1"]["DI_motorRPM"])
     self._update_drive_detect(cp, ret.vEgoRaw, fp_ret)
+    if ap1:
+      self._update_ride_height(cp)
     if ap1_s or self.CP.carFingerprint == CAR.TESLA_AP1_MODELX:
       # Model S and Model X. Regen-aware stop braking inputs (regen_aware.py): ambient temperature. The Model X sends
       # 0x208 as a 4-byte frame (the DBC says 8); GTW_ambientTemperature is byte 1, so it decodes the same.
@@ -398,6 +406,24 @@ class CarState(CarStateBase):
     fp_ret.ap1RearRpmPerMs = float(det.rear_k)
     fp_ret.ap1FrontRpmPerMs = float(det.front_k)
     fp_ret.ap1RpmPerMsMeasured = bool(det.measured)
+
+  def _update_ride_height(self, cp) -> None:
+    """0x308 frames from the touchscreen (rebuilt byte for byte) and the 0x398 air suspension flag. Lower on Park only."""
+    rows = cp.vl_all.get("UI_rideHeightRequest", {})
+    cols = [rows.get(f"UI_rideHeightByte{i}", []) for i in range(8)]
+    n = min((len(c) for c in cols), default=0)
+    self.ride_height_frames = [bytes(int(cols[i][k]) & 0xFF for i in range(8)) for k in range(n)]
+    if n:
+      self.ride_height_last = self.ride_height_frames[-1]
+    ts = getattr(cp, "ts_nanos", {}).get("UI_rideHeightRequest")
+    last = max(ts.values()) if ts else 0
+    now = getattr(cp, "_last_update_nanos", 0) or 0
+    self.ride_height_age_s = (now - last) * 1e-9 if (last > 0 and self.ride_height_last is not None) else float("inf")
+    if frame_fresh(cp, "GTW_carConfig", CAR_CONFIG_MAX_AGE_S):
+      air = ride_height.air_suspension_from_car_config(cp.vl["GTW_carConfig"]["GTW_airSuspensionInstalled"])
+      if air is not None and air != self.air_suspension:
+        self.air_suspension = air
+        ride_height.write_air_suspension_detected(air)   # only on a change; the Vehicle Controls row reads it
 
   def _held_stalk_levels(self, ButtonType) -> dict:
     """Continuous UP/DN/RWD levels from button_states, each at least STALK_LEVEL_HOLD_FRAMES wide from the press.
@@ -477,6 +503,9 @@ class CarState(CarStateBase):
       ("DI_torque1Front", OPTIONAL),
       ("GTW_carConfig", OPTIONAL),
     ]
+    if is_ap1_family(CP.carFingerprint):
+      # Lower on Park (ride_height.py): the touchscreen's ride height request 0x308. Frequency 0 (no canValid effect).
+      messages.append(("UI_rideHeightRequest", OPTIONAL))
 
     # Model X seatbelt is RCM_status (0x211). SDM1 stays in this slot for Model S.
     if CP.carFingerprint == CAR.TESLA_AP1_MODELX:

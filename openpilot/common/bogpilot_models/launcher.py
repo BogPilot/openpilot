@@ -94,13 +94,16 @@ def install(m, res, store):
   return SelectedModelState
 
 
-def run(m, store=None, demo=False):
-  """Resolve the model once, install it if it is an alternate, then hand over to modeld.main()."""
+def run(m, store=None, demo=False, drive=None):
+  """Resolve the model once, install it if it is an alternate, then hand over to modeld.main().
+
+  `drive` (resolve.DriveContext) makes a restart within one drive keep that drive's model; main() passes the real
+  one. None keeps the plain once-per-start rule."""
   res = None
   try:
     from openpilot.common.bogpilot_models import resolve, selection
     store = selection.default_store() if store is None else store
-    res = resolve.resolve_for_modeld(store)
+    res = resolve.resolve_for_modeld(store, drive=drive)
   except Exception as e:
     _log("error", f"driving model selector unavailable, using stock: {type(e).__name__}")
   if res is not None and res.is_alternate:
@@ -124,7 +127,13 @@ def main(demo=False):
   # SCHED_FIFO 54 after the models load; restore the stock process title so
   # that shows up. Priorities themselves are unchanged.
   setproctitle("openpilot.selfdrive.modeld.modeld")
-  return run(m, demo=demo)
+  drive = None
+  try:
+    from openpilot.common.bogpilot_models import resolve
+    drive = resolve.drive_context()
+  except Exception:
+    drive = None
+  return run(m, demo=demo, drive=drive)
 
 
 if __name__ == "__main__":

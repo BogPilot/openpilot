@@ -83,12 +83,13 @@ import math
 
 from opendbc.car import structs
 from opendbc.car import DT_CTRL
+from opendbc.car.tesla_ap1 import tesla_tuning as _tt   # Settings > Vehicle > Tesla Tuning (shipped value unless saved)
 
 _FCW = structs.CarControl.HUDControl.VisualAlert.fcw
 _STOPPING = structs.CarControl.Actuators.LongControlState.stopping
 
 # m/s^3. Above the planner's p99 on 02a, so normal plans pass unchanged.
-AP1_RISE_JERK = 2.5
+AP1_RISE_JERK = _tt.get("AP1RiseJerk", 2.5)
 # Drive release. A falling request while the last output is above 0 (drive
 # torque; 0 is the hold at the set speed) is released like a foot lifting off
 # the pedal. e3574753 released at 5 m/s^3 (+1.3 -> 0 in ~0.26 s), which on the
@@ -107,8 +108,8 @@ AP1_RISE_JERK = 2.5
 #    once the output is at or below 0 the regen onset ramp takes over.
 #  - Below AP1_BRAKE_URGENT_ACCEL: no soft start, at least the e3574753 rate.
 #    At or below AP1_BRAKE_HARD_ACCEL, FCW and stopping pass through as before.
-AP1_DRIVE_RELEASE_JERK = 2.0
-AP1_DRIVE_RELEASE_BRAKE_JERK = 5.0
+AP1_DRIVE_RELEASE_JERK = _tt.get("AP1DriveReleaseJerk", 2.0)
+AP1_DRIVE_RELEASE_BRAKE_JERK = _tt.get("AP1DriveReleaseBrakeJerk", 5.0)
 AP1_DRIVE_RELEASE_BRAKE_ACCEL = -0.5
 AP1_DRIVE_RELEASE_RAMP_S = 0.2
 # m/s^2. Lift into braking: over the last this-much of drive above 0 the
@@ -123,7 +124,7 @@ AP1_SLEW_MIN_SPEED = 1.0
 
 # DAS_jerkMin/Max magnitudes (m/s^3). FULL matches CarControllerParams.JERK_LIMIT_MAX.
 AP1_FULL_JERK_LIMIT = 8.0
-AP1_COMFORT_JERK_LIMIT = 1.5
+AP1_COMFORT_JERK_LIMIT = _tt.get("AP1ComfortJerkLimit", 1.5)
 # m/s^2. Blend from comfort (at or above this) to full (at or below the bypass).
 AP1_JERK_BLEND_START = -0.3
 # (m/s^3) per s. Full -> comfort takes (8 - 1.5) / 10 = 0.65 s.
@@ -133,12 +134,12 @@ AP1_JERK_LIMIT_NARROW_RATE = 10.0
 # ACC comfort guidance is 2.5 m/s^3 above 20 m/s; the stock DI's own lift-off
 # regen ramp after a cruise cancel in a logged drive averaged about 0.6 m/s^3
 # (peaks 1.0-2.6). 2.0 sits between the two.
-AP1_BRAKE_ONSET_JERK = 2.0
+AP1_BRAKE_ONSET_JERK = _tt.get("AP1BrakeOnsetJerk", 2.0)
 # m/s^2. The regen ramp jerk blends from AP1_BRAKE_ONSET_JERK at this request
 # to AP1_FULL_JERK_LIMIT at AP1_BRAKE_HARD_ACCEL.
 AP1_BRAKE_URGENT_ACCEL = -1.0
 # m/s^2. A falling request at or below this passes through on the same step.
-AP1_BRAKE_HARD_ACCEL = -2.0
+AP1_BRAKE_HARD_ACCEL = _tt.get("AP1BrakeHardAccel", -2.0)
 
 # Gas handoff. While the driver presses the accelerator, DAS_control carries the
 # neutral frame (0). Before this, the first frame after the release restarted
@@ -166,10 +167,10 @@ AP1_GAS_SEED_WINDOW = 0.5
 AP1_GAS_SEED_HOLD = 2.0
 # m/s^3. DAS_jerkMax below AP1_SLEW_MIN_SPEED (stock DAS sends about 1.2 at
 # standstill). DAS_jerkMin stays at AP1_FULL_JERK_LIMIT there.
-AP1_LAUNCH_JERK_MAX = 1.5
+AP1_LAUNCH_JERK_MAX = _tt.get("AP1LaunchJerkMax", 1.5)
 # m/s^2. Standstill engage hold: the standby DAS_control accelMin
 # (actuator_plan.AP1_STANDBY_ACCEL_MIN), so the request stays continuous.
-AP1_STANDSTILL_ENGAGE_ACCEL = -1.4
+AP1_STANDSTILL_ENGAGE_ACCEL = _tt.get("AP1StandbyAccelMin", -1.4)   # follows the standby accelMin
 # m/s. Below this the car counts as stopped for the engage hold.
 AP1_STANDSTILL_ENGAGE_V = 0.1
 # Frames after engage in which the LongControl stopping state arms the hold.

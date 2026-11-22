@@ -54,6 +54,16 @@ class CAR(Platforms):
   )
 
 
+# Per-car actuator delays (s). The menus quote these same constants, so a help text can never drift from the car code.
+# longitudinalActuatorDelay: AP1 Model S and Model X 0.35 (was 0.5 through build 4), Pre-AP 0.4.
+AP1_LONG_ACTUATOR_DELAY = 0.35
+PREAP_LONG_ACTUATOR_DELAY = 0.4
+# steerActuatorDelay: Model X measured by lagd on a real drive, Model S unchanged, Pre-AP its own.
+AP1_S_STEER_ACTUATOR_DELAY = 0.25
+AP1_X_STEER_ACTUATOR_DELAY = 0.15
+PREAP_STEER_ACTUATOR_DELAY = 0.1
+
+
 class TeslaPlatform(StrEnum):
   """Early-Tesla platforms. Recognition only; actuation is a later layer."""
   preap = "preap"
@@ -128,6 +138,8 @@ class TeslaAp1SafetyFlags(IntFlag):
   # (opendbc cc39c7fa values.py FLAG_RADAR_BEHIND_NOSECONE / FLAG_RADAR_EMULATION).
   PREAP_RADAR_BEHIND_NOSECONE = 128
   PREAP_RADAR_EMULATION = 256
+  # Lower on Park (car/tesla_ap1/ride_height.py, tesla_ap1.h): AP1 only, set at car start while the setting is on.
+  AP1_RIDE_HEIGHT = 1024
 
 
 class TeslaAp1Flags(IntFlag):

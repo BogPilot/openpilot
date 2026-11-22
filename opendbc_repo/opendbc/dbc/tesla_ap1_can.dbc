@@ -414,6 +414,16 @@ BO_ 840 GTW_status: 8 GTW
  SG_ GTW_statusChecksum : 63|8@0+ (1,0) [0|255] ""  NEO
  SG_ GTW_statusCounter : 51|4@0+ (1,0) [0|15] ""  NEO
 
+BO_ 776 UI_rideHeightRequest: 8 UI
+ SG_ UI_rideHeightByte0 : 0|8@1+ (1,0) [0|255] ""  NEO
+ SG_ UI_rideHeightByte1 : 8|8@1+ (1,0) [0|255] ""  NEO
+ SG_ UI_rideHeightByte2 : 16|8@1+ (1,0) [0|255] ""  NEO
+ SG_ UI_rideHeightByte3 : 24|8@1+ (1,0) [0|255] ""  NEO
+ SG_ UI_rideHeightByte4 : 32|8@1+ (1,0) [0|255] ""  NEO
+ SG_ UI_rideHeightByte5 : 40|8@1+ (1,0) [0|255] ""  NEO
+ SG_ UI_rideHeightByte6 : 48|8@1+ (1,0) [0|255] ""  NEO
+ SG_ UI_rideHeightByte7 : 56|8@1+ (1,0) [0|255] ""  NEO
+
 BO_ 920 GTW_carConfig: 8 GTW
  SG_ GTW_performanceConfig : 2|3@0+ (1,0) [0|0] "" NEO
  SG_ GTW_fourWheelDrive : 4|2@0+ (1,0) [0|0] ""  NEO

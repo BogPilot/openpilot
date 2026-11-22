@@ -179,20 +179,17 @@ class TestReleaseNotes(unittest.TestCase):
     low = md.lower()
     self.assertIn("what's new", low)
     for phrase in (
-      "model x",
-      "openpilot longitudinal",
-      "trim",
-      "dual-motor",
-      "comma pedal",
-      "steering only",
-      "from-stop speed",
-      "code 7",
+      "lower on park",
+      "air suspension",
+      "shift into park",
+      "never sent while openpilot is engaged",
+      "maps",
+      "waiting for the map downloader",
       "new panda firmware",
-      "show speed limit offset",
-      "driver steering arc",
-      "88°",
-      "driving personalities",
-      "relaxed",
+      "ride height",
+      "tesla tuning",
+      "0.35 s actuator delay",
+      "driving model",
     ):
       self.assertIn(phrase, low, msg=f"missing {phrase!r}")
     # First section is this fork's notes, not the older upstream block.

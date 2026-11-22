@@ -147,7 +147,7 @@ class MapdOutReader:
         if self._factory is not None:
           self._sm = self._factory()
         else:
-          from cereal import messaging
+          from openpilot.cereal import messaging
           self._sm = messaging.SubMaster(["mapdOut"])
       except Exception:
         self._failed = True

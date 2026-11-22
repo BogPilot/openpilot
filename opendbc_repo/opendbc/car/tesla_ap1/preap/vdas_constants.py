@@ -3,6 +3,8 @@
 Credit: NAP-style / Tinkla pedal profiles reduced for feedforward architecture.
 """
 
+from opendbc.car.tesla_ap1 import tesla_tuning as _tt   # Settings > Vehicle > Tesla Tuning (shipped value unless saved)
+
 # Pre-AP pedal accel envelopes, mapped to openpilot Driving Personality toggle.
 ACCEL_PREAP_BP = [0.0, 1.3, 7.5, 15.0, 25.0, 30.0, 40.0]  # m/s
 ACCEL_PREAP_PROFILES = {
@@ -32,8 +34,8 @@ VDAS_EGO_JERK_MAX = 5.0  # m/s^3
 PEDAL_DI_MIN = -5.0
 PEDAL_DI_ZERO = 0.0
 PEDAL_DI_PRESSED = 2.0
-ACCEL_MAX = 2.5  # m/s^2
-REGEN_MAX = -1.5  # m/s^2
+ACCEL_MAX = _tt.get("PreApPedalAccelMax", 2.5)  # m/s^2
+REGEN_MAX = _tt.get("PreApPedalRegenMax", -1.5)  # m/s^2
 
 PEDAL_BP = [0., 5., 12., 20., 30., 40.]
 PEDAL_MAX_VALUES = [50., 58., 66., 74., 82., 90.]

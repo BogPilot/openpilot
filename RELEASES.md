@@ -1,5 +1,16 @@
 What's new
 =======================
+* Tesla AP1 Model S and Model X with air suspension: new setting Lower on Park in Vehicle Controls, off by default, with a Low or Medium height (default Low). Each time you shift into Park it asks the suspension once for that height, so the car's own location-based raise still lifts it at a driveway you saved. It is never sent while openpilot is engaged or the car is moving, and tapping a height on the touchscreen cancels it. Turning it on applies the next time the car starts
+* Maps: the map downloader starts again on the device, so a download no longer stops at "Waiting for the map downloader...". Map features that were turned off by the same fault work again
+* Tesla AP1 (Model S, and Model X with openpilot Longitudinal): new experimental setting Ignore Radar Cars to the Side in Vehicle Controls, off by default. At 34 mph and up, a radar car well to the side of the car the camera sees ahead is not used as your lead, so a car in the next lane is less likely to slow you down. Turning it on applies the next time the car starts
+* Tesla AP1 Model S and Model X: openpilot Longitudinal now uses a 0.35 s actuator delay (was 0.5 s), which keeps the same following and stopping gaps with smoother braking. Pre-AP stays at 0.4 s. The tuning menu help now shows each Tesla's starting values, and Actuator Delay notes that it does not apply in Experimental Mode
+* Tesla AP1 and Pre-AP: new Tesla Tuning page in Vehicle Settings, shown only at the Advanced tuning level, for the acceleration ramp, comfort regen, stop shaper, curve braking and Pre-AP pedal limits. Every row starts at the car's current value, so nothing changes unless you edit it, and Reset to Tesla defaults puts them all back. It is locked while driving and applies the next time the car starts
+* Driving Model: models can be downloaded from BogPilot's releases while the car is off, are checked before use, and fall back to the stock model if anything is wrong. Only the stock Default model is offered for now. A model picked while driving applies on the next drive
+* New panda firmware, which updates itself on the first start after updating:
+  * AP1: the ride height request for Lower on Park is allowed only while Lower on Park is on, in Park, stopped and not engaged, only for Low or Medium, and at most once per shift into Park. All other limits are unchanged
+
+Earlier update
+=======================
 * Tesla AP1 Model X: openpilot Longitudinal is now on by default on a detected AP1 Model X. It is switched on once on the first start after updating; if you turn it off after that, it stays off. A change applies the next time the car starts, with no reboot. Standstill is not included
 * Tesla AP1 Model X: steering uses a steer ratio of 16.8 and a steering delay of 0.15 s, measured on a real Model X. With openpilot Longitudinal on, the Model S comfort defaults are on for the X too (Earlier, Gentler Regen Stops, the phantom-brake gate, Round Set Speed Tips, Curve Speed Control, Smooth Curve Braking and Map Curve Speed), and regen stops use Model X numbers
 * Trim detection on AP1 and Pre-AP: single or dual motor, and Performance, are read from the car. Vehicle Options has a new Trim picker (default Auto) with a Detected line. On dual-motor cars the front motor's regen now counts in the pedal gauge and in regen stops. This changes the display and comfort braking only
@@ -13,9 +24,6 @@ What's new
 * Show Speed Limit Offset now shows or hides the green offset badge on the speed limit sign, and is on by default. The badge text is larger and stays inside the sign. A value you saved yourself is kept
 * Driver steering arc: it starts growing at 88° of wheel angle (was 120°). Colours, the 260° marker and the commanded-angle arc are unchanged
 * Driving Personalities is on by default with Relaxed at 2.0 s, and a fresh install starts on Relaxed. Saved settings are kept
-
-Earlier update
-=======================
 * AP1 and Pre-AP: Earlier, Gentler Regen Stops now adds a gentle braking layer on top of the stock braking, up to about 2 mph per second, for a slower car the radar sees. It only adds braking: following distance, emergency braking and cut-in response are unchanged
 * Tesla AP1 Model X: new experimental setting, openpilot Longitudinal (Experimental), in Vehicle Settings. It is off by default, only shown on a detected AP1 Model X, untested on a real Model X, and applies the next time the car starts. Standstill is not included. The Model X wheelbase is now 2.965 m
 * Driver steering arc: small and blue at first, it grows as you turn, fades through yellow to orange, then goes from orange to pink toward full lock (the 260° marker). It follows the wheel you are turning; the arc that shows what openpilot is commanding is unchanged

@@ -18,16 +18,18 @@ Inactive while not engaged, in gas override and at standstill. Set-speed changes
 """
 import math
 
+from opendbc.car.tesla_ap1 import tesla_tuning as _tt   # Settings > Vehicle > Tesla Tuning (shipped value unless saved)
+
 STOP_DISTANCE = 6.0      # m, must equal long_mpc.STOP_DISTANCE (checked in tests)
-A_GENTLE_ON = 0.9        # m/s^2: enter only when the settle decel is at most this (about 2.0 mph/s); also the request cap
-A_GENTLE_OFF = 1.1       # m/s^2: once active, release when more than this is needed (hysteresis against chatter)
+A_GENTLE_ON = _tt.get("ComfortRegenMaxDecel", 0.9)        # m/s^2: enter only when the settle decel is at most this (about 2.0 mph/s); also the request cap
+A_GENTLE_OFF = 1.1 + (A_GENTLE_ON - 0.9)       # m/s^2: once active, release when more than this is needed (hysteresis against chatter)
 A_MIN_ACTIVE = 0.05      # m/s^2: ignore negligible requests
 MARGIN = 1.05            # small margin on a_req, still capped at A_GENTLE_ON
 CLOSING_MIN = 0.5        # m/s (about 1.1 mph): below this the lead is not closing
 EPS = 1.0                # m: distance floor for a_req
 LEAD_V_TAU = 1.0         # s: lead speed filter time constant
-JERK_ON = 0.75           # m/s^3: comfort onset
-JERK_OFF = 1.0           # m/s^3: comfort release
+JERK_ON = _tt.get("ComfortRegenOnsetJerk", 0.75)           # m/s^3: comfort onset
+JERK_OFF = _tt.get("ComfortRegenReleaseJerk", 1.0)           # m/s^3: comfort release
 
 
 def settle_decel(v_ego, v_lead, d_rel, t_follow):

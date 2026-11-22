@@ -67,7 +67,7 @@ class OwnGps:
         if self._factory is not None:
           self._sm = self._factory()
         else:
-          from cereal import messaging
+          from openpilot.cereal import messaging
           from openpilot.system.bogpilot.osm.supervisor import GPS_SERVICES
           self._sm = messaging.SubMaster(list(GPS_SERVICES))
       except Exception:

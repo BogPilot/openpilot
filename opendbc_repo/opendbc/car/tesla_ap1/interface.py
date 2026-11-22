@@ -4,6 +4,7 @@ from opendbc.car.tesla_ap1.carcontroller import CarController
 from opendbc.car.tesla_ap1.carstate import CarState
 from opendbc.car.tesla_ap1.radar_interface import RadarInterface
 from opendbc.car.tesla_ap1.modelx_fingerprint import s_contradicts_x
+from opendbc.car.tesla_ap1 import ride_height
 from opendbc.car.tesla_ap1.safety_flags import dashcam_only_for_candidate, flags_for_candidate, flags_for_preap
 from opendbc.car.tesla_ap1.preap.calib import pedal_can_bus
 from opendbc.car.tesla_ap1.preap import params as preap_params
@@ -12,7 +13,13 @@ from opendbc.car.tesla_ap1.preap.carstate import PreApCarState
 from opendbc.car.tesla_ap1.preap.vdas_constants import PEDAL_LONG_K_BP, PEDAL_LONG_KI_V
 from opendbc.car.tesla_ap1.toggles import ap1_standstill_engage, ap1x_op_long, disable_openpilot_long
 from opendbc.car.tesla_ap1.preap.detection import pedal_present, preap_chassis_signature
-from opendbc.car.tesla_ap1.values import CAR, ForcedFingerprint, TeslaAp1Flags, is_preap, match_ap1_chassis
+from opendbc.car.tesla_ap1.values import (CAR, ForcedFingerprint, TeslaAp1Flags, is_preap, match_ap1_chassis, AP1_LONG_ACTUATOR_DELAY,
+                                          PREAP_LONG_ACTUATOR_DELAY, AP1_S_STEER_ACTUATOR_DELAY, AP1_X_STEER_ACTUATOR_DELAY,
+                                          PREAP_STEER_ACTUATOR_DELAY)
+
+
+# The delays live in values.py (AP1_LONG_ACTUATOR_DELAY 0.35 for the Model S and Model X, PREAP_LONG_ACTUATOR_DELAY 0.4).
+AP1_S_LONG_ACTUATOR_DELAY = AP1_LONG_ACTUATOR_DELAY  # old name, same value
 
 
 class CarInterface(CarInterfaceBase):
@@ -48,7 +55,12 @@ class CarInterface(CarInterfaceBase):
 
     # AP1 reads the blind spot from the Mobileye/radar path (blindspot.py), as in 367e1fe.
 
-    ret.longitudinalActuatorDelay = 0.5  # s
+    # AP1 Model S and Model X: 0.35 s. Logged AP1 Model S drives measure about 0.2 s median command-to-accel lag
+    # (0.27 s over a whole drive). A closed-loop replay of those drives at 0.35 s kept the same following gap and stop
+    # gaps as 0.5 s with about 21% less jerk and 9% fewer accel reversals (3 to 4% less jerk with the AP1 slew in the
+    # loop), for about 1 s more firm braking per 48 min. The Model X has no openpilot-speed logs to measure yet, so it
+    # takes the Model S value until there are. Pre-AP (pedal) sets its own 0.4 s below.
+    ret.longitudinalActuatorDelay = AP1_LONG_ACTUATOR_DELAY  # s
 
     # 0.9.7: openpilot long = not DisableOpenpilotLongitudinal (default off, so
     # long is ON). Chassis 0x2b9 only, no 0x2bf powertrain DAS. AP1StandstillEngage
@@ -63,7 +75,10 @@ class CarInterface(CarInterfaceBase):
               and ap1x_op_long(candidate))
     long_on = s_long or x_long
     standstill = s_long and ap1_standstill_engage(candidate)
-    safety_params = flags_for_candidate(candidate, fingerprint, standstill=standstill, x_long=x_long)
+    # Lower on Park (ride_height.py): read once here at car start, like the other file-backed car settings.
+    lower_on_park = (candidate in (CAR.TESLA_AP1_MODELS, CAR.TESLA_AP1_MODELX) and not ret.dashcamOnly
+                     and ride_height.PANDA_TX_SUPPORTED and ride_height.enabled())
+    safety_params = flags_for_candidate(candidate, fingerprint, standstill=standstill, x_long=x_long, ride_height=lower_on_park)
     ret.openpilotLongitudinalControl = long_on
     if ret.dashcamOnly:
       ret.safetyConfigs = [get_safety_config(structs.CarParams.SafetyModel.noOutput)]
@@ -73,7 +88,7 @@ class CarInterface(CarInterfaceBase):
     ret.steerLimitTimer = 1.0
     # Model X: lagd measured 0.34-0.36 s total lateral lag on a real AP1 Model X drive (status estimated, std <= 0.03),
     # which is steerActuatorDelay 0.15 under lagd's "steerActuatorDelay + 0.2" start value. Model S keeps 0.25.
-    ret.steerActuatorDelay = 0.15 if candidate == CAR.TESLA_AP1_MODELX else 0.25
+    ret.steerActuatorDelay = AP1_X_STEER_ACTUATOR_DELAY if candidate == CAR.TESLA_AP1_MODELX else AP1_S_STEER_ACTUATOR_DELAY
     return ret
 
   @staticmethod
@@ -112,8 +127,8 @@ class CarInterface(CarInterfaceBase):
     safety_param = flags_for_preap(pedal=long_on, radar=radar_on, behind_nosecone=nosecone)
     ret.safetyConfigs = [get_safety_config(structs.CarParams.SafetyModel.tesla, safety_param)]
     ret.steerLimitTimer = 0.4
-    ret.steerActuatorDelay = 0.1
-    ret.longitudinalActuatorDelay = 0.4
+    ret.steerActuatorDelay = PREAP_STEER_ACTUATOR_DELAY
+    ret.longitudinalActuatorDelay = PREAP_LONG_ACTUATOR_DELAY
     if long_on:
       # Planner accel passes 1:1 into VirtualDAS (it does its own feedback); the stock PID adds nothing.
       ret.longitudinalTuning.kiBP = list(PEDAL_LONG_K_BP)

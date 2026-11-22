@@ -367,9 +367,9 @@ def test_main_restarts_run_after_an_exception(monkeypatch):
   monkeypatch.setattr(S, "run", fake_run)
   monkeypatch.setattr(S.time, "sleep", lambda s: None)
   fake_messaging = types.SimpleNamespace(SubMaster=lambda *a, **k: object())
-  monkeypatch.setitem(sys.modules, "cereal.messaging", fake_messaging)
-  import cereal
-  monkeypatch.setattr(cereal, "messaging", fake_messaging, raising=False)
+  monkeypatch.setitem(sys.modules, "openpilot.cereal.messaging", fake_messaging)
+  import openpilot.cereal
+  monkeypatch.setattr(openpilot.cereal, "messaging", fake_messaging, raising=False)
   import openpilot.common.bogpilot_store as bs
   monkeypatch.setattr(bs, "ParamStore", lambda *a, **k: SimpleNamespace(get_bool=lambda *a, **k: False))
   with pytest.raises(KeyboardInterrupt):

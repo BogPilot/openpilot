@@ -41,7 +41,9 @@ from __future__ import annotations
 
 import numpy as np
 
-TESLA_CSC_MAX_LAT_ACCEL = 2.0  # m/s^2, cap on the learned CSC cornering limit
+from opendbc.car.tesla_ap1 import tesla_tuning as _tt   # Settings > Vehicle > Tesla Tuning (shipped value unless saved)
+
+TESLA_CSC_MAX_LAT_ACCEL = _tt.get("CurveMaxLatAccel", 2.0)  # m/s^2, cap on the learned CSC cornering limit
 TESLA_CURVE_LEAD_S = 0.5       # s, reach the curve speed this long before the node
 
 DEADBAND = 0.15                # m/s^2, a request must be this strong to start braking
@@ -49,9 +51,9 @@ DEADBAND_OFF = 0.08            # m/s^2, once braking, keep going until it is wea
 ON_DEBOUNCE_S = 0.3            # s, a weak request must stay past DEADBAND this long to start
 STRONG_REQUEST = 0.3           # m/s^2, a request this strong starts at once
 MIN_ON_S = 0.5                 # s, once started, the deadband cannot switch it off sooner
-A_MIN = -1.2                   # m/s^2, stays in the AP1 regen range (no friction thunk)
-ONSET_JERK = 1.5               # m/s^3
-RELEASE_JERK = 1.2             # m/s^3
+A_MIN = _tt.get("CurveMaxDecel", -1.2)                   # m/s^2, stays in the AP1 regen range (no friction thunk)
+ONSET_JERK = _tt.get("CurveOnsetJerk", 1.5)               # m/s^3
+RELEASE_JERK = _tt.get("CurveReleaseJerk", 1.2)             # m/s^3
 TARGET_MARGIN = 0.0            # m/s, land this far above the curve speed (lag + ramp are already allowed for)
 ACTUATOR_LAG_S = 0.3           # s, delay + lag between the request and the car's decel
 MIN_MODEL_SPEED = 5.0          # m/s, skip nodes the model plans to drive slower than this

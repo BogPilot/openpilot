@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from openpilot.common.bogpilot_models import STOCK_ID, STOCK_NAME, TARGET_OPENPILOT, alert, registry, selection
+from openpilot.common.bogpilot_models import STOCK_ID, STOCK_NAME, TARGET_OPENPILOT, alert, installer, registry, selection, source
 from openpilot.common.bogpilot_models.stock import STOCK_HASHES
 
 PAGE_KEY = "driving_model"
@@ -16,6 +16,10 @@ CONTROLS = ("driving_model",)
 ONLY_DEFAULT_TEXT = "Only the Default (stock) driving model is installed. Models you install later appear here."
 SELECT_LABEL = "SELECT"
 SELECTED_LABEL = "SELECTED"
+DOWNLOAD_LABEL = "DOWNLOAD"
+INLINE_TITLE = "Driving Model"
+INLINE_DESC = ("Step through the usable models with - and +. A change is confirmed first, can only be made while the car "
+               "is off, and applies from the next drive.")
 _REFRESH_S = 1.0
 
 
@@ -37,6 +41,10 @@ class Snapshot:
   only_default: bool
   notice: str
   offroad: bool
+  choices: tuple[tuple[str, str], ...] = ()  # (id, name) of every usable model, Default first: the inline row's values
+  pick: str = STOCK_ID                       # id the inline row shows (the saved choice, Default when blocked)
+  downloads: tuple[tuple[str, str, str], ...] = ()  # (id, name, detail) of hosted models not installed yet
+  can_download: bool = False                 # the strict offroad gate (download_gate) is open
 
 
 def row_description(snapshot: Snapshot, row: Row) -> str:
@@ -44,6 +52,24 @@ def row_description(snapshot: Snapshot, row: Row) -> str:
   if snapshot.only_default or not row.active:
     return row.detail
   return f"{row.detail} | Active"
+
+
+def inline_text(snapshot: Snapshot) -> list[str]:
+  """The inline Driving Model row ([-] name [+], Alert Volume style), or nothing when only Default is installed."""
+  if snapshot.only_default:
+    return []
+  name = next((n for i, n in snapshot.choices if i == snapshot.pick), STOCK_NAME)
+  return [INLINE_TITLE, f"- {name} +"]
+
+
+def step_target(snapshot: Snapshot, direction: int) -> str | None:
+  """Neighbour of the shown pick among the usable models (no wrap). None at either end or when nothing else is usable."""
+  ids = [i for i, _ in snapshot.choices]
+  if len(ids) < 2 or direction not in (-1, 1):
+    return None
+  cur = ids.index(snapshot.pick) if snapshot.pick in ids else 0
+  nxt = cur + direction
+  return ids[nxt] if 0 <= nxt < len(ids) else None
 
 
 def ui_text(snapshot: Snapshot) -> list[str]:
@@ -68,12 +94,19 @@ class ModelSelectorController:
   """Driving-model choice. Never raises; backend failures become status text.
 
   `is_offroad` is the edit gate. The page passes onroad_policy.editor("driving_model") (0.9.7 Model: reboot-prompt
-  class), so a model can be chosen while driving; the choice is recorded for the next drive start either way
-  (selection.select), and `started` says whether to tell the user it needs a reboot. `on_change` runs after a
-  successful choice (the reboot prompt)."""
+  class), so a choice can be recorded while driving; it never switches the running model: it applies from the next
+  drive start (selection.select + the per-drive latch in resolve), and `started` says whether to tell the user.
+  `on_change` runs after a successful choice (the reboot prompt).
 
-  def __init__(self, is_offroad, store=None, root=None, cache=None, started=None, on_change=None):
+  `download_gate` is stricter: a download (network + disk writes) runs only while the car is off. The page passes
+  offroad_gate(); tests pass their own."""
+
+  def __init__(self, is_offroad, store=None, root=None, cache=None, started=None, on_change=None, catalog=None,
+               transport=None, download_gate=None):
     self.is_offroad = is_offroad
+    self.download_gate = download_gate or (lambda: False)  # no gate given: downloads are refused
+    self.catalog = catalog        # None: source.CATALOG (empty until we publish a model on our GitHub releases)
+    self.transport = transport    # None: installer.https_transport
     self.started = started or (lambda: False)
     self.on_change = on_change or (lambda: None)
     self.store = store
@@ -93,8 +126,17 @@ class ModelSelectorController:
 
   def select(self, model_id) -> selection.SelectResult:
     try:
-      # select() re-validates the files itself and does not reuse cached Validation objects.
-      result = selection.select(model_id, self.is_offroad, self.store, self.root, self.cache)
+      # Block param writes here as well as in selection.select: the page must not start a write while onroad.
+      try:
+        offroad = self.is_offroad() is True
+      except Exception:
+        result = selection.SelectResult(False, "Cannot confirm the car is off, so the driving model was not changed.")
+      else:
+        if not offroad:
+          result = selection.SelectResult(False, "Driving model can only be changed while the car is off (offroad).")
+        else:
+          # select() re-validates the files itself and does not reuse cached Validation objects.
+          result = selection.select(model_id, self.is_offroad, self.store, self.root, self.cache)
     except Exception as exc:
       result = selection.SelectResult(False, f"Driving model was not changed ({type(exc).__name__}).")
     self.message = result.message
@@ -105,6 +147,31 @@ class ModelSelectorController:
       except Exception:
         pass
     return result
+
+  def step(self, direction: int) -> str | None:
+    """Model id the inline row's - (-1) or + (+1) would pick, or None. Does not select anything."""
+    try:
+      return step_target(self.refresh(), direction)
+    except Exception:
+      return None
+
+  def download(self, model_id) -> installer.InstallResult:
+    """Fetch, verify and install one hosted model (offroad only). The saved choice is not changed."""
+    try:
+      item = next((i for i in self._catalog() if isinstance(i, dict) and i.get("id") == model_id), None)
+      if item is None:
+        result = installer.InstallResult(False, "That model is not offered for download.", str(model_id))
+      else:
+        result = installer.install(item, self.download_gate, self.transport, self.root, self.cache)
+    except Exception as exc:
+      result = installer.InstallResult(False, f"Driving model was not downloaded ({type(exc).__name__}).", str(model_id))
+    self.message = result.message
+    self.refresh()
+    return result
+
+  def _catalog(self) -> tuple:
+    items = source.CATALOG if self.catalog is None else self.catalog
+    return tuple(i for i in items if installer.screen(i) == "")
 
   def _offroad(self) -> bool:
     try:
@@ -143,7 +210,8 @@ class ModelSelectorController:
     if entry.manifest is None:
       return compat  # invalid manifest: there is no version/license/hash to show, only why it is unusable
     short = (entry.model_sha256 or "")[:12]
-    return f"Version {entry.version} | License {entry.license} | model {short} | {compat}"
+    onnx = f" | ONNX {entry.onnx_sha256[:12]}" if entry.onnx_sha256 else ""
+    return f"Version {entry.version} | License {entry.license} | model {short}{onnx} | {compat}"
 
   def _build(self) -> Snapshot:
     offroad = self._offroad()
@@ -186,7 +254,30 @@ class ModelSelectorController:
     elif self._started():
       status += " | Takes effect after a reboot"
     only_default = len(entries) == 1 and entries[0].id == STOCK_ID
-    return Snapshot(tuple(rows), status, only_default, notice, offroad)
+    choices = tuple((r.id, r.title) for r in rows if not r.problem)
+    pick = selected_id if selected_id is not None and selected_id in {i for i, _ in choices} else STOCK_ID
+    downloads = []
+    for item in self._catalog():
+      if item.get("id") not in known:
+        downloads.append((item["id"], item.get("name") or item["id"],
+                          f"Version {item.get('version', '')} | License {item.get('license', '')} | Download, then select"))
+    try:
+      can_download = self.download_gate() is True
+    except Exception:
+      can_download = False
+    return Snapshot(tuple(rows), status, only_default, notice, offroad, choices, pick, tuple(downloads), can_download)
+
+
+def offroad_gate():
+  """True only while the car is off. Any error reading the state counts as on (no write)."""
+  from openpilot.selfdrive.ui.bogpilot import onroad_policy
+
+  def gate():
+    try:
+      return onroad_policy.is_started() is False
+    except Exception:
+      return False
+  return gate
 
 
 def create_driving_model_layout(controller=None):
@@ -199,11 +290,12 @@ def create_driving_model_layout(controller=None):
   from openpilot.system.ui.widgets.list_view import button_item, text_item
   from openpilot.system.ui.widgets.scroller_tici import Scroller
   from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
+  from openpilot.selfdrive.ui.bogpilot.gated_actions import MINUS, PLUS, gated_value_step_item
 
   if controller is None:
     from openpilot.selfdrive.ui.bogpilot import onroad_policy
     controller = ModelSelectorController(onroad_policy.editor("driving_model"), started=onroad_policy.is_started,
-                                         on_change=lambda: onroad_policy.changed("driving_model"))
+                                         on_change=lambda: onroad_policy.changed("driving_model"), download_gate=offroad_gate())
 
   class DrivingModelLayout(Widget):
     def __init__(self):
@@ -214,6 +306,64 @@ def create_driving_model_layout(controller=None):
       self._open_desc = []
       self._refreshed_at = 0.0
       self._visible = False
+      self._busy = False   # a download is running in the background
+
+    def _inline_row(self):
+      """[-] [model name] [+], the Alert Volume value-row style. Taps ask first; nothing is saved without a yes."""
+      def value():
+        lines = inline_text(self._snapshot) if self._snapshot else []
+        return lines[1][2:-2] if lines else STOCK_NAME
+
+      def stepped(direction):
+        target = step_target(self._snapshot, direction) if self._snapshot else None
+        if target is not None:
+          name = next((n for i, n in self._snapshot.choices if i == target), target)
+          self._confirm(target, name)
+
+      def enabled():
+        snap = self._snapshot
+        return bool(snap and snap.offroad and len(snap.choices) > 1 and not self._busy)
+
+      row = gated_value_step_item(lambda: tr(INLINE_TITLE), lambda: tr(INLINE_DESC), value,
+                                  on_minus=lambda: stepped(-1), on_plus=lambda: stepped(1), minus=MINUS, plus=PLUS,
+                                  selected_index=1, button_width=150, enabled=enabled,
+                                  default_text=lambda: STOCK_NAME,
+                                  is_default=lambda: bool(self._snapshot is None or self._snapshot.pick == STOCK_ID),
+                                  translate=tr)
+      attach_help(row, "driving_model.inline")
+      return row
+
+    def _download_rows(self):
+      out = []
+      for mid, name, detail in (self._snapshot.downloads if self._snapshot else ()):
+        item = button_item(name, tr(DOWNLOAD_LABEL), detail, callback=lambda m=mid, n=name: self._confirm_download(m, n),
+                           enabled=lambda: bool(self._snapshot and self._snapshot.can_download and not self._busy))
+        attach_help(item, "driving_model.download", extra=lambda d=detail: d)
+        out.append(item)
+      return out
+
+    def _confirm_download(self, model_id, name):
+      if self._busy or not (self._snapshot and self._snapshot.can_download):
+        return
+      prompt = (f"Download {name}? Every file is checked against its pinned hash and the model must pass the 0.11.2 "
+                "compatibility check before it is installed. It is not selected until you pick it.")
+
+      def on_result(result):
+        if result != DialogResult.CONFIRM:
+          return
+        import threading
+        self._busy = True
+
+        def work():
+          try:
+            self.controller.download(model_id)
+          finally:
+            self._busy = False
+            self._refreshed_at = 0.0   # the next frame rebuilds from the new snapshot
+
+        threading.Thread(target=work, name="bogpilot-model-download", daemon=True).start()
+
+      gui_app.push_widget(ConfirmDialog(tr(prompt), tr("Download"), callback=on_result))
 
     def _refresh_ui(self, force):
       now = time.monotonic()
@@ -242,12 +392,14 @@ def create_driving_model_layout(controller=None):
           attach_help(item, "driving_model.default" if row.id == STOCK_ID else "driving_model.entry",
                       extra=lambda r=row: r.detail)
           items.append(item)
+        items += self._download_rows()
       else:
         status = text_item(snap.status, "", snap.notice or None)
         attach_help(status, "driving_model.status", extra=lambda: snap.notice)
         items.append(status)
         if snap.notice:
           self._open_desc.append(status)
+        items.append(self._inline_row())
         for row in snap.rows:
           desc = row_description(snap, row)
           if row.selected:
@@ -263,6 +415,7 @@ def create_driving_model_layout(controller=None):
           attach_help(item, "driving_model.default" if row.id == STOCK_ID else "driving_model.entry",
                       extra=lambda r=row: r.detail)
           items.append(item)
+        items += self._download_rows()
       self.scroller = Scroller(items, line_separator=True, spacing=0)
 
     def _reveal(self):
