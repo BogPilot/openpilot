@@ -1,0 +1,25 @@
+Cheddar driving model (comma.ai), as prepared for BogPilot 0.11.2
+==================================================================
+
+Model:    "Cheddar Model" (#39255)
+Source:   https://github.com/commaai/openpilot, commit b3ab22efe1be5d6c0ad46503f0985b26f8b7a36f (Nov 17 2026)
+File:     openpilot/selfdrive/modeld/models/driving_supercombo.onnx
+          sha256 350a47ea36e554fb71634c7361b2c2a2a3da07ecb211a4c6cff3d2c3013d1d82, 69,671,018 bytes
+          (git LFS oid from that commit; model_checkpoint metadata names the training runs)
+Changes:  none to the weights or graph. BogPilot compiles this ONNX into driving_tinygrad.pkl with the tinygrad
+          vendored in BogPilot 0.11.2 for the comma 3X (QCOM). The compiled file is a derivative work of the ONNX.
+
+The model file is distributed under the openpilot MIT license, reproduced below.
+
+------------------------------------------------------------------------------------------------------------------
+Copyright (c) 2018, Comma.ai, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+------------------------------------------------------------------------------------------------------------------
+
+BogPilot is not affiliated with comma.ai. Cheddar is not BogPilot's default model; the stock 0.11.2 model stays the
+default and is used whenever the chosen model is missing, fails its checks, or fails to load.

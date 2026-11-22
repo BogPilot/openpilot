@@ -241,11 +241,12 @@ class TestValidation(unittest.TestCase):
         self.assertFalse(v.ok, label)
         self.assertTrue(v.problems)
 
-  def test_extra_state_queue_with_matching_next_is_compatible(self):
+  def test_extra_state_queue_with_matching_next_is_rejected(self):
+    # modeld would feed it back, but no 0.11.2 model has it: only the three 0.11.2 history queues are accepted
     v = fx.stock_abi_variant(**{"input_specs.state_extra": [[4, 1, 8], "float32", "QCOM"],
                                 "output_specs.next_state_extra": [[4, 1, 8], "float32", "QCOM"],
                                 "input_shapes.state_extra": [4, 1, 8], "output_shapes.next_state_extra": [4, 1, 8]})
-    self.assertEqual(compat.check_driving_abi(v), [])
+    self.assertTrue(any("state_extra is not fed" in p for p in compat.check_driving_abi(v)))
 
   def test_pickle_with_foreign_global_is_rejected_without_running_it(self):
     v = self.check(driving=fx.driving_pickle_bytes(extra_class="os.system"))
