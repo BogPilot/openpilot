@@ -67,7 +67,8 @@ def test_interface_sets_the_bit_only_while_on(fp, _files):
   rh.set_enabled(True)
   on = _params(fp)
   p_off, p_on = int(off.safetyConfigs[-1].safetyParam), int(on.safetyConfigs[-1].safetyParam)
-  assert p_off & 1024 == 0 and p_on == p_off | 1024
+  # 2048 (Drive) comes with it once the panda has the Drive rule; test_auto_height_safety_flags.py checks that bit.
+  assert p_off & 1024 == 0 and p_on & ~2048 == p_off | 1024
   rh.set_enabled(False)
   assert int(_params(fp).safetyConfigs[-1].safetyParam) == p_off
 
@@ -83,7 +84,7 @@ def test_interface_never_sets_it_on_preap(_files):
 def test_saved_lower_on_park_still_sets_the_park_bit(fp, _files):
   off = int(_params(fp).safetyConfigs[-1].safetyParam)
   (_files / "LowerOnPark").write_text("1")                       # an earlier Lower on Park choice, never migrated by hand
-  assert int(_params(fp).safetyConfigs[-1].safetyParam) == off | 1024
+  assert int(_params(fp).safetyConfigs[-1].safetyParam) & ~2048 == off | 1024
   (_files / "AutoHeight").write_text("0")                        # the new key decides once written
   assert int(_params(fp).safetyConfigs[-1].safetyParam) == off
   assert (_files / "LowerOnPark").read_text() == "1"

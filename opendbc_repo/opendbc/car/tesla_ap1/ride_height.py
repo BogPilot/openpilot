@@ -60,12 +60,11 @@ STANDSTILL_MS = 0.1
 FLAG_TESLA_AP1_RIDE_HEIGHT = 1024
 FLAG_TESLA_AP1_RIDE_HEIGHT_DRIVE = 2048
 
-# Capability gates: what this tree's panda (opendbc/safety/modes/tesla_ap1.h) allows. The Park rule with Low / Medium shipped
-# with Lower on Park. Levels 3-4 in Park and the Drive rule are the separate panda change awaiting approval; until it is in
-# the tree the Park picker offers Low / Medium only, the Drive row is hidden and nothing is sent in Drive.
+# Capability gates: what this tree's panda (opendbc/safety/modes/tesla_ap1.h) allows: levels 1-4 in Park (flag 1024) and in
+# Drive at standstill (flag 2048). With the older Lower on Park panda rule these were (1, 2) and False.
 PANDA_TX_SUPPORTED = True
-PANDA_PARK_LEVELS = (LEVEL_LOW, LEVEL_MEDIUM)
-PANDA_DRIVE_TX_SUPPORTED = False
+PANDA_PARK_LEVELS = LEVELS
+PANDA_DRIVE_TX_SUPPORTED = True
 
 PARAMS_DIR = Path("/data/params_bogpilot")
 ENABLE_KEY = "AutoHeight"

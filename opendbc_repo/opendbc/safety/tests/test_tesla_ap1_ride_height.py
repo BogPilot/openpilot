@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Lower on Park: the AP1 panda rule for the 0x308 ride height request (tesla_ap1.h). Raw wire only, no DBC.
+"""Auto Height in Park (was Lower on Park): the AP1 panda rule for the 0x308 ride height request (tesla_ap1.h). Raw wire only.
 
 Allowed only with flag 1024, in Park (DI_torque2 0x118 gear, recent), stopped, never while controls are allowed, byte 0 only
-0x41 / 0x42, bytes 1-7 equal to the newest touchscreen 0x308 on bus 0 (recent), at most one frame per 15 ms and at most 150
+0x41-0x44 (Low, Medium, High, Very High), bytes 1-7 equal to the newest touchscreen 0x308 on bus 0 (recent), at most one frame per 15 ms and at most 150
 frames per stay in Park.
 """
 import unittest
@@ -68,11 +68,20 @@ class TestTeslaAp1RideHeight(unittest.TestCase):
       self.parked()
       self.assertFalse(self.tx(low()))
 
-  def test_only_low_or_medium(self):
+  def test_only_levels_1_to_4(self):
     self.init()
     for b0 in range(256):
       self.tick(20_000); self.parked()
-      self.assertEqual(self.tx(bytes([b0]) + SCREEN[1:]), b0 in (0x41, 0x42), hex(b0))
+      self.assertEqual(self.tx(bytes([b0]) + SCREEN[1:]), 0x41 <= b0 <= 0x44, hex(b0))
+
+  def test_high_and_very_high_follow_every_park_condition(self):
+    for b0 in (0x43, 0x44):
+      frame = bytes([b0]) + SCREEN[1:]
+      self.init(8); self.parked(); self.assertFalse(self.tx(frame))                  # no flag
+      self.init(); self.parked(); self.assertTrue(self.tx(frame))
+      self.tick(5_000); self.parked(); self.assertFalse(self.tx(frame))              # 15 ms gap
+      self.init(9 | RH); self.parked(); l.set_controls_allowed(True); self.assertFalse(self.tx(frame))
+      self.init(); self.parked(); bad = bytearray(frame); bad[5] ^= 1; self.assertFalse(self.tx(bytes(bad)))
 
   def test_bytes_1_to_7_must_match_the_newest_screen_frame(self):
     self.init()

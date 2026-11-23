@@ -10,9 +10,12 @@
 // or the deprecated DAS_STEERING_3_BIT (bit 1 / value 2).
 #define TESLA_FLAG_AP1 8U
 #define TESLA_FLAG_AP1_STANDSTILL 16U
-// Lower on Park (car/tesla_ap1/ride_height.py). Set at car start only while the setting is on. Pre-AP flags 32-256 and the
-// AP2 powertrain bit 512 are separate bits.
+// Auto Height in Park (car/tesla_ap1/ride_height.py, was Lower on Park). Set at car start only while Auto Height is on. Pre-AP
+// flags 32-256 and the AP2 powertrain bit 512 are separate bits.
 #define TESLA_FLAG_AP1_RIDE_HEIGHT 1024U
+// Auto Height in Drive at standstill (car/tesla_ap1/ride_height.py HeightOnDrive). Its own bit, set at car start together with
+// TESLA_FLAG_AP1_RIDE_HEIGHT while Auto Height is on. The Park bit alone never allows a request in Drive.
+#define TESLA_FLAG_AP1_RIDE_HEIGHT_DRIVE 2048U
 
 static bool tesla_ap1 = false;
 static bool tesla_ap1_longitudinal = false;
@@ -33,8 +36,8 @@ static bool tesla_ap1_epas_rate_req_ready = false;
 // rx_all, not an RX check: a missing or stale 0x214 never touches controls_allowed, it only keeps codes 4 and 7 blocked.
 static bool tesla_ap1_epb_eac_allow = false;
 static uint32_t tesla_ap1_epb_eac_allow_ts = 0U;
-// Lower on Park: the 0x308 ride height request (bus 0). Allowed only with TESLA_FLAG_AP1_RIDE_HEIGHT, in Park (DI_gear from
-// DI_torque2 0x118, recent), stopped, never while controls are allowed, byte 0 only 0x41 (Low) or 0x42 (Medium), bytes 1-7
+// Auto Height: the 0x308 ride height request (bus 0). Allowed only with TESLA_FLAG_AP1_RIDE_HEIGHT, in Park (DI_gear from
+// DI_torque2 0x118, recent), stopped, never while controls are allowed, byte 0 only 0x41-0x44 (Low, Medium, High, Very High), bytes 1-7
 // equal to the newest touchscreen 0x308 received on bus 0 (recent), at most one frame per 15 ms and at most 150 frames per
 // stay in Park (one 2 s, 50 Hz burst is 100 frames). Leaving Park, or an unknown gear, ends the stay.
 static bool tesla_ap1_ride_height = false;
@@ -47,6 +50,12 @@ static uint32_t tesla_ap1_rh_rx_ts = 0U;
 static bool tesla_ap1_rh_tx_seen = false;
 static uint32_t tesla_ap1_rh_tx_ts = 0U;
 static uint32_t tesla_ap1_rh_tx_count = 0U;
+// Auto Height in Drive: the same 0x308 rule, but in Drive (DI_gear from 0x118, recent) instead of Park, only with
+// TESLA_FLAG_AP1_RIDE_HEIGHT_DRIVE, stopped, gas not pressed, never while controls are allowed, and at most 150 frames per stay in
+// Drive (its own counter). The same levels 0x41-0x44; bytes 1-7, the screen frame freshness and the 15 ms gap are shared.
+static bool tesla_ap1_ride_height_drive = false;
+static bool tesla_ap1_in_drive = false;
+static uint32_t tesla_ap1_rh_drive_tx_count = 0U;
 
 static const LongitudinalLimits TESLA_AP1_LONG_LIMITS = {
   .max_accel = 425,       // 2. m/s^2
@@ -130,6 +139,11 @@ static void tesla_ap1_rx_hook(const CANPacket_t *msg) {
       if (!tesla_ap1_in_park) {
         tesla_ap1_rh_tx_count = 0U;
       }
+      // DI_gear 4 = D. Anything else, SNA and invalid included, is not Drive.
+      tesla_ap1_in_drive = ((msg->data[1] & 0x70U) == 0x40U);
+      if (!tesla_ap1_in_drive) {
+        tesla_ap1_rh_drive_tx_count = 0U;
+      }
       tesla_ap1_gear_ts = microsecond_timer_get();
       tesla_ap1_gear_seen = true;
     }
@@ -179,7 +193,7 @@ static void tesla_ap1_rx_all_hook(const CANPacket_t *msg) {
     tesla_ap1_epb_eac_allow = ((msg->data[0] & 0x07U) == 1U);
     tesla_ap1_epb_eac_allow_ts = microsecond_timer_get();
   }
-  // Touchscreen ride height request (0x308, bus 0, 10 Hz): the newest frame, for the Lower on Park byte match.
+  // Touchscreen ride height request (0x308, bus 0, 10 Hz): the newest frame, for the Auto Height byte match.
   if (msg_matches(msg, 0x308U, 0U, 8U)) {
     for (int i = 0; i < 8; i++) {
       tesla_ap1_rh_rx[i] = msg->data[i];
@@ -189,18 +203,22 @@ static void tesla_ap1_rx_all_hook(const CANPacket_t *msg) {
   }
 }
 
-// Lower on Park 0x308 TX rule (see the state above).
+// Auto Height 0x308 TX rule (see the state above).
 static bool tesla_ap1_ride_height_tx_ok(const CANPacket_t *msg) {
   const uint32_t TESLA_AP1_GEAR_TIMEOUT_US = 100000U;     // DI_torque2 is 100 Hz
   const uint32_t TESLA_AP1_RH_RX_TIMEOUT_US = 500000U;    // the touchscreen sends 0x308 at 10 Hz
   const uint32_t TESLA_AP1_RH_TX_MIN_GAP_US = 15000U;     // the burst is 50 Hz (20 ms apart)
-  const uint32_t TESLA_AP1_RH_TX_MAX_PER_PARK = 150U;
+  const uint32_t TESLA_AP1_RH_TX_MAX_PER_PARK = 150U;      // per stay in Park, and separately per stay in Drive
 
-  bool ok = tesla_ap1_ride_height && !controls_allowed && !vehicle_moving && tesla_ap1_in_park &&
+  bool park_ok = tesla_ap1_ride_height && tesla_ap1_in_park && (tesla_ap1_rh_tx_count < TESLA_AP1_RH_TX_MAX_PER_PARK);
+  bool drive_ok = tesla_ap1_ride_height_drive && tesla_ap1_in_drive && !gas_pressed &&
+                  (tesla_ap1_rh_drive_tx_count < TESLA_AP1_RH_TX_MAX_PER_PARK);
+  bool ok = (park_ok || drive_ok) && !controls_allowed && !vehicle_moving &&
             tesla_ap1_op_recently_sent(tesla_ap1_gear_ts, tesla_ap1_gear_seen, TESLA_AP1_GEAR_TIMEOUT_US) &&
-            tesla_ap1_op_recently_sent(tesla_ap1_rh_rx_ts, tesla_ap1_rh_rx_seen, TESLA_AP1_RH_RX_TIMEOUT_US) &&
-            (tesla_ap1_rh_tx_count < TESLA_AP1_RH_TX_MAX_PER_PARK);
-  if ((msg->data[0] != 0x41U) && (msg->data[0] != 0x42U)) {
+            tesla_ap1_op_recently_sent(tesla_ap1_rh_rx_ts, tesla_ap1_rh_rx_seen, TESLA_AP1_RH_RX_TIMEOUT_US);
+  // Low (0x41), Medium (0x42), High (0x43) or Very High (0x44), in Park or Drive. Idle (0x40) and anything else are refused.
+  bool level_ok = (msg->data[0] >= 0x41U) && (msg->data[0] <= 0x44U);
+  if (!level_ok) {
     ok = false;
   }
   for (int i = 1; i < 8; i++) {
@@ -320,7 +338,7 @@ static bool tesla_ap1_tx_hook(const CANPacket_t *msg) {
     }
   }
 
-  // Lower on Park ride height request 0x308
+  // Auto Height ride height request 0x308
   if (addr == 0x308) {
     if (!tesla_ap1_ride_height_tx_ok(msg)) {
       violation = true;
@@ -343,7 +361,11 @@ static bool tesla_ap1_tx_hook(const CANPacket_t *msg) {
     if (addr == 0x308) {
       tesla_ap1_rh_tx_ts = microsecond_timer_get();
       tesla_ap1_rh_tx_seen = true;
-      tesla_ap1_rh_tx_count += 1U;
+      if (tesla_ap1_in_drive) {
+        tesla_ap1_rh_drive_tx_count += 1U;
+      } else {
+        tesla_ap1_rh_tx_count += 1U;
+      }
     }
     int idx = tesla_ap1_cluster_index(addr);
     if (idx >= 0) {
@@ -387,7 +409,10 @@ static safety_config tesla_ap1_init_config(uint16_t param) {
   tesla_ap1_longitudinal = GET_FLAG(param, 1U);  // TeslaSafetyFlags.LONG_CONTROL
   tesla_ap1_standstill = GET_FLAG(param, TESLA_FLAG_AP1_STANDSTILL);
   tesla_ap1_ride_height = GET_FLAG(param, TESLA_FLAG_AP1_RIDE_HEIGHT);
+  tesla_ap1_ride_height_drive = GET_FLAG(param, TESLA_FLAG_AP1_RIDE_HEIGHT_DRIVE);
   tesla_ap1_in_park = false;
+  tesla_ap1_in_drive = false;
+  tesla_ap1_rh_drive_tx_count = 0U;
   tesla_ap1_gear_seen = false;
   tesla_ap1_gear_ts = 0U;
   for (int i = 0; i < 8; i++) {
@@ -426,7 +451,7 @@ static safety_config tesla_ap1_init_config(uint16_t param) {
     {0x399, 0, 8, .check_relay = true, .disable_static_blocking = true},  // AutopilotStatus
     {0x389, 0, 8, .check_relay = true, .disable_static_blocking = true},  // DAS_status2
     {0x239, 0, 8, .check_relay = true, .disable_static_blocking = true},  // DAS_lanes
-    {0x308, 0, 8, .check_relay = false},  // Lower on Park ride height request (the touchscreen also sends it on bus 0)
+    {0x308, 0, 8, .check_relay = false},  // Auto Height ride height request (the touchscreen also sends it on bus 0)
   };
 
   // AP1 chassis RX. No counters/checksums enforced here (stock AP1 frames).
