@@ -1,16 +1,19 @@
 What's new
 =======================
-* Tesla AP1 Model S and Model X with air suspension: new setting Lower on Park in Vehicle Controls, off by default, with a Low or Medium height (default Low). Each time you shift into Park it asks the suspension once for that height, so the car's own location-based raise still lifts it at a driveway you saved. It is never sent while openpilot is engaged or the car is moving, and tapping a height on the touchscreen cancels it. Turning it on applies the next time the car starts
+* Tesla AP1 Model S and Model X with air suspension: Auto Height replaces Lower on Park in Vehicle Controls, off by default. When you shift into Park it asks for your Park height, and when you shift from Park into Drive it asks for your Drive height. It is sent only while stopped, never while openpilot is engaged, and a height can be None. A saved Lower on Park setting carries over. Turning it on applies the next time the car starts
+* Driving Model: comma.ai's Cheddar model can now be downloaded as an option in the Driving Model page while the car is off. It is checked before use and falls back to the stock model if anything is wrong; the stock model stays the Default. A model picked while driving applies on the next drive
+* Sidebar: GPU now shows the real GPU load (it was stuck at its value from boot), and the sidebar slot can also show MODELD, how much of each camera frame the driving model takes: white under 80%, yellow from 80 to 100%, red over 100% or when a frame is dropped. Saved sidebar choices are kept
+* Screen recorder: uses much less CPU, runs at low priority so it never competes with driving, records at half size and constant quality, and makes files about 40% smaller
+* New panda firmware, which updates itself on the first start after updating:
+  * AP1: the ride height request for Auto Height is allowed only while Auto Height is on, in Park, or in Drive while stopped with the accelerator released, never while moving or engaged, only for Low, Medium, High or Very High, and at most one burst per stay in Park and one per stay in Drive. All other limits are unchanged
+
+Earlier update
+=======================
 * Maps: the map downloader starts again on the device, so a download no longer stops at "Waiting for the map downloader...". Map features that were turned off by the same fault work again
 * Tesla AP1 (Model S, and Model X with openpilot Longitudinal): new experimental setting Ignore Radar Cars to the Side in Vehicle Controls, off by default. At 34 mph and up, a radar car well to the side of the car the camera sees ahead is not used as your lead, so a car in the next lane is less likely to slow you down. Turning it on applies the next time the car starts
 * Tesla AP1 Model S and Model X: openpilot Longitudinal now uses a 0.35 s actuator delay (was 0.5 s), which keeps the same following and stopping gaps with smoother braking. Pre-AP stays at 0.4 s. The tuning menu help now shows each Tesla's starting values, and Actuator Delay notes that it does not apply in Experimental Mode
 * Tesla AP1 and Pre-AP: new Tesla Tuning page in Vehicle Settings, shown only at the Advanced tuning level, for the acceleration ramp, comfort regen, stop shaper, curve braking and Pre-AP pedal limits. Every row starts at the car's current value, so nothing changes unless you edit it, and Reset to Tesla defaults puts them all back. It is locked while driving and applies the next time the car starts
-* Driving Model: models can be downloaded from BogPilot's releases while the car is off, are checked before use, and fall back to the stock model if anything is wrong. Only the stock Default model is offered for now. A model picked while driving applies on the next drive
-* New panda firmware, which updates itself on the first start after updating:
-  * AP1: the ride height request for Lower on Park is allowed only while Lower on Park is on, in Park, stopped and not engaged, only for Low or Medium, and at most once per shift into Park. All other limits are unchanged
-
-Earlier update
-=======================
+* Driving Model: models can be downloaded from BogPilot's releases while the car is off, are checked before use, and fall back to the stock model if anything is wrong. A model picked while driving applies on the next drive
 * Tesla AP1 Model X: openpilot Longitudinal is now on by default on a detected AP1 Model X. It is switched on once on the first start after updating; if you turn it off after that, it stays off. A change applies the next time the car starts, with no reboot. Standstill is not included
 * Tesla AP1 Model X: steering uses a steer ratio of 16.8 and a steering delay of 0.15 s, measured on a real Model X. With openpilot Longitudinal on, the Model S comfort defaults are on for the X too (Earlier, Gentler Regen Stops, the phantom-brake gate, Round Set Speed Tips, Curve Speed Control, Smooth Curve Braking and Map Curve Speed), and regen stops use Model X numbers
 * Trim detection on AP1 and Pre-AP: single or dual motor, and Performance, are read from the car. Vehicle Options has a new Trim picker (default Auto) with a Detected line. On dual-motor cars the front motor's regen now counts in the pedal gauge and in regen stops. This changes the display and comfort braking only
