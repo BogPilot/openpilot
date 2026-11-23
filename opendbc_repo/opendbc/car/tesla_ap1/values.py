@@ -138,8 +138,10 @@ class TeslaAp1SafetyFlags(IntFlag):
   # (opendbc cc39c7fa values.py FLAG_RADAR_BEHIND_NOSECONE / FLAG_RADAR_EMULATION).
   PREAP_RADAR_BEHIND_NOSECONE = 128
   PREAP_RADAR_EMULATION = 256
-  # Lower on Park (car/tesla_ap1/ride_height.py, tesla_ap1.h): AP1 only, set at car start while the setting is on.
+  # Auto Height, Park (car/tesla_ap1/ride_height.py, tesla_ap1.h; was Lower on Park): AP1 only, set at car start while it is on.
   AP1_RIDE_HEIGHT = 1024
+  # Auto Height, Drive at standstill: AP1 only, set while Auto Height is on with a Drive height (not None), once the panda has the rule.
+  AP1_RIDE_HEIGHT_DRIVE = 2048
 
 
 class TeslaAp1Flags(IntFlag):

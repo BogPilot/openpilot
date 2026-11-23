@@ -103,7 +103,7 @@ class CarState(CarStateBase):
     # Trim detection (trims.py): motor layout from 0x186 / GTW_fourWheelDrive, Performance rear from the rpm ratio, and the
     # live rpm per m/s of each motor. Seeded from the last drive's saved detection (read once here, at car start).
     self.drive_detect = trims.DriveDetector(CP.carFingerprint, DT_CTRL, front_possible=True, seed=_saved_detection())
-    # Lower on Park (ride_height.py), AP1 Model S / X: the screen's 0x308 frames received this step (raw bytes, oldest first),
+    # Auto Height (ride_height.py), AP1 Model S / X: the screen's 0x308 frames received this step (raw bytes, oldest first),
     # the newest one and its age, and the 0x398 air suspension flag (None until a fresh 0x398).
     self.ride_height_frames = []
     self.ride_height_last = None
@@ -408,7 +408,7 @@ class CarState(CarStateBase):
     fp_ret.ap1RpmPerMsMeasured = bool(det.measured)
 
   def _update_ride_height(self, cp) -> None:
-    """0x308 frames from the touchscreen (rebuilt byte for byte) and the 0x398 air suspension flag. Lower on Park only."""
+    """0x308 frames from the touchscreen (rebuilt byte for byte) and the 0x398 air suspension flag. Auto Height only."""
     rows = cp.vl_all.get("UI_rideHeightRequest", {})
     cols = [rows.get(f"UI_rideHeightByte{i}", []) for i in range(8)]
     n = min((len(c) for c in cols), default=0)
@@ -504,7 +504,7 @@ class CarState(CarStateBase):
       ("GTW_carConfig", OPTIONAL),
     ]
     if is_ap1_family(CP.carFingerprint):
-      # Lower on Park (ride_height.py): the touchscreen's ride height request 0x308. Frequency 0 (no canValid effect).
+      # Auto Height (ride_height.py): the touchscreen's ride height request 0x308. Frequency 0 (no canValid effect).
       messages.append(("UI_rideHeightRequest", OPTIONAL))
 
     # Model X seatbelt is RCM_status (0x211). SDM1 stays in this slot for Model S.

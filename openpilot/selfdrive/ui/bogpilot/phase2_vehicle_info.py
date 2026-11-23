@@ -17,6 +17,16 @@ CURRENT = "CURRENT"
 INFO_KEYS = ("Vehicle Info", "Detected Make", "Detected Model / Fingerprint",
              "openpilot Longitudinal Support", "Radar Support", "Stop-and-Go Support")
 
+# AP1 Model S / Model X only: the air suspension flag card last read from 0x398 GTW_carConfig (opendbc tesla_ap1/ride_height.py,
+# file AirSuspensionDetected). Like the rows above it is the last reported value, not proof of the car attached now.
+AIR_SUSPENSION = "Air Suspension"
+AP1_INFO_KEYS = (AIR_SUSPENSION,)
+ALL_INFO_KEYS = INFO_KEYS + AP1_INFO_KEYS
+AIR_DETECTED = "Detected"
+AIR_NOT_DETECTED = "Not Detected"
+AIR_UNKNOWN = "Unknown (not reported yet)"
+AIR_SUSPENSION_FINGERPRINTS = ("TESLA_AP1_MODELS", "TESLA_AP1_MODELX")
+
 
 def _field(cp, name):
   try:
@@ -37,7 +47,21 @@ def _support(cp, name, *, inverted=False):
   return "Yes" if (not value if inverted else value) else "No"
 
 
-def vehicle_info(cp, *, current=False):
+def air_suspension_text(state):
+  """state: True / False / None from ride_height.read_air_suspension_detected()."""
+  return AIR_DETECTED if state is True else AIR_NOT_DETECTED if state is False else AIR_UNKNOWN
+
+
+def read_air_suspension(path=None):
+  """Read-only; any import or read problem shows as Unknown, never as a guess."""
+  try:
+    from opendbc.car.tesla_ap1 import ride_height
+    return ride_height.read_air_suspension_detected(path)
+  except Exception:
+    return None
+
+
+def vehicle_info(cp, *, current=False, air_suspension=read_air_suspension):
   """Snapshot of supplied CarParams, not a vehicle picker.
 
   carFingerprint is the platform identifier, not a VIN-decoded retail model.
@@ -66,12 +90,14 @@ def vehicle_info(cp, *, current=False):
   rows["openpilot Longitudinal Support"] = _support(cp, "openpilotLongitudinalControl")
   rows["Radar Support"] = _support(cp, "radarUnavailable", inverted=True)
   rows["Stop-and-Go Support"] = _support(cp, "autoResumeSng")
+  if fp in AIR_SUSPENSION_FINGERPRINTS:
+    rows[AIR_SUSPENSION] = air_suspension_text(air_suspension() if callable(air_suspension) else air_suspension)
   return rows
 
 
-def refresh_info_items(items, cp, *, current=False, translate=lambda s: s):
-  """Update existing text_item rows; clear stale values on CP loss."""
-  rows = vehicle_info(cp, current=current)
+def refresh_info_items(items, cp, *, current=False, translate=lambda s: s, air_suspension=read_air_suspension):
+  """Update existing text_item rows; clear stale values on CP loss. Rows a car does not have (Air Suspension) are hidden."""
+  rows = vehicle_info(cp, current=current, air_suspension=air_suspension)
   for key, item in items.items():
     item.set_visible(key in rows)
     item.action_item.set_text(translate(rows.get(key, UNAVAILABLE)))

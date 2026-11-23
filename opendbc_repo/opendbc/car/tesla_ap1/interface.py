@@ -75,10 +75,14 @@ class CarInterface(CarInterfaceBase):
               and ap1x_op_long(candidate))
     long_on = s_long or x_long
     standstill = s_long and ap1_standstill_engage(candidate)
-    # Lower on Park (ride_height.py): read once here at car start, like the other file-backed car settings.
-    lower_on_park = (candidate in (CAR.TESLA_AP1_MODELS, CAR.TESLA_AP1_MODELX) and not ret.dashcamOnly
-                     and ride_height.PANDA_TX_SUPPORTED and ride_height.enabled())
-    safety_params = flags_for_candidate(candidate, fingerprint, standstill=standstill, x_long=x_long, ride_height=lower_on_park)
+    # Auto Height (ride_height.py): read once here at car start, like the other file-backed car settings. The Park bit (1024) is
+    # set only while Auto Height is on with a Park height, and the Drive bit (2048) only with a Drive height and once this tree's
+    # panda has the Drive rule. A height set to None leaves its bit off, so with both None the panda refuses every 0x308.
+    ap1_car = candidate in (CAR.TESLA_AP1_MODELS, CAR.TESLA_AP1_MODELX) and not ret.dashcamOnly and ride_height.PANDA_TX_SUPPORTED
+    safety_params = flags_for_candidate(candidate, fingerprint, standstill=standstill, x_long=x_long,
+                                        ride_height=ap1_car and ride_height.park_burst_wanted(),
+                                        ride_height_drive=(ap1_car and ride_height.PANDA_DRIVE_TX_SUPPORTED
+                                                           and ride_height.drive_burst_wanted()))
     ret.openpilotLongitudinalControl = long_on
     if ret.dashcamOnly:
       ret.safetyConfigs = [get_safety_config(structs.CarParams.SafetyModel.noOutput)]

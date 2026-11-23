@@ -17,7 +17,8 @@ def _lane_changes_layout():
 
 
 def _vehicle_info_layout():
-  from openpilot.selfdrive.ui.bogpilot.phase2_vehicle_info import INFO_KEYS, refresh_info_items
+  from openpilot.selfdrive.ui.bogpilot.phase2_vehicle_info import AIR_SUSPENSION, ALL_INFO_KEYS, refresh_info_items
+  from openpilot.selfdrive.ui.bogpilot.toggle_help import attach_help
   from openpilot.selfdrive.ui.ui_state import ui_state
   from openpilot.system.ui.lib.multilang import tr
   from openpilot.system.ui.widgets.list_view import text_item
@@ -26,7 +27,8 @@ def _vehicle_info_layout():
   class VehicleInfoLayout(Widget):
     def __init__(self):
       super().__init__()
-      self.items = {key: text_item(lambda key=key: tr(key), "") for key in INFO_KEYS}
+      self.items = {key: text_item(lambda key=key: tr(key), "") for key in ALL_INFO_KEYS}
+      attach_help(self.items[AIR_SUSPENSION], "AirSuspensionInfo")
       self.scroller = Scroller(list(self.items.values()), line_separator=True, spacing=0)
 
     def _render(self, rect):

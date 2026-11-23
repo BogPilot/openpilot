@@ -172,18 +172,39 @@ _add("AP1XOpenpilotLong", "Tesla AP1 Model X: openpilot Longitudinal (Experiment
           "is untouched. Turning it on or off takes effect the next time the car starts; no reboot is needed. A change made "
           "with the car on is applied when the car is turned off. Be ready to take over.",
      default="On")
-_add("LowerOnPark", "Tesla AP1: Lower on Park",
-     "When you shift into Park, BogPilot asks the air suspension once for the height set in Lower on Park: Height (Low by "
-     "default). The car's own location-based raise is left on, so it still lifts the car at a driveway or garage you saved.",
-     when="If you like the car low when parked but want the automatic raise at home to keep working.",
-     note="Shown only for an AP1 Model S or Model X with air suspension. Sent for about 2 seconds after each shift into Park, never "
-          "while openpilot is engaged or the car is moving. Leaving Park or tapping a height on the touchscreen stops it at once. "
-          "Turning it on or off takes effect the next time the car starts.",
+_add("AutoHeight", "Tesla AP1: Auto Height",
+     "Sets the air suspension height for you. When you shift into Park, BogPilot asks once for the Park height (Low by default); "
+     "when you shift from Park into Drive, it asks once for the Drive height (Medium by default). Set either height to None to "
+     "skip that shift; with both at None nothing is sent. The car's own location-based raise is left on, so it still lifts the "
+     "car at a driveway or garage you saved.",
+     when="If you like the car low when parked and want it raised again before you drive off, for example over a slanted driveway.",
+     note="Shown only for an AP1 Model S or Model X with air suspension. Each request is sent for about 2 seconds after the shift, "
+          "only while the car is stopped and never while openpilot is engaged (in Drive also not while you press the accelerator). "
+          "Leaving that gear, moving, engaging or tapping a height on the touchscreen stops it at once. This was Lower on Park; a "
+          "saved Lower on Park setting and height carry over, and the Drive height then starts at None so nothing changes "
+          "until you pick one. Turning it on or off takes effect the next time the car starts.",
      default="Off")
-_add("LowerOnParkHeight", "Lower on Park: Height",
-     "The height Lower on Park asks for when you shift into Park: Low or Medium.",
-     note="Used from the next shift into Park.",
+_add("AutoHeightPark", "Auto Height: Park",
+     "The height Auto Height asks for when you shift into Park. None leaves the height alone in Park.",
+     note="A height is used from the next shift into Park; a change from or to None applies the next time the car starts. "
+          "Heights above Medium are offered once the panda allows them in Park.",
+     range="Low, Medium, High, Very High, None",
      default="Low")
+_add("AutoHeightDrive", "Auto Height: Drive",
+     "The height Auto Height asks for when you shift from Park into Drive. None leaves the height alone in Drive.",
+     when="Pick Medium or higher if the car scrapes leaving a slanted driveway.",
+     note="Sent only while the car is still stopped in Drive. A height is used from the next shift into Drive; a change from "
+          "or to None applies the next time the car starts. If you used Lower on Park before, this starts at None.",
+     range="Low, Medium, High, Very High, None",
+     default="Medium (None if you used Lower on Park)")
+_add("AirSuspensionInfo", "Air Suspension",
+     "Whether the car reported air suspension, read from the car's configuration message. Detected: the car has air "
+     "suspension, and Auto Height is offered in Vehicle Controls. Not Detected: the car reported coil springs. Unknown (not "
+     "reported yet): the car has not reported it since this software was installed.",
+     when="If Auto Height is missing, check this row. Unknown clears after the car is woken with the comma running, "
+          "usually within a few seconds.",
+     note="Read only, like the other Vehicle Info rows: it shows the last value the car reported, not a live check. Shown only "
+          "for an AP1 Model S or Model X.")
 _add("TeslaTrim", "Trim",
      "Pick the battery and Ludicrous version of your Model S or Model X. The car reports its motors (single or dual motor, and "
      "whether the rear motor is the Performance one), so only matching trims are listed. The trim sets the mass the regen "

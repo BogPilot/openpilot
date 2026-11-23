@@ -10,15 +10,18 @@ FLAG_TESLA_AP1 = int(TeslaAp1SafetyFlags.AP1)
 FLAG_TESLA_LONG_CONTROL = int(TeslaAp1SafetyFlags.LONG_CONTROL)
 FLAG_TESLA_AP1_STANDSTILL = int(TeslaAp1SafetyFlags.STANDSTILL)
 FLAG_TESLA_AP1_RIDE_HEIGHT = int(TeslaAp1SafetyFlags.AP1_RIDE_HEIGHT)
+FLAG_TESLA_AP1_RIDE_HEIGHT_DRIVE = int(TeslaAp1SafetyFlags.AP1_RIDE_HEIGHT_DRIVE)
 
 
-def flags_for_candidate(candidate, fingerprint=None, standstill=False, x_long=False, ride_height=False):
+def flags_for_candidate(candidate, fingerprint=None, standstill=False, x_long=False, ride_height=False, ride_height_drive=False):
   """Safety params tuple (one config) for the teslaAp1 safety model.
 
   x_long is the opt-in AP1 Model X openpilot longitudinal (AP1XOpenpilotLong, experimental). It adds LONG_CONTROL only; the X never
   gets standstill. Default False keeps the Model X lateral-only (flag 8), identical to before.
-  ride_height is Lower on Park (LowerOnPark on at car start): adds AP1_RIDE_HEIGHT (1024) on Model S and Model X, which lets the
-  panda pass the Park-only 0x308 ride height request. Default False keeps every param identical to before.
+  ride_height is Auto Height (AutoHeight on with a Park height other than None at car start, was Lower on Park): adds
+  AP1_RIDE_HEIGHT (1024) on Model S and Model X, which lets the panda pass the 0x308 ride height request in Park. Default False keeps every param identical to before.
+  ride_height_drive is the Drive part of Auto Height (a Drive height other than None): adds AP1_RIDE_HEIGHT_DRIVE (2048) on
+  Model S and Model X, which lets the panda pass the same request in Drive at standstill (only once the panda has that rule). Default False keeps every param identical.
   """
   if FLAG_TESLA_AP1 != 8:
     raise RuntimeError("TESLA_FLAG_AP1 must be 8")
@@ -34,6 +37,8 @@ def flags_for_candidate(candidate, fingerprint=None, standstill=False, x_long=Fa
       flags |= FLAG_TESLA_LONG_CONTROL
   if ride_height and candidate in (CAR.TESLA_AP1_MODELS, CAR.TESLA_AP1_MODELX):
     flags |= FLAG_TESLA_AP1_RIDE_HEIGHT
+  if ride_height_drive and candidate in (CAR.TESLA_AP1_MODELS, CAR.TESLA_AP1_MODELX):
+    flags |= FLAG_TESLA_AP1_RIDE_HEIGHT_DRIVE
   return (flags,)
 
 

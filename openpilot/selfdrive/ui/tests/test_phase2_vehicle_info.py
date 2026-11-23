@@ -3,6 +3,7 @@ import unittest
 from types import SimpleNamespace as NS
 from openpilot.selfdrive.ui.bogpilot.phase2_vehicle_info import (
   INFO_KEYS, NOT_DETECTED, LAST_UNVERIFIED, CURRENT, vehicle_info, refresh_info_items,
+  AIR_SUSPENSION, ALL_INFO_KEYS, AIR_DETECTED, AIR_NOT_DETECTED, AIR_UNKNOWN, read_air_suspension,
 )
 
 
@@ -74,6 +75,70 @@ class TestVehicleInfo(unittest.TestCase):
     self.assertEqual(items["Vehicle Info"].text, NOT_DETECTED)
     self.assertEqual(items["Detected Make"].text, "Unavailable")
     self.assertTrue(all(item.visible for item in items.values()))
+
+
+class TestAirSuspensionRow(unittest.TestCase):
+  def test_ap1_model_s_and_x_show_the_three_states(self):
+    for fp in ("TESLA_AP1_MODELS", "TESLA_AP1_MODELX"):
+      self.assertEqual(vehicle_info(cp(carFingerprint=fp), air_suspension=True)[AIR_SUSPENSION], AIR_DETECTED)
+      self.assertEqual(vehicle_info(cp(carFingerprint=fp), air_suspension=False)[AIR_SUSPENSION], AIR_NOT_DETECTED)
+      self.assertEqual(vehicle_info(cp(carFingerprint=fp), air_suspension=None)[AIR_SUSPENSION], AIR_UNKNOWN)
+      self.assertEqual(vehicle_info(cp(carFingerprint=fp), air_suspension=lambda: True)[AIR_SUSPENSION], AIR_DETECTED)
+    self.assertEqual(AIR_UNKNOWN, "Unknown (not reported yet)")
+
+  def test_other_cars_and_no_car_have_no_row(self):
+    for obj in (None, cp(carFingerprint="TESLA_PREAP_MODELS"), cp(carFingerprint="TEST_PLATFORM"), cp(notCar=True),
+                cp(carFingerprint="")):
+      self.assertNotIn(AIR_SUSPENSION, vehicle_info(obj, air_suspension=True))
+
+  def test_existing_rows_unchanged_and_last_detected_wording_kept(self):
+    rows = vehicle_info(cp(), air_suspension=True)
+    self.assertEqual(tuple(rows), INFO_KEYS + (AIR_SUSPENSION,))
+    self.assertEqual(rows["Vehicle Info"], LAST_UNVERIFIED)
+    self.assertEqual(ALL_INFO_KEYS[:len(INFO_KEYS)], INFO_KEYS)
+
+  def test_reads_the_air_suspension_detected_file(self):
+    import tempfile
+    from pathlib import Path
+    from opendbc.car.tesla_ap1 import ride_height
+    with tempfile.TemporaryDirectory() as d:
+      f = Path(d) / ride_height.DETECTED_KEY
+      self.assertIsNone(read_air_suspension(f))
+      f.write_text("1")
+      self.assertTrue(read_air_suspension(f))
+      f.write_text("0")
+      self.assertFalse(read_air_suspension(f))
+      self.assertEqual(ride_height._detected_path.name, "AirSuspensionDetected")
+
+  def test_refresh_hides_the_row_for_other_cars(self):
+    class Item:
+      def __init__(self):
+        self.action_item = self
+      def set_visible(self, value):
+        self.visible = value
+      def set_text(self, value):
+        self.text = value
+    items = {key: Item() for key in ALL_INFO_KEYS}
+    refresh_info_items(items, cp(), air_suspension=None)
+    self.assertTrue(items[AIR_SUSPENSION].visible)
+    self.assertEqual(items[AIR_SUSPENSION].text, AIR_UNKNOWN)
+    refresh_info_items(items, cp(carFingerprint="TESLA_PREAP_MODELS"), air_suspension=True)
+    self.assertFalse(items[AIR_SUSPENSION].visible)
+    refresh_info_items(items, None, air_suspension=True)
+    self.assertFalse(items[AIR_SUSPENSION].visible)
+    self.assertTrue(items["Vehicle Info"].visible)
+
+  def test_help_entry_exists_and_layout_attaches_it(self):
+    from pathlib import Path
+    from openpilot.selfdrive.ui.bogpilot.toggle_help import resolve
+    entry = resolve("AirSuspensionInfo")
+    self.assertIsNotNone(entry)
+    self.assertEqual(entry.title, "Air Suspension")
+    for word in ("Detected", "Not Detected", "Unknown (not reported yet)", "Auto Height"):
+      self.assertIn(word, entry.what + entry.when + entry.note)
+    src = (Path(__file__).resolve().parents[1] / "layouts/settings/bogpilot.py").read_text()
+    self.assertIn('attach_help(self.items[AIR_SUSPENSION], "AirSuspensionInfo")', src)
+    self.assertIn("for key in ALL_INFO_KEYS", src)
 
 
 if __name__ == "__main__":

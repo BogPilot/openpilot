@@ -1,4 +1,4 @@
-"""Lower on Park (ride_height.py): the 0x308 burst logic, the frame it builds, car state parsing and the controller gate."""
+"""Auto Height, Park part (ride_height.py LowerOnPark; was Lower on Park): the 0x308 burst logic, the frame it builds, car state parsing and the controller gate."""
 from types import SimpleNamespace
 
 import pytest
@@ -36,7 +36,9 @@ def run_burst(lop, ticks=400, **kw):
 def test_frame_replaces_only_byte0():
   assert rh.frame_with_level(SCREEN, LOW) == bytes.fromhex("4166ad0b3200f500")
   assert rh.frame_with_level(bytes.fromhex("4066d20b3200f400"), MED) == bytes.fromhex("4266d20b3200f400")
-  for bad in (0, 3, 4, 5):
+  assert rh.frame_with_level(SCREEN, rh.LEVEL_HIGH) == bytes.fromhex("4366ad0b3200f500")
+  assert rh.frame_with_level(SCREEN, rh.LEVEL_VERY_HIGH) == bytes.fromhex("4466ad0b3200f500")
+  for bad in (0, 5, 6, -1, 0xBF):
     with pytest.raises(ValueError):
       rh.frame_with_level(SCREEN, bad)
   with pytest.raises(ValueError):
@@ -109,7 +111,7 @@ def test_burst_aborts(abort):
 @pytest.mark.parametrize("why,kw", [
   ("no panda permission", dict(tx=False)),
   ("off", dict(prefs=(False, LOW))),
-  ("bad level", dict(prefs=(True, 3))),
+  ("bad level", dict(prefs=(True, 5))),
   ("engaged or moving", dict(active=True)),
   ("engaged or moving", dict(v=0.3)),
   ("screen busy or 0x308 missing", dict(src=None)),
@@ -140,19 +142,83 @@ def test_prefs_read_only_at_park_entry():
   assert len(calls) == 1
 
 
+@pytest.mark.parametrize("level", [1, 2, 3, 4])
+def test_park_levels_follow_the_panda_gate(monkeypatch, level):
+  monkeypatch.setattr(rh, "PANDA_PARK_LEVELS", (1, 2))
+  lop = rh.LowerOnPark()
+  out = enter_park(lop, prefs=(True, level))
+  if level <= 2:
+    assert out == rh.frame_with_level(SCREEN, level)
+  else:
+    assert out is None and lop.last_result == "bad level"
+  monkeypatch.setattr(rh, "PANDA_PARK_LEVELS", (1, 2, 3, 4))
+  lop = rh.LowerOnPark()
+  assert enter_park(lop, prefs=(True, level)) == rh.frame_with_level(SCREEN, level)
+  burst = [f for f in run_burst(lop, prefs=(True, level)) if f is not None]
+  assert len(burst) == rh.BURST_FRAMES - 1 and {f[0] for f in burst} == {0x40 + level}
+
+
+def test_park_choices_follow_the_panda_gate(monkeypatch):
+  monkeypatch.setattr(rh, "PANDA_PARK_LEVELS", (1, 2))
+  assert rh.park_choices() == ("low", "medium", "none")
+  monkeypatch.setattr(rh, "PANDA_PARK_LEVELS", (1, 2, 3, 4))
+  assert rh.park_choices() == ("low", "medium", "high", "very_high", "none")
+
+
 # ---- files ----
+def test_keys_levels_and_labels():
+  assert (rh.ENABLE_KEY, rh.HEIGHT_KEY, rh.DRIVE_HEIGHT_KEY) == ("AutoHeight", "AutoHeightPark", "AutoHeightDrive")
+  assert (rh.LEGACY_ENABLE_KEY, rh.LEGACY_HEIGHT_KEY) == ("LowerOnPark", "LowerOnParkHeight")
+  assert rh.HEIGHTS == ("low", "medium", "high", "very_high") and rh.LEVELS == (1, 2, 3, 4)
+  assert rh.LEVEL_BY_HEIGHT == {"low": 1, "medium": 2, "high": 3, "very_high": 4}
+  assert rh.HEIGHT_LABELS == {"low": "Low", "medium": "Medium", "high": "High", "very_high": "Very High", "none": "None"}
+  assert rh.NONE == "none" and rh.CHOICES == ("low", "medium", "high", "very_high", "none")
+  assert rh.HEIGHT_DEFAULT == "low" and rh.DRIVE_HEIGHT_DEFAULT == "medium"
+
+
 def test_files_defaults_and_round_trip(tmp_path):
-  e, h, d = tmp_path / "LowerOnPark", tmp_path / "LowerOnParkHeight", tmp_path / "AirSuspensionDetected"
+  e, h, dr, d = tmp_path / "AutoHeight", tmp_path / "AutoHeightPark", tmp_path / "AutoHeightDrive", tmp_path / "AirSuspensionDetected"
   assert rh.enabled(path=e) is False and rh.height(path=h) == "low" and rh.level_for(path=h) == LOW
+  assert rh.drive_height(path=dr) == "medium" and rh.drive_level_for(path=dr) == MED
   assert rh.air_suspension_detected(path=d) is False
-  rh.set_enabled(True, path=e); rh.set_height("medium", path=h)
-  assert rh.enabled(path=e) is True and rh.height(path=h) == "medium" and rh.level_for(path=h) == MED
-  for junk in ("", "2", "high", "very high", "garbage"):
-    assert rh.height(junk) == "low"
-  with pytest.raises(ValueError):
-    rh.set_height("high", path=h)
+  rh.set_enabled(True, path=e); rh.set_height("very_high", path=h); rh.set_drive_height("high", path=dr)
+  assert e.read_text() == "1" and h.read_text() == "very_high" and dr.read_text() == "high"
+  assert rh.enabled(path=e) is True and rh.level_for(path=h) == 4 and rh.drive_level_for(path=dr) == 3
+  assert rh.height("very high") == "very_high" and rh.height(b"high") == "high"
+  for junk in ("", "2", "veryhigh", "off", "garbage"):
+    assert rh.height(junk) == "low" and rh.drive_height(junk) == "medium"
+  for bad in ("off", "", "extra_high"):
+    with pytest.raises(ValueError):
+      rh.set_height(bad, path=h)
+    with pytest.raises(ValueError):
+      rh.set_drive_height(bad, path=dr)
   assert rh.write_air_suspension_detected(True, path=d) is True and rh.write_air_suspension_detected(True, path=d) is False
   assert rh.air_suspension_detected(path=d) is True
+
+
+@pytest.mark.parametrize("old_on, old_height", [("1", "low"), ("1", "medium"), ("0", "medium"), ("1", None), (None, "medium")])
+def test_lower_on_park_files_carry_over_untouched(tmp_path, old_on, old_height):
+  if old_on is not None:
+    (tmp_path / "LowerOnPark").write_text(old_on)
+  if old_height is not None:
+    (tmp_path / "LowerOnParkHeight").write_text(old_height)
+  before = {p.name: p.read_text() for p in tmp_path.iterdir()}
+  e, h = tmp_path / "AutoHeight", tmp_path / "AutoHeightPark"
+  assert rh.enabled(path=e) is (old_on == "1")
+  assert rh.height(path=h) == (old_height or "low")
+  assert rh.drive_height(path=tmp_path / "AutoHeightDrive") == "none"           # moved over: Drive starts at None
+  assert {p.name: p.read_text() for p in tmp_path.iterdir()} == before          # reading writes nothing
+  # Once the new key is written it decides; the old files stay as they were.
+  rh.set_enabled(old_on != "1", path=e); rh.set_height("high", path=h)
+  assert rh.enabled(path=e) is (old_on != "1") and rh.height(path=h) == "high"
+  for name, value in before.items():
+    assert (tmp_path / name).read_text() == value
+
+
+def test_default_paths_sit_with_the_old_ones():
+  assert rh._enable_path.parent == rh._height_path.parent == rh._drive_height_path.parent == rh.PARAMS_DIR
+  assert rh._enable_path.name == "AutoHeight" and rh._height_path.name == "AutoHeightPark"
+  assert rh._drive_height_path.name == "AutoHeightDrive"
 
 
 def test_car_config_flag():
@@ -283,3 +349,46 @@ def test_controller_step_tolerates_minimal_carstate(monkeypatch, fp):
   stub = SimpleNamespace(out=SimpleNamespace())
   assert _controller(fp, 8).lower_on_park_frame(_cc(), stub) is None
   assert _controller(fp, 8 | 1024).lower_on_park_frame(_cc(), stub) is None
+
+
+def test_read_air_suspension_detected_is_tri_state(tmp_path):
+  d = tmp_path / "AirSuspensionDetected"
+  assert rh.read_air_suspension_detected(d) is None          # not reported yet: no file
+  rh.write_air_suspension_detected(True, d)
+  assert rh.read_air_suspension_detected(d) is True
+  rh.write_air_suspension_detected(False, d)
+  assert rh.read_air_suspension_detected(d) is False
+  for junk in ("", "2", "yes", "\x00"):
+    d.write_text(junk)
+    assert rh.read_air_suspension_detected(d) is None, junk
+  d.write_text(" 1\n")
+  assert rh.read_air_suspension_detected(d) is True
+  assert not d.with_name(d.name + ".tmp").exists()
+
+
+# ---- None ----
+def test_park_none_file_round_trip(tmp_path):
+  h = tmp_path / "AutoHeightPark"
+  rh.set_height("none", path=h)
+  assert h.read_text() == "none" and rh.height(path=h) == "none" and rh.level_for(path=h) is None
+  assert rh.height("None") == "none" and rh.level_for("none") is None
+
+
+def test_park_none_sends_nothing():
+  lop = rh.LowerOnPark()
+  assert enter_park(lop, prefs=(True, None)) is None and lop.last_result == "none"
+  assert all(f is None for f in run_burst(lop, prefs=(True, None)))
+  assert step(lop, park=False) is None
+  assert enter_park(lop, prefs=(True, None)) is None                # every Park entry skipped
+  assert enter_park(lop, prefs=(True, LOW)) == rh.frame_with_level(SCREEN, LOW)   # a height again: sends again
+
+
+def test_burst_wanted_follows_master_and_none(tmp_path):
+  e, h, dr = tmp_path / "AutoHeight", tmp_path / "AutoHeightPark", tmp_path / "AutoHeightDrive"
+  assert rh.park_burst_wanted(path=h, enable_path=e) is False and rh.drive_burst_wanted(path=dr, enable_path=e) is False
+  rh.set_enabled(True, path=e)
+  assert rh.park_burst_wanted(path=h, enable_path=e) is True and rh.drive_burst_wanted(path=dr, enable_path=e) is True
+  rh.set_height("none", path=h)
+  assert rh.park_burst_wanted(path=h, enable_path=e) is False and rh.drive_burst_wanted(path=dr, enable_path=e) is True
+  rh.set_drive_height("none", path=dr)
+  assert rh.park_burst_wanted(path=h, enable_path=e) is False and rh.drive_burst_wanted(path=dr, enable_path=e) is False
