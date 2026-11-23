@@ -723,14 +723,15 @@ class TestRecorderRealEncode(unittest.TestCase):
     self.assertTrue(path.endswith(".mp4"))
     self.assertFalse(os.path.exists(path + ".lock"))
     st = self.probe(path)
-    self.assertEqual((st["codec_name"], st["width"], st["height"], st["pix_fmt"]), ("h264", w, h, "yuv420p"))
+    self.assertEqual((st["codec_name"], st["width"], st["height"], st["pix_fmt"]), ("h264", w // SR.SCALE_DIV, h // SR.SCALE_DIV, "yuv420p"))
     self.assertGreaterEqual(int(st["nb_read_frames"]), 20)   # dropped-oldest queue may drop a few under load
     # colours survive the encode (top red, bottom blue)
     raw = subprocess.run([FFMPEG, "-v", "error", "-i", path, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
                          capture_output=True, check=True).stdout
-    px = lambda x, y: raw[(y * w + x) * 3:(y * w + x) * 3 + 3]  # noqa: E731
-    self.assertGreater(px(160, 20)[0], 200)
-    self.assertGreater(px(160, 140)[2], 200)
+    ow = w // SR.SCALE_DIV   # encoded at half size
+    px = lambda x, y: raw[(y * ow + x) * 3:(y * ow + x) * 3 + 3]  # noqa: E731
+    self.assertGreater(px(160 // SR.SCALE_DIV, 20 // SR.SCALE_DIV)[0], 200)
+    self.assertGreater(px(160 // SR.SCALE_DIV, 140 // SR.SCALE_DIV)[2], 200)
 
   def test_killed_writer_leaves_playable_fragmented_file(self):
     enc = SR.FfmpegEncoder(os.path.join(self.dir, "crash.mp4"), 64, 32, 10, 1_000_000)
@@ -758,7 +759,9 @@ class TestRecorderRealEncode(unittest.TestCase):
 
   def test_encoder_rejects_stream(self):
     # odd width is rejected by libx264 yuv420p -> ffmpeg exits non-zero; partial file and lock are removed
-    e = SR.RecorderEngine(self.dir, free_fn=lambda p: 10 << 30)
+    # (full size: the half-size scale filter would round 7x7 to an even size and accept it)
+    e = SR.RecorderEngine(self.dir, free_fn=lambda p: 10 << 30,
+                          encoder_factory=lambda p, w, h: SR.FfmpegEncoder(p, w, h, 10, 1_000_000, scale_div=1))
     self.assertTrue(e.start())
     for _ in range(5):
       e.submit_frame(bytes(4 * 7 * 7), 7, 7)
