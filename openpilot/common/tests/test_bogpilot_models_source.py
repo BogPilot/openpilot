@@ -30,7 +30,9 @@ class TestAllowlist(unittest.TestCase):
     for url in (OK, OK_LATEST, OK_API,
                 "https://api.github.com/repos/BogPilot/driving-models/releases",
                 "https://api.github.com/repos/BogPilot/driving-models/releases/latest",
-                "https://api.github.com/repos/BogPilot/driving-models/releases/tags/v1.0"):
+                "https://api.github.com/repos/BogPilot/driving-models/releases/tags/v1.0",
+                "https://github.com/BogPilot/models/releases/download/cheddar-b3ab22efe-0.11.2/driving_tinygrad.pkl",
+                "https://github.com/BogPilot/openpilot/releases/download/cheddar-b3ab22efe-0.11.2/driving_tinygrad.pkl"):
       with self.subTest(url=url):
         self.assertTrue(source.allowed_source_url(url))
 
@@ -44,6 +46,8 @@ class TestAllowlist(unittest.TestCase):
       "https://github.com/BogPilot/driving-models/archive/refs/tags/v1.tar.gz",
       "https://github.com/BogPilot/driving-models/raw/main/model.onnx",
       "https://api.github.com/repos/commaai/openpilot/releases/assets/1",
+      "https://github.com/NotBogPilot/models/releases/download/cheddar-b3ab22efe-0.11.2/driving_tinygrad.pkl",
+      "https://github.com/BogPilot/models/blob/main/driving_tinygrad.pkl",
       "file:///tmp/model.onnx",
       "https://example.com/model.onnx",
       "",
@@ -103,9 +107,8 @@ class TestLicenses(unittest.TestCase):
       with self.subTest(name=name):
         self.assertFalse(source.license_is_redistributable(name))
 
-  def test_catalog_is_empty_and_skips_bad_entries(self):
-    self.assertEqual(source.CATALOG, ())
-    self.assertEqual(source.catalog_entries(), ())
+  def test_catalog_offers_cheddar_and_skips_bad_entries(self):
+    self.assertEqual([e["id"] for e in source.catalog_entries()], ["cheddar"])
     offered = source.catalog_entries((
       {"id": "ok", "license": "MIT", "url": OK},
       {"id": "unclear", "license": "", "url": OK},

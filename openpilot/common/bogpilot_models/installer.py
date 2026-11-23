@@ -12,7 +12,7 @@ Steps, all of which must pass before anything appears in the models directory:
   1. offroad (`is_offroad()` must return exactly True), license redistributable, every URL on our GitHub releases;
   2. each file is fetched through source.fetch_bytes (allowlist on every hop, sha256 checked) and its size checked;
   3. files and a manifest.json are written to a hidden staging directory (`.staging-<id>-<pid>`) under the models
-     directory, then the staged model goes through registry.validate_entry (hashes + 0.11.2 ABI compatibility);
+     directory, then the staged model goes through registry.validate_entry (hashes + fits the 0.11.2 driving code);
   4. only a model that validates is moved into place with a rename. A previous install of the same id is moved
      aside first and deleted only after the new one is in place; on any failure the old one is restored.
 Every failure removes the staging directory and returns a reason; nothing here raises.
@@ -65,6 +65,8 @@ def screen(item) -> str:
   """'' if the catalog item may be fetched at all, else why not. No network."""
   if not isinstance(item, dict):
     return "not a catalog entry"
+  if item.get("published", True) is not True:
+    return "not published on our GitHub releases yet"
   if not source.license_is_redistributable(item.get("license")):
     return "license is missing or not cleared for redistribution"
   files = item.get("files")

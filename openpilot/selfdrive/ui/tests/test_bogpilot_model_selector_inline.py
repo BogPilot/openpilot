@@ -40,7 +40,7 @@ class TestInline(Base):
     self.assertEqual(snap.choices, ((STOCK_ID, STOCK_NAME),))
     self.assertIsNone(c.step(1))
     self.assertIsNone(c.step(-1))
-    self.assertEqual(snap.downloads, ())   # the shipped catalog is empty
+    self.assertEqual([d[0] for d in snap.downloads], ["cheddar"])   # the shipped catalog offers Cheddar only
 
   def test_steps_through_usable_models_only_without_wrapping(self):
     fx.install_model(self.root, "a-model", name="A")

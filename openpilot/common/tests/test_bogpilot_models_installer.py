@@ -202,8 +202,9 @@ class TestInstall(Base):
     self.assertIsNone(store.raw(selection.KEY_SELECTION))
     self.assertFalse((self.root / "hosted").exists())
 
-  def test_shipped_catalog_is_empty_and_excluded_list_is_names_only(self):
-    self.assertEqual(source.CATALOG, ())
+  def test_shipped_catalog_and_excluded_list_is_names_only(self):
+    self.assertEqual([i["id"] for i in source.CATALOG], ["cheddar"])
+    self.assertNotIn(STOCK_ID, [i["id"] for i in source.CATALOG])
     self.assertTrue(source.EXCLUDED)
     for name, why in source.EXCLUDED:
       self.assertNotIn("http", name + why)

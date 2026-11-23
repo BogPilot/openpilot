@@ -105,7 +105,7 @@ class ModelSelectorController:
                transport=None, download_gate=None):
     self.is_offroad = is_offroad
     self.download_gate = download_gate or (lambda: False)  # no gate given: downloads are refused
-    self.catalog = catalog        # None: source.CATALOG (empty until we publish a model on our GitHub releases)
+    self.catalog = catalog        # None: source.CATALOG (the models published on our GitHub releases)
     self.transport = transport    # None: installer.https_transport
     self.started = started or (lambda: False)
     self.on_change = on_change or (lambda: None)

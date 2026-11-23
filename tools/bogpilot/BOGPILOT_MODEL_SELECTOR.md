@@ -11,8 +11,9 @@ paraphrased. The only inputs are this tree's own modeld.py contract and the ship
   only from our own GitHub releases (org BogPilot; redirects only to GitHub release-asset hosts,
   `source.py`), checks every file's pinned sha256 and size, stages it in a hidden directory, runs the full
   validation below, and only then renames it into `/data/bogpilot/models/<id>/`. A failed update keeps the old
-  install. Installing never changes the choice. The shipped catalog (`source.CATALOG`) is empty: no model besides
-  the stock one is both license-clear and 0.11.2-compatible today. `source.EXCLUDED` lists the reviewed ones and why.
+  install. Installing never changes the choice. The shipped catalog (`source.CATALOG`) offers comma.ai's Cheddar (openpilot b3ab22efe, MIT), hosted on the
+  BogPilot/models release `cheddar-b3ab22efe-0.11.2` (bench-compiled QCOM `driving_tinygrad.pkl` sha256 050d74e9..., the
+  ONNX and the MIT notice); Default stays the stock model. `source.EXCLUDED` lists the reviewed models that are not offered and why. Notice: `bogpilot_models/notices/`.
   Sideloading a directory under `/data/bogpilot/models/` (override: `BOGPILOT_MODELS_DIR`) still works.
 
 ## Registry format
@@ -45,9 +46,16 @@ paraphrased. The only inputs are this tree's own modeld.py contract and the ship
    symlinks) matching its sha256; a listed `driving_onnx` file must match `onnx_sha256`;
 2. static ABI read of the pickle WITHOUT importing tinygrad or running anything (every global becomes an inert stub);
 3. the pickle may only reference classes the stock model references (allow-list from stock.py);
-4. interface equals what modeld.ModelState consumes: `new_img/desire/traffic_convention/action_t` identical to stock,
-   any extra state queue needs a matching `next_<name>` output, `outputs` identical, all `output_slices` names and
-   lengths identical to stock, metadata shapes consistent with the tensor specs, warp input specs identical to stock.
+4. the interface fits what this tree's modeld.ModelState feeds and reads (`compat.check_driving_abi`; it is not an
+   "identical to stock" check): `new_img/desire/traffic_convention/action_t` identical to stock; every other input
+   must be one of the three 0.11.2 history queues (`state_img_q`, `state_desire_q`, `state_feat_q`) with a matching
+   `next_<name>` output, the same dtype and axes, and a history length from the metadata (at most 4x stock); any
+   other input (for example sunnypilot's `speed_limit`, `light_img`, `state_curve`) is rejected because modeld would
+   leave it at zero; one `outputs` vector [1, N] with N from the metadata and no other outputs; `output_slices` from
+   the metadata, every slice the parser reads present with its stock width and inside N, plus optional `action`
+   (width 2 or 4; modeld drives from action[0,0]/[0,1] when present) and `pad`; metadata shapes consistent with the
+   tensor specs; warp input specs identical to stock. `tools/bogpilot/onnx_io_abi.py <model.onnx> --check` runs the
+   same check on an ONNX before anyone compiles it.
 Anything else is "Not usable: <reason>" on the page and can never be selected.
 
 ## Selection and loading
