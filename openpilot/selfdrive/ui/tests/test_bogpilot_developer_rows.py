@@ -61,10 +61,10 @@ class TestSlots(unittest.TestCase):
   def test_each_cycle_visits_every_content_once_and_wraps(self):
     seen = []
     chip = "cpu"
-    for _ in range(3):
-      chip = SM.slot_choices({**flags(), **SM.cycle_chip(chip)})[0]
+    for _ in range(4):
+      chip = SM.slot_choices({**flags(), **SM.cycle_chip(chip), "ModeldChip": SM.next_chip(chip) == "modeld"})[0]
       seen.append(chip)
-    self.assertEqual(seen, ["gpu", "cpu", "gpu"])
+    self.assertEqual(seen, ["gpu", "modeld", "cpu", "gpu"])
     seen, memory = [], "memory"
     for _ in range(4):
       memory = SM.slot_choices({**flags(), **SM.cycle_memory(memory)})[1]
@@ -82,7 +82,8 @@ class TestSlots(unittest.TestCase):
     for current in SM.CHIP_CYCLE:
       writes = SM.cycle_chip(current)
       self.assertEqual(sorted(writes), sorted(SM.CHIP_KEYS))
-      self.assertEqual(sum(writes.values()), 1)
+      # the MODELD step clears both Params flags; the SidebarChipSlot file choice selects it
+      self.assertEqual(sum(writes.values()), 0 if SM.next_chip(current) == "modeld" else 1)
     for current in SM.MEMORY_CYCLE:
       writes = SM.cycle_memory(current)
       self.assertEqual(sorted(writes), sorted(SM.MEMORY_KEYS))
@@ -106,26 +107,82 @@ class TestReadings(unittest.TestCase):
     self.assertEqual(SM.chip_reading(device(), "cpu", fresh=True), SM.Reading("20%", "good"))
     self.assertEqual(SM.chip_reading(device(), "gpu", fresh=True, gpu_percent=gpu(90.0)).level, "danger")
 
-  def test_gpu_parsing_from_the_kgsl_counters(self):
-    self.assertEqual(SM.GPU_BUSY_PATH, "/sys/class/kgsl/kgsl-3d0/gpubusy")
-    self.assertEqual(SM.parse_gpu_busy("73 100\n"), 73.0)
-    self.assertEqual(SM.parse_gpu_busy(b"1 4"), 25.0)
-    self.assertEqual(SM.parse_gpu_busy("0 5000"), 0.0)   # a real idle zero is a number
-    self.assertEqual(SM.parse_gpu_busy("9 4"), 100.0)    # clamped
-    for bad in ("", "0 0", "5", "a b", "1 2 3", "-1 4", "1 -4", None, 5, "nan inf"):
-      self.assertIsNone(SM.parse_gpu_busy(bad), bad)
+  def test_clock_stats_parsing(self):
+    self.assertEqual(SM.GPU_CLOCK_STATS_PATH, "/sys/class/kgsl/kgsl-3d0/gpu_clock_stats")
+    self.assertEqual(SM.parse_clock_stats("0 683370072 0 0 0 0 4354\n"), 683374426)
+    self.assertEqual(SM.parse_clock_stats(b"1 2 3"), 6)
+    self.assertEqual(SM.parse_clock_stats("0"), 0)
+    for bad in ("", "  ", "a b", "1 -2", "1.5 2", None, 5):
+      self.assertIsNone(SM.parse_clock_stats(bad), bad)
 
-  def test_gpu_reading_from_a_file_and_unavailable_is_a_dash(self):
+  def _reader(self, d, text="0 1000 0"):
+    f = Path(d) / "gpu_clock_stats"
+    f.write_text(text)
+    t = [0]
+    return f, t, SM.GpuClockStats(str(f), clock_us=lambda: t[0])
+
+  def test_delta_math_first_sample_dash_and_clamp(self):
     with tempfile.TemporaryDirectory() as d:
-      f = Path(d) / "gpubusy"
-      f.write_text("730 1000\n")
-      self.assertEqual(SM.read_gpu_percent(str(f)), 73.0)
-      self.assertEqual(SM.chip_reading(device(), "gpu", fresh=True, gpu_percent=lambda: SM.read_gpu_percent(str(f))),
-                       SM.Reading("73%", "warning"))
+      f, t, r = self._reader(d, "0 1000 0")
+      self.assertIsNone(r.percent())                       # first sample: no window yet
+      t[0] = 1_000_000
+      f.write_text("0 501000 0")                           # 500 ms busy in 1 s
+      self.assertEqual(r.percent(), 50.0)
+      t[0] = 2_000_000
+      f.write_text("100000 501000 400000")                 # sum grows by 500 ms across levels
+      self.assertEqual(r.percent(), 50.0)
+      t[0] = 3_000_000
+      f.write_text("100000 501000 400000")                 # idle second is a real 0
+      self.assertEqual(r.percent(), 0.0)
+      t[0] = 4_000_000
+      f.write_text("100000 9501000 400000")                # more busy than wall time: clamp
+      self.assertEqual(r.percent(), 100.0)
+
+  def test_reset_wrap_clock_back_missing_and_garbage_restart_the_window(self):
+    with tempfile.TemporaryDirectory() as d:
+      f, t, r = self._reader(d, "0 5000000 0")
+      r.percent()
+      t[0] = 1_000_000
+      f.write_text("0 10 0")                               # counter went down: reset or wrap
+      self.assertIsNone(r.percent())
+      t[0] = 2_000_000
+      f.write_text("0 500010 0")
+      self.assertEqual(r.percent(), 50.0)                  # the next window is fresh
+      t[0] = 1_500_000                                     # monotonic clock cannot go back; if it did, no value
+      self.assertIsNone(r.percent())
+      t[0] = 3_000_000
       f.write_text("garbage")
-      self.assertIsNone(SM.read_gpu_percent(str(f)))
-      self.assertIsNone(SM.read_gpu_percent(str(Path(d) / "missing")))
-      self.assertIsNone(SM.read_gpu_percent(d))   # a directory is unreadable
+      self.assertIsNone(r.percent())
+      f.unlink()
+      self.assertIsNone(r.percent())                       # missing file
+      f.write_text("0 100 0")
+      self.assertIsNone(r.percent())                       # first sample again after a gap
+      t[0] = 4_000_000
+      f.write_text("0 250100 0")
+      self.assertEqual(r.percent(), 25.0)
+      self.assertIsNone(SM.GpuClockStats(d).percent())     # a directory is unreadable
+
+  def test_rapid_repeat_reads_keep_the_last_value(self):
+    with tempfile.TemporaryDirectory() as d:
+      f, t, r = self._reader(d, "0 0 0")
+      r.percent()
+      t[0] = 500_000
+      f.write_text("0 250000 0")
+      self.assertEqual(r.percent(), 50.0)
+      t[0] = 500_000 + SM.GPU_MIN_SAMPLE_US - 1
+      f.write_text("0 400000 0")
+      self.assertEqual(r.percent(), 50.0)                  # a tap redraw does not make a tiny noisy window
+      t[0] = 1_000_000
+      self.assertEqual(r.percent(), 30.0)                  # 150000 us more over 500 ms, since the first window ended
+
+  def test_chip_reading_from_the_reader_and_unavailable_is_a_dash(self):
+    with tempfile.TemporaryDirectory() as d:
+      f, t, r = self._reader(d, "0 0 0")
+      self.assertEqual(SM.chip_reading(device(), "gpu", fresh=True, gpu_percent=lambda: SM.read_gpu_percent(r)), SM.Reading())
+      t[0] = 1_000_000
+      f.write_text("0 730000 0")
+      self.assertEqual(SM.chip_reading(device(), "gpu", fresh=True, gpu_percent=lambda: SM.read_gpu_percent(r)),
+                       SM.Reading("73%", "warning"))
     self.assertEqual(SM.chip_reading(device(), "gpu", fresh=True, gpu_percent=lambda: None), SM.Reading())
 
   def test_unavailable_is_never_zero(self):
@@ -250,11 +307,13 @@ class TestSidebar(unittest.TestCase):
       s._draw_metrics(m.rl.Rectangle(0, 0, 300, 1080))
     return m, s, writes, tap
 
-  def test_tap_in_the_chip_box_cycles_cpu_and_gpu_and_saves_it(self):
+  def test_tap_in_the_chip_box_cycles_cpu_gpu_modeld_and_saves_it(self):
     m, s, writes, tap = self.tapper({"ShowCPU": "1", "ShowMemoryUsage": "1", "NumericalTemp": "1"})
     tap(100, 496 + 60)
     self.assertEqual(writes, {"ShowCPU": False, "ShowGPU": True})
     self.assertEqual(s._slot_chip, "gpu")
+    tap(100, 496 + 60)
+    self.assertEqual((writes["ShowCPU"], writes["ShowGPU"], s._slot_chip), (False, False, "modeld"))   # MODELD: file choice
     tap(100, 496 + 60)
     self.assertEqual((writes["ShowCPU"], writes["ShowGPU"], s._slot_chip), (True, False, "cpu"))
 
@@ -286,6 +345,8 @@ class TestSidebar(unittest.TestCase):
   def test_the_cycle_starts_from_what_is_stored_not_from_zero(self):
     m, s, writes, tap = self.tapper({"ShowGPU": "1", "ShowMemoryUsage": "1", "NumericalTemp": "1"})
     self.assertEqual((s._slot_chip, s._temp_mode), ("gpu", "fahrenheit"))
+    tap(100, 496 + 60)
+    self.assertEqual(s._slot_chip, "modeld")
     tap(100, 496 + 60)
     self.assertEqual(s._slot_chip, "cpu")
     tap(100, 338 + 60)
@@ -327,7 +388,7 @@ class TestSidebar(unittest.TestCase):
   def test_stale_device_state_shows_dashes(self):
     m, s = make_sidebar({"ShowGPU": True, "ShowStorageLeft": True})
     s._update_hardware_metrics(None, fresh=False)
-    self.assertEqual({k: v.value for k, v in s._extra_status.items()}, {"gpu": "--", "storage_left": "--", "storage_used": "--"})
+    self.assertEqual({k: v.value for k, v in s._extra_status.items()}, {"gpu": "--", "modeld": "--", "storage_left": "--", "storage_used": "--"})
 
 
 def native_window(title: str) -> None:

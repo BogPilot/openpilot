@@ -19,6 +19,7 @@ it always comes back while the panda is not seen ("NO PANDA"), whatever was chos
 from __future__ import annotations
 
 import math
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -103,6 +104,10 @@ def metric_visibility_from_params(params) -> "tuple[bool, bool, bool, bool]":
 
 # --- Sidebar slots: CPU / GPU and memory / storage left / storage used ---
 CHIP_KEYS = ("ShowCPU", "ShowGPU")
+# The MODELD chip is a third content of the chip slot. It has no Params key (a new key needs a native rebuild), so it is a file
+# choice like the vehicle slot: "modeld" selects it, anything else (or no file) leaves ShowCPU / ShowGPU in charge, so saved
+# values from older builds behave exactly as before.
+CHIP_FILE_KEY = "SidebarChipSlot"
 MEMORY_KEYS = ("ShowMemoryUsage", "ShowStorageLeft", "ShowStorageUsed")
 
 
@@ -114,7 +119,7 @@ def _truthy(raw) -> bool:
   return raw is not None and str(raw).strip().lower() in ("1", "true", "yes", "on")
 
 
-def slot_flags(read_bool, read_raw=None) -> dict:
+def slot_flags(read_bool, read_raw=None, read_file=None) -> dict:
   """Stored choice per slot key. ShowGPU registers ON by default next to ShowCPU, so GPU counts only when it was
   explicitly stored (read_raw returns None for an unset key); otherwise CPU keeps the slot, as it always has."""
   flags = {k: bool(read_bool(k)) for k in (*CHIP_KEYS, *MEMORY_KEYS)}
@@ -123,22 +128,30 @@ def slot_flags(read_bool, read_raw=None) -> dict:
       flags["ShowGPU"] = _truthy(read_raw("ShowGPU"))
     except Exception:
       flags["ShowGPU"] = False
+  flags["ModeldChip"] = False
+  if read_file is not None:
+    try:
+      flags["ModeldChip"] = read_file(CHIP_FILE_KEY) == "modeld"
+    except Exception:
+      pass
   return flags
 
 
 def slot_choices(flags: dict) -> tuple:
-  """(chip, memory): chip is 'cpu' or 'gpu'; memory is 'memory', 'storage_left' or 'storage_used'.
+  """(chip, memory): chip is 'cpu', 'gpu' or 'modeld'; memory is 'memory', 'storage_left' or 'storage_used'.
 
   A tap on a box cycles its contents (0.9.7 sidebar) and there is no empty step, so a slot that an older build saved as off
   (or that has nothing stored) shows its default, CPU and RAM, rather than vanishing with nothing left to tap."""
   chip = "cpu" if flags.get("ShowCPU") or not flags.get("ShowGPU") else "gpu"
+  if flags.get("ModeldChip"):
+    chip = "modeld"
   memory = ("storage_left" if flags.get("ShowStorageLeft") and not flags.get("ShowMemoryUsage")
             else "storage_used" if flags.get("ShowStorageUsed") and not flags.get("ShowMemoryUsage") else "memory")
   return chip, memory
 
 
 # --- tap-to-cycle (0.9.7 sidebar.cc:75-120): each tap on a metric box moves that slot to its next content ---
-CHIP_CYCLE = ("cpu", "gpu")
+CHIP_CYCLE = ("cpu", "gpu", "modeld")
 MEMORY_CYCLE = ("memory", "storage_left", "storage_used")
 TEMP_UNITS = ("celsius", "fahrenheit")
 
@@ -166,8 +179,35 @@ def _next(cycle: tuple, current) -> str:
 
 
 def chip_writes(choice: str) -> dict:
-  """Param values that make `choice` ('cpu' or 'gpu') the chip slot. ShowGPU is stored explicitly (unset means CPU)."""
+  """Param values that make `choice` ('cpu' or 'gpu') the chip slot. ShowGPU is stored explicitly (unset means CPU).
+  'modeld' clears both; the file choice (write_chip_file) is what selects it."""
   return {"ShowCPU": choice == "cpu", "ShowGPU": choice == "gpu"}
+
+
+def next_chip(chip: str) -> str:
+  return _next(CHIP_CYCLE, chip)
+
+
+def chip_file_value(choice: str) -> str:
+  return "modeld" if choice == "modeld" else "auto"
+
+
+def read_chip_file() -> str:
+  try:
+    from openpilot.common.bogpilot_toggles import read_choice
+    return read_choice(CHIP_FILE_KEY)
+  except Exception:
+    return "auto"
+
+
+def write_chip_file(choice: str) -> bool:
+  """Save whether the chip slot shows MODELD ("modeld") or follows ShowCPU / ShowGPU ("auto")."""
+  try:
+    from openpilot.common.bogpilot_toggles import write_choice
+    write_choice(CHIP_FILE_KEY, chip_file_value(choice))
+    return True
+  except Exception:
+    return False
 
 
 def memory_writes(choice: str) -> dict:
@@ -201,20 +241,20 @@ def cycle_temp(mode: str, fahrenheit: "bool | None" = None) -> dict:
 
 # --- onroad middle box: vehicle status or CPU (SidebarVehicleSlot) ---
 VEHICLE_SLOT_KEY = "SidebarVehicleSlot"
-VEHICLE_CYCLE = ("vehicle", "cpu", "gpu")
+VEHICLE_CYCLE = ("vehicle", "cpu", "gpu", "modeld")
 
 
 def vehicle_slot_choice(text) -> str:
-  """'cpu' or 'gpu' only when exactly that is stored; anything else (nothing stored, junk, unreadable) is the vehicle status."""
+  """'cpu', 'gpu' or 'modeld' only when exactly that is stored; anything else (nothing stored, junk, unreadable) is the vehicle status."""
   if isinstance(text, (bytes, bytearray)):
     text = text.decode("utf-8", "replace")
-  return text.strip() if isinstance(text, str) and text.strip() in ("cpu", "gpu") else "vehicle"
+  return text.strip() if isinstance(text, str) and text.strip() in ("cpu", "gpu", "modeld") else "vehicle"
 
 
 def vehicle_slot_shown(choice: str, panda_seen: bool) -> str:
   """What the onroad middle box shows: CPU or GPU only when chosen AND the panda is seen. A missing panda is a warning the
   driver must not lose, so "NO PANDA" always takes the box back."""
-  return choice if choice in ("cpu", "gpu") and panda_seen else "vehicle"
+  return choice if choice in ("cpu", "gpu", "modeld") and panda_seen else "vehicle"
 
 
 def cycle_vehicle_slot(choice: str) -> str:
@@ -397,42 +437,78 @@ def slot_flags_from_params(params) -> dict:
   def read_raw(key):
     return params.get(key) if hasattr(params, "get") else read_bool(key)
 
-  return slot_flags(read_bool, read_raw)
+  return slot_flags(read_bool, read_raw, lambda key: read_chip_file())
 
 
-GPU_BUSY_PATH = "/sys/class/kgsl/kgsl-3d0/gpubusy"   # Adreno (comma 3X and comma 4): "<busy> <total>" counters, as hardwared reads it
+GPU_CLOCK_STATS_PATH = "/sys/class/kgsl/kgsl-3d0/gpu_clock_stats"   # Adreno (comma 3X and comma 4): busy microseconds per power level
+GPU_MIN_SAMPLE_US = 200_000   # a repeat read sooner than this (a tap redraw) keeps the last value instead of a tiny noisy window
 
 
-def parse_gpu_busy(raw) -> "float | None":
-  """GPU utilization percent from the kgsl gpubusy text ("<busy> <total>"), or None when it cannot be known."""
+def parse_clock_stats(raw) -> "int | None":
+  """Total GPU busy microseconds: the sum of the per-power-level counters in gpu_clock_stats; None if unreadable."""
   if isinstance(raw, (bytes, bytearray)):
     raw = raw.decode("utf-8", "replace")
   if not isinstance(raw, str):
     return None
   parts = raw.split()
-  if len(parts) != 2:
+  if not parts:
     return None
   try:
-    busy, total = int(parts[0], 10), int(parts[1], 10)
+    values = [int(p, 10) for p in parts]
   except ValueError:
     return None
-  if total <= 0 or busy < 0:
-    return None
-  return min(100.0, 100.0 * busy / total)
+  return None if any(v < 0 for v in values) else sum(values)
 
 
-def read_gpu_percent(path: str = GPU_BUSY_PATH) -> "float | None":
-  """Local sysfs read; None (shown as a dash) when the file is missing, unreadable or malformed. Never a made-up zero."""
-  try:
-    with open(path, encoding="utf-8") as f:
-      return parse_gpu_busy(f.read())
-  except (OSError, ValueError):
-    return None
+class GpuClockStats:
+  """GPU busy percent from deltas of gpu_clock_stats over monotonic wall time. The old gpubusy counter only refreshes under a
+  load-sampling devfreq governor, and comma pins the governor to performance, so it is frozen at 0. gpu_clock_stats keeps
+  counting whatever the governor is. None (a dash) on the first sample, a missing or malformed file, or a counter reset
+  or wrap; the next read starts a new window."""
+
+  def __init__(self, path: str = GPU_CLOCK_STATS_PATH, clock_us=None):
+    import time
+    self.path = path
+    self._clock_us = clock_us or (lambda: time.monotonic_ns() // 1000)
+    self._prev = None   # (wall_us, busy_us)
+    self._last = None
+
+  def percent(self) -> "float | None":
+    try:
+      with open(self.path, encoding="utf-8") as f:
+        busy = parse_clock_stats(f.read())
+    except (OSError, ValueError):
+      busy = None
+    if busy is None:
+      self._prev = self._last = None
+      return None
+    now = self._clock_us()
+    prev = self._prev
+    if prev is None:
+      self._prev = (now, busy)
+      return None
+    wall = now - prev[0]
+    if wall <= 0 or busy < prev[1]:           # clock went backwards or counter reset / wrapped
+      self._prev, self._last = (now, busy), None
+      return None
+    if wall < GPU_MIN_SAMPLE_US:
+      return self._last
+    self._last = max(0.0, min(100.0, 100.0 * (busy - prev[1]) / wall))
+    self._prev = (now, busy)
+    return self._last
+
+
+_GPU_READER = GpuClockStats()
+
+
+def read_gpu_percent(reader: "GpuClockStats | None" = None) -> "float | None":
+  """Busy percent since the previous call (shared reader); None (shown as a dash) when it cannot be known. Never a made-up zero."""
+  return (reader or _GPU_READER).percent()
 
 
 def chip_reading(device_state, which: str, *, fresh: bool, gpu_percent=None) -> Reading:
-  """CPU (mean per-core load) or GPU usage; unavailable on stale / malformed data. GPU comes from the kgsl sysfs counters
-  (read_gpu_percent), not deviceState, which reports 0 when hardwared cannot read them."""
+  """CPU (mean per-core load) or GPU usage; unavailable on stale / malformed data. GPU comes from kgsl gpu_clock_stats deltas
+  (read_gpu_percent), not the frozen gpubusy counter."""
   if not fresh or device_state is None:
     return Reading()
   try:
@@ -443,6 +519,76 @@ def chip_reading(device_state, which: str, *, fresh: bool, gpu_percent=None) -> 
     return _usage(sum(loads) / len(loads)) if loads else Reading()
   except (AttributeError, ValueError, TypeError, OverflowError):
     return Reading()
+
+
+# --- Modeld load: replaces the GPU% display. The kgsl gpubusy counter is frozen at 0 on comma 3X because comma pins the
+# GPU governor to "performance" (common/hardware/comma/hardware.py), so the GPU slot shows how much of the 50 ms (20 Hz)
+# model frame budget the model runs use instead. The ShowGPU param key and the slot cycle are unchanged; only the display is. ---
+MODELD_BUDGET_S = 0.050
+MODELD_WARNING_PERCENT = 80      # white below, yellow from here
+MODELD_DANGER_PERCENT = 100      # red above (100 itself is still yellow), or on any modelV2.frameDropPerc
+MODELD_EMA_TAU_S = 1.0           # smoothing time constant, so the 2 Hz sidebar redraw does not flicker
+MODELD_DROP_HOLD_S = 1.0         # a frame drop keeps the pill red this long
+MODELD_STALE_S = 1.0             # no modelV2 for this long means modeld is not publishing: grey dash
+
+
+def modeld_load_level(percent: int, frame_drop: bool = False) -> str:
+  if frame_drop or percent > MODELD_DANGER_PERCENT:
+    return "danger"
+  return "warning" if percent >= MODELD_WARNING_PERCENT else "good"
+
+
+def modeld_load_reading(percent, frame_drop: bool, *, live: bool) -> Reading:
+  """'NN%' of the 50 ms budget. Grey dash when modeld is not publishing or the value is unusable (never a made-up zero)."""
+  if not live or percent is None:
+    return Reading()
+  try:
+    value = int(_number(percent, 0, 1e6))
+  except (ValueError, TypeError, OverflowError):
+    return Reading()
+  return Reading(f"{value}%", modeld_load_level(value, frame_drop))
+
+
+def _exec_percent(seconds) -> "float | None":
+  """Execution time in seconds as percent of the frame budget; None when absent or not a sane number (0 to 1 s)."""
+  try:
+    return 100.0 * _number(seconds, 0, 1.0) / MODELD_BUDGET_S
+  except (ValueError, TypeError, OverflowError):
+    return None
+
+
+class ModeldLoad:
+  """Cheap smoothed modeld load. update() takes the numbers from the modelV2 message the UI SubMaster already receives
+  (no extra subscription); reading() is a pure read. Value = max(modelV2, driverStateV2 modelExecutionTime) / 50 ms."""
+
+  def __init__(self, clock=time.monotonic):
+    self._clock = clock
+    self._value = None
+    self._last = None
+    self._drop_until = -math.inf
+
+  def update(self, model_exec_s, driver_exec_s, frame_drop_perc, now=None) -> None:
+    now = self._clock() if now is None else now
+    seen = [p for p in (_exec_percent(model_exec_s), _exec_percent(driver_exec_s)) if p is not None]
+    try:
+      if _number(frame_drop_perc, 0, 100) > 0:
+        self._drop_until = now + MODELD_DROP_HOLD_S
+    except (ValueError, TypeError, OverflowError):
+      pass
+    if not seen:
+      return
+    instant = max(seen)
+    if self._value is None or self._last is None or now - self._last > MODELD_STALE_S:
+      self._value = instant
+    else:
+      alpha = 1.0 - math.exp(-max(0.0, now - self._last) / MODELD_EMA_TAU_S)
+      self._value += alpha * (instant - self._value)
+    self._last = now
+
+  def reading(self, now=None) -> Reading:
+    now = self._clock() if now is None else now
+    live = self._last is not None and now - self._last <= MODELD_STALE_S
+    return modeld_load_reading(self._value, now < self._drop_until, live=live)
 
 
 def storage_reading(device_state, which: str, usage, *, fresh: bool) -> Reading:

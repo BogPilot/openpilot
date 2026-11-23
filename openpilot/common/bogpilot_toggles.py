@@ -75,7 +75,9 @@ FILE_TOGGLES: dict[str, tuple[bool | None, str]] = {
 FILE_CHOICES: dict[str, tuple[str, tuple[str, ...]]] = {
   "ConfidenceBallSide": ("left", ("left", "right")),
   # Onroad sidebar middle box: the vehicle status (default, as before) or CPU usage. Saved by tapping the box.
-  "SidebarVehicleSlot": ("vehicle", ("vehicle", "cpu", "gpu")),
+  "SidebarVehicleSlot": ("vehicle", ("vehicle", "cpu", "gpu", "modeld")),
+  # Sidebar chip slot: "modeld" shows the modeld load box; "auto" (default) follows ShowCPU / ShowGPU as before.
+  "SidebarChipSlot": ("auto", ("auto", "modeld")),
   # Upper sidebar box, offroad and onroad: temp modes or Power. Saved by tapping the box. Missing file is not Power
   # (the NumericalTemp / Fahrenheit params decide). A reset writes celsius, matching those params' default.
   "SidebarUpperSlot": ("celsius", ("status", "celsius", "fahrenheit", "power")),

@@ -26,7 +26,7 @@ def files(tmp_path, monkeypatch):
 # --- the choice ---
 
 def test_default_is_vehicle_status(files):
-  assert bt.FILE_CHOICES[KEY] == ("vehicle", ("vehicle", "cpu", "gpu"))
+  assert bt.FILE_CHOICES[KEY] == ("vehicle", ("vehicle", "cpu", "gpu", "modeld"))
   assert not (files / KEY).exists()
   assert sm.read_vehicle_slot() == "vehicle"
 
@@ -47,10 +47,11 @@ def test_junk_or_unreadable_file_is_vehicle(files):
 
 
 def test_tap_cycles_vehicle_cpu_gpu_vehicle():
-  assert sm.VEHICLE_CYCLE == ("vehicle", "cpu", "gpu")
+  assert sm.VEHICLE_CYCLE == ("vehicle", "cpu", "gpu", "modeld")
   assert sm.cycle_vehicle_slot("vehicle") == "cpu"
   assert sm.cycle_vehicle_slot("cpu") == "gpu"
-  assert sm.cycle_vehicle_slot("gpu") == "vehicle"
+  assert sm.cycle_vehicle_slot("gpu") == "modeld"
+  assert sm.cycle_vehicle_slot("modeld") == "vehicle"
   assert sm.cycle_vehicle_slot("junk") == "vehicle"
 
 
@@ -217,6 +218,8 @@ def test_sidebar_tap_on_middle_box_cycles_and_saves(files, monkeypatch):
   s._cycle("vehicle")
   assert (files / KEY).read_text().strip() == "gpu" and s._slot_vehicle == "gpu"
   s._cycle("vehicle")
+  assert (files / KEY).read_text().strip() == "modeld" and s._slot_vehicle == "modeld"
+  s._cycle("vehicle")
   assert (files / KEY).read_text().strip() == "vehicle" and s._slot_vehicle == "vehicle"
 
 
@@ -246,7 +249,7 @@ def test_sidebar_tap_flips_at_any_time_the_panda_is_seen(files, monkeypatch):
   from openpilot.selfdrive.ui.layouts import sidebar as m
   s = _sidebar(m, files, panda_seen=True)
   _onroad_calls(m, s, monkeypatch)
-  for expect in ("cpu", "gpu", "vehicle", "cpu"):
+  for expect in ("cpu", "gpu", "modeld", "vehicle", "cpu"):
     s._cycle("vehicle")
     assert s._slot_vehicle == expect and (files / KEY).read_text().strip() == expect
 
@@ -283,3 +286,62 @@ def test_sidebar_offroad_unchanged_by_gpu_choice(files, monkeypatch):
   monkeypatch.setattr(m, 'ui_state', SimpleNamespace(started=False))
   s._draw_metrics(m.rl.Rectangle(0, 0, 300, 1080))
   assert calls == [('TEMP', 338), ('CPU', 496), ('RAM', 654)]
+
+
+# --- MODELD chip: the onroad middle box and the offroad chip slot ---
+
+def test_sidebar_modeld_choice_draws_modeld_with_ram(files, monkeypatch):
+  from openpilot.selfdrive.ui.layouts import sidebar as m
+  s = _sidebar(m, files, "modeld")
+  s._modeld_load().update(0.031, 0.034, 0.0)          # driver monitoring is the slower of the two: 34 ms / 50 ms
+  calls = _onroad_calls(m, s, monkeypatch)
+  assert [(c[0], c[1], c[2]) for c in calls] == [('TEMP', calls[0][1], 338), ('MODELD', '68%', 496), ('RAM', '41%', 654)]
+
+
+def test_sidebar_modeld_choice_is_a_dash_when_modeld_is_not_publishing(files, monkeypatch):
+  from openpilot.selfdrive.ui.layouts import sidebar as m
+  calls = _onroad_calls(m, _sidebar(m, files, "modeld"), monkeypatch)
+  assert calls[1] == ('MODELD', '--', 496)
+
+
+def test_sidebar_modeld_choice_no_panda_takes_the_box_back(files, monkeypatch):
+  from openpilot.selfdrive.ui.layouts import sidebar as m
+  s = _sidebar(m, files, "modeld", panda_seen=False)
+  s._modeld_load().update(0.031, 0.034, 0.0)
+  assert _onroad_calls(m, s, monkeypatch)[1][0] == 'VEHICLE'
+
+
+def test_sidebar_offroad_chip_slot_shows_modeld_only_when_chosen(files, monkeypatch):
+  from openpilot.selfdrive.ui.layouts import sidebar as m
+
+  def offroad(chip_file):
+    s = _sidebar(m, files)
+    if chip_file is not None:
+      (files / "SidebarChipSlot").write_text(chip_file)
+    s._modeld_load().update(0.025, 0.020, 0.0)         # 50%
+    s._update_hardware_metrics(device(), fresh=True)
+    calls = []
+    s._draw_metric = lambda rect, metric, y: calls.append((metric.label, metric.value, y))
+    monkeypatch.setattr(m, 'ui_state', SimpleNamespace(started=False))
+    s._draw_metrics(m.rl.Rectangle(0, 0, 300, 1080))
+    return calls
+
+  assert offroad(None)[1][0] == 'CPU'                  # nothing saved: unchanged
+  assert offroad("auto")[1][0] == 'CPU'
+  assert offroad("garbage")[1][0] == 'CPU'
+  assert offroad("modeld")[1] == ('MODELD', '50%', 496)
+
+
+def test_sidebar_tap_on_chip_cycles_cpu_gpu_modeld_and_saves(files, monkeypatch):
+  from openpilot.selfdrive.ui.layouts import sidebar as m
+  s = _sidebar(m, files)
+  stored = {}
+  s._params = SimpleNamespace(get_bool=lambda key: stored.get(key, key in {'ShowMemoryUsage', 'NumericalTemp', 'IsMetric', 'ShowCPU'}),
+                              get=lambda key: stored.get(key), put_bool=lambda key, value: stored.__setitem__(key, bool(value)))
+  s._update_hardware_metrics(device(), fresh=True)
+  assert s._slot_chip == "cpu"
+  seen = []
+  for _ in range(4):
+    s._cycle("chip")
+    seen.append((s._slot_chip, (files / "SidebarChipSlot").read_text().strip()))
+  assert seen == [("gpu", "auto"), ("modeld", "modeld"), ("cpu", "auto"), ("gpu", "auto")]
