@@ -823,21 +823,47 @@ def apply_ap1x_visual_defaults_once(params=None, bogpilot_dir: Path | None = Non
 
 
 # ---- AP1 Model X openpilot longitudinal: one-time forced ON (versioned) ----
-# AP1XOpenpilotLong defaults on for a detected AP1 Model X (opendbc tesla_ap1/toggles.py ap1x_op_long). Devices that saved it off
-# under the earlier default-off builds get it turned on ONCE by this migration, on the first start that knows the car is an
-# AP1 Model X; the marker then stops it for good, so a later user Off (stock TACC) is respected. Bump the number in the marker
-# name only to force it once more in a future build. Never touches any other car.
-AP1X_LONG_FORCE_MARKER_NAME = "AP1XOpenpilotLongForcedOn1"
+# AP1XOpenpilotLong defaults on for a detected AP1 Model X (opendbc tesla_ap1/toggles.py ap1x_op_long). This migration turns it on
+# ONCE per device, on the first start that knows the car is an AP1 Model X, even over a saved Off; the marker then stops it for
+# good, so a later user Off (stock TACC) is respected. Bump the number in the marker name only to force it once more in a future
+# build. Version 2 runs again on devices that already have the version 1 marker, so every AP1 Model X starts the next build with
+# openpilot longitudinal on.
+# It also clears DisableOpenpilotLongitudinal on the AP1 Model X, once: that older switch also turns the X long off
+# (tesla_ap1/interface.py), and the Vehicle panel does not show it on an X, so a value left on could not be undone from the menu.
+# Never touches any other car.
+AP1X_LONG_FORCE_MARKER_NAME = "AP1XOpenpilotLongForcedOn2"
+AP1X_LONG_FORCE_MARKER_HISTORY = ("AP1XOpenpilotLongForcedOn1",)
 AP1X_LONG_KEY = "AP1XOpenpilotLong"
+AP1X_DISABLE_LONG_KEY = "DisableOpenpilotLongitudinal"
+_ON_TEXT = ("1", "true", "on")
 
 
 def ap1x_long_force_marker_path(bogpilot_dir: Path | None = None) -> Path:
   return Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR) / AP1X_LONG_FORCE_MARKER_NAME
 
 
+def _clear_ap1x_disable_long(params, directory: Path) -> bool:
+  """Set DisableOpenpilotLongitudinal off in both places tesla_ap1 reads it. True when something changed."""
+  changed = False
+  file_path = directory / AP1X_DISABLE_LONG_KEY
+  try:
+    file_on = file_path.read_text(encoding="utf-8", errors="replace").strip().lower() in _ON_TEXT
+  except OSError:
+    file_on = False
+  if file_on:
+    _write_marker_durable(file_path, "0")
+    changed = True
+  current = params.get(AP1X_DISABLE_LONG_KEY)
+  if not _unset(current) and _text(current).strip().lower() in _ON_TEXT:
+    params.put(AP1X_DISABLE_LONG_KEY, "0", block=True)
+    changed = True
+  return changed
+
+
 def force_ap1x_op_long_on_once(params=None, bogpilot_dir: Path | None = None) -> bool:
-  """Write AP1XOpenpilotLong=1 once on a detected AP1 Model X (even over a saved 0), then the once-only marker.
-  True when it wrote the value. Never raises; no car known yet = nothing written and no marker (it runs on a later start)."""
+  """Write AP1XOpenpilotLong=1 and DisableOpenpilotLongitudinal=0 once on a detected AP1 Model X (even over a saved Off),
+  then the once-only marker. True when it changed a value. Never raises; no car known yet = nothing written and no marker
+  (it runs on a later start)."""
   try:
     if params is None:
       params = StoreParams()
@@ -856,7 +882,13 @@ def force_ap1x_op_long_on_once(params=None, bogpilot_dir: Path | None = None) ->
     wrote = before != "1"
     if wrote:
       _write_marker_durable(path, "1")         # the value first, durably; a lost marker only repeats this same write
+    wrote = _clear_ap1x_disable_long(params, directory) or wrote
     _write_marker_durable(marker, "1\n")
+    if wrote:
+      try:
+        params.invalidate()
+      except Exception:
+        pass
     return wrote
   except Exception:
     return False

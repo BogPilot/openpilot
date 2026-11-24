@@ -65,10 +65,10 @@ class CarInterface(CarInterfaceBase):
     # 0.9.7: openpilot long = not DisableOpenpilotLongitudinal (default off, so
     # long is ON). Chassis 0x2b9 only, no 0x2bf powertrain DAS. AP1StandstillEngage
     # only matters with openpilot long on.
-    # Model X is lateral-only by default. Tinkla's X long path also sends AP2-style DAS_control on powertrain bus 4, which needs a
-    # second panda this tree does not have. Chassis-only long (the Model S path) is untested on a real X, so it is an explicit
-    # opt-in: AP1XOpenpilotLong (file-backed, default off, read once here at car start), only for a strictly detected X that is
-    # not dashcam-only and not disabled by DisableOpenpilotLongitudinal. It sets both layers together: openpilotLongitudinalControl
+    # Model X: Tinkla's X long path also sends AP2-style DAS_control on powertrain bus 4, which needs a second panda this tree does
+    # not have. This tree uses the Model S chassis-only path, gated by AP1XOpenpilotLong (file-backed, default ON, forced on once
+    # per device by bogpilot_ap1_profile.force_ap1x_op_long_on_once, read once here at car start), only for a strictly detected X
+    # that is not dashcam-only and not disabled by DisableOpenpilotLongitudinal. It sets both layers together: openpilotLongitudinalControl
     # and the AP1 safety LONG_CONTROL flag. Standstill stays Model S only. With the opt-in off the X is exactly as before.
     s_long = candidate == CAR.TESLA_AP1_MODELS and not ret.dashcamOnly and not disable_openpilot_long()
     x_long = (candidate == CAR.TESLA_AP1_MODELX and not ret.dashcamOnly and not disable_openpilot_long()
