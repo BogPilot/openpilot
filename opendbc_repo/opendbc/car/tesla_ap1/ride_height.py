@@ -7,6 +7,9 @@ left on. Nothing here touches steering, speed or braking.
 
 The touchscreen sends the height request 0x308 on the chassis bus (bus 0) at 10 Hz: byte 0 is 0x40 when idle and
 0x40 + level while a height is being asked for (1 Low, 2 Medium, 3 High, 4 Very High; a tap sends it for about 2 s).
+The AP1 Model X also has Very Low, which its screen sends as 0x40 + 7 (0x47); the Model S has no Very Low. Very Low is offered
+only on a Model X and only once this tree's panda allows 0x47 (PANDA_VERY_LOW_SUPPORTED); a saved Very Low is asked for as Low
+anywhere else.
 Bytes 1-7 are car and session specific, so a request is always built from the newest received 0x308 with only byte 0
 replaced. A 2 s burst at 50 Hz with level 1 lowered a parked car from Medium to Low while the screen kept sending its idle
 frame. The air suspension flag is GTW_airSuspensionInstalled in GTW_carConfig (0x398).
@@ -20,8 +23,8 @@ Drive at standstill with FLAG_TESLA_AP1_RIDE_HEIGHT_DRIVE, and only the levels P
 
 Settings are file-backed under /data/params_bogpilot (the prebuilt params table has no keys for them):
   AutoHeight           1 = on. Missing = the saved LowerOnPark value (migration), else off.
-  AutoHeightPark       none | low | medium | high | very_high. Missing = the saved LowerOnParkHeight value (migration), else low.
-  AutoHeightDrive      none | low | medium | high | very_high. Missing = none after moving over from Lower on Park (a
+  AutoHeightPark       none | very_low | low | medium | high | very_high (very_low: Model X only). Missing = the saved LowerOnParkHeight value (migration), else low.
+  AutoHeightDrive      none | very_low | low | medium | high | very_high (very_low: Model X only). Missing = none after moving over from Lower on Park (a
                        LowerOnPark or LowerOnParkHeight file exists), so that behavior is unchanged; else medium.
   AirSuspensionDetected  written by car state from 0x398; the Vehicle Controls rows are shown only when it is 1.
 The old LowerOnPark / LowerOnParkHeight files are only read, never changed or deleted, so a saved choice carries over as is.
@@ -39,11 +42,17 @@ LEVEL_MEDIUM = 2
 LEVEL_HIGH = 3
 LEVEL_VERY_HIGH = 4
 LEVELS = (LEVEL_LOW, LEVEL_MEDIUM, LEVEL_HIGH, LEVEL_VERY_HIGH)
+LEVEL_VERY_LOW = 7             # AP1 Model X only: byte 0 = 0x47, as its touchscreen sends for Very Low
+X_LEVELS = (LEVEL_VERY_LOW,) + LEVELS
 HEIGHTS = ("low", "medium", "high", "very_high")
-LEVEL_BY_HEIGHT = {"low": LEVEL_LOW, "medium": LEVEL_MEDIUM, "high": LEVEL_HIGH, "very_high": LEVEL_VERY_HIGH}
+X_HEIGHTS = ("very_low",) + HEIGHTS
+LEVEL_BY_HEIGHT = {"very_low": LEVEL_VERY_LOW, "low": LEVEL_LOW, "medium": LEVEL_MEDIUM, "high": LEVEL_HIGH,
+                   "very_high": LEVEL_VERY_HIGH}
 NONE = "none"                  # skip this shift: no burst
-CHOICES = HEIGHTS + (NONE,)    # the order the height buttons cycle through
-HEIGHT_LABELS = {"low": "Low", "medium": "Medium", "high": "High", "very_high": "Very High", NONE: "None"}
+CHOICES = HEIGHTS + (NONE,)    # the order the height buttons cycle through (Model S)
+X_CHOICES = X_HEIGHTS + (NONE,)  # the same for the Model X, Very Low first; also every value a height file may hold
+HEIGHT_LABELS = {"very_low": "Very Low", "low": "Low", "medium": "Medium", "high": "High", "very_high": "Very High",
+                 NONE: "None"}
 HEIGHT_DEFAULT = "low"         # Park
 DRIVE_HEIGHT_DEFAULT = "medium"
 
@@ -65,6 +74,8 @@ FLAG_TESLA_AP1_RIDE_HEIGHT_DRIVE = 2048
 PANDA_TX_SUPPORTED = True
 PANDA_PARK_LEVELS = LEVELS
 PANDA_DRIVE_TX_SUPPORTED = True
+# Very Low (0x47) on the AP1 Model X: False until this tree's panda allows that level.
+PANDA_VERY_LOW_SUPPORTED = False
 
 PARAMS_DIR = Path("/data/params_bogpilot")
 ENABLE_KEY = "AutoHeight"
@@ -130,11 +141,11 @@ def set_enabled(state: bool, path: Path | None = None) -> None:
 
 def _choice(stored, default: str) -> str:
   text = _height_text(stored)
-  return text if text in CHOICES else default
+  return text if text in X_CHOICES else default
 
 
 def height(stored: str | bytes | None = None, path: Path | None = None) -> str:
-  """Park height: none, low, medium, high or very_high. Missing (and no saved LowerOnParkHeight) or unknown = low."""
+  """Park height: none, very_low, low, medium, high or very_high. Missing (and no saved LowerOnParkHeight) or unknown = low."""
   if stored is None:
     stored = _read_migrated(path if path is not None else _height_path, LEGACY_HEIGHT_KEY)
   return _choice(stored, HEIGHT_DEFAULT)
@@ -142,14 +153,26 @@ def height(stored: str | bytes | None = None, path: Path | None = None) -> str:
 
 def set_height(value: str, path: Path | None = None) -> None:
   value = _height_text(value)
-  if value not in CHOICES:
+  if value not in X_CHOICES:
     raise ValueError(value)
   _write(path if path is not None else _height_path, value)
 
 
-def level_for(value: str | bytes | None = None, path: Path | None = None) -> int | None:
-  """The 0x308 level for the Park height (None reads the file): 1 Low, 2 Medium, 3 High, 4 Very High; None for None."""
-  return LEVEL_BY_HEIGHT.get(height(value, path))
+def very_low_offered(model_x: bool = False) -> bool:
+  """Very Low is offered and asked for only on an AP1 Model X, and only once this tree's panda allows 0x47."""
+  return bool(model_x) and PANDA_VERY_LOW_SUPPORTED
+
+
+def _level(h: str, model_x: bool) -> int | None:
+  if h == "very_low" and not very_low_offered(model_x):
+    return LEVEL_LOW               # a saved Very Low on a car (or panda) without it is asked for as Low
+  return LEVEL_BY_HEIGHT.get(h)
+
+
+def level_for(value: str | bytes | None = None, path: Path | None = None, model_x: bool = False) -> int | None:
+  """The 0x308 level for the Park height (None reads the file): 7 Very Low (Model X only, else 1), 1 Low, 2 Medium, 3 High,
+  4 Very High; None for None."""
+  return _level(height(value, path), model_x)
 
 
 def _moved_from_lower_on_park(path: Path) -> bool:
@@ -157,7 +180,7 @@ def _moved_from_lower_on_park(path: Path) -> bool:
 
 
 def drive_height(stored: str | bytes | None = None, path: Path | None = None) -> str:
-  """Drive height: none, low, medium, high or very_high. Missing = none for a setup moved over from Lower on Park (its old
+  """Drive height: none, very_low, low, medium, high or very_high. Missing = none for a setup moved over from Lower on Park (its old
   files sit next to this one), else medium. Unknown = medium."""
   if stored is None:
     path = path if path is not None else _drive_height_path
@@ -169,23 +192,31 @@ def drive_height(stored: str | bytes | None = None, path: Path | None = None) ->
 
 def set_drive_height(value: str, path: Path | None = None) -> None:
   value = _height_text(value)
-  if value not in CHOICES:
+  if value not in X_CHOICES:
     raise ValueError(value)
   _write(path if path is not None else _drive_height_path, value)
 
 
-def drive_level_for(value: str | bytes | None = None, path: Path | None = None) -> int | None:
-  """The 0x308 level for the Drive height (None reads the file); None for None."""
-  return LEVEL_BY_HEIGHT.get(drive_height(value, path))
+def drive_level_for(value: str | bytes | None = None, path: Path | None = None, model_x: bool = False) -> int | None:
+  """The 0x308 level for the Drive height (None reads the file); Very Low as in level_for; None for None."""
+  return _level(drive_height(value, path), model_x)
 
 
-def park_choices() -> tuple[str, ...]:
-  """Park choices this tree's panda allows (the picker offers only these), None included."""
-  return tuple(h for h in HEIGHTS if LEVEL_BY_HEIGHT[h] in PANDA_PARK_LEVELS) + (NONE,)
+def park_choices(model_x: bool = False) -> tuple[str, ...]:
+  """Park choices this tree's panda allows (the picker offers only these), None included. The Model X adds Very Low first."""
+  heights = tuple(h for h in HEIGHTS if LEVEL_BY_HEIGHT[h] in PANDA_PARK_LEVELS)
+  return (("very_low",) if very_low_offered(model_x) else ()) + heights + (NONE,)
 
 
-def drive_choices() -> tuple[str, ...]:
-  return CHOICES if PANDA_DRIVE_TX_SUPPORTED else ()
+def drive_choices(model_x: bool = False) -> tuple[str, ...]:
+  if not PANDA_DRIVE_TX_SUPPORTED:
+    return ()
+  return X_CHOICES if very_low_offered(model_x) else CHOICES
+
+
+def shown_height(value: str, model_x: bool = False) -> str:
+  """The height a row shows: a saved Very Low reads Low where Very Low is not offered, because Low is what is asked for."""
+  return "low" if value == "very_low" and not very_low_offered(model_x) else value
 
 
 def park_burst_wanted(path: Path | None = None, enable_path: Path | None = None) -> bool:
@@ -247,8 +278,8 @@ def drive_tx_supported(safety_param: int | None = None) -> bool:
 
 
 def frame_with_level(source: bytes, level: int) -> bytes:
-  """The newest received 0x308 with byte 0 = 0x40 + level (1-4)."""
-  if level not in LEVELS:
+  """The newest received 0x308 with byte 0 = 0x40 + level (1-4, or 7 Very Low on the Model X)."""
+  if level not in X_LEVELS:
     raise ValueError(level)
   if len(source) != 8:
     raise ValueError(len(source))
@@ -322,7 +353,7 @@ class LowerOnPark:
     if level is None:
       self.last_result = "none"            # Park height None: skip this shift
       return None
-    if level not in PANDA_PARK_LEVELS:
+    if level not in PANDA_PARK_LEVELS and not (level == LEVEL_VERY_LOW and PANDA_VERY_LOW_SUPPORTED):
       self.last_result = "bad level"
       return None
     if controls_active or moving:
@@ -424,7 +455,7 @@ class HeightOnDrive:
     if level is None:
       self.last_result = "none"            # Drive height None: skip this shift
       return None
-    if level not in LEVELS:
+    if level not in LEVELS and not (level == LEVEL_VERY_LOW and PANDA_VERY_LOW_SUPPORTED):
       self.last_result = "bad level"
       return None
     if controls_active or moving or gas_pressed:

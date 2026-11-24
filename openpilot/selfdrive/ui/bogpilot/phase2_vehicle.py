@@ -28,11 +28,18 @@ AUTO_HEIGHT_PARK_TITLE = "Auto Height: Park"
 AUTO_HEIGHT_PARK_DESCRIPTION = ("The height Auto Height asks for when you shift into Park: Low (default), Medium, High or Very High, "
                                 "or None to leave the height alone in Park. Press to change. A height takes effect from the next "
                                 "shift into Park; changing from None takes effect the next time the car starts.")
+AUTO_HEIGHT_PARK_DESCRIPTION_X = ("The height Auto Height asks for when you shift into Park: Very Low, Low (default), Medium, High or "
+                                  "Very High, or None to leave the height alone in Park. Press to change. A height takes effect from "
+                                  "the next shift into Park; changing from None takes effect the next time the car starts.")
 AUTO_HEIGHT_DRIVE_TITLE = "Auto Height: Drive"
 AUTO_HEIGHT_DRIVE_DESCRIPTION = ("The height Auto Height asks for when you shift from Park into Drive: Medium (default), Low, High or "
                                  "Very High, for example for a slanted driveway that only clears at Medium, or None to leave the height "
                                  "alone in Drive. Starts at None if you used Lower on Park. Press to change. A height takes effect from "
                                  "the next shift into Drive; changing from None takes effect the next time the car starts.")
+AUTO_HEIGHT_DRIVE_DESCRIPTION_X = ("The height Auto Height asks for when you shift from Park into Drive: Very Low, Low, Medium (default), "
+                                   "High or Very High, for example for a slanted driveway that only clears at Medium, or None to leave "
+                                   "the height alone in Drive. Starts at None if you used Lower on Park. Press to change. A height takes "
+                                   "effect from the next shift into Drive; changing from None takes effect the next time the car starts.")
 RADAR = "TeslaRadarEnabled"
 RADAR_NOSECONE = "TeslaRadarBehindNosecone"
 IBOOSTER = "TeslaHasIBooster"
@@ -330,31 +337,43 @@ class VehicleSettings:
     return self.visible(key) and bool(self.offroad())
 
   # ---- Auto Height heights (opendbc tesla_ap1/ride_height.py), read at each shift into Park / from Park into Drive ----
+  def _very_low(self):
+    """Very Low is offered only on a detected (or selected) AP1 Model X, and only once the panda allows it."""
+    return self.ride_height.very_low_offered(is_x(self.cp()))
+
+  def park_description(self):
+    return AUTO_HEIGHT_PARK_DESCRIPTION_X if self._very_low() else AUTO_HEIGHT_PARK_DESCRIPTION
+
+  def drive_description(self):
+    return AUTO_HEIGHT_DRIVE_DESCRIPTION_X if self._very_low() else AUTO_HEIGHT_DRIVE_DESCRIPTION
+
   def park_height(self):
-    return self.ride_height.height(path=self.park_height_path)
+    return self.ride_height.shown_height(self.ride_height.height(path=self.park_height_path), is_x(self.cp()))
 
   def park_height_text(self):
     return self.ride_height.HEIGHT_LABELS[self.park_height()]
 
   def next_park_height(self):
-    """Pressed: the next choice this build's panda allows in Park (Low -> Medium -> High -> Very High -> None -> Low). Refused
-    unless shown and the edit gate allows. Returns the stored value ("none" for None) or None when refused."""
+    """Pressed: the next choice this build's panda allows in Park (Low -> Medium -> High -> Very High -> None -> Low; the Model X
+    adds Very Low before Low). Refused unless shown and the edit gate allows. Returns the stored value ("none" for None) or None
+    when refused."""
     if not self.enabled(AUTO_HEIGHT_PARK):
       return None
-    return self._step_height(self.ride_height.park_choices(), self.park_height(), self.ride_height.set_height,
+    return self._step_height(self.ride_height.park_choices(is_x(self.cp())), self.park_height(), self.ride_height.set_height,
                              self.park_height_path, AUTO_HEIGHT_PARK)
 
   def drive_height(self):
-    return self.ride_height.drive_height(path=self.drive_height_path)
+    return self.ride_height.shown_height(self.ride_height.drive_height(path=self.drive_height_path), is_x(self.cp()))
 
   def drive_height_text(self):
     return self.ride_height.HEIGHT_LABELS[self.drive_height()]
 
   def next_drive_height(self):
-    """Pressed: Low -> Medium -> High -> Very High -> None -> Low. Refused unless shown and the edit gate allows."""
+    """Pressed: Low -> Medium -> High -> Very High -> None -> Low (the Model X adds Very Low before Low). Refused unless shown
+    and the edit gate allows."""
     if not self.enabled(AUTO_HEIGHT_DRIVE):
       return None
-    return self._step_height(self.ride_height.drive_choices(), self.drive_height(), self.ride_height.set_drive_height,
+    return self._step_height(self.ride_height.drive_choices(is_x(self.cp())), self.drive_height(), self.ride_height.set_drive_height,
                              self.drive_height_path, AUTO_HEIGHT_DRIVE)
 
   def _step_height(self, choices, current, setter, path, key):
@@ -918,11 +937,11 @@ def create_vehicle_settings_layout(params=None):
       self.rows = {TRIM_DETECTED: self.detected_row, TRIM: self.trim_row, **self.rows}
       # Auto Height: the Park and Drive height buttons right under the Auto Height switch (shown only while it is on).
       self.park_height_row = button_item(lambda: tr(AUTO_HEIGHT_PARK_TITLE), lambda: tr(self.model.park_height_text()).upper(),
-                                         lambda: tr(AUTO_HEIGHT_PARK_DESCRIPTION),
+                                         lambda: tr(self.model.park_description()),
                                          callback=self.model.next_park_height, enabled=lambda: self.model.enabled(AUTO_HEIGHT_PARK))
       attach_help(self.park_height_row, AUTO_HEIGHT_PARK)
       self.drive_height_row = button_item(lambda: tr(AUTO_HEIGHT_DRIVE_TITLE), lambda: tr(self.model.drive_height_text()).upper(),
-                                          lambda: tr(AUTO_HEIGHT_DRIVE_DESCRIPTION),
+                                          lambda: tr(self.model.drive_description()),
                                           callback=self.model.next_drive_height, enabled=lambda: self.model.enabled(AUTO_HEIGHT_DRIVE))
       attach_help(self.drive_height_row, AUTO_HEIGHT_DRIVE)
       ordered = {}

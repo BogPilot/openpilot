@@ -50,8 +50,9 @@ def test_keys_titles_and_help():
   assert "low (default)" in pv.AUTO_HEIGHT_PARK_DESCRIPTION.lower() and "very high" in pv.AUTO_HEIGHT_PARK_DESCRIPTION.lower()
   assert "medium (default)" in pv.AUTO_HEIGHT_DRIVE_DESCRIPTION.lower() and "very high" in pv.AUTO_HEIGHT_DRIVE_DESCRIPTION.lower()
   assert resolve(KEY).default == "Off" and "Lower on Park" in resolve(KEY).note
-  assert resolve(PARK).default == "Low" and resolve(PARK).range == "Low, Medium, High, Very High, None"
-  assert resolve(DRIVE).default.startswith("Medium") and resolve(DRIVE).range == "Low, Medium, High, Very High, None"
+  assert resolve(PARK).default == "Low" and resolve(PARK).range.startswith("Low, Medium, High, Very High, None")
+  assert resolve(DRIVE).default.startswith("Medium") and resolve(DRIVE).range.startswith("Low, Medium, High, Very High, None")
+  assert "Very Low" in resolve(PARK).range and "Model X" in resolve(PARK).range and "Very Low" in resolve(DRIVE).note
   assert "none" in resolve(KEY).what.lower() and "none" in resolve(DRIVE).note.lower()
   assert "none" in pv.AUTO_HEIGHT_PARK_DESCRIPTION.lower() and "none" in pv.AUTO_HEIGHT_DRIVE_DESCRIPTION.lower()
   for old in ("LowerOnPark", "LowerOnParkHeight", "RideHeightOnDrive"):
@@ -194,3 +195,52 @@ def test_fresh_setup_defaults_when_turned_on(tmp_path, full_panda):
   assert m.read(KEY) is False                                         # master off by default
   m.write(KEY, True)
   assert (m.park_height_text(), m.drive_height_text()) == ("Low", "Medium")
+
+
+@pytest.fixture
+def very_low_panda(monkeypatch, full_panda):
+  monkeypatch.setattr(rh, "PANDA_VERY_LOW_SUPPORTED", True)
+
+
+def test_model_x_cycles_five_heights_and_none(tmp_path, very_low_panda):
+  m = model(cp("TESLA_AP1_MODELX"), tmp_path)
+  m.write(KEY, True)
+  assert m.park_description() == pv.AUTO_HEIGHT_PARK_DESCRIPTION_X and "very low" in m.park_description().lower()
+  assert m.drive_description() == pv.AUTO_HEIGHT_DRIVE_DESCRIPTION_X and "very low" in m.drive_description().lower()
+  assert [m.next_park_height() for _ in range(6)] == ["medium", "high", "very_high", "none", "very_low", "low"]
+  for _ in range(5):
+    m.next_park_height()
+  assert m.park_height_text() == "Very Low" and rh.level_for(path=tmp_path / PARK, model_x=True) == 7
+  assert [m.next_drive_height() for _ in range(6)] == ["high", "very_high", "none", "very_low", "low", "medium"]
+  for _ in range(4):
+    m.next_drive_height()
+  assert m.drive_height_text() == "Very Low" and (tmp_path / DRIVE).read_text() == "very_low"
+
+
+def test_model_s_keeps_four_heights(tmp_path, very_low_panda):
+  m = model(cp("TESLA_AP1_MODELS"), tmp_path)
+  m.write(KEY, True)
+  assert m.park_description() == pv.AUTO_HEIGHT_PARK_DESCRIPTION and "very low" not in m.park_description().lower()
+  assert m.drive_description() == pv.AUTO_HEIGHT_DRIVE_DESCRIPTION and "very low" not in m.drive_description().lower()
+  assert [m.next_park_height() for _ in range(5)] == ["medium", "high", "very_high", "none", "low"]
+  assert [m.next_drive_height() for _ in range(5)] == ["high", "very_high", "none", "low", "medium"]
+  # A saved Very Low (for example restored from a Model X) shows and is asked for as Low, and the next press goes to Medium.
+  (tmp_path / PARK).write_text("very_low")
+  assert m.park_height() == "low" and m.park_height_text() == "Low" and rh.level_for(path=tmp_path / PARK) == 1
+  assert m.next_park_height() == "medium"
+
+
+def test_very_low_hidden_until_the_panda_allows_it(tmp_path, full_panda, monkeypatch):
+  monkeypatch.setattr(rh, "PANDA_VERY_LOW_SUPPORTED", False)
+  m = model(cp("TESLA_AP1_MODELX"), tmp_path)
+  m.write(KEY, True)
+  assert m.park_description() == pv.AUTO_HEIGHT_PARK_DESCRIPTION
+  assert [m.next_park_height() for _ in range(5)] == ["medium", "high", "very_high", "none", "low"]
+  (tmp_path / DRIVE).write_text("very_low")
+  assert m.drive_height_text() == "Low" and m.next_drive_height() == "medium"
+
+
+def test_unknown_or_dashcam_car_never_offers_very_low(tmp_path, very_low_panda):
+  for car in (None, cp("TESLA_AP1_MODELX", dashcam=True)):
+    m = model(car, tmp_path)
+    assert m._very_low() is False and m.park_description() == pv.AUTO_HEIGHT_PARK_DESCRIPTION

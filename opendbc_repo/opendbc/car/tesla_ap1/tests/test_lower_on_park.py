@@ -170,8 +170,9 @@ def test_keys_levels_and_labels():
   assert (rh.ENABLE_KEY, rh.HEIGHT_KEY, rh.DRIVE_HEIGHT_KEY) == ("AutoHeight", "AutoHeightPark", "AutoHeightDrive")
   assert (rh.LEGACY_ENABLE_KEY, rh.LEGACY_HEIGHT_KEY) == ("LowerOnPark", "LowerOnParkHeight")
   assert rh.HEIGHTS == ("low", "medium", "high", "very_high") and rh.LEVELS == (1, 2, 3, 4)
-  assert rh.LEVEL_BY_HEIGHT == {"low": 1, "medium": 2, "high": 3, "very_high": 4}
-  assert rh.HEIGHT_LABELS == {"low": "Low", "medium": "Medium", "high": "High", "very_high": "Very High", "none": "None"}
+  assert rh.LEVEL_BY_HEIGHT == {"very_low": 7, "low": 1, "medium": 2, "high": 3, "very_high": 4}
+  assert rh.HEIGHT_LABELS == {"very_low": "Very Low", "low": "Low", "medium": "Medium", "high": "High", "very_high": "Very High",
+                              "none": "None"}
   assert rh.NONE == "none" and rh.CHOICES == ("low", "medium", "high", "very_high", "none")
   assert rh.HEIGHT_DEFAULT == "low" and rh.DRIVE_HEIGHT_DEFAULT == "medium"
 
