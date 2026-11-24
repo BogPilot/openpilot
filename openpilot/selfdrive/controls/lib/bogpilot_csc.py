@@ -39,7 +39,6 @@ THRESHOLD = 0.63                          # requires the condition to be true fo
 
 CALIBRATION_PROGRESS_THRESHOLD = 10 / DT_MDL
 MAX_CURVATURE = 0.1
-TARGET_RELEASE_RATE = 1.2                 # m/s^2, how fast an active CSC target may rise toward a looser curve speed (comfort; never limits braking)
 MIN_CURVATURE = 0.001
 PERCENTILE = 90
 ROUNDING_PRECISION = 5
@@ -214,12 +213,9 @@ class CurveSpeedController:
     self.store = store
 
     self.enable_training = False
-    self.target_set = False
-
-    self.target = 0.0
     self.training_timer = 0.0
 
-    # Optional brand cap on the learned cornering limit (AP1: ap1_curve_brake.TESLA_CSC_MAX_LAT_ACCEL).
+    # Optional brand cap on the learned cornering limit (AP1: curve_speed_planner.TESLA_CSC_MAX_LAT_ACCEL).
     self.max_lateral_acceleration = max_lateral_acceleration
 
     self.curvature_data = load_curvature_data(self._read("CurvatureData"))
@@ -313,32 +309,3 @@ class CurveSpeedController:
     if self.max_lateral_acceleration is not None:
       lateral_acceleration = min(lateral_acceleration, self.max_lateral_acceleration)
     return lateral_acceleration
-
-  def update_target(self, v_ego, road_curvature, time_to_curve, v_cap=None, dt=DT_MDL):
-    """Advance the CSC target (m/s). v_cap is the cruise speed CSC sits on (the set speed after any speed limit).
-
-    dt is the elapsed model time (s) since the previous sample.
-
-    First sample of an activation: daily seeds the target at v_ego, which drops the cruise speed to the car's own
-    speed for a frame even when the curve allows more than the set speed (then the target jumps to the curve speed
-    and the cap snaps back). With a valid v_cap the target starts at the speed the curve allows (steady-state curve
-    speed), kept within [v_ego, max(v_ego, v_cap)]: a curve that allows the set speed starts AT the set speed (no dip),
-    a curve slower than the car still starts at v_ego and ramps down at the time-to-curve rate exactly as before."""
-    lateral_acceleration = self.effective_lateral_acceleration()
-
-    if self.target_set:
-      csc_speed = (lateral_acceleration / abs(road_curvature))**0.5
-      decel_rate = (v_ego - csc_speed) / time_to_curve
-
-      target = max(self.target - decel_rate * dt, csc_speed)
-      target = float(np.clip(target, CRUISING_SPEED, max(v_ego, csc_speed)))
-      # Asymmetric: the target falls toward a tighter curve at the time-to-curve rate (unchanged), but rises toward a
-      # looser one at TARGET_RELEASE_RATE instead of jumping. Raising only ever releases speed, never delays braking.
-      self.target = min(target, self.target + TARGET_RELEASE_RATE * dt)
-    else:
-      self.target_set = True
-
-      self.target = v_ego
-      if v_cap is not None and math.isfinite(v_cap) and v_cap >= CRUISING_SPEED and road_curvature != 0.0:
-        csc_speed = (lateral_acceleration / abs(road_curvature))**0.5
-        self.target = float(np.clip(csc_speed, v_ego, max(v_ego, v_cap)))

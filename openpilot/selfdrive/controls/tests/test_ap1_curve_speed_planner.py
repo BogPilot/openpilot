@@ -12,7 +12,7 @@ from opendbc.car.honda.interface import CarInterface as HondaInterface
 from opendbc.car.honda.values import CAR as HONDA
 from opendbc.car.tesla_ap1.interface import CarInterface as Ap1Interface
 from openpilot.common.realtime import DT_MDL
-from openpilot.selfdrive.controls.lib.ap1_curve_brake import A_MIN, RELEASE_JERK
+from openpilot.selfdrive.controls.lib.curve_speed_planner import A_MIN, RELEASE_JERK
 from openpilot.selfdrive.controls.lib.ap1_curve_speed import Ap1CurveSpeed
 from openpilot.selfdrive.controls.lib.bogpilot_csc import CRUISING_SPEED
 from openpilot.selfdrive.controls.lib.drive_helpers import CONTROL_N, get_accel_from_plan
@@ -304,10 +304,11 @@ def test_disengage_resets_and_reengage_restarts_target():
     p.update(SM(msgs(20.0, 30.0, 240.0 + 20.0 * i * DT_MDL, road(300.0, K, 150.0))))
   assert p.curve_speed.controlling and p.curve_speed.a_brake < 0.0
   p.update(SM(msgs(18.0, 30.0, 290.0, road(300.0, K, 150.0), enabled=False)))
-  assert not p.curve_speed.controlling and p.curve_speed.a_brake == 0.0 and not p.curve_speed.csc.target_set
-  assert p.curve_speed.brake.a_request == 0.0
+  assert not p.curve_speed.controlling and p.curve_speed.a_brake == 0.0
+  assert p.curve_speed.planner.a_curve == 0.0
   p.update(SM(msgs(18.0, 30.0, 291.0, road(300.0, K, 150.0))))
-  assert p.curve_speed.controlling and p.curve_speed.target == pytest.approx(18.0)
+  # the curve planner restarts at once and reports the curve speed ahead (no seed ramp from v_ego)
+  assert p.curve_speed.controlling and p.curve_speed.target == pytest.approx(V_CURVE, rel=1e-3)
 
 
 def test_blinker_suspends_csc():
@@ -380,31 +381,32 @@ def test_publish_bogpilot_plan_valid_flag(toggle):
 MPH = 0.44704
 
 
-def test_hold_cap_while_filtered_curvature_drops():
-  """CSC was holding ~14 mph in a tight curve; 6 s later the filtered curvature
-  had already dropped and an earlier build released to the 30 mph SLC while the car was still at 14 mph.
-  The cap must stay until the hold expires."""
+def test_no_hold_when_the_curve_opens_cruise_accel_stays_bounded():
+  """Logged window: CSC was holding ~14 mph in a tight curve, then the curvature dropped while the car was still at
+  14 mph. With the curve speed planner there is no hold and no latch: the opening curve is still in the envelope, so
+  cruise may only accelerate as far as that curve allows, and once the road is straight the cap is gone at once."""
   p = planner()
-  # Build a controlling cap on a tight right curve (κ ~ -0.064, v ~ 14 mph).
   k_tight = -0.064
   v = 14.0 * MPH
   slc = 30.0 * MPH
   for i in range(80):
     p.update(SM(msgs(v, slc, 200.0 + 20.0 * i * DT_MDL, road(0.0, k_tight, 1e9))))
   assert p.curve_speed.controlling
-  held = p.curve_speed.target
-  assert held < slc - 1.0
-  # Curvature falls the way the logged filter did (κ ~ -0.012, lat accel ~ 0.46 < 1.3).
-  k_open = -0.012
+  assert p.curve_speed.target < slc - 1.0
+  k_open = -0.012                  # curve speed sqrt(2 / 0.012) = 12.9 m/s, above the car (6.3 m/s)
+  prev = p.curve_speed.a_curve
   for i in range(int(1.0 / DT_MDL)):
     p.update(SM(msgs(v, slc, 400.0 + 20.0 * i * DT_MDL, road(0.0, k_open, 1e9))))
-    assert p.curve_speed.controlling, "released to the SLC cap mid-curve"
-    assert p.curve_speed.v_cruise_out == pytest.approx(held, abs=0.2)
-  # After the 2 s hold with no remaining curve, release is allowed.
-  for i in range(int(3.0 / DT_MDL)):
+    a = p.curve_speed.a_curve
+    assert prev <= a <= min(prev + RELEASE_JERK * DT_MDL, 0.0) + 1e-9   # below the curve speed: only releases, no hold
+    prev = a
+    assert p.a_cruise <= max(p.curve_speed.cruise_ceiling, 0.0) + 1.5 + 1e-9   # eased toward the ceiling, never above it by more
+    assert p.curve_speed.v_cruise_out <= slc + 1e-9
+  for i in range(2):
     p.update(SM(msgs(v, slc, 500.0 + 20.0 * i * DT_MDL, road(0.0, 0.0, 1e9))))
-  assert not p.curve_speed.controlling
+  assert not p.curve_speed.controlling                # straight road: released on the next frames, no 2 s hold
   assert p.curve_speed.v_cruise_out == pytest.approx(slc)
+  assert p.curve_speed.cruise_ceiling == math.inf
 
 
 def test_hold_cap_on_mid_curve_reengage():

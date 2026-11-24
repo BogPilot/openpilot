@@ -6,7 +6,7 @@ import pytest
 
 from opendbc.car import structs
 from openpilot.selfdrive.controls.lib import csc_platform as P
-from openpilot.selfdrive.controls.lib.ap1_curve_brake import TeslaCurveBrake, ap1_curve_brake_for
+from openpilot.selfdrive.controls.lib.curve_speed_planner import CurveSpeedPlanner, curve_speed_planner_for
 
 FULL, LAT_ONLY, LAT_PENDING, LOCKOUT, OFF = 4, 3, 2, 1, 0
 
@@ -60,8 +60,8 @@ def test_available_ap1_model_x_op_long_only():
   assert P.csc_supported(cp("TESLA_AP1_MODELX"))
   assert not P.csc_supported(cp("TESLA_AP1_MODELX", long=False))      # stock cruise: never
   assert P.csc_row_visible(cp("TESLA_AP1_MODELX")) and not P.csc_row_visible(cp("TESLA_AP1_MODELX", long=False))
-  assert isinstance(ap1_curve_brake_for(cp("TESLA_AP1_MODELX")), TeslaCurveBrake)
-  assert ap1_curve_brake_for(cp("TESLA_AP1_MODELX", long=False)) is None
+  assert isinstance(curve_speed_planner_for(cp("TESLA_AP1_MODELX")), CurveSpeedPlanner)
+  assert curve_speed_planner_for(cp("TESLA_AP1_MODELX", long=False)) is None
   assert P.csc_gate(P.is_preap(cp("TESLA_AP1_MODELX")), SimpleNamespace()) == (True, True)   # AP1 gate, no Pre-AP pedal rules
 
 
@@ -95,10 +95,10 @@ def test_gate_preap_full_controls():
 
 
 def test_curve_brake_factory_preap_pedal():
-  assert isinstance(ap1_curve_brake_for(cp("TESLA_PREAP_MODELS"), pedal_ok=True), TeslaCurveBrake)
-  assert ap1_curve_brake_for(cp("TESLA_PREAP_MODELS"), pedal_ok=False) is None
-  assert ap1_curve_brake_for(cp("TESLA_PREAP_MODELS", long=False), pedal_ok=True) is None
-  assert isinstance(ap1_curve_brake_for(cp("TESLA_AP1_MODELS")), TeslaCurveBrake)
+  assert isinstance(curve_speed_planner_for(cp("TESLA_PREAP_MODELS"), pedal_ok=True), CurveSpeedPlanner)
+  assert curve_speed_planner_for(cp("TESLA_PREAP_MODELS"), pedal_ok=False) is None
+  assert curve_speed_planner_for(cp("TESLA_PREAP_MODELS", long=False), pedal_ok=True) is None
+  assert isinstance(curve_speed_planner_for(cp("TESLA_AP1_MODELS")), CurveSpeedPlanner)
 
 
 def test_csc_toggle_row_preap_pedal_only(monkeypatch):

@@ -37,7 +37,6 @@ TAP_FROM_ZERO_DESC = (
 CONTROLS = ("LongitudinalActuatorDelay", "MaxDesiredAcceleration", "StopAccel", "StoppingDecelRate",
             "AccelerationProfile", "DecelerationProfile", "HumanAcceleration", "AdaptiveAccelLead",
             "CSCMapCurvature",
-            "CSCTeslaSmoothing",
             "CustomPersonalities", "HumanFollowing", "HumanLaneChanges",
             "LeadDetectionThreshold", "ForceStops", "IncreasedStoppedDistance", "WeatherPresets", "SpeedLimitController")
 

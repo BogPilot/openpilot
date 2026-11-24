@@ -76,7 +76,6 @@ def test_shipped_values_equal_the_live_constants():
   v = run_probe("values")
   for r in tt.ROWS:
     assert v[r.key] == pytest.approx(r.shipped, abs=1e-9), r.key
-  assert v["_opendbc_curve"] == [2.0, -1.2, 1.5, 1.2]
   assert v["_preap_modules"] == [2.5, -1.5, 2.5, -1.5]
   assert v["_standby_engage_hold"] == -1.4
 
@@ -150,7 +149,6 @@ def test_consumers_use_every_edited_value_written_by_the_menu(pdir, tmp_path):
   v = run_probe("values", pdir, tmp_path / "params")      # the consumers, in a fresh process
   for key, value in edits.items():
     assert v[key] == pytest.approx(value, abs=1e-6), (key, v[key], value)
-  assert v["_opendbc_curve"] == [edits["CurveMaxLatAccel"], edits["CurveMaxDecel"], edits["CurveOnsetJerk"], edits["CurveReleaseJerk"]]
   assert v["_preap_modules"] == [edits["PreApPedalAccelMax"], edits["PreApPedalRegenMax"]] * 2
   assert v["_standby_engage_hold"] == edits["AP1StandbyAccelMin"]
 

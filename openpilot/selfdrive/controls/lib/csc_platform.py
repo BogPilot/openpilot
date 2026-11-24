@@ -7,7 +7,7 @@ This tree keeps the AP1 gate and adds Pre-AP back, stricter than 0.9.7:
 
   * AP1 (TESLA_AP1_MODELS) with openpilot longitudinal: unchanged.
   * AP1 Model X (TESLA_AP1_MODELX) with openpilot longitudinal (the AP1XOpenpilotLong opt-in): the same as the AP1
-    Model S (same Curve Speed Control, Smooth Curve Braking, Map Curve Speed, the same 2.0 m/s^2 cornering cap). With
+    Model S (same Curve Speed Control and curve speed planner, Map Curve Speed, the same 2.0 m/s^2 cornering cap). With
     stock cruise the X never runs it. The cap is provisional on the X: no X drive with openpilot longitudinal and
     real cornering exists yet, so nothing in X data justifies a different value.
   * Pre-AP (TESLA_PREAP_MODELS) only with openpilot longitudinal (pcmCruise False) AND a stored, detected and

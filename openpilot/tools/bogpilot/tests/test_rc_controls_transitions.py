@@ -5,7 +5,7 @@ Uses existing planner fixtures instead of duplicating simulations. Native suite.
 import pytest
 
 from openpilot.common.realtime import DT_MDL
-from openpilot.selfdrive.controls.lib.ap1_curve_brake import RELEASE_JERK
+from openpilot.selfdrive.controls.lib.curve_speed_planner import RELEASE_JERK
 from openpilot.selfdrive.controls.tests.test_ap1_curve_speed_planner import SM, msgs, planner, road, K
 
 
@@ -33,7 +33,7 @@ def test_active_curve_cancellation_only_releases(cause):
       sm.valid["carState"] = False
     p.update(sm)
     cs = p.curve_speed
-    assert not cs.controlling and not cs.csc.target_set
+    assert not cs.controlling
     assert cs.v_cruise_out == pytest.approx(30.0)
     assert prev - 1e-9 <= cs.a_brake <= prev + RELEASE_JERK * DT_MDL + 1e-9
     if "blinker" not in cause:
@@ -55,7 +55,7 @@ def test_lane_change_continuation_without_blinker_cancels_curve(state):
     p.update(sm)
     cs = p.curve_speed
     assert not cs.controlling, "CSC remains active during model lane-change continuation"
-    assert not cs.csc.target_set and not cs.training
+    assert not cs.training
     assert cs.v_cruise_out == pytest.approx(30.0)
     assert previous - 1e-9 <= cs.a_brake <= previous + RELEASE_JERK * DT_MDL + 1e-9
     previous = cs.a_brake

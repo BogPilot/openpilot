@@ -1,7 +1,8 @@
 """Pre-AP pedal CSC on the real Ap1CurveSpeed with synthetic modelV2 / carState messages (not a log replay, not a drive).
 
-CSC controls (lowers vCruise, curve brake) only while the Pre-AP pull FSM is in FULL with a live pedal; steering only
-never caps. Needs the native messaging / MPC libraries: skipped where they are not built."""
+CSC controls (curve braking; the displayed set speed follows the curve speed) only while the Pre-AP pull FSM is in FULL
+with a live pedal; steering only never brakes. The cruise speed handed back to the planner is never lowered. Needs the
+native messaging / MPC libraries: skipped where they are not built."""
 from types import SimpleNamespace
 
 import numpy as np
@@ -10,7 +11,7 @@ import pytest
 try:
   import openpilot.cereal.messaging as messaging
   from openpilot.common.realtime import DT_MDL
-  from openpilot.selfdrive.controls.lib.ap1_curve_brake import A_MIN
+  from openpilot.selfdrive.controls.lib.curve_speed_planner import A_MIN
   from openpilot.selfdrive.controls.lib.ap1_curve_speed import Ap1CurveSpeed
   from openpilot.selfdrive.modeld.constants import ModelConstants
 except (ImportError, OSError) as e:   # msgq / params / acados natives not built on this host
@@ -81,18 +82,19 @@ def run(v_cruise, mode=FULL, pedal=True, seconds=6.0, s0=200.0, v=20.0, road_k=N
   for i in range(int(seconds / DT_MDL)):
     s = s0 + v * i * DT_MDL
     out = c.update(SM(msgs(v, s, road_k, mode=mode, pedal=pedal, n=n), valid=valid), v, v_cruise, False)
-    outs.append((out, c.a_brake, c.controlling))
+    assert out == v_cruise
+    outs.append((c.v_cruise_out, c.a_curve, c.controlling))
   return c, outs
 
 
 def test_available_preap_pedal_op_long():
   c = Ap1CurveSpeed(preap_cp(), DT_MDL, ToggleStore(), pedal_ok=True)
-  assert c.available and c.preap and c.brake is not None
+  assert c.available and c.preap and c.planner is not None
 
 
 def test_unavailable_preap_no_pedal():
   c = Ap1CurveSpeed(preap_cp(), DT_MDL, ToggleStore(), pedal_ok=False)
-  assert not c.available and c.brake is None and c.csc is None
+  assert not c.available and c.planner is None and c.csc is None
 
 
 def test_controls_only_in_full_mode():

@@ -7,8 +7,8 @@ import pytest
 
 from openpilot.common.realtime import DT_MDL
 from openpilot.selfdrive.modeld.constants import ModelConstants
-from openpilot.selfdrive.controls.lib.ap1_curve_brake import (TESLA_CSC_MAX_LAT_ACCEL, curve_brake_request, curve_target_speed,
-                                                              tesla_csc_lateral_accel)
+from openpilot.selfdrive.controls.lib.curve_speed_planner import (TESLA_CSC_MAX_LAT_ACCEL, CurveSpeedPlanner,
+                                                                  tesla_csc_lateral_accel, vision_curve_points)
 from openpilot.selfdrive.controls.lib.bogpilot_csc import (CALIBRATION_PROGRESS_THRESHOLD, CRUISING_SPEED, DEFAULT_LATERAL_ACCELERATION,
                                                            MINIMUM_LATERAL_ACCELERATION, PLANNER_TIME, THRESHOLD, CurveSpeedController,
                                                            TrackingLead, calculate_road_curvature, load_curvature_data,
@@ -92,48 +92,25 @@ def test_cap_applies_to_learned_limit():
   assert csc.effective_lateral_acceleration() == pytest.approx(1.6)
 
 
-def test_first_target_is_current_speed_then_ramps_to_curve_speed():
-  csc = CurveSpeedController(Store(), TESLA_CSC_MAX_LAT_ACCEL)
-  k, ttc, v = 0.02, 4.0, 20.0
-  csc.update_target(v, k, ttc)
-  assert csc.target_set and csc.target == v
-  v_curve = (2.0 / k) ** 0.5
-  csc.update_target(v, k, ttc)
-  assert csc.target == pytest.approx(v - (v - v_curve) / ttc * DT_MDL)
-  for _ in range(400):
-    csc.update_target(v, k, ttc)
-  assert csc.target == pytest.approx(v_curve)
-
-
-def test_target_clip():
-  csc = CurveSpeedController(Store(), TESLA_CSC_MAX_LAT_ACCEL)
-  csc.update_target(30.0, 1.0, 1.0)
-  for _ in range(100):
-    csc.update_target(30.0, 1.0, 1.0)        # sqrt(2) m/s curve: clipped at CRUISING_SPEED
-  assert csc.target == CRUISING_SPEED
-  csc = CurveSpeedController(Store(), TESLA_CSC_MAX_LAT_ACCEL)
-  csc.update_target(10.0, 0.001, 1.0)        # gentle: curve speed 44.7 m/s, never above max(v_ego, csc)
-  for _ in range(100):
-    csc.update_target(10.0, 0.001, 1.0)
-  assert csc.target <= (2.0 / 0.001) ** 0.5 + 1e-9
-
-
-def test_target_and_brake_share_the_curve_speed():
+def test_hud_curvature_and_planner_share_the_curve_speed():
   v = 20.0
   yaw = curve(v, lambda t: 0.02 if t >= 3.0 else 0.0)
   vv = np.full(len(T), v)
   k, _ = calculate_road_curvature(yaw, vv, T)
-  assert curve_target_speed(T, vv * T, vv, yaw) == pytest.approx((TESLA_CSC_MAX_LAT_ACCEL / abs(k)) ** 0.5)
+  _, vc = vision_curve_points(vv * T, vv, yaw, T, TESLA_CSC_MAX_LAT_ACCEL)
+  assert vc.min() == pytest.approx((TESLA_CSC_MAX_LAT_ACCEL / abs(k)) ** 0.5)
 
 
-def test_brake_ignores_non_finite_nodes():
+def test_planner_ignores_non_finite_nodes():
   v = 20.0
   vv = np.full(len(T), v)
   yaw = curve(v, lambda t: 0.05 if t >= 2.0 else 0.0)
   yaw[5] = float('nan')
-  assert math.isfinite(curve_brake_request(v, T, vv * T, vv, yaw))
-  assert curve_brake_request(float('nan'), T, vv * T, vv, yaw) == 0.0
-  assert curve_target_speed(T, vv * T, vv, yaw) == float('inf')
+  d, vc = vision_curve_points(vv * T, vv, yaw, T, TESLA_CSC_MAX_LAT_ACCEL)
+  assert np.all(np.isfinite(d)) and np.all(np.isfinite(vc)) and len(vc)
+  p = CurveSpeedPlanner()
+  assert math.isfinite(p.update(v, DT_MDL, TESLA_CSC_MAX_LAT_ACCEL, 0.35, vision=(d, vc)))
+  assert CurveSpeedPlanner().update(float('nan'), DT_MDL, TESLA_CSC_MAX_LAT_ACCEL, 0.35, vision=(d, vc)) == 0.0
 
 
 # --- learning ---

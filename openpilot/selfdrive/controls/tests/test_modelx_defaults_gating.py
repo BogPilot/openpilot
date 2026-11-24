@@ -9,7 +9,7 @@ import pytest
 
 from opendbc.car.tesla_ap1 import regen_aware as ra
 from openpilot.selfdrive.controls.lib import csc_platform as P
-from openpilot.selfdrive.controls.lib.ap1_curve_brake import TESLA_CSC_MAX_LAT_ACCEL, ap1_curve_brake_for
+from openpilot.selfdrive.controls.lib.curve_speed_planner import TESLA_CSC_MAX_LAT_ACCEL, curve_speed_planner_for
 from openpilot.selfdrive.controls.lib.ap1_planning import Ap1Planning
 from openpilot.selfdrive.controls.lib.comfort_regen import comfort_regen_enabled, comfort_regen_platform
 
@@ -47,8 +47,8 @@ def test_comfort_regen_x_saved_off_is_kept(monkeypatch):
 
 def test_csc_x_only_with_op_long_and_s_cap_kept():
   assert P.csc_supported(cp(X, True)) and P.csc_row_visible(cp(X, True))
-  assert not P.csc_supported(cp(X, False)) and ap1_curve_brake_for(cp(X, False)) is None
-  assert ap1_curve_brake_for(cp(X, True)) is not None
+  assert not P.csc_supported(cp(X, False)) and curve_speed_planner_for(cp(X, False)) is None
+  assert curve_speed_planner_for(cp(X, True)) is not None
   assert P.csc_supported(cp(S, True)) and not P.csc_supported(cp(S, False))                      # S unchanged
   # the X uses the S cornering cap: 2.0 m/s^2 (4.5 mph/s). X drive: engaged max 1.45 m/s^2, the driver's own sustained
   # curves up to about 2.2 m/s^2, so nothing in the X data asks for a lower cap.

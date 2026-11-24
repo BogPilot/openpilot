@@ -1,7 +1,7 @@
 """Single arbitration point for the AP1 acceleration request on the 0.11.2 C3X planner.
 
 The planner picks min() over its acceleration candidates. Every candidate is individually smooth (the cruise
-candidate is jerk limited in get_cruise_accel, the curve brake in ap1_curve_brake), but the min() flips between them,
+candidate is jerk limited in get_cruise_accel, the curve request in curve_speed_planner), but the min() flips between them,
 and each flip is a step: lifting off from a +0.7 m/s^2 cruise request to a curve brake that starts at -0.07 m/s^2 is a
 0.8 m/s^2 step in one plan frame, and the release is the same step back up.
 

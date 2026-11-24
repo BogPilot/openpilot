@@ -2,7 +2,7 @@
 import pytest
 
 from openpilot.common.realtime import DT_MDL
-from openpilot.selfdrive.controls.lib.ap1_curve_brake import TESLA_CSC_MAX_LAT_ACCEL
+from openpilot.selfdrive.controls.lib.curve_speed_planner import TESLA_CSC_MAX_LAT_ACCEL
 from openpilot.selfdrive.controls.lib.ap1_curve_speed import Ap1CurveSpeed
 from openpilot.selfdrive.controls.lib.bogpilot_csc import CurveDetector, road_curvature_detected
 from openpilot.selfdrive.controls.tests.csc_replay_helpers import Store, csc_sm, ns

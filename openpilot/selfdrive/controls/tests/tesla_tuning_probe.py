@@ -14,10 +14,10 @@ from collections import deque
 
 
 def _consumers():
-  from opendbc.car.tesla_ap1 import actuator_plan, curve_speed, long_smooth, regen_aware
+  from opendbc.car.tesla_ap1 import actuator_plan, long_smooth, regen_aware
   from opendbc.car.tesla_ap1.preap import accel_limits, vdas_constants
-  from openpilot.selfdrive.controls.lib import ap1_curve_brake, comfort_regen
-  return actuator_plan, curve_speed, long_smooth, regen_aware, accel_limits, vdas_constants, ap1_curve_brake, comfort_regen
+  from openpilot.selfdrive.controls.lib import curve_speed_planner, comfort_regen
+  return actuator_plan, long_smooth, regen_aware, accel_limits, vdas_constants, curve_speed_planner, comfort_regen
 
 
 def _standby_command(actuator_plan):
@@ -29,7 +29,7 @@ def _standby_command(actuator_plan):
 
 
 def values():
-  ap, cs, ls, ra, al, vc, cb, cr = _consumers()
+  ap, ls, ra, al, vc, cb, cr = _consumers()
   out = {}
   # rise: a fresh smoother seeds last=0 (a_ego 0), the next step rises by rise_jerk * dt
   s = ls.Ap1AccelSmoother()
@@ -59,14 +59,12 @@ def values():
   out["StopShaperOnsetFrac"] = ra.ONSET_FRAC
   out["StopShaperGentleFrac"] = ra.GENTLE_FRAC
   import inspect
-  out["CurveMaxLatAccel"] = inspect.signature(cb.curve_target_speed).parameters["max_lat_accel"].default
+  out["CurveMaxLatAccel"] = inspect.signature(cb.tesla_csc_lateral_accel).parameters["cap"].default
   out["CurveMaxDecel"] = cb.A_MIN
   out["CurveOnsetJerk"] = cb.ONSET_JERK
   out["CurveReleaseJerk"] = cb.RELEASE_JERK
   out["PreApPedalAccelMax"] = vc.ACCEL_MAX
   out["PreApPedalRegenMax"] = al.get_preap_accel_limits(10.0)[0]
-  # the second copy of the curve brake in opendbc follows the same rows
-  out["_opendbc_curve"] = [cs.TESLA_CSC_MAX_LAT_ACCEL, cs.A_MIN, cs.ONSET_JERK, cs.RELEASE_JERK]
   from opendbc.car.tesla_ap1.preap import virtual_das, pedal_controller
   out["_preap_modules"] = [virtual_das.ACCEL_MAX, virtual_das.REGEN_MAX, pedal_controller.ACCEL_MAX, pedal_controller.REGEN_MAX]
   out["_standby_engage_hold"] = ls.AP1_STANDSTILL_ENGAGE_ACCEL
@@ -74,7 +72,7 @@ def values():
 
 
 def replay():
-  ap, cs, ls, ra, al, vc, cb, cr = _consumers()
+  ap, ls, ra, al, vc, cb, cr = _consumers()
   h = hashlib.sha256()
 
   def feed(*xs):
@@ -107,7 +105,7 @@ def replay():
     a2, e2 = shaper_x.update(v_ego, target, d_rel, 51.1, 0.05)
     feed(out, jmin, jmax, c, a1, e1, a2, e2)
   for v, lat in ((10.0, 0.5), (25.0, 2.5), (30.0, 1.0)):
-    feed(ra.profile_distance(v, 30.0, car=ra.MODEL_S), cb.landing_decel(v * 0.3), cb.tesla_csc_lateral_accel(lat))
+    feed(ra.profile_distance(v, 30.0, car=ra.MODEL_S), cb.landing_decel(v * 0.3, 0.3), cb.tesla_csc_lateral_accel(lat))
   for sp in (0.0, 5.0, 20.0, 35.0):
     for p in (0, 1, 2):
       feed(*al.get_preap_accel_limits(sp, p))

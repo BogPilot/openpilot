@@ -35,8 +35,8 @@ def test_ap1_curve_speed_available_on_x_long():
   from openpilot.selfdrive.controls.lib.ap1_curve_speed import Ap1CurveSpeed
   from openpilot.selfdrive.controls.tests.test_ap1_curve_speed_planner import ToggleStore
   x = Ap1CurveSpeed(cp(X, True), 0.05, ToggleStore(True))
-  assert x.available and not x.preap and x.brake is not None and x.csc is not None
+  assert x.available and not x.preap and x.planner is not None and x.csc is not None
   off = Ap1CurveSpeed(cp(X, False), 0.05, ToggleStore(True))
-  assert not off.available and off.brake is None and off.csc is None
+  assert not off.available and off.planner is None and off.csc is None
   s = Ap1CurveSpeed(cp(S, True), 0.05, ToggleStore(True))
-  assert s.available and not s.preap and s.brake is not None
+  assert s.available and not s.preap and s.planner is not None

@@ -182,8 +182,9 @@ class LongitudinalPlanner:
     experimental = self.speed_control.resolve_experimental(sm['selfdriveState'].experimentalMode) or conditional
     self.experimental = bool(experimental)
 
-    # Curve speed control (AP1, Pre-AP pedal in FULL): can only lower the cruise speed (never above the driver's set speed).
-    v_cruise = self.curve_speed.update(sm, v_ego, v_cruise, reset_state)
+    # Curve speed control (AP1, Pre-AP pedal in FULL): one curve candidate (a_curve) plus a cap on positive cruise accel.
+    # The cruise speed itself is not lowered for curves (returned unchanged).
+    v_cruise = self.curve_speed.update(sm, v_ego, v_cruise, reset_state, action_delay)
     try:
       if self.long_stopping is None or self.long_accel is None:
         raise RuntimeError("stopping runtime not initialised")
@@ -254,15 +255,18 @@ class LongitudinalPlanner:
                                      self.a_cruise, steer_angle_without_offset, self.CP, self.dt,
                                      accel_coast, self.allow_throttle, profile_limits, throttle_cut,
                                      ap1_shape=self.ap1_plan.active)
+    # Curve ahead: positive cruise accel may not exceed what keeps every curve point reachable, and rises gently from the
+    # previous plan output (braking untouched).
+    self.a_cruise = self.curve_speed.cap_cruise_accel(self.a_cruise, a_prev)
     cruise_should_stop = should_stop(v_ego, self.a_cruise)
 
     candidates = [(output_a_target_mpc, self.mpc.source, output_should_stop_mpc),
                   (self.a_cruise, LongitudinalPlanSource.cruise, cruise_should_stop)]
     if experimental:
       candidates.append((output_a_target_e2e, LongitudinalPlanSource.e2e, output_should_stop_e2e))
-    if self.curve_speed.a_brake < 0.0:
-      # AP1 look-ahead curve brake: an extra min() candidate, so it can only add braking.
-      candidates.append((self.curve_speed.a_brake, LongitudinalPlanSource.cruise, False))
+    if self.curve_speed.a_curve < 0.0:
+      # Curve speed planner: an extra min() candidate, so it can only add braking.
+      candidates.append((self.curve_speed.a_curve, LongitudinalPlanSource.cruise, False))
 
     dt_model = self.arbiter_clock.step(sm)
     if self.arbiter is not None:
@@ -270,8 +274,8 @@ class LongitudinalPlanner:
       named = [("mpc", output_a_target_mpc), ("cruise", self.a_cruise)]
       if experimental:
         named.append(("e2e", output_a_target_e2e))
-      if self.curve_speed.a_brake < 0.0:
-        named.append(("curve", self.curve_speed.a_brake))
+      if self.curve_speed.a_curve < 0.0:
+        named.append(("curve", self.curve_speed.a_curve))
       output_a_target, winner, _ = self.arbiter.arbitrate(named, dt_model, reset_state)
       self.mpc.source = {"mpc": self.mpc.source, "e2e": LongitudinalPlanSource.e2e}.get(winner, LongitudinalPlanSource.cruise)
     else:

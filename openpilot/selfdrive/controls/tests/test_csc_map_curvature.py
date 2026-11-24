@@ -1,5 +1,6 @@
-"""Map Curve Speed (CSCMapCurvature, mapd v2 mapCurveSpeed) in Ap1CurveSpeed: off by default, only ever lowers the
-cruise speed, only where CSC could cap, fails closed on stale data, follows mapd's value raw (no hold). Synthetic, no mapd."""
+"""Map Curve Speed (CSCMapCurvature, mapd v2 mapCurveSpeed) in Ap1CurveSpeed: off by default, one point of the
+curve speed planner's envelope (rescaled to the one lateral limit, never up), never changes the cruise speed itself, only
+where CSC could control, fails closed on stale data, follows mapd's value raw (no hold). Synthetic, no mapd."""
 import pytest
 
 from openpilot.common.realtime import DT_MDL
@@ -64,15 +65,17 @@ def test_toggle_off_never_reads_mapd_and_output_is_unchanged():
     assert tick.calls == 0 and c.map_cap == 0.0
 
 
-def test_map_cap_lowers_only_and_is_rescaled_never_up():
+def test_map_point_is_rescaled_never_up_and_cruise_speed_is_unchanged():
   c = csc(Store(), Tick(MapdV2Data(True, 25.0, 0, 0, 12.0)))
-  out = step(c)
+  assert step(c) == pytest.approx(30.0)                     # the cruise speed is never lowered for curves
   lat = min(c.csc.effective_lateral_acceleration(), A.TESLA_CSC_MAX_LAT_ACCEL)
-  assert out == pytest.approx(min(30.0, map_curve_cap(12.0, lat)))
-  assert out <= 12.0 + 1e-9
-  # set speed below the map cap: unchanged
+  assert c.map_cap == pytest.approx(map_curve_cap(12.0, lat)) and c.map_cap <= 12.0 + 1e-9
+  assert c.planner.v_limit == pytest.approx(c.map_cap) and c.controlling
+  assert c.v_cruise_out == pytest.approx(c.map_cap)          # IC set digit (display) follows the curve speed
+  # set speed below the map curve speed: nothing limits
   c2 = csc(Store(), Tick(MapdV2Data(True, 25.0, 0, 0, 12.0)))
   assert step(c2, v_ego=10.0, v_cruise=10.0) == pytest.approx(10.0)
+  assert c2.v_cruise_out == pytest.approx(10.0) and not c2.planner.limiting
 
 
 def test_cap_rescale_math():
@@ -86,8 +89,10 @@ def test_cap_rescale_math():
 
 def test_floor_at_cruising_speed():
   c = csc(Store(), Tick(MapdV2Data(True, 25.0, 0, 0, 4.5)))
-  assert step(c) == pytest.approx(max(CRUISING_SPEED, map_curve_cap(4.5, 2.0)))
-  assert step(c) >= CRUISING_SPEED
+  step(c)
+  assert c.map_cap == pytest.approx(max(CRUISING_SPEED, map_curve_cap(4.5, 2.0)))
+  step(c)
+  assert c.map_cap >= CRUISING_SPEED
 
 
 def test_stale_or_missing_map_data_is_no_cap():
@@ -122,25 +127,30 @@ def test_slow_speed_and_csc_off():
 def test_lower_raise_and_release_are_immediate():
   tick = Tick(MapdV2Data(True, 25.0, 0, 0, 15.0))
   c = csc(Store(), tick)
-  a = step(c)
+  step(c)
+  a = c.map_cap
   tick.data = MapdV2Data(True, 25.0, 0, 0, 11.0)
-  b = step(c)
-  assert b < a                                               # lower at once
+  step(c)
+  assert c.map_cap < a and c.planner.v_limit == pytest.approx(c.map_cap)     # lower at once
   tick.data = MapdV2Data(True, 25.0, 0, 0, 0.0)              # curve left mapd's report
-  assert step(c) == pytest.approx(30.0) and c.map_cap == 0.0  # released on the very next tick
+  assert step(c) == pytest.approx(30.0) and c.map_cap == 0.0
+  assert c.planner.v_limit == float("inf") and c.v_cruise_out == pytest.approx(30.0)   # released on the very next tick
 
 
 def test_immediate_rise_at_curve_exit():
   tick = Tick(MapdV2Data(True, 25.0, 0, 0, 10.0))
   c = csc(Store(), tick)
-  low = step(c)
+  step(c)
+  low = c.map_cap
   assert low <= 10.0 + 1e-9
   tick.data = MapdV2Data(True, 25.0, 0, 0, 18.0)             # exit: mapd's next-curve speed rises
-  up = step(c)
-  assert up > low and up == pytest.approx(min(30.0, c.map_cap))
+  step(c)
+  up = c.map_cap
+  assert up > low and c.planner.v_limit == pytest.approx(up)
   assert up <= 18.0 + 1e-9 and up >= CRUISING_SPEED
   tick.data = MapdV2Data(True, 25.0, 0, 0, 25.0)
-  assert step(c) > up                                        # follows mapd upward every tick, still never above mapd
+  step(c)
+  assert c.map_cap > up                                      # follows mapd upward every tick, still never above mapd
 
 
 def test_no_hold_constant_left():
@@ -148,7 +158,8 @@ def test_no_hold_constant_left():
 
 
 def test_closed_loop_map_cap_reaches_map_speed_before_a_curve_vision_cannot_see_yet():
-  # straight road for the model; mapd reports a 12 m/s curve ahead: the planner slows to it, never below CRUISING_SPEED
+  # straight road for the model; mapd keeps reporting a 12 m/s curve ahead: the planner slows to it (map-only braking,
+  # no vision gate), never below CRUISING_SPEED
   store = Store()
   p = planner(store=store)
   p.curve_speed._map_tick = Tick(MapdV2Data(True, 25.0, 0, 0, 12.0))

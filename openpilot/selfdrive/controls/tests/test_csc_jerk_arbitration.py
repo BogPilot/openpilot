@@ -1,11 +1,10 @@
-"""AP1 comfort arbitration (ap1_curve_arbitration.py) and the elapsed-time CSC target slew."""
+"""AP1 comfort arbitration (ap1_curve_arbitration.py) and its elapsed-time model clock."""
 import numpy as np
 import pytest
 
 import openpilot.selfdrive.controls.lib.ap1_curve_arbitration as arb_mod
 from openpilot.selfdrive.controls.lib.ap1_curve_arbitration import (BYPASS_ACCEL, COMFORT_JERK_DOWN, COMFORT_JERK_UP, CurveArbiter, ModelClock)
-from openpilot.selfdrive.controls.lib.bogpilot_csc import CurveSpeedController, TARGET_RELEASE_RATE
-from openpilot.selfdrive.controls.tests.csc_replay_helpers import DT_MDL, SM, Store
+from openpilot.selfdrive.controls.tests.csc_replay_helpers import SM
 
 DT = 0.05
 
@@ -109,30 +108,3 @@ def test_model_clock_is_monotonic_bounded_with_fallback():
   assert c.step(SM({}, mono_ns=9_150_000_000)) == pytest.approx(0.2)  # gap bounded
   assert c.step(SM({}, mono_ns=9_150_000_000)) == 0.05            # not advancing: fallback, never 0 or negative
   assert c.step({}) == 0.05                                        # no time source
-
-
-def store_csc():
-  return CurveSpeedController(Store(), 2.0)
-
-
-def test_csc_target_fall_uses_elapsed_time():
-  a, b = store_csc(), store_csc()
-  k = 2.0 / 15.0 ** 2
-  for c in (a, b):
-    c.update_target(30.0, k, 4.0)
-  a.update_target(30.0, k, 4.0, None, 0.05)
-  b.update_target(30.0, k, 4.0, None, 0.10)
-  assert (30.0 - b.target) == pytest.approx(2 * (30.0 - a.target))
-
-
-def test_csc_target_rises_at_the_release_rate_not_instantly():
-  c = store_csc()
-  c.update_target(20.0, 2.0 / 15.0 ** 2, 2.0)      # active, tight curve: seeded at v_ego
-  for _ in range(40):
-    c.update_target(20.0, 2.0 / 15.0 ** 2, 2.0)
-  low = c.target
-  assert low < 20.0
-  c.update_target(20.0, 2.0 / 40.0 ** 2, 2.0)       # curve opens up: loose curve speed 40 m/s
-  assert c.target == pytest.approx(min(low + TARGET_RELEASE_RATE * DT_MDL, 40.0))
-  c.update_target(20.0, 2.0 / 40.0 ** 2, 2.0)
-  assert c.target <= 20.0 + 1e-9                    # still never above max(v_ego, curve speed)

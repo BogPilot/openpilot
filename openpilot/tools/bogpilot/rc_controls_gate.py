@@ -18,7 +18,7 @@ import xml.etree.ElementTree as ET
 
 REPO = Path(__file__).resolve().parents[3]
 SUITES = (
-  "openpilot/selfdrive/controls/tests/test_ap1_curve_brake.py",
+  "openpilot/selfdrive/controls/tests/test_curve_speed_planner.py",
   "openpilot/selfdrive/controls/tests/test_bogpilot_csc.py",
   "openpilot/selfdrive/controls/tests/test_ap1_curve_speed_planner.py",
   "openpilot/tools/bogpilot/tests/test_rc_controls_transitions.py",
