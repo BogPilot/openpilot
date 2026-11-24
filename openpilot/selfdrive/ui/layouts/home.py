@@ -8,6 +8,9 @@ from openpilot.selfdrive.ui.widgets.offroad_alerts import UpdateAlert, OffroadAl
 from openpilot.selfdrive.ui.widgets.exp_mode_button import ExperimentalModeButton
 from openpilot.selfdrive.ui.widgets.bogpilot_stats import BogPilotStatsWidget
 from openpilot.selfdrive.ui.widgets.bogpilot_upload_stats import UploadStatsCard
+from openpilot.selfdrive.ui.widgets.bogpilot_drive_summary import DriveSummaryCard
+from openpilot.selfdrive.ui.bogpilot.drive_summary import STATS_KEY, DriveSummaryController
+from openpilot.selfdrive.ui.ui_state import device, ui_state
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.lib.application import gui_app, FontWeight, MousePos, TextAlignment
 from openpilot.system.ui.lib.multilang import tr, trn
@@ -60,6 +63,10 @@ class HomeLayout(Widget):
     # Custom Log Upload Stats: drawn under the Experimental Mode button only while the toggle is on and a manually
     # installed uploader reports fresh status; otherwise the column stays as it is.
     self._upload_card = UploadStatsCard()
+    # Drive Summary: copies BogPilotStats at onroad start and covers the stats card after the drive until tapped
+    # or the screen times out.
+    self._drive_summary = DriveSummaryController(lambda: self.params.get(STATS_KEY))
+    self._drive_summary_card = DriveSummaryCard(self._drive_summary, self.params)
 
     self._exp_mode_button = ExperimentalModeButton()
     self._setup_callbacks()
@@ -74,6 +81,11 @@ class HomeLayout(Widget):
     self.update_alert.set_dismiss_callback(lambda: self._set_state(HomeLayoutState.HOME))
     self.offroad_alert.set_dismiss_callback(lambda: self._set_state(HomeLayoutState.HOME))
     self._exp_mode_button.set_click_callback(lambda: self.settings_callback() if self.settings_callback else None)
+    ui_state.add_offroad_transition_callback(self._on_offroad_transition)
+    device.add_interactive_timeout_callback(self._drive_summary.dismiss)
+
+  def _on_offroad_transition(self):
+    self._drive_summary.on_transition(ui_state.started, time.monotonic())
 
   def set_settings_callback(self, callback: Callable):
     self.settings_callback = callback
@@ -194,6 +206,9 @@ class HomeLayout(Widget):
     self.offroad_alert.render(self.content_rect)
 
   def _render_left_column(self):
+    if self._drive_summary.visible:
+      self._drive_summary_card.render(self.left_column_rect)
+      return
     self._stats_widget.render(self.left_column_rect)
 
   def _render_right_column(self):
