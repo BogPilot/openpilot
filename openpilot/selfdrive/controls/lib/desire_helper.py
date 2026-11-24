@@ -13,6 +13,15 @@ LANE_CHANGE_SPEED_MIN = 20 * CV.MPH_TO_MS
 LANE_CHANGE_TIME_MAX = 10.
 LANE_CHANGE_START_TIME = 0.5
 
+# modeld reads these 100 Hz services once per 20 Hz model frame on conflated sockets, so the
+# SubMaster average-frequency check (min 40 Hz) can never pass there. Gate on alive + valid only.
+LANE_CHANGE_INPUTS = ('carState', 'carControl')
+
+
+def lane_change_inputs_ok(sm) -> bool:
+  return sm.all_alive(list(LANE_CHANGE_INPUTS)) and sm.all_valid(list(LANE_CHANGE_INPUTS))
+
+
 class DesireHelper:
   def __init__(self):
     self.lane_change_state = LaneChangeState.off
