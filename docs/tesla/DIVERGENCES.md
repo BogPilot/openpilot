@@ -28,15 +28,29 @@ Recorded disagreements only where the cited files were read. No speculation.
 - Tests: `openpilot/selfdrive/controls/tests/test_phase3_speed_control.py`, `test_phase3_speed_control_wiring.py`.
 - Credits: BogPilot 0.9.7.
 
-## Curve speed control: hold the cap through the curve
-- Platforms: AP1 (`openpilot/selfdrive/controls/lib/ap1_curve_speed.py`).
-- Reference behavior: BogPilot 0.9.7 curve speed controller (FrogPilot lineage).
-- Our behavior: the curve cap is held for `CSC_HOLD_S` after the curve is no longer detected, is not raised while
-  already capping, and starts on a re-engage inside a curve. Output never exceeds the driver's set speed.
-- Why: keep the curve cap until the curve ends instead of returning to the speed-limit target mid-curve.
-- Safety-relevant: yes, more conservative (only lowers or holds speed longer). Blinker suspension unchanged.
-- Tests: `openpilot/selfdrive/controls/tests/test_ap1_curve_speed_planner.py`.
-- Credits: BogPilot 0.9.7.
+## Curve speed control: one curve speed planner
+- Platforms: AP1 and Pre-AP with a calibrated Comma Pedal (`openpilot/selfdrive/controls/lib/curve_speed_planner.py`,
+  driven by `ap1_curve_speed.py`).
+- Reference behavior: BogPilot 0.9.7 curve speed controller (FrogPilot lineage) lowered the cruise target (vCruise) for
+  a detected curve.
+- Our behavior: one planner builds a single speed envelope from the model's per-node curve speeds and mapd v2's map
+  curve speed, with one cornering limit (`min(learned, CurveMaxLatAccel)`). It brakes by distance to each curve point,
+  allowing for the actuator delay (`LongitudinalActuatorDelay` / CarParams) and a landing cap so braking eases out as
+  the car reaches the curve speed, and hands one curve acceleration to the comfort arbiter. The cruise speed itself is
+  never lowered for a curve; only positive cruise acceleration is capped so the car cannot speed up into a curve,
+  and while a curve is ahead positive acceleration rises from the previous plan at the release jerk (no step when a
+  lead or Experimental mode plan hands over to cruise mid-curve).
+  There is no hold after a curve ends and no vision detection gate on braking: braking releases at the release jerk
+  as soon as the envelope allows. The curve detector only drives the HUD status and learning. The braking and its
+  smoothing are the same under every Deceleration Profile (Standard, Eco, Eco+). The displayed set speed follows the
+  curve speed while the planner is slowing for a curve.
+- Why: braking that starts at the right distance, smooth on the way in and out, map curves braked like vision curves,
+  and the same curve behaviour under every profile.
+- Safety-relevant: yes. Curve braking floor stays -1.2 m/s^2 (CurveMaxDecel). No panda limit, gas/brake edge or
+  controls_allowed change. Blinker suspension unchanged.
+- Tests: `openpilot/selfdrive/controls/tests/test_curve_speed_planner.py`, `test_curve_speed_planner_integration.py`,
+  `test_ap1_curve_speed_planner.py`.
+- Credits: BogPilot 0.9.7; map curve trigger distance follows mapd (MIT, Jacob Pfeifer).
 
 ## Onroad UI: stock lead chevron never painted
 - Platforms: all (onroad UI only; not the Tesla instrument cluster).

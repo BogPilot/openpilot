@@ -12,7 +12,7 @@ Credit: BogPilot 0.9.7 / na-preap 568fea947 (FrogPilot Curve Speed Controller li
   `calculate_road_curvature` (orientationRate.z x velocity.x at the peak node), hooked at
   `frogpilot/controls/frogpilot_planner.py:106-108`. No map or 0x3C8 curvature.
 - The Tesla look-ahead curve brake was built for every Tesla: `selfdrive/car/tesla/curve_speed.py:173-175`
-  (`tesla_curve_brake_for`), with the 2.0 m/s^2 cornering cap at `:32`.
+  (`tesla_curve_brake_for`), with the 2.0 m/s^2 cornering cap at `:32` (0.9.7 reference).
 - Training ran while `longActive` was False (`frogpilot/controls/lib/curve_speed_controller.py:35-37`); weather could
   derate the learned limit (`:98-99`).
 
@@ -23,13 +23,13 @@ Credit: BogPilot 0.9.7 / na-preap 568fea947 (FrogPilot Curve Speed Controller li
   read when the planner starts; a pedal calibrated later in the same drive enables CSC on the next start.
 - Control gate (`csc_platform.py:71` `csc_gate`, used at `ap1_curve_speed.py:153` and `:186`): on Pre-AP, CSC is inactive
   unless the pedal is live on its latched bus (carState.bogpilot `preapPedalDetected`, `preapPedalCalibrated`, not
-  `preapPedalUnavailable`, not `preapPedalNotResponding`), and it lowers vCruise or brakes only while the pull FSM is in
+  `preapPedalUnavailable`, not `preapPedalNotResponding`), and it brakes for curves only while the pull FSM is in
   FULL (`preapFsmMode` 4, `preap/engagement.py` Mode.FULL). Steering only (OFF, LOCKOUT, LAT_PENDING, LAT_ONLY) never
   caps and releases the curve brake. Missing fields fail closed. Stricter than 0.9.7, which followed `controlsState.enabled`.
-- Everything else is the AP1 CSC unchanged: vision-only modelV2 path and its fail-closed checks, the 2.0 m/s^2 Tesla cap,
-  the 2 s hold, never raising the driver's set speed, blinker suspension, CSC after SetSpeedLimit / SLC (`min()`), and the
-  AP1 comfort arbitration (`longitudinal_planner.py:91`), which now also runs on Pre-AP pedal cars.
-- Curve brake (`ap1_curve_brake.py:180` `ap1_curve_brake_for`): built on the same platforms. Its floor stays
+- Everything else is the AP1 CSC unchanged: the curve speed planner (`curve_speed_planner.py`: model and mapd v2 curve
+  speeds, fail-closed checks, the 2.0 m/s^2 Tesla cap, distance-based braking with the Pre-AP 0.4 s actuator delay, no
+  hold after the curve), never raising the driver's set speed, blinker suspension, and the AP1 comfort arbitration (`longitudinal_planner.py:91`), which now also runs on Pre-AP pedal cars.
+- Curve speed planner (`curve_speed_planner.py` `curve_speed_planner_for`): built on the same platforms. Its floor stays
   `A_MIN = -1.2` m/s^2 (`:41`), inside the Pre-AP regen range (`vdas_constants.REGEN_MAX` -1.5). Accel limits
   (`preap/accel_limits.py`) and the pedal command limit (`preap/pedal_can.py`, panda `tesla_preap.h` 2500) are unchanged;
   CSC can only lower demand.
@@ -51,12 +51,12 @@ Credit: BogPilot 0.9.7 / na-preap 568fea947 (FrogPilot Curve Speed Controller li
 - Learning in steering only: allowed (0.9.7 trained while `longActive` was False). CSC never caps in steering only.
 - Settings row before the pedal is calibrated: hidden until the stored pedal is detected and calibrated.
 - ShowCSCStatus on Pre-AP: same param, default ON at level 2, display only.
-- Map / 0x3C8 curvature: not ported (0.9.7 Pre-AP CSC was vision-only).
+- Map curvature: mapd v2 map curve speed (Map Curve Speed, on by default with mapd v2). 0x3C8 curvature: not ported.
 - Default ON at level 1 (as 0.9.7) and the curve-brake floor -1.2 m/s^2 (not the full Pre-AP regen -1.5).
 
 ## Tests
 `openpilot/selfdrive/controls/tests/test_csc_platform_gate.py` (gate: no pedal, uncalibrated, steering only, FULL, AP1,
 other cars, curve-brake factory, row visibility, toggle default), `test_preap_curve_speed.py` (Ap1CurveSpeed with synthetic
 messages: FULL only, steering only never caps, fail closed, SetSpeedLimit then CSC, learning in steering only; needs the
-native messaging and MPC libraries and skips without them), `test_ap1_curve_brake.py` (factory), and the AP1 tests
+native messaging and MPC libraries and skips without them), `test_curve_speed_planner.py` (planner and factory), and the AP1 tests
 `test_ap1_curve_speed_planner.py`.
