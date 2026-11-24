@@ -12,12 +12,23 @@ Corrupt stores are copied to a timestamped .corrupt backup before recovery.
 
 Drive credit (same contract as 367e1fe): after >= 60 s tracked, at standstill, if
 openpilot engaged at least once; ledger write only when the wall clock is valid.
+
+Final save: the counters gathered since the last standstill save are also saved when the
+process is stopped (SIGTERM/SIGINT from the manager), when deviceState.started goes false,
+and when a shutdown/reboot/uninstall param is set. The signal handler only sets a flag; the
+main loop does the save, so a save can never run inside another save. Saving is idempotent:
+the per-save accumulators are zeroed by the save itself, so a final save right after a regular
+one adds nothing. Every BogPilotStats write is a blocking Params.put, which writes a temp file
+in the params dir, fsyncs it, renames it over the old value and fsyncs the directory, so a power
+cut leaves either the old or the new totals. (A non-blocking put is queued to a background
+thread, so it could be lost at shutdown or land after a newer value.)
 """
 from __future__ import annotations
 
 import datetime
 import json
 import os
+import signal
 import time
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -32,6 +43,9 @@ TIMEZONE_NAME_PATH = Path("/data/etc/timezone")
 V_CRUISE_MAX = 145  # kph
 KPH_TO_MS = 1 / 3.6
 MODEL_NAME = "openpilot 0.11.2"
+
+SHUTDOWN_PARAMS = ("DoShutdown", "DoReboot", "DoUninstall")
+SHUTDOWN_CHECK_S = 1.0
 
 DISABLED, OVERRIDING = "disabled", "overriding"
 ACTIVE_STATES = ("enabled", "softDisabling", "overriding")
@@ -300,7 +314,7 @@ class DriveTracker:
 
     self.stats = load_stats(params.get("BogPilotStats"))
     self.stats.pop("_corrupt_source", None)
-    self._save(block=True)
+    self._save()
 
     self.drive_added = False
     self.previously_enabled = False
@@ -309,25 +323,29 @@ class DriveTracker:
     self.history_routes = 0
     self.history_seconds = 0.0
     self.tracked_time = 0.0
+    self.drive_tracked_time = 0.0  # all saved tracked time of this drive (drive credit after DRIVE_CREDIT_S)
+    self._dirty = False  # counters changed since the last save
     self.previous_alert = None
     self.previous_state = DISABLED
     # engaged time = seconds with selfdrive enabled (or lat/long active)
     self.engaged_time = 0.0
 
-  def _save(self, block=False):
+  def _save(self):
     payload = {k: v for k, v in self.stats.items() if not k.startswith("_")}
     # Always include card counters
     for key, zero in ZERO_COUNTERS.items():
       payload.setdefault(key, zero)
     raw = json.dumps(payload)
+    # Blocking on purpose: atomic temp file + fsync + rename in the params dir (see module docstring).
     try:
-      self.params.put("BogPilotStats", raw, block=block)
+      self.params.put("BogPilotStats", raw, block=True)
     except TypeError:
       self.params.put("BogPilotStats", raw)
 
   def update(self, now, time_validated, car_state, selfdrive_state, car_control, aol_enabled=False):
     # aol_enabled accepted for API compat but AOL core is out of runtime; ignore unless caller passes True.
     s = self.stats
+    self._dirty = True
     state = str(selfdrive_state.state)
     v_cruise = min(car_state.vCruiseCluster, V_CRUISE_MAX) * KPH_TO_MS
     distance = max(car_state.vEgo, 0) * DT_MDL
@@ -391,11 +409,12 @@ class DriveTracker:
     _add(s, "EngagedSeconds", self.engaged_time)
     _add(s.setdefault("ModelTimes", {}), MODEL_NAME, self.tracked_time)
     _add(s, "TrackedTime", self.tracked_time)
+    self.drive_tracked_time += self.tracked_time
 
-    new_drive = not self.drive_added
+    new_drive = not self.drive_added and self.drive_tracked_time >= DRIVE_CREDIT_S
     self.history_routes += int(new_drive)
     self.history_seconds += self.tracked_time
-    if time_validated:
+    if time_validated and (self.history_routes or self.history_meters or self.history_seconds):
       day = local_day(now, bogpilot_timezone(self.params.get))
       add_drive_history(
         day,
@@ -412,13 +431,96 @@ class DriveTracker:
       _add(s, "BogPilotDrives", 1)
       self.drive_added = True
     self._save()
+    self._dirty = False
+
+  def final_flush(self, now, time_validated) -> bool:
+    """Save everything counted since the last save. Safe to call any number of times.
+
+    Same engagement rule as the regular save: a drive where openpilot never engaged is not recorded.
+    A drive shorter than DRIVE_CREDIT_S keeps its counters but is not credited as a drive.
+    """
+    if not self.previously_enabled or (not self._dirty and self.tracked_time == 0):
+      return False
+    self.flush(now, time_validated)
+    return True
+
+
+class StopFlag:
+  """SIGTERM/SIGINT handler. Only records the request; the main loop does the final save."""
+  def __init__(self):
+    self.requested = False
+    self.signum = None
+
+  def __call__(self, signum, frame):
+    self.requested = True
+    self.signum = signum
+
+
+def install_stop_handlers(flag: StopFlag) -> None:
+  for sig in (signal.SIGTERM, signal.SIGINT):
+    signal.signal(sig, flag)
+
+
+class ShutdownWatch:
+  """Final-save triggers seen from the loop: deviceState.started going false, or a shutdown param."""
+  def __init__(self, get_bool, check_interval: float = SHUTDOWN_CHECK_S):
+    self._get_bool = get_bool
+    self._check_interval = check_interval
+    self._was_started = False
+    self._next_check = 0.0
+    self._shutdown_seen = False
+
+  def check(self, now_mono: float, device_started) -> str | None:
+    reason = None
+    if device_started is not None:
+      if self._was_started and not device_started:
+        reason = "offroad"
+      self._was_started = bool(device_started)
+    if not self._shutdown_seen and now_mono >= self._next_check:
+      self._next_check = now_mono + self._check_interval
+      try:
+        hit = any(self._get_bool(key) for key in SHUTDOWN_PARAMS)
+      except Exception:
+        hit = False
+      if hit:
+        self._shutdown_seen = True
+        reason = reason or "shutdown"
+    return reason
+
+
+def _final_save(tracker, now_utc, time_validated, reason, log=None) -> bool:
+  try:
+    saved = tracker.final_flush(now_utc, time_validated)
+  except Exception:
+    if log is not None:
+      log.exception(f"bogpilot_trackd final save failed ({reason})")
+    return False
+  if log is not None:
+    log.info(f"bogpilot_trackd final save ({reason}): {'saved' if saved else 'nothing new'}")
+  return saved
+
+
+def loop_once(tracker, sm, stop: StopFlag, watch: ShutdownWatch, now_mono, now_utc, time_validated, log=None) -> bool:
+  """One pass after sm.update(). Returns False when the process should exit (stop requested, final save done)."""
+  if sm.updated["modelV2"]:
+    tracker.update(now_utc, time_validated, sm["carState"], sm["selfdriveState"], sm["carControl"], aol_enabled=False)
+  if stop.requested:
+    _final_save(tracker, now_utc, time_validated, f"signal {stop.signum}", log)
+    return False
+  started = sm["deviceState"].started if sm.seen["deviceState"] else None
+  reason = watch.check(now_mono, started)
+  if reason is not None:
+    _final_save(tracker, now_utc, time_validated, reason, log)
+  return True
 
 
 def main():
-  """Never exits on error: selfdrived treats any should-run-but-stopped process as processNotRunning."""
-  import time
-
+  """Never exits on error: selfdrived treats any should-run-but-stopped process as processNotRunning.
+  Exits only when the manager stops it (SIGTERM/SIGINT), after the final save."""
   from openpilot.common.swaglog import cloudlog
+
+  stop = StopFlag()
+  install_stop_handlers(stop)
 
   try:
     import openpilot.cereal.messaging as messaging
@@ -428,28 +530,26 @@ def main():
     params = Params()
     tracker = DriveTracker(params)
     # AOL / bogpilotCarState intentionally omitted (AOL blocked on stock-default build).
-    services = ["modelV2", "carState", "selfdriveState", "carControl"]
+    services = ["modelV2", "carState", "selfdriveState", "carControl", "deviceState"]
     sm = messaging.SubMaster(services, poll="modelV2")
+    watch = ShutdownWatch(params.get_bool)
   except Exception:
     cloudlog.exception("bogpilot_trackd setup failed; idling")
-    while True:
-      time.sleep(10)
+    while not stop.requested:
+      time.sleep(1)
+    return
 
   while True:
     try:
       sm.update()
-      if not sm.updated["modelV2"]:
-        continue
-      tracker.update(
-        datetime.datetime.now(datetime.UTC),
-        system_time_valid(),
-        sm["carState"],
-        sm["selfdriveState"],
-        sm["carControl"],
-        aol_enabled=False,
-      )
+      # Runs even without a new modelV2 frame (modeld stops at offroad), so the stop/offroad/shutdown checks still fire.
+      if not loop_once(tracker, sm, stop, watch, time.monotonic(), datetime.datetime.now(datetime.UTC), system_time_valid(), cloudlog):
+        return
     except Exception:
       cloudlog.exception("bogpilot_trackd update failed")
+      if stop.requested:
+        _final_save(tracker, datetime.datetime.now(datetime.UTC), False, "signal after error", cloudlog)
+        return
       time.sleep(1)
 
 
