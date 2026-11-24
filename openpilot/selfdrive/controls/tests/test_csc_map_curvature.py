@@ -1,4 +1,4 @@
-"""Map Curve Speed (CSCMapCurvature, mapd v2 mapCurveSpeed) in Ap1CurveSpeed: off by default, one point of the
+"""Map Curve Speed (CSCMapCurvature, mapd v2 mapCurveSpeed) in Ap1CurveSpeed: on by default with mapd v2, one point of the
 curve speed planner's envelope (rescaled to the one lateral limit, never up), never changes the cruise speed itself, only
 where CSC could control, fails closed on stale data, follows mapd's value raw (no hold). Synthetic, no mapd."""
 import pytest
@@ -50,9 +50,9 @@ def step(c, v_ego=25.0, v_cruise=30.0, **kw):
   return c.update(SM(msgs(v_ego, v_cruise, **kw)), v_ego, v_cruise, False)
 
 
-def test_toggle_defaults_off():
+def test_toggle_defaults_on_with_mapd_v2():
   from openpilot.common.bogpilot_params import BOGPILOT_PARAMS
-  assert BOGPILOT_PARAMS["CSCMapCurvature"][2] == "0" and BOGPILOT_PARAMS["MapdV2"][2] == "0"
+  assert BOGPILOT_PARAMS["CSCMapCurvature"][2] == "1" and BOGPILOT_PARAMS["MapdV2"][2] == "1"
   assert BOGPILOT_PARAMS["CSCMapCurvature"][4] in (None, "0")
 
 

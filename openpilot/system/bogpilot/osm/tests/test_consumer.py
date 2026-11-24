@@ -1,3 +1,4 @@
+"""mapd v1 consumer (memory params); MapdV2 is on by default, so these pin the v1 engine."""
 import json
 import os
 import time
@@ -36,7 +37,7 @@ def test_context_returns_current_and_next_without_swapping(tmp_path):
   put(mem, "LastGPSPosition", GPS)
   put(mem, "MapSpeedLimit", "13.4")
   put(mem, "NextMapSpeedLimit", {"speedlimit": 20.0, "latitude": 0.5, "longitude": -0.5005})
-  ctx = C.MapContext(mem=mem)
+  ctx = C.MapContext(mem=mem, engine=lambda: False)
   m = ctx.update(15.0, 0, 0)
   assert m.limit == 13.4 and m.current == 13.4 and m.next_limit == 20.0 and not m.lookahead_applied
   m = ctx.update(15.0, 10, 0)           # would previously have swapped; current stays 13.4
@@ -47,7 +48,7 @@ def test_context_returns_current_and_next_without_swapping(tmp_path):
 def test_context_no_gps_means_no_map_limit(tmp_path):
   mem = MemParams(tmp_path)
   put(mem, "MapSpeedLimit", "13.4")
-  ctx = C.MapContext(mem=mem)
+  ctx = C.MapContext(mem=mem, engine=lambda: False)
   assert ctx.update(15.0, 0, 0).limit == 0.0 and ctx.gps_position is None
 
 
@@ -55,11 +56,11 @@ def test_context_stale_map_file_is_dropped(tmp_path):
   mem = MemParams(tmp_path)
   put(mem, "LastGPSPosition", GPS)
   put(mem, "MapSpeedLimit", "13.4", age=30)
-  assert C.MapContext(mem=mem).update(15.0, 0, 0).limit == 0.0
+  assert C.MapContext(mem=mem, engine=lambda: False).update(15.0, 0, 0).limit == 0.0
 
 
 def test_context_survives_broken_reader(tmp_path):
-  ctx = C.MapContext(mem=MemParams(tmp_path))
+  ctx = C.MapContext(mem=MemParams(tmp_path), engine=lambda: False)
   ctx.reader = NS(read=lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
   put(ctx.mem, "LastGPSPosition", GPS)
   assert ctx.update(15.0, 0, 0).limit == 0.0
@@ -100,7 +101,7 @@ def test_own_gps_failure_is_harmless():
 
 def test_context_uses_own_gps_only_when_wanted(tmp_path):
   mem = MemParams(tmp_path)
-  ctx = C.MapContext(mem=mem, own_gps=C.OwnGps(sm_factory=lambda: SM(fix())))
+  ctx = C.MapContext(mem=mem, engine=lambda: False, own_gps=C.OwnGps(sm_factory=lambda: SM(fix())))
   ctx.update(15.0, 0, 0)
   assert ctx.gps_position is None
   ctx.want_own_gps = True

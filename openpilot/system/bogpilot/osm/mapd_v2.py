@@ -1,6 +1,6 @@
 """mapd v2 glue: engine switch, mapd settings, and the validated mapdOut reader shared by the planner consumers.
 
-Engine: param MapdV2 (BOOL, default "0"). Off = mapd v1.12.0 exactly as before (memory params, mapd downloads). On =
+Engine: param MapdV2 (BOOL, default "1"). Off = mapd v1.12.0 exactly as before (memory params, mapd downloads). On =
 mapd v2.4.0 (pinned in mapd_v2_manifest.json, installed next to v1 as osm/mapd_v2): msgq interface (mapdOut / mapdIn /
 mapdExtendedOut), downloads by cell_fetch.py in a separate low-priority process so speed limits stay live.
 

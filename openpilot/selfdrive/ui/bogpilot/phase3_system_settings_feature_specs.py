@@ -387,7 +387,7 @@ FEATURE_SPECS = json.loads(r'''{
     "type": "BOOL"
   },
   "CSCMapCurvature": {
-    "declared_default": "0",
+    "declared_default": "1",
     "max": null,
     "min": null,
     "source": "BOGPILOT_PARAMS",
@@ -1161,7 +1161,7 @@ FEATURE_SPECS = json.loads(r'''{
     "type": "BOOL"
   },
   "MapdV2": {
-    "declared_default": "0",
+    "declared_default": "1",
     "max": null,
     "min": null,
     "source": "BOGPILOT_PARAMS",

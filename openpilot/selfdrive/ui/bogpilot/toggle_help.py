@@ -509,13 +509,13 @@ _add("AdaptiveAccelLead", "Adaptive Accel Near Lead",
      default="Off", default_param="AdaptiveAccelLead")
 _add("CSCMapCurvature", "Map Curve Speed",
      "Lets Curve Speed Control also slow down for curves it reads from the downloaded OpenStreetMap maps, before the camera can "
-     "see them. The car eases to the map's curve speed for the bend ahead, using the same cornering limit Curve Speed Control "
-     "has learned.",
+     "see them. The map's curve speed for the bend ahead joins the camera's curve speeds in one braking plan, using the same "
+     "cornering limit Curve Speed Control has learned.",
      when="If the car enters tight or blind curves too fast and only brakes once it is already turning.",
      note="Needs Use mapd v2 on (Navigation, then Maps) and maps downloaded for the area. Only ever lowers the speed, never below "
-          "the normal braking limits; lead car braking and stops are not affected. Off by default so you can compare. "
+          "the normal braking limits; lead car braking and stops are not affected. On by default. "
           "Legacy Teslas only. " + _GB,
-     default="Off", default_param="CSCMapCurvature")
+     default="On", default_param="CSCMapCurvature")
 _add("CSCTeslaSmoothing", "Smooth Curve Braking",
      "Makes Curve Speed Control slow the car for a curve in one smooth regen pull instead of brake, ease, brake. Braking "
      "starts as soon as a curve needs it and is held steady through the curve rather than easing off each time the curve "
@@ -1095,11 +1095,11 @@ _add("menu.vehicle", "Vehicle Settings",
 # ---------------------------------------------------------------- Navigation > Maps (FrogPilot maps_settings.cc)
 _add("MapdV2", "Use mapd v2",
      "Runs the newer map engine (mapd v2) for speed limits and curves from the downloaded maps. Speed limits keep working while "
-     "maps download, because downloads no longer pause the map engine. Off runs the current engine (mapd v1).",
-     when="Turn on to try map curve speeds (Gas / Brake, then Map Curve Speed) or if speed limits drop out while maps update.",
+     "maps download, because downloads no longer pause the map engine. On by default; Off runs the older engine (mapd v1).",
+     when="Leave on for map curve speeds (Gas / Brake, then Map Curve Speed). Turn off only to compare with the older engine.",
      note="The same downloaded maps work with both engines. Takes effect within a few seconds; nothing is downloaded again. "
           "mapd is MIT licensed (Jacob Pfeifer); map data (c) OpenStreetMap contributors.",
-     default="Off", default_param="MapdV2")
+     default="On", default_param="MapdV2")
 _add("PreferredSchedule", "Automatically Update Maps",
      "How often the downloaded maps refresh from OpenStreetMap (OSM) with the latest speed limit information. Weekly updates run "
      "every Sunday and monthly updates run on the 1st. Manually never updates by itself.",

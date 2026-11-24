@@ -8,7 +8,7 @@ MapContext is what phase3_speed_control.SpeedLimitController consumes each plann
   mapbox        - MapboxFiller (only with a user key; see mapbox.py)
 Any problem (missing files, stale, garbage, import error) reads as "no data": Map Data = 0, never an exception.
 
-mapd v2 (param MapdV2, default off): `map` comes from mapdOut (mapd_v2.shared_reader, fresh within 0.5 s) instead of the
+mapd v2 (param MapdV2, default on): `map` comes from mapdOut (mapd_v2.shared_reader, fresh within 0.5 s) instead of the
 v1 memparams. The same rule holds: no fresh GPS position (GpsFeed keeps running in both modes) = no map limit.
 """
 from __future__ import annotations

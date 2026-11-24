@@ -286,7 +286,7 @@ class MapDataController:
     return self._slc
 
   def _engine_manifest(self) -> dict:
-    """The injected manifest (tests), else the pinned manifest of the engine the MapdV2 toggle selects (v1 by default)."""
+    """The injected manifest (tests), else the pinned manifest of the engine the MapdV2 toggle selects (v2 by default)."""
     if self._manifest is not None:
       return self._manifest
     from openpilot.system.bogpilot.osm import mapd_v2
