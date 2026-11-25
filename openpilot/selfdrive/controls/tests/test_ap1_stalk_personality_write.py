@@ -156,6 +156,62 @@ def test_crossed_detent_rule_kept():
   assert at(shown, 0.11) == AGGRESSIVE
 
 
+# Fast twists. 0x45 is sent every 100 ms with the ring's current detent code (0/33/.../200, 255 = SNA), so a fast twist
+# can skip detents between frames but every later frame repeats where the ring is; the rest timer restarts on each move.
+@pytest.mark.parametrize("frames", [
+  ((0.0, 200), (0.1, 66)),                 # 7 -> 3 in one frame
+  ((0.0, 200), (0.1, 100), (0.2, 66)),     # 7 -> 3 in two frames, skipping 6 and 5
+  ((0.0, 200), (0.1, 133), (0.2, 66)),     # 7 -> 3 through 5
+  ((0.0, 200), (0.1, 33), (0.2, 66)),      # overshoot to 2, back to 3
+])
+def test_fast_twist_7_to_3_saves_where_it_lands(frames):
+  store = Store(RELAXED)
+  sync = F.Ap1PersonalitySync(store)
+  shown = run(sync, store, frames, 15.0)
+  last = frames[-1][0]
+  assert store.puts == [(pytest.approx(last + F.AP1_PERSONALITY_SETTLE_S, abs=0.02), AGGRESSIVE)]
+  assert at(shown, last + 0.01) == AGGRESSIVE and shown[-1][1] == AGGRESSIVE and store.stored == AGGRESSIVE
+
+
+def test_fast_twist_saves_on_a_slow_disk_and_after_a_stranded_write():
+  for store in (Store(RELAXED, latency=2.0), Store(RELAXED, lose=True)):
+    sync = F.Ap1PersonalitySync(store)
+    run(sync, store, ((0.0, 200), (0.1, 66)), 15.0)
+    assert [v for _, v in store.puts] in ([AGGRESSIVE], [AGGRESSIVE, AGGRESSIVE])
+    assert len(store.puts) == (2 if store.lose else 1)   # a write that never lands is put once more, 10 s later
+
+
+def test_fast_reversal_back_to_the_start_writes_nothing():
+  store = Store(RELAXED)
+  sync = F.Ap1PersonalitySync(store)
+  shown = run(sync, store, ((0.0, 200), (0.1, 66), (0.2, 133), (0.3, 200)), 15.0)   # 7 -> 3 -> 5 -> 7, 0.1 s apart
+  assert store.puts == []
+  assert at(shown, 0.15) == AGGRESSIVE and at(shown, 0.25) == STANDARD and shown[-1][1] == RELAXED
+
+
+def test_reversal_writes_the_latest_settled_value_not_the_first():
+  store = Store(RELAXED)
+  sync = F.Ap1PersonalitySync(store)
+  run(sync, store, ((0.0, 200), (0.1, 66), (0.3, 133)), 15.0)    # 7 -> 3 for 0.2 s, then back to 5 and rest
+  assert store.puts == [(pytest.approx(0.3 + F.AP1_PERSONALITY_SETTLE_S, abs=0.02), STANDARD)]
+
+
+def test_rest_timer_restarts_on_every_move():
+  store = Store(RELAXED)
+  sync = F.Ap1PersonalitySync(store)
+  frames = ((0.0, 200), (0.25, 166), (0.5, 133), (0.75, 100), (1.0, 66), (1.25, 33), (1.5, 66))  # 0.25 s steps < 0.3 s
+  run(sync, store, frames, 15.0)
+  assert store.puts == [(pytest.approx(1.5 + F.AP1_PERSONALITY_SETTLE_S, abs=0.02), AGGRESSIVE)]
+
+
+def test_snapshot_frames_between_moves_do_not_restart_the_timer():
+  store = Store(STANDARD)
+  sync = F.Ap1PersonalitySync(store)
+  frames = ((0.0, 133), (0.1, 166), (0.2, 200)) + tuple((0.2 + 0.1 * k, 200) for k in range(1, 10)) + ((1.3, 255), (1.4, 200))
+  run(sync, store, frames, 15.0)                                   # repeated 200 and an SNA frame: same detent, no restart
+  assert store.puts == [(pytest.approx(0.2 + F.AP1_PERSONALITY_SETTLE_S, abs=0.02), RELAXED)]
+
+
 def test_detents_1_and_2_never_write():
   store = Store(STANDARD)
   sync = F.Ap1PersonalitySync(store)
