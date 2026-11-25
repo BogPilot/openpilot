@@ -60,14 +60,15 @@ def drive_inputs(bp):
 
 class Ap1Planning:
   def __init__(self, CP, dt):
-    self.active = CP.carFingerprint == AP1 and CP.openpilotLongitudinalControl
+    # Set-speed reaction shaping: AP1 Model S and AP1 Model X, both only with openpilot longitudinal.
+    self.active = CP.carFingerprint in (AP1, AP1_X) and CP.openpilotLongitudinalControl
     # Pre-AP uses the same follow-distance seconds when an AP1 stalk is parsed; regen stop shaping stays AP1-only.
-    self.stalk_follow_active = CP.carFingerprint in (AP1, PREAP) and CP.openpilotLongitudinalControl
+    self.stalk_follow_active = CP.carFingerprint in (AP1, AP1_X, PREAP) and CP.openpilotLongitudinalControl
     # Stock 2.5 m/s^2 always: the v1 regen gap widening is retired. RegenComfortBrake now drives the add-only comfort
     # layer (comfort_regen.py) after the stock plan, so the MPC lead gap stays exactly stock.
     self.comfort_brake = 2.5
     # Regen-aware stop shaping: AP1 Model S and AP1 Model X with openpilot longitudinal, each with its own car physics
-    # (regen_aware.MODEL_S / MODEL_X). The set-speed reaction shaping above (self.active) stays Model S only.
+    # (regen_aware.MODEL_S / MODEL_X).
     regen_platform = CP.carFingerprint in (AP1, AP1_X) and CP.openpilotLongitudinalControl
     self.regen_enabled = bool(regen_platform) and regen_aware_enabled(CP.carFingerprint)
     self.dt = dt

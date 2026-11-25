@@ -151,7 +151,7 @@ class TestLongLock(unittest.TestCase):
   def test_text_is_ascii_and_has_no_angle_brackets(self):
     from openpilot.selfdrive.ui.bogpilot import menu_locks as m
     locks = [m.NO_CAR, m.DASHCAM, m.STEERING_ONLY, m.RESTART, m.NOT_SUPPORTED, m.UNSUPPORTED_VEHICLE, m.NO_CAR_VEHICLE, m.MODEL_X,
-             m.WHEEL_AP1_ONLY, m._toggle_lock("TESLA_AP1_MODELS"), m._toggle_lock("TESLA_PREAP_MODELS")]
+             m.MODEL_X_WHEEL, m.WHEEL_AP1_ONLY, m._toggle_lock("TESLA_AP1_MODELS"), m._toggle_lock("TESLA_PREAP_MODELS")]
     for lock in locks:
       for text in (lock.short, lock.detail):
         self.assertTrue(text.isascii(), text)
@@ -166,6 +166,8 @@ class TestLongLock(unittest.TestCase):
       self.assertEqual(m.page_note(cp("TESLA_AP1_MODELX", long_on=False), kind).code, "steering_only")
       self.assertEqual(m.page_note(cp(long_on=False, dashcam=True), kind).code, "dashcam")
       self.assertIsNone(m.page_note(cp(), kind))
+    # Model X with openpilot longitudinal: Wheel Controls like the S
+    self.assertIsNone(m.page_note(cp("TESLA_AP1_MODELX"), "stalk_controls"))
     # Pre-AP has vehicle controls but no wheel controls
     self.assertIsNone(m.page_note(cp("TESLA_PREAP_MODELS"), "vehicle_controls"))
     self.assertEqual(m.page_note(cp("TESLA_PREAP_MODELS"), "stalk_controls").code, "unsupported_vehicle")

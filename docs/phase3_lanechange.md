@@ -19,7 +19,7 @@ In the BogPilot 0.9.7 reference tree (`04d560f3`), `frogpilot/ui/qt/offroad/late
 | Steering / Lateral Tuning | TurnDesires | Force Turn Desires Below Lane Change Speed | Boolean; LateralTune parent; OFF by default |
 | Gas / Brake / Longitudinal Tuning | HumanLaneChanges | Human-Like Lane Changes | Boolean; radar + openpilot longitudinal + LongitudinalTune |
 
-Human-Like Lane Changes stays on the Gas / Brake > Longitudinal Tuning page, where 0.9.7 had it, not under Steering. When its gate passes (see `docs/bogpilot_c3x.md`), the row is a real setting: radard uses it to prefer the target-lane radar track for the lead during a lane change. On an AP1 Model S it is on by default, as in 0.9.7 (`human_lane_changes_default_on`); on any other car it stays off until the row is changed.
+Human-Like Lane Changes stays on the Gas / Brake > Longitudinal Tuning page, where 0.9.7 had it, not under Steering. When its gate passes (see `docs/bogpilot_c3x.md`), the row is a real setting: radard uses it to prefer the target-lane radar track for the lead during a lane change. On an AP1 Model S and an AP1 Model X it is on by default, as in 0.9.7 (`human_lane_changes_default_on`); on any other car it stays off until the row is changed.
 
 In the 0.9.7 reference tree, `selfdrive/controls/lib/desire_helper.py` handled the lane-change master switch, the automatic delay, the lane-width check and one change per signal; `frogpilot/common/frogpilot_utilities.py:86` `calculate_lane_width` used the median spacing to the adjacent lane line, with a road-edge veto; and `selfdrive/controls/radard.py` `match_vision_to_track` preferred the closest target-lane radar track during laneChangeStarting. HumanLaneChanges there was not a lane-clearance or blind-spot permission and did not start a lane change.
 
@@ -66,7 +66,7 @@ Limits:
 ## Adoption markers
 
 Consumers stay stock-equivalent until the user changes a row in the matching panel (configure()).
-Saved preferences (e.g. NudgelessLaneChange=1) never activate on first boot. Exception: Human-Like Lane Changes is on by default on the AP1 Model S (`human_lane_changes_default_on`).
+Saved preferences (e.g. NudgelessLaneChange=1) never activate on first boot. Exception: Human-Like Lane Changes is on by default on the AP1 Model S and AP1 Model X (`human_lane_changes_default_on`).
 
 | Marker | Clears on sysUtilities reset |
 |---|---|

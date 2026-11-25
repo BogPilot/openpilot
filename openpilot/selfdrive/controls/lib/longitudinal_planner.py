@@ -110,9 +110,9 @@ class LongitudinalPlanner:
       self.comfort_regen = ComfortRegen(None, dt, enabled=False)
     self.experimental = False
     self.allow_throttle = True
-    # AP1-only allowThrottle smoothing (tesla_ap1/throttle_gate.py); None on every other car.
+    # AP1 allowThrottle smoothing (tesla_ap1/throttle_gate.py): Model S, and Model X with openpilot longitudinal; None otherwise.
     self.throttle_cut = 0.0
-    self.ap1_throttle_gate = ap1_throttle_gate_for(CP.carFingerprint)
+    self.ap1_throttle_gate = ap1_throttle_gate_for(CP.carFingerprint, bool(getattr(CP, "openpilotLongitudinalControl", False)))
 
     self.v_desired_filter = FirstOrderFilter(init_v, 2.0, self.dt)
     self.a_cruise = init_a

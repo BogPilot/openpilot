@@ -9,7 +9,7 @@ TurnDesires consumers stay stock-equivalent until the user changes a row in the
 matching panel (configure() writes an adoption marker). Saved bench prefs such as
 NudgelessLaneChange=1 never wake on first boot. One exception: Human-Like Lane
 Changes is on by default on the AP1 Model S (human_lane_changes_default_on, as in
-0.9.7) and on the Pre-AP Model S when its Bosch radar toggle was on at car start;
+0.9.7), on the AP1 Model X, and on the Pre-AP Model S when its Bosch radar toggle was on at car start;
 every other car keeps its marker rule. Markers are never rewritten by
 reads; sysUtilities reset must clear them (see ACK constants).
 """
@@ -65,11 +65,11 @@ def human_lane_changes_adopted(store) -> bool:
 
 
 # Human-Like Lane Changes is on without a row change on the AP1 Model S, as in 0.9.7 (HumanLaneChanges default on, read
-# with no marker: frogpilot_variables.py:1003 @04d560f3), and so is a Pre-AP Model S that started with the optional
-# Bosch radar retrofit on (TeslaRadarEnabled, default Off; preap_radar_on_at_start). Every other car keeps the marker
-# rule. Pre-AP without the retrofit is radar-unavailable and AP1 Model X has no openpilot longitudinal, so both stay
-# off through read_settings' own gates.
-HUMAN_LANE_CHANGES_DEFAULT_ON_FPS = frozenset({"TESLA_AP1_MODELS"})
+# with no marker: frogpilot_variables.py:1003 @04d560f3), on the AP1 Model X (same as the S), and on a Pre-AP Model S that
+# started with the optional Bosch radar retrofit on (TeslaRadarEnabled, default Off; preap_radar_on_at_start). Every other
+# car keeps the marker rule. read_settings still needs radar and openpilot longitudinal, so an AP1 Model X with its
+# openpilot longitudinal turned off, and a Pre-AP without the retrofit, stay off. A saved HumanLaneChanges=0 is kept.
+HUMAN_LANE_CHANGES_DEFAULT_ON_FPS = frozenset({"TESLA_AP1_MODELS", "TESLA_AP1_MODELX"})
 
 
 PREAP_FINGERPRINT = "TESLA_PREAP_MODELS"
@@ -126,7 +126,7 @@ def read_settings(store, CP=None) -> LaneChangeSettings:
   Without the matching Phase3*Enabled marker, saved ON prefs stay dormant and the
   runtime keeps the stock-equivalent path (manual torque LC, no nudgeless, no
   Human lead substitution, no TurnDesires). Human-Like Lane Changes is the
-  exception on the AP1 Model S, and on the Pre-AP Model S when its Bosch radar
+  exception on the AP1 Model S and AP1 Model X, and on the Pre-AP Model S when its Bosch radar
   toggle was on at car start: on by default (human_lane_changes_default_on).
   Runtime keeps the stock 20mph floor.
   """

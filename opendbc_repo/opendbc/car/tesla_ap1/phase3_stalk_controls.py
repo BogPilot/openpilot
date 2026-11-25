@@ -11,6 +11,7 @@ from pathlib import Path
 import time
 
 AP1 = 'TESLA_AP1_MODELS'
+AP1_X = 'TESLA_AP1_MODELX'
 DEFAULT_HOLD_S = 1.23
 MIN_HOLD_S = 1.10
 MAX_HOLD_S = 5.00
@@ -47,8 +48,17 @@ class Settings:
   tip_round: bool = True
 
 
+def stalk_follow_car(cp) -> bool:
+  """AP1 Model S, and AP1 Model X only while its openpilot longitudinal is on. The X reuses the Model S stalk signals
+  (STW_ACTN_RQ SpdCtrlLvr_Stat / DTR_Dist_Rq); they are not yet verified on a real X log."""
+  if cp is None:
+    return False
+  fp = str(cp.carFingerprint)
+  return fp == AP1 or (fp == AP1_X and bool(getattr(cp, 'openpilotLongitudinalControl', False)))
+
+
 def supported(cp):
-  return (cp is not None and str(cp.carFingerprint) == AP1
+  return (stalk_follow_car(cp)
           and not getattr(cp, 'dashcamOnly', True) and not getattr(cp, 'passive', True))
 
 

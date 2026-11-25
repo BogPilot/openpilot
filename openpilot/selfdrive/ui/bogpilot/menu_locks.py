@@ -123,8 +123,11 @@ MODEL_X = Lock("steering_only", "Model X: steering only",
 MODEL_X_VEHICLE = Lock("steering_only", "Model X: steering only",
                        "Model X runs steering only while the experimental openpilot longitudinal row on this page is off. "
                        "Turning it on takes effect the next time the car starts.", "")
-WHEEL_AP1_ONLY = Lock("unsupported_vehicle", "Model S AP1 only",
-                      "Wheel Controls are for a Tesla Model S with AP1. This vehicle has none of them.", "")
+MODEL_X_WHEEL = Lock("steering_only", "Model X: steering only",
+                     "Wheel Controls on a Model X need openpilot longitudinal control. Turn on the experimental Model X "
+                     "longitudinal row in Vehicle Controls; it takes effect the next time the car starts.", "")
+WHEEL_AP1_ONLY = Lock("unsupported_vehicle", "AP1 only",
+                      "Wheel Controls are for a Tesla Model S or Model X with AP1. This vehicle has none of them.", "")
 
 
 def _supported(cp, fingerprints) -> bool:
@@ -146,6 +149,8 @@ def page_note(cp, kind: str, disable_toggle_on: bool = False) -> Lock | None:
     if kind == "vehicle_controls":
       # The experimental Model X row lives here; once openpilot long is on for the X there is nothing to explain.
       return None if bool(getattr(cp, "openpilotLongitudinalControl", False)) else MODEL_X_VEHICLE
+    if kind == "stalk_controls":
+      return None if bool(getattr(cp, "openpilotLongitudinalControl", False)) else MODEL_X_WHEEL
     return MODEL_X
   allowed = (AP1_S, PREAP) if kind == "vehicle_controls" else (AP1_S,)
   if not _supported(cp, allowed):

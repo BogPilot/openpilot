@@ -238,7 +238,9 @@ class Car:
       warm_engage_helpers(self.CI.CS.op_long_offset, self.CI.CS.op_long_tap_from_zero)
     self.ap1_personality_sync = None
     self.traffic_mode_hold = TrafficModeHold()
-    if self.CP.brand == "tesla_ap1" and self.CP.carFingerprint in ("TESLA_AP1_MODELS", "TESLA_PREAP_MODELS"):
+    # AP1 Model S, Pre-AP, and AP1 Model X with openpilot longitudinal (same stalk signals as the S, unverified on a real X).
+    if self.CP.brand == "tesla_ap1" and (self.CP.carFingerprint in ("TESLA_AP1_MODELS", "TESLA_PREAP_MODELS") or
+                                         (self.CP.carFingerprint == "TESLA_AP1_MODELX" and self.CP.openpilotLongitudinalControl)):
       from openpilot.selfdrive.controls.lib.phase3_following import Ap1PersonalitySync, personality_adopted
       # stock-equivalent default: stalk detents only write LongitudinalPersonality after the user adopted Driving Personalities
       if personality_adopted():

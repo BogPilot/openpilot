@@ -123,7 +123,7 @@ def test_matrix_changes_only_preap_radar_on_as_intended(monkeypatch):
 
 
 @pytest.mark.parametrize("car,want", [("preap_radar_on", True), ("preap_radar_off", False), ("ap1_s", True),
-                                      ("ap1_x", False), ("ap2_unlisted", False), ("other_radar_long", False)])
+                                      ("ap1_x", True), ("ap2_unlisted", False), ("other_radar_long", False)])
 def test_default_on_per_platform(car, want):
   assert L.human_lane_changes_default_on(CARS[car]) is want
 

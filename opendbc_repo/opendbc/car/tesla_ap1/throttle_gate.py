@@ -26,17 +26,21 @@ MPC max accel linearly toward the coast cap by that fraction:
 At or below MIN_ALLOW_THROTTLE_SPEED (creep) and while the planner is reset
 (not engaged) it follows the raw flag at once. Only the max-accel limit is
 affected: braking limits, FCW, the lead cost and ACCEL_MIN are unchanged.
-AP1 only; other cars keep the stock 0/1 cut.
+AP1 Model S, and AP1 Model X with openpilot longitudinal; other cars keep the stock 0/1 cut.
 """
 
 DT_MDL = 0.05
 AP1_THROTTLE_CUT_TAU = 0.15
 AP1_THROTTLE_RELEASE_TAU = 1.5
 AP1_FINGERPRINT = "TESLA_AP1_MODELS"
+AP1_X_FINGERPRINT = "TESLA_AP1_MODELX"
 
 
-def ap1_throttle_gate_for(fingerprint):
-  return Ap1ThrottleCap() if str(fingerprint) == AP1_FINGERPRINT else None
+def ap1_throttle_gate_for(fingerprint, op_long: bool = False):
+  fp = str(fingerprint)
+  if fp == AP1_FINGERPRINT or (fp == AP1_X_FINGERPRINT and bool(op_long)):
+    return Ap1ThrottleCap()
+  return None
 
 
 def apply_cut(max_accel, coast_limit, cut):

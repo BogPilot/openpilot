@@ -64,8 +64,9 @@ def test_planner_regen_shaper_x_with_x_physics_only_with_op_long(monkeypatch):
   assert x.regen_enabled and x.power.car is x.stop.car and x.power.car.mass_kg == ra.MODEL_X.mass_kg == 2400.0
   assert x.power.car.p_nominal_kw == ra.MODEL_X.p_nominal_kw == 51.1 and x.power.p_kw == 51.1
   assert x.power.car.fade_bp == ra.MODEL_X.fade_bp and x.power.car.a_cap_max == ra.MODEL_X.a_cap_max
-  assert not x.active                       # set-speed reaction shaping stays Model S only (needs an X long log first)
-  assert not x.stalk_follow_active          # stalk follow distance stays S / Pre-AP only
+  assert x.active                           # set-speed reaction shaping: same as the S with openpilot long
+  assert x.stalk_follow_active              # stalk follow distance: same as the S with openpilot long
+  assert not Ap1Planning(cp(X, False), 0.05).active and not Ap1Planning(cp(X, False), 0.05).stalk_follow_active
   assert not Ap1Planning(cp(X, False), 0.05).regen_enabled
   s = Ap1Planning(cp(S, True), 0.05)        # S unchanged
   assert s.regen_enabled and s.active and s.power.car is ra.MODEL_S and s.stop.car is ra.MODEL_S and s.power.p_kw == 30.0

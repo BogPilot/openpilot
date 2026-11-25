@@ -302,7 +302,7 @@ class PolicyTests(unittest.TestCase):
     self.assertFalse(read_settings(Store(HumanLaneChanges=True, LongitudinalTune=True), cp).human)
     self.assertTrue(read_settings(adopt_human(Store(HumanLaneChanges=True, LongitudinalTune=True)), cp).human)
 
-  def test_human_is_on_by_default_on_the_ap1_model_s_only(self):
+  def test_human_is_on_by_default_on_the_ap1_model_s_and_x(self):
     ap1 = NS(carFingerprint="TESLA_AP1_MODELS", radarUnavailable=False, openpilotLongitudinalControl=True)
     preap = NS(carFingerprint="TESLA_PREAP_MODELS", radarUnavailable=True, openpilotLongitudinalControl=True)
     ap1x = NS(carFingerprint="TESLA_AP1_MODELX", radarUnavailable=False, openpilotLongitudinalControl=False)
@@ -316,11 +316,18 @@ class PolicyTests(unittest.TestCase):
     self.assertFalse(read_settings(Store(HumanLaneChanges=True, LongitudinalTune=False), ap1).human)
     self.assertFalse(read_settings(Store(HumanLaneChanges=True, LongitudinalTune=True,
                                          DisableOpenpilotLongitudinal=True), ap1).human)
-    for cp in (preap, ap1x):
-      self.assertFalse(human_lane_changes_default_on(cp), cp.carFingerprint)
-      self.assertFalse(read_settings(fresh, cp).human, cp.carFingerprint)
-      self.assertFalse(human_row_available(fresh, cp, runtime_integrated=True), cp.carFingerprint)
-    for cp in (preap, ap1x, None, NS(radarUnavailable=False, openpilotLongitudinalControl=True)):
+    self.assertFalse(human_lane_changes_default_on(preap))
+    self.assertFalse(read_settings(fresh, preap).human)
+    # AP1 Model X: on by default like the S, but only effective with its openpilot longitudinal on; a saved off stays off
+    self.assertTrue(human_lane_changes_default_on(ap1x))
+    self.assertFalse(read_settings(fresh, ap1x).human)
+    ap1x_long = NS(carFingerprint="TESLA_AP1_MODELX", radarUnavailable=False, openpilotLongitudinalControl=True)
+    self.assertTrue(read_settings(fresh, ap1x_long).human)
+    self.assertFalse(read_settings(saved_off, ap1x_long).human)
+    self.assertTrue(display_bool(fresh, "HumanLaneChanges", ap1x_long))
+    self.assertFalse(human_row_available(fresh, preap, runtime_integrated=True))
+    self.assertFalse(human_row_available(fresh, ap1x, runtime_integrated=True))
+    for cp in (preap, None, NS(radarUnavailable=False, openpilotLongitudinalControl=True)):
       self.assertFalse(display_bool(fresh, "HumanLaneChanges", cp))       # every other car: off until the row changes
     self.assertFalse(read_settings(fresh).human)                          # no CarParams (desire_helper's reader)
 

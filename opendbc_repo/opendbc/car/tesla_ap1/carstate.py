@@ -12,7 +12,7 @@ from opendbc.car.tesla_ap1.op_long_set_speed import OpLongSetSpeed
 from opendbc.car.tesla_ap1.pedal_signals import pedal_position
 from opendbc.car.tesla_ap1.cruise_set import cruise_set_scale, cruise_set_scale_fix_enabled
 from opendbc.car.tesla_ap1.stalk_follow import dtr_sample, follow_seconds, parse_stalk_raw
-from opendbc.car.tesla_ap1.phase3_stalk_controls import StalkControls
+from opendbc.car.tesla_ap1.phase3_stalk_controls import StalkControls, stalk_follow_car
 from opendbc.car.tesla_ap1.speed_limit import LIMIT_MAX_AGE_S, dashboard_speed_limit_ms, frame_fresh
 from opendbc.car.tesla_ap1.steer_fault import steer_fault_temporary
 from opendbc.car.tesla_ap1.steer_rate import SteerRateFallback
@@ -160,8 +160,10 @@ class CarState(CarStateBase):
     # TinklaHandsOnLevel 2 in CarController (hso.ap1_steering_pressed).
     # Structural AP1 (Model S and Model X): hands override and EAC fault handling.
     ap1 = is_ap1_family(self.CP.carFingerprint)
-    # Model S only. Cluster, stalk follow and standstill stay off on Model X (the regen inputs below are read on both).
+    # Model S only. Cluster and standstill stay off on Model X (the regen inputs below are read on both).
     ap1_s = self.CP.carFingerprint == CAR.TESLA_AP1_MODELS
+    # Stalk follow: Model S, and Model X with openpilot longitudinal (same stalk signals, unverified on a real X).
+    stalk_follow_on = stalk_follow_car(self.CP)
     if ap1:
       ret.steeringPressed = ap1_driver_input(self.hands_on_level)
     else:
@@ -262,8 +264,8 @@ class CarState(CarStateBase):
     # 0.11.2 has no cruiseState.speedOffset. AP1 publishes the stalk follow
     # seconds in bogpilot.ap1StalkFollowS so the openpilot planner can set tFollow.
     # 0 means no ready detent. 255 holds the last seconds via parse_stalk_raw.
-    # Model S only. Stalk follow is not published for Model X.
-    stalk_follow_s = follow_seconds(self.stalk_follow) if self.CP.carFingerprint == CAR.TESLA_AP1_MODELS else 0.0
+    # Model S, and Model X with openpilot longitudinal. 0 on every other car.
+    stalk_follow_s = follow_seconds(self.stalk_follow) if stalk_follow_on else 0.0
 
     # Experimental holds never modify the buttonEvents above or stock PCM state.
     prev = getattr(self, "out", None)
@@ -379,8 +381,8 @@ class CarState(CarStateBase):
     fp_ret.ap1StalkPullToggle = self.stalk_pull_toggle
     fp_ret.ap1StalkFwdToggle = self.stalk_fwd_toggle
     fp_ret.ap1StockApActive = bool(self.stock_ap_active)
-    # Model S only. Stalk follow seconds stay 0 on Model X.
-    fp_ret.ap1StalkFollowS = float(stalk_follow_s) if ap1_s else 0.0
+    # Model S, and Model X with openpilot longitudinal. 0 on every other car.
+    fp_ret.ap1StalkFollowS = float(stalk_follow_s) if stalk_follow_on else 0.0
 
     return ret
 
