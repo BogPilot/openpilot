@@ -49,9 +49,10 @@ def test_model_s_rows_unchanged_and_the_x_sees_only_the_disable_row(tmp_path):
   s = model(cp("TESLA_AP1_MODELS", long=True), tmp_path)
   assert s.visible(pv.CLUSTER) and s.visible(pv.REGEN) and s.visible(pv.LONG) and not s.visible(KEY)
   x = model(cp("TESLA_AP1_MODELX"), tmp_path)
-  for other in (pv.CLUSTER, pv.REGEN, pv.RADAR, pv.IBOOSTER, KEY):
+  for other in (pv.REGEN, pv.RADAR, pv.IBOOSTER, KEY):
     assert x.visible(other) is False
   assert x.visible(pv.LONG) is True
+  assert x.visible(pv.CLUSTER) is True                            # Dash Cluster Integration, same row as the S
 
 
 def test_page_note_for_model_x_points_at_the_disable_row_and_clears_once_long_is_on():

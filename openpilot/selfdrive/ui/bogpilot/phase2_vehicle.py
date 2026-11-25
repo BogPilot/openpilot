@@ -273,6 +273,8 @@ class VehicleSettings:
       return op_long and (is_x(cp) or (supported(cp) and not is_preap(cp)))
     if key == REGEN and is_x(cp):
       return bool(cp.openpilotLongitudinalControl)   # AP1 Model X: only with its openpilot longitudinal opt-in
+    if key == CLUSTER and is_x(cp):
+      return True                      # AP1 Model X: the same cluster frames as the Model S, long on or off
     if not supported(cp):
       return False
     if key == LONG:
@@ -707,7 +709,8 @@ class VehicleSettings:
     except OSError:
       stored = ""
     if key == CLUSTER:
-      return self.toggles.enable_ic_integration(AP1 if supported(self.cp()) else "", stored=stored)
+      cp = self.cp()
+      return self.toggles.enable_ic_integration(AP1 if supported(cp) else (AP1_X if is_x(cp) else ""), stored=stored)
     if key == REGEN:
       cp = self.cp()
       return self.regen.regen_comfort_brake_enabled(AP1 if supported(cp) else (AP1_X if is_x(cp) else ""), stored=stored)

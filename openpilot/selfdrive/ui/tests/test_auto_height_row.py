@@ -166,8 +166,9 @@ def test_edit_gate_refuses(tmp_path, full_panda):
 
 def test_other_rows_unchanged_for_model_x(tmp_path, full_panda):
   x = model(cp("TESLA_AP1_MODELX", long=False), tmp_path)
-  for other in (pv.CLUSTER, pv.REGEN, pv.RADAR, pv.IBOOSTER):
+  for other in (pv.REGEN, pv.RADAR, pv.IBOOSTER):
     assert x.visible(other) is False
+  assert x.visible(pv.CLUSTER) is True                               # Dash Cluster Integration, same row as the S
   assert x.visible(pv.LONG) is True                                  # Disable openpilot Longitudinal Control, shared with the S
 
 

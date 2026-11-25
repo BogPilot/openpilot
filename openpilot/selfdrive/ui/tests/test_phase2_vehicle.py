@@ -101,6 +101,27 @@ class TestPhase2Vehicle(unittest.TestCase):
     self.assertFalse(self.model.visible(LONG))
     self.assertFalse(self.model.write(LONG, True))
 
+  def test_model_x_cluster_row_same_as_model_s(self):
+    for long in (False, True):
+      self.cp = SimpleNamespace(carFingerprint='TESLA_AP1_MODELX', dashcamOnly=False, openpilotLongitudinalControl=long,
+                                alphaLongitudinalAvailable=False)
+      self.assertTrue(self.model.visible(CLUSTER))
+      self.assertTrue(self.model.read(CLUSTER))          # no file: default on, as on the Model S
+      self.assertTrue(self.model.write(CLUSTER, False))
+      self.assertEqual((self.files / CLUSTER).read_text(), '0')
+      self.assertFalse(self.model.read(CLUSTER))
+      self.assertTrue(self.model.write(CLUSTER, True))
+      self.assertTrue(self.model.read(CLUSTER))
+      (self.files / CLUSTER).unlink()
+    self.offroad = False
+    self.assertFalse(self.model.write(CLUSTER, False))   # same offroad-only edit gate as the Model S
+    self.cp = SimpleNamespace(carFingerprint='TESLA_AP1_MODELX', dashcamOnly=True, openpilotLongitudinalControl=False)
+    self.assertFalse(self.model.visible(CLUSTER))
+    self.cp = SimpleNamespace(carFingerprint='TESLA_PREAP_MODELS', dashcamOnly=False, openpilotLongitudinalControl=True,
+                              alphaLongitudinalAvailable=False)
+    self.assertFalse(self.model.visible(CLUSTER))
+    self.assertEqual(self.writes, [])
+
   def test_unknown_key_is_not_writable(self):
     self.assertFalse(self.model.write('ForceFingerprint', True))
 
