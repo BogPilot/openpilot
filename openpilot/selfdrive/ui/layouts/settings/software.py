@@ -110,7 +110,12 @@ class SoftwareLayout(Widget):
     fetch_available = ui_state.params.get_bool("UpdaterFetchAvailable")
     update_available = ui_state.params.get_bool("UpdateAvailable")
 
-    if updater_state != "idle":
+    if started:
+      # updated runs offroad only (process_config only_offroad): onroad, Park included, CHECK/DOWNLOAD would reach no process.
+      self._waiting_for_updater = False
+      self._download_btn.action_item.set_value(tr("available when offroad"))
+      self._download_btn.action_item.set_enabled(False)
+    elif updater_state != "idle":
       # Updater responded
       self._waiting_for_updater = False
       self._download_btn.action_item.set_enabled(False)
@@ -158,6 +163,9 @@ class SoftwareLayout(Widget):
       self._install_btn.set_visible(False)
 
   def _on_download_update(self):
+    from openpilot.selfdrive.ui.bogpilot import onroad_policy
+    if onroad_policy.state().started():
+      return  # updated is not running onroad
     # Check if we should start checking or start downloading
     self._download_btn.action_item.set_enabled(False)
     if self._download_btn.action_item.text == tr("CHECK"):
