@@ -86,9 +86,11 @@ class CarController(CarControllerBase):
     long_tuned = CP.carFingerprint == CAR.TESLA_AP1_MODELS or (CP.carFingerprint == CAR.TESLA_AP1_MODELX and bool(CP.openpilotLongitudinalControl))
     self.ap1_accel_smoother = Ap1AccelSmoother() if long_tuned else None
     self.ap1_jerk_limit = Ap1JerkLimit() if long_tuned else None
-    # Model S only. Standstill experiment follows the Model S safety param.
+    # Standstill engage follows the safety param: Model S, and Model X only with openpilot long (the X sets the bit only then).
     configs = list(getattr(CP, "safetyConfigs", []) or [])
-    self.ap1_standstill = (CP.carFingerprint == CAR.TESLA_AP1_MODELS and len(configs) > 0 and
+    standstill_car = (CP.carFingerprint == CAR.TESLA_AP1_MODELS or
+                      (CP.carFingerprint == CAR.TESLA_AP1_MODELX and bool(CP.openpilotLongitudinalControl)))
+    self.ap1_standstill = (standstill_car and len(configs) > 0 and
                            bool(int(getattr(configs[0], "safetyParam", 0)) & TeslaAp1SafetyFlags.STANDSTILL))
 
   def update(self, CC, CS, now_nanos):

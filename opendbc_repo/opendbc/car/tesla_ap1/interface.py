@@ -69,12 +69,13 @@ class CarInterface(CarInterfaceBase):
     # not have. This tree uses the Model S chassis-only path, gated by AP1XOpenpilotLong (file-backed, default ON, forced on once
     # per device by bogpilot_ap1_profile.force_ap1x_op_long_on_once, read once here at car start), only for a strictly detected X
     # that is not dashcam-only and not disabled by DisableOpenpilotLongitudinal. It sets both layers together: openpilotLongitudinalControl
-    # and the AP1 safety LONG_CONTROL flag. Standstill stays Model S only. With the opt-in off the X is exactly as before.
+    # and the AP1 safety LONG_CONTROL flag. Standstill engage (AP1StandstillEngage) follows openpilot long on both cars, so a Model X
+    # with openpilot long engages from 0 mph like the Model S; with stock TACC (Disable on) the X is exactly as before.
     s_long = candidate == CAR.TESLA_AP1_MODELS and not ret.dashcamOnly and not disable_openpilot_long()
     x_long = (candidate == CAR.TESLA_AP1_MODELX and not ret.dashcamOnly and not disable_openpilot_long()
               and ap1x_op_long(candidate))
     long_on = s_long or x_long
-    standstill = s_long and ap1_standstill_engage(candidate)
+    standstill = long_on and ap1_standstill_engage(candidate)
     # Auto Height (ride_height.py): read once here at car start, like the other file-backed car settings. The Park bit (1024) is
     # set only while Auto Height is on with a Park height, and the Drive bit (2048) only with a Drive height and once this tree's
     # panda has the Drive rule. A height set to None leaves its bit off, so with both None the panda refuses every 0x308.

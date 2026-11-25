@@ -18,8 +18,9 @@ def flags_for_candidate(candidate, fingerprint=None, standstill=False, x_long=Fa
                         ride_height_very_low=False):
   """Safety params tuple (one config) for the teslaAp1 safety model.
 
-  x_long is the opt-in AP1 Model X openpilot longitudinal (AP1XOpenpilotLong, experimental). It adds LONG_CONTROL only; the X never
-  gets standstill. Default False keeps the Model X lateral-only (flag 8), identical to before.
+  x_long is the AP1 Model X openpilot longitudinal (AP1XOpenpilotLong). It adds LONG_CONTROL, and with standstill also
+  AP1_STANDSTILL, as on the Model S. Without x_long the X never gets standstill. Default False keeps the Model X lateral-only
+  (flag 8), identical to before.
   ride_height is Auto Height (AutoHeight on with a Park height other than None at car start, was Lower on Park): adds
   AP1_RIDE_HEIGHT (1024) on Model S and Model X, which lets the panda pass the 0x308 ride height request in Park. Default False keeps every param identical to before.
   ride_height_drive is the Drive part of Auto Height (a Drive height other than None): adds AP1_RIDE_HEIGHT_DRIVE (2048) on
@@ -35,10 +36,13 @@ def flags_for_candidate(candidate, fingerprint=None, standstill=False, x_long=Fa
     if standstill:
       flags |= FLAG_TESLA_AP1_STANDSTILL
   elif candidate == CAR.TESLA_AP1_MODELX:
-    # Model X is lateral only unless the opt-in x_long is passed: AP1 chassis safety, LONG_CONTROL only on opt-in, never standstill.
+    # Model X is lateral only unless x_long is passed: AP1 chassis safety, LONG_CONTROL only with x_long, and standstill only
+    # together with LONG_CONTROL (same panda rule as the Model S: the standby frame needs both bits).
     flags |= FLAG_TESLA_AP1
     if x_long:
       flags |= FLAG_TESLA_LONG_CONTROL
+      if standstill:
+        flags |= FLAG_TESLA_AP1_STANDSTILL
   if ride_height and candidate in (CAR.TESLA_AP1_MODELS, CAR.TESLA_AP1_MODELX):
     flags |= FLAG_TESLA_AP1_RIDE_HEIGHT
   if ride_height_drive and candidate in (CAR.TESLA_AP1_MODELS, CAR.TESLA_AP1_MODELX):

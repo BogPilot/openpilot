@@ -68,7 +68,7 @@ AP1_STANDBY_JERK_MAX = _tt.get("AP1StandbyJerkMax", 0.476)
 
 
 def ap1_standby_allowed(standstill_flag, openpilot_longitudinal_control, enabled, in_drive, stock_ap_active):
-  """True when AP1 sends the standby DAS_control (experiment; AP1StandstillEngage is default ON on Model S AP1, toggles.py)."""
+  """True when AP1 sends the standby DAS_control (AP1StandstillEngage, default on for the AP1 Model S and Model X with openpilot long)."""
   return (bool(standstill_flag) and bool(openpilot_longitudinal_control) and not bool(enabled)
           and bool(in_drive) and not bool(stock_ap_active))
 

@@ -33,7 +33,8 @@ def _x():
 
 def _cs():
   return SimpleNamespace(
-    out=SimpleNamespace(steeringAngleDeg=1.0, vEgo=10.0, gasPressed=False, standstill=False),
+    out=SimpleNamespace(steeringAngleDeg=1.0, vEgo=10.0, gasPressed=False, standstill=False,
+                        gearShifter=structs.CarState.GearShifter.drive),
     steer_warning="EAC_ERROR_IDLE", hands_on_level=0, eac_fault=False, eac_status="EAC_ACTIVE",
     acc_state=4, das_control_counters=deque([1]), msg_stw_actn_req={}, cluster_stock={},
     stock_steer_counters=[3], stock_ap_active=False,
@@ -69,7 +70,7 @@ def test_disable_on_is_stock_tacc_whatever_the_model_x_row_says(_files, x_long, 
 def test_disable_off_gives_openpilot_long_back(_files):
   (_files / "Disable1").write_text("0")
   cp = _x()
-  assert cp.openpilotLongitudinalControl is True and cp.safetyConfigs[0].safetyParam == AP1_FLAG | LONG_FLAG
+  assert cp.openpilotLongitudinalControl is True and cp.safetyConfigs[0].safetyParam == AP1_FLAG | LONG_FLAG | 16   # + standstill
   names, addrs = _sent(cp)
   assert "DAS_control" in names and DAS in addrs
 

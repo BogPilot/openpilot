@@ -129,7 +129,8 @@ def x_long(tmp_path, monkeypatch):
 
 def test_params_from_real_capture_default_to_openpilot_long(x_long):
   cp = CarInterface.get_params(X, _fp(), [_eps()], False, False, False)
-  assert cp.openpilotLongitudinalControl is True and cp.safetyConfigs[0].safetyParam == 8 | 1   # AP1 + LONG_CONTROL
+  assert cp.openpilotLongitudinalControl is True and cp.safetyConfigs[0].safetyParam & (8 | 1) == 8 | 1   # AP1 + LONG_CONTROL
+  assert cp.safetyConfigs[0].safetyParam in (8 | 1, 8 | 1 | 16)   # + standstill (16) unless AP1StandstillEngage is off
   assert cp.dashcamOnly is False
 
 

@@ -127,9 +127,10 @@ _ap1_standstill_path = AP1_STANDSTILL_PATH
 
 
 def ap1_standstill_engage(fingerprint: str | None, stored: str | bytes | None = None) -> bool:
-  """AP1 only. Test branch: on unless the file (or `stored`) says 0/false/off."""
+  """AP1 Model S and Model X. On unless the file (or `stored`) says 0/false/off. It only takes effect with openpilot long
+  (interface.py): on the Model X that is AP1XOpenpilotLong on and Disable openpilot Longitudinal Control off."""
   from opendbc.car.tesla_ap1.values import CAR
-  if fingerprint != CAR.TESLA_AP1_MODELS:
+  if fingerprint not in (CAR.TESLA_AP1_MODELS, CAR.TESLA_AP1_MODELX):
     return False
   if stored is None:
     try:

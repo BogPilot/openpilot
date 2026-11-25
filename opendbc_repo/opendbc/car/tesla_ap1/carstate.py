@@ -160,7 +160,6 @@ class CarState(CarStateBase):
     # TinklaHandsOnLevel 2 in CarController (hso.ap1_steering_pressed).
     # Structural AP1 (Model S and Model X): hands override and EAC fault handling.
     ap1 = is_ap1_family(self.CP.carFingerprint)
-    # Model S only: standstill and the stock Autopilot active gate. Cluster frames are read on Model S and Model X.
     ap1_s = self.CP.carFingerprint == CAR.TESLA_AP1_MODELS
     # Stalk follow: Model S, and Model X with openpilot longitudinal (same stalk signals, unverified on a real X).
     stalk_follow_on = stalk_follow_car(self.CP)
@@ -295,9 +294,9 @@ class CarState(CarStateBase):
     # Model S: Mobileye fused (stock 0x399 on cp_cam / bus 2) then GTW UI map/mpp
     # into BogPilot dashboardSpeedLimit (m/s). Cluster TX is on bus 0 and
     # never reaches cp_cam. Freq-0 UI msgs on chassis; missing → 0.
-    # Model S: stock Autopilot active (stock 0x399 on bus 2, state 3/4/5). Gates the
-    # standstill-experiment standby DAS_control (Tinkla: not while stock AP).
-    if ap1_s:
+    # Model S and Model X: stock Autopilot active (stock 0x399 on bus 2, state 3/4/5; both cars subscribe it). Gates the
+    # standstill-engage standby DAS_control (Tinkla: not while stock AP).
+    if ap1:
       st = cp_cam.vl.get("AutopilotStatus", {}).get("autopilotStatus", 0)
       self.stock_ap_active = 3 <= int(st or 0) <= 5
     # AP1 S and X: Mobileye fused (optional on X) then GTW UI map/mpp into dashboardSpeedLimit.

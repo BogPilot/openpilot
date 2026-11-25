@@ -43,7 +43,7 @@ def _x(fp=None):
 def test_default_is_on_with_both_layers():
   cp = _x()                                                         # no file: default on
   assert cp.openpilotLongitudinalControl is True
-  assert cp.safetyConfigs[0].safetyParam == AP1_FLAG | LONG_FLAG
+  assert cp.safetyConfigs[0].safetyParam == AP1_FLAG | LONG_FLAG | STANDSTILL_FLAG   # standstill engage default on, as the S
   assert toggles.ap1x_op_long(X) is True
   assert toggles.AP1X_OP_LONG_DEFAULT is True
 
@@ -59,7 +59,7 @@ def test_explicit_off_keeps_stock_tacc_lateral_only(_files, text):
 def test_anything_but_off_is_the_default_on(_files, text):
   _opt_in(_files, text)
   cp = _x()
-  assert cp.openpilotLongitudinalControl is True and cp.safetyConfigs[0].safetyParam == AP1_FLAG | LONG_FLAG
+  assert cp.openpilotLongitudinalControl is True and cp.safetyConfigs[0].safetyParam == AP1_FLAG | LONG_FLAG | STANDSTILL_FLAG
 
 
 @pytest.mark.parametrize("fp", [S, CAR.TESLA_PREAP_MODELS, "TESLA_MODEL_Y", "", None])
@@ -72,27 +72,29 @@ def test_on_enables_both_layers_together(_files, text):
   _opt_in(_files, text)
   cp = _x()
   assert cp.openpilotLongitudinalControl is True
-  assert cp.safetyConfigs[0].safetyParam == AP1_FLAG | LONG_FLAG        # AP1 + LONG_CONTROL, nothing else
-  assert cp.safetyConfigs[0].safetyParam & STANDSTILL_FLAG == 0
+  assert cp.safetyConfigs[0].safetyParam == AP1_FLAG | LONG_FLAG | STANDSTILL_FLAG   # AP1 + LONG_CONTROL + standstill, as the S
   assert cp.dashcamOnly is False
   assert str(cp.safetyConfigs[0].safetyModel) == "tesla"
 
 
-def test_flags_helper_default_unchanged_and_on_adds_only_long():
+def test_flags_helper_default_unchanged_and_on_adds_long():
   assert flags_for_candidate(X) == (AP1_FLAG,)
   assert flags_for_candidate(X, x_long=True) == (AP1_FLAG | LONG_FLAG,)
-  assert flags_for_candidate(X, standstill=True, x_long=True) == (AP1_FLAG | LONG_FLAG,)   # X never gets standstill
+  assert flags_for_candidate(X, standstill=True) == (AP1_FLAG,)                                        # never without long
+  assert flags_for_candidate(X, standstill=True, x_long=True) == (AP1_FLAG | LONG_FLAG | STANDSTILL_FLAG,)
 
 
-def test_standstill_stays_model_s_only(_files):
+def test_standstill_follows_openpilot_long_on_the_x(_files):
   _opt_in(_files)
   (_files / "AP1StandstillEngage").write_text("1")
-  assert toggles.ap1_standstill_engage(X) is False
+  assert toggles.ap1_standstill_engage(X) is True
   assert toggles.ap1_standstill_engage(S) is True
   cp = _x()
-  assert cp.safetyConfigs[0].safetyParam & STANDSTILL_FLAG == 0
+  assert cp.safetyConfigs[0].safetyParam & STANDSTILL_FLAG
   ctl = make_controller(long=True, fingerprint=X, safety_param=AP1_FLAG | LONG_FLAG | STANDSTILL_FLAG)
-  assert ctl.ap1_standstill is False
+  assert ctl.ap1_standstill is True
+  lateral = make_controller(long=False, fingerprint=X, safety_param=AP1_FLAG | LONG_FLAG | STANDSTILL_FLAG)
+  assert lateral.ap1_standstill is False
 
 
 def test_disable_openpilot_long_wins(_files):
