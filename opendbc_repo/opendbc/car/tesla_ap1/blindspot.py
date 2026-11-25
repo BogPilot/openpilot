@@ -15,6 +15,16 @@ Only a recent checksum-OK NO_WARNING (0) clears that side.
 0x399 comes at about 2.4 Hz, so each side holds for BSM_HOLD_S after the last
 occupied report. Bad-checksum frames are skipped (no refresh); staleness then
 forces OCCUPIED. Read-only: nothing here is sent to the car.
+
+Startup presence check (AP1 Model S and Model X): the rules above only apply
+once a checksum-OK 0x399 frame has been seen on bus 2 since the CarState was
+built (car start). Until then the car has no working blind spot source, so
+update() returns (False, False) with waiting True, the same as stock openpilot
+on a car without BSM: nothing is drawn, no "Car Detected in Blindspot" alert,
+the manual (nudge) lane change stays available, and carstate publishes
+bogpilot.bsmWaiting so consumers know False means unknown, not clear
+(automatic lane changes stay off while it is set). After the first frame a
+later loss is stale => OCCUPIED as before, it never goes back to waiting.
 """
 from opendbc.car.tesla_ap1.cluster import (
   AUTOPILOT_STATUS, CHECKSUM_SIGNALS, MSG_NAMES, SIGNALS, pack, tesla_checksum,
@@ -92,6 +102,12 @@ class Ap1Blindspot:
     self.left_age = stale_s + 1.0
     self.right_age = stale_s + 1.0
     self.bad_checksum = 0
+    # No checksum-OK 0x399 frame yet since start: no blind spot source (see module doc).
+    self.seen = False
+
+  @property
+  def waiting(self):
+    return not self.seen
 
   @property
   def left(self):
@@ -120,7 +136,9 @@ class Ap1Blindspot:
       setattr(self, hold_attr, self.hold_s)
 
   def update(self, frames, dt):
-    """Age holds/freshness by dt, then apply this step's frames. Returns (left, right) OCCUPIED."""
+    """Age holds/freshness by dt, then apply this step's frames. Returns (left, right) OCCUPIED.
+
+    (False, False) while waiting (no checksum-OK frame since start); the left/right properties stay fail-closed."""
     self.left_s = max(0.0, self.left_s - dt)
     self.right_s = max(0.0, self.right_s - dt)
     self.left_age += dt
@@ -129,6 +147,9 @@ class Ap1Blindspot:
       if not checksum_ok(f):
         self.bad_checksum += 1
         continue
+      self.seen = True
       self._apply_side("left", f.get(BSM_LEFT))
       self._apply_side("right", f.get(BSM_RIGHT))
+    if not self.seen:
+      return False, False
     return self.left, self.right

@@ -817,4 +817,7 @@ struct BogPilotCarState {
   ap1RearRpmPerMs @47 :Float32;        # rear motor rpm per m/s (learned this drive, else the seed)
   ap1FrontRpmPerMs @48 :Float32;       # front motor rpm per m/s; NaN on a single-motor car
   ap1RpmPerMsMeasured @49 :Bool;       # ap1RearRpmPerMs was learned this drive (not the seed)
+  # Blind spot startup presence check (tesla_ap1/blindspot.py): the car reads blind spot data but no checksum-OK 0x399 frame
+  # has been seen on bus 2 since start. left/rightBlindspot are False and mean unknown, not clear. False on every other car.
+  bsmWaiting @50 :Bool;
 }

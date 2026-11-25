@@ -5334,6 +5334,8 @@ public:
 
   inline bool getAp1RpmPerMsMeasured() const;
 
+  inline bool getBsmWaiting() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -5511,6 +5513,9 @@ public:
 
   inline bool getAp1RpmPerMsMeasured();
   inline void setAp1RpmPerMsMeasured(bool value);
+
+  inline bool getBsmWaiting();
+  inline void setBsmWaiting(bool value);
 
 private:
   ::capnp::_::StructBuilder _builder;
@@ -11987,6 +11992,20 @@ inline bool BogPilotCarState::Builder::getAp1RpmPerMsMeasured() {
 inline void BogPilotCarState::Builder::setAp1RpmPerMsMeasured(bool value) {
   _builder.setDataField<bool>(
       ::capnp::bounded<384>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarState::Reader::getBsmWaiting() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<385>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarState::Builder::getBsmWaiting() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<385>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarState::Builder::setBsmWaiting(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<385>() * ::capnp::ELEMENTS, value);
 }
 
 }  // namespace

@@ -33,7 +33,7 @@ class Car:
     self.parsers = CarState.get_can_parsers(self.CP)
     self.t = 1_000_000_000
 
-  def step(self, dat=None, steps=1):
+  def step_ret(self, dat=None, steps=1):
     ret = None
     for i in range(steps):
       self.t += 10_000_000
@@ -41,6 +41,10 @@ class Car:
       for p in self.parsers.values():
         p.update([(self.t, msgs)])
       ret = self.state.update(self.parsers)
+    return ret
+
+  def step(self, dat=None, steps=1):
+    ret = self.step_ret(dat, steps)
     return bool(ret.leftBlindspot), bool(ret.rightBlindspot)
 
 
@@ -99,3 +103,59 @@ def test_bad_checksum_frame_not_trusted(fp):
 
 def test_hold_constant_unchanged():
   assert BSM_HOLD_S == 1.0 and BSM_STALE_S == 1.5
+
+
+# Startup presence check: no blind spot source until a checksum-OK 0x399 frame is seen on bus 2 after start.
+
+@pytest.mark.parametrize("fp", CARS)
+def test_never_seen_is_waiting_not_occupied(fp):
+  car = Car(fp)
+  ret = car.step_ret(steps=int(5.0 / DT_CTRL))          # 5 s, no 0x399 at all
+  assert (ret.leftBlindspot, ret.rightBlindspot) == (False, False)
+  assert ret.bogpilot.bsmWaiting is True
+  assert car.state.ap1_bsm.waiting
+
+
+@pytest.mark.parametrize("fp", CARS)
+def test_bad_checksum_frames_do_not_count_as_seen(fp):
+  car = Car(fp)
+  ret = car.step_ret(frame_399(1, 1, good_checksum=False))
+  assert (ret.leftBlindspot, ret.rightBlindspot) == (False, False)
+  assert ret.bogpilot.bsmWaiting is True
+
+
+@pytest.mark.parametrize("fp", CARS)
+def test_seen_then_lost_is_occupied(fp):
+  car = Car(fp)
+  ret = car.step_ret(frame_399(0, 0))
+  assert (ret.leftBlindspot, ret.rightBlindspot) == (False, False)
+  assert ret.bogpilot.bsmWaiting is False
+  ret = car.step_ret(steps=int(BSM_STALE_S / DT_CTRL) + 5)   # source lost mid-drive
+  assert (ret.leftBlindspot, ret.rightBlindspot) == (True, True)
+  assert ret.bogpilot.bsmWaiting is False                     # never goes back to waiting
+  ret = car.step_ret(steps=int(10.0 / DT_CTRL))
+  assert (ret.leftBlindspot, ret.rightBlindspot) == (True, True)
+
+
+@pytest.mark.parametrize("fp", CARS)
+def test_normal_after_first_frame(fp):
+  car = Car(fp)
+  car.step(steps=50)                                           # a short wait before the first frame
+  ret = car.step_ret(frame_399(1, 0))
+  assert (ret.leftBlindspot, ret.rightBlindspot) == (True, False)
+  assert ret.bogpilot.bsmWaiting is False
+  assert car.step(frame_399(0, 2)) == (False, True)
+  assert car.step(frame_399(0, 0)) == (False, False)
+
+
+def test_waiting_unit():
+  from opendbc.car.tesla_ap1.blindspot import Ap1Blindspot
+  bsm = Ap1Blindspot()
+  assert bsm.waiting and bsm.update([], 0.01) == (False, False)
+  assert bsm.left and bsm.right                                # raw properties stay fail-closed
+
+
+def test_preap_never_waiting():
+  from opendbc.car.tesla_ap1.preap.carstate import PreApCarState  # noqa: F401  (Pre-AP has no 0x399 source)
+  from opendbc.car import structs
+  assert structs.CarState().bogpilot.bsmWaiting is False

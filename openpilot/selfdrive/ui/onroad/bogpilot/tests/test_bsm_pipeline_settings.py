@@ -154,8 +154,23 @@ class TestCanToUiPipeline(unittest.TestCase):
 
   def test_bad_checksum_rejected(self):
     raw, ui = self.flags(frame_399(left=1, right=1, good_checksum=False))
-    self.assertEqual(ui, (True, True))  # no checksum-OK frame -> unknown -> occupied (fail closed); frame itself not trusted
+    # First frame bad: the source is not up yet (waiting), so nothing is drawn; the frame itself is not trusted.
+    self.assertEqual(ui, (False, False))
+    self.assertTrue(self.p.ci.CS.ap1_bsm.waiting)
     self.assertGreaterEqual(self.p.ci.CS.ap1_bsm.bad_checksum, 1)
+    # After a good frame, a bad-checksum dropout is stale -> occupied (fail closed).
+    self.flags(frame_399())
+    self.assertEqual(self.flags(frame_399(left=1, right=1, good_checksum=False), steps=200)[1], (True, True))
+
+  def test_waiting_until_first_frame(self):
+    cs = self.p.publish(self.p.step())
+    self.assertTrue(cs.bogpilot.bsmWaiting)
+    self.assertEqual(bsm_state.blindspots(FakeSM(cs), 0, time.monotonic()), (False, False))
+    self.assertTrue(bsm_state.bsm_waiting(FakeSM(cs), 0, time.monotonic()))
+    cs = self.p.publish(self.p.step(frame_399(left=1)))
+    self.assertFalse(cs.bogpilot.bsmWaiting)
+    self.assertFalse(bsm_state.bsm_waiting(FakeSM(cs), 0, time.monotonic()))
+    self.assertEqual(bsm_state.blindspots(FakeSM(cs), 0, time.monotonic()), (True, False))
 
   def test_hold_then_expires(self):
     self.assertEqual(self.flags(frame_399(left=1), steps=50)[1], (True, False))    # 0.5 s later: held

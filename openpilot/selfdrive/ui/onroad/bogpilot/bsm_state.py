@@ -21,15 +21,30 @@ def _fresh(sm, name, started_frame, now, max_age=MAX_AGE_S):
 
 
 def blindspots(sm, started_frame, now=None):
-  """(left, right) from a fresh carState; (False, False) when missing/stale/invalid."""
+  """(left, right) from a fresh carState; (False, False) when missing/stale/invalid or while the source is not up yet
+  (bsmWaiting)."""
   now = time.monotonic() if now is None else now
   try:
     if not _fresh(sm, "carState", started_frame, now):
       return False, False
     cs = sm["carState"]
+    if bool(getattr(getattr(cs, "bogpilot", None), "bsmWaiting", False)):
+      return False, False
     return bool(cs.leftBlindspot), bool(cs.rightBlindspot)
   except (KeyError, AttributeError, TypeError, ValueError):
     return False, False
+
+
+def bsm_waiting(sm, started_frame, now=None):
+  """True while a fresh carState says the blind spot source was not seen since start (bogpilot.bsmWaiting): the flags
+  are False and mean unknown, so nothing is drawn as clear or occupied. False when carState is missing or stale."""
+  now = time.monotonic() if now is None else now
+  try:
+    if not _fresh(sm, "carState", started_frame, now):
+      return False
+    return bool(sm["carState"].bogpilot.bsmWaiting)
+  except (KeyError, AttributeError, TypeError, ValueError):
+    return False
 
 
 def adjacent_leads(sm, started_frame, now=None):

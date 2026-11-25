@@ -236,6 +236,17 @@ def bsm_side_occupied(cs, left: bool) -> bool:
   return flag
 
 
+def bsm_waiting(cs) -> bool:
+  """True while the car's blind spot source has not been seen since start (carState.bogpilot.bsmWaiting).
+
+  The flags are False then but mean unknown: the manual nudge lane change stays as on a car without BSM (stock), and
+  the automatic (nudgeless) lane change is held off until the source is up."""
+  try:
+    return bool(cs.bogpilot.bsmWaiting)
+  except Exception:
+    return False
+
+
 def _line(line):
   x, y = np.asarray(line.x), np.asarray(line.y)
   if len(x) < 2 or len(x) != len(y) or not np.isfinite(x).all() or not np.isfinite(y).all() or not (np.diff(x) > 0).all():
@@ -284,7 +295,7 @@ class LaneChangePolicy:
     if signal != self.previous_signal:
       self.wait = 0.0
     self.previous_signal = signal if one else (2 if cs.leftBlinker else 0)
-    blocked = bsm_side_occupied(cs, left=(signal == 1)) if signal != 0 else True
+    blocked = (bsm_side_occupied(cs, left=(signal == 1)) or bsm_waiting(cs)) if signal != 0 else True
     torque = cs.steeringTorque
     opposed = cs.steeringPressed and (not math.isfinite(torque) or torque * signal <= 0)
     width = adjacent_lane_width(model, signal == 1) if settings.minimum_width > 0 else 0.0

@@ -240,8 +240,11 @@ class CarState(CarStateBase):
     # WARNING/SNA/garbage/stale/bad-checksum dropout => Blindspot True (OCCUPIED).
     # Only recent checksum-OK NO_WARNING clears. Held BSM_HOLD_S; stale after
     # BSM_STALE_S. Pre-AP and other Teslas: no BSM here.
+    # Until the first checksum-OK 0x399 since start both flags stay False and
+    # bogpilot.bsmWaiting is set (no source yet: unknown, not clear).
     if ap1:
       ret.leftBlindspot, ret.rightBlindspot = self.ap1_bsm.update(frames_from_vl_all(cp_cam), DT_CTRL)
+      fp_ret.bsmWaiting = self.ap1_bsm.waiting
 
     # AEB
     ret.stockAeb = (cp_cam.vl["DAS_control"]["DAS_aebEvent"] == 1)

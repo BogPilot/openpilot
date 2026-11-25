@@ -724,6 +724,21 @@ class BsmFailClosedTests(unittest.TestCase):
     self.assertFalse(p.observe(cs, True, True, cfg, model(), True))
     self.assertTrue(bsm_side_occupied(cs, left=True))
 
+  def test_bsm_waiting_holds_off_automatic_lane_change_only(self):
+    from openpilot.selfdrive.controls.lib.phase3_lanechange import bsm_waiting
+    cfg = LaneChangeSettings(nudgeless=True, delay=0)
+    waiting = car(bogpilot=NS(bsmWaiting=True))
+    p = LaneChangePolicy()
+    p.observe(waiting, True, False, cfg, model(), True)
+    self.assertFalse(p.observe(waiting, True, True, cfg, model(), True))   # no automatic lane change while unknown
+    self.assertTrue(bsm_waiting(waiting))
+    self.assertFalse(bsm_side_occupied(waiting, left=True))                # manual nudge path: as a car without BSM
+    up = car(bogpilot=NS(bsmWaiting=False))
+    p = LaneChangePolicy()
+    p.observe(up, True, False, cfg, model(), True)
+    self.assertTrue(p.observe(up, True, True, cfg, model(), True))
+    self.assertFalse(bsm_waiting(car()))                                   # no bogpilot struct: not waiting
+
 
 class HumanLeadOneGateTests(unittest.TestCase):
   def test_human_track_none_without_adoption_even_if_saved_on(self):
