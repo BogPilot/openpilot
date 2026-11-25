@@ -168,6 +168,7 @@ class PreAPLongController:
       pedal_long_falling = self.prev_requested_long and not requested_long
       if requested_long_rising or pedal_long_falling or pedal_button_press:
         CS.preap_cc_cancel_needed = True
+        CS.preap_cc_cancel_wait_di = True   # sent only if stock DI cruise really engages (StockCCSpoofer)
 
     self.prev_requested_long = requested_long
 

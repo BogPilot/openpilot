@@ -1,8 +1,8 @@
 """CarController level: the 300 ms spoof-echo window opens only on our own CANCEL frame (StockCCSpoofer TX) and never
 swallows a cancel the panda counts as real (tesla_preap.h:114-120, more than 600 ms after the last pull)."""
 from opendbc.car import structs
-from opendbc.car.tesla_ap1.tests.test_preap_carstate_controller import (CANCEL, PULL, _act, _params_dir, _pedal_frame,  # noqa: F401
-                                                                       _ready_rig, params)
+from opendbc.car.tesla_ap1.tests.test_preap_carstate_controller import (CANCEL, PULL, _act, _inv, _params_dir,  # noqa: F401
+                                                                       _pedal_frame, _ready_rig, params)
 
 ButtonType = structs.CarState.ButtonEvent.Type
 TIP = 4          # SpdCtrlLvr_Stat accel tip (values.py BUTTONS)
@@ -32,6 +32,8 @@ def _engage_full(rig, ctl):
 def test_driver_cancel_100ms_after_a_tip_spoof_is_real():
   rig, ctl = _ready_rig(double=False)
   op = _engage_full(rig, ctl)
+  # stock cruise engaged: a pedal-path CANCEL goes out only then (StockCCSpoofer DI gate)
+  rig.base["DI_state"]["DI_cruiseState"] = _inv("DI_state", "DI_cruiseState", "ENABLED")
   # up tip, long after the last pull: StockCCSpoofer queues one CANCEL (long_controller pedal_button_press)
   op, out, stw = _step(rig, ctl, 150, TIP, op)
   stamp_before = int(rig.cs.preap_last_cc_spoof_ms or 0)

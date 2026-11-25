@@ -86,6 +86,8 @@ class PreApCarState(CarStateBase):
     self.preap_cc_cancel_drop = False   # no pedal: forget a CANCEL not yet sent (StockCCSpoofer.drop_pending)
     self.preap_cc_cancel_tx_ms = 0      # no pedal: monotonic ms of the last CANCEL put on the bus
     self.preap_last_cc_spoof_ms = 0
+    self.preap_di_cc_engaged = False    # stock DI cruise engaged (DI_cruiseState); gates the pedal-path CANCEL
+    self.preap_cc_cancel_wait_di = False  # pedal path: the pending CANCEL waits for preap_di_cc_engaged
     self.preap_pedal_detected = False
     self.preap_pedal_raw = None
     self._preap_pedal_last_idx = None
@@ -262,6 +264,7 @@ class PreApCarState(CarStateBase):
     cruise_state = self.can_define.dv["DI_state"]["DI_cruiseState"].get(int(cp.vl["DI_state"]["DI_cruiseState"]), None)
     speed_units = self.can_define.dv["DI_state"]["DI_speedUnits"].get(int(cp.vl["DI_state"]["DI_speedUnits"]), None)
     acc_enabled = cruise_state in ("ENABLED", "STANDSTILL", "OVERRIDE", "PRE_FAULT", "PRE_CANCEL")
+    self.preap_di_cc_engaged = bool(acc_enabled)
     ret.accFaulted = cruise_state == "FAULT"
     ret.gearShifter = GEAR_MAP[self.can_define.dv["DI_torque2"]["DI_gear"].get(int(cp.vl["DI_torque2"]["DI_gear"]), "DI_GEAR_INVALID")]
     if speed_units == "KPH":
