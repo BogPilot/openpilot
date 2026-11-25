@@ -39,7 +39,7 @@ REF.update(REQUESTED_AP1_TAP_FROM_ZERO)
 # Lead-aware accel cap for the legacy Teslas (NAP-style Adaptive Accel Limits): new in this branch, OFF by default, Standard level.
 REQUESTED_ADAPTIVE_ACCEL_LEAD = {"AdaptiveAccelLead": ["0", 2, "0"]}
 REF.update(REQUESTED_ADAPTIVE_ACCEL_LEAD)
-# mapd v2 (map curve speed preview for CSC, live speed limits during downloads): both new, OFF by default.
+# mapd v2 (map curve speed preview for CSC, live speed limits during downloads): both new, ON by default.
 REQUESTED_MAPD_V2 = {"CSCMapCurvature": ["1", 2, "0"], "MapdV2": ["1", 0, "0"]}
 REF.update(REQUESTED_MAPD_V2)
 # Smooth Curve Braking for the AP1 curve brake: new in this branch, OFF by default, Standard level.

@@ -33,10 +33,18 @@ TAP_FROM_ZERO_DESC = (
   "a double pull at a stop sets this speed. Press the accelerator to pull away. Tip the stalk up or down to change it. "
   f"Starts at {TAP_FROM_ZERO_DEFAULT_MPH:g} mph (about {TAP_FROM_ZERO_DEFAULT_MPH * 1.609344:.0f} km/h) on the AP1 Model S, AP1 Model X and Pre-AP Model S."
 )
+CSC_KEY = "CurveSpeedController"   # read live by ap1_curve_speed (cached toggle), so no reboot prompt
+CSC_TITLE = "Curve Speed Control"
+CSC_DESC = "Slow down before curves ahead, using the camera and the downloaded maps."
+MAP_CURVE_KEY = "CSCMapCurvature"   # read live by ap1_curve_speed, like CurveSpeedController
+MAP_CURVE_TITLE = "Map Curve Speed"
+MAP_CURVE_DESC = "Slow for curves from the downloaded maps before the camera sees them (needs Use mapd v2). Only ever slows for a curve."
+# The two curve rows, in page order: Curve Speed Control, then Map Curve Speed right below it.
+CURVE_ROWS = ((CSC_KEY, CSC_TITLE, CSC_DESC), (MAP_CURVE_KEY, MAP_CURVE_TITLE, MAP_CURVE_DESC))
 # Consumer-backed control IDs (feeds Page.controls so an empty page is omitted by the navigation).
 CONTROLS = ("LongitudinalActuatorDelay", "MaxDesiredAcceleration", "StopAccel", "StoppingDecelRate",
             "AccelerationProfile", "DecelerationProfile", "HumanAcceleration", "AdaptiveAccelLead",
-            "CSCMapCurvature",
+            CSC_KEY, MAP_CURVE_KEY,
             "CustomPersonalities", "HumanFollowing", "HumanLaneChanges",
             "LeadDetectionThreshold", "ForceStops", "IncreasedStoppedDistance", "WeatherPresets", "SpeedLimitController")
 
@@ -102,6 +110,42 @@ def root_entries(store, cp=None):
   if store.honoured(mounts.SLC_KEY) and mounts.slc_page_supported(cp) is not False:
     entries.append(("slc", mounts.SLC_TITLE, mounts.slc_description()))   # 0.9.7 order: last
   return entries
+
+
+def csc_visible(store, cp=None, key=CSC_KEY) -> bool:
+  """Curve Speed Control / Map Curve Speed rows: on the cars their consumer drives (csc_platform.csc_row_visible: AP1
+  Model S or X with openpilot longitudinal, Pre-AP with a calibrated pedal). With no CarParams yet they show greyed, like
+  the rows above. Each row also follows its own Tuning Level."""
+  if not store.honoured(key):
+    return False
+  try:
+    real = cp._cp() if isinstance(cp, LiveCP) else cp
+  except Exception:
+    real = None
+  if real is None:
+    return True
+  from openpilot.selfdrive.controls.lib.csc_platform import csc_row_visible
+  return bool(csc_row_visible(real))
+
+
+def curve_rows(store, cp=None):
+  """(key, title, description) of the curve rows shown now, in page order; pure data, no widgets."""
+  return [row for row in CURVE_ROWS if csc_visible(store, cp, row[0])]
+
+
+def set_csc(store, on, can_edit=None, long_on=None, key=CSC_KEY) -> bool:
+  """Write one curve row's toggle (blocking, read back). Refused unless editable now and openpilot longitudinal is on.
+  A plain write: no adoption marker, so it never wakes the Longitudinal Tuning profiles."""
+  if key not in (CSC_KEY, MAP_CURVE_KEY):
+    return False
+  if (can_edit is not None and not can_edit()) or (long_on is not None and not long_on()):
+    return False
+  try:
+    store.put_bool(key, bool(on), block=True)
+  except TypeError:
+    store.put_bool(key, bool(on))
+  store.invalidate()
+  return store.get_bool(key) == bool(on)
 
 
 def tap_from_zero_visible(store, cp=None) -> bool:
@@ -222,7 +266,7 @@ class _NotifyingStore:
 def create_gas_brake_layout(store=None, cp_source=None, can_edit=None):
   """Lazy factory for the phase2 navigation Page. All arguments are injectable for native tests."""
   from openpilot.system.ui.widgets import Widget
-  from openpilot.system.ui.widgets.list_view import button_item
+  from openpilot.system.ui.widgets.list_view import button_item, toggle_item
   from openpilot.system.ui.lib.multilang import tr
   from openpilot.selfdrive.ui.bogpilot.gated_actions import RESET_SECTION_TITLE, gated_value_step_item, reset_section_item
   from openpilot.selfdrive.ui.bogpilot import tuning_level
@@ -293,7 +337,24 @@ def create_gas_brake_layout(store=None, cp_source=None, can_edit=None):
       self.lock.refresh()
       items = [self._lock_row, self._jump_row]
       editor = FollowingEditor(self.cp, self.store, self.can_edit)
+      curve_done = False
+
+      def add_curve_rows():
+        # Curve Speed Control and Map Curve Speed: their own on/off rows right below Longitudinal Tuning (outside it), so
+        # they stay reachable with Longitudinal Tuning off.
+        def curve_enabled():
+          return bool(self.can_edit() and self.cp.openpilotLongitudinalControl)
+        for ckey, ctitle, cdesc in curve_rows(self.store, self.cp):
+          row = toggle_item(ctitle, cdesc, self.store.get_bool(ckey), enabled=curve_enabled,
+                            callback=lambda on, k=ckey: set_csc(self.store, on, self.can_edit,
+                                                                lambda: self.cp.openpilotLongitudinalControl, key=k),
+                            icon=resolve_icon(ckey))
+          items.append(attach_help(row, ckey))
+
       for key, title, desc in root_entries(self.store, self.cp):
+        if not curve_done and key in ("qol", "slc"):
+          add_curve_rows()   # Longitudinal Tuning hidden by the Tuning Level: same place, just above
+          curve_done = True
         if key == "personalities":
           # 0.9.7 longitudinal_settings.cc:299-304: one combined switch + MANAGE row; MANAGE only while the switch is on.
           item = _manage_toggle_item(title, desc, editor.on(mounts.PERSONALITIES_KEY),
@@ -309,6 +370,11 @@ def create_gas_brake_layout(store=None, cp_source=None, can_edit=None):
           items.append(attach_help(button_item(title, "MANAGE", desc, callback=lambda k=key: self.open_panel(k),
                                               enabled=lambda: self.cp.openpilotLongitudinalControl,
                                               icon=resolve_icon(GAS_BRAKE_SECTIONS.get(key, ""))), "group:" + key))
+        if key == "profiles" and not curve_done:
+          add_curve_rows()
+          curve_done = True
+      if not curve_done:
+        add_curve_rows()
       # AP1 Model S only (mounts.slc_supported(cp) is not False), with the same no-car rule as the Speed Limit Controller
       # entry above: with no CarParams yet the rows show greyed, hidden only on a known non-AP1 car. The buttons are gated (gated_actions.py).
       # One value row [-] [value] [+] (was a text row plus a button row) and its own section reset row: same two rows,

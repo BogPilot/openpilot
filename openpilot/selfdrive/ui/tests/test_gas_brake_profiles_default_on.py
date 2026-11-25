@@ -35,8 +35,8 @@ class Store:
 def test_profile_group_is_active_without_an_ack_on_legacy_tesla(platform):
   s = Store(LongitudinalTune="1")
   c = SettingsController("profiles", s, cp=NS(carFingerprint=platform, openpilotLongitudinalControl=True))
-  assert c.active() and [r.key for r in c.rows()] == ["AccelerationProfile", "DecelerationProfile", "HumanAcceleration", "AdaptiveAccelLead",
-                                                 "CSCMapCurvature"]
+  # Map Curve Speed is its own Gas / Brake row next to Curve Speed Control, no longer in this group
+  assert c.active() and [r.key for r in c.rows()] == ["AccelerationProfile", "DecelerationProfile", "HumanAcceleration", "AdaptiveAccelLead"]
   assert s.writes == []                       # showing the panel writes nothing
 
 

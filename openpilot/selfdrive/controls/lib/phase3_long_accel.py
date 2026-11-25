@@ -20,8 +20,9 @@ CEM_ACK = "Phase3CEMEnabled"
 STOP_ACCEL_ACK = "Phase3StopAccelEnabled"
 STOPPING_RATE_ACK = "Phase3StoppingRateEnabled"
 ROW_ACKS = {"StopAccel": STOP_ACCEL_ACK, "StoppingDecelRate": STOPPING_RATE_ACK}
-PROFILE_KEYS = ("LongitudinalTune", "AccelerationProfile", "DecelerationProfile", "HumanAcceleration", "AdaptiveAccelLead",
-                "CSCMapCurvature")
+PROFILE_KEYS = ("LongitudinalTune", "AccelerationProfile", "DecelerationProfile", "HumanAcceleration", "AdaptiveAccelLead")
+# CSCMapCurvature (Map Curve Speed) is its own Gas / Brake row next to Curve Speed Control, outside this group: writing it
+# never adopts the Longitudinal Tuning profiles.
 # CSCTeslaSmoothing stays registered (saved values, backups, resets) but has no row or consumer: the curve speed planner
 # (curve_speed_planner.py) always brakes with that smooth behaviour.
 # Stop Acceleration / Stopping Rate share the Advanced parent and its single adoption marker

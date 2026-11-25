@@ -507,6 +507,15 @@ _add("AdaptiveAccelLead", "Adaptive Accel Near Lead",
      note="Only limits acceleration. Braking and the following distance are not affected. Based on NAP's (MIT) adaptive accel "
           "limits. " + _GB,
      default="Off", default_param="AdaptiveAccelLead")
+_add("CurveSpeedController", "Curve Speed Control",
+     "Slows the car before a curve so it is already at a comfortable cornering speed when the turn starts. It reads curves "
+     "from the camera and, with Map Curve Speed on, from the downloaded maps, and uses the lower of your learned cornering "
+     "limit and the Tesla Tuning limit. It only ever slows the car and never changes your set speed. Once the curve is "
+     "behind you, the car speeds back up to your set speed.",
+     when="Turn it off if you would rather hold your set speed through curves and slow down yourself.",
+     note="Works the same with every Deceleration Profile. Map Curve Speed only works while this is on. Braking for cars "
+          "ahead and for stops is not affected. AP1 Model S and X, and Pre-AP with the Comma Pedal. " + _GB,
+     default="On", default_param="CurveSpeedController")
 _add("CSCMapCurvature", "Map Curve Speed",
      "Lets Curve Speed Control also slow down for curves it reads from the downloaded OpenStreetMap maps, before the camera can "
      "see them. The map's curve speed for the bend ahead joins the camera's curve speeds in one braking plan, using the same "
