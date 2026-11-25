@@ -235,7 +235,8 @@ def get_T_FOLLOW(toggles, personality):
 
 def live_stalk_seconds(seconds, toggles):
   """opendbc tesla_ap1/stalk_follow.live_follow_seconds with the restored profile values (custom off ->
-  identity). The stalk publishes the stock detent seconds; detent 1 (traffic) stays 1.0."""
+  identity, the stock times the personalities use then). The stalk publishes the stock detent seconds; detent 1
+  (traffic) stays 1.0."""
   try:
     from opendbc.car.tesla_ap1.stalk_follow import live_follow_seconds
   except ImportError:  # pragma: no cover

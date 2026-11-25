@@ -233,8 +233,10 @@ def live_follow_seconds(follow_s, toggles=None):
   Intermediate detents use the midpoint of the live neighbors. Traffic stays
   _TRAFFIC_S: there is no Traffic follow toggle in Settings. Unknown values and
   toggles=None pass follow_s through unchanged. Weather add-on is not included.
+  With Custom Personalities off the personalities use the stock times (1.25 / 1.45 / 1.75), so the stalk does too:
+  follow_s passes through unchanged, the same seconds the on-screen personality gives.
   """
-  if toggles is None or follow_s <= 0.0:
+  if toggles is None or follow_s <= 0.0 or not bool(getattr(toggles, "custom_personalities", True)):
     return float(follow_s)
   a = float(getattr(toggles, "aggressive_follow", _AGGRESSIVE_S))
   s = float(getattr(toggles, "standard_follow", _STANDARD_S))
