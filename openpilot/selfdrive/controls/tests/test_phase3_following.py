@@ -270,54 +270,39 @@ def test_human_following_gates():
   assert plan.t_follow == pytest.approx(0.8)  # traffic mode: traffic curve, no human following
 
 
-# ---------- AP1 stalk -> LongitudinalPersonality sync (bogpilot_card.py:124-176) ----------
+# ---------- AP1 stalk -> LongitudinalPersonality sync (bogpilot_card.py:124-176 detent rules) ----------
+# write timing, hold and gate: test_ap1_stalk_personality_write.py
 def decision(raw, prev=None):
   return SF.parse_stalk_raw(raw, prev)
 
 
-def test_personality_sync_named_detents_and_readback():
+def test_personality_sync_named_detents_once_after_rest():
   p = FakeParams(LongitudinalPersonality=1)
   sync = F.Ap1PersonalitySync(p)
-  d = None
-  d = decision(66, d)
-  assert sync.update(d) is False and p.puts == [("LongitudinalPersonality", 0)]
-  p.d["LongitudinalPersonality"] = 2       # lost write / overtaken
-  for _ in range(10):
-    sync.update(d)
-  assert p.puts[-1] == ("LongitudinalPersonality", 0) and len(p.puts) == 2
-  for _ in range(400):
-    sync.update(d)
-  assert len(p.puts) == 2                   # matched -> stop
+  d = decision(66)
+  assert sync.update(d, 0.0) is False and p.puts == [] and sync.shown == 0
+  for i in range(1, 300):
+    sync.update(d, i * 0.01)
+  assert p.puts == [("LongitudinalPersonality", 0)]      # once, after the ring rested
   d = decision(0, d)
-  assert sync.update(d) is True             # detent 1 = traffic, no personality write
-  assert len(p.puts) == 2
-  assert sync.update(None) is None
+  for i in range(300, 900):
+    assert sync.update(d, i * 0.01) is True               # detent 1 = traffic, no personality write
+  assert len(p.puts) == 1
+  assert sync.update(None, 9.0) is None
 
 
-def test_personality_sync_gives_up_after_three_seconds():
-  p = FakeParams()
-  p.put = lambda k, v, *a, **kw: p.puts.append((k, v))   # write never sticks
+def test_personality_sync_quick_twist_applies_last_crossed_detent_once():
+  p = FakeParams(LongitudinalPersonality=1)
   sync = F.Ap1PersonalitySync(p)
   d = decision(200)
-  for _ in range(400):
-    sync.update(d)
-  assert len(p.puts) == 1 + 29              # retries every 10 frames up to frame 300
-  p.puts.clear()
-  p.d["LongitudinalPersonality"] = 0        # later screen tap is not fought
-  for _ in range(100):
-    sync.update(d)
-  assert p.puts == []
-
-
-def test_personality_sync_quick_twist_applies_crossed_detent():
-  p = FakeParams()
-  sync = F.Ap1PersonalitySync(p)
-  d = decision(200)
-  sync.update(d)
-  for raw in (166, 100, 33):               # logged sequence: 66 never reported
+  sync.update(d, 0.0)
+  for k, raw in enumerate((166, 100, 33)):                # logged sequence: 66 never reported
     d = decision(raw, d)
-    sync.update(d)
-  assert [v for _, v in p.puts] == [2, 1, 0]   # relaxed, standard (crossed at 4), aggressive (crossed at 2)
+    sync.update(d, 0.1 * (k + 1))
+    assert sync.shown == (2, 1, 0)[k]                     # relaxed, standard (crossed at 4), aggressive (crossed at 2)
+  for i in range(31, 300):
+    sync.update(d, i * 0.01)
+  assert p.puts == [("LongitudinalPersonality", 0)]
 
 
 # ---------- UI rows ----------

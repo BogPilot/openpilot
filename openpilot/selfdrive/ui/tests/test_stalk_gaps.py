@@ -6,7 +6,7 @@ from opendbc.car.tesla_ap1.phase3_stalk_controls import (
   twist_follow_on,
 )
 from opendbc.car.tesla_ap1.stalk_follow import parse_stalk_raw
-from openpilot.selfdrive.controls.lib.phase3_following import Ap1PersonalitySync
+from openpilot.selfdrive.controls.lib.phase3_following import Ap1PersonalitySync, ap1_personality_step
 from openpilot.selfdrive.controls.lib.phase3_long_accel import CEM_ACK, ConditionalMode, LongAccelPort
 from openpilot.selfdrive.selfdrived.events import EVENTS, ET
 from openpilot.cereal import log
@@ -128,12 +128,15 @@ def test_twist_follow_off_does_not_write_personality():
 
   decision = parse_stalk_raw(66, None)  # detent 3, aggressive
   off_params = Recorder(LongitudinalPersonality=1)
-  # card skips Ap1PersonalitySync.update when twist following is off
-  if twist_follow_on(cs(twist=False)):
-    raise AssertionError("twist_follow off must skip the personality write")
+  # twist following off: carstate publishes ap1StalkFollowS = 0, so selfdrived never feeds the sync
+  off = Ap1PersonalitySync(off_params)
+  for i in range(300):
+    assert ap1_personality_step(off, NS(bogpilot=NS(ap1StalkFollowS=0.0)), 1, i * 0.01) == 1
   assert off_params.puts == []
   assert off_params.data["LongitudinalPersonality"] == 1
 
   on_params = Recorder(LongitudinalPersonality=1)
-  assert Ap1PersonalitySync(on_params).update(decision) is False
+  on = Ap1PersonalitySync(on_params)
+  assert on.update(decision, 0.0) is False and on_params.puts == []
+  on.update(decision, 1.0)
   assert on_params.puts == [("LongitudinalPersonality", 0)]

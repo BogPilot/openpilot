@@ -274,7 +274,7 @@ def test_actual_card_state_update_uses_live_eligibility():
   hold = NS(apply_stalk=lambda traffic: None, update_button=lambda *a, **k: False)
   car = NS(CP=cp(), CI=NS(CS=parser, update=lambda frames: cs), RI=NS(update=lambda frames: None),
            sm=SM(), params=store, can_sock=None, ap1_model=None, experimental_mode=False,
-           can_rcv_cum_timeout_counter=0, ap1_personality_sync=None, ap1_cluster_lift=False, v_cruise_helper=NS(update_v_cruise=lambda *args: None,
+           can_rcv_cum_timeout_counter=0, ap1_stalk_traffic=None, ap1_cluster_lift=False, v_cruise_helper=NS(update_v_cruise=lambda *args: None,
              v_cruise_kph=50, v_cruise_cluster_kph=50), is_metric=True, traffic_mode_hold=hold)
   scope = {'messaging':NS(drain_sock_raw=lambda *args,**kw:[b'fake']), 'can_capnp_to_list':lambda frames:[],
            'experimental_supported':__import__('opendbc.car.tesla_ap1.phase3_stalk_controls',fromlist=['experimental_supported']).experimental_supported,

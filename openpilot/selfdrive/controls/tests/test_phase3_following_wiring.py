@@ -187,19 +187,24 @@ def test_radard_lead_detection_gate():
 def test_native_params_personality_sync_roundtrip():
   from opendbc.car.tesla_ap1.stalk_follow import parse_stalk_raw
   from openpilot.common.params import Params
-  p = Params()                     # real async (non-blocking) native puts, 100 Hz card cadence
+  p = Params()                     # real async (non-blocking) native puts
   p.put("LongitudinalPersonality", 1, block=True)
   sync = F.Ap1PersonalitySync(p)
   d = parse_stalk_raw(200, None)
-  for _ in range(40):
-    sync.update(d)
-    time.sleep(0.01)
+  now = 0.0
+  for _ in range(150):             # 1.5 s at 100 Hz (simulated clock): one put after the 0.3 s rest
+    sync.update(d, now)
+    now += 0.01
+  time.sleep(0.5)
   assert p.get("LongitudinalPersonality", return_default=True) == 2    # what selfdrived.params_thread reads
+  assert sync.writes == 1
   d = parse_stalk_raw(66, d)
-  for _ in range(40):
-    sync.update(d)
-    time.sleep(0.01)
+  for _ in range(150):
+    sync.update(d, now)
+    now += 0.01
+  time.sleep(0.5)
   assert p.get("LongitudinalPersonality", return_default=True) == 0
+  assert sync.writes == 2
 
 
 def test_default_on_uses_097_registry_defaults():
