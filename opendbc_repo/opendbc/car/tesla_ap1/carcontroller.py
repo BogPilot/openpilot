@@ -46,17 +46,20 @@ class CarController(CarControllerBase):
     self.lower_on_park = ride_height.LowerOnPark() if is_ap1_family(CP.carFingerprint) else None
     # Auto Height, Drive part: same cars, one burst per shift from Park into Drive at standstill.
     self.height_on_drive = ride_height.HeightOnDrive() if is_ap1_family(CP.carFingerprint) else None
-    # Model S only. Dash cluster substitution is not used on Model X.
-    self.cluster = ClusterController() if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
+    # AP1 Model S and Model X. Dash cluster substitution (0x399 / 0x389 / 0x239); Pre-AP never sends cluster frames.
+    self.cluster = ClusterController() if is_ap1_family(CP.carFingerprint) else None
+    # IC set digit (DAS_accSpeedLimit): the Model X with stock TACC (openpilot longitudinal off) keeps the stock
+    # value, since the car's own cruise owns the set speed there. The Model S keeps its existing behavior.
+    self.cluster_set_overlay = not (CP.carFingerprint == CAR.TESLA_AP1_MODELX and not CP.openpilotLongitudinalControl)
     # modelV2 path for the cluster lanes. opendbc cannot subscribe to messaging,
     # so openpilot's card sets this to a callable returning the latest modelV2
     # (or None). Unset or failing: build_das_lanes falls back to actuator
     # curvature + 50 m, exactly like the 0.9.7 messaging-unavailable path.
     self.model_v2_provider = None
-    # Model S only. ICLanes (ic_lanes.py): engaged 0x239 path from the near lane
+    # AP1 Model S and Model X. ICLanes (ic_lanes.py): engaged 0x239 path from the near lane
     # lines in cluster units. Default on; /data/params_bogpilot/ICLanes = 0/false/off
     # restores the shipped mapping. None after any failure (shipped mapping again).
-    self.ic_lanes = IcLanes(CP.carFingerprint) if CP.carFingerprint == CAR.TESLA_AP1_MODELS else None
+    self.ic_lanes = IcLanes(CP.carFingerprint) if is_ap1_family(CP.carFingerprint) else None
     # AP1 engage soft-start: hold measured ANGLE for ~300 ms after enable.
     self.ap1_prev_enabled = False
     self.ap1_engage_frame = None
@@ -406,7 +409,8 @@ class CarController(CarControllerBase):
         # hudControl.setSpeed is the OP cruise target (m/s); may already include
         # the AP1 SLC raise via controlsd's cluster_display_kph lift. Packed
         # with DBC factor 0.4 so IC dig matches (not 2× from legacy 0.2).
-        cruise_set_mph=cruise_set_mph(float(hud.setSpeed)) if enabled else None,
+        # None keeps the stock digit: always on a Model X with stock TACC (cluster_set_overlay False).
+        cruise_set_mph=cruise_set_mph(float(hud.setSpeed)) if (enabled and self.cluster_set_overlay) else None,
       )
       frames = self.cluster.update(h, CS.cluster_stock, now_nanos)
       return [CanData(addr, dat, CLUSTER_BUS) for addr, dat in frames]

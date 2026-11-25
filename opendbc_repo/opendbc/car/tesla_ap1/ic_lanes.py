@@ -62,9 +62,9 @@ SRC_CURV = "curvature"
 
 
 def ic_lanes_mode(fingerprint, stored=None) -> str:
-  """AP1 Model S only. lanes unless the file (or `stored`) says 0/false/off."""
-  from opendbc.car.tesla_ap1.values import CAR
-  if fingerprint != CAR.TESLA_AP1_MODELS:
+  """AP1 Model S and Model X. lanes unless the file (or `stored`) says 0/false/off."""
+  from opendbc.car.tesla_ap1.values import is_ap1_family
+  if not is_ap1_family(fingerprint):
     return MODE_OFF
   if stored is None:
     try:

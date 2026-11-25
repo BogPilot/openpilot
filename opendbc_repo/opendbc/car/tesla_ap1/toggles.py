@@ -74,13 +74,13 @@ def tesla_stalk_follow(stored: str | bytes | None) -> bool:
 def enable_ic_integration(fingerprint: str | None, stored: str | bytes | None = None) -> bool:
   """Whether AP1 cluster substitution runs.
 
-  Non-AP1 fingerprints are always off (control hidden / inert).
-  AP1: default on when the file is absent. Explicit off stops all cluster
+  Non-AP1 fingerprints (Pre-AP included) are always off (control hidden / inert).
+  AP1 Model S and Model X: default on when the file is absent. Explicit off stops all cluster
   TX immediately so the panda forwards stock 0x399 / 0x389 / 0x239.
   `stored` overrides the file when not None (tests). Not applied to CarParams.
   """
-  from opendbc.car.tesla_ap1.values import CAR
-  if fingerprint != CAR.TESLA_AP1_MODELS:
+  from opendbc.car.tesla_ap1.values import is_ap1_family
+  if not is_ap1_family(fingerprint):
     return False
   if stored is not None:
     text = _as_text(stored)

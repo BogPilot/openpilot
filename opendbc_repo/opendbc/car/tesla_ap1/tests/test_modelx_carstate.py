@@ -30,7 +30,8 @@ def test_model_x_seatbelt_from_rcm_and_not_sdm1():
   assert SDM1 not in chassis.message_states
   assert "DAS_steeringControl" in parsers[Bus.cam].vl
   assert "AutopilotStatus" in parsers[Bus.cam].vl
-  assert "DAS_status2" not in parsers[Bus.cam].vl
+  assert "DAS_status2" in parsers[Bus.cam].vl          # cluster frames, as on the Model S
+  assert "DAS_lanes" in parsers[Bus.cam].vl
 
   _send(chassis, "RCM_status", {"RCM_buckleDriverStatus": 1})
   assert state.update(parsers).seatbeltUnlatched is False

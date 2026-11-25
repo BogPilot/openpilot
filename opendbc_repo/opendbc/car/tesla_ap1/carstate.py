@@ -160,7 +160,7 @@ class CarState(CarStateBase):
     # TinklaHandsOnLevel 2 in CarController (hso.ap1_steering_pressed).
     # Structural AP1 (Model S and Model X): hands override and EAC fault handling.
     ap1 = is_ap1_family(self.CP.carFingerprint)
-    # Model S only. Cluster and standstill stay off on Model X (the regen inputs below are read on both).
+    # Model S only: standstill and the stock Autopilot active gate. Cluster frames are read on Model S and Model X.
     ap1_s = self.CP.carFingerprint == CAR.TESLA_AP1_MODELS
     # Stalk follow: Model S, and Model X with openpilot longitudinal (same stalk signals, unverified on a real X).
     stalk_follow_on = stalk_follow_car(self.CP)
@@ -285,8 +285,8 @@ class CarState(CarStateBase):
     self.msg_stw_actn_req = copy.copy(cp.vl["STW_ACTN_RQ"])
     self.acc_state = cp_cam.vl["DAS_control"]["DAS_accState"]
     self.das_control_counters.extend(cp_cam.vl_all["DAS_control"]["DAS_controlCounter"])
-    # Model S only. Cluster substitution is not used on Model X.
-    self.cluster_stock = self.new_cluster_frames(cp_cam) if ap1_s else {}
+    # AP1 Model S and Model X: stock cluster frames for the cluster substitution.
+    self.cluster_stock = self.new_cluster_frames(cp_cam) if ap1 else {}
     # Structural AP1: stock 0x488 counters for the steer handover.
     if ap1:
       steer_ctrs = cp_cam.vl_all.get("DAS_steeringControl", {}).get("DAS_steeringControlCounter", [])
@@ -301,7 +301,6 @@ class CarState(CarStateBase):
       st = cp_cam.vl.get("AutopilotStatus", {}).get("autopilotStatus", 0)
       self.stock_ap_active = 3 <= int(st or 0) <= 5
     # AP1 S and X: Mobileye fused (optional on X) then GTW UI map/mpp into dashboardSpeedLimit.
-    # Cluster substitution stays Model S only.
     if ap1:
       fused = cp_cam.vl.get("AutopilotStatus", {}).get("DAS_fusedSpeedLimit")
       ui_map = cp.vl.get("UI_driverAssistMapData", {}).get("UI_mapSpeedLimit")
@@ -555,9 +554,11 @@ class CarState(CarStateBase):
       # Frequency 0: missing stock frames fall back to the old cadence.
       cam_messages.append(("DAS_steeringControl", OPTIONAL))
     elif CP.carFingerprint == CAR.TESLA_AP1_MODELX:
-      # Model X follows the stock 0x488 counter. Cluster substitution stays Model S only,
-      # but AutopilotStatus is subscribed so DAS_fusedSpeedLimit can fill Dashboard when present.
-      cam_messages.append(("AutopilotStatus", OPTIONAL))
+      # Model X: the same stock cluster frames as the Model S (its Mobileye sends 0x399 / 0x389 / 0x239 on bus 2 at the
+      # same rates). Frequency 0, so a missing frame never changes canValid; AutopilotStatus also feeds the blind spot and
+      # DAS_fusedSpeedLimit. The Model X also follows the stock 0x488 counter.
+      for addr in CLUSTER_ADDRS:
+        cam_messages.append((MSG_NAMES[addr], OPTIONAL))
       cam_messages.append(("DAS_steeringControl", OPTIONAL))
 
     return {

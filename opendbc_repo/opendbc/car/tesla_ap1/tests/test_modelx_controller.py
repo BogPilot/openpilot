@@ -40,7 +40,7 @@ def test_model_x_structural_only_and_no_das():
   assert ctl.ap1_steer_ramp is not None
   assert ctl.ap1_steer_sync is not None
   assert ctl.ap1_yield is not None
-  assert ctl.cluster is None
+  assert ctl.cluster is not None and ctl.cluster_set_overlay is False   # stock TACC keeps the stock IC set digit
   assert ctl.ap1_accel_smoother is None
   assert ctl.ap1_jerk_limit is None
   assert ctl.ap1_standstill is False

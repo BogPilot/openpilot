@@ -55,7 +55,7 @@ def hud(**kw):
   return c.HudInputs(**args)
 
 
-def test_default_on_and_ap1_model_s_only(toggle):
+def test_default_on_for_ap1_model_s_and_x_only(toggle):
   assert not toggle.exists()
   assert L.ic_lanes_mode(AP1) == L.MODE_LANES  # missing file = on (0.9.7 default)
   for word, mode in (("1", L.MODE_LANES), ("lanes\n", L.MODE_LANES), ("SNAP", L.MODE_LANES),
@@ -65,7 +65,11 @@ def test_default_on_and_ap1_model_s_only(toggle):
     assert L.ic_lanes_mode(AP1) == mode, word
   assert L.ic_lanes_mode(AP1, stored=b"off") == L.MODE_OFF
   toggle.write_text("1")
+  assert L.ic_lanes_mode(CAR.TESLA_AP1_MODELX) == L.MODE_LANES
+  toggle.write_text("0")
   assert L.ic_lanes_mode(CAR.TESLA_AP1_MODELX) == L.MODE_OFF
+  toggle.write_text("1")
+  assert L.ic_lanes_mode(CAR.TESLA_PREAP_MODELS) == L.MODE_OFF
   assert L.ic_lanes_mode("TESLA_AP2_MODELS") == L.MODE_OFF
   assert L.ic_lanes_mode(None) == L.MODE_OFF
 
@@ -231,6 +235,9 @@ def test_no_0x309_and_no_actuator_frame_changes(toggle):
   assert all(a in (0x488, 0x2b9, 0x349, 0x399, 0x389, 0x239, 0x45) for a in on)
 
 
-def test_model_x_has_no_ic_lanes(toggle):
-  ctl = make_controller(long=False, fingerprint=CAR.TESLA_AP1_MODELX)
-  assert ctl.ic_lanes is None and ctl.cluster is None
+def test_model_x_has_ic_lanes_and_pre_ap_has_none(toggle):
+  for long in (False, True):
+    ctl = make_controller(long=long, fingerprint=CAR.TESLA_AP1_MODELX)
+    assert ctl.ic_lanes is not None and ctl.cluster is not None
+  preap = make_controller(long=True, fingerprint=CAR.TESLA_PREAP_MODELS)
+  assert preap.ic_lanes is None and preap.cluster is None

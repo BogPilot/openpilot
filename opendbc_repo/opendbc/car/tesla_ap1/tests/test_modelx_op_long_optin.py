@@ -129,7 +129,8 @@ def test_controller_tuning_follows_the_opt_in():
   assert off.ap1_accel_smoother is None and off.ap1_jerk_limit is None
   on = make_controller(long=True, fingerprint=X, safety_param=AP1_FLAG | LONG_FLAG)
   assert on.ap1_accel_smoother is not None and on.ap1_jerk_limit is not None   # the X never sends raw planner accel with +-8 jerk
-  assert on.cluster is None and on.ap1_standstill is False
+  assert on.cluster is not None and on.cluster_set_overlay is True and on.ap1_standstill is False
+  assert off.cluster is not None and off.cluster_set_overlay is False
 
 
 def test_setter_round_trip(_files):
