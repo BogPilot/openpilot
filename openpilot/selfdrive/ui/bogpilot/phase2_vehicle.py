@@ -5,8 +5,8 @@ No generic make/model overrides or stored-but-unconsumed preferences.
 """
 from pathlib import Path
 
-# Model S and Pre-AP rows. The AP1 Model X sees only its own rows: AP1XOpenpilotLong, and RegenComfortBrake while that
-# opt-in is on.
+# Model S and Pre-AP rows. The AP1 Model X sees DisableOpenpilotLongitudinal (as the Model S does), its own AP1XOpenpilotLong
+# row while that Disable is off, and RegenComfortBrake while its openpilot longitudinal is on.
 AP1 = "TESLA_AP1_MODELS"
 PREAP = "TESLA_PREAP_MODELS"
 DOUBLE_PULL = "TeslaPreApDoublePull"
@@ -85,6 +85,11 @@ TRIM_BUTTON_WIDTHS = (110, 340, 110)   # [-] [value] [+]: "P100D Ludicrous" does
 # holds it (card, controlsd, selfdrived, plannerd, radard; pandad re-reads CarParams on each onroad transition) restarts with
 # the ignition, so no reboot is needed. Car off: saved for the next start. Car on (driving, parked or engaged): queued, written
 # when the car is turned off, the next start uses it.
+# AP1 Model X: Disable openpilot Longitudinal Control wins over AP1XOpenpilotLong (tesla_ap1/interface.py reads both at car start:
+# long only when Disable is off and AP1XOpenpilotLong is on). While Disable is on the Model X row is hidden, so the two never fight.
+X_DISABLE_LONG_DESCRIPTION = ("Use the Model X's own cruise control (stock TACC) for speed, with openpilot steering, instead of "
+                              "openpilot longitudinal control. While this is on, the Model X openpilot Longitudinal row is hidden: "
+                              "this setting wins. Takes effect the next time the car starts.")
 X_LONG_ON_PROMPT = "Turn on openpilot longitudinal control for this Model X? It is experimental. It takes effect the next time the car starts."
 X_LONG_ON_CONFIRM = "Turn On"
 X_LONG_ON_NEXT_START = "Saved. openpilot longitudinal control turns on the next time the car starts. No reboot needed."
@@ -254,7 +259,12 @@ class VehicleSettings:
     if key in (TRIM, TRIM_DETECTED):
       return supported(cp) or is_x(cp)  # AP1 Model S, AP1 Model X and Pre-AP
     if key == X_LONG:
-      return is_x(cp)                  # Model X only; every other car (Model S, Pre-AP, unknown) never sees the row
+      # Model X only; every other car (Model S, Pre-AP, unknown) never sees the row. Hidden while Disable openpilot Longitudinal
+      # Control is on (saved or queued): Disable wins at car start, so the row would be an inert switch.
+      return is_x(cp) and not self.read(LONG)
+    if key == LONG and is_x(cp):
+      # AP1 Model X: the same Disable row as the Model S, so drivers can pick stock TACC with openpilot steering.
+      return not getattr(cp, "alphaLongitudinalAvailable", False)
     if key == AUTO_HEIGHT:
       # AP1 Model S and Model X with air suspension (0x398, written by car state), and only when this build's panda allows the
       # 0x308 request. Pre-AP and unknown cars never see it.
@@ -657,7 +667,11 @@ class VehicleSettings:
     return PREAP_LONG_TITLE if (key == LONG and is_preap(self.cp())) else TITLES[key]
 
   def description(self, key):
-    return PREAP_LONG_DESCRIPTION if (key == LONG and is_preap(self.cp())) else DESCRIPTIONS[key]
+    if key == LONG and is_preap(self.cp()):
+      return PREAP_LONG_DESCRIPTION
+    if key == LONG and is_x(self.cp()):
+      return X_DISABLE_LONG_DESCRIPTION
+    return DESCRIPTIONS[key]
 
   def read(self, key):
     if key == LONG:
@@ -776,6 +790,11 @@ class VehicleSettings:
     override = self.file_dir / LONG
     if override.is_file():
       override.write_text("1" if state else "0")
+    if is_x(self.cp()):
+      # A choice made on this row is final: the once-only Model X migration (bogpilot_ap1_profile.force_ap1x_op_long_on_once)
+      # must never clear it later, even on a device where that migration has not run yet.
+      from openpilot.common.bogpilot_ap1_profile import mark_ap1x_long_force_done
+      mark_ap1x_long_force_done(self.file_dir)
     return True
 
 

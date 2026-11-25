@@ -64,6 +64,15 @@ class TestTeslaAp1ModelXLongFlag(unittest.TestCase):
     l.safety_rx_hook(libsafety_py.make_CANPacket(0x2b9, 2, bytes(aeb)))
     self.assertEqual(l.safety_fwd_hook(2, 0x2b9), 0)                          # stock AEB frame is forwarded, not blocked
 
+  def test_stock_das_control_forwarded_without_long_control(self):
+    # Disable openpilot Longitudinal Control on the X (flag 8 only): openpilot never sends 0x2b9, and the stock DAS_control from
+    # the camera bus always reaches the car, so stock TACC keeps working with openpilot steering.
+    for allowed in (True, False):
+      self.init(X_LATERAL_ONLY, allowed)
+      self.assertFalse(self.tx(das_control()))
+      l.safety_rx_hook(libsafety_py.make_CANPacket(0x2b9, 2, das_control()))
+      self.assertEqual(l.safety_fwd_hook(2, 0x2b9), 0)
+
   def test_standstill_standby_frame_stays_blocked_without_standstill_bit(self):
     self.init(X_LONG, allowed=False)
     self.assertFalse(self.tx(das_control(set_speed_kph=0.0, accel_min=-1.4, accel_max=0.0, jerk_min=-0.46, jerk_max=0.476)))

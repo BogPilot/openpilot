@@ -147,6 +147,10 @@ class TestLongLock(unittest.TestCase):
     x_lock = self.lock(cp("TESLA_AP1_MODELX", long_on=False), False)
     self.assertEqual(x_lock.unlock_toggle, "")
     self.assertIn("experimental", x_lock.detail)
+    # Model X with Disable openpilot Longitudinal Control on: Disable wins, so the lock points at that toggle, as on the Model S
+    x_disabled = self.lock(cp("TESLA_AP1_MODELX", long_on=False), True)
+    self.assertEqual(x_disabled.unlock_toggle, "DisableOpenpilotLongitudinal")
+    self.assertIn("Disable openpilot Longitudinal Control", x_disabled.detail)
 
   def test_text_is_ascii_and_has_no_angle_brackets(self):
     from openpilot.selfdrive.ui.bogpilot import menu_locks as m

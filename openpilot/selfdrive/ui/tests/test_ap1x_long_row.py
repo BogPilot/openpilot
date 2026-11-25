@@ -51,8 +51,9 @@ def test_model_x_row_does_not_appear_for_model_s_rows_and_s_rows_unchanged(tmp_p
   s = model(cp("TESLA_AP1_MODELS", long=True), tmp_path)
   assert s.visible(pv.CLUSTER) and s.visible(pv.REGEN) and s.visible(pv.LONG) and not s.visible(KEY)
   x = model(cp("TESLA_AP1_MODELX"), tmp_path)
-  for other in (pv.CLUSTER, pv.REGEN, pv.LONG, pv.RADAR, pv.IBOOSTER):
-    assert x.visible(other) is False                              # the X sees only its own row on this page
+  for other in (pv.CLUSTER, pv.REGEN, pv.RADAR, pv.IBOOSTER):
+    assert x.visible(other) is False                              # S / Pre-AP rows stay hidden on the X
+  assert x.visible(pv.LONG) is True                               # the Disable row is shared with the Model S
 
 
 def test_page_note_for_model_x_points_at_the_row_and_clears_once_long_is_on():

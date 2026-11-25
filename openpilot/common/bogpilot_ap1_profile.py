@@ -842,6 +842,20 @@ def ap1x_long_force_marker_path(bogpilot_dir: Path | None = None) -> Path:
   return Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR) / AP1X_LONG_FORCE_MARKER_NAME
 
 
+def mark_ap1x_long_force_done(bogpilot_dir: Path | None = None) -> bool:
+  """Write the once-only Model X marker without touching any value: the driver set Disable openpilot Longitudinal Control on
+  the Model X themselves, so force_ap1x_op_long_on_once must never clear it. True when the marker exists afterwards. Never raises."""
+  try:
+    directory = Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR)
+    marker = ap1x_long_force_marker_path(directory)
+    if not marker.exists():
+      directory.mkdir(parents=True, exist_ok=True)
+      _write_marker_durable(marker, "1\n")
+    return marker.exists()
+  except Exception:
+    return False
+
+
 def _clear_ap1x_disable_long(params, directory: Path) -> bool:
   """Set DisableOpenpilotLongitudinal off in both places tesla_ap1 reads it. True when something changed."""
   changed = False

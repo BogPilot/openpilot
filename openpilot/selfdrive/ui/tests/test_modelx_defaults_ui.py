@@ -90,8 +90,9 @@ def test_regen_row_on_x_only_with_op_long_default_on_and_saved_value_kept(tmp_pa
   assert m.read(pv.REGEN) is True                                      # no file: default on
   assert m.write(pv.REGEN, False) and (tmp_path / pv.REGEN).read_text() == "0" and m.read(pv.REGEN) is False
   assert m.write(pv.REGEN, True) and m.read(pv.REGEN) is True
-  for other in (pv.CLUSTER, pv.LONG, pv.RADAR, pv.IBOOSTER):
-    assert not m.visible(other)                                        # still none of the S / Pre-AP rows on the X
+  for other in (pv.CLUSTER, pv.RADAR, pv.IBOOSTER):
+    assert not m.visible(other)                                        # still none of the S / Pre-AP only rows on the X
+  assert m.visible(pv.LONG)                                            # the Disable row is shared with the Model S
 
 
 @pytest.mark.parametrize("car", [cp(X, False), cp(X, True, dashcam=True), None])

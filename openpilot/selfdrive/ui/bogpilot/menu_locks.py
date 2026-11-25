@@ -82,7 +82,8 @@ def long_lock(cp, disable_toggle_on: bool = False) -> Lock | None:
   if _dashcam(cp):
     return DASHCAM
   if fingerprint == AP1_X:
-    return STEERING_ONLY
+    # Disable openpilot Longitudinal Control wins over the experimental Model X row (tesla_ap1/interface.py).
+    return _toggle_lock(fingerprint) if disable_toggle_on else STEERING_ONLY
   if fingerprint in (AP1_S, PREAP):
     return _toggle_lock(fingerprint) if disable_toggle_on else RESTART
   return NOT_SUPPORTED
@@ -121,11 +122,12 @@ NO_CAR_VEHICLE = Lock("no_car", "No car detected",
 MODEL_X = Lock("steering_only", "Model X: steering only",
                "Model X runs steering only in this build, so it has no settings on this page.", "")
 MODEL_X_VEHICLE = Lock("steering_only", "Model X: steering only",
-                       "Model X runs steering only while the experimental openpilot longitudinal row on this page is off. "
-                       "Turning it on takes effect the next time the car starts.", "")
+                       "Model X runs steering only while Disable openpilot Longitudinal Control is on, or while the experimental "
+                       "Model X openpilot longitudinal row on this page is off. A change takes effect the next time the car starts.", "")
 MODEL_X_WHEEL = Lock("steering_only", "Model X: steering only",
-                     "Wheel Controls on a Model X need openpilot longitudinal control. Turn on the experimental Model X "
-                     "longitudinal row in Vehicle Controls; it takes effect the next time the car starts.", "")
+                     "Wheel Controls on a Model X need openpilot longitudinal control. In Vehicle Controls, turn off Disable "
+                     "openpilot Longitudinal Control and turn on the experimental Model X longitudinal row; it takes effect the "
+                     "next time the car starts.", "")
 WHEEL_AP1_ONLY = Lock("unsupported_vehicle", "AP1 only",
                       "Wheel Controls are for a Tesla Model S or Model X with AP1. This vehicle has none of them.", "")
 
