@@ -68,14 +68,16 @@ STANDSTILL_MS = 0.1
 # request in Park, 2048 in Drive at standstill.
 FLAG_TESLA_AP1_RIDE_HEIGHT = 1024
 FLAG_TESLA_AP1_RIDE_HEIGHT_DRIVE = 2048
+# 4096 also lets it pass Very Low (0x47); set at car start only for an AP1 Model X with Auto Height on.
+FLAG_TESLA_AP1_RIDE_HEIGHT_VERY_LOW = 4096
 
 # Capability gates: what this tree's panda (opendbc/safety/modes/tesla_ap1.h) allows: levels 1-4 in Park (flag 1024) and in
 # Drive at standstill (flag 2048). With the older Lower on Park panda rule these were (1, 2) and False.
 PANDA_TX_SUPPORTED = True
 PANDA_PARK_LEVELS = LEVELS
 PANDA_DRIVE_TX_SUPPORTED = True
-# Very Low (0x47) on the AP1 Model X: False until this tree's panda allows that level.
-PANDA_VERY_LOW_SUPPORTED = False
+# Very Low (0x47) on the AP1 Model X: this tree's panda allows it with FLAG_TESLA_AP1_RIDE_HEIGHT_VERY_LOW (Model X only).
+PANDA_VERY_LOW_SUPPORTED = True
 
 PARAMS_DIR = Path("/data/params_bogpilot")
 ENABLE_KEY = "AutoHeight"
@@ -261,6 +263,13 @@ def air_suspension_from_car_config(value) -> bool | None:
     return int(value) != 0
   except (TypeError, ValueError):
     return None
+
+
+def very_low_tx_supported(model_x: bool, safety_param: int | None = None) -> bool:
+  """Very Low may be asked for this drive: a Model X, a panda with the rule, and (when given) the Very Low bit in the param."""
+  if not very_low_offered(model_x):
+    return False
+  return safety_param is None or bool(int(safety_param) & FLAG_TESLA_AP1_RIDE_HEIGHT_VERY_LOW)
 
 
 def tx_supported(safety_param: int | None = None) -> bool:

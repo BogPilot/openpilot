@@ -98,7 +98,9 @@ def _controller(fp, param):
 
 
 @pytest.mark.parametrize("fp,param,byte0", [
-  (CAR.TESLA_AP1_MODELX, 8 | 1024 | 2048, 0x47),
+  (CAR.TESLA_AP1_MODELX, 8 | 1024 | 2048 | 4096, 0x47),
+  (CAR.TESLA_AP1_MODELX, 8 | 1024 | 2048, 0x41),         # no Very Low bit this drive: asked for as Low
+  (CAR.TESLA_AP1_MODELS, 9 | 1024 | 2048 | 4096, 0x41),  # never Very Low on the Model S
   (CAR.TESLA_AP1_MODELS, 9 | 1024 | 2048, 0x41),
 ])
 def test_controller_asks_model_x_for_very_low_and_model_s_for_low(monkeypatch, tmp_path, very_low_panda, fp, param, byte0):
@@ -114,3 +116,25 @@ def test_controller_asks_model_x_for_very_low_and_model_s_for_low(monkeypatch, t
   c.height_on_drive_frame(_cc(), _cs(GearShifter.park))
   drive = c.height_on_drive_frame(_cc(), _cs(GearShifter.drive))
   assert drive is not None and drive[0] == byte0
+
+
+def test_panda_rule_ships_and_flag_value():
+  from opendbc.car.tesla_ap1.values import TeslaAp1SafetyFlags
+  assert rh.PANDA_VERY_LOW_SUPPORTED is True
+  assert rh.FLAG_TESLA_AP1_RIDE_HEIGHT_VERY_LOW == int(TeslaAp1SafetyFlags.AP1_RIDE_HEIGHT_VERY_LOW) == 4096
+  assert rh.very_low_tx_supported(True, 8 | 1024 | 4096) is True
+  assert rh.very_low_tx_supported(True, 8 | 1024) is False and rh.very_low_tx_supported(False, 9 | 1024 | 4096) is False
+
+
+@pytest.mark.parametrize("candidate,kw,want", [
+  (CAR.TESLA_AP1_MODELX, dict(ride_height=True, ride_height_very_low=True), 8 | 1024 | 4096),
+  (CAR.TESLA_AP1_MODELX, dict(ride_height_drive=True, ride_height_very_low=True), 8 | 2048 | 4096),
+  (CAR.TESLA_AP1_MODELX, dict(ride_height=True, ride_height_drive=True, ride_height_very_low=True), 8 | 1024 | 2048 | 4096),
+  (CAR.TESLA_AP1_MODELX, dict(ride_height_very_low=True), 8),                 # never without the Park or Drive bit
+  (CAR.TESLA_AP1_MODELX, dict(ride_height=True), 8 | 1024),
+  (CAR.TESLA_AP1_MODELS, dict(ride_height=True, ride_height_drive=True, ride_height_very_low=True), 9 | 1024 | 2048),
+  (CAR.TESLA_PREAP_MODELS, dict(ride_height=True, ride_height_very_low=True), 0),
+])
+def test_safety_flag_model_x_only(candidate, kw, want):
+  from opendbc.car.tesla_ap1.safety_flags import flags_for_candidate
+  assert flags_for_candidate(candidate, **kw) == (want,)

@@ -187,17 +187,16 @@ _add("AutoHeight", "Tesla AP1: Auto Height",
 _add("AutoHeightPark", "Auto Height: Park",
      "The height Auto Height asks for when you shift into Park. None leaves the height alone in Park.",
      note="A height is used from the next shift into Park; a change from or to None applies the next time the car starts. "
-          "Heights above Medium are offered once the panda allows them in Park. On an AP1 Model X, Very Low is offered once "
-          "the panda allows it; a saved Very Low is asked for as Low on any other car.",
-     range="Low, Medium, High, Very High, None (AP1 Model X: Very Low too, once the panda allows it)",
+          "On an AP1 Model X, Very Low is offered too; a saved Very Low is asked for as Low on any other car.",
+     range="Low, Medium, High, Very High, None (AP1 Model X: Very Low too)",
      default="Low")
 _add("AutoHeightDrive", "Auto Height: Drive",
      "The height Auto Height asks for when you shift from Park into Drive. None leaves the height alone in Drive.",
      when="Pick Medium or higher if the car scrapes leaving a slanted driveway.",
      note="Sent only while the car is still stopped in Drive. A height is used from the next shift into Drive; a change from "
           "or to None applies the next time the car starts. If you used Lower on Park before, this starts at None. On an AP1 "
-          "Model X, Very Low is offered once the panda allows it; a saved Very Low is asked for as Low on any other car.",
-     range="Low, Medium, High, Very High, None (AP1 Model X: Very Low too, once the panda allows it)",
+          "Model X, Very Low is offered too; a saved Very Low is asked for as Low on any other car.",
+     range="Low, Medium, High, Very High, None (AP1 Model X: Very Low too)",
      default="Medium (None if you used Lower on Park)")
 _add("AirSuspensionInfo", "Air Suspension",
      "Whether the car reported air suspension, read from the car's configuration message. Detected: the car has air "

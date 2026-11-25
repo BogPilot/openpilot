@@ -82,7 +82,9 @@ class CarInterface(CarInterfaceBase):
     safety_params = flags_for_candidate(candidate, fingerprint, standstill=standstill, x_long=x_long,
                                         ride_height=ap1_car and ride_height.park_burst_wanted(),
                                         ride_height_drive=(ap1_car and ride_height.PANDA_DRIVE_TX_SUPPORTED
-                                                           and ride_height.drive_burst_wanted()))
+                                                           and ride_height.drive_burst_wanted()),
+                                        ride_height_very_low=(ap1_car and candidate == CAR.TESLA_AP1_MODELX
+                                                              and ride_height.PANDA_VERY_LOW_SUPPORTED))
     ret.openpilotLongitudinalControl = long_on
     if ret.dashcamOnly:
       ret.safetyConfigs = [get_safety_config(structs.CarParams.SafetyModel.noOutput)]

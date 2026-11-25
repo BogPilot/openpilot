@@ -99,7 +99,7 @@ def test_height_rows_only_while_auto_height_is_on(tmp_path, full_panda):
 
 
 def test_defaults_and_full_cycle(tmp_path, full_panda):
-  m = model(cp("TESLA_AP1_MODELX"), tmp_path)
+  m = model(cp("TESLA_AP1_MODELS"), tmp_path)                    # the Model X cycle (with Very Low) is tested below
   m.write(KEY, True)
   assert (m.park_height(), m.park_height_text()) == ("low", "Low")
   assert (m.drive_height(), m.drive_height_text()) == ("medium", "Medium")

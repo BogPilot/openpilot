@@ -43,6 +43,9 @@ def test_never_on_preap_or_other_cars():
   assert flags_for_preap(True, True, True) & 2048 == 0
 
 
+# Auto Height on also sets the Very Low bit 4096, on the Model X only.
+VL = {CAR.TESLA_AP1_MODELS: 0, CAR.TESLA_AP1_MODELX: 4096}
+
 @pytest.fixture
 def _files(tmp_path, monkeypatch):
   from opendbc.car.tesla_ap1 import toggles
@@ -65,8 +68,11 @@ def _params(fp):
 
 def test_panda_header_allows_levels_1_to_4():
   src = HEADER.read_text()
-  assert "bool level_ok = (msg->data[0] >= 0x41U) && (msg->data[0] <= 0x44U);" in src
+  assert "bool level_ok = ((msg->data[0] >= 0x41U) && (msg->data[0] <= 0x44U)) ||" in src
+  assert "(tesla_ap1_ride_height_very_low && (msg->data[0] == 0x47U));" in src
+  assert re.search(r"#define TESLA_FLAG_AP1_RIDE_HEIGHT_VERY_LOW (\d+)U", src).group(1) == "4096"
   assert rh.PANDA_PARK_LEVELS == (1, 2, 3, 4) and rh.park_choices() == rh.CHOICES and rh.drive_choices() == rh.CHOICES
+  assert rh.park_choices(model_x=True) == rh.X_CHOICES and rh.drive_choices(model_x=True) == rh.X_CHOICES
 
 
 @pytest.mark.parametrize("fp", [CAR.TESLA_AP1_MODELS, CAR.TESLA_AP1_MODELX])
@@ -79,7 +85,7 @@ def test_interface_sets_both_bits_only_while_auto_height_is_on(fp, _files):
   rh.set_enabled(True)
   for value in rh.HEIGHTS:
     rh.set_drive_height(value)
-    assert int(_params(fp).safetyConfigs[-1].safetyParam) == p_off | 1024 | 2048
+    assert int(_params(fp).safetyConfigs[-1].safetyParam) == p_off | 1024 | VL[fp] | 2048
   rh.set_enabled(False)
   assert int(_params(fp).safetyConfigs[-1].safetyParam) == p_off
 
@@ -88,11 +94,11 @@ def test_interface_sets_both_bits_only_while_auto_height_is_on(fp, _files):
 def test_saved_lower_on_park_gets_drive_only_after_a_drive_height_is_picked(fp, _files):
   p_off = int(_params(fp).safetyConfigs[-1].safetyParam)
   (_files / "LowerOnPark").write_text("1")
-  assert int(_params(fp).safetyConfigs[-1].safetyParam) == p_off | 1024           # Drive starts at None: unchanged behavior
+  assert int(_params(fp).safetyConfigs[-1].safetyParam) == p_off | 1024 | VL[fp]           # Drive starts at None: unchanged behavior
   rh.set_drive_height("medium")
-  assert int(_params(fp).safetyConfigs[-1].safetyParam) == p_off | 1024 | 2048
+  assert int(_params(fp).safetyConfigs[-1].safetyParam) == p_off | 1024 | VL[fp] | 2048
   rh.set_drive_height("none")
-  assert int(_params(fp).safetyConfigs[-1].safetyParam) == p_off | 1024
+  assert int(_params(fp).safetyConfigs[-1].safetyParam) == p_off | 1024 | VL[fp]
 
 
 def test_interface_never_sets_it_on_preap(_files):

@@ -305,7 +305,9 @@ class CarController(CarControllerBase):
       controls_active=bool(CC.enabled or CC.latActive or CC.longActive), v_ego=getattr(CS.out, "vEgo", 0.0),
       source=getattr(CS, "ride_height_last", None), source_age_s=getattr(CS, "ride_height_age_s", float("inf")),
       new_sources=getattr(CS, "ride_height_frames", ()),
-      prefs=lambda: (ride_height.enabled(), ride_height.level_for(model_x=self.CP.carFingerprint == CAR.TESLA_AP1_MODELX)))
+      prefs=lambda: (ride_height.enabled(),
+                     ride_height.level_for(model_x=ride_height.very_low_tx_supported(
+                       self.CP.carFingerprint == CAR.TESLA_AP1_MODELX, param))))
 
   def height_on_drive_frame(self, CC, CS):
     """The Auto Height Drive 0x308 payload to send this step, or None. Inert unless the panda allows it this drive."""
@@ -327,7 +329,8 @@ class CarController(CarControllerBase):
       source=getattr(CS, "ride_height_last", None), source_age_s=getattr(CS, "ride_height_age_s", float("inf")),
       new_sources=getattr(CS, "ride_height_frames", ()),
       prefs=lambda: (ride_height.enabled(),
-                     ride_height.drive_level_for(model_x=self.CP.carFingerprint == CAR.TESLA_AP1_MODELX)))
+                     ride_height.drive_level_for(model_x=ride_height.very_low_tx_supported(
+                       self.CP.carFingerprint == CAR.TESLA_AP1_MODELX, param))))
 
   def _model_path_for_cluster(self, enabled, ic_on):
     """modelV2 path only while the toggle is on and engaged.

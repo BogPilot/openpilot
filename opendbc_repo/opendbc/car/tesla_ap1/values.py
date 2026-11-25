@@ -142,6 +142,8 @@ class TeslaAp1SafetyFlags(IntFlag):
   AP1_RIDE_HEIGHT = 1024
   # Auto Height, Drive at standstill: AP1 only, set while Auto Height is on with a Drive height (not None), once the panda has the rule.
   AP1_RIDE_HEIGHT_DRIVE = 2048
+  # Auto Height Very Low (0x308 byte 0 = 0x47): AP1 Model X only, set at car start with the Park or Drive bit.
+  AP1_RIDE_HEIGHT_VERY_LOW = 4096
 
 
 class TeslaAp1Flags(IntFlag):
