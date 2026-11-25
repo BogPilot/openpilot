@@ -236,15 +236,15 @@ class Car:
       self.CI.CS.op_long_tap_from_zero = EngageTapFromZero()
       # Warm now (offroad) so the first engage does not pay lazy imports + param reads inside the loop.
       warm_engage_helpers(self.CI.CS.op_long_offset, self.CI.CS.op_long_tap_from_zero)
-    self.ap1_personality_sync = None
+    self.ap1_stalk_traffic = None
     self.traffic_mode_hold = TrafficModeHold()
     # AP1 Model S, Pre-AP, and AP1 Model X with openpilot longitudinal (same stalk signals as the S, unverified on a real X).
+    # card only turns the stalk twist into the Traffic Mode flag; selfdrived owns LongitudinalPersonality (no Params writes here).
     if self.CP.brand == "tesla_ap1" and (self.CP.carFingerprint in ("TESLA_AP1_MODELS", "TESLA_PREAP_MODELS") or
                                          (self.CP.carFingerprint == "TESLA_AP1_MODELX" and self.CP.openpilotLongitudinalControl)):
-      from openpilot.selfdrive.controls.lib.phase3_following import Ap1PersonalitySync, personality_adopted
-      # stock-equivalent default: stalk detents only write LongitudinalPersonality after the user adopted Driving Personalities
+      from openpilot.selfdrive.controls.lib.phase3_following import Ap1StalkTraffic, personality_adopted
       if personality_adopted():
-        self.ap1_personality_sync = Ap1PersonalitySync(self.params)
+        self.ap1_stalk_traffic = Ap1StalkTraffic()
 
     # card is driven by can recv, expected at 100Hz
     self.rk = Ratekeeper(100, print_delay_threshold=None)
@@ -293,13 +293,13 @@ class Car:
       self.experimental_mode = mode
 
     stalk_traffic = None
-    if self.ap1_personality_sync is not None and twist_follow_on(self.CI.CS):
-      # 04d560f3 bogpilot_card._apply_ap1_stalk: stalk detents 3/5/7 drive LongitudinalPersonality (read-back sync)
-      # Stalk Twist Following Distance off: the wheel must not write the personality icon/param either.
+    if self.ap1_stalk_traffic is not None and twist_follow_on(self.CI.CS):
+      # 04d560f3 bogpilot_card._apply_ap1_stalk: detent 1 is Traffic Mode (the personality is applied in selfdrived).
+      # Stalk Twist Following Distance off: the wheel leaves Traffic Mode alone (carstate publishes 0 follow seconds).
       try:
-        stalk_traffic = self.ap1_personality_sync.update(getattr(self.CI.CS, "stalk_follow", None))
+        stalk_traffic = self.ap1_stalk_traffic.update(getattr(self.CI.CS, "stalk_follow", None))
       except Exception:
-        cloudlog.exception("card: AP1 personality sync failed")
+        cloudlog.exception("card: AP1 stalk traffic failed")
     self.traffic_mode_hold.apply_stalk(stalk_traffic)
     if use_10hz_distance_button(self.CP.carFingerprint):
       distance_pressed = self.onroad_distance_button

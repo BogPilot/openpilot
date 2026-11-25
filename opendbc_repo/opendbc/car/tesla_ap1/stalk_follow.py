@@ -209,6 +209,24 @@ def follow_seconds(decision) -> float:
   return float(decision.follow_s)
 
 
+def decision_from_seconds(follow_s):
+  """Stalk decision for a published default follow time (carState.bogpilot.ap1StalkFollowS).
+
+  Inverse of follow_seconds for the 7 detents. 0 (not ready, or Stalk Twist Following off) and any value that is
+  not a detent default return None, so a consumer leaves its controls alone.
+  """
+  try:
+    value = float(follow_s)
+  except (TypeError, ValueError):
+    return None
+  if not value > 0.0:
+    return None
+  for index, (_, _, _, seconds) in enumerate(_PROFILES):
+    if abs(value - seconds) < 1e-3:
+      return _commit(index, _DETENT_RAW[index])
+  return None
+
+
 def ap1_stalk_commands(decision):
   """Existing BogPilot controls for one stalk decision.
 

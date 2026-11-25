@@ -178,6 +178,13 @@ class SelfdriveD:
     self.not_running_prev = None
     self.experimental_mode = False
     self.personality = self.params.get("LongitudinalPersonality", return_default=True)
+    # AP1 stalk twist -> personality: used here at once, written to Params once after the ring rests (phase3_following).
+    self.ap1_personality = None
+    try:
+      from openpilot.selfdrive.controls.lib.phase3_following import ap1_personality_sync_for
+      self.ap1_personality = ap1_personality_sync_for(self.CP, self.params)
+    except Exception:
+      cloudlog.exception("selfdrived: AP1 stalk personality unavailable")
     self.recalibrating_seen = False
     self.dm_lockout_set = False
     self.dm_uncertain_alerted = False
@@ -665,6 +672,12 @@ class SelfdriveD:
 
   def step(self):
     CS = self.data_sample()
+    if self.ap1_personality is not None:
+      try:
+        from openpilot.selfdrive.controls.lib.phase3_following import ap1_personality_step
+        self.personality = ap1_personality_step(self.ap1_personality, CS, self.personality, time.monotonic())
+      except Exception:
+        cloudlog.exception("selfdrived: AP1 stalk personality failed")
     self.update_events(CS)
     if not self.CP.passive and self.initialized:
       self.enabled, self.active = self.state_machine.update(self.events)
@@ -680,7 +693,9 @@ class SelfdriveD:
       self.is_ldw_enabled = self.params.get_bool("IsLdwEnabled")
       self.disengage_on_accelerator = self.params.get_bool("DisengageOnAccelerator")
       self.experimental_mode = self.params.get_bool("ExperimentalMode") and self.CP.openpilotLongitudinalControl
-      self.personality = self.params.get("LongitudinalPersonality", return_default=True)
+      stored = self.params.get("LongitudinalPersonality", return_default=True)
+      sync = self.ap1_personality
+      self.personality = stored if sync is None else sync.resolve(stored, time.monotonic())
       time.sleep(0.1)
 
   def run(self):

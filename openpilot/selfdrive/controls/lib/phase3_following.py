@@ -61,8 +61,11 @@ STOCK_LEAD_PROB = 0.5        # current radard literal (selfdrive/controls/radard
 # 0.9.7 (Driving Personalities, Human Following, Lead Detection read their saved values from the first drive; saved prefs are never
 # rewritten). "adoption" = the earlier stock-equivalent mode (dormant until the user changes a row, marker file written by configure()).
 ACTIVATION_POLICY = "default_on"
-AP1_PERSONALITY_RETRY_FRAMES = 10
-AP1_PERSONALITY_MAX_FRAMES = 300
+# AP1 stalk -> LongitudinalPersonality: one Params write once the ring has rested this long (s), the in-memory value is
+# held over a stale stored value for this long (s) after the last change or write, and one read back this long after the write.
+AP1_PERSONALITY_SETTLE_S = 0.3
+AP1_PERSONALITY_HOLD_S = 5.0
+AP1_PERSONALITY_VERIFY_S = 10.0
 
 
 def human_following_default_on(CP) -> bool:
@@ -357,54 +360,153 @@ class FollowingPlanner:
     return self.plan
 
 
+class Ap1StalkTraffic:
+  """card side of the AP1 stalk twist: only the Traffic Mode flag from ap1_stalk_commands (None = not ready / leave alone).
+  The personality itself is owned by selfdrived (Ap1PersonalitySync), so card never writes Params for the twist."""
+
+  def update(self, decision):
+    from opendbc.car.tesla_ap1.stalk_follow import ap1_stalk_commands
+    return ap1_stalk_commands(decision)[0]
+
+
+def _int_or_none(value):
+  try:
+    return None if value is None or isinstance(value, bool) else int(value)
+  except (TypeError, ValueError):
+    return None
+
+
 class Ap1PersonalitySync:
-  """bogpilot_card.py:124-176 verbatim: AP1 stalk named detents (3/5/7) write LongitudinalPersonality, a
-  quick twist over a named detent applies the last one crossed, the stored value is read back every 10 frames
-  and rewritten until it matches, and retries stop after 300 frames so a later screen tap is never fought.
-  Returns the traffic flag from ap1_stalk_commands (None = not ready / leave alone)."""
+  """selfdrived side of the AP1 stalk twist (bogpilot_card.py:124-176 detent rules, new write timing).
+
+  Detent rules are unchanged: named detents (3/5/7) pick aggressive/standard/relaxed, a quick twist over a named
+  detent applies the last one crossed, detent 1 (Traffic) and the in-between detents add no personality.
+
+  Timing: the stalk personality is used in memory at once (shown, for selfdriveState, the planner and the icon) and
+  is written to Params once, AP1_PERSONALITY_SETTLE_S after the ring stops moving, final value only and only when
+  the stored value differs. Nothing is written while the ring rests on detent 1 (Traffic); the write waits for the
+  ring to leave it. Each Params write fsyncs and takes the shared params lock, and writing on every detent
+  plus 100 ms read-back retries stalled other processes onroad. One read back AP1_PERSONALITY_VERIFY_S later
+  re-writes once only when the stored value is still the one from before the write (a lost write); any other stored
+  value is a screen change and wins. resolve() keeps the shown value over a stale stored value until the stored
+  value matches, AP1_PERSONALITY_HOLD_S pass after the last change or write, or a screen change is seen."""
+
+  KEY = "LongitudinalPersonality"
 
   def __init__(self, params):
     self.params = params
-    self._personality = None
     self._detent = None
-    self._target = None
-    self._frames = 0
+    self._target = None        # personality the stalk asks for
+    self._changed_t = None     # time of the last detent move while a target waits
+    self._pending = False      # target waiting for the ring to rest
+    self._known = set()        # stored values this twist accounts for (before it, and what it wrote)
+    self._written = None       # (value, time, stored before the write) awaiting the one read back
+    self._hold_t = None        # hold start: last target change or write
+    self._traffic = False      # ring resting on detent 1
+    self.shown = None          # in-memory personality, None = use the stored value
+    self.writes = 0
 
-  def update(self, decision):
+  def _stored(self):
+    try:
+      return _int_or_none(self.params.get(self.KEY, return_default=True))
+    except TypeError:
+      return _int_or_none(self.params.get(self.KEY))
+    except Exception:
+      return None
+
+  def _put(self, value):
+    self.params.put(self.KEY, int(value))  # 0.11 Params.put is non-blocking by default
+    self.writes += 1
+    self._known.add(int(value))
+
+  def _drop(self):
+    self._target = None
+    self._pending = False
+    self._written = None
+    self._hold_t = None
+    self.shown = None
+
+  def update(self, decision, now):
+    """One stalk sample. Returns the traffic flag from ap1_stalk_commands (None = not ready / leave alone)."""
     from opendbc.car.tesla_ap1.stalk_follow import ap1_stalk_commands, crossed_personality
     traffic, personality = ap1_stalk_commands(decision)
     if traffic is None:
       return None
     detent = getattr(decision, "detent", None)
-    if personality is None:
-      personality = crossed_personality(self._detent, detent)
-    if personality is not None and (personality != self._personality or detent != self._detent):
-      self._target = personality
-      self._frames = 0
-    self._detent = detent
-    self._sync()
+    if detent != self._detent:
+      if personality is None:
+        personality = crossed_personality(self._detent, detent)
+      if personality is not None:
+        if self.shown is None:
+          self._known = {self._stored()}
+        self._target = int(personality)
+        self._pending = True
+        self.shown = self._target
+        self._hold_t = now
+      if self._pending:
+        self._changed_t = now  # any detent move restarts the rest timer
+      self._detent = detent
+    self._traffic = bool(traffic)
+    self._tick(now)
     return traffic
 
-  def _put(self, value):
-    self.params.put("LongitudinalPersonality", int(value))  # 0.11 Params.put is non-blocking by default
+  def _tick(self, now):
+    if self._pending and not self._traffic and now - self._changed_t >= AP1_PERSONALITY_SETTLE_S:
+      self._pending = False
+      stored = self._stored()
+      # a write still in flight counts as stored, so a slow disk cannot hide the need for the final value
+      expected = self._written[0] if self._written is not None else stored
+      if expected != self._target:
+        self._put(self._target)
+        self._written = (self._target, now, stored)
+        self._hold_t = now
+    elif self._written is not None and now - self._written[1] >= AP1_PERSONALITY_VERIFY_S:
+      value, _, before = self._written
+      self._written = None
+      stored = self._stored()
+      if stored != value and stored == before:
+        self._put(value)  # once; never a loop
+        self._hold_t = now
 
-  def _sync(self):
-    target = self._target
-    if target is None:
-      return
-    frames = self._frames
-    self._frames += 1
-    if frames == 0:
-      self._put(target)
-      self._personality = target
-      return
-    if frames % AP1_PERSONALITY_RETRY_FRAMES:
-      return
-    try:
-      stored = int(self.params.get("LongitudinalPersonality"))
-    except (TypeError, ValueError):
-      stored = None
-    if stored == target or frames >= AP1_PERSONALITY_MAX_FRAMES:
-      self._target = None
-      return
-    self._put(target)
+  def resolve(self, stored, now):
+    """Personality for selfdrived given the stored value from its params thread."""
+    stored = _int_or_none(stored)
+    shown = self.shown
+    if shown is None:
+      return stored
+    if stored == shown:
+      if not self._pending:
+        self.shown = None  # saved value matches: the stored value is in charge again
+      return shown
+    if stored is not None and stored not in self._known:
+      self._drop()  # changed from the screen: that wins and any pending stalk write is dropped
+      return stored
+    if not self._pending and self._hold_t is not None and now - self._hold_t >= AP1_PERSONALITY_HOLD_S:
+      self.shown = None
+      return stored
+    return shown
+
+
+def ap1_personality_sync_for(CP, params):
+  """Ap1PersonalitySync for an AP1 car whose stalk twist drives the personality, else None. Same gate card.py had:
+  AP1 Model S / Pre-AP, or an AP1 Model X with openpilot longitudinal, and personality_adopted()."""
+  if getattr(CP, "brand", None) != "tesla_ap1":
+    return None
+  fp = str(getattr(CP, "carFingerprint", ""))
+  if not (fp in ("TESLA_AP1_MODELS", "TESLA_PREAP_MODELS") or
+          (fp == "TESLA_AP1_MODELX" and bool(getattr(CP, "openpilotLongitudinalControl", False)))):
+    return None
+  if not personality_adopted():
+    return None
+  return Ap1PersonalitySync(params)
+
+
+def ap1_personality_step(sync, CS, current, now):
+  """selfdrived step: feed carState.bogpilot.ap1StalkFollowS (0 = not ready / twist following off) and return the
+  personality to publish this step (the stalk value at once, else the current one)."""
+  from opendbc.car.tesla_ap1.stalk_follow import decision_from_seconds
+  bp = getattr(CS, "bogpilot", None)
+  decision = decision_from_seconds(getattr(bp, "ap1StalkFollowS", 0.0))
+  if decision is not None:
+    sync.update(decision, now)
+  return current if sync.shown is None else sync.shown
