@@ -184,6 +184,9 @@ class TestReleaseNotes(unittest.TestCase):
       "cruise control",
       "windshield wipe",
       "wipers in auto",
+      "follow distance ring",
+      "communication issue",
+      "personality",
     ):
       self.assertIn(phrase, low, msg=f"missing {phrase!r}")
     # First section is this fork's notes, not the older upstream block.

@@ -1,6 +1,7 @@
 What's new
 =======================
 * Pre-AP with the comma pedal: openpilot now cancels the car's own cruise control only when it is really on, so engaging no longer adds an extra stalk message that could give a single windshield wipe with the wipers in Auto
+* Tesla AP1 Model S, and Model X with openpilot Longitudinal: turning the stalk follow distance ring while engaged no longer brings up a Communication Issue alert, and the driving personality on screen follows the ring right away. The new personality is saved once, 0.3 s after the ring stops
 
 Earlier update
 =======================
