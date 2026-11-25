@@ -1,10 +1,12 @@
 What's new
 =======================
-* Tesla AP1 Model X: Dash Cluster Integration works as on the Model S: lane lines, engaged state and warnings on the cluster, and openpilot's set speed with openpilot Longitudinal (stock TACC keeps its own)
-* Tesla AP1 Model X with openpilot Longitudinal: engage from a stop, as on the Model S. Single pull Speed Limit Control works the same as on the Model S
+* Pre-AP with the comma pedal: openpilot now cancels the car's own cruise control only when it is really on, so engaging no longer adds an extra stalk message that could give a single windshield wipe with the wipers in Auto
 
 Earlier update
 =======================
+* Tesla AP1 Model X: Dash Cluster Integration works as on the Model S: lane lines, engaged state and warnings on the cluster, and openpilot's set speed with openpilot Longitudinal (stock TACC keeps its own)
+* Tesla AP1 Model X with openpilot Longitudinal: engage from a stop, as on the Model S. Single pull Speed Limit Control works the same as on the Model S
+
 * AP1 and Pre-AP Curve Speed Control: one planner slows for camera and map curves, starting earlier and easing out, with no 2 s hold and the same braking in every Deceleration Profile. Smooth Curve Braking is always on, mapd v2 and Map Curve Speed are on by default, and Curve Speed Control has its own Gas / Brake row
 * Tesla AP1 Model X: blind spot monitoring works as on the Model S (border, lane fill, flames, Loud Blindspot Alert row), and lane changes wait for a clear side
 * Tesla AP1 Model S and Model X: blind spot turns on once the car's blind spot signal first shows up after the car starts; until then nothing is drawn, a nudge lane change works as before and automatic lane changes are held
