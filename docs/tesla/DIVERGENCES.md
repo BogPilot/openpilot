@@ -1353,13 +1353,20 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
   so the radar sees the sensor's own status.
 - Tests: `opendbc_repo/opendbc/car/tesla_ap1/tests/test_steer_rate_sna.py`.
 
-## AP1 Model X openpilot longitudinal (experimental opt-in)
+## AP1 Model X openpilot longitudinal (default on, one Disable row)
 
 - Platforms: AP1 Model X only (`TESLA_AP1_MODELX`, strictly detected, not dashcam-only). Every other car is unchanged.
-- Setting: Vehicle Settings, Vehicle Controls, "Tesla AP1 Model X: openpilot Longitudinal (Experimental)". File-backed
-  (`/data/params_bogpilot/AP1XOpenpilotLong`, no Params key), default OFF, read once at car start. Untested on a real Model X.
-- Off (default): identical to before. The Model X is lateral only (safety param 8) and keeps its own cruise control.
-- On: `CarParams.openpilotLongitudinalControl` and the AP1 safety `LONG_CONTROL` flag are set together (param 9). The Model S chassis `0x2b9`
+- Setting: Vehicle Settings, Vehicle Controls, "Disable openpilot Longitudinal Control", the same row as the Model S and the only
+  longitudinal row on the X. Off (default) is openpilot longitudinal; On is the car's own cruise control (stock TACC) with openpilot
+  steering. Read once at car start. The car interface still reads two values: long only when `DisableOpenpilotLongitudinal` is off
+  and the file `/data/params_bogpilot/AP1XOpenpilotLong` is not 0/false/off. The old "Tesla AP1 Model X: openpilot Longitudinal"
+  row is hidden; turning Disable off also writes `AP1XOpenpilotLong=1`, and a saved `AP1XOpenpilotLong=0` (a stock TACC choice on
+  the old row) is carried over to Disable on at the next start (`merge_ap1x_long_into_disable`), so the car behaves as before.
+- One-time forced on (`force_ap1x_op_long_on_once`, marker `AP1XOpenpilotLongForcedOn2`): writes `AP1XOpenpilotLong=1` and clears
+  Disable once per device on a detected X, then never again. A Disable set on the row writes that marker, so it always sticks.
+- Disable on (stock TACC): `openpilotLongitudinalControl` false, `pcmCruise` true, AP1 safety param 8. openpilot never sends
+  `0x2b9` and the panda forwards the stock `DAS_control`.
+- Disable off (openpilot long): `CarParams.openpilotLongitudinalControl` and the AP1 safety `LONG_CONTROL` flag are set together (param 9). The Model S chassis `0x2b9`
   path is used, with the Model S accel smoother and jerk limits. Standstill stays Model S only. AEB events are never sent and stock AEB
   passes through. `DisableOpenpilotLongitudinal` still wins.
 - The panda needs no firmware change: the AP1 safety mode keys on flag bits only. The lateral-accel bound in the panda still uses the

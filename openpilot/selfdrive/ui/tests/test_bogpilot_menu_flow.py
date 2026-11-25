@@ -120,7 +120,8 @@ class TestLongLock(unittest.TestCase):
       (cp(""), False, "no_car"),
       (cp("MOCK", long_on=False), False, "no_car"),
       (cp(long_on=False, dashcam=True), False, "dashcam"),
-      (cp("TESLA_AP1_MODELX", long_on=False), False, "steering_only"),
+      (cp("TESLA_AP1_MODELX", long_on=False), False, "restart"),
+      (cp("TESLA_AP1_MODELX", long_on=False), True, "toggle_off"),
       (cp(long_on=False), True, "toggle_off"),
       (cp("TESLA_PREAP_MODELS", long_on=False), True, "toggle_off"),
       (cp(long_on=False), False, "restart"),
@@ -143,11 +144,11 @@ class TestLongLock(unittest.TestCase):
       lock = self.lock(car, disabled)
       self.assertEqual(lock.unlock_toggle, "")
       self.assertNotIn("Vehicle Controls", lock.detail)
-    # Model X: the only way in is the experimental Model X row, which is not the Disable toggle, so there is still no unlock toggle
+    # Model X: Disable openpilot Longitudinal Control is its single longitudinal row. Off but long still off: restart pending
     x_lock = self.lock(cp("TESLA_AP1_MODELX", long_on=False), False)
     self.assertEqual(x_lock.unlock_toggle, "")
-    self.assertIn("experimental", x_lock.detail)
-    # Model X with Disable openpilot Longitudinal Control on: Disable wins, so the lock points at that toggle, as on the Model S
+    self.assertEqual(x_lock.code, "restart")
+    # Model X with Disable on: the lock points at that toggle, as on the Model S
     x_disabled = self.lock(cp("TESLA_AP1_MODELX", long_on=False), True)
     self.assertEqual(x_disabled.unlock_toggle, "DisableOpenpilotLongitudinal")
     self.assertIn("Disable openpilot Longitudinal Control", x_disabled.detail)
@@ -607,13 +608,15 @@ class TestLockNotesNative(NativeCase):
       self.assertFalse(layout._jump_row.is_visible)
       layout._jump()          # nothing happens
 
-  def test_gas_brake_on_model_x_says_steering_only_and_offers_no_toggle(self):
+  def test_gas_brake_on_model_x_with_disable_off_says_restart_and_offers_no_toggle(self):
     self.car["cp"] = cp("TESLA_AP1_MODELX", long_on=False)
-    layout = self.gas_brake()
-    self.draw(layout)
-    lock = self.rows(layout)[0]
-    self.assertEqual(lock.action_item.text, "Steering only")
-    self.assertNotIn("Vehicle Controls", lock.description)
+    with mock.patch("openpilot.selfdrive.ui.bogpilot.menu_locks.effective_disable_toggle", lambda: False), \
+         mock.patch("openpilot.selfdrive.ui.bogpilot.menu_locks._x_long_saved_on", lambda: True):
+      layout = self.gas_brake()
+      self.draw(layout)
+      lock = self.rows(layout)[0]
+      self.assertEqual(lock.action_item.text, "Restart the car")
+      self.assertNotIn("Vehicle Controls", lock.description)
 
   def test_gas_brake_unlocked_has_no_lock_row_and_enabled_groups(self):
     self.car["cp"] = cp()

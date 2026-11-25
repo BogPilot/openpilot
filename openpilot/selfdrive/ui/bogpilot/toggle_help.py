@@ -139,8 +139,8 @@ _add("DisableOpenpilotLongitudinal", "Disable openpilot Longitudinal Control",
      when="If you prefer the car's stock cruise behavior.",
      note="Takes effect the next time the car starts, and asks you to confirm before turning on. Features that need openpilot "
           "longitudinal control, such as the Gas / Brake menu, stop applying and the Gas / Brake pill is hidden. Turn this off here "
-          "and restart the car to bring them back. Can only be changed while the car is off. On an AP1 Model X this setting "
-          "wins over the Model X openpilot Longitudinal setting, which is hidden while this is on.",
+          "and restart the car to bring them back. Can only be changed while the car is off. On an AP1 Model X this is the only "
+          "longitudinal setting: off (the default) is openpilot longitudinal control, on is the car's own cruise control.",
      default="Off", default_param="DisableOpenpilotLongitudinal")
 _add("EnableICIntegration", "Tesla AP1: Dash Cluster Integration",
      "Shows openpilot information on the Tesla instrument cluster. Turning it off stops all cluster messages, so the cluster stays "
@@ -163,16 +163,15 @@ _add("RegenComfortBrake", "Tesla AP1: Earlier, Gentler Regen Stops",
      "the normal openpilot braking takes over. It only ever adds braking, never removes it.",
      when="If approaches to a slower lead feel late or need friction brakes.",
      note="The following distance, emergency braking and cut-in response are the same as stock. AP1 Model S, AP1 Model X "
-          "and Pre-AP. Needs openpilot longitudinal control (on the Model X, its openpilot Longitudinal setting). Takes effect the next time the planner starts, normally the next drive.",
+          "and Pre-AP. Needs openpilot longitudinal control (Disable openpilot Longitudinal Control off). Takes effect the next time the planner starts, normally the next drive.",
      default="On")
-_add("AP1XOpenpilotLong", "Tesla AP1 Model X: openpilot Longitudinal (Experimental)",
-     "Experimental. Lets openpilot control speed and braking on an AP1 Model X through the same chassis cruise messages the "
-     "Model S uses. On by default. Off keeps the Model X on steering only with its own cruise control (stock TACC).",
-     when="Turn it off if you prefer the car's own cruise control.",
-     note="Shown only for a detected AP1 Model X. Standstill and stop-and-go are not enabled, and the car's own emergency braking "
-          "is untouched. Turning it on or off takes effect the next time the car starts; no reboot is needed. A change made "
-          "with the car on is applied when the car is turned off. Hidden while Disable openpilot Longitudinal Control is "
-          "on, because that setting wins. Be ready to take over.",
+_add("AP1XOpenpilotLong", "Tesla AP1 Model X: openpilot Longitudinal",
+     "Not a row any more. On an AP1 Model X, openpilot controls speed and braking through the same chassis cruise messages the "
+     "Model S uses unless Disable openpilot Longitudinal Control is on.",
+     when="Use Disable openpilot Longitudinal Control to pick the car's own cruise control (stock TACC).",
+     note="A Model X that had this set to Off keeps its own cruise control: at the next start the choice moves to Disable openpilot "
+          "Longitudinal Control (on). Standstill and stop-and-go are not enabled on the Model X, and the car's own emergency "
+          "braking is untouched. Be ready to take over.",
      default="On")
 _add("AutoHeight", "Tesla AP1: Auto Height",
      "Sets the air suspension height for you. When you shift into Park, BogPilot asks once for the Park height (Low by default); "

@@ -269,4 +269,11 @@ def after_defaults(params, *, file_root: Path | None = None, startup: StartupRes
     result.events.append(f"ap1x-long-on:{int(forced)}")
   except Exception as exc:
     result.errors.append(f"ap1x-long-on: {type(exc).__name__}")
+  try:
+    # After the forced On: a later saved Model X row Off becomes Disable openpilot Longitudinal Control On (the single row).
+    from openpilot.common.bogpilot_ap1_profile import merge_ap1x_long_into_disable
+    merged = merge_ap1x_long_into_disable(params, bogpilot_dir=directory)
+    result.events.append(f"ap1x-long-merge:{int(merged)}")
+  except Exception as exc:
+    result.errors.append(f"ap1x-long-merge: {type(exc).__name__}")
   return result

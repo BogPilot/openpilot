@@ -39,9 +39,7 @@ DASHCAM = Lock("dashcam", "Dashcam mode",
                "This vehicle is running in dashcam mode, so openpilot does not control the gas or the brake. "
                "Nothing in the BogPilot menus changes that.", "")
 STEERING_ONLY = Lock("steering_only", "Steering only",
-                     "This vehicle is steering only in this build: the car keeps its own cruise control for speed. "
-                     "On a Model X, openpilot longitudinal control is the experimental Model X row in Vehicle Controls: it is "
-                     "turned off, or the car has not restarted since it was turned on.", "")
+                     "This vehicle is steering only in this build: the car keeps its own cruise control for speed.", "")
 RESTART = Lock("restart", "Restart the car",
                "openpilot longitudinal control is set to on, but the car has not been restarted since it was last off. "
                "Turn the car off and on again, then open this page again.", "")
@@ -68,6 +66,15 @@ def _dashcam(cp) -> bool:
   return bool(getattr(cp, "dashcamOnly", False)) or bool(getattr(cp, "passive", False))
 
 
+def _x_long_saved_on() -> bool:
+  """AP1XOpenpilotLong as the car interface reads it at the next start; True when it cannot be read (its default)."""
+  try:
+    from opendbc.car.tesla_ap1 import toggles
+    return bool(toggles.ap1x_op_long(AP1_X))
+  except Exception:
+    return True
+
+
 def long_lock(cp, disable_toggle_on: bool = False) -> Lock | None:
   """None when openpilot longitudinal control is available; otherwise the reason the Gas / Brake rows are locked.
 
@@ -82,8 +89,9 @@ def long_lock(cp, disable_toggle_on: bool = False) -> Lock | None:
   if _dashcam(cp):
     return DASHCAM
   if fingerprint == AP1_X:
-    # Disable openpilot Longitudinal Control wins over the experimental Model X row (tesla_ap1/interface.py).
-    return _toggle_lock(fingerprint) if disable_toggle_on else STEERING_ONLY
+    # Disable openpilot Longitudinal Control is the Model X's single longitudinal row; a saved Off from the old hidden Model X row
+    # (not yet carried over at start) also keeps long off and counts as Disable on.
+    return _toggle_lock(fingerprint) if (disable_toggle_on or not _x_long_saved_on()) else RESTART
   if fingerprint in (AP1_S, PREAP):
     return _toggle_lock(fingerprint) if disable_toggle_on else RESTART
   return NOT_SUPPORTED
@@ -122,12 +130,11 @@ NO_CAR_VEHICLE = Lock("no_car", "No car detected",
 MODEL_X = Lock("steering_only", "Model X: steering only",
                "Model X runs steering only in this build, so it has no settings on this page.", "")
 MODEL_X_VEHICLE = Lock("steering_only", "Model X: steering only",
-                       "Model X runs steering only while Disable openpilot Longitudinal Control is on, or while the experimental "
-                       "Model X openpilot longitudinal row on this page is off. A change takes effect the next time the car starts.", "")
+                       "Model X runs steering only while Disable openpilot Longitudinal Control on this page is on. Turning it "
+                       "off takes effect the next time the car starts.", "")
 MODEL_X_WHEEL = Lock("steering_only", "Model X: steering only",
-                     "Wheel Controls on a Model X need openpilot longitudinal control. In Vehicle Controls, turn off Disable "
-                     "openpilot Longitudinal Control and turn on the experimental Model X longitudinal row; it takes effect the "
-                     "next time the car starts.", "")
+                     "Wheel Controls on a Model X need openpilot longitudinal control. Turn off Disable openpilot Longitudinal "
+                     "Control in Vehicle Controls; it takes effect the next time the car starts.", "")
 WHEEL_AP1_ONLY = Lock("unsupported_vehicle", "AP1 only",
                       "Wheel Controls are for a Tesla Model S or Model X with AP1. This vehicle has none of them.", "")
 
@@ -149,7 +156,7 @@ def page_note(cp, kind: str, disable_toggle_on: bool = False) -> Lock | None:
     return DASHCAM
   if fingerprint == AP1_X:
     if kind == "vehicle_controls":
-      # The experimental Model X row lives here; once openpilot long is on for the X there is nothing to explain.
+      # The Disable row lives here; once openpilot long is on for the X there is nothing to explain.
       return None if bool(getattr(cp, "openpilotLongitudinalControl", False)) else MODEL_X_VEHICLE
     if kind == "stalk_controls":
       return None if bool(getattr(cp, "openpilotLongitudinalControl", False)) else MODEL_X_WHEEL

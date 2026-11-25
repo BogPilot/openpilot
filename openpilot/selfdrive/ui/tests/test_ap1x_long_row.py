@@ -1,4 +1,5 @@
-"""Vehicle Controls row for the experimental AP1 Model X openpilot long (AP1XOpenpilotLong): Model X only, default on, file-backed."""
+"""AP1XOpenpilotLong on the Vehicle Controls page: no row any more. On the AP1 Model X, Disable openpilot Longitudinal Control is
+the single longitudinal row; the file stays (default on) because the car interface still reads it at car start."""
 from types import SimpleNamespace
 
 import pytest
@@ -19,51 +20,56 @@ def model(car, tmp_path, offroad=True):
                             file_dir=str(tmp_path), params_file=str(tmp_path / "unused"))
 
 
-def test_row_registered_with_experimental_text_and_help():
+def test_key_kept_with_not_shown_text_and_help():
   assert KEY == "AP1XOpenpilotLong" and KEY in pv.TITLES and KEY in pv.DESCRIPTIONS
-  text = pv.DESCRIPTIONS[KEY].lower()
-  assert "experimental" in text and "on by default" in text and "stock tacc" in text
-  assert "next time the car starts" in text and "no reboot is needed" in text and "reboots" not in text
-  assert "experimental" in pv.TITLES[KEY].lower()
-  help_entry = resolve(KEY)
-  assert help_entry is not None and help_entry.default == "On"
+  assert "not shown" in pv.DESCRIPTIONS[KEY].lower() and "Disable openpilot Longitudinal Control" in pv.DESCRIPTIONS[KEY]
+  entry = resolve(KEY)
+  assert entry is not None and entry.default == "On" and "Disable openpilot Longitudinal Control" in entry.what
+  assert "experimental" not in entry.title.lower()
 
 
-@pytest.mark.parametrize("car", [cp("TESLA_AP1_MODELS", long=True), cp("TESLA_PREAP_MODELS"), cp("TESLA_MODEL_Y"), cp(""), cp("MOCK"),
+@pytest.mark.parametrize("car", [cp("TESLA_AP1_MODELX"), cp("TESLA_AP1_MODELX", long=True), cp("TESLA_AP1_MODELS", long=True),
+                                 cp("TESLA_PREAP_MODELS"), cp("TESLA_MODEL_Y"), cp(""), cp("MOCK"),
                                  cp("TESLA_AP1_MODELX", dashcam=True), None])
-def test_hidden_on_every_car_but_a_detected_model_x(tmp_path, car):
+def test_hidden_on_every_car_including_the_model_x(tmp_path, car):
   m = model(car, tmp_path)
   assert m.visible(KEY) is False and m.enabled(KEY) is False
-  assert m.write(KEY, True) is False and not (tmp_path / KEY).exists()
+  assert m.write(KEY, True) is False and m.write(KEY, False) is False and not (tmp_path / KEY).exists()
 
 
-def test_visible_on_model_x_only_offroad_editable_and_defaults_on(tmp_path):
+def test_file_still_read_the_way_the_interface_reads_it(tmp_path):
   m = model(cp("TESLA_AP1_MODELX"), tmp_path)
-  assert m.visible(KEY) is True and m.enabled(KEY) is True
   assert m.read(KEY) is True                                      # default on, no file
-  assert m.write(KEY, False) is True
-  assert (tmp_path / KEY).read_text() == "0" and m.read(KEY) is False
-  assert toggles.ap1x_op_long("TESLA_AP1_MODELX", stored=(tmp_path / KEY).read_text()) is False   # the interface's reader agrees
-  assert m.write(KEY, True) is True and m.read(KEY) is True and (tmp_path / KEY).read_text() == "1"
+  (tmp_path / KEY).write_text("0")
+  assert m.read(KEY) is False and toggles.ap1x_op_long("TESLA_AP1_MODELX", stored="0") is False
+  assert m.read(pv.LONG) is True                                  # the single row shows long as off
 
 
-def test_model_x_row_does_not_appear_for_model_s_rows_and_s_rows_unchanged(tmp_path):
+def test_model_s_rows_unchanged_and_the_x_sees_only_the_disable_row(tmp_path):
   s = model(cp("TESLA_AP1_MODELS", long=True), tmp_path)
   assert s.visible(pv.CLUSTER) and s.visible(pv.REGEN) and s.visible(pv.LONG) and not s.visible(KEY)
   x = model(cp("TESLA_AP1_MODELX"), tmp_path)
-  for other in (pv.CLUSTER, pv.REGEN, pv.RADAR, pv.IBOOSTER):
-    assert x.visible(other) is False                              # S / Pre-AP rows stay hidden on the X
-  assert x.visible(pv.LONG) is True                               # the Disable row is shared with the Model S
+  for other in (pv.CLUSTER, pv.REGEN, pv.RADAR, pv.IBOOSTER, KEY):
+    assert x.visible(other) is False
+  assert x.visible(pv.LONG) is True
 
 
-def test_page_note_for_model_x_points_at_the_row_and_clears_once_long_is_on():
+def test_page_note_for_model_x_points_at_the_disable_row_and_clears_once_long_is_on():
   note = menu_locks.page_note(cp("TESLA_AP1_MODELX"), "vehicle_controls")
-  assert note.code == "steering_only" and "experimental" in note.detail.lower()
+  assert note.code == "steering_only" and "Disable openpilot Longitudinal Control" in note.detail
+  assert "experimental" not in note.detail.lower()
   assert menu_locks.page_note(cp("TESLA_AP1_MODELX", long=True), "vehicle_controls") is None
-  assert menu_locks.page_note(cp("TESLA_AP1_MODELX"), "stalk_controls").code == "steering_only"   # stalk page unchanged
+  wheel = menu_locks.page_note(cp("TESLA_AP1_MODELX"), "stalk_controls")
+  assert wheel is menu_locks.MODEL_X_WHEEL and "Disable openpilot Longitudinal Control" in wheel.detail
   assert menu_locks.page_note(cp("TESLA_AP1_MODELS", long=True), "vehicle_controls") is None
 
 
-def test_gas_brake_stays_locked_on_model_x_until_long_is_on():
-  assert menu_locks.long_lock(cp("TESLA_AP1_MODELX")).code == "steering_only"
+def test_gas_brake_lock_on_model_x_follows_the_single_row(tmp_path, monkeypatch):
+  monkeypatch.setattr(toggles, "_ap1x_op_long_path", tmp_path / KEY)
+  assert menu_locks.long_lock(cp("TESLA_AP1_MODELX"), disable_toggle_on=False) is menu_locks.RESTART
+  lock = menu_locks.long_lock(cp("TESLA_AP1_MODELX"), disable_toggle_on=True)
+  assert lock.code == "toggle_off" and lock.unlock_toggle == pv.LONG
+  (tmp_path / KEY).write_text("0")                                # old row Off, not carried over yet: counts as Disable on
+  lock = menu_locks.long_lock(cp("TESLA_AP1_MODELX"), disable_toggle_on=False)
+  assert lock.code == "toggle_off" and lock.unlock_toggle == pv.LONG
   assert menu_locks.long_lock(cp("TESLA_AP1_MODELX", long=True)) is None

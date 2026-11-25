@@ -195,7 +195,9 @@ def set_ap1_tip_round(enabled: bool, path: Path | None = None) -> None:
 # AP1 Model X openpilot longitudinal (AP1XOpenpilotLong). EXPERIMENTAL. File-backed, default ON for a detected AP1 Model X:
 # /data/params_bogpilot/AP1XOpenpilotLong. Only an explicit 0/false/off turns it off (the user's choice for stock TACC); a missing,
 # empty, unreadable or any other value is on. A one-time migration (openpilot/common/bogpilot_ap1_profile.py
-# force_ap1x_op_long_on_once) writes 1 once on a detected X, even over a saved 0, and never again. Read once at car init
+# force_ap1x_op_long_on_once) writes 1 once on a detected X, even over a saved 0, and never again. There is no row for it any more:
+# the UI's Disable openpilot Longitudinal Control row is the Model X's single longitudinal row and writes 1 here, and a saved 0 is
+# carried over to Disable on at start (merge_ap1x_long_into_disable). Read once at car init
 # (interface.py): it makes the strictly detected AP1 Model X use openpilot longitudinal (CarParams.openpilotLongitudinalControl
 # plus the AP1 safety LONG_CONTROL flag). Never applies to any other car; the panda and safety limits are the Model S ones.
 AP1X_OP_LONG_PATH = IC_INTEGRATION_DIR / "AP1XOpenpilotLong"

@@ -5,8 +5,8 @@ No generic make/model overrides or stored-but-unconsumed preferences.
 """
 from pathlib import Path
 
-# Model S and Pre-AP rows. The AP1 Model X sees DisableOpenpilotLongitudinal (as the Model S does), its own AP1XOpenpilotLong
-# row while that Disable is off, and RegenComfortBrake while its openpilot longitudinal is on.
+# Model S and Pre-AP rows. The AP1 Model X sees DisableOpenpilotLongitudinal (as the Model S does, its only longitudinal row; the
+# AP1XOpenpilotLong row is always hidden), and RegenComfortBrake while its openpilot longitudinal is on.
 AP1 = "TESLA_AP1_MODELS"
 PREAP = "TESLA_PREAP_MODELS"
 DOUBLE_PULL = "TeslaPreApDoublePull"
@@ -85,19 +85,12 @@ TRIM_BUTTON_WIDTHS = (110, 340, 110)   # [-] [value] [+]: "P100D Ludicrous" does
 # holds it (card, controlsd, selfdrived, plannerd, radard; pandad re-reads CarParams on each onroad transition) restarts with
 # the ignition, so no reboot is needed. Car off: saved for the next start. Car on (driving, parked or engaged): queued, written
 # when the car is turned off, the next start uses it.
-# AP1 Model X: Disable openpilot Longitudinal Control wins over AP1XOpenpilotLong (tesla_ap1/interface.py reads both at car start:
-# long only when Disable is off and AP1XOpenpilotLong is on). While Disable is on the Model X row is hidden, so the two never fight.
+# AP1 Model X: Disable openpilot Longitudinal Control is the only longitudinal row. tesla_ap1/interface.py still reads both files at
+# car start (long only when Disable is off and AP1XOpenpilotLong is on), so this row reads as on whenever either keeps long off,
+# turning it off also writes AP1XOpenpilotLong=1, and turning it on keeps long off. The AP1XOpenpilotLong row is always hidden.
 X_DISABLE_LONG_DESCRIPTION = ("Use the Model X's own cruise control (stock TACC) for speed, with openpilot steering, instead of "
-                              "openpilot longitudinal control. While this is on, the Model X openpilot Longitudinal row is hidden: "
-                              "this setting wins. Takes effect the next time the car starts.")
-X_LONG_ON_PROMPT = "Turn on openpilot longitudinal control for this Model X? It is experimental. It takes effect the next time the car starts."
-X_LONG_ON_CONFIRM = "Turn On"
-X_LONG_ON_NEXT_START = "Saved. openpilot longitudinal control turns on the next time the car starts. No reboot needed."
-X_LONG_QUEUED_ON = ("Saved. openpilot longitudinal control turns on the next time the car starts: the change is applied when the car "
-                    "is turned off. No reboot needed.")
-X_LONG_OFF_NEXT_START = "Saved. The Model X uses its own cruise control (stock TACC) from the next time the car starts."
-X_LONG_QUEUED_OFF = ("Saved. The Model X uses its own cruise control (stock TACC) from the next time the car starts: the change is "
-                     "applied when the car is turned off. No reboot needed.")
+                              "openpilot longitudinal control. Off (the default) lets openpilot control speed and braking. Takes "
+                              "effect the next time the car starts.")
 PEDAL_EMERGENCY = "PedalEmergencyDisable"
 PEDAL_EMERGENCY_TITLE = "Pedal Emergency Disable"
 PEDAL_EMERGENCY_DESCRIPTION = ("One tap, any time, even while driving: pedal speed control stops now and the pedal calibration is cleared. "
@@ -164,9 +157,8 @@ PEDAL_CALIBRATE_DESCRIPTION = ("Guided calibration. Put the car in Park with the
 DESCRIPTIONS = {
   LONG: "Use the car's stock ACC instead of openpilot longitudinal control. Takes effect the next time the car starts.",
   CLUSTER: "Show openpilot information on the Tesla dash cluster. Off leaves the cluster stock. Takes effect immediately.",
-  X_LONG: ("Experimental. Lets openpilot control speed and braking on an AP1 Model X, the way it does on the Model S. On by "
-           "default. Off keeps the Model X on steering only with its own cruise control (stock TACC). Changes take effect the "
-           "next time the car starts; no reboot is needed."),
+  X_LONG: ("Not shown. On an AP1 Model X, Disable openpilot Longitudinal Control is the only longitudinal setting; this file "
+           "is kept so the car start reads the same value as before."),
   AUTO_HEIGHT: ("Sets the air suspension height for you: once when you shift into Park, and once when you shift from Park into "
                 "Drive, using the two heights below. The car's own location-based raise still works. Only while stopped and never "
                 "while openpilot is engaged; tapping a height on the touchscreen cancels it. Shown only for a car with air suspension. "
@@ -259,9 +251,8 @@ class VehicleSettings:
     if key in (TRIM, TRIM_DETECTED):
       return supported(cp) or is_x(cp)  # AP1 Model S, AP1 Model X and Pre-AP
     if key == X_LONG:
-      # Model X only; every other car (Model S, Pre-AP, unknown) never sees the row. Hidden while Disable openpilot Longitudinal
-      # Control is on (saved or queued): Disable wins at car start, so the row would be an inert switch.
-      return is_x(cp) and not self.read(LONG)
+      # Never shown: on the AP1 Model X, Disable openpilot Longitudinal Control is the single longitudinal row (it writes this file).
+      return False
     if key == LONG and is_x(cp):
       # AP1 Model X: the same Disable row as the Model S, so drivers can pick stock TACC with openpilot steering.
       return not getattr(cp, "alphaLongitudinalAvailable", False)
@@ -679,7 +670,19 @@ class VehicleSettings:
       staged = onroad_policy.pending(LONG)
       if staged is not None:
         return bool(staged)
-      return self.toggles.disable_openpilot_long(paths=(self.file_dir / LONG, self.params_file))
+      x = is_x(self.cp())
+      staged_x = onroad_policy.pending(X_LONG) if x else None
+      if staged_x is not None:
+        return not bool(staged_x)                          # an older queued Model X row change: shown as this row
+      disabled = self.toggles.disable_openpilot_long(paths=(self.file_dir / LONG, self.params_file))
+      if x and not disabled:
+        # AP1 Model X: long also stays off while AP1XOpenpilotLong is saved Off (from the old Model X row), so show it as on.
+        try:
+          stored = self.x_long_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+          stored = ""
+        disabled = not self.toggles.ap1x_op_long(AP1_X, stored=stored)
+      return disabled
     if key in (DOUBLE_PULL, RADAR, RADAR_NOSECONE, IBOOSTER, RADAR_IGNORE_HW_FAIL, RADAR_FLIP, AUTO_SPEED, FROM_STOP):
       from opendbc.car.tesla_ap1.preap import params as preap_params
       return preap_params.get_bool(key)
@@ -738,75 +741,43 @@ class VehicleSettings:
     return True
 
 
-  # ---- AP1 Model X openpilot longitudinal: saved with the car off, queued while the car is on; never a reboot ----
-  def x_long_change(self, state):
-    """The X long row was flipped. Returns (action, message):
-    ("confirm", prompt): turning on with the car off: confirm (experimental), then confirm_x_long_on().
-    ("queued", text): changed with the car on (driving, parked or engaged): staged (onroad_policy), written when the car is
-    turned off, so the next start uses it.
-    ("saved", text): turned off with the car off: written, the next car start uses it.
-    ("refused", None): row not shown or not editable now. Nothing is written for confirm / refused.
-    No reboot in any case: the setting is read when the car starts, and every process holding it restarts with the ignition."""
-    from openpilot.selfdrive.ui.bogpilot import onroad_policy
-    if not self.enabled(X_LONG):
-      return ("refused", None)
-    state = bool(state)
-    if state == self.read(X_LONG) and onroad_policy.pending(X_LONG) is None:
-      return ("saved", None)
-    if self.started():
-      onroad_policy.stage(X_LONG, state)
-      return ("queued", X_LONG_QUEUED_ON if state else X_LONG_QUEUED_OFF)
-    if state:
-      return ("confirm", X_LONG_ON_PROMPT)
-    onroad_policy.clear_pending(X_LONG)
-    self.toggles.set_ap1x_op_long(False, path=self.x_long_path)
-    self.on_change(X_LONG)
-    return ("saved", X_LONG_OFF_NEXT_START)
-
-  def confirm_x_long_on(self):
-    """Turn On confirmed. Re-checked: if the car was started while the dialog was open the change is queued instead of written
-    (the running drive keeps its CarParams either way). Returns (action, message) like x_long_change, or ("refused", None)."""
-    from openpilot.selfdrive.ui.bogpilot import onroad_policy
-    if not self.enabled(X_LONG):
-      return ("refused", None)
-    if self.started():
-      onroad_policy.stage(X_LONG, True)
-      return ("queued", X_LONG_QUEUED_ON)
-    onroad_policy.clear_pending(X_LONG)
-    self.toggles.set_ap1x_op_long(True, path=self.x_long_path)
-    self.on_change(X_LONG)
-    return ("saved", X_LONG_ON_NEXT_START)
-
   def _write_long(self, state):
     """Disable Longitudinal: staged while the car is on (the planners read it live, it must not flip mid-drive; applied with the
     car off), otherwise the normal write. No visibility / edit-gate check here: callers do their own. Returns True when stored."""
     from openpilot.selfdrive.ui.bogpilot import onroad_policy
     state = bool(state)
+    x = is_x(self.cp())
     if self.started():
-      return bool(onroad_policy.stage(LONG, state))
+      done = bool(onroad_policy.stage(LONG, state))
+      if done and x:
+        onroad_policy.clear_pending(X_LONG)              # this row replaces any older queued Model X row change
+      return done
     onroad_policy.clear_pending(LONG)
+    if x:
+      onroad_policy.clear_pending(X_LONG)
     # Existing override has priority over Params. Do not create a new override.
     self.params.put_bool(LONG, state, block=True)
     override = self.file_dir / LONG
     if override.is_file():
       override.write_text("1" if state else "0")
-    if is_x(self.cp()):
-      # A choice made on this row is final: the once-only Model X migration (bogpilot_ap1_profile.force_ap1x_op_long_on_once)
-      # must never clear it later, even on a device where that migration has not run yet.
+    if x:
+      # Single row on the Model X: AP1XOpenpilotLong is always written 1, so Off gives openpilot long back and On (Disable)
+      # alone keeps it off. A choice made on this row is final: the once-only Model X migration
+      # (bogpilot_ap1_profile.force_ap1x_op_long_on_once) must never clear it later, even where it has not run yet.
+      self.toggles.set_ap1x_op_long(True, path=self.x_long_path)
       from openpilot.common.bogpilot_ap1_profile import mark_ap1x_long_force_done
       mark_ap1x_long_force_done(self.file_dir)
     return True
 
 
 def apply_staged_x_long(value) -> bool:
-  """onroad_policy applier for an AP1 Model X openpilot long change queued while driving: written with the car off, so the next
-  car start uses it. Only while the persisted car is still an AP1 Model X."""
-  from opendbc.car.tesla_ap1 import toggles
+  """onroad_policy applier for a Model X row change queued by an older build (the row is now hidden): applied as the single
+  Disable row with the car off (value On = Disable off). Only while the persisted car is still an AP1 Model X."""
+  from openpilot.common.params import Params
   from openpilot.selfdrive.ui.ui_state import ui_state
   if not is_x(ui_state.CP):
     return False
-  toggles.set_ap1x_op_long(bool(value))
-  return True
+  return VehicleSettings(Params(), lambda: ui_state.CP, lambda: True).write(LONG, not bool(value))
 
 
 def apply_staged_long(value) -> bool:
@@ -1085,9 +1056,6 @@ def create_vehicle_settings_layout(params=None):
       if not self.model.enabled(key):
         self.refresh()
         return
-      if key == X_LONG:
-        self._set_x_long(state)
-        return
       if key != LONG or not state:
         self.model.write(key, state)
         self.refresh()
@@ -1101,24 +1069,6 @@ def create_vehicle_settings_layout(params=None):
         self.refresh()
       question = "Disable pedal longitudinal control on the next car start?" if is_preap(ui_state.CP) else "Disable openpilot longitudinal control on the next car start?"
       gui_app.push_widget(ConfirmDialog(tr(question), tr("Disable"), callback=done))
-
-    def _set_x_long(self, state):
-      """Car off: turning on confirms (experimental) then saves; off saves. Car on: queued for the next start. Never reboots."""
-      action, message = self.model.x_long_change(state)
-      if action == "confirm":
-        original_cp = ui_state.CP
-
-        def done(result):
-          # Reject a stale confirmation even if another supported car is now loaded.
-          if result == DialogResult.CONFIRM and ui_state.CP is original_cp:
-            _action, text = self.model.confirm_x_long_on()
-            if text:
-              gui_app.push_widget(alert_dialog(tr(text)))
-          self.refresh()
-        gui_app.push_widget(ConfirmDialog(tr(message), tr(X_LONG_ON_CONFIRM), callback=done))
-      elif message:
-        gui_app.push_widget(alert_dialog(tr(message)))
-      self.refresh()
 
     def refresh(self):
       for key, row in self.rows.items():

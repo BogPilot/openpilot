@@ -836,6 +836,7 @@ AP1X_LONG_FORCE_MARKER_HISTORY = ("AP1XOpenpilotLongForcedOn1",)
 AP1X_LONG_KEY = "AP1XOpenpilotLong"
 AP1X_DISABLE_LONG_KEY = "DisableOpenpilotLongitudinal"
 _ON_TEXT = ("1", "true", "on")
+_OFF_TEXT = ("0", "false", "off")                   # tesla_ap1 toggles.ap1x_op_long: only these turn it off
 
 
 def ap1x_long_force_marker_path(bogpilot_dir: Path | None = None) -> Path:
@@ -852,6 +853,42 @@ def mark_ap1x_long_force_done(bogpilot_dir: Path | None = None) -> bool:
       directory.mkdir(parents=True, exist_ok=True)
       _write_marker_durable(marker, "1\n")
     return marker.exists()
+  except Exception:
+    return False
+
+
+def merge_ap1x_long_into_disable(params=None, bogpilot_dir: Path | None = None) -> bool:
+  """AP1 Model X: Disable openpilot Longitudinal Control is the only longitudinal row. A saved AP1XOpenpilotLong Off (a deliberate
+  stock TACC choice made on the old Model X row after the one-time forced On) becomes Disable On, then AP1XOpenpilotLong goes back
+  to 1. The car starts exactly as before (openpilot long off) and the one row shows it. Waits for the one-time forced On
+  (its marker) so a device that never ran it still gets it first. Idempotent, runs at every start; only on a detected AP1 Model X.
+  True when it changed a value. Never raises."""
+  try:
+    if params is None:
+      params = StoreParams()
+    elif not hasattr(params, "invalidate"):
+      params = StoreParams(_shared_store(params))
+    directory = Path(bogpilot_dir if bogpilot_dir is not None else BOGPILOT_DIR)
+    if not ap1x_long_force_marker_path(directory).exists() or not is_ap1x_visual_platform(params):
+      return False
+    path = directory / AP1X_LONG_KEY
+    try:
+      stored = path.read_text(encoding="utf-8", errors="replace").strip().lower()
+    except OSError:
+      return False                                   # missing: default on, nothing to carry over
+    if stored not in _OFF_TEXT:
+      return False
+    # Disable first, in both places tesla_ap1 reads it: a power cut before the next write leaves long off either way.
+    file_path = directory / AP1X_DISABLE_LONG_KEY
+    if file_path.is_file():
+      _write_marker_durable(file_path, "1")
+    params.put(AP1X_DISABLE_LONG_KEY, "1", block=True)
+    _write_marker_durable(path, "1")
+    try:
+      params.invalidate()
+    except Exception:
+      pass
+    return True
   except Exception:
     return False
 

@@ -43,7 +43,7 @@ CHOICE_LABELS = {
 CHOICE_DESCRIPTIONS = {
   AUTO: "Automatic detection (chassis + Mobileye when present). Default. Clears any saved CarModel / ForceFingerprint. Takes effect the next time the car starts.",
   AP1_S: "Use Tesla AP1 Model S (TESLA_AP1_MODELS) via CarModel + ForceFingerprint only when automatic detection returns no car. A positively detected different car always wins. Takes effect the next time the car starts.",
-  AP1_X: "Tesla AP1 Model X (TESLA_AP1_MODELX) is lateral only, with stock cruise, unless the experimental Model X longitudinal setting is turned on. Unverified on a car. Applies only when automatic detection returns no car. Takes effect the next time the car starts.",
+  AP1_X: "Tesla AP1 Model X (TESLA_AP1_MODELX) uses openpilot longitudinal control unless Disable openpilot Longitudinal Control is on; then it is lateral only, with stock cruise. Unverified on a car. Applies only when automatic detection returns no car. Takes effect the next time the car starts.",
   PREAP_S: "Use Tesla Pre-Autopilot Model S (TESLA_PREAP_MODELS) via CarModel + ForceFingerprint only when automatic detection returns no car. Steering needs the Pre-AP panda safety mode in the installed panda firmware; longitudinal needs a calibrated Comma Pedal. Takes effect the next time the car starts.",
 }
 
