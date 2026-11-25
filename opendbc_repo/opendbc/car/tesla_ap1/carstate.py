@@ -235,11 +235,12 @@ class CarState(CarStateBase):
     else:
       ret.seatbeltUnlatched = (cp.vl["SDM1"]["SDM_bcklDrivStatus"] != 1)
 
-    # Blindspot. Model S only: stock DAS_blindSpotRearLeft/Right from 0x399 on
-    # cp_cam. Fail-closed: WARNING/SNA/garbage/stale/bad-checksum dropout =>
-    # Blindspot True (OCCUPIED). Only recent checksum-OK NO_WARNING clears.
-    # Held BSM_HOLD_S; stale after BSM_STALE_S. Other Teslas: no BSM.
-    if ap1_s:
+    # Blindspot. AP1 Model S and Model X: stock DAS_blindSpotRearLeft/Right from
+    # 0x399 on cp_cam (both cars subscribe AutopilotStatus on bus 2). Fail-closed:
+    # WARNING/SNA/garbage/stale/bad-checksum dropout => Blindspot True (OCCUPIED).
+    # Only recent checksum-OK NO_WARNING clears. Held BSM_HOLD_S; stale after
+    # BSM_STALE_S. Pre-AP and other Teslas: no BSM here.
+    if ap1:
       ret.leftBlindspot, ret.rightBlindspot = self.ap1_bsm.update(frames_from_vl_all(cp_cam), DT_CTRL)
 
     # AEB
@@ -297,7 +298,7 @@ class CarState(CarStateBase):
       st = cp_cam.vl.get("AutopilotStatus", {}).get("autopilotStatus", 0)
       self.stock_ap_active = 3 <= int(st or 0) <= 5
     # AP1 S and X: Mobileye fused (optional on X) then GTW UI map/mpp into dashboardSpeedLimit.
-    # Cluster substitution, BSM, and regen inputs stay Model S only.
+    # Cluster substitution stays Model S only.
     if ap1:
       fused = cp_cam.vl.get("AutopilotStatus", {}).get("DAS_fusedSpeedLimit")
       ui_map = cp.vl.get("UI_driverAssistMapData", {}).get("UI_mapSpeedLimit")
