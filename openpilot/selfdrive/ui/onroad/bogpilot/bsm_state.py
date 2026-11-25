@@ -1,8 +1,9 @@
 """BSM / adjacent-radar UI contract. Never substitute ego speed for lead speed; never invent detections.
 
 Sources (C3X 0.11.2 schema):
-  carState.leftBlindspot / rightBlindspot  car-frame sides (opendbc tesla_ap1 carstate: stock DAS_blindSpotRearLeft/Right,
-                                           0x399 bus 2, warning level 1/2, SNA ignored, bad checksum skipped, 1 s hold)
+  carState.leftBlindspot / rightBlindspot  car-frame sides (opendbc tesla_ap1 carstate, AP1 Model S and Model X: stock
+                                           DAS_blindSpotRearLeft/Right, 0x399 bus 2, warning level 1/2, SNA, stale or
+                                           bad checksum dropout read as occupied, 1 s hold)
   bogpilotRadarState.leadLeft / leadRight radard bogpilot_radar (closest moving track between that side's lane lines)
 Freshness: valid, alive, current drive (recv_frame > started_frame) and recv_time no older than MAX_AGE_S.
 RHD never swaps sides: both sources are car-frame left/right.
@@ -48,19 +49,21 @@ def adjacent_leads(sm, started_frame, now=None):
     return empty
 
 
-AP1_FINGERPRINT = "TESLA_AP1_MODELS"
-
-
 def has_bsm(cp) -> bool:
-  """Car reports carState.left/rightBlindspot: only tesla_ap1 carstate fills them (stock 0x399 bus 2)."""
-  return str(getattr(cp, "carFingerprint", "") or "") == AP1_FINGERPRINT
+  """Car reports carState.left/rightBlindspot from a real source (opendbc tesla_ap1 values.bsm_wired: AP1 Model S and
+  Model X from stock 0x399 bus 2, stock tesla brand from DAS_status). Pre-AP, other cars and no CarParams: False."""
+  try:
+    from opendbc.car.tesla_ap1.values import bsm_wired
+    return bool(bsm_wired(cp))
+  except Exception:
+    return False
 
 
 class BsmPolicy:
   """Daily toggle.blind_spot_path = has_bsm and ((CustomUI and BlindSpotPath) or DebugMode) (367e1fe :875).
   has_bsm: 0.11.2 moved CarParams.enableBsm into the `deprecated` group (opendbc car.capnp), so neither stock nor
-  C3X can set it. The capability is the exact carstate condition that fills the flags (tesla_ap1 carstate.py:
-  ap1 = carFingerprint == TESLA_AP1_MODELS). No CarParams -> hidden.
+  C3X can set it. The capability is the carstate condition that fills the flags (opendbc tesla_ap1 values.bsm_wired:
+  the AP1 family in tesla_ap1 carstate, and the stock tesla brand). No CarParams -> hidden.
   BlindSpotPath keeps its typed/file reader (file_toggles).
   Cached 2 s; a store read failure keeps the previous typed/file BlindSpotPath behaviour."""
 

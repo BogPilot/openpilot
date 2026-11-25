@@ -56,6 +56,12 @@ class TestAlertsPanel(unittest.TestCase):
     layout.show_event()
     self.assertFalse(layout.items["LoudBlindspotAlert"].action_item.get_state())        # saved OFF kept
 
+  def test_loud_blindspot_row_shows_on_the_ap1_model_x(self):
+    layout, _ = self.layout({"SpeedLimitController": True}, SimpleNamespace(carFingerprint="TESLA_AP1_MODELX"))
+    self.assertTrue(layout.items["LoudBlindspotAlert"].is_visible)                      # X reads the same 0x399 BSM
+    layout, _ = self.layout({"SpeedLimitController": True}, SimpleNamespace(carFingerprint="TESLA_PREAP_MODELS"))
+    self.assertFalse(layout.items["LoudBlindspotAlert"].is_visible)                     # Pre-AP: no BSM source
+
   def test_rows_hide_without_a_consumer_and_saved_state_shows(self):
     layout, _ = self.layout({"SpeedLimitController": False, "SpeedLimitChangedAlert": True, "LoudBlindspotAlert": True},
                             SimpleNamespace(carFingerprint="TESLA_AP1_PREAP"))

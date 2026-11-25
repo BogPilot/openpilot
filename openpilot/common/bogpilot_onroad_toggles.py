@@ -21,6 +21,14 @@ LOOKAHEAD_HORIZON_DEFAULT = 5
 LOOKAHEAD_HORIZON_MAX = 15
 
 
+def _bsm_wired(CP) -> bool:
+  try:
+    from opendbc.car.tesla_ap1.values import bsm_wired
+    return bool(bsm_wired(CP))
+  except Exception:
+    return False
+
+
 # keys whose change means "toggles updated" (bogpilotPlan.togglesUpdated)
 WATCHED_KEYS = (
   "TuningLevel", "TuningLevelConfirmed", "IsMetric", "DebugMode", "DisableOpenpilotLongitudinal",
@@ -67,7 +75,8 @@ def onroad_toggles(store, CP=None) -> SimpleNamespace:
   t.is_preap = fingerprint == "TESLA_PREAP_MODELS"
   t.slc_platform = fingerprint in SLC_PLATFORMS
   t.has_radar = not bool(getattr(CP, "radarUnavailable", True))                    # :735
-  t.has_bsm = bool(getattr(CP, "enableBsm", False))
+  # enableBsm is deprecated in 0.11.2 (never set); the capability is the car-side wiring (tesla_ap1 values.bsm_wired).
+  t.has_bsm = _bsm_wired(CP)
   t.openpilot_longitudinal = bool(getattr(CP, "openpilotLongitudinalControl", False)) and not b("DisableOpenpilotLongitudinal")  # :744
 
   # :849-870 custom personalities

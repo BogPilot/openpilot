@@ -36,8 +36,8 @@ def fingerprint(bsm_frame=True):
   return fp
 
 
-def params(bsm_frame=True):
-  return CarInterface.get_params(CAR.TESLA_AP1_MODELS, fingerprint(bsm_frame), [], False, False, False)
+def params(bsm_frame=True, car=CAR.TESLA_AP1_MODELS):
+  return CarInterface.get_params(car, fingerprint(bsm_frame), [], False, False, False)
 
 
 def frame_399(left=0, right=0, good_checksum=True):
@@ -51,8 +51,10 @@ def frame_399(left=0, right=0, good_checksum=True):
 
 
 class Pipeline:
+  CAR = CAR.TESLA_AP1_MODELS
+
   def __init__(self):
-    self.CP = params()
+    self.CP = params(car=self.CAR)
     self.ci = CarInterface(self.CP)
     self.t = 1_000_000_000
 
@@ -89,6 +91,19 @@ class TestCarParamsCapability(unittest.TestCase):
     self.assertTrue(bsm_state.has_bsm(params(True)))
     self.assertFalse(bsm_state.has_bsm(None))
     self.assertFalse(bsm_state.has_bsm(SimpleNamespace(carFingerprint="TESLA_MODEL_3")))
+
+  def test_capability_follows_car_side_wiring(self):
+    # AP1 Model S and Model X: tesla_ap1 carstate fills the flags from 0x399. Stock tesla brand: DAS_status.
+    self.assertTrue(bsm_state.has_bsm(params(True, car=CAR.TESLA_AP1_MODELX)))
+    self.assertTrue(bsm_state.has_bsm(SimpleNamespace(carFingerprint="TESLA_AP1_MODELX")))
+    self.assertTrue(bsm_state.has_bsm(SimpleNamespace(carFingerprint="TESLA_MODEL_3", brand="tesla")))
+    self.assertFalse(bsm_state.has_bsm(SimpleNamespace(carFingerprint="TESLA_PREAP_MODELS", brand="tesla_ap1")))
+    self.assertFalse(bsm_state.has_bsm(SimpleNamespace(carFingerprint="HONDA_CIVIC", brand="honda")))
+
+  def test_onroad_toggles_capability_matches_ui(self):
+    from openpilot.common.bogpilot_onroad_toggles import _bsm_wired
+    for cp in (params(True), params(True, car=CAR.TESLA_AP1_MODELX), SimpleNamespace(carFingerprint="TESLA_PREAP_MODELS"), None):
+      self.assertEqual(_bsm_wired(cp), bsm_state.has_bsm(cp))
 
   def test_enable_bsm_has_no_controls_consumer(self):
     root = Path(__file__).resolve().parents[5]   # openpilot/
@@ -159,6 +174,26 @@ class TestCanToUiPipeline(unittest.TestCase):
     self.assertFalse(pol.enabled(True, SimpleNamespace(carFingerprint="TESLA_MODEL_3")))
     self.assertFalse(pol.enabled(True, None))
     self.assertFalse(bsm_state.BsmPolicy(store=store).enabled(False, self.p.CP))
+
+
+class TestCanToUiPipelineModelX(TestCanToUiPipeline):
+  """Same CAN -> carState -> UI checks on the AP1 Model X (same 0x399 frame on bus 2)."""
+
+  def setUp(self):
+    self.p = XPipeline()
+
+  def test_hold_then_expires(self):
+    self.assertEqual(self.flags(frame_399(left=1), steps=50)[1], (True, False))
+    self.p = XPipeline()
+    self.assertEqual(self.flags(frame_399(left=1), steps=120)[1], (False, False))
+
+  def test_x_policy_enabled(self):
+    store = SimpleNamespace(tuning_level=lambda: 3, toggle_bool=lambda k, l=None: k == "CustomUI", get_bool=lambda k, d=False: False)
+    self.assertTrue(bsm_state.BsmPolicy(store=store).enabled(True, self.p.CP))
+
+
+class XPipeline(Pipeline):
+  CAR = CAR.TESLA_AP1_MODELX
 
 
 _WINDOW = {"opened": False}

@@ -197,6 +197,22 @@ def is_ap1_family(candidate) -> bool:
     return False
 
 
+def bsm_wired(CP) -> bool:
+  """True when this car's carstate fills carState.leftBlindspot / rightBlindspot from a real blind spot source.
+
+  0.11.2 moved CarParams.enableBsm into the deprecated group, so nothing sets it. This is the capability the
+  BogPilot BSM UI (half border, lane fill, flames, Loud Blindspot Alert row) and the onroad toggles read:
+  - the AP1 family (Model S and Model X): tesla_ap1 carstate reads the stock 0x399 fields on bus 2 (blindspot.py),
+  - brand "tesla": the stock tesla carstate reads DAS_status on every car it drives.
+  Pre-AP (no Autopilot ECU) and every other car: False. No CarParams: False.
+  """
+  if CP is None:
+    return False
+  if is_ap1_family(str(getattr(CP, "carFingerprint", "") or "")):
+    return True
+  return str(getattr(CP, "brand", "") or "") == "tesla"
+
+
 # AP1 Bosch radarTracks publish at the radar's own cycle, measured 7.4-12.6 Hz
 # depending on track count (about 12 Hz below 10 tracks, 7.4-7.8 Hz at 28-30
 # tracks). The slowest 20-sample FrequencyTracker average measured on 14 days of
