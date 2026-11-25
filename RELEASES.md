@@ -1,5 +1,10 @@
 What's new
 =======================
+* Tesla AP1 Model X: Dash Cluster Integration works as on the Model S: lane lines, engaged state and warnings on the cluster, and openpilot's set speed with openpilot Longitudinal (stock TACC keeps its own)
+* Tesla AP1 Model X with openpilot Longitudinal: engage from a stop, as on the Model S. Single pull Speed Limit Control works the same as on the Model S
+
+Earlier update
+=======================
 * AP1 and Pre-AP Curve Speed Control: one planner slows for camera and map curves, starting earlier and easing out, with no 2 s hold and the same braking in every Deceleration Profile. Smooth Curve Braking is always on, mapd v2 and Map Curve Speed are on by default, and Curve Speed Control has its own Gas / Brake row
 * Tesla AP1 Model X: blind spot monitoring works as on the Model S (border, lane fill, flames, Loud Blindspot Alert row), and lane changes wait for a clear side
 * Tesla AP1 Model S and Model X: blind spot turns on once the car's blind spot signal first shows up after the car starts; until then nothing is drawn, a nudge lane change works as before and automatic lane changes are held
@@ -11,9 +16,6 @@ What's new
 * Automatic lane changes: the lane change delay completes again, so an automatic lane change starts after its delay
 * New panda firmware, which updates itself on the first start after updating:
   * AP1 Model X: the Auto Height ride height request also allows Very Low, only on a Model X with Auto Height on and under the same Park and Drive rules. All other limits are unchanged
-
-Earlier update
-=======================
 * Tesla AP1 Model S and Model X with air suspension: Auto Height replaces Lower on Park in Vehicle Controls, off by default. When you shift into Park it asks for your Park height, and when you shift from Park into Drive it asks for your Drive height. It is sent only while stopped, never while openpilot is engaged, and a height can be None. A saved Lower on Park setting carries over. Turning it on applies the next time the car starts
 * Driving Model: comma.ai's Cheddar model can now be downloaded as an option in the Driving Model page while the car is off. It is checked before use and falls back to the stock model if anything is wrong; the stock model stays the Default. A model picked while driving applies on the next drive
 * Sidebar: GPU now shows the real GPU load (it was stuck at its value from boot), and the sidebar slot can also show MODELD, how much of each camera frame the driving model takes: white under 80%, yellow from 80 to 100%, red over 100% or when a frame is dropped. Saved sidebar choices are kept
