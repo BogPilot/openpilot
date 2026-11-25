@@ -179,15 +179,16 @@ class TestReleaseNotes(unittest.TestCase):
     low = md.lower()
     self.assertIn("what's new", low)
     for phrase in (
+      "curve speed control",
+      "map curve speed",
+      "blind spot",
+      "model x",
+      "very low",
       "auto height",
-      "air suspension",
-      "shift into park",
-      "never while openpilot is engaged",
-      "cheddar",
-      "driving model",
-      "gpu",
-      "modeld",
-      "screen recorder",
+      "disable openpilot longitudinal control",
+      "stalk follow distance",
+      "drive summary",
+      "lane change",
       "new panda firmware",
       "ride height",
     ):

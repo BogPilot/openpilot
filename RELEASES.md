@@ -1,15 +1,25 @@
 What's new
 =======================
-* AP1 and Pre-AP Curve Speed Control: one curve speed planner slows for curves seen by the camera and, with mapd v2, curves on the downloaded maps, starting at the right distance and easing out as the car reaches the curve speed. There is no longer a 2 second hold after a curve, the set speed is no longer pulled down, and the braking is the same under every Deceleration Profile, including Eco+. Smooth Curve Braking is now always on and its setting is gone. Use mapd v2 and Map Curve Speed are on by default; saved choices are kept. Map curves are picked up earlier, so a tight curve at highway speed is braked for sooner and more gently. Curve Speed Control now has its own on/off row on Gas / Brake, with Map Curve Speed moved out of Longitudinal Tuning to sit right below it
+* AP1 and Pre-AP Curve Speed Control: one planner slows for camera and map curves, starting earlier and easing out, with no 2 s hold and the same braking in every Deceleration Profile. Smooth Curve Braking is always on, mapd v2 and Map Curve Speed are on by default, and Curve Speed Control has its own Gas / Brake row
+* Tesla AP1 Model X: blind spot monitoring works as on the Model S (border, lane fill, flames, Loud Blindspot Alert row), and lane changes wait for a clear side
+* Tesla AP1 Model S and Model X: blind spot turns on once the car's blind spot signal first shows up after the car starts; until then nothing is drawn, a nudge lane change works as before and automatic lane changes are held
+* Tesla AP1 Model X with air suspension: Auto Height adds Very Low for the Park and Drive heights, the lowest height the Model X touchscreen offers. The Model S keeps its four heights
+* Tesla AP1 Model X with openpilot Longitudinal: the Model S throttle cut filter, set-speed shaping, stalk follow distance, stalk personality sync and Stalk Controls now work on the X, and Human-Like Lane Changes is on by default (a saved Off is kept). openpilot Longitudinal is switched on once more on the first start after updating; after that a deliberate Off sticks
+* Tesla AP1 Model X: Disable openpilot Longitudinal Control is now the single longitudinal row, as on the Model S, so you can keep the car's own cruise control (stock TACC) with openpilot steering. A stock TACC choice made on the old row is kept
+* Stalk follow distance: with Custom Personalities off, the stalk now uses the same stock follow times as the on-screen personality
+* Drive Summary: after each drive the comma 3X home screen shows the percent of the drive with openpilot steering, the distance, the drive time and the percent in Experimental Mode; tap to close. Drive stats are now also saved when the car turns off or the device shuts down, so the end of a drive is no longer lost
+* Automatic lane changes: the lane change delay completes again, so an automatic lane change starts after its delay
+* New panda firmware, which updates itself on the first start after updating:
+  * AP1 Model X: the Auto Height ride height request also allows Very Low, only on a Model X with Auto Height on and under the same Park and Drive rules. All other limits are unchanged
+
+Earlier update
+=======================
 * Tesla AP1 Model S and Model X with air suspension: Auto Height replaces Lower on Park in Vehicle Controls, off by default. When you shift into Park it asks for your Park height, and when you shift from Park into Drive it asks for your Drive height. It is sent only while stopped, never while openpilot is engaged, and a height can be None. A saved Lower on Park setting carries over. Turning it on applies the next time the car starts
 * Driving Model: comma.ai's Cheddar model can now be downloaded as an option in the Driving Model page while the car is off. It is checked before use and falls back to the stock model if anything is wrong; the stock model stays the Default. A model picked while driving applies on the next drive
 * Sidebar: GPU now shows the real GPU load (it was stuck at its value from boot), and the sidebar slot can also show MODELD, how much of each camera frame the driving model takes: white under 80%, yellow from 80 to 100%, red over 100% or when a frame is dropped. Saved sidebar choices are kept
 * Screen recorder: uses much less CPU, runs at low priority so it never competes with driving, records at half size and constant quality, and makes files about 40% smaller
 * New panda firmware, which updates itself on the first start after updating:
   * AP1: the ride height request for Auto Height is allowed only while Auto Height is on, in Park, or in Drive while stopped with the accelerator released, never while moving or engaged, only for Low, Medium, High or Very High, and at most one burst per stay in Park and one per stay in Drive. All other limits are unchanged
-
-Earlier update
-=======================
 * Maps: the map downloader starts again on the device, so a download no longer stops at "Waiting for the map downloader...". Map features that were turned off by the same fault work again
 * Tesla AP1 (Model S, and Model X with openpilot Longitudinal): new experimental setting Ignore Radar Cars to the Side in Vehicle Controls, off by default. At 34 mph and up, a radar car well to the side of the car the camera sees ahead is not used as your lead, so a car in the next lane is less likely to slow you down. Turning it on applies the next time the car starts
 * Tesla AP1 Model S and Model X: openpilot Longitudinal now uses a 0.35 s actuator delay (was 0.5 s), which keeps the same following and stopping gaps with smoother braking. Pre-AP stays at 0.4 s. The tuning menu help now shows each Tesla's starting values, and Actuator Delay notes that it does not apply in Experimental Mode
