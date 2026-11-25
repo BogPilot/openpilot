@@ -44,6 +44,17 @@ def test_settings_turn_every_mapd_control_off():
   assert s["speed_limit"]["speed_limit_offset"] == 0
 
 
+def test_curve_lookahead_setting_matches_the_planner_and_leaves_speed_limits_alone():
+  from openpilot.selfdrive.controls.lib import curve_speed_planner as C
+  s = json.loads(M.settings_json())
+  for p in s["personalities"].values():
+    assert p["curve_target_speed_time_offset"] == M.MAP_CURVE_TIME_OFFSET == C.MAPD_TIME_OFFSET
+    assert M.MAP_HORIZON_M == C.MAP_HORIZON_M
+    assert p["target_speed_accel"] == C.MAPD_ACCEL and p["target_speed_jerk"] == C.MAPD_JERK
+    assert p["speed_limit_increase_target_speed_time_offset"] == 1.5
+    assert p["speed_limit_decrease_target_speed_time_offset"] == 0.75
+
+
 def test_write_settings_atomic(tmp_path):
   assert M.write_settings(tmp_path)
   assert json.loads((tmp_path / "MapdSettings").read_text())["settings_version"] == 2

@@ -289,11 +289,11 @@ def test_jerk_limited_distance_matches_closed_form():
 def test_map_point_seeds_from_mapd_trigger_rule_and_counts_down():
   m = MapCurvePoint()
   d0 = m.update(15.0, 25.0, 0.0, DT)
-  assert d0 == pytest.approx(map_trigger_distance(25.0, 0.0, 15.0)) and d0 > 150.0
+  assert d0 == pytest.approx(map_trigger_distance(25.0, 0.0, 15.0) - 25.0 * C.MAP_SEED_MARGIN_S) and d0 > 150.0
   d1 = m.update(15.0, 25.0, 0.0, DT)
   assert d1 == pytest.approx(d0 - 25.0 * DT)
   assert m.update(15.05, 25.0, 0.0, DT) == pytest.approx(d1 - 25.0 * DT)   # same curve
-  assert m.update(12.0, 25.0, 0.0, DT) == pytest.approx(map_trigger_distance(25.0, 0.0, 12.0))   # a new curve
+  assert m.update(12.0, 25.0, 0.0, DT) == pytest.approx(map_trigger_distance(25.0, 0.0, 12.0) - 25.0 * C.MAP_SEED_MARGIN_S)  # new curve
   assert m.update(0.0, 25.0, 0.0, DT) is None and m.speed == 0.0
 
 
@@ -340,3 +340,20 @@ def test_module_reads_no_deceleration_profile():
   src = inspect.getsource(C)
   code = src.split('"""', 2)[2]
   assert "DecelerationProfile" not in code and "profile" not in code.lower()
+
+
+# --- map look-ahead: distance seed and map point ordering ---
+
+def test_map_point_faster_value_is_taken_as_here():
+  """A faster mapd value means the slower curve is behind; the curve mapd now reports was triggered while hidden, so its
+  distance is unknown: it is taken as here (never a phantom point far ahead, never a late seed)."""
+  m = MapCurvePoint()
+  m.update(12.0, 25.0, 0.0, DT)
+  assert m.update(15.0, 12.0, 0.0, DT) == 0.0 and m.speed == 15.0
+  assert m.update(15.0, 12.0, 0.0, DT) == 0.0
+  assert m.update(11.0, 12.0, 0.0, DT) == pytest.approx(map_trigger_distance(12.0, 0.0, 11.0) - 12.0 * C.MAP_SEED_MARGIN_S)  # fresh trigger
+
+
+def test_map_seed_never_beyond_the_loaded_map():
+  assert map_trigger_distance(40.0, 0.0, 5.0) == pytest.approx(C.MAP_HORIZON_M)
+  assert map_trigger_distance(25.0, 0.0, 24.0) < C.MAP_HORIZON_M

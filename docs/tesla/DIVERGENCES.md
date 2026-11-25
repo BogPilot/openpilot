@@ -44,6 +44,11 @@ Recorded disagreements only where the cited files were read. No speculation.
   as soon as the envelope allows. The curve detector only drives the HUD status and learning. The braking and its
   smoothing are the same under every Deceleration Profile (Standard, Eco, Eco+). The displayed set speed follows the
   curve speed while the planner is slowing for a curve.
+  mapd v2 reports a map curve 10 s (at the curve speed) before its own braking distance instead of mapd's 1.5 s
+  (`curve_target_speed_time_offset`, curves only; speed limit offsets unchanged), so a tight curve from highway speed
+  is braked for earlier and more gently. The planner seeds the distance to that curve from the same rule, never past
+  the 500 m of road mapd always has loaded, 1 s of travel closer for mapd's update latency, and takes a faster map
+  value after a slower curve as a curve already here (its distance is unknown).
 - Why: braking that starts at the right distance, smooth on the way in and out, map curves braked like vision curves,
   and the same curve behaviour under every profile.
 - Safety-relevant: yes. Curve braking floor stays -1.2 m/s^2 (CurveMaxDecel). No panda limit, gas/brake edge or

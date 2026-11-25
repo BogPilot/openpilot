@@ -26,7 +26,13 @@ ENGINE_PARAM = "MapdV2"
 CURVE_PARAM = "CSCMapCurvature"
 SETTINGS_PARAM = "MapdSettings"                 # mapd v2 reads/writes /data/params/d/MapdSettings itself
 PARAMS_DIR = Path("/data/params/d")
+MAP_HORIZON_M = 500.0                           # m, mapd gathers at least this much road ahead (MIN_WAY_DIST)
 MAP_CURVE_LAT_A = 2.0                           # m/s^2, written to every personality (mapd default 1.9 / 2.2 / 2.4)
+# s, curve_target_speed_time_offset: mapd starts reporting a curve this many seconds (at the curve speed) before its
+# jerk-limited braking distance. mapd's default is 1.5 s; 10 s lets the curve speed planner start a gentler pull earlier.
+# Curves only (the next speed limit has its own offsets). The planner seeds the distance to the curve from this same
+# value (curve_speed_planner.MAPD_TIME_OFFSET).
+MAP_CURVE_TIME_OFFSET = 10.0
 FRESH_S = 0.5                                   # mapdOut is published at 20 Hz
 MIN_LIMIT_MS, MAX_LIMIT_MS = 1.0, 45.0          # same bounds as the v1 reader (map_data.py)
 MIN_CURVE_MS, MAX_CURVE_MS = 4.0, 45.0          # mapd reports 0 for "no curve ahead"; below 4 m/s is not a road curve speed
@@ -45,7 +51,7 @@ def engine_v2(store=None) -> bool:
 
 def settings_json() -> str:
   """mapd v2 settings (schema 2): every mapd control off, BogPilot decides; quiet logging; fixed map-curve lat accel."""
-  personality = {"target_speed_jerk": 0.6, "target_speed_accel": 1.2, "curve_target_speed_time_offset": 1.5,
+  personality = {"target_speed_jerk": 0.6, "target_speed_accel": 1.2, "curve_target_speed_time_offset": MAP_CURVE_TIME_OFFSET,
                  "speed_limit_increase_target_speed_time_offset": 1.5, "speed_limit_decrease_target_speed_time_offset": 0.75,
                  "map_curve_target_lat_a": MAP_CURVE_LAT_A, "vision_curve_target_lat_a": 2.1,
                  "vision_curve_min_target_v": 4.4702725, "slow_down_for_next_speed_limit": True,

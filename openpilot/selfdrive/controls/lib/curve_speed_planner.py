@@ -15,9 +15,10 @@ and a hardcoded 0.3 s lag) and the second Smooth Curve Braking envelope that ran
      seeds the distance from that same rule when a new value appears and counts it down with the distance driven.
    Both use one lateral limit: a_lat = min(learned cornering limit, CurveMaxLatAccel).
 2. One braking stage. For each point, the steady decel that reaches its speed (CURVE_LEAD_S + action_delay) before it:
-   (v^2 - v_curve^2) / (2 * (d - v * (CURVE_LEAD_S + action_delay))). The strongest one is the request. It is capped
-   so the car lands on the lowest curve speed ahead (landing cap: the speed shed during action_delay plus the release
-   ramp must fit in the gap) and never asks for more than CurveMaxDecel.
+   (v^2 - v_curve^2) / (2 * (d - v * (CURVE_LEAD_S + action_delay))). The strongest one is the request, so braking
+   starts as soon as a curve is known, at the gentlest steady pull that makes it. It is capped so the car lands on the
+   lowest curve speed ahead (landing cap: the speed shed during action_delay plus the release ramp must fit in the gap)
+   and never asks for more than CurveMaxDecel.
 3. One shaping (the Smooth Curve Braking behaviour, now the only one): braking starts as soon as the request passes
    START_DECEL (no debounce), ramps in at CurveOnsetJerk; while the car is still above the lowest curve speed ahead the
    held request may only ease at HOLD_LEAK (no brake / ease / brake); it releases at CurveReleaseJerk.
@@ -56,8 +57,10 @@ DT_MIN, DT_MAX = 0.01, 0.2     # s, elapsed model time bounds (ap1_curve_arbitra
 # mapd v2 trigger rule for mapCurveSpeed (map_curve.go): the values mapd_v2.settings_json writes for every personality.
 MAPD_ACCEL = 1.2               # m/s^2, target_speed_accel
 MAPD_JERK = 0.6                # m/s^3, target_speed_jerk
-MAPD_TIME_OFFSET = 1.5         # s, curve_target_speed_time_offset
+MAPD_TIME_OFFSET = 10.0        # s, curve_target_speed_time_offset (mapd_v2.MAP_CURVE_TIME_OFFSET, test_mapd_v2 checks)
+MAP_HORIZON_M = 500.0          # m, road mapd always has loaded ahead (mapd_v2.MAP_HORIZON_M, mapd MIN_WAY_DIST)
 MAP_SPEED_STEP = 0.1           # m/s, a mapCurveSpeed change larger than this is a different curve (distance re-seeded)
+MAP_SEED_MARGIN_S = 1.0        # s of travel taken off the seed: mapd checks its trigger once per GPS fix, with its own aEgo
 
 
 def tesla_csc_lateral_accel(learned: float, cap: float = TESLA_CSC_MAX_LAT_ACCEL) -> float:
@@ -127,8 +130,10 @@ def jerk_limited_distance(v0: float, a0: float, v_target: float, a_max: float = 
 
 
 def map_trigger_distance(v_ego: float, a_ego: float, v_map: float) -> float:
-  """Distance (m) at which mapd v2 starts reporting a curve whose speed is v_map (at mapd's own lateral accel)."""
-  return jerk_limited_distance(v_ego, a_ego, v_map) + MAPD_TIME_OFFSET * max(float(v_map), 0.0)
+  """Distance (m) at which mapd v2 starts reporting a curve whose speed is v_map (at mapd's own lateral accel). Never
+  more than the road mapd is sure to have loaded (MAP_HORIZON_M): a curve that only comes into the loaded map is
+  reported there, and a shorter seed only brakes earlier."""
+  return min(jerk_limited_distance(v_ego, a_ego, v_map) + MAPD_TIME_OFFSET * max(float(v_map), 0.0), MAP_HORIZON_M)
 
 
 class MapCurvePoint:
@@ -147,8 +152,15 @@ class MapCurvePoint:
     if v_map_raw <= 0.0:
       self.reset()
       return None
-    if self.speed <= 0.0 or abs(v_map_raw - self.speed) > MAP_SPEED_STEP:
-      self.speed, self.distance = v_map_raw, map_trigger_distance(v_ego, a_ego, v_map_raw)
+    if self.speed <= 0.0 or v_map_raw < self.speed - MAP_SPEED_STEP:
+      # New or slower: that curve has just come inside mapd's trigger distance, so it is at most that far (a little
+      # closer by the time mapd notices: MAP_SEED_MARGIN_S).
+      self.speed = v_map_raw
+      self.distance = max(map_trigger_distance(v_ego, a_ego, v_map_raw) - max(float(v_ego), 0.0) * MAP_SEED_MARGIN_S, 0.0)
+    elif v_map_raw > self.speed + MAP_SPEED_STEP:
+      # Faster: the slower curve (or its tightest part) is behind the car and mapd now reports a curve it triggered
+      # earlier, while the slower one hid it. How far it is is unknown (at most its trigger distance), so take it as here.
+      self.speed, self.distance = v_map_raw, 0.0
     else:
       self.distance = max(self.distance - max(float(v_ego), 0.0) * dt, 0.0)
     return self.distance
