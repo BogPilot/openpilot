@@ -369,8 +369,8 @@ class TestSteeringTuning(unittest.TestCase):
     self.assertAlmostEqual(angle(), stock * 18. / 15., places=6)
     self.assertTrue(editor.reset('SteerRatio'))
     self.assertEqual(angle(), stock)
-    self.assertFalse(editor.write('SteerRatio', 7.4))   # < 0.5x
-    self.assertFalse(editor.write('SteerRatio', 22.6))  # > 1.5x
+    self.assertFalse(editor.write('SteerRatio', cp.steerRatio * .5 - .1))   # < 0.5x
+    self.assertFalse(editor.write('SteerRatio', cp.steerRatio * 1.5 + .1))  # > 1.5x
 
   def test_no_car_known_advanced_hidden_qol_works(self):
     backend = MemoryParams()

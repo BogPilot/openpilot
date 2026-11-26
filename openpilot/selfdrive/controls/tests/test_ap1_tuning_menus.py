@@ -20,7 +20,7 @@ from openpilot.selfdrive.ui.layouts.settings.phase3_long_accel_settings import A
 
 DT_MDL = 0.05
 CARS = {
-  "TESLA_AP1_MODELS": dict(delay=AP1_LONG_ACTUATOR_DELAY, steer_delay=AP1_S_STEER_ACTUATOR_DELAY, steer_ratio=15.0, decel="Eco+"),
+  "TESLA_AP1_MODELS": dict(delay=AP1_LONG_ACTUATOR_DELAY, steer_delay=AP1_S_STEER_ACTUATOR_DELAY, steer_ratio=14.0, decel="Eco+"),
   "TESLA_AP1_MODELX": dict(delay=AP1_LONG_ACTUATOR_DELAY, steer_delay=AP1_X_STEER_ACTUATOR_DELAY, steer_ratio=16.8, decel="Eco"),
   "TESLA_PREAP_MODELS": dict(delay=PREAP_LONG_ACTUATOR_DELAY, steer_delay=PREAP_STEER_ACTUATOR_DELAY, steer_ratio=15.0, decel="Eco"),
 }

@@ -32,7 +32,10 @@ class TeslaAp1PlatformConfig(PlatformConfig):
 class CAR(Platforms):
   TESLA_AP1_MODELS = TeslaAp1PlatformConfig(
     [CarDocs("Tesla Model S (Autopilot 1) 2014-16", "Autopilot", support_type=SupportType.COMMUNITY, support_link="#community")],
-    CarSpecs(wheelbase=2.959, steerRatio=15.0),
+    # steerRatio 14.0 is paramsd's starting value only: it is where paramsd settled on real AP1 Model S drives (median 14.06 over
+    # 866 km, 14.04 over 220 km on a second device; upstream's 15 sat 6 to 7% high). A saved learned value is kept. The panda and host
+    # lateral accel bounds keep their own constant (lateral_limits.LEGACY_S_STEER_RATIO, safety/modes/tesla_ap1.h).
+    CarSpecs(wheelbase=2.959, steerRatio=14.0),
   )
   # Pre-AP Model S (no Autopilot ECU, no Mobileye). Same chassis DBC and steering envelope as the AP1 Model S.
   # Selected by CarModel / ForceFingerprint, or by detect_preap_candidate (Comma Pedal + no Mobileye on bus 2).

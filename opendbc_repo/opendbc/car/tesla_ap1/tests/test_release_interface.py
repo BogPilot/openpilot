@@ -39,7 +39,7 @@ def test_ap1_uses_release_safety_contract_and_stock_pcm_stalk():
   assert str(cp.safetyConfigs[0].safetyModel) == "tesla"
   assert cp.safetyConfigs[0].safetyParam == 25
   assert cp.wheelbase == pytest.approx(2.959)
-  assert cp.steerRatio == pytest.approx(15.0)
+  assert cp.steerRatio == pytest.approx(14.0)
 
 
 def test_ap1_parsers_initialize_without_data():
