@@ -14,6 +14,10 @@ requested cell (offline/<lat>/<lon>/, the only thing the host's archives contain
 unpacked (each file fsynced) into tmp/stage/ and its directory renamed into place, so neither mapd nor the resumer
 (resume.cell_present) can ever see a half-unpacked cell, even after a power cut.
 
+While the car is on (IsOnroad, re-read once a second, so a download that started at home slows down on the road) a Pacer
+caps the download at 5 Mbit/s, spaces the unpack to at most 10 file fsyncs a second, and runs this process at nice 19 on
+the non driving cores (priority.MAP_CORES). Offroad it runs at full speed.
+
 usage: python -m openpilot.system.bogpilot.osm.cell_fetch <lat> <lon> [--root /data/media/0/osm]
 exit 0 = cell on disk, 1 = failed (the resumer counts the attempt and retries later), 2 = bad arguments.
 """
@@ -25,10 +29,12 @@ import os
 import shutil
 import sys
 import tarfile
+import time
 import zlib
 from pathlib import Path
 from typing import Callable
 
+from openpilot.system.bogpilot.osm import priority
 from openpilot.system.bogpilot.osm.storage import OSM_ROOT
 
 HOST = "https://map-data.pfeifer.dev/"
@@ -40,6 +46,86 @@ CHUNK = 256 * 1024
 
 class FetchError(Exception):
   pass
+
+
+class OnroadReader:
+  """IsOnroad from the manager through one Params reader, made on first use and kept, so each check is one file read
+  (about 4 us) instead of a new Params object (about 21 us). Any read problem counts as onroad (the slow, safe side) and
+  the next check starts again with a new reader."""
+
+  def __init__(self, make=None):
+    self._make = make
+    self._params = None
+    self.made = 0
+
+  def __call__(self) -> bool:
+    try:
+      if self._params is None:
+        make = self._make
+        if make is None:
+          from openpilot.common.params import Params
+          make = Params
+        self._params = make()
+        self.made += 1
+      return bool(self._params.get_bool("IsOnroad"))
+    except Exception:
+      self._params = None
+      return True
+
+
+default_onroad = OnroadReader()
+
+
+class Pacer:
+  """Onroad pacing for one fetch. Offroad every call returns at once."""
+  CHECK_S = 1.0     # how often IsOnroad is re-read
+  BURST_S = 0.5     # the rate cap allows this much data ahead of the clock (about 300 kB at 5 Mbit/s)
+
+  def __init__(self, onroad=default_onroad, clock=time.monotonic, sleep=time.sleep, place=priority.place_self,
+               rate_bytes_s: float = priority.ONROAD_RATE_BYTES_S, fsync_hz: float = priority.ONROAD_MAX_FSYNC_HZ):
+    self._onroad_fn, self._clock, self._sleep, self._place = onroad, clock, sleep, place
+    self.rate, self.fsync_gap = float(rate_bytes_s), 1.0 / float(fsync_hz)
+    self._state = None
+    self._next_check = -float("inf")
+    self._free_at = -float("inf")       # token bucket: when the bytes sent so far are paid for
+    self._last_fsync = -float("inf")
+    self.slept = 0.0
+
+  def onroad(self) -> bool:
+    now = self._clock()
+    if now >= self._next_check:
+      self._next_check = now + self.CHECK_S
+      try:
+        on = bool(self._onroad_fn())
+      except Exception:
+        on = True
+      if on != self._state:
+        self._state = on
+        self._free_at = now
+        try:
+          self._place(on)
+        except Exception:
+          pass
+    return bool(self._state)
+
+  def _wait(self, dt: float) -> None:
+    if dt > 0:
+      self.slept += dt
+      self._sleep(dt)
+
+  def on_bytes(self, n: int) -> None:
+    if not self.onroad():
+      return
+    now = self._clock()
+    self._free_at = max(self._free_at, now) + n / self.rate
+    self._wait(self._free_at - now - self.BURST_S)
+
+  def before_fsync(self) -> None:
+    if not self.onroad():
+      return
+    now = self._clock()
+    self._wait(self._last_fsync + self.fsync_gap - now)
+    self._last_fsync = max(now, self._last_fsync + self.fsync_gap)
 
 
 def archive_name(lat: int, lon: int) -> str:
@@ -87,7 +173,7 @@ def http_get(url: str, offset: int, timeout: float = TIMEOUT_S):
   return status, total, chunks()
 
 
-def download(root: Path, lat: int, lon: int, get: Callable = http_get) -> Path:
+def download(root: Path, lat: int, lon: int, get: Callable = http_get, pacer: Pacer | None = None) -> Path:
   """Fetch (or resume) the archive into tmp/...tar.gz.part. Returns the complete .part path."""
   part = part_path(root, lat, lon)
   part.parent.mkdir(parents=True, exist_ok=True)
@@ -112,6 +198,8 @@ def download(root: Path, lat: int, lon: int, get: Callable = http_get) -> Path:
         if n > MAX_ARCHIVE_BYTES:
           raise FetchError("archive larger than the cap")
         f.write(b)
+        if pacer is not None:
+          pacer.on_bytes(len(b))
       f.flush()
       os.fsync(f.fileno())
     if total is not None and n != total:
@@ -168,7 +256,7 @@ def _fsync_dir(d: Path) -> None:
     pass
 
 
-def extract(root: Path, archive: Path, lat: int, lon: int) -> int:
+def extract(root: Path, archive: Path, lat: int, lon: int, pacer: Pacer | None = None) -> int:
   """Unpack a VALIDATED archive into tmp/stage/, then swap the whole cell directory into place. Returns files written."""
   root = Path(root)
   stage = root / "tmp" / "stage"
@@ -192,6 +280,8 @@ def extract(root: Path, archive: Path, lat: int, lon: int) -> int:
           with open(target, "wb") as out:
             shutil.copyfileobj(tf.extractfile(m), out, CHUNK)
             out.flush()
+            if pacer is not None:
+              pacer.before_fsync()
             os.fsync(out.fileno())
           written += 1
         else:
@@ -213,14 +303,14 @@ def extract(root: Path, archive: Path, lat: int, lon: int) -> int:
   return written
 
 
-def fetch_cell(root: Path, lat: int, lon: int, get: Callable = http_get) -> int:
-  part = download(root, lat, lon, get)
+def fetch_cell(root: Path, lat: int, lon: int, get: Callable = http_get, pacer: Pacer | None = None) -> int:
+  part = download(root, lat, lon, get, pacer)
   try:
     validate(part)
   except FetchError:
     part.unlink(missing_ok=True)                 # a complete but damaged archive is never resumed
     raise
-  n = extract(root, part, lat, lon)
+  n = extract(root, part, lat, lon, pacer)
   part.unlink(missing_ok=True)
   return n
 
@@ -235,7 +325,7 @@ def main(argv=None) -> int:  # pragma: no cover - process entry
   except SystemExit:
     return 2
   try:
-    fetch_cell(a.root, a.lat, a.lon)
+    fetch_cell(a.root, a.lat, a.lon, pacer=Pacer())
     return 0
   except Exception as e:
     print(f"cell_fetch {a.lat},{a.lon}: {e}", file=sys.stderr)

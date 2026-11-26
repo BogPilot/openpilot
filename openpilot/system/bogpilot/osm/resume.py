@@ -43,6 +43,20 @@ MAX_CELL_ATTEMPTS = 6
 SPACE_FLOOR_BYTES = RESERVE_BYTES     # stop when /data has less than 2 GiB free (the same floor a download needs to start)
 TILE_HOST = ("map-data.pfeifer.dev", 443)
 RUNNING, NO_SPACE = "running", "no_space"
+PAUSED_ONROAD = "paused_onroad"       # an automatic update waits while the car is on; a manual download keeps going (paced)
+
+
+_onroad_reader = None
+
+
+def default_onroad() -> bool:
+  """IsOnroad from the manager through one kept Params reader. Any read problem counts as onroad (an automatic update
+  then waits)."""
+  global _onroad_reader
+  if _onroad_reader is None:
+    from openpilot.system.bogpilot.osm.cell_fetch import OnroadReader
+    _onroad_reader = OnroadReader()
+  return _onroad_reader()
 
 
 def default_online() -> bool:
@@ -117,9 +131,10 @@ class JobStore:
     except OSError:
       pass
 
-  def begin(self, sel: regions.Selection, now: float | None = None) -> None:
+  def begin(self, sel: regions.Selection, now: float | None = None, auto: bool = False) -> None:
+    """auto = started by the "Automatically Update Maps" schedule (it pauses while the car is on), not by a Download press."""
     self.save({"selection": json.loads(sel.to_param()), "attempts": {}, "status": RUNNING, "offline": 0, "next_try": 0.0,
-               "requested_at": time.time() if now is None else now, "stalls": 0})
+               "requested_at": time.time() if now is None else now, "stalls": 0, "auto": bool(auto)})
 
   @staticmethod
   def selection(job: dict) -> regions.Selection:
@@ -179,9 +194,10 @@ class FetchProcess:
 
 class Resumer:
   def __init__(self, mem: MemParams, storage: OsmStorage, online=default_online, clock=time.time, allowed=None, fetcher=None,
-               gap_fetcher=None):
+               gap_fetcher=None, onroad=default_onroad):
     self.mem, self.storage, self.jobs = mem, storage, JobStore(storage)
     self._online, self._clock = online, clock
+    self._onroad = onroad
     self._allowed = allowed or (lambda: True)   # Speed Limit Controller on (supervisor passes downloads_allowed)
     # fetcher: None = mapd v1 (mapd downloads the OSMDownloadLocations pass). A FetchProcess = mapd v2: every cell out of process.
     self.fetcher = fetcher
@@ -242,6 +258,16 @@ class Resumer:
       # download carries on where it stopped once the SLC is back on
       self._drop_request()
       return "slc_off"
+    if job.get("auto"):
+      try:
+        onroad = bool(self._onroad())
+      except Exception:
+        onroad = True
+      if onroad:
+        # an automatic update never runs while the car is on: stop the fetch, keep the job (the partial archive resumes by
+        # HTTP Range), carry on offroad. The schedule only starts one offroad; this covers one still running at drive off.
+        self._drop_request()
+        return PAUSED_ONROAD
     if self.storage.disk_free() < SPACE_FLOOR_BYTES:
       self._drop_request()
       job["status"] = NO_SPACE

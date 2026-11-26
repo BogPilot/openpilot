@@ -87,14 +87,15 @@ class DownloadController:
       return False, "Not enough storage"
     return True, ""
 
-  def start(self, sel: regions.Selection) -> bool:
+  def start(self, sel: regions.Selection, auto: bool = False) -> bool:
+    """auto = the "Automatically Update Maps" schedule started it (paused while the car is on). A Download press is manual."""
     if sel.is_empty():
       return False
     self.mem.remove("OSMDownloadProgress")
     self.mem.remove("OSMDownloadBounds")
     if not self.mem.put("OSMDownloadLocations", sel.to_param()):
       return False
-    self.jobs.begin(sel)            # resume.py fills whatever this first pass misses (connection drops, restarts)
+    self.jobs.begin(sel, auto=auto)  # resume.py fills whatever this first pass misses (connection drops, restarts)
     return True
 
   def cancel(self) -> None:

@@ -100,7 +100,7 @@ class UpdateScheduler:
       return "metered"
     if not self._online():
       return "offline"
-    if not self.dl.start(sel):
+    if not self.dl.start(sel, auto=True):
       return "start_failed"
     self._attempted_on = today
     return "started"

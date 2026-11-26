@@ -188,12 +188,13 @@ def run(storage: OsmStorage | None = None, mem: MemParams | None = None, popen=s
           r = resumer.step()
         except Exception:
           r = "error"
-        if r in ("stalled", "no_space") and not v2 and proc is not None and proc.poll() is None:
+        v1_pause = r == "paused_onroad" and bool(downloading)   # an automatic update still running in mapd v1 at drive off
+        if (r in ("stalled", "no_space") or v1_pause) and not v2 and proc is not None and proc.poll() is None:
           proc.terminate()                     # mapd v1.12.0 has no cancel and no HTTP timeout: restart it without the request
           restarts += 1
         if prioritize is not None and not v2 and proc is not None and proc.poll() is None:
           try:
-            busy = dl.progress().active
+            busy = dl.progress().active and r != "paused_onroad"   # a paused update: mapd back to its normal priority
             if busy != downloading:
               downloading = busy
               prioritize(proc.pid, busy)
@@ -262,7 +263,9 @@ def main():  # pragma: no cover - process entry
   store = ParamStore()
 
   def prioritize(pid, downloading):
-    priority.apply(pid, priority.DOWNLOAD_NICE if downloading else priority.BASE_NICE)
+    # mapd v1 downloads inside mapd: while it does, every mapd thread is nice 19 on the non driving cores
+    priority.apply(pid, priority.DOWNLOAD_NICE if downloading else priority.BASE_NICE,
+                   cores=priority.MAP_CORES if downloading else priority.all_cores())
 
   from openpilot.system.bogpilot.osm import mapd_v2
   from openpilot.system.bogpilot.osm.resume import FetchProcess
