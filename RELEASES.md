@@ -1,3 +1,140 @@
+What's new
+=======================
+* Map Curve Speed: when mapd briefly stops reporting a curve, such as when it moves to the next road, openpilot keeps slowing for that curve for up to 3 s instead of letting go at once, so the car no longer speeds up into the curve and then brakes late
+* Software update: the update button is greyed out and reads "available when offroad" while the car is on, on the comma 3X and the comma 4. Updates only run with the car off
+* Tesla AP1 Model S and Pre-AP Model S: steering starts from a steer ratio of 14.0 (was 15.0), where it settled on real Model S drives. A ratio the car already learned is kept. The AP1 Model X stays at 16.8, and the panda steering limits are unchanged
+* Settings saved in the background are never lost: a save made while another one was waiting is now always written
+* Driving logs: loggerd lines up with the video encoder again when it starts a new segment ahead of it
+* Fewer writes to the device storage, on the same 10 to 60 s cadence as stock openpilot:
+  * Curve speed learning saves every 60 s, and only when it learned something. Its data is capped at 5,000 entries, dropping the least recently seen first
+  * Tesla trim refinements and drive stats save at most every 60 s, and speed limit memory at most every 10 s
+  * Pre-AP: the pedal status row reads the car's own message; the pedal heartbeat files are gone
+  * The stalk Experimental Mode switch saves without holding up the car process
+  * Auto Height settings save like a stock setting, off the screen thread
+* Maps: downloads started while driving are limited to 5 Mbit/s, run at the lowest priority and stay off the driving cores. Automatic map updates wait until the car is off
+* Tesla AP1 Model S and Model X now share the same defaults. Both use the one Disable openpilot Longitudinal Control setting, off by default, so openpilot Longitudinal with engage from a stop is on for both. The Model X also gets the rest of the Model S setup profile and the same section resets. A stock TACC choice saved on a Model X is kept. Steering values, Model X regen stop numbers and the Model X Very Low height stay car specific
+
+Earlier update
+=======================
+* Pre-AP with the comma pedal: openpilot now cancels the car's own cruise control only when it is really on, so engaging no longer adds an extra stalk message that could give a single windshield wipe with the wipers in Auto
+* Tesla AP1 Model S, and Model X with openpilot Longitudinal: turning the stalk follow distance ring while engaged no longer brings up a Communication Issue alert, and the driving personality on screen follows the ring right away. The new personality is saved once, 0.3 s after the ring stops
+
+* Tesla AP1 Model X: Dash Cluster Integration works as on the Model S: lane lines, engaged state and warnings on the cluster, and openpilot's set speed with openpilot Longitudinal (stock TACC keeps its own)
+* Tesla AP1 Model X with openpilot Longitudinal: engage from a stop, as on the Model S. Single pull Speed Limit Control works the same as on the Model S
+
+* AP1 and Pre-AP Curve Speed Control: one planner slows for camera and map curves, starting earlier and easing out, with no 2 s hold and the same braking in every Deceleration Profile. Smooth Curve Braking is always on, mapd v2 and Map Curve Speed are on by default, and Curve Speed Control has its own Gas / Brake row
+* Tesla AP1 Model X: blind spot monitoring works as on the Model S (border, lane fill, flames, Loud Blindspot Alert row), and lane changes wait for a clear side
+* Tesla AP1 Model S and Model X: blind spot turns on once the car's blind spot signal first shows up after the car starts; until then nothing is drawn, a nudge lane change works as before and automatic lane changes are held
+* Tesla AP1 Model X with air suspension: Auto Height adds Very Low for the Park and Drive heights, the lowest height the Model X touchscreen offers. The Model S keeps its four heights
+* Tesla AP1 Model X with openpilot Longitudinal: the Model S throttle cut filter, set-speed shaping, stalk follow distance, stalk personality sync and Stalk Controls now work on the X, and Human-Like Lane Changes is on by default (a saved Off is kept). openpilot Longitudinal is switched on once more on the first start after updating; after that a deliberate Off sticks
+* Tesla AP1 Model X: Disable openpilot Longitudinal Control is now the single longitudinal row, as on the Model S, so you can keep the car's own cruise control (stock TACC) with openpilot steering. A stock TACC choice made on the old row is kept
+* Stalk follow distance: with Custom Personalities off, the stalk now uses the same stock follow times as the on-screen personality
+* Drive Summary: after each drive the comma 3X home screen shows the percent of the drive with openpilot steering, the distance, the drive time and the percent in Experimental Mode; tap to close. Drive stats are now also saved when the car turns off or the device shuts down, so the end of a drive is no longer lost
+* Automatic lane changes: the lane change delay completes again, so an automatic lane change starts after its delay
+* New panda firmware, which updates itself on the first start after updating:
+  * AP1 Model X: the Auto Height ride height request also allows Very Low, only on a Model X with Auto Height on and under the same Park and Drive rules. All other limits are unchanged
+* Tesla AP1 Model S and Model X with air suspension: Auto Height replaces Lower on Park in Vehicle Controls, off by default. When you shift into Park it asks for your Park height, and when you shift from Park into Drive it asks for your Drive height. It is sent only while stopped, never while openpilot is engaged, and a height can be None. A saved Lower on Park setting carries over. Turning it on applies the next time the car starts
+* Driving Model: comma.ai's Cheddar model can now be downloaded as an option in the Driving Model page while the car is off. It is checked before use and falls back to the stock model if anything is wrong; the stock model stays the Default. A model picked while driving applies on the next drive
+* Sidebar: GPU now shows the real GPU load (it was stuck at its value from boot), and the sidebar slot can also show MODELD, how much of each camera frame the driving model takes: white under 80%, yellow from 80 to 100%, red over 100% or when a frame is dropped. Saved sidebar choices are kept
+* Screen recorder: uses much less CPU, runs at low priority so it never competes with driving, records at half size and constant quality, and makes files about 40% smaller
+* New panda firmware, which updates itself on the first start after updating:
+  * AP1: the ride height request for Auto Height is allowed only while Auto Height is on, in Park, or in Drive while stopped with the accelerator released, never while moving or engaged, only for Low, Medium, High or Very High, and at most one burst per stay in Park and one per stay in Drive. All other limits are unchanged
+* Maps: the map downloader starts again on the device, so a download no longer stops at "Waiting for the map downloader...". Map features that were turned off by the same fault work again
+* Tesla AP1 (Model S, and Model X with openpilot Longitudinal): new experimental setting Ignore Radar Cars to the Side in Vehicle Controls, off by default. At 34 mph and up, a radar car well to the side of the car the camera sees ahead is not used as your lead, so a car in the next lane is less likely to slow you down. Turning it on applies the next time the car starts
+* Tesla AP1 Model S and Model X: openpilot Longitudinal now uses a 0.35 s actuator delay (was 0.5 s), which keeps the same following and stopping gaps with smoother braking. Pre-AP stays at 0.4 s. The tuning menu help now shows each Tesla's starting values, and Actuator Delay notes that it does not apply in Experimental Mode
+* Tesla AP1 and Pre-AP: new Tesla Tuning page in Vehicle Settings, shown only at the Advanced tuning level, for the acceleration ramp, comfort regen, stop shaper, curve braking and Pre-AP pedal limits. Every row starts at the car's current value, so nothing changes unless you edit it, and Reset to Tesla defaults puts them all back. It is locked while driving and applies the next time the car starts
+* Driving Model: models can be downloaded from BogPilot's releases while the car is off, are checked before use, and fall back to the stock model if anything is wrong. A model picked while driving applies on the next drive
+* Tesla AP1 Model X: openpilot Longitudinal is now on by default on a detected AP1 Model X. It is switched on once on the first start after updating; if you turn it off after that, it stays off. A change applies the next time the car starts, with no reboot. Engage from a stop is included, as on the Model S
+* Tesla AP1 Model X: steering uses a steer ratio of 16.8 and a steering delay of 0.15 s, measured on a real Model X. With openpilot Longitudinal on, the Model S comfort defaults are on for the X too (Earlier, Gentler Regen Stops, the phantom-brake gate, Round Set Speed Tips, Curve Speed Control, Smooth Curve Braking and Map Curve Speed), and regen stops use Model X numbers
+* Trim detection on AP1 and Pre-AP: single or dual motor, and Performance, are read from the car. Vehicle Options has a new Trim picker (default Auto) with a Detected line. On dual-motor cars the front motor's regen now counts in the pedal gauge and in regen stops. This changes the display and comfort braking only
+* Pedal gauge: dual-motor cars show front plus rear motor power. When the motor torque reads a flat zero at high motor speed, the bars keep showing what openpilot asks for instead of going empty
+* Pre-AP: a Comma Pedal that is wired but not calibrated no longer stops you from engaging. A pull engages steering only, and "Speed control off" tells you to calibrate the pedal while parked
+* Pre-AP: with no Comma Pedal at car start, a pull engages steering only and the banner says "Steering only: no Comma Pedal found / Double pull for stock cruise". A Pre-AP car without a pedal is chosen in Car Selection
+* Pre-AP: re-engaging speed control with a pull brings back the last set speed of the drive, also at a stop. New setting Pre-AP: From-Stop Speed (off by default, shown when Pre AP Auto Speed is off) uses the Standstill Tap Speed at a stop instead
+* AP1 steering: after a short pause in openpilot's steering commands, steering restarts cleanly instead of tripping a power steering fault, and a latched power steering code 7 (high angle rate request) now recovers without a power cycle
+* New panda firmware, which updates itself on the first start after updating:
+  * AP1: a steering command is allowed with power steering code 7 only while the power steering reports available and the parking brake module allows it, the same rule as code 4. All other limits are unchanged
+* Show Speed Limit Offset now shows or hides the green offset badge on the speed limit sign, and is on by default. The badge text is larger and stays inside the sign. A value you saved yourself is kept
+* Driver steering arc: it starts growing at 88° of wheel angle (was 120°). Colours, the 260° marker and the commanded-angle arc are unchanged
+* Driving Personalities is on by default with Relaxed at 2.0 s, and a fresh install starts on Relaxed. Saved settings are kept
+* AP1 and Pre-AP: Earlier, Gentler Regen Stops now adds a gentle braking layer on top of the stock braking, up to about 2 mph per second, for a slower car the radar sees. It only adds braking: following distance, emergency braking and cut-in response are unchanged
+* Tesla AP1 Model X: first openpilot Longitudinal support (since replaced: it is now on by default and uses Disable openpilot Longitudinal Control, as on the Model S). The Model X wheelbase is now 2.965 m
+* Driver steering arc: small and blue at first, it grows as you turn, fades through yellow to orange, then goes from orange to pink toward full lock (the 260° marker). It follows the wheel you are turning; the arc that shows what openpilot is commanding is unchanged
+* Smooth Curve Braking (off by default, Gas/Brake on AP1 and Pre-AP): when Curve Speed Control slows for a curve, the braking comes as one smooth pull instead of brake, ease, brake. It only adds braking, never slows below the safe curve speed
+* Custom Log Upload Stats (Appearance, off by default): on-screen upload rate and segments left for a self-installed rsync or Nextcloud uploader
+* Pedal gauge: the regen bar now fills in a straight line up to 42 kW, so full regen reads close to full (38 kW fills 90 % of the bar) and 22 kW fills about half
+* Maps: a download no longer stays on "Waiting for the map downloader..." until a reboot. The map downloader restarts itself if it stops, and with mapd v1 the map pieces a download missed are fetched again
+* Maps: the download progress, time elapsed and time remaining rows now sit directly below Automatically Update Maps
+* BogPilot > Navigation: the Maps pill now sits to the left of Navigation, on the comma 3X and the comma 4
+* comma 3X sidebar: the temperature box shows °C when Metric Units is on and °F when it is off, instead of both
+* comma 3X sidebar: GPU usage joins the rotation. Offroad the CPU box taps between CPU and GPU, and while driving the middle box taps through vehicle status, CPU and GPU. It shows a dash when the GPU reading is unavailable
+* Navigation > Maps: pick countries or U.S. states and download their map data on the comma itself. Downloads also work while driving when the Speed Limit Controller is on; they run at low priority and resume if interrupted. Automatic updates default to Weekly and wait for unmetered Wi-Fi. On the comma 4 the region lists open as a 2-column grid of full names
+* Gas/Brake, Tuning Level and Device Settings now open while driving, as in FrogPilot 0.9.7. Rows the car reads only at start ask for a reboot. Pedal calibration, the radar tests, resets and map delete or repair still need Park or the car off
+* Speed Limit Offsets now start at 4 / 5 / 5 / 5 / 7 / 8 / 10 mph. An offset you saved yourself is never changed
+* Screen Timeout (Onroad) now starts at 10 seconds. A saved value is kept
+* Phantom braking: on AP1 and Pre-AP, a car that only the camera sees more than 164 ft ahead now needs more confidence before the car brakes for it, unless you are closing on it faster than 11 mph
+* Pre-AP: a retrofitted AP1 stalk is detected automatically after you hold two different follow distances for about 2.5 s each, and remembered. Reset Hardware Settings clears it
+* Pre-AP hardware tools: pedal emergency disable, Test Radar and Calibrate Radar screens, and Reset Hardware Settings, which clears only the pedal, radar, radar offset and stalk-detection settings
+* Pre-AP Bosch radar retrofit: new Radar EPAS Type setting (0 to 4, default 0)
+* Pre-AP: an "EPAS Not Steering" warning when the power steering stops taking steering commands, and a column angle sensor check on the steering rate
+* Model X AP1 is now detected as a Model X, and an AP2 Model S is never treated as AP1
+* Adaptive Accel Near Lead (off by default) for AP1 and Pre-AP
+* Pedal gauge: the regen bar scale now peaks at 70 kW, so 25 kW fills 57 % of the bar instead of 70 %
+* The engaged steering arc now draws the angle openpilot is commanding
+* The Experimental Mode screen border is dimmer for night driving
+* comma 4: Driving Personalities is listed once in Gas/Brake, and the Maps pages no longer fail to open
+* Bog to the Future: lane widths are worked out once per frame, so the flames draw faster with the same picture
+* Optional, off by default: Use mapd v2 (a newer map data engine) and Map Curve Speed, which slows for map curves in Speed Limit Controller
+* New panda firmware, which updates itself on the first start after updating
+* Holding the stalk tip in the first detent now changes the set speed by 1 every 0.2 s after a short pause, like native AP1 TACC. The deep detent still steps to the next 5. AP1 and Pre-AP with a comma pedal
+* Most settings can now be changed while driving, like FrogPilot 0.9.7, including Alert Volume. Sound minimums are unchanged
+  * Steering, Driving Model, Vehicle, Car Selection and Stalk Controls ask for a reboot. Disable Long applies when the car turns off or on Reboot Now, which needs you to disengage first
+  * Gas/Brake, Tuning Level and resets stay locked while driving. Downloads and pedal calibration need Park or the car off
+* New panda firmware, which updates itself on the first start after updating:
+  * Steering commands are limited to a safe cornering force on AP1 and Pre-AP, and to ±360° of wheel angle on AP1 (Pre-AP already had that)
+* Pre-AP: steering requests stay within 20° of where the wheel is
+* AP1: steering recovers from a temporary power steering fault (code 4) at any speed above 0.3 m/s (about 0.7 mph), not only above about 5 mph
+* A blinker that's already on when you engage no longer starts a lane change
+* AP1 and Pre-AP: fewer false steering takeovers from wheel motion openpilot itself asked for
+* Standstill Tap Speed shows in km/h when Metric is on. Your saved speed carries over
+* Pre-AP Auto Speed (off by default): a moving double pull below the Standstill Tap Speed raises the set speed to it
+* Pedal gauge: the regen bar and openpilot's accel bar now show motor power on a log scale, and the regen bar flashes light blue when openpilot asks for more regen than the motor can give
+* AP1: while engaged, the cluster lane no longer ends short of a stopped car ahead, so the lead vehicle stays drawn
+* Pre-AP Bosch radar retrofit: Flip Radar and Radar Offset settings (off by default)
+* Pre-AP: Donor VIN entry in Vehicle Settings, and the "Steering only" banner clears after 3 s
+
+BogPilot 0.11.2 for legacy Tesla (comma 3X, 2026-11-17)
+========================
+* Fixes an onroad crash on git installs. New: comma 4 UI, comma 3X sidebar Power
+* Fixes the comma 3X getting stuck on the BogPilot splash screen after installing
+* Rebuilt the prebuilt params library and the services built with it (pandad, camerad, loggerd, encoderd and bootlog) from the current source
+* Rebuilt the panda firmware from the current safety code. The panda updates itself automatically on the first start after updating, which takes about 10 seconds
+* Panda safety changes in the new firmware:
+  * Pre-AP: a hard steering takeover or a power steering refusal now ends the session in the panda too, matching what the screen already showed. Pull the stalk again to re-engage
+  * Pre-AP: holding the stalk through a takeover no longer re-engages. Release the stalk and pull it again
+  * Pre-AP with a comma pedal: the panda reads the gas pedal only from the CAN bus it first sees the pedal on
+  * Pre-AP with the Bosch radar retrofit and its toggle on (off by default): the panda now runs the radar gateway, so the radar works instead of showing radar errors
+  * AP1: a temporary power steering fault (code 4) no longer locks out steering for the rest of the drive. Steering resumes only when the car reports power steering available again and allows it
+  * The panda checks the Pre-AP brake message at the car's 50 Hz rate, with no visible change
+  * A new panda hook reads every incoming CAN message on legacy Teslas, with no visible change by itself
+* Three-bar pedal gauge showing brake, regen power, and acceleration
+* Toggle for Pre-AP cars that have swapped in an iBooster
+* Lead and nearby-lead boxes stay visible on the comma 3X, including under alerts
+* iBooster comments in the car signal database
+* Fewer false TAKE CONTROL alerts from the AP1 radar in heavy traffic
+* The stock lead triangle is no longer drawn
+* Settings saved under the old FrogPilot names now carry over to BogPilot on the first start after updating
+* Pre-AP with the Bosch radar retrofit: the radar config is sent again if the comma starts or restarts already in Drive, and again if the radar gateway later closes. On a build before this, start in Park and let the comma fully boot before shifting
+
+BogPilot 0.11.2 for legacy Tesla (comma 3X, 2026-11-14)
+========================
+* Legacy Tesla Model S / X on openpilot 0.11.2, comma 3X on AGNOS 19.9 only
+* comma 3 with a Model S AP1: install bogpilot-tesla-0.9.7 instead
+* Model S AP1 drive-tested; Model X AP1 and Pre-AP Model S have no engaged drive logs yet; AP2 not supported yet
+* Bog to the Future, Pedals on Screen, confidence ball, blind spot lane fill and border
+* Override Sensitivity, stalk hold for Experimental Mode, 0.9.7 longitudinal tuning on legacy Teslas
+* Based on openpilot 0.11.2; upstream notes follow
+
 Version 0.11.2 (2026-10-14)
 =======================
 * New driving model

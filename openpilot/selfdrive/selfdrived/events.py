@@ -189,6 +189,16 @@ class EngagementAlert(Alert):
                      audible_alert, .2),
 
 
+def tesla_engagement_alert(audible_alert: log.SelfdriveState.AudibleAlert):
+  """Stock engage/disengage chime, silent on tesla_ap1 when CruiseEngageDisengageChimes is off."""
+  def _alert(CP, CS, sm, metric, soft_disable_time, personality):
+    from openpilot.selfdrive.selfdrived.cruise_chimes import chimes_allowed
+    if chimes_allowed(getattr(CP, "brand", None)):
+      return EngagementAlert(audible_alert)
+    return EngagementAlert(AudibleAlert.none)
+  return _alert
+
+
 class NormalPermanentAlert(Alert):
   def __init__(self, alert_text_1: str, alert_text_2: str = "", duration: float = 0.2, priority: Priority = Priority.LOWER, creation_delay: float = 0.):
     super().__init__(alert_text_1, alert_text_2,
@@ -206,7 +216,6 @@ class StartupAlert(Alert):
     super().__init__(alert_text_1, alert_text_2,
                      alert_status, alert_size,
                      Priority.LOWER, VisualAlert.none, AudibleAlert.none, 5.),
-
 
 
 # ********** helper functions **********
@@ -234,6 +243,46 @@ def user_soft_disable_alert(alert_text_2: str) -> AlertCallbackType:
       return ImmediateDisableAlert(alert_text_2)
     return UserSoftDisableAlert(alert_text_2)
   return func
+
+# Pre-AP pedal: plain-words detail for each cause (carState.bogpilot.preapPedalFailCause, PedalFailCause in opendbc pedal_authority.py).
+PEDAL_RETRY_DETAIL = {
+  1: "No pedal signal: check the wiring. Retrying",
+  2: "The pedal reports a fault. Retrying",
+  3: "Pedal counter and state mismatch. Retrying",
+  4: "The pedal counter is not moving. Retrying",
+  5: "Pedal command error. Pull the stalk again",
+  6: "The pedal is not answering. Retrying",
+}
+PEDAL_RETRY_DEFAULT = "Retrying"
+
+
+def pedal_retrying_alert(CP: car.CarParams, CS: car.CarState, sm: messaging.SubMaster, metric: bool, soft_disable_time: int, personality) -> Alert:
+  cause = int(getattr(getattr(CS, "bogpilot", None), "preapPedalFailCause", 0) or 0)
+  return Alert("Pedal Not Responding", PEDAL_RETRY_DETAIL.get(cause, PEDAL_RETRY_DEFAULT),
+               AlertStatus.userPrompt, AlertSize.mid, Priority.MID, VisualAlert.none, AudibleAlert.none, .2)
+
+
+def preap_speed_blocked_alert(CP: car.CarParams, CS: car.CarState, sm: messaging.SubMaster, metric: bool, soft_disable_time: int, personality) -> Alert:
+  # Pre-AP pedal: a heard but uncalibrated pedal refuses speed control on every double pull, so "retry" would not help.
+  bp = getattr(CS, "bogpilot", None)
+  uncalibrated = bool(getattr(bp, "preapPedalDetected", False)) and not bool(getattr(bp, "preapPedalCalibrated", False))
+  detail = "Steering only. Calibrate the pedal while parked" if uncalibrated else "Steering only. Double pull to retry"
+  return Alert("Speed control off", detail, AlertStatus.normal, AlertSize.mid, Priority.LOW, VisualAlert.none, AudibleAlert.prompt, 3.)
+
+
+PREAP_NO_PEDAL_FLAG = 1   # opendbc tesla_ap1/values.py TeslaAp1Flags.PREAP_NO_PEDAL (CarParams.flags)
+
+
+def preap_no_pedal(CP: car.CarParams) -> bool:
+  return CP.brand == "tesla_ap1" and bool(int(CP.flags) & PREAP_NO_PEDAL_FLAG)
+
+
+def preap_steer_only_alert(CP: car.CarParams, CS: car.CarState, sm: messaging.SubMaster, metric: bool, soft_disable_time: int, personality) -> Alert:
+  # Pre-AP with no Comma Pedal at car start: the drive runs the no-pedal mode, so say why speed control is the stock cruise.
+  if preap_no_pedal(CP):
+    return NormalPermanentAlert("Steering only: no Comma Pedal found", "Double pull for stock cruise")
+  return NormalPermanentAlert("Steering only", "Double pull for speed control")
+
 
 def startup_master_alert(CP: car.CarParams, CS: car.CarState, sm: messaging.SubMaster, metric: bool, soft_disable_time: int, personality) -> Alert:
   branch = get_short_branch()  # Ensure get_short_branch is cached to avoid lags on startup
@@ -381,7 +430,6 @@ def invalid_lkas_setting_alert(CP: car.CarParams, CS: car.CarState, sm: messagin
   elif CP.brand == "nissan":
     text = "Disable your car's stock LKAS to engage"
   return NormalPermanentAlert("Invalid LKAS setting", text)
-
 
 
 EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
@@ -677,19 +725,19 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   # ********** events that affect controls state transitions **********
 
   EventName.pcmEnable: {
-    ET.ENABLE: EngagementAlert(AudibleAlert.engage),
+    ET.ENABLE: tesla_engagement_alert(AudibleAlert.engage),
   },
 
   EventName.buttonEnable: {
-    ET.ENABLE: EngagementAlert(AudibleAlert.engage),
+    ET.ENABLE: tesla_engagement_alert(AudibleAlert.engage),
   },
 
   EventName.pcmDisable: {
-    ET.USER_DISABLE: EngagementAlert(AudibleAlert.disengage),
+    ET.USER_DISABLE: tesla_engagement_alert(AudibleAlert.disengage),
   },
 
   EventName.buttonCancel: {
-    ET.USER_DISABLE: EngagementAlert(AudibleAlert.disengage),
+    ET.USER_DISABLE: tesla_engagement_alert(AudibleAlert.disengage),
     ET.NO_ENTRY: NoEntryAlert("Cancel Pressed"),
   },
 
@@ -702,18 +750,18 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   EventName.parkBrake: {
-    ET.USER_DISABLE: EngagementAlert(AudibleAlert.disengage),
+    ET.USER_DISABLE: tesla_engagement_alert(AudibleAlert.disengage),
     ET.NO_ENTRY: NoEntryAlert("Parking Brake Engaged"),
   },
 
   EventName.pedalPressed: {
-    ET.USER_DISABLE: EngagementAlert(AudibleAlert.disengage),
+    ET.USER_DISABLE: tesla_engagement_alert(AudibleAlert.disengage),
     ET.NO_ENTRY: NoEntryAlert("Pedal Pressed",
                               visual_alert=VisualAlert.brakePressed),
   },
 
   EventName.steerDisengage: {
-    ET.USER_DISABLE: EngagementAlert(AudibleAlert.disengage),
+    ET.USER_DISABLE: tesla_engagement_alert(AudibleAlert.disengage),
     ET.NO_ENTRY: NoEntryAlert("Steering Pressed"),
   },
 
@@ -742,7 +790,7 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   EventName.wrongCarMode: {
-    ET.USER_DISABLE: EngagementAlert(AudibleAlert.disengage),
+    ET.USER_DISABLE: tesla_engagement_alert(AudibleAlert.disengage),
     ET.NO_ENTRY: wrong_car_mode_alert,
   },
 
@@ -755,7 +803,7 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   EventName.wrongCruiseMode: {
-    ET.USER_DISABLE: EngagementAlert(AudibleAlert.disengage),
+    ET.USER_DISABLE: tesla_engagement_alert(AudibleAlert.disengage),
     ET.NO_ENTRY: NoEntryAlert("Adaptive Cruise Disabled"),
   },
 
@@ -935,6 +983,17 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
     ET.NO_ENTRY: NoEntryAlert("Unknown Vehicle Variant"),
   },
 
+  # Pre-AP only (selfdrived): same immediateDisable, noEntry and permanent as canError; text only differs.
+  EventName.radarDataInvalid: {
+    ET.IMMEDIATE_DISABLE: ImmediateDisableAlert("Radar Data Invalid"),
+    ET.PERMANENT: Alert(
+      "Radar Data Invalid",
+      "",
+      AlertStatus.normal, AlertSize.small,
+      Priority.LOW, VisualAlert.none, AudibleAlert.none, 1., creation_delay=1.),
+    ET.NO_ENTRY: NoEntryAlert("Radar Data Invalid"),
+  },
+
   EventName.canBusMissing: {
     ET.IMMEDIATE_DISABLE: ImmediateDisableAlert("CAN Bus Disconnected"),
     ET.PERMANENT: Alert(
@@ -943,6 +1002,75 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
       AlertStatus.normal, AlertSize.small,
       Priority.LOW, VisualAlert.none, AudibleAlert.none, 1., creation_delay=1.),
     ET.NO_ENTRY: NoEntryAlert("CAN Bus Disconnected: Check Connections"),
+  },
+
+  # Pre-AP Model S: pedal longitudinal is on but the Comma Pedal stream (0x552) is missing or stale. Steering is unavailable too
+  # (the panda requires the stream), so say why instead of a generic "Controls Mismatch" or "Cruise Mode Disabled".
+  EventName.pedalNotResponding: {
+    ET.IMMEDIATE_DISABLE: ImmediateDisableAlert("The Comma Pedal is not responding"),
+    ET.PERMANENT: NormalPermanentAlert("Pedal Not Responding", "Check the Comma Pedal wiring", creation_delay=1.),
+    ET.NO_ENTRY: NoEntryAlert("Check the Comma Pedal wiring", alert_text_1="Pedal Not Responding"),
+  },
+
+  # Pre-AP: the pedal did not take authority. Engagement stays (steering keeps working); the pedal retries with back-off, the detail names the
+  # real cause. Cleared by a good acquisition, or when openpilot stops asking for the pedal.
+  EventName.pedalRetrying: {
+    ET.WARNING: pedal_retrying_alert,
+  },
+
+  # Pre-AP: openpilot enabled but the panda did not arm (controlsAllowed false). Says so within ~0.3 s instead of "Controls Mismatch" after 2 s.
+  EventName.preapNotArmed: {
+    ET.USER_DISABLE: Alert(
+      "Cruise didn't arm",
+      "Pull the stalk again",
+      AlertStatus.normal, AlertSize.mid,
+      Priority.MID, VisualAlert.none, AudibleAlert.disengage, 3.),
+  },
+
+  # Pre-AP pull FSM (opendbc tesla_ap1/preap/engagement.py). Pre-AP has no brake actuation: no text may suggest the car brakes or holds.
+  EventName.preapSteerOnly: {
+    ET.PERMANENT: preap_steer_only_alert,
+  },
+
+  # Alert only (selfdrived/preap_regen.py): the plan wants more than 1.2 m/s^2 of decel (fixed, conservative vs ~1.6-1.8 regen)
+  # for 0.3 s; nothing is disengaged. The onroad border turns red from this alertType (alert_banner_logic.is_regen_limit_alert).
+  EventName.preapRegenLimit: {
+    ET.WARNING: Alert(
+      "Brake if needed",
+      "Regen limit: the car can't slow this fast",
+      AlertStatus.userPrompt, AlertSize.mid,
+      Priority.MID, VisualAlert.none, AudibleAlert.promptRepeat, .2),
+  },
+
+  # Warning only (carState.bogpilot.preapRadarNotReady, opendbc tesla_ap1/preap/radar_valid.py): the radar is advisory, as NAP and
+  # Tinkla. No NO_ENTRY, SOFT_DISABLE or IMMEDIATE_DISABLE entry on purpose.
+  EventName.preapRadarNotReady: {
+    ET.WARNING: Alert(
+      "Radar not ready – using camera lead",
+      "",
+      AlertStatus.normal, AlertSize.small,
+      Priority.LOWEST, VisualAlert.none, AudibleAlert.none, .2),
+  },
+
+  # Warning only (carState.bogpilot.preapEpasNotActive, debounced 2 s in opendbc tesla_ap1/ap1_events.py): engaged with lateral
+  # wanted and no driver input, the EPAS has not been ACTIVE (unpatched EPAS, or one the flasher refused). Our angle frames do not
+  # move the wheel then, so this does not disengage; it tells the driver the car is not steering. No NO_ENTRY / SOFT_DISABLE /
+  # IMMEDIATE_DISABLE entry on purpose (PREAP_EPAS_INHIBIT_ALERT_20261120).
+  EventName.preapEpasNotSteering: {
+    ET.WARNING: Alert(
+      "EPAS Not Steering",
+      "Steer manually. The EPAS is not accepting commands",
+      AlertStatus.userPrompt, AlertSize.mid,
+      Priority.MID, VisualAlert.steerRequired, AudibleAlert.promptRepeat, .2),
+  },
+
+  EventName.preapSpeedBlocked: {
+    ET.WARNING: preap_speed_blocked_alert,
+  },
+
+  # NAP teslaCCNotArmed parity ("Arm Stock Cruise to Enable Speed Control", NAP selfdrive/selfdrived/events.py:1063-1065 @ e99f4dc75).
+  EventName.preapCruiseNotArmed: {
+    ET.PERMANENT: NormalPermanentAlert("Stock cruise did not arm", "Double pull again"),
   },
 
   EventName.steerUnavailable: {
@@ -1005,12 +1133,23 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
     ET.WARNING: personality_changed_alert,
   },
 
+  # AP1 openpilot long: a standstill engage with no known speed limit and no stalk tap set has no set speed to use
+  # (carState.bogpilot.ap1SpeedLimitUnknown, tesla_ap1/op_long_set_speed.py). Refuse the engage; DI's cruise is then
+  # cancelled by controlsd (0x45). NoEntryAlert takes the bottom line first (same form as pedalNotResponding).
+  EventName.ap1SpeedLimitUnknown: {
+    ET.NO_ENTRY: NoEntryAlert("Speed Limit Unknown", alert_text_1="BogPilot not Engaged"),
+  },
+
+  EventName.experimentalModeUnconfirmed: {
+    ET.PERMANENT: NormalPermanentAlert("Experimental Mode must be confirmed in Settings first", duration=4.),
+  },
+
   EventName.userBookmark: {
     ET.PERMANENT: NormalPermanentAlert("Bookmark Saved", duration=1.5),
   },
 
   EventName.userBookmarkNotPaired: {
-    ET.PERMANENT: NormalPermanentAlert("Bookmark Saved", "pair to connect\nto view", duration=1.5),
+    ET.PERMANENT: NormalPermanentAlert("Bookmark Saved", duration=1.5),
   },
 }
 

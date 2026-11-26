@@ -9,7 +9,7 @@ import openpilot.cereal.messaging as messaging
 
 
 def main():
-  config_realtime_process(5, Priority.CTRL_LOW)
+  config_realtime_process(7, Priority.CTRL_LOW)  # core 5 is the UI (first drive: UI 83% + plannerd + radard saturated it, radarState <16 Hz); not core 6 = camerad (SCHED_OTHER on an isolated core): modeld (FIFO 54) preempts us here, we never preempt camerad
 
   cloudlog.info("plannerd is waiting for CarParams")
   params = Params()
@@ -18,7 +18,7 @@ def main():
 
   ldw = LaneDepartureWarning()
   longitudinal_planner = LongitudinalPlanner(CP)
-  pm = messaging.PubMaster(['longitudinalPlan', 'driverAssistance'])
+  pm = messaging.PubMaster(['longitudinalPlan', 'driverAssistance', 'bogpilotPlan'])
   sm = messaging.SubMaster(['carControl', 'carState', 'controlsState', 'vehicleParameters', 'radarState', 'modelV2', 'selfdriveState'],
                            poll='modelV2')
 
@@ -27,6 +27,7 @@ def main():
     if sm.updated['modelV2']:
       longitudinal_planner.update(sm)
       longitudinal_planner.publish(sm, pm)
+      longitudinal_planner.publish_bogpilot_plan(pm)
 
       ldw.update(sm.frame, sm['modelV2'], sm['carState'], sm['carControl'])
       msg = messaging.new_message('driverAssistance')

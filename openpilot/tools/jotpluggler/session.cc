@@ -462,9 +462,6 @@ void draw_route_info_popup(AppSession *session, UiState *state, ImVec2 anchor) {
   app_pop_mono_font();
 
   const char *copy_icon = icon::CLIPBOARD;
-  const char *link_icon = icon::BOX_ARROW_UP_RIGHT;
-  const std::string useradmin_label = std::string("Useradmin ") + link_icon;
-  const std::string connect_label = std::string("comma connect ") + link_icon;
   if (ImGui::Button(copy_icon, ImVec2(34.0f, 26.0f))) {
     ImGui::SetClipboardText(session->route_id.canonical().c_str());
     state->status_text = "Copied route to clipboard";
@@ -475,16 +472,6 @@ void draw_route_info_popup(AppSession *session, UiState *state, ImVec2 anchor) {
     ImGui::BeginTooltip();
     ImGui::TextUnformatted("Copy route");
     ImGui::EndTooltip();
-  }
-  ImGui::SameLine();
-  if (ImGui::Button(useradmin_label.c_str(), ImVec2(132.0f, 26.0f))) {
-    open_external_url(route_useradmin_url(session->route_id));
-    state->status_text = "Opened useradmin";
-  }
-  ImGui::SameLine();
-  if (ImGui::Button(connect_label.c_str(), ImVec2(156.0f, 26.0f))) {
-    open_external_url(route_connect_url(session->route_id));
-    state->status_text = "Opened comma connect";
   }
 
   ImGui::Spacing();

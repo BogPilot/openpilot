@@ -74,7 +74,20 @@ static std::map<std::string, service> services = {
   { "livestreamWideRoadEncodeData", {"livestreamWideRoadEncodeData", false, 20.000000, -1, 2097152}},
   { "livestreamNarrowRoadEncodeData", {"livestreamNarrowRoadEncodeData", false, 20.000000, -1, 2097152}},
   { "livestreamCabinEncodeData", {"livestreamCabinEncodeData", false, 20.000000, -1, 2097152}},
+  { "bogpilotCarControl", {"bogpilotCarControl", true, 100.000000, 10, 256000}},
+  { "bogpilotCarParams", {"bogpilotCarParams", true, 0.020000, 1, 256000}},
+  { "bogpilotCarState", {"bogpilotCarState", true, 100.000000, 10, 256000}},
+  { "bogpilotControlsState", {"bogpilotControlsState", true, 100.000000, 10, 256000}},
+  { "bogpilotDeviceState", {"bogpilotDeviceState", true, 2.000000, 1, 256000}},
+  { "bogpilotModelV2", {"bogpilotModelV2", true, 20.000000, 40, 256000}},
+  { "bogpilotNavigation", {"bogpilotNavigation", true, 1.000000, 10, 256000}},
+  { "bogpilotOnroadEvents", {"bogpilotOnroadEvents", true, 1.000000, 1, 256000}},
+  { "bogpilotPlan", {"bogpilotPlan", true, 20.000000, 5, 256000}},
+  { "bogpilotRadarState", {"bogpilotRadarState", true, 20.000000, 5, 256000}},
   { "customReservedRawData0", {"customReservedRawData0", true, 0.000000, -1, 256000}},
+  { "mapdOut", {"mapdOut", true, 20.000000, 20, 2097152}},
+  { "mapdExtendedOut", {"mapdExtendedOut", false, 1.000000, -1, 2097152}},
+  { "mapdIn", {"mapdIn", false, 0.000000, -1, 2097152}},
 };
 #endif
 

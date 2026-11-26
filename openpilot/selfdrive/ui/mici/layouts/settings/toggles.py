@@ -44,16 +44,20 @@ class TogglesLayoutMici(NavScroller):
     self._personality_toggle = BigMultiParamToggle("driving personality", "LongitudinalPersonality", ["aggressive", "standard", "relaxed"])
     self._experimental_btn = BigToggle("experimental mode", initial_state=ui_state.params.get_bool("ExperimentalMode"),
                                        toggle_callback=self._on_experimental_mode)
+    # BogPilot: the 3X Toggles panel has Disengage on Accelerator Pedal; stock comma 4 does not show it.
+    disengage_on_gas = BigParamControl("disengage on accelerator", "DisengageOnAccelerator")
     is_metric_toggle = BigParamControl("use metric units", "IsMetric")
     ldw_toggle = BigParamControl("lane departure warnings", "IsLdwEnabled")
     always_on_dm_toggle = BigParamControl("always-on driver monitor", "AlwaysOnDM")
-    record_front = BigParamControl("record & upload cabin camera", "RecordFront", toggle_callback=restart_needed_callback)
-    record_mic = BigParamControl("record & upload mic audio", "RecordAudio", toggle_callback=restart_needed_callback)
+    # BogPilot (as the 3X Toggles panel): the cabin camera is recorded on the device only, never uploaded.
+    record_front = BigParamControl("record cabin camera locally", "RecordFront", toggle_callback=restart_needed_callback)
+    record_mic = BigParamControl("record mic audio locally", "RecordAudio", toggle_callback=restart_needed_callback)
     enable_openpilot = BigParamControl("enable openpilot", "OpenpilotEnabledToggle", toggle_callback=restart_needed_callback)
 
     self._scroller.add_widgets([
       self._personality_toggle,
       self._experimental_btn,
+      disengage_on_gas,
       is_metric_toggle,
       ldw_toggle,
       always_on_dm_toggle,
@@ -65,6 +69,7 @@ class TogglesLayoutMici(NavScroller):
     # Toggle lists
     self._refresh_toggles = (
       ("ExperimentalMode", self._experimental_btn),
+      ("DisengageOnAccelerator", disengage_on_gas),
       ("IsMetric", is_metric_toggle),
       ("IsLdwEnabled", ldw_toggle),
       ("AlwaysOnDM", always_on_dm_toggle),

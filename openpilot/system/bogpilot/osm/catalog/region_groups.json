@@ -1,0 +1,1016 @@
+{
+ "source": "FrogPilot 0.9.7 navigation_functions.h region grouping (MIT); codes are keys of mapd v1.12.0 nation/us_state bounding-box files",
+ "nations": [
+  {
+   "label": "Africa",
+   "regions": [
+    {
+     "code": "DZ",
+     "name": "Algeria"
+    },
+    {
+     "code": "AO",
+     "name": "Angola"
+    },
+    {
+     "code": "BJ",
+     "name": "Benin"
+    },
+    {
+     "code": "BW",
+     "name": "Botswana"
+    },
+    {
+     "code": "BF",
+     "name": "Burkina Faso"
+    },
+    {
+     "code": "BI",
+     "name": "Burundi"
+    },
+    {
+     "code": "CM",
+     "name": "Cameroon"
+    },
+    {
+     "code": "CF",
+     "name": "Central African Republic"
+    },
+    {
+     "code": "TD",
+     "name": "Chad"
+    },
+    {
+     "code": "KM",
+     "name": "Comoros"
+    },
+    {
+     "code": "CG",
+     "name": "Congo (Brazzaville)"
+    },
+    {
+     "code": "CD",
+     "name": "Congo (Kinshasa)"
+    },
+    {
+     "code": "DJ",
+     "name": "Djibouti"
+    },
+    {
+     "code": "EG",
+     "name": "Egypt"
+    },
+    {
+     "code": "GQ",
+     "name": "Equatorial Guinea"
+    },
+    {
+     "code": "ER",
+     "name": "Eritrea"
+    },
+    {
+     "code": "ET",
+     "name": "Ethiopia"
+    },
+    {
+     "code": "GA",
+     "name": "Gabon"
+    },
+    {
+     "code": "GM",
+     "name": "Gambia"
+    },
+    {
+     "code": "GH",
+     "name": "Ghana"
+    },
+    {
+     "code": "GN",
+     "name": "Guinea"
+    },
+    {
+     "code": "GW",
+     "name": "Guinea-Bissau"
+    },
+    {
+     "code": "CI",
+     "name": "Ivory Coast"
+    },
+    {
+     "code": "KE",
+     "name": "Kenya"
+    },
+    {
+     "code": "LS",
+     "name": "Lesotho"
+    },
+    {
+     "code": "LR",
+     "name": "Liberia"
+    },
+    {
+     "code": "LY",
+     "name": "Libya"
+    },
+    {
+     "code": "MG",
+     "name": "Madagascar"
+    },
+    {
+     "code": "MW",
+     "name": "Malawi"
+    },
+    {
+     "code": "ML",
+     "name": "Mali"
+    },
+    {
+     "code": "MR",
+     "name": "Mauritania"
+    },
+    {
+     "code": "MA",
+     "name": "Morocco"
+    },
+    {
+     "code": "MZ",
+     "name": "Mozambique"
+    },
+    {
+     "code": "NA",
+     "name": "Namibia"
+    },
+    {
+     "code": "NE",
+     "name": "Niger"
+    },
+    {
+     "code": "NG",
+     "name": "Nigeria"
+    },
+    {
+     "code": "RW",
+     "name": "Rwanda"
+    },
+    {
+     "code": "SN",
+     "name": "Senegal"
+    },
+    {
+     "code": "SL",
+     "name": "Sierra Leone"
+    },
+    {
+     "code": "SO",
+     "name": "Somalia"
+    },
+    {
+     "code": "ZA",
+     "name": "South Africa"
+    },
+    {
+     "code": "SS",
+     "name": "South Sudan"
+    },
+    {
+     "code": "SD",
+     "name": "Sudan"
+    },
+    {
+     "code": "SZ",
+     "name": "Swaziland"
+    },
+    {
+     "code": "TZ",
+     "name": "Tanzania"
+    },
+    {
+     "code": "TG",
+     "name": "Togo"
+    },
+    {
+     "code": "TN",
+     "name": "Tunisia"
+    },
+    {
+     "code": "UG",
+     "name": "Uganda"
+    },
+    {
+     "code": "ZM",
+     "name": "Zambia"
+    },
+    {
+     "code": "ZW",
+     "name": "Zimbabwe"
+    }
+   ]
+  },
+  {
+   "label": "Antarctica",
+   "regions": [
+    {
+     "code": "AQ",
+     "name": "Antarctica"
+    }
+   ]
+  },
+  {
+   "label": "Asia",
+   "regions": [
+    {
+     "code": "AF",
+     "name": "Afghanistan"
+    },
+    {
+     "code": "AM",
+     "name": "Armenia"
+    },
+    {
+     "code": "AZ",
+     "name": "Azerbaijan"
+    },
+    {
+     "code": "BH",
+     "name": "Bahrain"
+    },
+    {
+     "code": "BD",
+     "name": "Bangladesh"
+    },
+    {
+     "code": "BT",
+     "name": "Bhutan"
+    },
+    {
+     "code": "BN",
+     "name": "Brunei"
+    },
+    {
+     "code": "KH",
+     "name": "Cambodia"
+    },
+    {
+     "code": "CN",
+     "name": "China"
+    },
+    {
+     "code": "CY",
+     "name": "Cyprus"
+    },
+    {
+     "code": "TL",
+     "name": "East Timor"
+    },
+    {
+     "code": "HK",
+     "name": "Hong Kong"
+    },
+    {
+     "code": "IN",
+     "name": "India"
+    },
+    {
+     "code": "ID",
+     "name": "Indonesia"
+    },
+    {
+     "code": "IR",
+     "name": "Iran"
+    },
+    {
+     "code": "IQ",
+     "name": "Iraq"
+    },
+    {
+     "code": "IL",
+     "name": "Israel"
+    },
+    {
+     "code": "JP",
+     "name": "Japan"
+    },
+    {
+     "code": "JO",
+     "name": "Jordan"
+    },
+    {
+     "code": "KZ",
+     "name": "Kazakhstan"
+    },
+    {
+     "code": "KW",
+     "name": "Kuwait"
+    },
+    {
+     "code": "KG",
+     "name": "Kyrgyzstan"
+    },
+    {
+     "code": "LA",
+     "name": "Laos"
+    },
+    {
+     "code": "LB",
+     "name": "Lebanon"
+    },
+    {
+     "code": "MO",
+     "name": "Macao"
+    },
+    {
+     "code": "MY",
+     "name": "Malaysia"
+    },
+    {
+     "code": "MV",
+     "name": "Maldives"
+    },
+    {
+     "code": "MN",
+     "name": "Mongolia"
+    },
+    {
+     "code": "MM",
+     "name": "Myanmar"
+    },
+    {
+     "code": "NP",
+     "name": "Nepal"
+    },
+    {
+     "code": "KP",
+     "name": "North Korea"
+    },
+    {
+     "code": "OM",
+     "name": "Oman"
+    },
+    {
+     "code": "PK",
+     "name": "Pakistan"
+    },
+    {
+     "code": "PS",
+     "name": "Palestine"
+    },
+    {
+     "code": "PH",
+     "name": "Philippines"
+    },
+    {
+     "code": "QA",
+     "name": "Qatar"
+    },
+    {
+     "code": "RU",
+     "name": "Russia"
+    },
+    {
+     "code": "SA",
+     "name": "Saudi Arabia"
+    },
+    {
+     "code": "SG",
+     "name": "Singapore"
+    },
+    {
+     "code": "KR",
+     "name": "South Korea"
+    },
+    {
+     "code": "LK",
+     "name": "Sri Lanka"
+    },
+    {
+     "code": "SY",
+     "name": "Syria"
+    },
+    {
+     "code": "TW",
+     "name": "Taiwan"
+    },
+    {
+     "code": "TJ",
+     "name": "Tajikistan"
+    },
+    {
+     "code": "TH",
+     "name": "Thailand"
+    },
+    {
+     "code": "TR",
+     "name": "Turkey"
+    },
+    {
+     "code": "TM",
+     "name": "Turkmenistan"
+    },
+    {
+     "code": "AE",
+     "name": "United Arab Emirates"
+    },
+    {
+     "code": "UZ",
+     "name": "Uzbekistan"
+    },
+    {
+     "code": "VN",
+     "name": "Vietnam"
+    },
+    {
+     "code": "YE",
+     "name": "Yemen"
+    }
+   ]
+  },
+  {
+   "label": "Europe",
+   "regions": [
+    {
+     "code": "AL",
+     "name": "Albania"
+    },
+    {
+     "code": "AT",
+     "name": "Austria"
+    },
+    {
+     "code": "BY",
+     "name": "Belarus"
+    },
+    {
+     "code": "BE",
+     "name": "Belgium"
+    },
+    {
+     "code": "BA",
+     "name": "Bosnia and Herzegovina"
+    },
+    {
+     "code": "BG",
+     "name": "Bulgaria"
+    },
+    {
+     "code": "HR",
+     "name": "Croatia"
+    },
+    {
+     "code": "CZ",
+     "name": "Czech Republic"
+    },
+    {
+     "code": "DK",
+     "name": "Denmark"
+    },
+    {
+     "code": "EE",
+     "name": "Estonia"
+    },
+    {
+     "code": "FI",
+     "name": "Finland"
+    },
+    {
+     "code": "FR",
+     "name": "France"
+    },
+    {
+     "code": "GE",
+     "name": "Georgia"
+    },
+    {
+     "code": "DE",
+     "name": "Germany"
+    },
+    {
+     "code": "GR",
+     "name": "Greece"
+    },
+    {
+     "code": "HU",
+     "name": "Hungary"
+    },
+    {
+     "code": "IS",
+     "name": "Iceland"
+    },
+    {
+     "code": "IE",
+     "name": "Ireland"
+    },
+    {
+     "code": "IT",
+     "name": "Italy"
+    },
+    {
+     "code": "KZ",
+     "name": "Kazakhstan"
+    },
+    {
+     "code": "LV",
+     "name": "Latvia"
+    },
+    {
+     "code": "LT",
+     "name": "Lithuania"
+    },
+    {
+     "code": "LU",
+     "name": "Luxembourg"
+    },
+    {
+     "code": "MK",
+     "name": "Macedonia"
+    },
+    {
+     "code": "MD",
+     "name": "Moldova"
+    },
+    {
+     "code": "ME",
+     "name": "Montenegro"
+    },
+    {
+     "code": "NL",
+     "name": "Netherlands"
+    },
+    {
+     "code": "NO",
+     "name": "Norway"
+    },
+    {
+     "code": "PL",
+     "name": "Poland"
+    },
+    {
+     "code": "PT",
+     "name": "Portugal"
+    },
+    {
+     "code": "RO",
+     "name": "Romania"
+    },
+    {
+     "code": "RS",
+     "name": "Serbia"
+    },
+    {
+     "code": "SK",
+     "name": "Slovakia"
+    },
+    {
+     "code": "SI",
+     "name": "Slovenia"
+    },
+    {
+     "code": "ES",
+     "name": "Spain"
+    },
+    {
+     "code": "SE",
+     "name": "Sweden"
+    },
+    {
+     "code": "CH",
+     "name": "Switzerland"
+    },
+    {
+     "code": "TR",
+     "name": "Turkey"
+    },
+    {
+     "code": "UA",
+     "name": "Ukraine"
+    },
+    {
+     "code": "GB",
+     "name": "United Kingdom"
+    }
+   ]
+  },
+  {
+   "label": "North America",
+   "regions": [
+    {
+     "code": "BS",
+     "name": "Bahamas"
+    },
+    {
+     "code": "BZ",
+     "name": "Belize"
+    },
+    {
+     "code": "CA",
+     "name": "Canada"
+    },
+    {
+     "code": "CR",
+     "name": "Costa Rica"
+    },
+    {
+     "code": "CU",
+     "name": "Cuba"
+    },
+    {
+     "code": "DO",
+     "name": "Dominican Republic"
+    },
+    {
+     "code": "SV",
+     "name": "El Salvador"
+    },
+    {
+     "code": "GL",
+     "name": "Greenland"
+    },
+    {
+     "code": "GD",
+     "name": "Grenada"
+    },
+    {
+     "code": "GT",
+     "name": "Guatemala"
+    },
+    {
+     "code": "HT",
+     "name": "Haiti"
+    },
+    {
+     "code": "HN",
+     "name": "Honduras"
+    },
+    {
+     "code": "JM",
+     "name": "Jamaica"
+    },
+    {
+     "code": "MX",
+     "name": "Mexico"
+    },
+    {
+     "code": "NI",
+     "name": "Nicaragua"
+    },
+    {
+     "code": "PA",
+     "name": "Panama"
+    },
+    {
+     "code": "TT",
+     "name": "Trinidad and Tobago"
+    },
+    {
+     "code": "US",
+     "name": "United States"
+    }
+   ]
+  },
+  {
+   "label": "Oceania",
+   "regions": [
+    {
+     "code": "AU",
+     "name": "Australia"
+    },
+    {
+     "code": "FJ",
+     "name": "Fiji"
+    },
+    {
+     "code": "TF",
+     "name": "French Southern Territories"
+    },
+    {
+     "code": "NC",
+     "name": "New Caledonia"
+    },
+    {
+     "code": "NZ",
+     "name": "New Zealand"
+    },
+    {
+     "code": "PG",
+     "name": "Papua New Guinea"
+    },
+    {
+     "code": "SB",
+     "name": "Solomon Islands"
+    },
+    {
+     "code": "VU",
+     "name": "Vanuatu"
+    }
+   ]
+  },
+  {
+   "label": "South America",
+   "regions": [
+    {
+     "code": "AR",
+     "name": "Argentina"
+    },
+    {
+     "code": "BO",
+     "name": "Bolivia"
+    },
+    {
+     "code": "BR",
+     "name": "Brazil"
+    },
+    {
+     "code": "CL",
+     "name": "Chile"
+    },
+    {
+     "code": "CO",
+     "name": "Colombia"
+    },
+    {
+     "code": "EC",
+     "name": "Ecuador"
+    },
+    {
+     "code": "FK",
+     "name": "Falkland Islands"
+    },
+    {
+     "code": "GY",
+     "name": "Guyana"
+    },
+    {
+     "code": "PY",
+     "name": "Paraguay"
+    },
+    {
+     "code": "PE",
+     "name": "Peru"
+    },
+    {
+     "code": "SR",
+     "name": "Suriname"
+    },
+    {
+     "code": "UY",
+     "name": "Uruguay"
+    },
+    {
+     "code": "VE",
+     "name": "Venezuela"
+    }
+   ]
+  }
+ ],
+ "states": [
+  {
+   "label": "United States - Midwest",
+   "regions": [
+    {
+     "code": "IL",
+     "name": "Illinois"
+    },
+    {
+     "code": "IN",
+     "name": "Indiana"
+    },
+    {
+     "code": "IA",
+     "name": "Iowa"
+    },
+    {
+     "code": "KS",
+     "name": "Kansas"
+    },
+    {
+     "code": "MI",
+     "name": "Michigan"
+    },
+    {
+     "code": "MN",
+     "name": "Minnesota"
+    },
+    {
+     "code": "MO",
+     "name": "Missouri"
+    },
+    {
+     "code": "NE",
+     "name": "Nebraska"
+    },
+    {
+     "code": "ND",
+     "name": "North Dakota"
+    },
+    {
+     "code": "OH",
+     "name": "Ohio"
+    },
+    {
+     "code": "SD",
+     "name": "South Dakota"
+    },
+    {
+     "code": "WI",
+     "name": "Wisconsin"
+    }
+   ]
+  },
+  {
+   "label": "United States - Northeast",
+   "regions": [
+    {
+     "code": "CT",
+     "name": "Connecticut"
+    },
+    {
+     "code": "ME",
+     "name": "Maine"
+    },
+    {
+     "code": "MA",
+     "name": "Massachusetts"
+    },
+    {
+     "code": "NH",
+     "name": "New Hampshire"
+    },
+    {
+     "code": "NJ",
+     "name": "New Jersey"
+    },
+    {
+     "code": "NY",
+     "name": "New York"
+    },
+    {
+     "code": "PA",
+     "name": "Pennsylvania"
+    },
+    {
+     "code": "RI",
+     "name": "Rhode Island"
+    },
+    {
+     "code": "VT",
+     "name": "Vermont"
+    }
+   ]
+  },
+  {
+   "label": "United States - South",
+   "regions": [
+    {
+     "code": "AL",
+     "name": "Alabama"
+    },
+    {
+     "code": "AR",
+     "name": "Arkansas"
+    },
+    {
+     "code": "DE",
+     "name": "Delaware"
+    },
+    {
+     "code": "DC",
+     "name": "District of Columbia"
+    },
+    {
+     "code": "FL",
+     "name": "Florida"
+    },
+    {
+     "code": "GA",
+     "name": "Georgia"
+    },
+    {
+     "code": "KY",
+     "name": "Kentucky"
+    },
+    {
+     "code": "LA",
+     "name": "Louisiana"
+    },
+    {
+     "code": "MD",
+     "name": "Maryland"
+    },
+    {
+     "code": "MS",
+     "name": "Mississippi"
+    },
+    {
+     "code": "NC",
+     "name": "North Carolina"
+    },
+    {
+     "code": "OK",
+     "name": "Oklahoma"
+    },
+    {
+     "code": "SC",
+     "name": "South Carolina"
+    },
+    {
+     "code": "TN",
+     "name": "Tennessee"
+    },
+    {
+     "code": "TX",
+     "name": "Texas"
+    },
+    {
+     "code": "VA",
+     "name": "Virginia"
+    },
+    {
+     "code": "WV",
+     "name": "West Virginia"
+    }
+   ]
+  },
+  {
+   "label": "United States - West",
+   "regions": [
+    {
+     "code": "AK",
+     "name": "Alaska"
+    },
+    {
+     "code": "AZ",
+     "name": "Arizona"
+    },
+    {
+     "code": "CA",
+     "name": "California"
+    },
+    {
+     "code": "CO",
+     "name": "Colorado"
+    },
+    {
+     "code": "HI",
+     "name": "Hawaii"
+    },
+    {
+     "code": "ID",
+     "name": "Idaho"
+    },
+    {
+     "code": "MT",
+     "name": "Montana"
+    },
+    {
+     "code": "NV",
+     "name": "Nevada"
+    },
+    {
+     "code": "NM",
+     "name": "New Mexico"
+    },
+    {
+     "code": "OR",
+     "name": "Oregon"
+    },
+    {
+     "code": "UT",
+     "name": "Utah"
+    },
+    {
+     "code": "WA",
+     "name": "Washington"
+    },
+    {
+     "code": "WY",
+     "name": "Wyoming"
+    }
+   ]
+  },
+  {
+   "label": "United States - Territories",
+   "regions": [
+    {
+     "code": "AS",
+     "name": "American Samoa"
+    },
+    {
+     "code": "GM",
+     "name": "Guam"
+    },
+    {
+     "code": "MP",
+     "name": "Northern Mariana Islands"
+    },
+    {
+     "code": "PR",
+     "name": "Puerto Rico"
+    },
+    {
+     "code": "VI",
+     "name": "Virgin Islands"
+    }
+   ]
+  }
+ ],
+ "note": "0.9.7 listed Guam as GU, but mapd's us_states file keys it GM (so 0.9.7 selections of Guam were silently ignored). Fixed here; parse_selection maps a saved GU to GM."
+}

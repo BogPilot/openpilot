@@ -9,6 +9,14 @@ from openpilot.system.camerad.cameras.nv12_info import get_nv12_info
 
 Import('env', 'arch')
 
+# BEGIN VERIFIED STOCK MODELS
+if GetOption('verified_stock_models'):
+  from tools.bogpilot.rc_stock_models import verify
+  import json
+  print('BOGPILOT EXPLICIT LOCAL BUILD OPTION: ' + json.dumps(verify(Dir('#').abspath, arch), sort_keys=True))
+  Return()
+# END VERIFIED STOCK MODELS
+
 # TODO: add GCC support to tinygrad?
 # tinygrad's CPU:LLVM backend requires libLLVM, skip the build on PC if it's not available
 if arch not in ('comma_arm64', 'Darwin') and ctypes.util.find_library('LLVM') is None:

@@ -12,6 +12,15 @@ from openpilot.common.params import Params
 from openpilot.common.realtime import DT_MDL, Priority, config_realtime_process
 from openpilot.common.swaglog import cloudlog
 from openpilot.common.simple_kalman import KF1D
+from opendbc.car.tesla_ap1.lead_filter import Ap1LeadGlitchFilter
+from opendbc.car.tesla_ap1.preap_radar_filters import StuckTrackFilter
+from opendbc.car.tesla_ap1.lead_side_check import SIDE_CHECK_MIN_SPEED_MS, side_check_active, track_within_side_limit
+from opendbc.car.tesla_ap1.values import AP1_RADARTRACKS_MIN_FREQ_HZ, is_ap1_family, is_preap
+
+try:  # optional Human Lane Changes consumer; import failure = stock radar behaviour
+  from openpilot.selfdrive.controls.lib.phase3_lanechange import LaneChangeSettingsReader, human_lane_change_track, valid_vision_lead
+except Exception:
+  LaneChangeSettingsReader = human_lane_change_track = valid_vision_lead = None
 
 
 # Default lead acceleration decay set to 50% at 1s
@@ -24,6 +33,36 @@ SPEED, ACCEL = 0, 1     # Kalman filter states enum
 V_EGO_STATIONARY = 4.   # no stationary object flag below this speed
 
 RADAR_TO_CAMERA = 1.52  # RADAR is ~ 1.5m ahead from center of mesh frame
+
+# AP1 Model S and Pre-AP Model S, and the AP1 Model X with openpilot longitudinal (docs/tesla/DIVERGENCES_ap1_vision_only_lead_gate.md):
+# a camera-only lead (no radar track matched) farther than
+# VISION_ONLY_FAR_M needs a model prob of VISION_ONLY_FAR_PROB, unless ego is closing on it at VISION_ONLY_CLOSING_MS or more.
+VISION_ONLY_FAR_M = 50.
+VISION_ONLY_FAR_PROB = .6
+VISION_ONLY_CLOSING_MS = 5.
+
+
+def vision_only_lead_blocked(v_ego: float, lead_msg: capnp._DynamicStructReader, lead_prob: float) -> bool:
+  """True if a camera-only lead must not be used: far (strictly beyond 50 m), prob below 0.6, and not closing at 5 m/s or more."""
+  if lead_prob >= VISION_ONLY_FAR_PROB or len(lead_msg.x) == 0 or len(lead_msg.v) == 0:
+    return False
+  if lead_msg.x[0] - RADAR_TO_CAMERA <= VISION_ONLY_FAR_M:
+    return False
+  return (v_ego - lead_msg.v[0]) < VISION_ONLY_CLOSING_MS
+
+
+def vision_only_gate_platform(car_fingerprint, op_long: bool = False) -> bool:
+  """The camera-only lead gate runs on the AP1 Model S and the Pre-AP Model S, and on the AP1 Model X only while
+  openpilot longitudinal is on (AP1XOpenpilotLong). With stock cruise the X keeps the stock lead selection."""
+  fp = str(car_fingerprint)
+  return fp == "TESLA_AP1_MODELS" or is_preap(car_fingerprint) or (fp == "TESLA_AP1_MODELX" and bool(op_long))
+
+
+def ap1_lead_filter_platform(car_fingerprint, op_long: bool = False) -> bool:
+  """The AP1 radar lead one-frame glitch filter (lead_filter.py) runs on the AP1 Model S, and on the AP1 Model X only
+  while openpilot longitudinal is on. Every other car (and the X with stock cruise) keeps the stock leads."""
+  fp = str(car_fingerprint)
+  return fp == "TESLA_AP1_MODELS" or (fp == "TESLA_AP1_MODELX" and bool(op_long))
 
 
 class KalmanParams:
@@ -110,7 +149,7 @@ def laplacian_pdf(x: float, mu: float, b: float):
   return math.exp(-abs(x-mu)/b)
 
 
-def match_vision_to_track(v_ego: float, lead: capnp._DynamicStructReader, tracks: dict[int, Track]):
+def match_vision_to_track(v_ego: float, lead: capnp._DynamicStructReader, tracks: dict[int, Track], side_check: bool = False):
   offset_vision_dist = lead.x[0] - RADAR_TO_CAMERA
 
   def prob(c):
@@ -121,7 +160,14 @@ def match_vision_to_track(v_ego: float, lead: capnp._DynamicStructReader, tracks
     # This isn't exactly right, but it's a good heuristic
     return prob_d * prob_y * prob_v
 
-  track = max(tracks.values(), key=prob)
+  candidates = tracks.values()
+  # AP1 lead side check (tesla_ap1/lead_side_check.py, default off): at 34 mph and up, a track more than 2.5 m (or 2x the
+  # camera's sideways std) to the side of the camera lead cannot be its match. No candidate -> None (camera lead is used).
+  if side_check and v_ego >= SIDE_CHECK_MIN_SPEED_MS and len(lead.y) and len(lead.yStd):
+    candidates = [c for c in candidates if track_within_side_limit(c.yRel, lead.y[0], lead.yStd[0])]
+    if not candidates:
+      return None
+  track = max(candidates, key=prob)
 
   # if no 'sane' match is found return -1
   # stationary radar points can be false positives
@@ -151,18 +197,23 @@ def get_RadarState_from_vision(lead_msg: capnp._DynamicStructReader, v_ego: floa
 
 
 def get_lead(v_ego: float, ready: bool, tracks: dict[int, Track], lead_msg: capnp._DynamicStructReader,
-             model_v_ego: float, lead_prob: float, low_speed_override: bool = True) -> dict[str, Any]:
+             model_v_ego: float, lead_prob: float, low_speed_override: bool = True, preferred_track=None,
+             lead_threshold: float = .5, vision_only_gate: bool = False, side_check: bool = False) -> dict[str, Any]:
   # Determine leads, this is where the essential logic happens
-  if len(tracks) > 0 and ready and lead_prob > .5:
-    track = match_vision_to_track(v_ego, lead_msg, tracks)
+  if len(tracks) > 0 and ready and lead_prob > lead_threshold:  # BogPilot phase3: adopted Lead Detection Confidence Threshold, else stock .5
+    if preferred_track is not None and valid_vision_lead(lead_msg):
+      track = preferred_track
+    else:
+      track = match_vision_to_track(v_ego, lead_msg, tracks, side_check=side_check)
   else:
     track = None
 
   lead_dict = {'present': False}
   if track is not None:
     lead_dict = track.get_RadarState(lead_prob)
-  elif (track is None) and ready and (lead_prob > .5):
-    lead_dict = get_RadarState_from_vision(lead_msg, v_ego, model_v_ego, lead_prob)
+  elif (track is None) and ready and (lead_prob > lead_threshold):
+    if not (vision_only_gate and vision_only_lead_blocked(v_ego, lead_msg, lead_prob)):
+      lead_dict = get_RadarState_from_vision(lead_msg, v_ego, model_v_ego, lead_prob)
 
   if low_speed_override:
     low_speed_tracks = [c for c in tracks.values() if c.potential_low_speed_lead(v_ego)]
@@ -177,7 +228,22 @@ def get_lead(v_ego: float, ready: bool, tracks: dict[int, Track], lead_msg: capn
 
 
 class RadarD:
-  def __init__(self, delay: float = 0.0):
+  # Pre-AP filters are off unless __init__ turns them on (also for a RadarD built without __init__).
+  stuck_filter = None
+  low_speed_override = True
+
+  def __init__(self, delay: float = 0.0, ap1_lead_filter: bool = False, stopping_runtime=None, lane_change_settings=None,
+               lead_threshold: float = .5, preap: bool = False, vision_only_gate: bool = False, side_check: bool = False):
+    self.lead_threshold = lead_threshold
+    self.side_check = side_check  # AP1LeadSideCheck: AP1 Model S / X with op long, user opt-in (default off); else False (stock)
+    self.vision_only_gate = vision_only_gate  # AP1 and Pre-AP Model S, AP1 Model X with op long; else False (stock)
+    # Pre-AP Bosch retrofit only: docs/tesla/DIVERGENCES_preap_radar_filters.md (2). None everywhere else.
+    self.stuck_filter = StuckTrackFilter() if preap else None
+    # Pre-AP: no radar-only low-speed lead; Tinkla, NAP and 0.9.7 keep the stock override (DIVERGENCES (3)).
+    self.low_speed_override = not preap
+    self.stopping_runtime = stopping_runtime
+    self.lane_change_settings = lane_change_settings
+    self.ap1_lead_filters = [Ap1LeadGlitchFilter(DT_MDL) for _ in range(2)] if ap1_lead_filter else None
     self.tracks: dict[int, Track] = {}
     self.kalman_params = KalmanParams(DT_MDL)
     self.lead_prob_filters = [FirstOrderFilter(0.0, 0.2, DT_MDL) for _ in range(2)]
@@ -191,7 +257,7 @@ class RadarD:
 
     self.ready = False
 
-  def update(self, sm: messaging.SubMaster, rr: car.RadarData):
+  def update(self, sm: messaging.SubMaster, rr: car.RadarData, *, traffic_mode=None):
     self.ready = sm.seen['modelV2']
 
     if sm.recv_frame['carState'] != self.last_v_ego_frame:
@@ -200,6 +266,11 @@ class RadarD:
       self.last_v_ego_frame = sm.recv_frame['carState']
 
     ar_pts = {pt.trackId: [pt.dRel, pt.yRel, pt.vRel] for pt in rr.points}
+    if self.stuck_filter is not None:
+      # Pre-AP: drop a track whose range stays fixed while ego speed changes (no reference has this; DIVERGENCES (2))
+      t = sm.logMonoTime['modelV2'] * 1e-9
+      self.stuck_filter.prune(ar_pts.keys())
+      ar_pts = {k: p for k, p in ar_pts.items() if not self.stuck_filter.update(k, p[0], p[2], self.v_ego, t)}
 
     # *** remove missing points from meta data ***
     for ids in list(self.tracks.keys()):
@@ -238,8 +309,47 @@ class RadarD:
         else:
           self.lead_prob_filters[i].update(lead_prob)
 
-      self.radar_state.leadOne = get_lead(self.v_ego, self.ready, self.tracks, leads_v3[0], model_v_ego, self.lead_prob_filters[0].x, low_speed_override=True)
-      self.radar_state.leadTwo = get_lead(self.v_ego, self.ready, self.tracks, leads_v3[1], model_v_ego, self.lead_prob_filters[1].x, low_speed_override=False)
+      self.radar_state.leadOne = get_lead(self.v_ego, self.ready, self.tracks, leads_v3[0], model_v_ego, self.lead_prob_filters[0].x,
+                                         low_speed_override=self.low_speed_override,
+                                         lead_threshold=self.lead_threshold, vision_only_gate=self.vision_only_gate, side_check=self.side_check)
+      self.radar_state.leadTwo = get_lead(self.v_ego, self.ready, self.tracks, leads_v3[1], model_v_ego, self.lead_prob_filters[1].x, low_speed_override=False,
+                                         lead_threshold=self.lead_threshold, vision_only_gate=self.vision_only_gate, side_check=self.side_check)
+      # Human adjacent preference: ONLY leadOne, and only when settings.human (Phase3HumanLaneChangesEnabled
+      # adopted, or on by default on the AP1 Model S). leadTwo keeps the in-lane match (never duplicated).
+      if self.lane_change_settings is not None:
+        try:
+          preferred = human_lane_change_track(
+            self.tracks, sm['modelV2'],
+            {self.radar_state.leadOne.radarTrackId, self.radar_state.leadTwo.radarTrackId} - {-1},
+            enabled=self.lane_change_settings.read().human,
+            valid=self.ready and self.radar_state_valid and not any(rr.errors.to_dict().values()))
+        except Exception:
+          cloudlog.exception("radard: human lane change lead unavailable; stock")
+          preferred = None
+        if preferred is not None:
+          self.radar_state.leadOne = get_lead(self.v_ego, self.ready, self.tracks, leads_v3[0], model_v_ego,
+                                              self.lead_prob_filters[0].x, low_speed_override=self.low_speed_override,
+                                              preferred_track=preferred,
+                                              lead_threshold=self.lead_threshold, vision_only_gate=self.vision_only_gate, side_check=self.side_check)
+      if self.ap1_lead_filters is not None:
+        for i, field in enumerate(("leadOne", "leadTwo")):
+          lead = getattr(self.radar_state, field).to_dict()
+          lead["status"] = lead.pop("present")
+          model_lead = leads_v3[i]
+          filtered = dict(self.ap1_lead_filters[i].update(lead, model_lead.prob,
+                          float(model_lead.x[0]) - RADAR_TO_CAMERA if len(model_lead.x) else 0.0,
+                          float(model_lead.v[0]) if len(model_lead.v) else 0.0, self.lead_threshold))
+          filtered["present"] = filtered.pop("status", False)
+          setattr(self.radar_state, field, filtered)
+
+
+    # Only final selected leads are offset, once per newly allocated radarState.
+    # Raw tracks/AP1 filtering/association remain in physical coordinates.
+    if self.stopping_runtime is not None:
+      try:
+        self.stopping_runtime.adjust_radar_state(self.radar_state, traffic_mode=traffic_mode)
+      except Exception:
+        cloudlog.exception("BogPilot stopped-distance settings unavailable")
 
   def publish(self, pm: messaging.PubMaster):
     assert self.radar_state is not None
@@ -250,9 +360,17 @@ class RadarD:
     pm.send("radarState", radar_msg)
 
 
+def radar_tracks_min_freq(fingerprint) -> dict[str, float] | None:
+  """Lower-only radarTracks FrequencyTracker floor for AP1 Bosch (Model S and X)."""
+  if is_ap1_family(fingerprint):
+    return {"radarTracks": AP1_RADARTRACKS_MIN_FREQ_HZ}
+  return None
+
+
 # fuses camera and radar data for best lead detection
 def main() -> None:
-  config_realtime_process(5, Priority.CTRL_LOW)
+  from openpilot.selfdrive.controls.lib.bogpilot_radar import SERVICES as BOGPILOT_RADAR_SERVICES, BogPilotRadar
+  config_realtime_process(7, Priority.CTRL_LOW)  # core 5 is the UI (first drive: UI 83% + plannerd + radard saturated it, radarState <16 Hz); not core 6 = camerad (SCHED_OTHER on an isolated core): modeld (FIFO 54) preempts us here, we never preempt camerad
 
   # wait for stats about the car to come in from controls
   cloudlog.info("radard is waiting for CarParams")
@@ -260,16 +378,51 @@ def main() -> None:
   cloudlog.info("radard got CarParams")
 
   # *** setup messaging
-  sm = messaging.SubMaster(['modelV2', 'carState', 'radarTracks'], poll='modelV2')
-  pm = messaging.PubMaster(['radarState'])
+  sm = messaging.SubMaster(['modelV2', 'carState', 'radarTracks'], poll='modelV2',
+                           min_freq=radar_tracks_min_freq(CP.carFingerprint))
+  pm = messaging.PubMaster(['radarState', *BOGPILOT_RADAR_SERVICES])
 
-  RD = RadarD(CP.radarDelay)
+  lead_threshold = .5
+  try:
+    from openpilot.common.bogpilot_store import ParamStore as _PS
+    from openpilot.selfdrive.controls.lib.phase3_following import FollowingToggles, lead_detection_threshold
+    lead_threshold = lead_detection_threshold(FollowingToggles.read(_PS(), CP))
+  except Exception:
+    cloudlog.exception("radard: lead detection sensitivity read failed, using stock")
+  try:  # optional consumer: any init failure must not take radard (and engagement) down; None = stock radar behaviour
+    from openpilot.common.bogpilot_store import ParamStore
+    from openpilot.selfdrive.controls.lib.phase3_long_stopping import LongStoppingRuntime
+    stopping = LongStoppingRuntime(ParamStore(cache_ttl=1.0), CP)
+  except Exception:
+    cloudlog.exception("radard: stopping runtime unavailable; stock behaviour")
+    stopping = None
+  try:
+    lane_settings = LaneChangeSettingsReader(CP=CP)
+  except Exception:
+    cloudlog.exception("radard: lane change settings unavailable; stock behaviour")
+    lane_settings = None
+  op_long = bool(CP.openpilotLongitudinalControl)
+  try:  # read once at start; any failure = off (stock match)
+    side_check = side_check_active(CP.carFingerprint, op_long)
+  except Exception:
+    cloudlog.exception("radard: lead side check setting unreadable; off")
+    side_check = False
+  RD = RadarD(CP.radarDelay, ap1_lead_filter=ap1_lead_filter_platform(CP.carFingerprint, op_long), stopping_runtime=stopping,
+              lane_change_settings=lane_settings, lead_threshold=lead_threshold, preap=is_preap(CP.carFingerprint),
+              vision_only_gate=vision_only_gate_platform(CP.carFingerprint, op_long),
+              side_check=side_check)
+  BP = BogPilotRadar(CP)
 
   while 1:
     sm.update()
 
-    RD.update(sm, sm['radarTracks'])
+    # card mirrors this authoritative carState field to bogpilotCarState.
+    traffic_mode = bool(sm['carState'].bogpilot.trafficModeEnabled) if sm.all_checks(['carState']) else None
+    RD.update(sm, sm['radarTracks'], traffic_mode=traffic_mode)
     RD.publish(pm)
+    # BogPilot: adjacent leads for BSM flames / UI (bogpilotRadarState)
+    BP.update(RD, sm)
+    BP.publish(pm, RD.radar_state_valid)
 
 
 if __name__ == "__main__":

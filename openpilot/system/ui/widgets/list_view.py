@@ -3,7 +3,7 @@ import os
 import pyray as rl
 from collections.abc import Callable
 from abc import ABC
-from openpilot.system.ui.lib.application import gui_app, FontWeight, MousePos, TextAlignment, TextAlignmentVertical
+from openpilot.system.ui.lib.application import ASSETS_DIR, gui_app, FontWeight, MousePos, TextAlignment, TextAlignmentVertical
 from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.widgets import Widget
@@ -283,6 +283,12 @@ class ListItem(Widget):
     self.description_visible = description_visible
     self.callback = callback
     self.description_opened_callback: Callable | None = None
+    # BogPilot: the key of the help text shown as this row's inline description (see bogpilot/toggle_help.py).
+    self.help_key: str | None = None
+    # BogPilot: Tuning Level gate. When set and it returns False the row is hidden (see bogpilot/tuning_level.py).
+    self.level_gate: Callable[[], bool] | None = None
+    # BogPilot: pixels the row is indented under its parent toggle (see bogpilot/nesting.py).
+    self.indent = 0
     self.action_item = action_item
 
     self.set_rect(rl.Rectangle(0, 0, ITEM_BASE_WIDTH, ITEM_BASE_HEIGHT))
@@ -295,12 +301,36 @@ class ListItem(Widget):
     # Cached properties for performance
     self._prev_description: str | None = self.description
 
+  # BogPilot: set by the comma 4 settings mirror (selfdrive/ui/bogpilot/row_model.py) while it draws a 3X page off
+  # screen, to learn which rows that page shows this frame, in order. None (always, on the 3X) does nothing.
+  render_observer: Callable[["ListItem"], None] | None = None
+
+  def render(self, rect: "rl.Rectangle | None" = None) -> "bool | int | None":
+    observer = ListItem.render_observer
+    if observer is not None and self.is_visible:
+      observer(self)
+    return super().render(rect)
+
   def show_event(self):
     super().show_event()
     self._set_description_visible(False)
 
+  def hide_event(self):
+    super().hide_event()
+    self._set_description_visible(False)
+
   def set_description_opened_callback(self, callback: Callable) -> None:
     self.description_opened_callback = callback
+
+  def set_level_gate(self, gate: Callable[[], bool] | None) -> None:
+    self.level_gate = gate
+
+  @property
+  def is_visible(self) -> bool:
+    if not super().is_visible:
+      return False
+    gate = getattr(self, "level_gate", None)
+    return True if gate is None else bool(gate())
 
   def set_touch_valid_callback(self, touch_callback: Callable[[], bool]) -> None:
     super().set_touch_valid_callback(touch_callback)
@@ -351,14 +381,16 @@ class ListItem(Widget):
       self._rect.y >= (self._parent_rect.y + self._parent_rect.height)):
       return
 
-    content_x = self._rect.x + ITEM_PADDING
+    content_x = self._rect.x + ITEM_PADDING + self.indent
     text_x = content_x
 
     # Only draw title and icon for items that have them
     if self.title:
-      # Draw icon if present
+      # Draw icon if present (loaded on first draw; a file that will not load draws nothing)
       if self.icon:
-        rl.draw_texture_ex(self._icon_texture, rl.Vector2(content_x, self._rect.y + (ITEM_BASE_HEIGHT - self._icon_texture.height) / 2), 0.0, 1.0, rl.WHITE)
+        texture = self._get_icon_texture()
+        if texture is not None:
+          rl.draw_texture_ex(texture, rl.Vector2(content_x, self._rect.y + (ITEM_BASE_HEIGHT - texture.height) / 2), 0.0, 1.0, rl.WHITE)
         text_x += ICON_SIZE + ITEM_PADDING
 
       # Draw main text
@@ -368,10 +400,10 @@ class ListItem(Widget):
 
     # Draw description if visible
     if self.description_visible:
-      content_width = int(self._rect.width - ITEM_PADDING * 2)
+      content_width = int(self._rect.width - ITEM_PADDING * 2 - self.indent)
       description_height = self._html_renderer.get_total_height(content_width)
       description_rect = rl.Rectangle(
-        self._rect.x + ITEM_PADDING,
+        self._rect.x + ITEM_PADDING + self.indent,
         self._rect.y + ITEM_DESC_V_OFFSET,
         content_width,
         description_height
@@ -388,8 +420,27 @@ class ListItem(Widget):
           self.callback()
 
   def set_icon(self, icon: str | None):
-    self.icon = icon
-    self._icon_texture = gui_app.texture(os.path.join("icons", self.icon), ICON_SIZE, ICON_SIZE) if self.icon else None
+    # A missing or unreadable icon file means no icon (never an error); the texture is loaded on first draw.
+    try:
+      if icon and not ASSETS_DIR.joinpath("icons", icon).is_file():
+        icon = None
+    except Exception:
+      icon = None
+    self.icon = icon or None
+    self._icon_texture = None
+    self._icon_failed = False
+
+  def _get_icon_texture(self):
+    if self.icon and self._icon_texture is None and not self._icon_failed:
+      try:
+        texture = gui_app.texture(os.path.join("icons", self.icon), ICON_SIZE, ICON_SIZE)
+        if texture is not None and getattr(texture, "id", 1) != 0:
+          self._icon_texture = texture
+        else:
+          self._icon_failed = True
+      except Exception:
+        self._icon_failed = True
+    return self._icon_texture
 
   def set_description(self, description: str | Callable[[], str] | None):
     self._description = description
@@ -412,7 +463,7 @@ class ListItem(Widget):
 
     height = float(ITEM_BASE_HEIGHT)
     if self.description_visible:
-      description_height = self._html_renderer.get_total_height(max_width)
+      description_height = self._html_renderer.get_total_height(max_width - self.indent)
       height += description_height - (ITEM_BASE_HEIGHT - ITEM_DESC_V_OFFSET) + ITEM_PADDING
     return height
 
@@ -422,12 +473,14 @@ class ListItem(Widget):
 
     right_width = self.action_item.get_width_hint()
     if right_width == 0:  # Full width action (like DualButtonAction)
-      return rl.Rectangle(item_rect.x + ITEM_PADDING, item_rect.y,
-                          item_rect.width - (ITEM_PADDING * 2), ITEM_BASE_HEIGHT)
+      return rl.Rectangle(item_rect.x + ITEM_PADDING + self.indent, item_rect.y,
+                          item_rect.width - (ITEM_PADDING * 2) - self.indent, ITEM_BASE_HEIGHT)
 
-    # Clip width to available space, never overlapping this Item's title
-    content_width = item_rect.width - (ITEM_PADDING * 2)
+    # Clip width to available space, never overlapping this Item's title (or its icon, drawn before the title)
+    content_width = item_rect.width - (ITEM_PADDING * 2) - self.indent
     title_width = measure_text_cached(self._font, self.title, ITEM_TEXT_FONT_SIZE).x
+    if self.icon and self.title:
+      title_width += ICON_SIZE + ITEM_PADDING
     right_width = min(content_width - title_width, right_width)
 
     right_x = item_rect.x + item_rect.width - right_width
@@ -447,9 +500,9 @@ def toggle_item(title: str | Callable[[], str], description: str | Callable[[], 
 
 
 def button_item(title: str | Callable[[], str], button_text: str | Callable[[], str], description: str | Callable[[], str] | None = None,
-                callback: Callable | None = None, enabled: bool | Callable[[], bool] = True) -> ListItem:
+                callback: Callable | None = None, enabled: bool | Callable[[], bool] = True, icon: str | None = None) -> ListItem:
   action = ButtonAction(text=button_text, enabled=enabled)
-  return ListItem(title=title, description=description, action_item=action, callback=callback)
+  return ListItem(title=title, description=description, action_item=action, callback=callback, icon=icon)
 
 
 def text_item(title: str | Callable[[], str], value: str | Callable[[], str], description: str | Callable[[], str] | None = None,

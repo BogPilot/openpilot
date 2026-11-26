@@ -149,15 +149,40 @@ def fingerprint(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_mu
 
 
 def get_car(can_recv: CanRecvCallable, can_send: CanSendCallable, set_obd_multiplexing: ObdCallback, alpha_long_allowed: bool,
-            is_release: bool, cached_params: CarParamsT | None = None):
+            is_release: bool, cached_params: CarParamsT | None = None, fingerprint_override=None):
   candidate, fingerprints, vin, car_fw, source, exact_match = fingerprint(can_recv, can_send, set_obd_multiplexing, cached_params)
+
+  if candidate is None:
+    from opendbc.car.tesla_ap1.modelx_fingerprint import detect_ap1_candidate
+    detected_ap1 = detect_ap1_candidate(fingerprints, car_fw)
+    if detected_ap1 is None:
+      # Pre-AP Model S: AP1 detection first; only a positive Comma Pedal + no-Mobileye signature selects it.
+      from opendbc.car.tesla_ap1.preap.detection import detect_preap_candidate
+      detected_ap1 = detect_preap_candidate(fingerprints)
+    if detected_ap1 is not None:
+      candidate = detected_ap1
+      source = CarParams.FingerprintSource.can
+
+  # BogPilot Car Selection (568fea rule): saved CarModel is used when detection failed
+  # or ForceFingerprint is on. fingerprint_override returns (candidate, used_saved).
+  if fingerprint_override is not None:
+    candidate, used_saved = fingerprint_override(candidate)
+    if used_saved:
+      source = CarParams.FingerprintSource.fixed
+      carlog.error({"event": "using saved fingerprint", "candidate": str(candidate)})
 
   if candidate is None:
     carlog.error({"event": "car doesn't match any fingerprints", "fingerprints": repr(fingerprints)})
     candidate = "MOCK"
 
+  params_fingerprint = fingerprints
+  if source == CarParams.FingerprintSource.fixed:
+    from opendbc.car.tesla_ap1.values import ForcedFingerprint, is_ap1_family
+    if is_ap1_family(candidate):
+      params_fingerprint = ForcedFingerprint(fingerprints)
+
   CarInterface = interfaces[candidate]
-  CP: CarParams = CarInterface.get_params(candidate, fingerprints, car_fw, alpha_long_allowed, is_release, docs=False)
+  CP: CarParams = CarInterface.get_params(candidate, params_fingerprint, car_fw, alpha_long_allowed, is_release, docs=False)
   CP.carVin = vin
   CP.carFw = car_fw
   CP.fingerprintSource = source

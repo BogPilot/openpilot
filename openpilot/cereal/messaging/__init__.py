@@ -181,7 +181,8 @@ class FrequencyTracker:
 class SubMaster:
   def __init__(self, services: list[str], poll: str | None = None,
                ignore_alive: list[str] | None = None, ignore_avg_freq: list[str] | None = None,
-               ignore_valid: list[str] | None = None, addr: str = "127.0.0.1", frequency: float | None = None):
+               ignore_valid: list[str] | None = None, addr: str = "127.0.0.1", frequency: float | None = None,
+               min_freq: dict[str, float] | None = None):
     self.frame = -1
     self.services = services
     self.seen = dict.fromkeys(services, False)
@@ -225,6 +226,17 @@ class SubMaster:
 
       self.data[s] = getattr(data.as_reader(), s)
       self.freq_tracker[s] = FrequencyTracker(SERVICE_LIST[s].frequency, self.update_freq, s == poll)
+
+    # Lower-only per-service floor. Does not raise max_freq, widen alive, or skip checks.
+    self.min_freq = {} if min_freq is None else dict(min_freq)
+    ignored = set(self.ignore_average_freq) | set(self.ignore_alive) | set(self.ignore_valid)
+    for s, floor in self.min_freq.items():
+      assert s in self.freq_tracker, f"min_freq override for unknown service {s}"
+      assert s not in ignored, f"min_freq override for {s} conflicts with an ignore list"
+      assert floor > 0, f"min_freq override for {s} must be > 0"
+      computed = self.freq_tracker[s].min_freq
+      assert floor <= computed, f"min_freq override for {s} must be lower-only ({floor} > computed {computed})"
+      self.freq_tracker[s].min_freq = floor
 
   def __getitem__(self, s: str) -> capnp.lib.capnp._DynamicStructReader:
     return self.data[s]

@@ -15,10 +15,11 @@ from openpilot.common.hardware import HARDWARE
 from openpilot.system.manager.helpers import unblock_stdout, save_bootlog
 from openpilot.system.manager.process import ensure_running
 from openpilot.system.manager.process_config import managed_processes
-from openpilot.system.athena.registration import register, UNREGISTERED_DONGLE_ID
+from openpilot.system.manager.local_identity import local_dongle_id
 from openpilot.common.swaglog import cloudlog, add_file_handler
 from openpilot.common.version import get_build_metadata
 from openpilot.common.hardware.hw import Paths
+from openpilot.system.manager.bogpilot_startup import before_clear, before_defaults, after_defaults
 
 
 def manager_init() -> None:
@@ -27,12 +28,22 @@ def manager_init() -> None:
   build_metadata = get_build_metadata()
 
   params = Params()
+  # Values saved under the pre-rename FrogPilot* key names (BogPilot 0.9.7 / FrogPilot) are copied to their
+  # BogPilot* names first: the old names are no longer registered, so clear_all below deletes their files.
+  pre_clear = before_clear(params)
+  for error in pre_clear.errors:
+    cloudlog.warning(f"BogPilot startup: {error}")
+
   params.clear_all(ParamKeyFlag.CLEAR_ON_MANAGER_START)
   params.clear_all(ParamKeyFlag.CLEAR_ON_ONROAD_TRANSITION)
   params.clear_all(ParamKeyFlag.CLEAR_ON_OFFROAD_TRANSITION)
   params.clear_all(ParamKeyFlag.CLEAR_ON_IGNITION_ON)
   if build_metadata.release_channel:
     params.clear_all(ParamKeyFlag.DEVELOPMENT_ONLY)
+
+  startup = before_defaults(params)
+  for error in startup.errors:
+    cloudlog.warning(f"BogPilot startup: {error}")
 
   if params.get_bool("RecordFrontLock"):
     params.put_bool("RecordFront", True, block=True)
@@ -42,6 +53,10 @@ def manager_init() -> None:
     default_value = params.get_default_value(k)
     if default_value is not None and params.get(k) is None:
       params.put(k, default_value, block=True)
+
+  startup = after_defaults(params, startup=startup)
+  for error in startup.errors:
+    cloudlog.warning(f"BogPilot startup: {error}")
 
   # Create folders needed for msgq
   try:
@@ -63,11 +78,7 @@ def manager_init() -> None:
   params.put("HardwareSerial", serial, block=True)
 
   # set dongle id
-  reg_res = register(show_spinner=True)
-  if reg_res:
-    dongle_id = reg_res
-  else:
-    raise Exception(f"Registration failed for device {serial}")
+  dongle_id = local_dongle_id(params)  # BogPilot has no comma registration
   os.environ['DONGLE_ID'] = dongle_id  # Needed for swaglog
   os.environ['GIT_ORIGIN'] = build_metadata.openpilot.git_normalized_origin # Needed for swaglog
   os.environ['GIT_BRANCH'] = build_metadata.channel # Needed for swaglog
@@ -105,8 +116,6 @@ def manager_thread() -> None:
   params = Params()
 
   ignore: list[str] = []
-  if params.get("DongleId") in (None, UNREGISTERED_DONGLE_ID):
-    ignore += ["manage_athenad", "uploader"]
   if os.getenv("NOBOARD") is not None:
     ignore.append("pandad")
   ignore += [x for x in os.getenv("BLOCK", "").split(",") if len(x) > 0]
@@ -192,6 +201,12 @@ def main() -> None:
   params = Params()
   if params.get_bool("DoUninstall"):
     cloudlog.warning("uninstalling")
+    try:
+      from openpilot.system.bogpilot.boot_logo import restore_stock_boot_logo, restore_stock_boot_bg_png
+      cloudlog.warning(f"boot logo restore: {restore_stock_boot_logo()}")
+      cloudlog.warning(f"boot bg.png restore: {restore_stock_boot_bg_png()}")
+    except Exception:
+      cloudlog.exception("boot logo restore failed")
     HARDWARE.uninstall()
   elif params.get_bool("DoReboot"):
     cloudlog.warning("reboot")

@@ -1,6 +1,10 @@
+import math
+
 from openpilot.cereal import log
 from openpilot.common.constants import CV
 from openpilot.common.realtime import DT_MDL
+from openpilot.selfdrive.controls.lib.phase3_lanechange import (
+  LaneChangePolicy, LaneChangeSettings, LaneChangeSettingsReader, bsm_side_occupied)
 
 LaneChangeState = log.LaneChangeState
 LaneChangeDirection = log.LaneChangeDirection
@@ -9,6 +13,15 @@ LANE_CHANGE_SPEED_MIN = 20 * CV.MPH_TO_MS
 LANE_CHANGE_TIME_MAX = 10.
 LANE_CHANGE_START_TIME = 0.5
 
+# modeld reads these 100 Hz services once per 20 Hz model frame on conflated sockets, so the
+# SubMaster average-frequency check (min 40 Hz) can never pass there. Gate on alive + valid only.
+LANE_CHANGE_INPUTS = ('carState', 'carControl')
+
+
+def lane_change_inputs_ok(sm) -> bool:
+  return sm.all_alive(list(LANE_CHANGE_INPUTS)) and sm.all_valid(list(LANE_CHANGE_INPUTS))
+
+
 class DesireHelper:
   def __init__(self):
     self.lane_change_state = LaneChangeState.off
@@ -16,17 +29,28 @@ class DesireHelper:
     self.lane_change_timer = 0.0
     self.prev_one_blinker = False
     self.desire = log.Desire.none
+    self.lane_change_policy = LaneChangePolicy()
+    self.lane_change_settings = LaneChangeSettingsReader()
 
   @staticmethod
   def get_lane_change_direction(CS):
     return LaneChangeDirection.left if CS.leftBlinker else LaneChangeDirection.right
 
-  def update(self, carstate, lateral_active, lane_change_prob):
+  def update(self, carstate, lateral_active, lane_change_prob, model=None, model_valid=False):
+    try:
+      settings = self.lane_change_settings.read()
+      auto_requested = self.lane_change_policy.observe(
+        carstate, lateral_active, self.lane_change_state == LaneChangeState.preLaneChange,
+        settings, model, model_valid and math.isfinite(lane_change_prob), DT_MDL)
+    except Exception:
+      # Never crash modeld: fall back to stock-equivalent (no auto / no TurnDesires).
+      settings = LaneChangeSettings()
+      auto_requested = False
     v_ego = carstate.vEgo
     one_blinker = carstate.leftBlinker != carstate.rightBlinker
-    below_lane_change_speed = v_ego < LANE_CHANGE_SPEED_MIN
+    below_lane_change_speed = not math.isfinite(v_ego) or v_ego < settings.minimum_speed
 
-    if not lateral_active or self.lane_change_timer > LANE_CHANGE_TIME_MAX:
+    if not lateral_active or self.lane_change_timer > LANE_CHANGE_TIME_MAX or not settings.enabled:
       self.lane_change_state = LaneChangeState.off
       self.lane_change_direction = LaneChangeDirection.none
       self.lane_change_timer = 0.0
@@ -45,14 +69,17 @@ class DesireHelper:
                          ((carstate.steeringTorque > 0 and self.lane_change_direction == LaneChangeDirection.left) or
                           (carstate.steeringTorque < 0 and self.lane_change_direction == LaneChangeDirection.right))
 
-        blindspot_detected = ((carstate.leftBlindspot and self.lane_change_direction == LaneChangeDirection.left) or
-                              (carstate.rightBlindspot and self.lane_change_direction == LaneChangeDirection.right))
+        torque_applied = torque_applied or auto_requested
 
-        if not one_blinker or below_lane_change_speed:
+        # SNA/stale/invalid encoded as OCCUPIED by Ap1Blindspot; bsm_side_occupied fail-closes.
+        blindspot_detected = bsm_side_occupied(carstate, left=self.lane_change_direction == LaneChangeDirection.left)
+
+        if not one_blinker or below_lane_change_speed or self.lane_change_policy.completed or carstate.standstill:
           self.lane_change_state = LaneChangeState.off
           self.lane_change_direction = LaneChangeDirection.none
           self.lane_change_timer = 0.0
         elif torque_applied and not blindspot_detected:
+          self.lane_change_policy.started(settings)
           self.lane_change_state = LaneChangeState.laneChangeStarting
           self.lane_change_timer = 0.0
 
@@ -68,7 +95,9 @@ class DesireHelper:
             self.lane_change_state = LaneChangeState.off
             self.lane_change_direction = LaneChangeDirection.none
 
-    self.prev_one_blinker = one_blinker and lateral_active
+    # BogPilot: track the blinker even while lateral is off, so a blinker that was already on when
+    # openpilot engaged (e.g. still on after a turn) is not taken as a new lane change request.
+    self.prev_one_blinker = one_blinker
 
     self.desire = log.Desire.none
     if self.lane_change_state == LaneChangeState.laneChangeStarting:
@@ -76,3 +105,8 @@ class DesireHelper:
         self.desire = log.Desire.laneChangeLeft
       elif self.lane_change_direction == LaneChangeDirection.right:
         self.desire = log.Desire.laneChangeRight
+
+    # 04d560f3 LateralTune -> TurnDesires consumer; never grants lateral engagement.
+    if (settings.turn_desires and lateral_active and model_valid and math.isfinite(lane_change_prob) and one_blinker and below_lane_change_speed and
+        math.isfinite(v_ego) and v_ego > 0 and not carstate.standstill):
+      self.desire = log.Desire.turnLeft if carstate.leftBlinker else log.Desire.turnRight

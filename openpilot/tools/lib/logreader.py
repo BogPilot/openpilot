@@ -16,9 +16,10 @@ from collections.abc import Iterable, Iterator
 from urllib.parse import parse_qs, urlparse
 
 from openpilot.cereal import log as capnp_log
+from openpilot.cereal.services import canonical_service_name
 from openpilot.common.swaglog import cloudlog
 from openpilot.tools.lib.filereader import FileReader
-from openpilot.tools.lib.file_sources import comma_api_source, internal_source, openpilotci_source, comma_car_segments_source, Source
+from openpilot.tools.lib.file_sources import internal_source, openpilotci_source, comma_car_segments_source, Source
 from openpilot.tools.lib.route import SegmentRange, FileName
 from openpilot.tools.lib.log_time_series import msgs_to_time_series
 
@@ -201,26 +202,7 @@ def auto_source(identifier: str, sources: list[Source], default_mode: ReadMode) 
 
 
 def parse_indirect(identifier: str) -> str:
-  if "useradmin.comma.ai" in identifier:
-    query = parse_qs(urlparse(identifier).query)
-    identifier = query["onebox"][0]
-  elif "connect.comma.ai" in identifier:
-    path = urlparse(identifier).path.strip("/").split("/")
-    path = ['/'.join(path[:2]), *path[2:]]  # recombine log id
-
-    identifier = path[0]
-    if len(path) > 2:
-      # convert url with seconds to segments
-      start, end = int(path[1]) // 60, int(path[2]) // 60 + 1
-      identifier = f"{identifier}/{start}:{end}"
-
-      # add selector if it exists
-      if len(path) > 3:
-        identifier += f"/{path[3]}"
-    else:
-      # add selector if it exists
-      identifier = "/".join(path)
-
+  # BogPilot: comma useradmin/Connect URL conveniences removed; identifiers are used as given.
   return identifier
 
 
@@ -232,7 +214,6 @@ def parse_direct(identifier: str):
 
 class LogReader:
   def _parse_identifier(self, identifier: str) -> list[str]:
-    # useradmin, etc.
     identifier = parse_indirect(identifier)
 
     # direct url or file
@@ -246,7 +227,7 @@ class LogReader:
   def __init__(self, identifier: str | list[str], default_mode: ReadMode = ReadMode.RLOG,
                sources: list[Source] | None = None, sort_by_time=False, only_union_types=False):
     if sources is None:
-      sources = [internal_source, comma_api_source, openpilotci_source, comma_car_segments_source]
+      sources = [internal_source, openpilotci_source, comma_car_segments_source]  # BogPilot: no Connect API source
 
     self.default_mode = default_mode
     self.sources = sources
@@ -290,6 +271,7 @@ class LogReader:
     return _LogFileReader("", dat=dat)
 
   def filter(self, msg_type: str):
+    msg_type = canonical_service_name(msg_type)  # accepts pre-rename names such as frogpilotPlan
     return (getattr(m, m.which()) for m in filter(lambda m: m.which() == msg_type, self))
 
   def first(self, msg_type: str):

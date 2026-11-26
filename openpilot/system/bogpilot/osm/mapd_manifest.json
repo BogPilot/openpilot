@@ -1,0 +1,15 @@
+{
+  "name": "mapd",
+  "version": "v1.12.0",
+  "license": "MIT",
+  "copyright": "Copyright 2023 Jacob Pfeifer",
+  "source": "https://github.com/pfeiferj/mapd",
+  "source_tag": "v1.12.0",
+  "source_commit": "46cd71ade6f630f1564c83bf1763f9d949a9ff30",
+  "asset_url": "https://github.com/pfeiferj/mapd/releases/download/v1.12.0/mapd",
+  "sha256": "fdb3b49ee19956e6ce09fdc3373cbba557f1263b2180e9f344c1d4053852284b",
+  "size": 9371832,
+  "elf": "ELF 64-bit LSB executable, ARM aarch64, statically linked, stripped",
+  "pin_reason": "0.9.7 (bogpilot-tesla 04d560f3e) ran mapd v1.12.0 (FrogPilot-Resources Versions/mapd_version_v2.json). v2.x is a different, msgq based interface and a different tile format; it is not a drop-in.",
+  "map_data_host": "https://map-data.pfeifer.dev/"
+}

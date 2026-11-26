@@ -1,0 +1,36 @@
+{
+  "name": "mapd",
+  "version": "v2.4.0",
+  "note": "Runtime pin for the opt-in engine (param MapdV2, default off). Installed as <osm root>/mapd_v2 next to v1 (mapd_manifest.json, v1.12.0), so switching engines never re-downloads or overwrites the other binary.",
+  "license": "MIT",
+  "copyright": "Copyright (c) 2025 Jacob Pfeifer",
+  "source": "https://github.com/pfeiferj/mapd",
+  "source_tag": "v2.4.0",
+  "source_commit": "7a5910ca6acbbe44602087dbbe272969136feb7a",
+  "asset_url": "https://github.com/pfeiferj/mapd/releases/download/v2.4.0/mapd",
+  "sha256": "0bc3564ec634486d11e95b76e884fd37b783c66933405cec1bd59f179fa09e94",
+  "size": 21933040,
+  "elf": "ELF 64-bit LSB executable, ARM aarch64, statically linked",
+  "interface": "msgq (gomsgq): mapdIn, mapdOut, mapdExtendedOut; settings in the MapdSettings JSON param, schema 2",
+  "cereal": {
+    "MapdExtendedOut": {
+      "struct_id": "0xa30662f84033036c",
+      "event": "mapdExtendedOut",
+      "event_ordinal": 143
+    },
+    "MapdIn": {
+      "struct_id": "0xc86a3d38d13eb3ef",
+      "event": "mapdIn",
+      "event_ordinal": 144
+    },
+    "MapdOut": {
+      "struct_id": "0xa4f1eb3323f5f582",
+      "event": "mapdOut",
+      "event_ordinal": 145
+    }
+  },
+  "map_data_host": "https://map-data.pfeifer.dev/",
+  "install_name": "mapd_v2",
+  "license_file": "LICENSE.mapd_v2",
+  "plan": "MAPD_V2_MERGE_20261121.md"
+}

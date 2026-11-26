@@ -1,0 +1,80 @@
+"""Target-base AP1 safety params: stock tesla model, AP1=8, LONG=1, STANDSTILL=16.
+
+Matches the panda safety enum on release-tici and release-tizi. No new safety enum ordinal.
+The AP1 bit selects the isolated AP1 implementation; stock Tesla stays unchanged.
+"""
+
+from opendbc.car.tesla_ap1.values import CAR, TeslaAp1SafetyFlags
+
+FLAG_TESLA_AP1 = int(TeslaAp1SafetyFlags.AP1)
+FLAG_TESLA_LONG_CONTROL = int(TeslaAp1SafetyFlags.LONG_CONTROL)
+FLAG_TESLA_AP1_STANDSTILL = int(TeslaAp1SafetyFlags.STANDSTILL)
+FLAG_TESLA_AP1_RIDE_HEIGHT = int(TeslaAp1SafetyFlags.AP1_RIDE_HEIGHT)
+FLAG_TESLA_AP1_RIDE_HEIGHT_DRIVE = int(TeslaAp1SafetyFlags.AP1_RIDE_HEIGHT_DRIVE)
+FLAG_TESLA_AP1_RIDE_HEIGHT_VERY_LOW = int(TeslaAp1SafetyFlags.AP1_RIDE_HEIGHT_VERY_LOW)
+
+
+def flags_for_candidate(candidate, fingerprint=None, standstill=False, x_long=False, ride_height=False, ride_height_drive=False,
+                        ride_height_very_low=False):
+  """Safety params tuple (one config) for the teslaAp1 safety model.
+
+  x_long is the AP1 Model X openpilot longitudinal (AP1XOpenpilotLong). It adds LONG_CONTROL, and with standstill also
+  AP1_STANDSTILL, as on the Model S. Without x_long the X never gets standstill. Default False keeps the Model X lateral-only
+  (flag 8), identical to before.
+  ride_height is Auto Height (AutoHeight on with a Park height other than None at car start, was Lower on Park): adds
+  AP1_RIDE_HEIGHT (1024) on Model S and Model X, which lets the panda pass the 0x308 ride height request in Park. Default False keeps every param identical to before.
+  ride_height_drive is the Drive part of Auto Height (a Drive height other than None): adds AP1_RIDE_HEIGHT_DRIVE (2048) on
+  Model S and Model X, which lets the panda pass the same request in Drive at standstill (only once the panda has that rule). Default False keeps every param identical.
+  ride_height_very_low adds AP1_RIDE_HEIGHT_VERY_LOW (4096) on the Model X only, and only together with the Park or Drive bit: it
+  lets the panda also pass Very Low (0x47). Never on the Model S. Default False keeps every param identical.
+  """
+  if FLAG_TESLA_AP1 != 8:
+    raise RuntimeError("TESLA_FLAG_AP1 must be 8")
+  flags = 0
+  if candidate == CAR.TESLA_AP1_MODELS:
+    flags |= FLAG_TESLA_AP1 | FLAG_TESLA_LONG_CONTROL
+    if standstill:
+      flags |= FLAG_TESLA_AP1_STANDSTILL
+  elif candidate == CAR.TESLA_AP1_MODELX:
+    # Model X is lateral only unless x_long is passed: AP1 chassis safety, LONG_CONTROL only with x_long, and standstill only
+    # together with LONG_CONTROL (same panda rule as the Model S: the standby frame needs both bits).
+    flags |= FLAG_TESLA_AP1
+    if x_long:
+      flags |= FLAG_TESLA_LONG_CONTROL
+      if standstill:
+        flags |= FLAG_TESLA_AP1_STANDSTILL
+  if ride_height and candidate in (CAR.TESLA_AP1_MODELS, CAR.TESLA_AP1_MODELX):
+    flags |= FLAG_TESLA_AP1_RIDE_HEIGHT
+  if ride_height_drive and candidate in (CAR.TESLA_AP1_MODELS, CAR.TESLA_AP1_MODELX):
+    flags |= FLAG_TESLA_AP1_RIDE_HEIGHT_DRIVE
+  if (ride_height_very_low and candidate == CAR.TESLA_AP1_MODELX
+      and flags & (FLAG_TESLA_AP1_RIDE_HEIGHT | FLAG_TESLA_AP1_RIDE_HEIGHT_DRIVE)):
+    flags |= FLAG_TESLA_AP1_RIDE_HEIGHT_VERY_LOW
+  return (flags,)
+
+
+FLAG_TESLA_PREAP = int(TeslaAp1SafetyFlags.PREAP)
+FLAG_TESLA_PREAP_PEDAL = int(TeslaAp1SafetyFlags.PREAP_PEDAL)
+FLAG_TESLA_PREAP_RADAR_BEHIND_NOSECONE = int(TeslaAp1SafetyFlags.PREAP_RADAR_BEHIND_NOSECONE)
+FLAG_TESLA_PREAP_RADAR_EMULATION = int(TeslaAp1SafetyFlags.PREAP_RADAR_EMULATION)
+
+
+def flags_for_preap(pedal: bool, radar: bool = False, behind_nosecone: bool = False) -> int:
+  """Safety param for the Pre-AP Model S (SAFETY_TESLA + PREAP, never with the AP1 bit).
+
+  pedal = Comma Pedal longitudinal. radar / behind_nosecone set flags 256 and 128
+  (128 only when both are on). Defaults keep the param identical to PREAP / PREAP|PEDAL.
+  """
+  flags = FLAG_TESLA_PREAP
+  if pedal:
+    flags |= FLAG_TESLA_PREAP_PEDAL
+  if radar:
+    flags |= FLAG_TESLA_PREAP_RADAR_EMULATION
+    if behind_nosecone:
+      flags |= FLAG_TESLA_PREAP_RADAR_BEHIND_NOSECONE
+  return flags
+
+
+def dashcam_only_for_candidate(candidate):
+  """False for Model S AP1, Model X AP1 and the Pre-AP Model S. True for every other candidate."""
+  return candidate not in (CAR.TESLA_AP1_MODELS, CAR.TESLA_AP1_MODELX, CAR.TESLA_PREAP_MODELS)

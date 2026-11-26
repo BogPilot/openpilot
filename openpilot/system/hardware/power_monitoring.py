@@ -2,6 +2,21 @@ import time
 import threading
 
 from openpilot.common.params import Params
+try:
+  from openpilot.common.bogpilot_store import store as bp_device_store
+  from openpilot.selfdrive.ui.bogpilot.phase3_device_controls_runtime import (
+    shutdown_time as bp_shutdown_time,
+    voltage_cutoff as bp_voltage_cutoff,
+  )
+except Exception:  # hardwared must never lose stock power management because a BogPilot helper failed to import
+  def bp_device_store():
+    return None
+
+  def bp_shutdown_time(_store, stock):
+    return stock
+
+  def bp_voltage_cutoff(_store, stock):
+    return stock
 from openpilot.common.hardware import HARDWARE
 from openpilot.common.swaglog import cloudlog
 
@@ -110,9 +125,9 @@ class PowerMonitoring:
     now = time.monotonic()
     should_shutdown = False
     offroad_time = (now - offroad_timestamp)
-    low_voltage_shutdown = (self.car_voltage_mV < (VBATT_PAUSE_CHARGING * 1e3) and
+    low_voltage_shutdown = (self.car_voltage_mV < (bp_voltage_cutoff(bp_device_store(), VBATT_PAUSE_CHARGING) * 1e3) and
                             offroad_time > VOLTAGE_SHUTDOWN_MIN_OFFROAD_TIME_S)
-    should_shutdown |= offroad_time > MAX_TIME_OFFROAD_S
+    should_shutdown |= offroad_time > bp_shutdown_time(bp_device_store(), MAX_TIME_OFFROAD_S)
     should_shutdown |= low_voltage_shutdown
     should_shutdown |= (self.car_battery_capacity_uWh <= 0)
     should_shutdown &= not ignition

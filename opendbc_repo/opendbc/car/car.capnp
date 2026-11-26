@@ -205,6 +205,9 @@ struct CarState {
   blockPcmEnable @60 :Bool;  # whether to allow PCM to enable this frame
   carNotReady @61 :Bool;  # car is transiently refusing engagement, used to prevent a fault if engaged
 
+  # BogPilot car-side state (was custom.BogPilotCarStateMsg, named FrogPilotCarState in 0.9.7)
+  bogpilot @62 :BogPilotCarState;
+
   # cruise state
   cruiseState @10 :CruiseState;
 
@@ -757,4 +760,64 @@ struct CarParams {
     vEgoStopping @29 :Float32; # Speed at which the car goes into stopping state
     stoppingDecelRate @52 :Float32; # m/s^2/s while trying to stop
   }
+}
+
+# BogPilot: fields @0..20 mirror custom.BogPilotCarStateMsg, @21..27 AP1 extras.
+struct BogPilotCarState {
+  accelPressed @0 :Bool;
+  alwaysOnLateralAllowed @1 :Bool;
+  alwaysOnLateralEnabled @2 :Bool;
+  brakeLights @3 :Bool;
+  dashboardSpeedLimit @4 :Float32;  # m/s, 0 = none
+  decelPressed @5 :Bool;
+  distancePressed @6 :Bool;
+  distanceLongPressed @7 :Bool;
+  distanceVeryLongPressed @8 :Bool;
+  ecoGear @9 :Bool;
+  forceCoast @10 :Bool;
+  isParked @11 :Bool;
+  pauseLateral @12 :Bool;
+  pauseLongitudinal @13 :Bool;
+  sportGear @14 :Bool;
+  trafficModeEnabled @15 :Bool;
+  resumePressed @16 :Bool;
+  spdCtrlLvr @17 :UInt8;            # AP1 raw SpdCtrlLvr_Stat
+  ap1AmbientTempC @18 :Float32;     # NaN when absent
+  ap1MotorTorqueNm @19 :Float32;
+  ap1MotorRpm @20 :Float32;
+  # AP1 state that 0.9.7 events read straight from CarState/CarController
+  ap1HandsOnLevel @21 :UInt8;
+  ap1EacInhibited @22 :Bool;
+  ap1DriverYield @23 :Bool;         # hands pause / resume hold (steerOverride)
+  ap1OverrideSignal @35 :UInt8;     # why the driver pause started (tesla_ap1/override.py): 0 none, 1 hands flag, 2 torque, 3 rate, 4 angle error, 5 EPAS
+  ap1StalkPullToggle @24 :Bool;     # long RWD pull while engaged -> toggle Experimental
+  ap1StalkFwdToggle @25 :Bool;      # long FWD hold while disengaged -> toggle Experimental
+  ap1StockApActive @26 :Bool;
+  ap1StalkFollowS @27 :Float32;     # stalk follow seconds, 0 = no detent
+  # Pre-AP Model S
+  preapLatOnly @28 :Bool;           # engaged lateral only (a brake press while engaged, single pull): longitudinal dropped, openpilot stays enabled and steers; a new pull (brake released) brings longitudinal back
+  preapPedalDetected @29 :Bool;     # Comma Pedal GAS_SENSOR heard
+  preapPedalCalibrated @30 :Bool;   # PedalCalib* sane and done
+  preapPedalUnavailable @31 :Bool;  # pedal authority failed (long dropped until re-acquired)
+  preapAolLat @32 :Bool;            # double pull, first pull / after a re-pull: lateral intent for the Always On Lateral core (0.9.7 pedalCruiseLatOnly); openpilot NOT engaged
+  preapPedalFailCause @34 :UInt8;   # why the last pedal acquisition failed (PedalFailCause in preap/pedal_authority.py): 0 none, 1 no stream, 2 state fault, 3 counter/state mismatch, 4 counter stuck, 5 command error, 6 no response; 0 unless preapPedalUnavailable
+  ap1SpeedLimitUnknown @36 :Bool;  # AP1 openpilot long: standstill, no dashboard speed limit and no stalk tap set, so no engage set (NO_ENTRY)
+  preapFsmMode @37 :UInt8;          # Pre-AP pull FSM (preap/engagement.py Mode): 0 off, 1 lockout (fresh pull), 2/3 steering only, 4 full
+  preapSpeedBlocked @38 :Bool;      # speed control was refused or dropped (blocked pedal frame, standstill, no stock cruise): steering only
+  preapSteerLatch @39 :Bool;        # mirror of the panda steer-through-brake latch (tesla_preap.h steer_armed && steer_brake_seen)
+  preapPedalNotResponding @33 :Bool;  # pedal longitudinal is on but the Comma Pedal stream (GAS_SENSOR 0x552) is missing or stale (no new counter for 0.5 s)
+  ap1BrakePedalState @40 :UInt8 = 3;  # AP1 DI_torque2 DI_brakePedalState: 0 OFF, 1 ON (iBooster applied, driver or OP), 2 INVALID, 3 SNA / stale / not AP1. Onroad decel bar colour ONLY
+  preapRadarNotReady @41 :Bool;     # Pre-AP pedal: radar not VALID (pending, rejected, starved, frozen, silent): its points are kept out of radard, speed control uses camera leads. Warning only
+  preapEpasNotActive @42 :Bool;     # Pre-AP: EPAS_eacStatus is INHIBITED, AVAILABLE or SNA (not ACTIVE, not FAULT). Raw state, no debounce: ap1_events.py raises preapEpasNotSteering after 2 s of it while lateral is wanted. Warning only
+  # Tesla trim detection (tesla_ap1/trims.py DriveDetector), display and comfort layers only. 0x186 front drive inverter.
+  ap1FrontMotorTorqueNm @43 :Float32;  # NaN when no fresh 0x186 frame (single-motor car, or not seen yet)
+  ap1FrontMotorRpm @44 :Float32;       # NaN when no fresh 0x186 frame
+  ap1DriveLayout @45 :UInt8;           # 0 unknown, 1 single motor, 2 dual motor
+  ap1PerfRear @46 :UInt8;              # dual only: 0 unknown, 1 standard rear motor, 2 Performance rear motor
+  ap1RearRpmPerMs @47 :Float32;        # rear motor rpm per m/s (learned this drive, else the seed)
+  ap1FrontRpmPerMs @48 :Float32;       # front motor rpm per m/s; NaN on a single-motor car
+  ap1RpmPerMsMeasured @49 :Bool;       # ap1RearRpmPerMs was learned this drive (not the seed)
+  # Blind spot startup presence check (tesla_ap1/blindspot.py): the car reads blind spot data but no checksum-OK 0x399 frame
+  # has been seen on bus 2 since start. left/rightBlindspot are False and mean unknown, not clear. False on every other car.
+  bsmWaiting @50 :Bool;
 }

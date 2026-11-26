@@ -117,9 +117,13 @@ class HudRenderer(Widget):
 
     self._draw_current_speed(rect)
 
-    button_x = rect.x + rect.width - UI_CONFIG.border_size - UI_CONFIG.button_size
-    button_y = rect.y + UI_CONFIG.border_size
-    self._exp_button.render(rl.Rectangle(button_x, button_y, UI_CONFIG.button_size, UI_CONFIG.button_size))
+    # BogPilot ExpButton is hidden and inert (paints nothing, set_enabled(False)).
+    # Widget.render() always runs _update_state even when disabled, so skip the call.
+    # The Experimental Mode tap is ArcTapButton on the steering arc (bogpilot_hud).
+    if self._exp_button.enabled:
+      button_x = rect.x + rect.width - UI_CONFIG.border_size - UI_CONFIG.button_size
+      button_y = rect.y + UI_CONFIG.border_size
+      self._exp_button.render(rl.Rectangle(button_x, button_y, UI_CONFIG.button_size, UI_CONFIG.button_size))
 
   def user_interacting(self) -> bool:
     return self._exp_button.is_pressed

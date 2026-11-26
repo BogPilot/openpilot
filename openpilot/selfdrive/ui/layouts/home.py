@@ -3,10 +3,14 @@ import pyray as rl
 from collections.abc import Callable
 from enum import IntEnum
 from openpilot.common.params import Params
+from openpilot.common.version import get_build_metadata
 from openpilot.selfdrive.ui.widgets.offroad_alerts import UpdateAlert, OffroadAlert
 from openpilot.selfdrive.ui.widgets.exp_mode_button import ExperimentalModeButton
-from openpilot.selfdrive.ui.widgets.prime import PrimeWidget
-from openpilot.selfdrive.ui.widgets.setup import SetupWidget
+from openpilot.selfdrive.ui.widgets.bogpilot_stats import BogPilotStatsWidget
+from openpilot.selfdrive.ui.widgets.bogpilot_upload_stats import UploadStatsCard
+from openpilot.selfdrive.ui.widgets.bogpilot_drive_summary import DriveSummaryCard
+from openpilot.selfdrive.ui.bogpilot.drive_summary import STATS_KEY, DriveSummaryController
+from openpilot.selfdrive.ui.ui_state import device, ui_state
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.lib.application import gui_app, FontWeight, MousePos, TextAlignment
 from openpilot.system.ui.lib.multilang import tr, trn
@@ -55,8 +59,14 @@ class HomeLayout(Widget):
     self.update_notif_rect = rl.Rectangle(0, 0, 200, HEADER_HEIGHT - 10)
     self.alert_notif_rect = rl.Rectangle(0, 0, 220, HEADER_HEIGHT - 10)
 
-    self._prime_widget = PrimeWidget()
-    self._setup_widget = SetupWidget()
+    self._stats_widget = BogPilotStatsWidget(self.params)
+    # Custom Log Upload Stats: drawn under the Experimental Mode button only while the toggle is on and a manually
+    # installed uploader reports fresh status; otherwise the column stays as it is.
+    self._upload_card = UploadStatsCard()
+    # Drive Summary: copies BogPilotStats at onroad start and covers the stats card after the drive until tapped
+    # or the screen times out.
+    self._drive_summary = DriveSummaryController(lambda: self.params.get(STATS_KEY))
+    self._drive_summary_card = DriveSummaryCard(self._drive_summary, self.params)
 
     self._exp_mode_button = ExperimentalModeButton()
     self._setup_callbacks()
@@ -71,6 +81,11 @@ class HomeLayout(Widget):
     self.update_alert.set_dismiss_callback(lambda: self._set_state(HomeLayoutState.HOME))
     self.offroad_alert.set_dismiss_callback(lambda: self._set_state(HomeLayoutState.HOME))
     self._exp_mode_button.set_click_callback(lambda: self.settings_callback() if self.settings_callback else None)
+    ui_state.add_offroad_transition_callback(self._on_offroad_transition)
+    device.add_interactive_timeout_callback(self._drive_summary.dismiss)
+
+  def _on_offroad_transition(self):
+    self._drive_summary.on_transition(ui_state.started, time.monotonic())
 
   def set_settings_callback(self, callback: Callable):
     self.settings_callback = callback
@@ -191,7 +206,10 @@ class HomeLayout(Widget):
     self.offroad_alert.render(self.content_rect)
 
   def _render_left_column(self):
-    self._prime_widget.render(self.left_column_rect)
+    if self._drive_summary.visible:
+      self._drive_summary_card.render(self.left_column_rect)
+      return
+    self._stats_widget.render(self.left_column_rect)
 
   def _render_right_column(self):
     exp_height = 125
@@ -199,14 +217,13 @@ class HomeLayout(Widget):
       self.right_column_rect.x, self.right_column_rect.y, self.right_column_rect.width, exp_height
     )
     self._exp_mode_button.render(exp_rect)
+    if self._upload_card.refresh():
+      top = exp_rect.y + exp_height + SPACING
+      room = self.right_column_rect.y + self.right_column_rect.height - top
+      if room > 0:
+        self._upload_card.render(rl.Rectangle(self.right_column_rect.x, top, self.right_column_rect.width,
+                                              min(self._upload_card.height(), room)))
 
-    setup_rect = rl.Rectangle(
-      self.right_column_rect.x,
-      self.right_column_rect.y + exp_height + SPACING,
-      self.right_column_rect.width,
-      self.right_column_rect.height - exp_height - SPACING,
-    )
-    self._setup_widget.render(setup_rect)
 
   def _refresh(self):
     self._version_text = self._get_version_text()
@@ -228,6 +245,9 @@ class HomeLayout(Widget):
     self._prev_alerts_present = alerts_present
 
   def _get_version_text(self) -> str:
-    brand = "openpilot"
-    description = self.params.get("UpdaterCurrentDescription")
-    return f"{brand} {description}" if description else brand
+    # Active build metadata is authoritative even when the updater is disabled.
+    try:
+      version = get_build_metadata().openpilot.version
+    except Exception:
+      version = self.params.get("Version")
+    return f"BogPilot {version}" if version and version != "unknown" else "BogPilot"

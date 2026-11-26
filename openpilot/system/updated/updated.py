@@ -14,7 +14,7 @@ from pathlib import Path
 from openpilot.common.basedir import BASEDIR
 from openpilot.common.params import Params
 from openpilot.common.time_helpers import system_time_valid
-from openpilot.common.markdown import parse_markdown
+from openpilot.common.release_notes import latest_release_notes_html
 from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.selfdrived.alertmanager import set_offroad_alert
 from openpilot.common.hardware import AGNOS, HARDWARE
@@ -81,18 +81,12 @@ def set_consistent_flag(consistent: bool) -> None:
   os.sync()
 
 def parse_release_notes(basedir: str) -> bytes:
+  """What's-new HTML from basedir's RELEASES.md; empty if the file is missing."""
   try:
-    with open(os.path.join(basedir, "RELEASES.md"), "rb") as f:
-      r = f.read().split(b'\n\n', 1)[0]  # Slice latest release notes
-    try:
-      return bytes(parse_markdown(r.decode("utf-8")), encoding="utf-8")
-    except Exception:
-      return r + b"\n"
-  except FileNotFoundError:
-    pass
+    return latest_release_notes_html(basedir)
   except Exception:
     cloudlog.exception("failed to parse release notes")
-  return b""
+    return b""
 
 def setup_git_options(cwd: str) -> None:
   # We sync FS object atimes (which NEOS doesn't use) and mtimes, but ctimes

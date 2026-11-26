@@ -39,6 +39,12 @@ def launcher(proc: str, name: str) -> None:
     # can't install the crash handler because sys.excepthook doesn't play nice
     # with threads, so catch it here.
     cloudlog.exception("crash")
+    try:
+      import traceback
+      from openpilot.system.bogpilot.crash_log import save_crash_log
+      save_crash_log(traceback.format_exc())
+    except Exception:
+      pass
     raise
 
 

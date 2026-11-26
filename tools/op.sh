@@ -222,11 +222,6 @@ EOF
   op_check
 }
 
-function op_auth() {
-  op_before_cmd
-  op_run_command openpilot/tools/lib/auth.py "$@"
-}
-
 function op_activate_venv() {
   # bash 3.2 can't handle this without the 'set +e'
   set +e
@@ -260,11 +255,6 @@ function op_venv() {
 function op_adb() {
   op_before_cmd
   op_run_command tools/scripts/adb_ssh.sh "$@"
-}
-
-function op_ssh() {
-  op_before_cmd
-  op_run_command tools/scripts/ssh.py "$@"
 }
 
 function op_script() {
@@ -427,7 +417,6 @@ function op_default() {
   echo -e "${BOLD}${UNDERLINE}Usage:${NC} op [OPTIONS] <COMMAND>"
   echo ""
   echo -e "${BOLD}${UNDERLINE}Commands [System]:${NC}"
-  echo -e "  ${BOLD}auth${NC}         Authenticate yourself for API use"
   echo -e "  ${BOLD}check${NC}        Check the development environment (git, os) to start using openpilot"
   echo -e "  ${BOLD}esim${NC}         Manage eSIM profiles on your comma device"
   echo -e "  ${BOLD}venv${NC}         Activate the python virtual environment"
@@ -444,7 +433,6 @@ function op_default() {
   echo -e "  ${BOLD}clip${NC}         Run clip (linux only)"
   echo -e "  ${BOLD}docs${NC}         Build or serve the openpilot documentation"
   echo -e "  ${BOLD}adb${NC}          Run adb shell"
-  echo -e "  ${BOLD}ssh${NC}          comma prime SSH helper"
   echo ""
   echo -e "${BOLD}${UNDERLINE}Commands [Scripts]:${NC}"
   echo -e "  ${BOLD}script${NC}       Run a script (e.g. op script som-debug)"
@@ -486,7 +474,6 @@ function _op() {
 
   # parse Commands
   case $1 in
-    auth )          shift 1; op_auth "$@" ;;
     venv )          shift 1; op_venv "$@" ;;
     check )         shift 1; op_check "$@" ;;
     esim )          shift 1; op_esim "$@" ;;
@@ -506,7 +493,6 @@ function _op() {
     restart )       shift 1; op_restart "$@" ;;
     post-commit )   shift 1; op_install_post_commit "$@" ;;
     adb )           shift 1; op_adb "$@" ;;
-    ssh )           shift 1; op_ssh "$@" ;;
     script )        shift 1; op_script "$@" ;;
     * ) op_default "$@" ;;
   esac

@@ -12,31 +12,221 @@
 #error "Version mismatch between generated code and library headers.  You must use the same version of the Cap'n Proto compiler and library."
 #endif
 
+#include <car.capnp.h>
 
 CAPNP_BEGIN_HEADER
 
 namespace capnp {
 namespace schemas {
 
+CAPNP_DECLARE_SCHEMA(95bd710036ea524c);
+CAPNP_DECLARE_SCHEMA(c448a20328bdd2ee);
+CAPNP_DECLARE_SCHEMA(80c6847e87cb97b8);
+enum class AudibleAlert_80c6847e87cb97b8: uint16_t {
+  NONE,
+  ENGAGE,
+  DISENGAGE,
+  REFUSE,
+  WARNING_SOFT,
+  WARNING_IMMEDIATE,
+  PROMPT,
+  PROMPT_REPEAT,
+  PROMPT_DISTRACTED,
+  ANGRY,
+  CONTINUED,
+  DEJA_VU,
+  DOC,
+  FART,
+  FIREFOX,
+  GOAT,
+  HAL9000,
+  MAIL,
+  NESSIE,
+  NOICE,
+  STARTUP,
+  THIS_IS_FINE,
+  UWU,
+};
+CAPNP_DECLARE_ENUM(AudibleAlert, 80c6847e87cb97b8);
 CAPNP_DECLARE_SCHEMA(81c2f05a394cf4af);
 CAPNP_DECLARE_SCHEMA(aedffd8f31e7b55d);
+enum class EventName_aedffd8f31e7b55d: uint16_t {
+  BLOCK_USER,
+  CUSTOM_STARTUP_ALERT,
+  FORCING_STOP,
+  GOAT_STEER_SATURATED,
+  GREEN_LIGHT,
+  HOLIDAY_ACTIVE,
+  LANE_CHANGE_BLOCKED_LOUD,
+  LEAD_DEPARTING,
+  NO_LANE_AVAILABLE,
+  OPENPILOT_CRASHED,
+  PEDAL_INTERCEPTOR_NO_BRAKE,
+  SPEED_LIMIT_CHANGED,
+  TORQUE_N_N_LOAD,
+  TRAFFIC_MODE_ACTIVE,
+  TRAFFIC_MODE_INACTIVE,
+  TURNING_LEFT,
+  TURNING_RIGHT,
+  ACCEL30,
+  ACCEL35,
+  ACCEL40,
+  DEJA_VU_CURVE,
+  FIREFOX_STEER_SATURATED,
+  HAL9000,
+  OPENPILOT_CRASHED_RANDOM_EVENT,
+  THIS_IS_FINE_STEER_SATURATED,
+  TO_BE_CONTINUED,
+  V_CRUISE69,
+  YOUR_FROG_TRIED_TO_KILL_ME,
+  YOUVE_GOT_MAIL,
+  AP1_FOLLOW_DISTANCE_CHANGED,
+};
+CAPNP_DECLARE_ENUM(EventName, aedffd8f31e7b55d);
 CAPNP_DECLARE_SCHEMA(f35cc4560bbf6ec2);
+CAPNP_DECLARE_SCHEMA(8d65dd40bad40951);
 CAPNP_DECLARE_SCHEMA(da96579883444c35);
+CAPNP_DECLARE_SCHEMA(ccb4d6b0dc102d40);
+CAPNP_DECLARE_SCHEMA(8033e8e60d6a0edb);
+enum class Type_8033e8e60d6a0edb: uint16_t {
+  LKAS,
+};
+CAPNP_DECLARE_ENUM(Type, 8033e8e60d6a0edb);
 CAPNP_DECLARE_SCHEMA(80ae746ee2596b11);
+CAPNP_DECLARE_SCHEMA(ffb6cb15610754b0);
+enum class AlertSize_ffb6cb15610754b0: uint16_t {
+  NONE,
+  SMALL,
+  MID,
+  FULL,
+};
+CAPNP_DECLARE_ENUM(AlertSize, ffb6cb15610754b0);
+CAPNP_DECLARE_SCHEMA(a2c63a48f3d64159);
+enum class AlertStatus_a2c63a48f3d64159: uint16_t {
+  NORMAL,
+  USER_PROMPT,
+  CRITICAL,
+  BOGPILOT,
+};
+CAPNP_DECLARE_ENUM(AlertStatus, a2c63a48f3d64159);
 CAPNP_DECLARE_SCHEMA(a5cd762cd951a455);
 CAPNP_DECLARE_SCHEMA(f98d843bfd7004a3);
-CAPNP_DECLARE_SCHEMA(b86e6369214c01c8);
+CAPNP_DECLARE_SCHEMA(8680697a802a3cd0);
+enum class TurnDirection_8680697a802a3cd0: uint16_t {
+  NONE,
+  TURN_LEFT,
+  TURN_RIGHT,
+};
+CAPNP_DECLARE_ENUM(TurnDirection, 8680697a802a3cd0);
 CAPNP_DECLARE_SCHEMA(f416ec09499d9d19);
 CAPNP_DECLARE_SCHEMA(a1680744031fdb2d);
 CAPNP_DECLARE_SCHEMA(cb9fd56c7057593a);
+CAPNP_DECLARE_SCHEMA(8511c6ee1d2a98c1);
+CAPNP_DECLARE_SCHEMA(b86e6369214c01c8);
+CAPNP_DECLARE_SCHEMA(c7195fc350bd23ea);
 CAPNP_DECLARE_SCHEMA(c2243c65e0340384);
 CAPNP_DECLARE_SCHEMA(9ccdc8676701b412);
 CAPNP_DECLARE_SCHEMA(cd96dafb67a082d0);
 CAPNP_DECLARE_SCHEMA(b057204d7deadf3f);
 CAPNP_DECLARE_SCHEMA(bd443b539493bc68);
 CAPNP_DECLARE_SCHEMA(fc6241ed8877b611);
+CAPNP_DECLARE_SCHEMA(ff889853e7b0987f);
+CAPNP_DECLARE_SCHEMA(faa35dcac85073a2);
+CAPNP_DECLARE_SCHEMA(d6f78acca1bc3939);
+CAPNP_DECLARE_SCHEMA(de9705979aca8339);
 CAPNP_DECLARE_SCHEMA(a30662f84033036c);
+CAPNP_DECLARE_SCHEMA(859f26628fc24358);
+enum class MapdInputType_859f26628fc24358: uint16_t {
+  DOWNLOAD,
+  SET_TARGET_LATERAL_ACCEL,
+  SET_SPEED_LIMIT_OFFSET,
+  SET_SPEED_LIMIT_CONTROL,
+  SET_MAP_CURVE_SPEED_CONTROL,
+  SET_VISION_CURVE_SPEED_CONTROL,
+  SET_LOG_LEVEL,
+  SET_VISION_CURVE_TARGET_LAT_A,
+  SET_VISION_CURVE_MIN_TARGET_V,
+  RELOAD_SETTINGS,
+  SAVE_SETTINGS,
+  SET_ENABLE_SPEED,
+  SET_VISION_CURVE_USE_ENABLE_SPEED,
+  SET_MAP_CURVE_USE_ENABLE_SPEED,
+  SET_SPEED_LIMIT_USE_ENABLE_SPEED,
+  SET_HOLD_LAST_SEEN_SPEED_LIMIT,
+  SET_TARGET_SPEED_JERK,
+  SET_TARGET_SPEED_ACCEL,
+  SET_TARGET_SPEED_TIME_OFFSET,
+  SET_DEFAULT_LANE_WIDTH,
+  SET_MAP_CURVE_TARGET_LAT_A,
+  LOAD_DEFAULT_SETTINGS,
+  LOAD_RECOMMENDED_SETTINGS,
+  SET_SLOW_DOWN_FOR_NEXT_SPEED_LIMIT,
+  SET_SPEED_UP_FOR_NEXT_SPEED_LIMIT,
+  SET_HOLD_SPEED_LIMIT_WHILE_CHANGING_SET_SPEED,
+  LOAD_PERSISTENT_SETTINGS,
+  CANCEL_DOWNLOAD,
+  SET_LOG_JSON,
+  SET_LOG_SOURCE,
+  SET_EXTERNAL_SPEED_LIMIT_CONTROL,
+  SET_EXTERNAL_SPEED_LIMIT,
+  SET_SPEED_LIMIT_PRIORITY,
+  SET_SPEED_LIMIT_CHANGE_REQUIRES_ACCEPT,
+  ACCEPT_SPEED_LIMIT,
+  SET_PRESS_GAS_TO_ACCEPT_SPEED_LIMIT,
+  SET_ADJUST_SET_SPEED_TO_ACCEPT_SPEED_LIMIT,
+  SET_ACCEPT_SPEED_LIMIT_TIMEOUT,
+  SET_PRESS_GAS_TO_OVERRIDE_SPEED_LIMIT,
+  SET_CONDITIONAL_SPEED_LIMIT_CONTROL,
+  SET_SHADOW_CAR_STATE,
+  SET_SHADOW_MODEL_V2,
+  SET_SHADOW_GPS_LOCATION,
+  SET_JSON_PATH_FLOAT,
+  SET_JSON_PATH_TEXT,
+  SET_JSON_PATH_BOOL,
+  SET_SHADOW_GPS_LOCATION_EXTERNAL,
+};
+CAPNP_DECLARE_ENUM(MapdInputType, 859f26628fc24358);
+CAPNP_DECLARE_SCHEMA(fa3e5ce74e25e82a);
+enum class WaySelectionType_fa3e5ce74e25e82a: uint16_t {
+  CURRENT,
+  PREDICTED,
+  POSSIBLE,
+  EXTENDED,
+  FAIL,
+};
+CAPNP_DECLARE_ENUM(WaySelectionType, fa3e5ce74e25e82a);
+CAPNP_DECLARE_SCHEMA(a5a3dfadcac04344);
+enum class SpeedLimitOffsetType_a5a3dfadcac04344: uint16_t {
+  STATIC,
+  PERCENT,
+};
+CAPNP_DECLARE_ENUM(SpeedLimitOffsetType, a5a3dfadcac04344);
 CAPNP_DECLARE_SCHEMA(c86a3d38d13eb3ef);
+CAPNP_DECLARE_SCHEMA(abefa88b9563dbae);
+enum class RoadContext_abefa88b9563dbae: uint16_t {
+  FREEWAY,
+  CITY,
+  UNKNOWN,
+};
+CAPNP_DECLARE_ENUM(RoadContext, abefa88b9563dbae);
+CAPNP_DECLARE_SCHEMA(d18274dcdc63c41d);
+enum class HighwayClass_d18274dcdc63c41d: uint16_t {
+  UNKNOWN,
+  MOTORWAY,
+  MOTORWAY_LINK,
+  TRUNK,
+  TRUNK_LINK,
+  PRIMARY,
+  PRIMARY_LINK,
+  SECONDARY,
+  SECONDARY_LINK,
+  TERTIARY,
+  TERTIARY_LINK,
+  UNCLASSIFIED,
+  RESIDENTIAL,
+  LIVING_STREET,
+};
+CAPNP_DECLARE_ENUM(HighwayClass, d18274dcdc63c41d);
 CAPNP_DECLARE_SCHEMA(a4f1eb3323f5f582);
 
 }  // namespace schemas
@@ -44,105 +234,226 @@ CAPNP_DECLARE_SCHEMA(a4f1eb3323f5f582);
 
 namespace cereal {
 
-struct CustomReserved0 {
-  CustomReserved0() = delete;
+struct BogPilotCarControl {
+  BogPilotCarControl() = delete;
 
   class Reader;
   class Builder;
   class Pipeline;
+  struct HUDControl;
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(81c2f05a394cf4af, 0, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(95bd710036ea524c, 0, 1)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
   };
 };
 
-struct CustomReserved1 {
-  CustomReserved1() = delete;
+struct BogPilotCarControl::HUDControl {
+  HUDControl() = delete;
 
   class Reader;
   class Builder;
   class Pipeline;
+  typedef ::capnp::schemas::AudibleAlert_80c6847e87cb97b8 AudibleAlert;
+
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(aedffd8f31e7b55d, 0, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(c448a20328bdd2ee, 1, 0)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
   };
 };
 
-struct CustomReserved2 {
-  CustomReserved2() = delete;
+struct BogPilotCarEvent {
+  BogPilotCarEvent() = delete;
 
   class Reader;
   class Builder;
   class Pipeline;
+  typedef ::capnp::schemas::EventName_aedffd8f31e7b55d EventName;
+
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(f35cc4560bbf6ec2, 0, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(81c2f05a394cf4af, 1, 0)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
   };
 };
 
-struct CustomReserved3 {
-  CustomReserved3() = delete;
+struct BogPilotCarParams {
+  BogPilotCarParams() = delete;
 
   class Reader;
   class Builder;
   class Pipeline;
+  struct SafetyConfig;
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(da96579883444c35, 0, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(f35cc4560bbf6ec2, 1, 1)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
   };
 };
 
-struct CustomReserved4 {
-  CustomReserved4() = delete;
+struct BogPilotCarParams::SafetyConfig {
+  SafetyConfig() = delete;
 
   class Reader;
   class Builder;
   class Pipeline;
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(80ae746ee2596b11, 0, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(8d65dd40bad40951, 1, 0)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
   };
 };
 
-struct CustomReserved5 {
-  CustomReserved5() = delete;
+struct BogPilotCarStateMsg {
+  BogPilotCarStateMsg() = delete;
 
   class Reader;
   class Builder;
   class Pipeline;
+  struct ButtonEvent;
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(a5cd762cd951a455, 0, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(da96579883444c35, 5, 0)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
   };
 };
 
-struct CustomReserved6 {
-  CustomReserved6() = delete;
+struct BogPilotCarStateMsg::ButtonEvent {
+  ButtonEvent() = delete;
+
+  class Reader;
+  class Builder;
+  class Pipeline;
+  typedef ::capnp::schemas::Type_8033e8e60d6a0edb Type;
+
+
+  struct _capnpPrivate {
+    CAPNP_DECLARE_STRUCT_HEADER(ccb4d6b0dc102d40, 0, 0)
+    #if !CAPNP_LITE
+    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
+    #endif  // !CAPNP_LITE
+  };
+};
+
+struct BogPilotControlsState {
+  BogPilotControlsState() = delete;
+
+  class Reader;
+  class Builder;
+  class Pipeline;
+  typedef ::capnp::schemas::AlertSize_ffb6cb15610754b0 AlertSize;
+
+  typedef ::capnp::schemas::AlertStatus_a2c63a48f3d64159 AlertStatus;
+
+
+  struct _capnpPrivate {
+    CAPNP_DECLARE_STRUCT_HEADER(80ae746ee2596b11, 2, 3)
+    #if !CAPNP_LITE
+    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
+    #endif  // !CAPNP_LITE
+  };
+};
+
+struct BogPilotDeviceState {
+  BogPilotDeviceState() = delete;
 
   class Reader;
   class Builder;
   class Pipeline;
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(f98d843bfd7004a3, 0, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(a5cd762cd951a455, 1, 0)
+    #if !CAPNP_LITE
+    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
+    #endif  // !CAPNP_LITE
+  };
+};
+
+struct BogPilotModelDataV2 {
+  BogPilotModelDataV2() = delete;
+
+  class Reader;
+  class Builder;
+  class Pipeline;
+  typedef ::capnp::schemas::TurnDirection_8680697a802a3cd0 TurnDirection;
+
+
+  struct _capnpPrivate {
+    CAPNP_DECLARE_STRUCT_HEADER(f98d843bfd7004a3, 1, 0)
+    #if !CAPNP_LITE
+    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
+    #endif  // !CAPNP_LITE
+  };
+};
+
+struct BogPilotNavigation {
+  BogPilotNavigation() = delete;
+
+  class Reader;
+  class Builder;
+  class Pipeline;
+
+  struct _capnpPrivate {
+    CAPNP_DECLARE_STRUCT_HEADER(f416ec09499d9d19, 1, 0)
+    #if !CAPNP_LITE
+    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
+    #endif  // !CAPNP_LITE
+  };
+};
+
+struct BogPilotPlan {
+  BogPilotPlan() = delete;
+
+  class Reader;
+  class Builder;
+  class Pipeline;
+
+  struct _capnpPrivate {
+    CAPNP_DECLARE_STRUCT_HEADER(a1680744031fdb2d, 13, 2)
+    #if !CAPNP_LITE
+    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
+    #endif  // !CAPNP_LITE
+  };
+};
+
+struct BogPilotRadarState {
+  BogPilotRadarState() = delete;
+
+  class Reader;
+  class Builder;
+  class Pipeline;
+  struct LeadData;
+
+  struct _capnpPrivate {
+    CAPNP_DECLARE_STRUCT_HEADER(cb9fd56c7057593a, 0, 2)
+    #if !CAPNP_LITE
+    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
+    #endif  // !CAPNP_LITE
+  };
+};
+
+struct BogPilotRadarState::LeadData {
+  LeadData() = delete;
+
+  class Reader;
+  class Builder;
+  class Pipeline;
+
+  struct _capnpPrivate {
+    CAPNP_DECLARE_STRUCT_HEADER(8511c6ee1d2a98c1, 7, 0)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
@@ -164,36 +475,6 @@ struct CustomReserved7 {
   };
 };
 
-struct CustomReserved8 {
-  CustomReserved8() = delete;
-
-  class Reader;
-  class Builder;
-  class Pipeline;
-
-  struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(f416ec09499d9d19, 0, 0)
-    #if !CAPNP_LITE
-    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
-    #endif  // !CAPNP_LITE
-  };
-};
-
-struct CustomReserved9 {
-  CustomReserved9() = delete;
-
-  class Reader;
-  class Builder;
-  class Pipeline;
-
-  struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(a1680744031fdb2d, 0, 0)
-    #if !CAPNP_LITE
-    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
-    #endif  // !CAPNP_LITE
-  };
-};
-
 struct CustomReserved10 {
   CustomReserved10() = delete;
 
@@ -202,7 +483,7 @@ struct CustomReserved10 {
   class Pipeline;
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(cb9fd56c7057593a, 0, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(c7195fc350bd23ea, 0, 0)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
@@ -299,45 +580,115 @@ struct CustomReserved16 {
   };
 };
 
-struct CustomReserved17 {
-  CustomReserved17() = delete;
+struct MapdDownloadLocationDetails {
+  MapdDownloadLocationDetails() = delete;
 
   class Reader;
   class Builder;
   class Pipeline;
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(a30662f84033036c, 0, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(ff889853e7b0987f, 1, 1)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
   };
 };
 
-struct CustomReserved18 {
-  CustomReserved18() = delete;
+struct MapdDownloadProgress {
+  MapdDownloadProgress() = delete;
 
   class Reader;
   class Builder;
   class Pipeline;
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(c86a3d38d13eb3ef, 0, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(faa35dcac85073a2, 2, 2)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
   };
 };
 
-struct CustomReserved19 {
-  CustomReserved19() = delete;
+struct MapdPathPoint {
+  MapdPathPoint() = delete;
 
   class Reader;
   class Builder;
   class Pipeline;
 
   struct _capnpPrivate {
-    CAPNP_DECLARE_STRUCT_HEADER(a4f1eb3323f5f582, 0, 0)
+    CAPNP_DECLARE_STRUCT_HEADER(d6f78acca1bc3939, 3, 0)
+    #if !CAPNP_LITE
+    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
+    #endif  // !CAPNP_LITE
+  };
+};
+
+struct MapdPosition {
+  MapdPosition() = delete;
+
+  class Reader;
+  class Builder;
+  class Pipeline;
+
+  struct _capnpPrivate {
+    CAPNP_DECLARE_STRUCT_HEADER(de9705979aca8339, 2, 0)
+    #if !CAPNP_LITE
+    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
+    #endif  // !CAPNP_LITE
+  };
+};
+
+struct MapdExtendedOut {
+  MapdExtendedOut() = delete;
+
+  class Reader;
+  class Builder;
+  class Pipeline;
+
+  struct _capnpPrivate {
+    CAPNP_DECLARE_STRUCT_HEADER(a30662f84033036c, 1, 4)
+    #if !CAPNP_LITE
+    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
+    #endif  // !CAPNP_LITE
+  };
+};
+
+typedef ::capnp::schemas::MapdInputType_859f26628fc24358 MapdInputType;
+
+typedef ::capnp::schemas::WaySelectionType_fa3e5ce74e25e82a WaySelectionType;
+
+typedef ::capnp::schemas::SpeedLimitOffsetType_a5a3dfadcac04344 SpeedLimitOffsetType;
+
+struct MapdIn {
+  MapdIn() = delete;
+
+  class Reader;
+  class Builder;
+  class Pipeline;
+
+  struct _capnpPrivate {
+    CAPNP_DECLARE_STRUCT_HEADER(c86a3d38d13eb3ef, 1, 2)
+    #if !CAPNP_LITE
+    static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
+    #endif  // !CAPNP_LITE
+  };
+};
+
+typedef ::capnp::schemas::RoadContext_abefa88b9563dbae RoadContext;
+
+typedef ::capnp::schemas::HighwayClass_d18274dcdc63c41d HighwayClass;
+
+struct MapdOut {
+  MapdOut() = delete;
+
+  class Reader;
+  class Builder;
+  class Pipeline;
+
+  struct _capnpPrivate {
+    CAPNP_DECLARE_STRUCT_HEADER(a4f1eb3323f5f582, 9, 6)
     #if !CAPNP_LITE
     static constexpr ::capnp::_::RawBrandedSchema const* brand() { return &schema->defaultBrand; }
     #endif  // !CAPNP_LITE
@@ -346,9 +697,9 @@ struct CustomReserved19 {
 
 // =======================================================================================
 
-class CustomReserved0::Reader {
+class BogPilotCarControl::Reader {
 public:
-  typedef CustomReserved0 Reads;
+  typedef BogPilotCarControl Reads;
 
   Reader() = default;
   inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
@@ -363,6 +714,9 @@ public:
   }
 #endif  // !CAPNP_LITE
 
+  inline bool hasHudControl() const;
+  inline  ::cereal::BogPilotCarControl::HUDControl::Reader getHudControl() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -375,9 +729,9 @@ private:
   friend class ::capnp::Orphanage;
 };
 
-class CustomReserved0::Builder {
+class BogPilotCarControl::Builder {
 public:
-  typedef CustomReserved0 Builds;
+  typedef BogPilotCarControl Builds;
 
   Builder() = delete;  // Deleted to discourage incorrect usage.
                        // You can explicitly initialize to nullptr instead.
@@ -391,6 +745,13 @@ public:
   inline ::kj::StringTree toString() const { return asReader().toString(); }
 #endif  // !CAPNP_LITE
 
+  inline bool hasHudControl();
+  inline  ::cereal::BogPilotCarControl::HUDControl::Builder getHudControl();
+  inline void setHudControl( ::cereal::BogPilotCarControl::HUDControl::Reader value);
+  inline  ::cereal::BogPilotCarControl::HUDControl::Builder initHudControl();
+  inline void adoptHudControl(::capnp::Orphan< ::cereal::BogPilotCarControl::HUDControl>&& value);
+  inline ::capnp::Orphan< ::cereal::BogPilotCarControl::HUDControl> disownHudControl();
+
 private:
   ::capnp::_::StructBuilder _builder;
   template <typename, ::capnp::Kind>
@@ -401,9 +762,86 @@ private:
 };
 
 #if !CAPNP_LITE
-class CustomReserved0::Pipeline {
+class BogPilotCarControl::Pipeline {
 public:
-  typedef CustomReserved0 Pipelines;
+  typedef BogPilotCarControl Pipelines;
+
+  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
+  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
+      : _typeless(kj::mv(typeless)) {}
+
+  inline  ::cereal::BogPilotCarControl::HUDControl::Pipeline getHudControl();
+private:
+  ::capnp::AnyPointer::Pipeline _typeless;
+  friend class ::capnp::PipelineHook;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+};
+#endif  // !CAPNP_LITE
+
+class BogPilotCarControl::HUDControl::Reader {
+public:
+  typedef HUDControl Reads;
+
+  Reader() = default;
+  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
+
+  inline ::capnp::MessageSize totalSize() const {
+    return _reader.totalSize().asPublic();
+  }
+
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const {
+    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
+  }
+#endif  // !CAPNP_LITE
+
+  inline  ::cereal::BogPilotCarControl::HUDControl::AudibleAlert getAudibleAlert() const;
+
+private:
+  ::capnp::_::StructReader _reader;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::List;
+  friend class ::capnp::MessageBuilder;
+  friend class ::capnp::Orphanage;
+};
+
+class BogPilotCarControl::HUDControl::Builder {
+public:
+  typedef HUDControl Builds;
+
+  Builder() = delete;  // Deleted to discourage incorrect usage.
+                       // You can explicitly initialize to nullptr instead.
+  inline Builder(decltype(nullptr)) {}
+  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
+  inline operator Reader() const { return Reader(_builder.asReader()); }
+  inline Reader asReader() const { return *this; }
+
+  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const { return asReader().toString(); }
+#endif  // !CAPNP_LITE
+
+  inline  ::cereal::BogPilotCarControl::HUDControl::AudibleAlert getAudibleAlert();
+  inline void setAudibleAlert( ::cereal::BogPilotCarControl::HUDControl::AudibleAlert value);
+
+private:
+  ::capnp::_::StructBuilder _builder;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  friend class ::capnp::Orphanage;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+};
+
+#if !CAPNP_LITE
+class BogPilotCarControl::HUDControl::Pipeline {
+public:
+  typedef HUDControl Pipelines;
 
   inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
   inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
@@ -417,9 +855,9 @@ private:
 };
 #endif  // !CAPNP_LITE
 
-class CustomReserved1::Reader {
+class BogPilotCarEvent::Reader {
 public:
-  typedef CustomReserved1 Reads;
+  typedef BogPilotCarEvent Reads;
 
   Reader() = default;
   inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
@@ -434,6 +872,28 @@ public:
   }
 #endif  // !CAPNP_LITE
 
+  inline  ::cereal::BogPilotCarEvent::EventName getName() const;
+
+  inline bool getEnable() const;
+
+  inline bool getNoEntry() const;
+
+  inline bool getWarning() const;
+
+  inline bool getUserDisable() const;
+
+  inline bool getSoftDisable() const;
+
+  inline bool getImmediateDisable() const;
+
+  inline bool getPreEnable() const;
+
+  inline bool getPermanent() const;
+
+  inline bool getOverrideLongitudinal() const;
+
+  inline bool getOverrideLateral() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -446,9 +906,9 @@ private:
   friend class ::capnp::Orphanage;
 };
 
-class CustomReserved1::Builder {
+class BogPilotCarEvent::Builder {
 public:
-  typedef CustomReserved1 Builds;
+  typedef BogPilotCarEvent Builds;
 
   Builder() = delete;  // Deleted to discourage incorrect usage.
                        // You can explicitly initialize to nullptr instead.
@@ -462,6 +922,39 @@ public:
   inline ::kj::StringTree toString() const { return asReader().toString(); }
 #endif  // !CAPNP_LITE
 
+  inline  ::cereal::BogPilotCarEvent::EventName getName();
+  inline void setName( ::cereal::BogPilotCarEvent::EventName value);
+
+  inline bool getEnable();
+  inline void setEnable(bool value);
+
+  inline bool getNoEntry();
+  inline void setNoEntry(bool value);
+
+  inline bool getWarning();
+  inline void setWarning(bool value);
+
+  inline bool getUserDisable();
+  inline void setUserDisable(bool value);
+
+  inline bool getSoftDisable();
+  inline void setSoftDisable(bool value);
+
+  inline bool getImmediateDisable();
+  inline void setImmediateDisable(bool value);
+
+  inline bool getPreEnable();
+  inline void setPreEnable(bool value);
+
+  inline bool getPermanent();
+  inline void setPermanent(bool value);
+
+  inline bool getOverrideLongitudinal();
+  inline void setOverrideLongitudinal(bool value);
+
+  inline bool getOverrideLateral();
+  inline void setOverrideLateral(bool value);
+
 private:
   ::capnp::_::StructBuilder _builder;
   template <typename, ::capnp::Kind>
@@ -472,9 +965,9 @@ private:
 };
 
 #if !CAPNP_LITE
-class CustomReserved1::Pipeline {
+class BogPilotCarEvent::Pipeline {
 public:
-  typedef CustomReserved1 Pipelines;
+  typedef BogPilotCarEvent Pipelines;
 
   inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
   inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
@@ -488,9 +981,9 @@ private:
 };
 #endif  // !CAPNP_LITE
 
-class CustomReserved2::Reader {
+class BogPilotCarParams::Reader {
 public:
-  typedef CustomReserved2 Reads;
+  typedef BogPilotCarParams Reads;
 
   Reader() = default;
   inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
@@ -505,6 +998,19 @@ public:
   }
 #endif  // !CAPNP_LITE
 
+  inline bool getCanUsePedal() const;
+
+  inline bool getCanUseSDSU() const;
+
+  inline  ::uint32_t getFpFlags() const;
+
+  inline bool getIsHDA2() const;
+
+  inline bool getOpenpilotLongitudinalControlDisabled() const;
+
+  inline bool hasSafetyConfigs() const;
+  inline  ::capnp::List< ::cereal::BogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>::Reader getSafetyConfigs() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -517,9 +1023,9 @@ private:
   friend class ::capnp::Orphanage;
 };
 
-class CustomReserved2::Builder {
+class BogPilotCarParams::Builder {
 public:
-  typedef CustomReserved2 Builds;
+  typedef BogPilotCarParams Builds;
 
   Builder() = delete;  // Deleted to discourage incorrect usage.
                        // You can explicitly initialize to nullptr instead.
@@ -533,6 +1039,28 @@ public:
   inline ::kj::StringTree toString() const { return asReader().toString(); }
 #endif  // !CAPNP_LITE
 
+  inline bool getCanUsePedal();
+  inline void setCanUsePedal(bool value);
+
+  inline bool getCanUseSDSU();
+  inline void setCanUseSDSU(bool value);
+
+  inline  ::uint32_t getFpFlags();
+  inline void setFpFlags( ::uint32_t value);
+
+  inline bool getIsHDA2();
+  inline void setIsHDA2(bool value);
+
+  inline bool getOpenpilotLongitudinalControlDisabled();
+  inline void setOpenpilotLongitudinalControlDisabled(bool value);
+
+  inline bool hasSafetyConfigs();
+  inline  ::capnp::List< ::cereal::BogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>::Builder getSafetyConfigs();
+  inline void setSafetyConfigs( ::capnp::List< ::cereal::BogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>::Reader value);
+  inline  ::capnp::List< ::cereal::BogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>::Builder initSafetyConfigs(unsigned int size);
+  inline void adoptSafetyConfigs(::capnp::Orphan< ::capnp::List< ::cereal::BogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>>&& value);
+  inline ::capnp::Orphan< ::capnp::List< ::cereal::BogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>> disownSafetyConfigs();
+
 private:
   ::capnp::_::StructBuilder _builder;
   template <typename, ::capnp::Kind>
@@ -543,9 +1071,9 @@ private:
 };
 
 #if !CAPNP_LITE
-class CustomReserved2::Pipeline {
+class BogPilotCarParams::Pipeline {
 public:
-  typedef CustomReserved2 Pipelines;
+  typedef BogPilotCarParams Pipelines;
 
   inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
   inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
@@ -559,9 +1087,9 @@ private:
 };
 #endif  // !CAPNP_LITE
 
-class CustomReserved3::Reader {
+class BogPilotCarParams::SafetyConfig::Reader {
 public:
-  typedef CustomReserved3 Reads;
+  typedef SafetyConfig Reads;
 
   Reader() = default;
   inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
@@ -576,6 +1104,8 @@ public:
   }
 #endif  // !CAPNP_LITE
 
+  inline  ::uint16_t getSafetyParam() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -588,9 +1118,9 @@ private:
   friend class ::capnp::Orphanage;
 };
 
-class CustomReserved3::Builder {
+class BogPilotCarParams::SafetyConfig::Builder {
 public:
-  typedef CustomReserved3 Builds;
+  typedef SafetyConfig Builds;
 
   Builder() = delete;  // Deleted to discourage incorrect usage.
                        // You can explicitly initialize to nullptr instead.
@@ -604,6 +1134,9 @@ public:
   inline ::kj::StringTree toString() const { return asReader().toString(); }
 #endif  // !CAPNP_LITE
 
+  inline  ::uint16_t getSafetyParam();
+  inline void setSafetyParam( ::uint16_t value);
+
 private:
   ::capnp::_::StructBuilder _builder;
   template <typename, ::capnp::Kind>
@@ -614,9 +1147,9 @@ private:
 };
 
 #if !CAPNP_LITE
-class CustomReserved3::Pipeline {
+class BogPilotCarParams::SafetyConfig::Pipeline {
 public:
-  typedef CustomReserved3 Pipelines;
+  typedef SafetyConfig Pipelines;
 
   inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
   inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
@@ -630,9 +1163,9 @@ private:
 };
 #endif  // !CAPNP_LITE
 
-class CustomReserved4::Reader {
+class BogPilotCarStateMsg::Reader {
 public:
-  typedef CustomReserved4 Reads;
+  typedef BogPilotCarStateMsg Reads;
 
   Reader() = default;
   inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
@@ -647,6 +1180,64 @@ public:
   }
 #endif  // !CAPNP_LITE
 
+  inline bool getAccelPressed() const;
+
+  inline bool getAlwaysOnLateralAllowed() const;
+
+  inline bool getAlwaysOnLateralEnabled() const;
+
+  inline bool getBrakeLights() const;
+
+  inline float getDashboardSpeedLimit() const;
+
+  inline bool getDecelPressed() const;
+
+  inline bool getDistancePressed() const;
+
+  inline bool getDistanceLongPressed() const;
+
+  inline bool getDistanceVeryLongPressed() const;
+
+  inline bool getEcoGear() const;
+
+  inline bool getForceCoast() const;
+
+  inline bool getIsParked() const;
+
+  inline bool getPauseLateral() const;
+
+  inline bool getPauseLongitudinal() const;
+
+  inline bool getSportGear() const;
+
+  inline bool getTrafficModeEnabled() const;
+
+  inline bool getResumePressed() const;
+
+  inline  ::uint8_t getSpdCtrlLvr() const;
+
+  inline float getAp1AmbientTempC() const;
+
+  inline float getAp1MotorTorqueNm() const;
+
+  inline float getAp1MotorRpm() const;
+
+  inline  ::uint8_t getAp1BrakePedalState() const;
+
+  inline float getAp1FrontMotorTorqueNm() const;
+
+  inline float getAp1FrontMotorRpm() const;
+
+  inline  ::uint8_t getAp1DriveLayout() const;
+
+  inline  ::uint8_t getAp1PerfRear() const;
+
+  inline float getAp1RearRpmPerMs() const;
+
+  inline float getAp1FrontRpmPerMs() const;
+
+  inline bool getAp1RpmPerMsMeasured() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -659,9 +1250,9 @@ private:
   friend class ::capnp::Orphanage;
 };
 
-class CustomReserved4::Builder {
+class BogPilotCarStateMsg::Builder {
 public:
-  typedef CustomReserved4 Builds;
+  typedef BogPilotCarStateMsg Builds;
 
   Builder() = delete;  // Deleted to discourage incorrect usage.
                        // You can explicitly initialize to nullptr instead.
@@ -675,6 +1266,93 @@ public:
   inline ::kj::StringTree toString() const { return asReader().toString(); }
 #endif  // !CAPNP_LITE
 
+  inline bool getAccelPressed();
+  inline void setAccelPressed(bool value);
+
+  inline bool getAlwaysOnLateralAllowed();
+  inline void setAlwaysOnLateralAllowed(bool value);
+
+  inline bool getAlwaysOnLateralEnabled();
+  inline void setAlwaysOnLateralEnabled(bool value);
+
+  inline bool getBrakeLights();
+  inline void setBrakeLights(bool value);
+
+  inline float getDashboardSpeedLimit();
+  inline void setDashboardSpeedLimit(float value);
+
+  inline bool getDecelPressed();
+  inline void setDecelPressed(bool value);
+
+  inline bool getDistancePressed();
+  inline void setDistancePressed(bool value);
+
+  inline bool getDistanceLongPressed();
+  inline void setDistanceLongPressed(bool value);
+
+  inline bool getDistanceVeryLongPressed();
+  inline void setDistanceVeryLongPressed(bool value);
+
+  inline bool getEcoGear();
+  inline void setEcoGear(bool value);
+
+  inline bool getForceCoast();
+  inline void setForceCoast(bool value);
+
+  inline bool getIsParked();
+  inline void setIsParked(bool value);
+
+  inline bool getPauseLateral();
+  inline void setPauseLateral(bool value);
+
+  inline bool getPauseLongitudinal();
+  inline void setPauseLongitudinal(bool value);
+
+  inline bool getSportGear();
+  inline void setSportGear(bool value);
+
+  inline bool getTrafficModeEnabled();
+  inline void setTrafficModeEnabled(bool value);
+
+  inline bool getResumePressed();
+  inline void setResumePressed(bool value);
+
+  inline  ::uint8_t getSpdCtrlLvr();
+  inline void setSpdCtrlLvr( ::uint8_t value);
+
+  inline float getAp1AmbientTempC();
+  inline void setAp1AmbientTempC(float value);
+
+  inline float getAp1MotorTorqueNm();
+  inline void setAp1MotorTorqueNm(float value);
+
+  inline float getAp1MotorRpm();
+  inline void setAp1MotorRpm(float value);
+
+  inline  ::uint8_t getAp1BrakePedalState();
+  inline void setAp1BrakePedalState( ::uint8_t value);
+
+  inline float getAp1FrontMotorTorqueNm();
+  inline void setAp1FrontMotorTorqueNm(float value);
+
+  inline float getAp1FrontMotorRpm();
+  inline void setAp1FrontMotorRpm(float value);
+
+  inline  ::uint8_t getAp1DriveLayout();
+  inline void setAp1DriveLayout( ::uint8_t value);
+
+  inline  ::uint8_t getAp1PerfRear();
+  inline void setAp1PerfRear( ::uint8_t value);
+
+  inline float getAp1RearRpmPerMs();
+  inline void setAp1RearRpmPerMs(float value);
+
+  inline float getAp1FrontRpmPerMs();
+  inline void setAp1FrontRpmPerMs(float value);
+
+  inline bool getAp1RpmPerMsMeasured();
+  inline void setAp1RpmPerMsMeasured(bool value);
+
 private:
   ::capnp::_::StructBuilder _builder;
   template <typename, ::capnp::Kind>
@@ -685,9 +1363,9 @@ private:
 };
 
 #if !CAPNP_LITE
-class CustomReserved4::Pipeline {
+class BogPilotCarStateMsg::Pipeline {
 public:
-  typedef CustomReserved4 Pipelines;
+  typedef BogPilotCarStateMsg Pipelines;
 
   inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
   inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
@@ -701,9 +1379,9 @@ private:
 };
 #endif  // !CAPNP_LITE
 
-class CustomReserved5::Reader {
+class BogPilotCarStateMsg::ButtonEvent::Reader {
 public:
-  typedef CustomReserved5 Reads;
+  typedef ButtonEvent Reads;
 
   Reader() = default;
   inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
@@ -730,9 +1408,9 @@ private:
   friend class ::capnp::Orphanage;
 };
 
-class CustomReserved5::Builder {
+class BogPilotCarStateMsg::ButtonEvent::Builder {
 public:
-  typedef CustomReserved5 Builds;
+  typedef ButtonEvent Builds;
 
   Builder() = delete;  // Deleted to discourage incorrect usage.
                        // You can explicitly initialize to nullptr instead.
@@ -756,9 +1434,9 @@ private:
 };
 
 #if !CAPNP_LITE
-class CustomReserved5::Pipeline {
+class BogPilotCarStateMsg::ButtonEvent::Pipeline {
 public:
-  typedef CustomReserved5 Pipelines;
+  typedef ButtonEvent Pipelines;
 
   inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
   inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
@@ -772,9 +1450,9 @@ private:
 };
 #endif  // !CAPNP_LITE
 
-class CustomReserved6::Reader {
+class BogPilotControlsState::Reader {
 public:
-  typedef CustomReserved6 Reads;
+  typedef BogPilotControlsState Reads;
 
   Reader() = default;
   inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
@@ -789,6 +1467,23 @@ public:
   }
 #endif  // !CAPNP_LITE
 
+  inline  ::cereal::BogPilotControlsState::AlertStatus getAlertStatus() const;
+
+  inline bool hasAlertText1() const;
+  inline  ::capnp::Text::Reader getAlertText1() const;
+
+  inline bool hasAlertText2() const;
+  inline  ::capnp::Text::Reader getAlertText2() const;
+
+  inline  ::cereal::BogPilotControlsState::AlertSize getAlertSize() const;
+
+  inline float getAlertBlinkingRate() const;
+
+  inline bool hasAlertType() const;
+  inline  ::capnp::Text::Reader getAlertType() const;
+
+  inline  ::cereal::CarControl::HUDControl::AudibleAlert getAlertSound() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -801,9 +1496,9 @@ private:
   friend class ::capnp::Orphanage;
 };
 
-class CustomReserved6::Builder {
+class BogPilotControlsState::Builder {
 public:
-  typedef CustomReserved6 Builds;
+  typedef BogPilotControlsState Builds;
 
   Builder() = delete;  // Deleted to discourage incorrect usage.
                        // You can explicitly initialize to nullptr instead.
@@ -817,6 +1512,39 @@ public:
   inline ::kj::StringTree toString() const { return asReader().toString(); }
 #endif  // !CAPNP_LITE
 
+  inline  ::cereal::BogPilotControlsState::AlertStatus getAlertStatus();
+  inline void setAlertStatus( ::cereal::BogPilotControlsState::AlertStatus value);
+
+  inline bool hasAlertText1();
+  inline  ::capnp::Text::Builder getAlertText1();
+  inline void setAlertText1( ::capnp::Text::Reader value);
+  inline  ::capnp::Text::Builder initAlertText1(unsigned int size);
+  inline void adoptAlertText1(::capnp::Orphan< ::capnp::Text>&& value);
+  inline ::capnp::Orphan< ::capnp::Text> disownAlertText1();
+
+  inline bool hasAlertText2();
+  inline  ::capnp::Text::Builder getAlertText2();
+  inline void setAlertText2( ::capnp::Text::Reader value);
+  inline  ::capnp::Text::Builder initAlertText2(unsigned int size);
+  inline void adoptAlertText2(::capnp::Orphan< ::capnp::Text>&& value);
+  inline ::capnp::Orphan< ::capnp::Text> disownAlertText2();
+
+  inline  ::cereal::BogPilotControlsState::AlertSize getAlertSize();
+  inline void setAlertSize( ::cereal::BogPilotControlsState::AlertSize value);
+
+  inline float getAlertBlinkingRate();
+  inline void setAlertBlinkingRate(float value);
+
+  inline bool hasAlertType();
+  inline  ::capnp::Text::Builder getAlertType();
+  inline void setAlertType( ::capnp::Text::Reader value);
+  inline  ::capnp::Text::Builder initAlertType(unsigned int size);
+  inline void adoptAlertType(::capnp::Orphan< ::capnp::Text>&& value);
+  inline ::capnp::Orphan< ::capnp::Text> disownAlertType();
+
+  inline  ::cereal::CarControl::HUDControl::AudibleAlert getAlertSound();
+  inline void setAlertSound( ::cereal::CarControl::HUDControl::AudibleAlert value);
+
 private:
   ::capnp::_::StructBuilder _builder;
   template <typename, ::capnp::Kind>
@@ -827,9 +1555,767 @@ private:
 };
 
 #if !CAPNP_LITE
-class CustomReserved6::Pipeline {
+class BogPilotControlsState::Pipeline {
 public:
-  typedef CustomReserved6 Pipelines;
+  typedef BogPilotControlsState Pipelines;
+
+  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
+  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
+      : _typeless(kj::mv(typeless)) {}
+
+private:
+  ::capnp::AnyPointer::Pipeline _typeless;
+  friend class ::capnp::PipelineHook;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+};
+#endif  // !CAPNP_LITE
+
+class BogPilotDeviceState::Reader {
+public:
+  typedef BogPilotDeviceState Reads;
+
+  Reader() = default;
+  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
+
+  inline ::capnp::MessageSize totalSize() const {
+    return _reader.totalSize().asPublic();
+  }
+
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const {
+    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
+  }
+#endif  // !CAPNP_LITE
+
+  inline  ::int16_t getFreeSpace() const;
+
+  inline  ::int16_t getUsedSpace() const;
+
+private:
+  ::capnp::_::StructReader _reader;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::List;
+  friend class ::capnp::MessageBuilder;
+  friend class ::capnp::Orphanage;
+};
+
+class BogPilotDeviceState::Builder {
+public:
+  typedef BogPilotDeviceState Builds;
+
+  Builder() = delete;  // Deleted to discourage incorrect usage.
+                       // You can explicitly initialize to nullptr instead.
+  inline Builder(decltype(nullptr)) {}
+  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
+  inline operator Reader() const { return Reader(_builder.asReader()); }
+  inline Reader asReader() const { return *this; }
+
+  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const { return asReader().toString(); }
+#endif  // !CAPNP_LITE
+
+  inline  ::int16_t getFreeSpace();
+  inline void setFreeSpace( ::int16_t value);
+
+  inline  ::int16_t getUsedSpace();
+  inline void setUsedSpace( ::int16_t value);
+
+private:
+  ::capnp::_::StructBuilder _builder;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  friend class ::capnp::Orphanage;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+};
+
+#if !CAPNP_LITE
+class BogPilotDeviceState::Pipeline {
+public:
+  typedef BogPilotDeviceState Pipelines;
+
+  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
+  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
+      : _typeless(kj::mv(typeless)) {}
+
+private:
+  ::capnp::AnyPointer::Pipeline _typeless;
+  friend class ::capnp::PipelineHook;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+};
+#endif  // !CAPNP_LITE
+
+class BogPilotModelDataV2::Reader {
+public:
+  typedef BogPilotModelDataV2 Reads;
+
+  Reader() = default;
+  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
+
+  inline ::capnp::MessageSize totalSize() const {
+    return _reader.totalSize().asPublic();
+  }
+
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const {
+    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
+  }
+#endif  // !CAPNP_LITE
+
+  inline  ::cereal::BogPilotModelDataV2::TurnDirection getTurnDirection() const;
+
+private:
+  ::capnp::_::StructReader _reader;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::List;
+  friend class ::capnp::MessageBuilder;
+  friend class ::capnp::Orphanage;
+};
+
+class BogPilotModelDataV2::Builder {
+public:
+  typedef BogPilotModelDataV2 Builds;
+
+  Builder() = delete;  // Deleted to discourage incorrect usage.
+                       // You can explicitly initialize to nullptr instead.
+  inline Builder(decltype(nullptr)) {}
+  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
+  inline operator Reader() const { return Reader(_builder.asReader()); }
+  inline Reader asReader() const { return *this; }
+
+  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const { return asReader().toString(); }
+#endif  // !CAPNP_LITE
+
+  inline  ::cereal::BogPilotModelDataV2::TurnDirection getTurnDirection();
+  inline void setTurnDirection( ::cereal::BogPilotModelDataV2::TurnDirection value);
+
+private:
+  ::capnp::_::StructBuilder _builder;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  friend class ::capnp::Orphanage;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+};
+
+#if !CAPNP_LITE
+class BogPilotModelDataV2::Pipeline {
+public:
+  typedef BogPilotModelDataV2 Pipelines;
+
+  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
+  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
+      : _typeless(kj::mv(typeless)) {}
+
+private:
+  ::capnp::AnyPointer::Pipeline _typeless;
+  friend class ::capnp::PipelineHook;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+};
+#endif  // !CAPNP_LITE
+
+class BogPilotNavigation::Reader {
+public:
+  typedef BogPilotNavigation Reads;
+
+  Reader() = default;
+  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
+
+  inline ::capnp::MessageSize totalSize() const {
+    return _reader.totalSize().asPublic();
+  }
+
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const {
+    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
+  }
+#endif  // !CAPNP_LITE
+
+  inline bool getApproachingIntersection() const;
+
+  inline bool getApproachingTurn() const;
+
+  inline float getNavigationSpeedLimit() const;
+
+private:
+  ::capnp::_::StructReader _reader;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::List;
+  friend class ::capnp::MessageBuilder;
+  friend class ::capnp::Orphanage;
+};
+
+class BogPilotNavigation::Builder {
+public:
+  typedef BogPilotNavigation Builds;
+
+  Builder() = delete;  // Deleted to discourage incorrect usage.
+                       // You can explicitly initialize to nullptr instead.
+  inline Builder(decltype(nullptr)) {}
+  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
+  inline operator Reader() const { return Reader(_builder.asReader()); }
+  inline Reader asReader() const { return *this; }
+
+  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const { return asReader().toString(); }
+#endif  // !CAPNP_LITE
+
+  inline bool getApproachingIntersection();
+  inline void setApproachingIntersection(bool value);
+
+  inline bool getApproachingTurn();
+  inline void setApproachingTurn(bool value);
+
+  inline float getNavigationSpeedLimit();
+  inline void setNavigationSpeedLimit(float value);
+
+private:
+  ::capnp::_::StructBuilder _builder;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  friend class ::capnp::Orphanage;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+};
+
+#if !CAPNP_LITE
+class BogPilotNavigation::Pipeline {
+public:
+  typedef BogPilotNavigation Pipelines;
+
+  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
+  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
+      : _typeless(kj::mv(typeless)) {}
+
+private:
+  ::capnp::AnyPointer::Pipeline _typeless;
+  friend class ::capnp::PipelineHook;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+};
+#endif  // !CAPNP_LITE
+
+class BogPilotPlan::Reader {
+public:
+  typedef BogPilotPlan Reads;
+
+  Reader() = default;
+  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
+
+  inline ::capnp::MessageSize totalSize() const {
+    return _reader.totalSize().asPublic();
+  }
+
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const {
+    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
+  }
+#endif  // !CAPNP_LITE
+
+  inline float getAccelerationJerk() const;
+
+  inline float getAccelerationJerkStock() const;
+
+  inline bool getCscControllingSpeed() const;
+
+  inline float getCscSpeed() const;
+
+  inline bool getCscTraining() const;
+
+  inline float getDangerJerk() const;
+
+  inline  ::int64_t getDesiredFollowDistance() const;
+
+  inline bool getExperimentalMode() const;
+
+  inline bool getForcingStop() const;
+
+  inline float getForcingStopLength() const;
+
+  inline bool hasBogpilotEvents() const;
+  inline  ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>::Reader getBogpilotEvents() const;
+
+  inline float getIncreasedStoppedDistance() const;
+
+  inline bool getLateralCheck() const;
+
+  inline float getLaneWidthLeft() const;
+
+  inline float getLaneWidthRight() const;
+
+  inline float getMaxAcceleration() const;
+
+  inline float getMinAcceleration() const;
+
+  inline bool getRedLight() const;
+
+  inline float getRoadCurvature() const;
+
+  inline float getSlcMapSpeedLimit() const;
+
+  inline float getSlcMapboxSpeedLimit() const;
+
+  inline float getSlcNextSpeedLimit() const;
+
+  inline float getSlcOverriddenSpeed() const;
+
+  inline float getSlcSpeedLimit() const;
+
+  inline float getSlcSpeedLimitOffset() const;
+
+  inline bool hasSlcSpeedLimitSource() const;
+  inline  ::capnp::Text::Reader getSlcSpeedLimitSource() const;
+
+  inline float getSpeedJerk() const;
+
+  inline float getSpeedJerkStock() const;
+
+  inline bool getSpeedLimitChanged() const;
+
+  inline float getTFollow() const;
+
+  inline bool getThemeUpdated() const;
+
+  inline bool getTogglesUpdated() const;
+
+  inline bool getTrackingLead() const;
+
+  inline float getUnconfirmedSlcSpeedLimit() const;
+
+  inline float getVCruise() const;
+
+  inline bool getWeatherDaytime() const;
+
+  inline  ::int16_t getWeatherId() const;
+
+  inline bool getCscActive() const;
+
+private:
+  ::capnp::_::StructReader _reader;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::List;
+  friend class ::capnp::MessageBuilder;
+  friend class ::capnp::Orphanage;
+};
+
+class BogPilotPlan::Builder {
+public:
+  typedef BogPilotPlan Builds;
+
+  Builder() = delete;  // Deleted to discourage incorrect usage.
+                       // You can explicitly initialize to nullptr instead.
+  inline Builder(decltype(nullptr)) {}
+  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
+  inline operator Reader() const { return Reader(_builder.asReader()); }
+  inline Reader asReader() const { return *this; }
+
+  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const { return asReader().toString(); }
+#endif  // !CAPNP_LITE
+
+  inline float getAccelerationJerk();
+  inline void setAccelerationJerk(float value);
+
+  inline float getAccelerationJerkStock();
+  inline void setAccelerationJerkStock(float value);
+
+  inline bool getCscControllingSpeed();
+  inline void setCscControllingSpeed(bool value);
+
+  inline float getCscSpeed();
+  inline void setCscSpeed(float value);
+
+  inline bool getCscTraining();
+  inline void setCscTraining(bool value);
+
+  inline float getDangerJerk();
+  inline void setDangerJerk(float value);
+
+  inline  ::int64_t getDesiredFollowDistance();
+  inline void setDesiredFollowDistance( ::int64_t value);
+
+  inline bool getExperimentalMode();
+  inline void setExperimentalMode(bool value);
+
+  inline bool getForcingStop();
+  inline void setForcingStop(bool value);
+
+  inline float getForcingStopLength();
+  inline void setForcingStopLength(float value);
+
+  inline bool hasBogpilotEvents();
+  inline  ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>::Builder getBogpilotEvents();
+  inline void setBogpilotEvents( ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>::Reader value);
+  inline  ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>::Builder initBogpilotEvents(unsigned int size);
+  inline void adoptBogpilotEvents(::capnp::Orphan< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>>&& value);
+  inline ::capnp::Orphan< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>> disownBogpilotEvents();
+
+  inline float getIncreasedStoppedDistance();
+  inline void setIncreasedStoppedDistance(float value);
+
+  inline bool getLateralCheck();
+  inline void setLateralCheck(bool value);
+
+  inline float getLaneWidthLeft();
+  inline void setLaneWidthLeft(float value);
+
+  inline float getLaneWidthRight();
+  inline void setLaneWidthRight(float value);
+
+  inline float getMaxAcceleration();
+  inline void setMaxAcceleration(float value);
+
+  inline float getMinAcceleration();
+  inline void setMinAcceleration(float value);
+
+  inline bool getRedLight();
+  inline void setRedLight(bool value);
+
+  inline float getRoadCurvature();
+  inline void setRoadCurvature(float value);
+
+  inline float getSlcMapSpeedLimit();
+  inline void setSlcMapSpeedLimit(float value);
+
+  inline float getSlcMapboxSpeedLimit();
+  inline void setSlcMapboxSpeedLimit(float value);
+
+  inline float getSlcNextSpeedLimit();
+  inline void setSlcNextSpeedLimit(float value);
+
+  inline float getSlcOverriddenSpeed();
+  inline void setSlcOverriddenSpeed(float value);
+
+  inline float getSlcSpeedLimit();
+  inline void setSlcSpeedLimit(float value);
+
+  inline float getSlcSpeedLimitOffset();
+  inline void setSlcSpeedLimitOffset(float value);
+
+  inline bool hasSlcSpeedLimitSource();
+  inline  ::capnp::Text::Builder getSlcSpeedLimitSource();
+  inline void setSlcSpeedLimitSource( ::capnp::Text::Reader value);
+  inline  ::capnp::Text::Builder initSlcSpeedLimitSource(unsigned int size);
+  inline void adoptSlcSpeedLimitSource(::capnp::Orphan< ::capnp::Text>&& value);
+  inline ::capnp::Orphan< ::capnp::Text> disownSlcSpeedLimitSource();
+
+  inline float getSpeedJerk();
+  inline void setSpeedJerk(float value);
+
+  inline float getSpeedJerkStock();
+  inline void setSpeedJerkStock(float value);
+
+  inline bool getSpeedLimitChanged();
+  inline void setSpeedLimitChanged(bool value);
+
+  inline float getTFollow();
+  inline void setTFollow(float value);
+
+  inline bool getThemeUpdated();
+  inline void setThemeUpdated(bool value);
+
+  inline bool getTogglesUpdated();
+  inline void setTogglesUpdated(bool value);
+
+  inline bool getTrackingLead();
+  inline void setTrackingLead(bool value);
+
+  inline float getUnconfirmedSlcSpeedLimit();
+  inline void setUnconfirmedSlcSpeedLimit(float value);
+
+  inline float getVCruise();
+  inline void setVCruise(float value);
+
+  inline bool getWeatherDaytime();
+  inline void setWeatherDaytime(bool value);
+
+  inline  ::int16_t getWeatherId();
+  inline void setWeatherId( ::int16_t value);
+
+  inline bool getCscActive();
+  inline void setCscActive(bool value);
+
+private:
+  ::capnp::_::StructBuilder _builder;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  friend class ::capnp::Orphanage;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+};
+
+#if !CAPNP_LITE
+class BogPilotPlan::Pipeline {
+public:
+  typedef BogPilotPlan Pipelines;
+
+  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
+  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
+      : _typeless(kj::mv(typeless)) {}
+
+private:
+  ::capnp::AnyPointer::Pipeline _typeless;
+  friend class ::capnp::PipelineHook;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+};
+#endif  // !CAPNP_LITE
+
+class BogPilotRadarState::Reader {
+public:
+  typedef BogPilotRadarState Reads;
+
+  Reader() = default;
+  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
+
+  inline ::capnp::MessageSize totalSize() const {
+    return _reader.totalSize().asPublic();
+  }
+
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const {
+    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
+  }
+#endif  // !CAPNP_LITE
+
+  inline bool hasLeadLeft() const;
+  inline  ::cereal::BogPilotRadarState::LeadData::Reader getLeadLeft() const;
+
+  inline bool hasLeadRight() const;
+  inline  ::cereal::BogPilotRadarState::LeadData::Reader getLeadRight() const;
+
+private:
+  ::capnp::_::StructReader _reader;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::List;
+  friend class ::capnp::MessageBuilder;
+  friend class ::capnp::Orphanage;
+};
+
+class BogPilotRadarState::Builder {
+public:
+  typedef BogPilotRadarState Builds;
+
+  Builder() = delete;  // Deleted to discourage incorrect usage.
+                       // You can explicitly initialize to nullptr instead.
+  inline Builder(decltype(nullptr)) {}
+  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
+  inline operator Reader() const { return Reader(_builder.asReader()); }
+  inline Reader asReader() const { return *this; }
+
+  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const { return asReader().toString(); }
+#endif  // !CAPNP_LITE
+
+  inline bool hasLeadLeft();
+  inline  ::cereal::BogPilotRadarState::LeadData::Builder getLeadLeft();
+  inline void setLeadLeft( ::cereal::BogPilotRadarState::LeadData::Reader value);
+  inline  ::cereal::BogPilotRadarState::LeadData::Builder initLeadLeft();
+  inline void adoptLeadLeft(::capnp::Orphan< ::cereal::BogPilotRadarState::LeadData>&& value);
+  inline ::capnp::Orphan< ::cereal::BogPilotRadarState::LeadData> disownLeadLeft();
+
+  inline bool hasLeadRight();
+  inline  ::cereal::BogPilotRadarState::LeadData::Builder getLeadRight();
+  inline void setLeadRight( ::cereal::BogPilotRadarState::LeadData::Reader value);
+  inline  ::cereal::BogPilotRadarState::LeadData::Builder initLeadRight();
+  inline void adoptLeadRight(::capnp::Orphan< ::cereal::BogPilotRadarState::LeadData>&& value);
+  inline ::capnp::Orphan< ::cereal::BogPilotRadarState::LeadData> disownLeadRight();
+
+private:
+  ::capnp::_::StructBuilder _builder;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  friend class ::capnp::Orphanage;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+};
+
+#if !CAPNP_LITE
+class BogPilotRadarState::Pipeline {
+public:
+  typedef BogPilotRadarState Pipelines;
+
+  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
+  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
+      : _typeless(kj::mv(typeless)) {}
+
+  inline  ::cereal::BogPilotRadarState::LeadData::Pipeline getLeadLeft();
+  inline  ::cereal::BogPilotRadarState::LeadData::Pipeline getLeadRight();
+private:
+  ::capnp::AnyPointer::Pipeline _typeless;
+  friend class ::capnp::PipelineHook;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+};
+#endif  // !CAPNP_LITE
+
+class BogPilotRadarState::LeadData::Reader {
+public:
+  typedef LeadData Reads;
+
+  Reader() = default;
+  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
+
+  inline ::capnp::MessageSize totalSize() const {
+    return _reader.totalSize().asPublic();
+  }
+
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const {
+    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
+  }
+#endif  // !CAPNP_LITE
+
+  inline float getDRel() const;
+
+  inline float getYRel() const;
+
+  inline float getVRel() const;
+
+  inline float getARel() const;
+
+  inline float getVLead() const;
+
+  inline float getALeadDEPRECATED() const;
+
+  inline float getDPath() const;
+
+  inline float getVLat() const;
+
+  inline float getVLeadK() const;
+
+  inline float getALeadK() const;
+
+  inline bool getFcw() const;
+
+  inline bool getStatus() const;
+
+  inline float getALeadTau() const;
+
+  inline float getModelProb() const;
+
+  inline bool getRadar() const;
+
+  inline  ::int32_t getRadarTrackId() const;
+
+private:
+  ::capnp::_::StructReader _reader;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::List;
+  friend class ::capnp::MessageBuilder;
+  friend class ::capnp::Orphanage;
+};
+
+class BogPilotRadarState::LeadData::Builder {
+public:
+  typedef LeadData Builds;
+
+  Builder() = delete;  // Deleted to discourage incorrect usage.
+                       // You can explicitly initialize to nullptr instead.
+  inline Builder(decltype(nullptr)) {}
+  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
+  inline operator Reader() const { return Reader(_builder.asReader()); }
+  inline Reader asReader() const { return *this; }
+
+  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const { return asReader().toString(); }
+#endif  // !CAPNP_LITE
+
+  inline float getDRel();
+  inline void setDRel(float value);
+
+  inline float getYRel();
+  inline void setYRel(float value);
+
+  inline float getVRel();
+  inline void setVRel(float value);
+
+  inline float getARel();
+  inline void setARel(float value);
+
+  inline float getVLead();
+  inline void setVLead(float value);
+
+  inline float getALeadDEPRECATED();
+  inline void setALeadDEPRECATED(float value);
+
+  inline float getDPath();
+  inline void setDPath(float value);
+
+  inline float getVLat();
+  inline void setVLat(float value);
+
+  inline float getVLeadK();
+  inline void setVLeadK(float value);
+
+  inline float getALeadK();
+  inline void setALeadK(float value);
+
+  inline bool getFcw();
+  inline void setFcw(bool value);
+
+  inline bool getStatus();
+  inline void setStatus(bool value);
+
+  inline float getALeadTau();
+  inline void setALeadTau(float value);
+
+  inline float getModelProb();
+  inline void setModelProb(float value);
+
+  inline bool getRadar();
+  inline void setRadar(bool value);
+
+  inline  ::int32_t getRadarTrackId();
+  inline void setRadarTrackId( ::int32_t value);
+
+private:
+  ::capnp::_::StructBuilder _builder;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  friend class ::capnp::Orphanage;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+};
+
+#if !CAPNP_LITE
+class BogPilotRadarState::LeadData::Pipeline {
+public:
+  typedef LeadData Pipelines;
 
   inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
   inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
@@ -901,148 +2387,6 @@ private:
 class CustomReserved7::Pipeline {
 public:
   typedef CustomReserved7 Pipelines;
-
-  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
-  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
-      : _typeless(kj::mv(typeless)) {}
-
-private:
-  ::capnp::AnyPointer::Pipeline _typeless;
-  friend class ::capnp::PipelineHook;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::ToDynamic_;
-};
-#endif  // !CAPNP_LITE
-
-class CustomReserved8::Reader {
-public:
-  typedef CustomReserved8 Reads;
-
-  Reader() = default;
-  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
-
-  inline ::capnp::MessageSize totalSize() const {
-    return _reader.totalSize().asPublic();
-  }
-
-#if !CAPNP_LITE
-  inline ::kj::StringTree toString() const {
-    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
-  }
-#endif  // !CAPNP_LITE
-
-private:
-  ::capnp::_::StructReader _reader;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::ToDynamic_;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::_::PointerHelpers;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::List;
-  friend class ::capnp::MessageBuilder;
-  friend class ::capnp::Orphanage;
-};
-
-class CustomReserved8::Builder {
-public:
-  typedef CustomReserved8 Builds;
-
-  Builder() = delete;  // Deleted to discourage incorrect usage.
-                       // You can explicitly initialize to nullptr instead.
-  inline Builder(decltype(nullptr)) {}
-  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
-  inline operator Reader() const { return Reader(_builder.asReader()); }
-  inline Reader asReader() const { return *this; }
-
-  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
-#if !CAPNP_LITE
-  inline ::kj::StringTree toString() const { return asReader().toString(); }
-#endif  // !CAPNP_LITE
-
-private:
-  ::capnp::_::StructBuilder _builder;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::ToDynamic_;
-  friend class ::capnp::Orphanage;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::_::PointerHelpers;
-};
-
-#if !CAPNP_LITE
-class CustomReserved8::Pipeline {
-public:
-  typedef CustomReserved8 Pipelines;
-
-  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
-  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
-      : _typeless(kj::mv(typeless)) {}
-
-private:
-  ::capnp::AnyPointer::Pipeline _typeless;
-  friend class ::capnp::PipelineHook;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::ToDynamic_;
-};
-#endif  // !CAPNP_LITE
-
-class CustomReserved9::Reader {
-public:
-  typedef CustomReserved9 Reads;
-
-  Reader() = default;
-  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
-
-  inline ::capnp::MessageSize totalSize() const {
-    return _reader.totalSize().asPublic();
-  }
-
-#if !CAPNP_LITE
-  inline ::kj::StringTree toString() const {
-    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
-  }
-#endif  // !CAPNP_LITE
-
-private:
-  ::capnp::_::StructReader _reader;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::ToDynamic_;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::_::PointerHelpers;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::List;
-  friend class ::capnp::MessageBuilder;
-  friend class ::capnp::Orphanage;
-};
-
-class CustomReserved9::Builder {
-public:
-  typedef CustomReserved9 Builds;
-
-  Builder() = delete;  // Deleted to discourage incorrect usage.
-                       // You can explicitly initialize to nullptr instead.
-  inline Builder(decltype(nullptr)) {}
-  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
-  inline operator Reader() const { return Reader(_builder.asReader()); }
-  inline Reader asReader() const { return *this; }
-
-  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
-#if !CAPNP_LITE
-  inline ::kj::StringTree toString() const { return asReader().toString(); }
-#endif  // !CAPNP_LITE
-
-private:
-  ::capnp::_::StructBuilder _builder;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::ToDynamic_;
-  friend class ::capnp::Orphanage;
-  template <typename, ::capnp::Kind>
-  friend struct ::capnp::_::PointerHelpers;
-};
-
-#if !CAPNP_LITE
-class CustomReserved9::Pipeline {
-public:
-  typedef CustomReserved9 Pipelines;
 
   inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
   inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
@@ -1553,9 +2897,9 @@ private:
 };
 #endif  // !CAPNP_LITE
 
-class CustomReserved17::Reader {
+class MapdDownloadLocationDetails::Reader {
 public:
-  typedef CustomReserved17 Reads;
+  typedef MapdDownloadLocationDetails Reads;
 
   Reader() = default;
   inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
@@ -1570,6 +2914,13 @@ public:
   }
 #endif  // !CAPNP_LITE
 
+  inline bool hasLocation() const;
+  inline  ::capnp::Text::Reader getLocation() const;
+
+  inline  ::uint32_t getTotalFiles() const;
+
+  inline  ::uint32_t getDownloadedFiles() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -1582,9 +2933,9 @@ private:
   friend class ::capnp::Orphanage;
 };
 
-class CustomReserved17::Builder {
+class MapdDownloadLocationDetails::Builder {
 public:
-  typedef CustomReserved17 Builds;
+  typedef MapdDownloadLocationDetails Builds;
 
   Builder() = delete;  // Deleted to discourage incorrect usage.
                        // You can explicitly initialize to nullptr instead.
@@ -1598,6 +2949,19 @@ public:
   inline ::kj::StringTree toString() const { return asReader().toString(); }
 #endif  // !CAPNP_LITE
 
+  inline bool hasLocation();
+  inline  ::capnp::Text::Builder getLocation();
+  inline void setLocation( ::capnp::Text::Reader value);
+  inline  ::capnp::Text::Builder initLocation(unsigned int size);
+  inline void adoptLocation(::capnp::Orphan< ::capnp::Text>&& value);
+  inline ::capnp::Orphan< ::capnp::Text> disownLocation();
+
+  inline  ::uint32_t getTotalFiles();
+  inline void setTotalFiles( ::uint32_t value);
+
+  inline  ::uint32_t getDownloadedFiles();
+  inline void setDownloadedFiles( ::uint32_t value);
+
 private:
   ::capnp::_::StructBuilder _builder;
   template <typename, ::capnp::Kind>
@@ -1608,9 +2972,9 @@ private:
 };
 
 #if !CAPNP_LITE
-class CustomReserved17::Pipeline {
+class MapdDownloadLocationDetails::Pipeline {
 public:
-  typedef CustomReserved17 Pipelines;
+  typedef MapdDownloadLocationDetails Pipelines;
 
   inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
   inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
@@ -1624,9 +2988,9 @@ private:
 };
 #endif  // !CAPNP_LITE
 
-class CustomReserved18::Reader {
+class MapdDownloadProgress::Reader {
 public:
-  typedef CustomReserved18 Reads;
+  typedef MapdDownloadProgress Reads;
 
   Reader() = default;
   inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
@@ -1641,6 +3005,20 @@ public:
   }
 #endif  // !CAPNP_LITE
 
+  inline bool getActive() const;
+
+  inline bool getCancelled() const;
+
+  inline  ::uint32_t getTotalFiles() const;
+
+  inline  ::uint32_t getDownloadedFiles() const;
+
+  inline bool hasLocations() const;
+  inline  ::capnp::List< ::capnp::Text,  ::capnp::Kind::BLOB>::Reader getLocations() const;
+
+  inline bool hasLocationDetails() const;
+  inline  ::capnp::List< ::cereal::MapdDownloadLocationDetails,  ::capnp::Kind::STRUCT>::Reader getLocationDetails() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -1653,9 +3031,9 @@ private:
   friend class ::capnp::Orphanage;
 };
 
-class CustomReserved18::Builder {
+class MapdDownloadProgress::Builder {
 public:
-  typedef CustomReserved18 Builds;
+  typedef MapdDownloadProgress Builds;
 
   Builder() = delete;  // Deleted to discourage incorrect usage.
                        // You can explicitly initialize to nullptr instead.
@@ -1669,6 +3047,33 @@ public:
   inline ::kj::StringTree toString() const { return asReader().toString(); }
 #endif  // !CAPNP_LITE
 
+  inline bool getActive();
+  inline void setActive(bool value);
+
+  inline bool getCancelled();
+  inline void setCancelled(bool value);
+
+  inline  ::uint32_t getTotalFiles();
+  inline void setTotalFiles( ::uint32_t value);
+
+  inline  ::uint32_t getDownloadedFiles();
+  inline void setDownloadedFiles( ::uint32_t value);
+
+  inline bool hasLocations();
+  inline  ::capnp::List< ::capnp::Text,  ::capnp::Kind::BLOB>::Builder getLocations();
+  inline void setLocations( ::capnp::List< ::capnp::Text,  ::capnp::Kind::BLOB>::Reader value);
+  inline void setLocations(::kj::ArrayPtr<const  ::capnp::Text::Reader> value);
+  inline  ::capnp::List< ::capnp::Text,  ::capnp::Kind::BLOB>::Builder initLocations(unsigned int size);
+  inline void adoptLocations(::capnp::Orphan< ::capnp::List< ::capnp::Text,  ::capnp::Kind::BLOB>>&& value);
+  inline ::capnp::Orphan< ::capnp::List< ::capnp::Text,  ::capnp::Kind::BLOB>> disownLocations();
+
+  inline bool hasLocationDetails();
+  inline  ::capnp::List< ::cereal::MapdDownloadLocationDetails,  ::capnp::Kind::STRUCT>::Builder getLocationDetails();
+  inline void setLocationDetails( ::capnp::List< ::cereal::MapdDownloadLocationDetails,  ::capnp::Kind::STRUCT>::Reader value);
+  inline  ::capnp::List< ::cereal::MapdDownloadLocationDetails,  ::capnp::Kind::STRUCT>::Builder initLocationDetails(unsigned int size);
+  inline void adoptLocationDetails(::capnp::Orphan< ::capnp::List< ::cereal::MapdDownloadLocationDetails,  ::capnp::Kind::STRUCT>>&& value);
+  inline ::capnp::Orphan< ::capnp::List< ::cereal::MapdDownloadLocationDetails,  ::capnp::Kind::STRUCT>> disownLocationDetails();
+
 private:
   ::capnp::_::StructBuilder _builder;
   template <typename, ::capnp::Kind>
@@ -1679,9 +3084,9 @@ private:
 };
 
 #if !CAPNP_LITE
-class CustomReserved18::Pipeline {
+class MapdDownloadProgress::Pipeline {
 public:
-  typedef CustomReserved18 Pipelines;
+  typedef MapdDownloadProgress Pipelines;
 
   inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
   inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
@@ -1695,9 +3100,9 @@ private:
 };
 #endif  // !CAPNP_LITE
 
-class CustomReserved19::Reader {
+class MapdPathPoint::Reader {
 public:
-  typedef CustomReserved19 Reads;
+  typedef MapdPathPoint Reads;
 
   Reader() = default;
   inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
@@ -1712,6 +3117,14 @@ public:
   }
 #endif  // !CAPNP_LITE
 
+  inline double getLatitude() const;
+
+  inline double getLongitude() const;
+
+  inline float getCurvature() const;
+
+  inline float getTargetVelocity() const;
+
 private:
   ::capnp::_::StructReader _reader;
   template <typename, ::capnp::Kind>
@@ -1724,9 +3137,9 @@ private:
   friend class ::capnp::Orphanage;
 };
 
-class CustomReserved19::Builder {
+class MapdPathPoint::Builder {
 public:
-  typedef CustomReserved19 Builds;
+  typedef MapdPathPoint Builds;
 
   Builder() = delete;  // Deleted to discourage incorrect usage.
                        // You can explicitly initialize to nullptr instead.
@@ -1740,6 +3153,18 @@ public:
   inline ::kj::StringTree toString() const { return asReader().toString(); }
 #endif  // !CAPNP_LITE
 
+  inline double getLatitude();
+  inline void setLatitude(double value);
+
+  inline double getLongitude();
+  inline void setLongitude(double value);
+
+  inline float getCurvature();
+  inline void setCurvature(float value);
+
+  inline float getTargetVelocity();
+  inline void setTargetVelocity(float value);
+
 private:
   ::capnp::_::StructBuilder _builder;
   template <typename, ::capnp::Kind>
@@ -1750,9 +3175,560 @@ private:
 };
 
 #if !CAPNP_LITE
-class CustomReserved19::Pipeline {
+class MapdPathPoint::Pipeline {
 public:
-  typedef CustomReserved19 Pipelines;
+  typedef MapdPathPoint Pipelines;
+
+  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
+  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
+      : _typeless(kj::mv(typeless)) {}
+
+private:
+  ::capnp::AnyPointer::Pipeline _typeless;
+  friend class ::capnp::PipelineHook;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+};
+#endif  // !CAPNP_LITE
+
+class MapdPosition::Reader {
+public:
+  typedef MapdPosition Reads;
+
+  Reader() = default;
+  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
+
+  inline ::capnp::MessageSize totalSize() const {
+    return _reader.totalSize().asPublic();
+  }
+
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const {
+    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
+  }
+#endif  // !CAPNP_LITE
+
+  inline double getLatitude() const;
+
+  inline double getLongitude() const;
+
+private:
+  ::capnp::_::StructReader _reader;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::List;
+  friend class ::capnp::MessageBuilder;
+  friend class ::capnp::Orphanage;
+};
+
+class MapdPosition::Builder {
+public:
+  typedef MapdPosition Builds;
+
+  Builder() = delete;  // Deleted to discourage incorrect usage.
+                       // You can explicitly initialize to nullptr instead.
+  inline Builder(decltype(nullptr)) {}
+  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
+  inline operator Reader() const { return Reader(_builder.asReader()); }
+  inline Reader asReader() const { return *this; }
+
+  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const { return asReader().toString(); }
+#endif  // !CAPNP_LITE
+
+  inline double getLatitude();
+  inline void setLatitude(double value);
+
+  inline double getLongitude();
+  inline void setLongitude(double value);
+
+private:
+  ::capnp::_::StructBuilder _builder;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  friend class ::capnp::Orphanage;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+};
+
+#if !CAPNP_LITE
+class MapdPosition::Pipeline {
+public:
+  typedef MapdPosition Pipelines;
+
+  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
+  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
+      : _typeless(kj::mv(typeless)) {}
+
+private:
+  ::capnp::AnyPointer::Pipeline _typeless;
+  friend class ::capnp::PipelineHook;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+};
+#endif  // !CAPNP_LITE
+
+class MapdExtendedOut::Reader {
+public:
+  typedef MapdExtendedOut Reads;
+
+  Reader() = default;
+  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
+
+  inline ::capnp::MessageSize totalSize() const {
+    return _reader.totalSize().asPublic();
+  }
+
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const {
+    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
+  }
+#endif  // !CAPNP_LITE
+
+  inline bool hasDownloadProgress() const;
+  inline  ::cereal::MapdDownloadProgress::Reader getDownloadProgress() const;
+
+  inline bool hasSettings() const;
+  inline  ::capnp::Text::Reader getSettings() const;
+
+  inline bool hasPath() const;
+  inline  ::capnp::List< ::cereal::MapdPathPoint,  ::capnp::Kind::STRUCT>::Reader getPath() const;
+
+  inline bool hasPosition() const;
+  inline  ::cereal::MapdPosition::Reader getPosition() const;
+
+  inline float getLoopRateAverage() const;
+
+  inline float getLoopRateMin() const;
+
+private:
+  ::capnp::_::StructReader _reader;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::List;
+  friend class ::capnp::MessageBuilder;
+  friend class ::capnp::Orphanage;
+};
+
+class MapdExtendedOut::Builder {
+public:
+  typedef MapdExtendedOut Builds;
+
+  Builder() = delete;  // Deleted to discourage incorrect usage.
+                       // You can explicitly initialize to nullptr instead.
+  inline Builder(decltype(nullptr)) {}
+  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
+  inline operator Reader() const { return Reader(_builder.asReader()); }
+  inline Reader asReader() const { return *this; }
+
+  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const { return asReader().toString(); }
+#endif  // !CAPNP_LITE
+
+  inline bool hasDownloadProgress();
+  inline  ::cereal::MapdDownloadProgress::Builder getDownloadProgress();
+  inline void setDownloadProgress( ::cereal::MapdDownloadProgress::Reader value);
+  inline  ::cereal::MapdDownloadProgress::Builder initDownloadProgress();
+  inline void adoptDownloadProgress(::capnp::Orphan< ::cereal::MapdDownloadProgress>&& value);
+  inline ::capnp::Orphan< ::cereal::MapdDownloadProgress> disownDownloadProgress();
+
+  inline bool hasSettings();
+  inline  ::capnp::Text::Builder getSettings();
+  inline void setSettings( ::capnp::Text::Reader value);
+  inline  ::capnp::Text::Builder initSettings(unsigned int size);
+  inline void adoptSettings(::capnp::Orphan< ::capnp::Text>&& value);
+  inline ::capnp::Orphan< ::capnp::Text> disownSettings();
+
+  inline bool hasPath();
+  inline  ::capnp::List< ::cereal::MapdPathPoint,  ::capnp::Kind::STRUCT>::Builder getPath();
+  inline void setPath( ::capnp::List< ::cereal::MapdPathPoint,  ::capnp::Kind::STRUCT>::Reader value);
+  inline  ::capnp::List< ::cereal::MapdPathPoint,  ::capnp::Kind::STRUCT>::Builder initPath(unsigned int size);
+  inline void adoptPath(::capnp::Orphan< ::capnp::List< ::cereal::MapdPathPoint,  ::capnp::Kind::STRUCT>>&& value);
+  inline ::capnp::Orphan< ::capnp::List< ::cereal::MapdPathPoint,  ::capnp::Kind::STRUCT>> disownPath();
+
+  inline bool hasPosition();
+  inline  ::cereal::MapdPosition::Builder getPosition();
+  inline void setPosition( ::cereal::MapdPosition::Reader value);
+  inline  ::cereal::MapdPosition::Builder initPosition();
+  inline void adoptPosition(::capnp::Orphan< ::cereal::MapdPosition>&& value);
+  inline ::capnp::Orphan< ::cereal::MapdPosition> disownPosition();
+
+  inline float getLoopRateAverage();
+  inline void setLoopRateAverage(float value);
+
+  inline float getLoopRateMin();
+  inline void setLoopRateMin(float value);
+
+private:
+  ::capnp::_::StructBuilder _builder;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  friend class ::capnp::Orphanage;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+};
+
+#if !CAPNP_LITE
+class MapdExtendedOut::Pipeline {
+public:
+  typedef MapdExtendedOut Pipelines;
+
+  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
+  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
+      : _typeless(kj::mv(typeless)) {}
+
+  inline  ::cereal::MapdDownloadProgress::Pipeline getDownloadProgress();
+  inline  ::cereal::MapdPosition::Pipeline getPosition();
+private:
+  ::capnp::AnyPointer::Pipeline _typeless;
+  friend class ::capnp::PipelineHook;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+};
+#endif  // !CAPNP_LITE
+
+class MapdIn::Reader {
+public:
+  typedef MapdIn Reads;
+
+  Reader() = default;
+  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
+
+  inline ::capnp::MessageSize totalSize() const {
+    return _reader.totalSize().asPublic();
+  }
+
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const {
+    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
+  }
+#endif  // !CAPNP_LITE
+
+  inline  ::cereal::MapdInputType getType() const;
+
+  inline float getFloat() const;
+
+  inline bool hasStr() const;
+  inline  ::capnp::Text::Reader getStr() const;
+
+  inline bool getBool() const;
+
+  inline bool hasJsonPath() const;
+  inline  ::capnp::Text::Reader getJsonPath() const;
+
+private:
+  ::capnp::_::StructReader _reader;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::List;
+  friend class ::capnp::MessageBuilder;
+  friend class ::capnp::Orphanage;
+};
+
+class MapdIn::Builder {
+public:
+  typedef MapdIn Builds;
+
+  Builder() = delete;  // Deleted to discourage incorrect usage.
+                       // You can explicitly initialize to nullptr instead.
+  inline Builder(decltype(nullptr)) {}
+  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
+  inline operator Reader() const { return Reader(_builder.asReader()); }
+  inline Reader asReader() const { return *this; }
+
+  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const { return asReader().toString(); }
+#endif  // !CAPNP_LITE
+
+  inline  ::cereal::MapdInputType getType();
+  inline void setType( ::cereal::MapdInputType value);
+
+  inline float getFloat();
+  inline void setFloat(float value);
+
+  inline bool hasStr();
+  inline  ::capnp::Text::Builder getStr();
+  inline void setStr( ::capnp::Text::Reader value);
+  inline  ::capnp::Text::Builder initStr(unsigned int size);
+  inline void adoptStr(::capnp::Orphan< ::capnp::Text>&& value);
+  inline ::capnp::Orphan< ::capnp::Text> disownStr();
+
+  inline bool getBool();
+  inline void setBool(bool value);
+
+  inline bool hasJsonPath();
+  inline  ::capnp::Text::Builder getJsonPath();
+  inline void setJsonPath( ::capnp::Text::Reader value);
+  inline  ::capnp::Text::Builder initJsonPath(unsigned int size);
+  inline void adoptJsonPath(::capnp::Orphan< ::capnp::Text>&& value);
+  inline ::capnp::Orphan< ::capnp::Text> disownJsonPath();
+
+private:
+  ::capnp::_::StructBuilder _builder;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  friend class ::capnp::Orphanage;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+};
+
+#if !CAPNP_LITE
+class MapdIn::Pipeline {
+public:
+  typedef MapdIn Pipelines;
+
+  inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
+  inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
+      : _typeless(kj::mv(typeless)) {}
+
+private:
+  ::capnp::AnyPointer::Pipeline _typeless;
+  friend class ::capnp::PipelineHook;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+};
+#endif  // !CAPNP_LITE
+
+class MapdOut::Reader {
+public:
+  typedef MapdOut Reads;
+
+  Reader() = default;
+  inline explicit Reader(::capnp::_::StructReader base): _reader(base) {}
+
+  inline ::capnp::MessageSize totalSize() const {
+    return _reader.totalSize().asPublic();
+  }
+
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const {
+    return ::capnp::_::structString(_reader, *_capnpPrivate::brand());
+  }
+#endif  // !CAPNP_LITE
+
+  inline bool hasWayName() const;
+  inline  ::capnp::Text::Reader getWayName() const;
+
+  inline bool hasWayRef() const;
+  inline  ::capnp::Text::Reader getWayRef() const;
+
+  inline bool hasRoadName() const;
+  inline  ::capnp::Text::Reader getRoadName() const;
+
+  inline float getSpeedLimit() const;
+
+  inline float getNextSpeedLimit() const;
+
+  inline float getNextSpeedLimitDistance() const;
+
+  inline bool hasHazard() const;
+  inline  ::capnp::Text::Reader getHazard() const;
+
+  inline bool hasNextHazard() const;
+  inline  ::capnp::Text::Reader getNextHazard() const;
+
+  inline float getNextHazardDistance() const;
+
+  inline float getAdvisorySpeed() const;
+
+  inline float getNextAdvisorySpeed() const;
+
+  inline float getNextAdvisorySpeedDistance() const;
+
+  inline bool getOneWay() const;
+
+  inline  ::uint8_t getLanes() const;
+
+  inline bool getTileLoaded() const;
+
+  inline float getSpeedLimitSuggestedSpeed() const;
+
+  inline float getSuggestedSpeed() const;
+
+  inline float getEstimatedRoadWidth() const;
+
+  inline  ::cereal::RoadContext getRoadContext() const;
+
+  inline float getDistanceFromWayCenter() const;
+
+  inline float getVisionCurveSpeed() const;
+
+  inline float getMapCurveSpeed() const;
+
+  inline  ::cereal::WaySelectionType getWaySelectionType() const;
+
+  inline bool getSpeedLimitAccepted() const;
+
+  inline  ::cereal::HighwayClass getHighwayClass() const;
+
+  inline  ::int64_t getWayId() const;
+
+  inline bool hasConditionalSpeedLimit() const;
+  inline  ::capnp::Text::Reader getConditionalSpeedLimit() const;
+
+  inline bool getIsForward() const;
+
+private:
+  ::capnp::_::StructReader _reader;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::List;
+  friend class ::capnp::MessageBuilder;
+  friend class ::capnp::Orphanage;
+};
+
+class MapdOut::Builder {
+public:
+  typedef MapdOut Builds;
+
+  Builder() = delete;  // Deleted to discourage incorrect usage.
+                       // You can explicitly initialize to nullptr instead.
+  inline Builder(decltype(nullptr)) {}
+  inline explicit Builder(::capnp::_::StructBuilder base): _builder(base) {}
+  inline operator Reader() const { return Reader(_builder.asReader()); }
+  inline Reader asReader() const { return *this; }
+
+  inline ::capnp::MessageSize totalSize() const { return asReader().totalSize(); }
+#if !CAPNP_LITE
+  inline ::kj::StringTree toString() const { return asReader().toString(); }
+#endif  // !CAPNP_LITE
+
+  inline bool hasWayName();
+  inline  ::capnp::Text::Builder getWayName();
+  inline void setWayName( ::capnp::Text::Reader value);
+  inline  ::capnp::Text::Builder initWayName(unsigned int size);
+  inline void adoptWayName(::capnp::Orphan< ::capnp::Text>&& value);
+  inline ::capnp::Orphan< ::capnp::Text> disownWayName();
+
+  inline bool hasWayRef();
+  inline  ::capnp::Text::Builder getWayRef();
+  inline void setWayRef( ::capnp::Text::Reader value);
+  inline  ::capnp::Text::Builder initWayRef(unsigned int size);
+  inline void adoptWayRef(::capnp::Orphan< ::capnp::Text>&& value);
+  inline ::capnp::Orphan< ::capnp::Text> disownWayRef();
+
+  inline bool hasRoadName();
+  inline  ::capnp::Text::Builder getRoadName();
+  inline void setRoadName( ::capnp::Text::Reader value);
+  inline  ::capnp::Text::Builder initRoadName(unsigned int size);
+  inline void adoptRoadName(::capnp::Orphan< ::capnp::Text>&& value);
+  inline ::capnp::Orphan< ::capnp::Text> disownRoadName();
+
+  inline float getSpeedLimit();
+  inline void setSpeedLimit(float value);
+
+  inline float getNextSpeedLimit();
+  inline void setNextSpeedLimit(float value);
+
+  inline float getNextSpeedLimitDistance();
+  inline void setNextSpeedLimitDistance(float value);
+
+  inline bool hasHazard();
+  inline  ::capnp::Text::Builder getHazard();
+  inline void setHazard( ::capnp::Text::Reader value);
+  inline  ::capnp::Text::Builder initHazard(unsigned int size);
+  inline void adoptHazard(::capnp::Orphan< ::capnp::Text>&& value);
+  inline ::capnp::Orphan< ::capnp::Text> disownHazard();
+
+  inline bool hasNextHazard();
+  inline  ::capnp::Text::Builder getNextHazard();
+  inline void setNextHazard( ::capnp::Text::Reader value);
+  inline  ::capnp::Text::Builder initNextHazard(unsigned int size);
+  inline void adoptNextHazard(::capnp::Orphan< ::capnp::Text>&& value);
+  inline ::capnp::Orphan< ::capnp::Text> disownNextHazard();
+
+  inline float getNextHazardDistance();
+  inline void setNextHazardDistance(float value);
+
+  inline float getAdvisorySpeed();
+  inline void setAdvisorySpeed(float value);
+
+  inline float getNextAdvisorySpeed();
+  inline void setNextAdvisorySpeed(float value);
+
+  inline float getNextAdvisorySpeedDistance();
+  inline void setNextAdvisorySpeedDistance(float value);
+
+  inline bool getOneWay();
+  inline void setOneWay(bool value);
+
+  inline  ::uint8_t getLanes();
+  inline void setLanes( ::uint8_t value);
+
+  inline bool getTileLoaded();
+  inline void setTileLoaded(bool value);
+
+  inline float getSpeedLimitSuggestedSpeed();
+  inline void setSpeedLimitSuggestedSpeed(float value);
+
+  inline float getSuggestedSpeed();
+  inline void setSuggestedSpeed(float value);
+
+  inline float getEstimatedRoadWidth();
+  inline void setEstimatedRoadWidth(float value);
+
+  inline  ::cereal::RoadContext getRoadContext();
+  inline void setRoadContext( ::cereal::RoadContext value);
+
+  inline float getDistanceFromWayCenter();
+  inline void setDistanceFromWayCenter(float value);
+
+  inline float getVisionCurveSpeed();
+  inline void setVisionCurveSpeed(float value);
+
+  inline float getMapCurveSpeed();
+  inline void setMapCurveSpeed(float value);
+
+  inline  ::cereal::WaySelectionType getWaySelectionType();
+  inline void setWaySelectionType( ::cereal::WaySelectionType value);
+
+  inline bool getSpeedLimitAccepted();
+  inline void setSpeedLimitAccepted(bool value);
+
+  inline  ::cereal::HighwayClass getHighwayClass();
+  inline void setHighwayClass( ::cereal::HighwayClass value);
+
+  inline  ::int64_t getWayId();
+  inline void setWayId( ::int64_t value);
+
+  inline bool hasConditionalSpeedLimit();
+  inline  ::capnp::Text::Builder getConditionalSpeedLimit();
+  inline void setConditionalSpeedLimit( ::capnp::Text::Reader value);
+  inline  ::capnp::Text::Builder initConditionalSpeedLimit(unsigned int size);
+  inline void adoptConditionalSpeedLimit(::capnp::Orphan< ::capnp::Text>&& value);
+  inline ::capnp::Orphan< ::capnp::Text> disownConditionalSpeedLimit();
+
+  inline bool getIsForward();
+  inline void setIsForward(bool value);
+
+private:
+  ::capnp::_::StructBuilder _builder;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::ToDynamic_;
+  friend class ::capnp::Orphanage;
+  template <typename, ::capnp::Kind>
+  friend struct ::capnp::_::PointerHelpers;
+};
+
+#if !CAPNP_LITE
+class MapdOut::Pipeline {
+public:
+  typedef MapdOut Pipelines;
 
   inline Pipeline(decltype(nullptr)): _typeless(nullptr) {}
   inline explicit Pipeline(::capnp::AnyPointer::Pipeline&& typeless)
@@ -1767,6 +3743,2923 @@ private:
 #endif  // !CAPNP_LITE
 
 // =======================================================================================
+
+inline bool BogPilotCarControl::Reader::hasHudControl() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline bool BogPilotCarControl::Builder::hasHudControl() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline  ::cereal::BogPilotCarControl::HUDControl::Reader BogPilotCarControl::Reader::getHudControl() const {
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarControl::HUDControl>::get(_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline  ::cereal::BogPilotCarControl::HUDControl::Builder BogPilotCarControl::Builder::getHudControl() {
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarControl::HUDControl>::get(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+#if !CAPNP_LITE
+inline  ::cereal::BogPilotCarControl::HUDControl::Pipeline BogPilotCarControl::Pipeline::getHudControl() {
+  return  ::cereal::BogPilotCarControl::HUDControl::Pipeline(_typeless.getPointerField(0));
+}
+#endif  // !CAPNP_LITE
+inline void BogPilotCarControl::Builder::setHudControl( ::cereal::BogPilotCarControl::HUDControl::Reader value) {
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotCarControl::HUDControl>::set(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), value);
+}
+inline  ::cereal::BogPilotCarControl::HUDControl::Builder BogPilotCarControl::Builder::initHudControl() {
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarControl::HUDControl>::init(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline void BogPilotCarControl::Builder::adoptHudControl(
+    ::capnp::Orphan< ::cereal::BogPilotCarControl::HUDControl>&& value) {
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotCarControl::HUDControl>::adopt(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::cereal::BogPilotCarControl::HUDControl> BogPilotCarControl::Builder::disownHudControl() {
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarControl::HUDControl>::disown(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+
+inline  ::cereal::BogPilotCarControl::HUDControl::AudibleAlert BogPilotCarControl::HUDControl::Reader::getAudibleAlert() const {
+  return _reader.getDataField< ::cereal::BogPilotCarControl::HUDControl::AudibleAlert>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline  ::cereal::BogPilotCarControl::HUDControl::AudibleAlert BogPilotCarControl::HUDControl::Builder::getAudibleAlert() {
+  return _builder.getDataField< ::cereal::BogPilotCarControl::HUDControl::AudibleAlert>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarControl::HUDControl::Builder::setAudibleAlert( ::cereal::BogPilotCarControl::HUDControl::AudibleAlert value) {
+  _builder.setDataField< ::cereal::BogPilotCarControl::HUDControl::AudibleAlert>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::cereal::BogPilotCarEvent::EventName BogPilotCarEvent::Reader::getName() const {
+  return _reader.getDataField< ::cereal::BogPilotCarEvent::EventName>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline  ::cereal::BogPilotCarEvent::EventName BogPilotCarEvent::Builder::getName() {
+  return _builder.getDataField< ::cereal::BogPilotCarEvent::EventName>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarEvent::Builder::setName( ::cereal::BogPilotCarEvent::EventName value) {
+  _builder.setDataField< ::cereal::BogPilotCarEvent::EventName>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarEvent::Reader::getEnable() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<16>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarEvent::Builder::getEnable() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<16>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarEvent::Builder::setEnable(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<16>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarEvent::Reader::getNoEntry() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<17>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarEvent::Builder::getNoEntry() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<17>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarEvent::Builder::setNoEntry(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<17>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarEvent::Reader::getWarning() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<18>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarEvent::Builder::getWarning() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<18>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarEvent::Builder::setWarning(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<18>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarEvent::Reader::getUserDisable() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<19>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarEvent::Builder::getUserDisable() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<19>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarEvent::Builder::setUserDisable(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<19>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarEvent::Reader::getSoftDisable() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<20>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarEvent::Builder::getSoftDisable() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<20>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarEvent::Builder::setSoftDisable(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<20>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarEvent::Reader::getImmediateDisable() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<21>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarEvent::Builder::getImmediateDisable() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<21>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarEvent::Builder::setImmediateDisable(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<21>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarEvent::Reader::getPreEnable() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<22>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarEvent::Builder::getPreEnable() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<22>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarEvent::Builder::setPreEnable(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<22>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarEvent::Reader::getPermanent() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<23>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarEvent::Builder::getPermanent() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<23>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarEvent::Builder::setPermanent(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<23>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarEvent::Reader::getOverrideLongitudinal() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<24>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarEvent::Builder::getOverrideLongitudinal() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<24>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarEvent::Builder::setOverrideLongitudinal(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<24>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarEvent::Reader::getOverrideLateral() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<25>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarEvent::Builder::getOverrideLateral() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<25>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarEvent::Builder::setOverrideLateral(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<25>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarParams::Reader::getCanUsePedal() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarParams::Builder::getCanUsePedal() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarParams::Builder::setCanUsePedal(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarParams::Reader::getCanUseSDSU() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarParams::Builder::getCanUseSDSU() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarParams::Builder::setCanUseSDSU(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint32_t BogPilotCarParams::Reader::getFpFlags() const {
+  return _reader.getDataField< ::uint32_t>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint32_t BogPilotCarParams::Builder::getFpFlags() {
+  return _builder.getDataField< ::uint32_t>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarParams::Builder::setFpFlags( ::uint32_t value) {
+  _builder.setDataField< ::uint32_t>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarParams::Reader::getIsHDA2() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarParams::Builder::getIsHDA2() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarParams::Builder::setIsHDA2(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarParams::Reader::getOpenpilotLongitudinalControlDisabled() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarParams::Builder::getOpenpilotLongitudinalControlDisabled() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarParams::Builder::setOpenpilotLongitudinalControlDisabled(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarParams::Reader::hasSafetyConfigs() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline bool BogPilotCarParams::Builder::hasSafetyConfigs() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::List< ::cereal::BogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>::Reader BogPilotCarParams::Reader::getSafetyConfigs() const {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::BogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>>::get(_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline  ::capnp::List< ::cereal::BogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>::Builder BogPilotCarParams::Builder::getSafetyConfigs() {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::BogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>>::get(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline void BogPilotCarParams::Builder::setSafetyConfigs( ::capnp::List< ::cereal::BogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::BogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>>::set(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::List< ::cereal::BogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>::Builder BogPilotCarParams::Builder::initSafetyConfigs(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::BogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>>::init(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), size);
+}
+inline void BogPilotCarParams::Builder::adoptSafetyConfigs(
+    ::capnp::Orphan< ::capnp::List< ::cereal::BogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::BogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>>::adopt(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::List< ::cereal::BogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>> BogPilotCarParams::Builder::disownSafetyConfigs() {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::BogPilotCarParams::SafetyConfig,  ::capnp::Kind::STRUCT>>::disown(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+
+inline  ::uint16_t BogPilotCarParams::SafetyConfig::Reader::getSafetyParam() const {
+  return _reader.getDataField< ::uint16_t>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint16_t BogPilotCarParams::SafetyConfig::Builder::getSafetyParam() {
+  return _builder.getDataField< ::uint16_t>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarParams::SafetyConfig::Builder::setSafetyParam( ::uint16_t value) {
+  _builder.setDataField< ::uint16_t>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarStateMsg::Reader::getAccelPressed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarStateMsg::Builder::getAccelPressed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setAccelPressed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarStateMsg::Reader::getAlwaysOnLateralAllowed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarStateMsg::Builder::getAlwaysOnLateralAllowed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setAlwaysOnLateralAllowed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarStateMsg::Reader::getAlwaysOnLateralEnabled() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarStateMsg::Builder::getAlwaysOnLateralEnabled() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setAlwaysOnLateralEnabled(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarStateMsg::Reader::getBrakeLights() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarStateMsg::Builder::getBrakeLights() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setBrakeLights(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotCarStateMsg::Reader::getDashboardSpeedLimit() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotCarStateMsg::Builder::getDashboardSpeedLimit() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setDashboardSpeedLimit(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarStateMsg::Reader::getDecelPressed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarStateMsg::Builder::getDecelPressed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setDecelPressed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarStateMsg::Reader::getDistancePressed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarStateMsg::Builder::getDistancePressed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setDistancePressed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarStateMsg::Reader::getDistanceLongPressed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarStateMsg::Builder::getDistanceLongPressed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setDistanceLongPressed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarStateMsg::Reader::getDistanceVeryLongPressed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<7>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarStateMsg::Builder::getDistanceVeryLongPressed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<7>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setDistanceVeryLongPressed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<7>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarStateMsg::Reader::getEcoGear() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarStateMsg::Builder::getEcoGear() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setEcoGear(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarStateMsg::Reader::getForceCoast() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarStateMsg::Builder::getForceCoast() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setForceCoast(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarStateMsg::Reader::getIsParked() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarStateMsg::Builder::getIsParked() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setIsParked(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarStateMsg::Reader::getPauseLateral() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarStateMsg::Builder::getPauseLateral() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setPauseLateral(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarStateMsg::Reader::getPauseLongitudinal() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarStateMsg::Builder::getPauseLongitudinal() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setPauseLongitudinal(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarStateMsg::Reader::getSportGear() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarStateMsg::Builder::getSportGear() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setSportGear(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarStateMsg::Reader::getTrafficModeEnabled() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<14>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarStateMsg::Builder::getTrafficModeEnabled() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<14>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setTrafficModeEnabled(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<14>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarStateMsg::Reader::getResumePressed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<15>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarStateMsg::Builder::getResumePressed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<15>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setResumePressed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<15>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint8_t BogPilotCarStateMsg::Reader::getSpdCtrlLvr() const {
+  return _reader.getDataField< ::uint8_t>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint8_t BogPilotCarStateMsg::Builder::getSpdCtrlLvr() {
+  return _builder.getDataField< ::uint8_t>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setSpdCtrlLvr( ::uint8_t value) {
+  _builder.setDataField< ::uint8_t>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotCarStateMsg::Reader::getAp1AmbientTempC() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotCarStateMsg::Builder::getAp1AmbientTempC() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setAp1AmbientTempC(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotCarStateMsg::Reader::getAp1MotorTorqueNm() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotCarStateMsg::Builder::getAp1MotorTorqueNm() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setAp1MotorTorqueNm(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotCarStateMsg::Reader::getAp1MotorRpm() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotCarStateMsg::Builder::getAp1MotorRpm() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setAp1MotorRpm(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint8_t BogPilotCarStateMsg::Reader::getAp1BrakePedalState() const {
+  return _reader.getDataField< ::uint8_t>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, 3u);
+}
+
+inline  ::uint8_t BogPilotCarStateMsg::Builder::getAp1BrakePedalState() {
+  return _builder.getDataField< ::uint8_t>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, 3u);
+}
+inline void BogPilotCarStateMsg::Builder::setAp1BrakePedalState( ::uint8_t value) {
+  _builder.setDataField< ::uint8_t>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, value, 3u);
+}
+
+inline float BogPilotCarStateMsg::Reader::getAp1FrontMotorTorqueNm() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotCarStateMsg::Builder::getAp1FrontMotorTorqueNm() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setAp1FrontMotorTorqueNm(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotCarStateMsg::Reader::getAp1FrontMotorRpm() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotCarStateMsg::Builder::getAp1FrontMotorRpm() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setAp1FrontMotorRpm(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint8_t BogPilotCarStateMsg::Reader::getAp1DriveLayout() const {
+  return _reader.getDataField< ::uint8_t>(
+      ::capnp::bounded<28>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint8_t BogPilotCarStateMsg::Builder::getAp1DriveLayout() {
+  return _builder.getDataField< ::uint8_t>(
+      ::capnp::bounded<28>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setAp1DriveLayout( ::uint8_t value) {
+  _builder.setDataField< ::uint8_t>(
+      ::capnp::bounded<28>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint8_t BogPilotCarStateMsg::Reader::getAp1PerfRear() const {
+  return _reader.getDataField< ::uint8_t>(
+      ::capnp::bounded<29>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint8_t BogPilotCarStateMsg::Builder::getAp1PerfRear() {
+  return _builder.getDataField< ::uint8_t>(
+      ::capnp::bounded<29>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setAp1PerfRear( ::uint8_t value) {
+  _builder.setDataField< ::uint8_t>(
+      ::capnp::bounded<29>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotCarStateMsg::Reader::getAp1RearRpmPerMs() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotCarStateMsg::Builder::getAp1RearRpmPerMs() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setAp1RearRpmPerMs(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotCarStateMsg::Reader::getAp1FrontRpmPerMs() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotCarStateMsg::Builder::getAp1FrontRpmPerMs() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setAp1FrontRpmPerMs(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotCarStateMsg::Reader::getAp1RpmPerMsMeasured() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<240>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotCarStateMsg::Builder::getAp1RpmPerMsMeasured() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<240>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotCarStateMsg::Builder::setAp1RpmPerMsMeasured(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<240>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::cereal::BogPilotControlsState::AlertStatus BogPilotControlsState::Reader::getAlertStatus() const {
+  return _reader.getDataField< ::cereal::BogPilotControlsState::AlertStatus>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline  ::cereal::BogPilotControlsState::AlertStatus BogPilotControlsState::Builder::getAlertStatus() {
+  return _builder.getDataField< ::cereal::BogPilotControlsState::AlertStatus>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotControlsState::Builder::setAlertStatus( ::cereal::BogPilotControlsState::AlertStatus value) {
+  _builder.setDataField< ::cereal::BogPilotControlsState::AlertStatus>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotControlsState::Reader::hasAlertText1() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline bool BogPilotControlsState::Builder::hasAlertText1() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::Text::Reader BogPilotControlsState::Reader::getAlertText1() const {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline  ::capnp::Text::Builder BogPilotControlsState::Builder::getAlertText1() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline void BogPilotControlsState::Builder::setAlertText1( ::capnp::Text::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::set(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::Text::Builder BogPilotControlsState::Builder::initAlertText1(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::init(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), size);
+}
+inline void BogPilotControlsState::Builder::adoptAlertText1(
+    ::capnp::Orphan< ::capnp::Text>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::adopt(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::Text> BogPilotControlsState::Builder::disownAlertText1() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::disown(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+
+inline bool BogPilotControlsState::Reader::hasAlertText2() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline bool BogPilotControlsState::Builder::hasAlertText2() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::Text::Reader BogPilotControlsState::Reader::getAlertText2() const {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline  ::capnp::Text::Builder BogPilotControlsState::Builder::getAlertText2() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline void BogPilotControlsState::Builder::setAlertText2( ::capnp::Text::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::set(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::Text::Builder BogPilotControlsState::Builder::initAlertText2(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::init(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), size);
+}
+inline void BogPilotControlsState::Builder::adoptAlertText2(
+    ::capnp::Orphan< ::capnp::Text>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::adopt(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::Text> BogPilotControlsState::Builder::disownAlertText2() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::disown(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+
+inline  ::cereal::BogPilotControlsState::AlertSize BogPilotControlsState::Reader::getAlertSize() const {
+  return _reader.getDataField< ::cereal::BogPilotControlsState::AlertSize>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline  ::cereal::BogPilotControlsState::AlertSize BogPilotControlsState::Builder::getAlertSize() {
+  return _builder.getDataField< ::cereal::BogPilotControlsState::AlertSize>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotControlsState::Builder::setAlertSize( ::cereal::BogPilotControlsState::AlertSize value) {
+  _builder.setDataField< ::cereal::BogPilotControlsState::AlertSize>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotControlsState::Reader::getAlertBlinkingRate() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotControlsState::Builder::getAlertBlinkingRate() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotControlsState::Builder::setAlertBlinkingRate(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotControlsState::Reader::hasAlertType() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS).isNull();
+}
+inline bool BogPilotControlsState::Builder::hasAlertType() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::Text::Reader BogPilotControlsState::Reader::getAlertType() const {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_reader.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS));
+}
+inline  ::capnp::Text::Builder BogPilotControlsState::Builder::getAlertType() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS));
+}
+inline void BogPilotControlsState::Builder::setAlertType( ::capnp::Text::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::set(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::Text::Builder BogPilotControlsState::Builder::initAlertType(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::init(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS), size);
+}
+inline void BogPilotControlsState::Builder::adoptAlertType(
+    ::capnp::Orphan< ::capnp::Text>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::adopt(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::Text> BogPilotControlsState::Builder::disownAlertType() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::disown(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS));
+}
+
+inline  ::cereal::CarControl::HUDControl::AudibleAlert BogPilotControlsState::Reader::getAlertSound() const {
+  return _reader.getDataField< ::cereal::CarControl::HUDControl::AudibleAlert>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+
+inline  ::cereal::CarControl::HUDControl::AudibleAlert BogPilotControlsState::Builder::getAlertSound() {
+  return _builder.getDataField< ::cereal::CarControl::HUDControl::AudibleAlert>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotControlsState::Builder::setAlertSound( ::cereal::CarControl::HUDControl::AudibleAlert value) {
+  _builder.setDataField< ::cereal::CarControl::HUDControl::AudibleAlert>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::int16_t BogPilotDeviceState::Reader::getFreeSpace() const {
+  return _reader.getDataField< ::int16_t>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline  ::int16_t BogPilotDeviceState::Builder::getFreeSpace() {
+  return _builder.getDataField< ::int16_t>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotDeviceState::Builder::setFreeSpace( ::int16_t value) {
+  _builder.setDataField< ::int16_t>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::int16_t BogPilotDeviceState::Reader::getUsedSpace() const {
+  return _reader.getDataField< ::int16_t>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline  ::int16_t BogPilotDeviceState::Builder::getUsedSpace() {
+  return _builder.getDataField< ::int16_t>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotDeviceState::Builder::setUsedSpace( ::int16_t value) {
+  _builder.setDataField< ::int16_t>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::cereal::BogPilotModelDataV2::TurnDirection BogPilotModelDataV2::Reader::getTurnDirection() const {
+  return _reader.getDataField< ::cereal::BogPilotModelDataV2::TurnDirection>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline  ::cereal::BogPilotModelDataV2::TurnDirection BogPilotModelDataV2::Builder::getTurnDirection() {
+  return _builder.getDataField< ::cereal::BogPilotModelDataV2::TurnDirection>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotModelDataV2::Builder::setTurnDirection( ::cereal::BogPilotModelDataV2::TurnDirection value) {
+  _builder.setDataField< ::cereal::BogPilotModelDataV2::TurnDirection>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotNavigation::Reader::getApproachingIntersection() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotNavigation::Builder::getApproachingIntersection() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotNavigation::Builder::setApproachingIntersection(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotNavigation::Reader::getApproachingTurn() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotNavigation::Builder::getApproachingTurn() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotNavigation::Builder::setApproachingTurn(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotNavigation::Reader::getNavigationSpeedLimit() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotNavigation::Builder::getNavigationSpeedLimit() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotNavigation::Builder::setNavigationSpeedLimit(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getAccelerationJerk() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getAccelerationJerk() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setAccelerationJerk(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getAccelerationJerkStock() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getAccelerationJerkStock() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setAccelerationJerkStock(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotPlan::Reader::getCscControllingSpeed() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<64>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotPlan::Builder::getCscControllingSpeed() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<64>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setCscControllingSpeed(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<64>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getCscSpeed() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getCscSpeed() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setCscSpeed(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotPlan::Reader::getCscTraining() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<65>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotPlan::Builder::getCscTraining() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<65>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setCscTraining(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<65>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getDangerJerk() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getDangerJerk() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setDangerJerk(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::int64_t BogPilotPlan::Reader::getDesiredFollowDistance() const {
+  return _reader.getDataField< ::int64_t>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+
+inline  ::int64_t BogPilotPlan::Builder::getDesiredFollowDistance() {
+  return _builder.getDataField< ::int64_t>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setDesiredFollowDistance( ::int64_t value) {
+  _builder.setDataField< ::int64_t>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotPlan::Reader::getExperimentalMode() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<66>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotPlan::Builder::getExperimentalMode() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<66>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setExperimentalMode(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<66>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotPlan::Reader::getForcingStop() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<67>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotPlan::Builder::getForcingStop() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<67>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setForcingStop(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<67>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getForcingStopLength() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getForcingStopLength() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setForcingStopLength(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotPlan::Reader::hasBogpilotEvents() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline bool BogPilotPlan::Builder::hasBogpilotEvents() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>::Reader BogPilotPlan::Reader::getBogpilotEvents() const {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>>::get(_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline  ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>::Builder BogPilotPlan::Builder::getBogpilotEvents() {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>>::get(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline void BogPilotPlan::Builder::setBogpilotEvents( ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>>::set(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>::Builder BogPilotPlan::Builder::initBogpilotEvents(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>>::init(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), size);
+}
+inline void BogPilotPlan::Builder::adoptBogpilotEvents(
+    ::capnp::Orphan< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>>::adopt(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>> BogPilotPlan::Builder::disownBogpilotEvents() {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>>::disown(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+
+inline float BogPilotPlan::Reader::getIncreasedStoppedDistance() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getIncreasedStoppedDistance() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setIncreasedStoppedDistance(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotPlan::Reader::getLateralCheck() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<68>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotPlan::Builder::getLateralCheck() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<68>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setLateralCheck(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<68>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getLaneWidthLeft() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getLaneWidthLeft() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setLaneWidthLeft(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getLaneWidthRight() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getLaneWidthRight() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setLaneWidthRight(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getMaxAcceleration() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getMaxAcceleration() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setMaxAcceleration(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getMinAcceleration() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getMinAcceleration() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setMinAcceleration(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotPlan::Reader::getRedLight() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<69>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotPlan::Builder::getRedLight() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<69>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setRedLight(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<69>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getRoadCurvature() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getRoadCurvature() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setRoadCurvature(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getSlcMapSpeedLimit() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<14>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getSlcMapSpeedLimit() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<14>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setSlcMapSpeedLimit(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<14>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getSlcMapboxSpeedLimit() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<15>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getSlcMapboxSpeedLimit() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<15>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setSlcMapboxSpeedLimit(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<15>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getSlcNextSpeedLimit() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<16>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getSlcNextSpeedLimit() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<16>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setSlcNextSpeedLimit(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<16>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getSlcOverriddenSpeed() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<17>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getSlcOverriddenSpeed() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<17>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setSlcOverriddenSpeed(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<17>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getSlcSpeedLimit() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<18>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getSlcSpeedLimit() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<18>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setSlcSpeedLimit(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<18>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getSlcSpeedLimitOffset() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<19>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getSlcSpeedLimitOffset() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<19>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setSlcSpeedLimitOffset(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<19>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotPlan::Reader::hasSlcSpeedLimitSource() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline bool BogPilotPlan::Builder::hasSlcSpeedLimitSource() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::Text::Reader BogPilotPlan::Reader::getSlcSpeedLimitSource() const {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline  ::capnp::Text::Builder BogPilotPlan::Builder::getSlcSpeedLimitSource() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline void BogPilotPlan::Builder::setSlcSpeedLimitSource( ::capnp::Text::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::set(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::Text::Builder BogPilotPlan::Builder::initSlcSpeedLimitSource(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::init(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), size);
+}
+inline void BogPilotPlan::Builder::adoptSlcSpeedLimitSource(
+    ::capnp::Orphan< ::capnp::Text>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::adopt(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::Text> BogPilotPlan::Builder::disownSlcSpeedLimitSource() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::disown(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+
+inline float BogPilotPlan::Reader::getSpeedJerk() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<20>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getSpeedJerk() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<20>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setSpeedJerk(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<20>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getSpeedJerkStock() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<21>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getSpeedJerkStock() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<21>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setSpeedJerkStock(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<21>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotPlan::Reader::getSpeedLimitChanged() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<70>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotPlan::Builder::getSpeedLimitChanged() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<70>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setSpeedLimitChanged(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<70>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getTFollow() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<22>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getTFollow() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<22>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setTFollow(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<22>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotPlan::Reader::getThemeUpdated() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<71>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotPlan::Builder::getThemeUpdated() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<71>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setThemeUpdated(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<71>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotPlan::Reader::getTogglesUpdated() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<72>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotPlan::Builder::getTogglesUpdated() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<72>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setTogglesUpdated(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<72>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotPlan::Reader::getTrackingLead() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<73>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotPlan::Builder::getTrackingLead() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<73>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setTrackingLead(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<73>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getUnconfirmedSlcSpeedLimit() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<23>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getUnconfirmedSlcSpeedLimit() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<23>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setUnconfirmedSlcSpeedLimit(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<23>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotPlan::Reader::getVCruise() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<24>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotPlan::Builder::getVCruise() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<24>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setVCruise(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<24>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotPlan::Reader::getWeatherDaytime() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<74>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotPlan::Builder::getWeatherDaytime() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<74>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setWeatherDaytime(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<74>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::int16_t BogPilotPlan::Reader::getWeatherId() const {
+  return _reader.getDataField< ::int16_t>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+
+inline  ::int16_t BogPilotPlan::Builder::getWeatherId() {
+  return _builder.getDataField< ::int16_t>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setWeatherId( ::int16_t value) {
+  _builder.setDataField< ::int16_t>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotPlan::Reader::getCscActive() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<75>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotPlan::Builder::getCscActive() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<75>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotPlan::Builder::setCscActive(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<75>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotRadarState::Reader::hasLeadLeft() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline bool BogPilotRadarState::Builder::hasLeadLeft() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline  ::cereal::BogPilotRadarState::LeadData::Reader BogPilotRadarState::Reader::getLeadLeft() const {
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotRadarState::LeadData>::get(_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline  ::cereal::BogPilotRadarState::LeadData::Builder BogPilotRadarState::Builder::getLeadLeft() {
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotRadarState::LeadData>::get(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+#if !CAPNP_LITE
+inline  ::cereal::BogPilotRadarState::LeadData::Pipeline BogPilotRadarState::Pipeline::getLeadLeft() {
+  return  ::cereal::BogPilotRadarState::LeadData::Pipeline(_typeless.getPointerField(0));
+}
+#endif  // !CAPNP_LITE
+inline void BogPilotRadarState::Builder::setLeadLeft( ::cereal::BogPilotRadarState::LeadData::Reader value) {
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotRadarState::LeadData>::set(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), value);
+}
+inline  ::cereal::BogPilotRadarState::LeadData::Builder BogPilotRadarState::Builder::initLeadLeft() {
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotRadarState::LeadData>::init(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline void BogPilotRadarState::Builder::adoptLeadLeft(
+    ::capnp::Orphan< ::cereal::BogPilotRadarState::LeadData>&& value) {
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotRadarState::LeadData>::adopt(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::cereal::BogPilotRadarState::LeadData> BogPilotRadarState::Builder::disownLeadLeft() {
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotRadarState::LeadData>::disown(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+
+inline bool BogPilotRadarState::Reader::hasLeadRight() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline bool BogPilotRadarState::Builder::hasLeadRight() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline  ::cereal::BogPilotRadarState::LeadData::Reader BogPilotRadarState::Reader::getLeadRight() const {
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotRadarState::LeadData>::get(_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline  ::cereal::BogPilotRadarState::LeadData::Builder BogPilotRadarState::Builder::getLeadRight() {
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotRadarState::LeadData>::get(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+#if !CAPNP_LITE
+inline  ::cereal::BogPilotRadarState::LeadData::Pipeline BogPilotRadarState::Pipeline::getLeadRight() {
+  return  ::cereal::BogPilotRadarState::LeadData::Pipeline(_typeless.getPointerField(1));
+}
+#endif  // !CAPNP_LITE
+inline void BogPilotRadarState::Builder::setLeadRight( ::cereal::BogPilotRadarState::LeadData::Reader value) {
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotRadarState::LeadData>::set(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), value);
+}
+inline  ::cereal::BogPilotRadarState::LeadData::Builder BogPilotRadarState::Builder::initLeadRight() {
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotRadarState::LeadData>::init(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline void BogPilotRadarState::Builder::adoptLeadRight(
+    ::capnp::Orphan< ::cereal::BogPilotRadarState::LeadData>&& value) {
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotRadarState::LeadData>::adopt(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::cereal::BogPilotRadarState::LeadData> BogPilotRadarState::Builder::disownLeadRight() {
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotRadarState::LeadData>::disown(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+
+inline float BogPilotRadarState::LeadData::Reader::getDRel() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotRadarState::LeadData::Builder::getDRel() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotRadarState::LeadData::Builder::setDRel(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotRadarState::LeadData::Reader::getYRel() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotRadarState::LeadData::Builder::getYRel() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotRadarState::LeadData::Builder::setYRel(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotRadarState::LeadData::Reader::getVRel() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotRadarState::LeadData::Builder::getVRel() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotRadarState::LeadData::Builder::setVRel(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotRadarState::LeadData::Reader::getARel() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotRadarState::LeadData::Builder::getARel() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotRadarState::LeadData::Builder::setARel(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotRadarState::LeadData::Reader::getVLead() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotRadarState::LeadData::Builder::getVLead() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotRadarState::LeadData::Builder::setVLead(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotRadarState::LeadData::Reader::getALeadDEPRECATED() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotRadarState::LeadData::Builder::getALeadDEPRECATED() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotRadarState::LeadData::Builder::setALeadDEPRECATED(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotRadarState::LeadData::Reader::getDPath() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotRadarState::LeadData::Builder::getDPath() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotRadarState::LeadData::Builder::setDPath(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotRadarState::LeadData::Reader::getVLat() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<7>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotRadarState::LeadData::Builder::getVLat() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<7>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotRadarState::LeadData::Builder::setVLat(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<7>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotRadarState::LeadData::Reader::getVLeadK() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotRadarState::LeadData::Builder::getVLeadK() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotRadarState::LeadData::Builder::setVLeadK(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotRadarState::LeadData::Reader::getALeadK() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotRadarState::LeadData::Builder::getALeadK() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotRadarState::LeadData::Builder::setALeadK(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotRadarState::LeadData::Reader::getFcw() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<320>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotRadarState::LeadData::Builder::getFcw() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<320>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotRadarState::LeadData::Builder::setFcw(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<320>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotRadarState::LeadData::Reader::getStatus() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<321>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotRadarState::LeadData::Builder::getStatus() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<321>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotRadarState::LeadData::Builder::setStatus(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<321>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotRadarState::LeadData::Reader::getALeadTau() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotRadarState::LeadData::Builder::getALeadTau() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotRadarState::LeadData::Builder::setALeadTau(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS, value);
+}
+
+inline float BogPilotRadarState::LeadData::Reader::getModelProb() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS);
+}
+
+inline float BogPilotRadarState::LeadData::Builder::getModelProb() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotRadarState::LeadData::Builder::setModelProb(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool BogPilotRadarState::LeadData::Reader::getRadar() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<322>() * ::capnp::ELEMENTS);
+}
+
+inline bool BogPilotRadarState::LeadData::Builder::getRadar() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<322>() * ::capnp::ELEMENTS);
+}
+inline void BogPilotRadarState::LeadData::Builder::setRadar(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<322>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::int32_t BogPilotRadarState::LeadData::Reader::getRadarTrackId() const {
+  return _reader.getDataField< ::int32_t>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS, -1);
+}
+
+inline  ::int32_t BogPilotRadarState::LeadData::Builder::getRadarTrackId() {
+  return _builder.getDataField< ::int32_t>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS, -1);
+}
+inline void BogPilotRadarState::LeadData::Builder::setRadarTrackId( ::int32_t value) {
+  _builder.setDataField< ::int32_t>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS, value, -1);
+}
+
+inline bool MapdDownloadLocationDetails::Reader::hasLocation() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline bool MapdDownloadLocationDetails::Builder::hasLocation() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::Text::Reader MapdDownloadLocationDetails::Reader::getLocation() const {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline  ::capnp::Text::Builder MapdDownloadLocationDetails::Builder::getLocation() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline void MapdDownloadLocationDetails::Builder::setLocation( ::capnp::Text::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::set(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::Text::Builder MapdDownloadLocationDetails::Builder::initLocation(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::init(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), size);
+}
+inline void MapdDownloadLocationDetails::Builder::adoptLocation(
+    ::capnp::Orphan< ::capnp::Text>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::adopt(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::Text> MapdDownloadLocationDetails::Builder::disownLocation() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::disown(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+
+inline  ::uint32_t MapdDownloadLocationDetails::Reader::getTotalFiles() const {
+  return _reader.getDataField< ::uint32_t>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint32_t MapdDownloadLocationDetails::Builder::getTotalFiles() {
+  return _builder.getDataField< ::uint32_t>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void MapdDownloadLocationDetails::Builder::setTotalFiles( ::uint32_t value) {
+  _builder.setDataField< ::uint32_t>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint32_t MapdDownloadLocationDetails::Reader::getDownloadedFiles() const {
+  return _reader.getDataField< ::uint32_t>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint32_t MapdDownloadLocationDetails::Builder::getDownloadedFiles() {
+  return _builder.getDataField< ::uint32_t>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void MapdDownloadLocationDetails::Builder::setDownloadedFiles( ::uint32_t value) {
+  _builder.setDataField< ::uint32_t>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool MapdDownloadProgress::Reader::getActive() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline bool MapdDownloadProgress::Builder::getActive() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void MapdDownloadProgress::Builder::setActive(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool MapdDownloadProgress::Reader::getCancelled() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline bool MapdDownloadProgress::Builder::getCancelled() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void MapdDownloadProgress::Builder::setCancelled(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint32_t MapdDownloadProgress::Reader::getTotalFiles() const {
+  return _reader.getDataField< ::uint32_t>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint32_t MapdDownloadProgress::Builder::getTotalFiles() {
+  return _builder.getDataField< ::uint32_t>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void MapdDownloadProgress::Builder::setTotalFiles( ::uint32_t value) {
+  _builder.setDataField< ::uint32_t>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint32_t MapdDownloadProgress::Reader::getDownloadedFiles() const {
+  return _reader.getDataField< ::uint32_t>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint32_t MapdDownloadProgress::Builder::getDownloadedFiles() {
+  return _builder.getDataField< ::uint32_t>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+inline void MapdDownloadProgress::Builder::setDownloadedFiles( ::uint32_t value) {
+  _builder.setDataField< ::uint32_t>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool MapdDownloadProgress::Reader::hasLocations() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline bool MapdDownloadProgress::Builder::hasLocations() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::List< ::capnp::Text,  ::capnp::Kind::BLOB>::Reader MapdDownloadProgress::Reader::getLocations() const {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::capnp::Text,  ::capnp::Kind::BLOB>>::get(_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline  ::capnp::List< ::capnp::Text,  ::capnp::Kind::BLOB>::Builder MapdDownloadProgress::Builder::getLocations() {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::capnp::Text,  ::capnp::Kind::BLOB>>::get(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline void MapdDownloadProgress::Builder::setLocations( ::capnp::List< ::capnp::Text,  ::capnp::Kind::BLOB>::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::List< ::capnp::Text,  ::capnp::Kind::BLOB>>::set(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), value);
+}
+inline void MapdDownloadProgress::Builder::setLocations(::kj::ArrayPtr<const  ::capnp::Text::Reader> value) {
+  ::capnp::_::PointerHelpers< ::capnp::List< ::capnp::Text,  ::capnp::Kind::BLOB>>::set(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::List< ::capnp::Text,  ::capnp::Kind::BLOB>::Builder MapdDownloadProgress::Builder::initLocations(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::capnp::Text,  ::capnp::Kind::BLOB>>::init(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), size);
+}
+inline void MapdDownloadProgress::Builder::adoptLocations(
+    ::capnp::Orphan< ::capnp::List< ::capnp::Text,  ::capnp::Kind::BLOB>>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::List< ::capnp::Text,  ::capnp::Kind::BLOB>>::adopt(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::List< ::capnp::Text,  ::capnp::Kind::BLOB>> MapdDownloadProgress::Builder::disownLocations() {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::capnp::Text,  ::capnp::Kind::BLOB>>::disown(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+
+inline bool MapdDownloadProgress::Reader::hasLocationDetails() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline bool MapdDownloadProgress::Builder::hasLocationDetails() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::List< ::cereal::MapdDownloadLocationDetails,  ::capnp::Kind::STRUCT>::Reader MapdDownloadProgress::Reader::getLocationDetails() const {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::MapdDownloadLocationDetails,  ::capnp::Kind::STRUCT>>::get(_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline  ::capnp::List< ::cereal::MapdDownloadLocationDetails,  ::capnp::Kind::STRUCT>::Builder MapdDownloadProgress::Builder::getLocationDetails() {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::MapdDownloadLocationDetails,  ::capnp::Kind::STRUCT>>::get(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline void MapdDownloadProgress::Builder::setLocationDetails( ::capnp::List< ::cereal::MapdDownloadLocationDetails,  ::capnp::Kind::STRUCT>::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::MapdDownloadLocationDetails,  ::capnp::Kind::STRUCT>>::set(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::List< ::cereal::MapdDownloadLocationDetails,  ::capnp::Kind::STRUCT>::Builder MapdDownloadProgress::Builder::initLocationDetails(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::MapdDownloadLocationDetails,  ::capnp::Kind::STRUCT>>::init(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), size);
+}
+inline void MapdDownloadProgress::Builder::adoptLocationDetails(
+    ::capnp::Orphan< ::capnp::List< ::cereal::MapdDownloadLocationDetails,  ::capnp::Kind::STRUCT>>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::MapdDownloadLocationDetails,  ::capnp::Kind::STRUCT>>::adopt(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::List< ::cereal::MapdDownloadLocationDetails,  ::capnp::Kind::STRUCT>> MapdDownloadProgress::Builder::disownLocationDetails() {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::MapdDownloadLocationDetails,  ::capnp::Kind::STRUCT>>::disown(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+
+inline double MapdPathPoint::Reader::getLatitude() const {
+  return _reader.getDataField<double>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline double MapdPathPoint::Builder::getLatitude() {
+  return _builder.getDataField<double>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void MapdPathPoint::Builder::setLatitude(double value) {
+  _builder.setDataField<double>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline double MapdPathPoint::Reader::getLongitude() const {
+  return _reader.getDataField<double>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline double MapdPathPoint::Builder::getLongitude() {
+  return _builder.getDataField<double>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void MapdPathPoint::Builder::setLongitude(double value) {
+  _builder.setDataField<double>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline float MapdPathPoint::Reader::getCurvature() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+
+inline float MapdPathPoint::Builder::getCurvature() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+inline void MapdPathPoint::Builder::setCurvature(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, value);
+}
+
+inline float MapdPathPoint::Reader::getTargetVelocity() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+
+inline float MapdPathPoint::Builder::getTargetVelocity() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+inline void MapdPathPoint::Builder::setTargetVelocity(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS, value);
+}
+
+inline double MapdPosition::Reader::getLatitude() const {
+  return _reader.getDataField<double>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline double MapdPosition::Builder::getLatitude() {
+  return _builder.getDataField<double>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void MapdPosition::Builder::setLatitude(double value) {
+  _builder.setDataField<double>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline double MapdPosition::Reader::getLongitude() const {
+  return _reader.getDataField<double>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline double MapdPosition::Builder::getLongitude() {
+  return _builder.getDataField<double>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void MapdPosition::Builder::setLongitude(double value) {
+  _builder.setDataField<double>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool MapdExtendedOut::Reader::hasDownloadProgress() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline bool MapdExtendedOut::Builder::hasDownloadProgress() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline  ::cereal::MapdDownloadProgress::Reader MapdExtendedOut::Reader::getDownloadProgress() const {
+  return ::capnp::_::PointerHelpers< ::cereal::MapdDownloadProgress>::get(_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline  ::cereal::MapdDownloadProgress::Builder MapdExtendedOut::Builder::getDownloadProgress() {
+  return ::capnp::_::PointerHelpers< ::cereal::MapdDownloadProgress>::get(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+#if !CAPNP_LITE
+inline  ::cereal::MapdDownloadProgress::Pipeline MapdExtendedOut::Pipeline::getDownloadProgress() {
+  return  ::cereal::MapdDownloadProgress::Pipeline(_typeless.getPointerField(0));
+}
+#endif  // !CAPNP_LITE
+inline void MapdExtendedOut::Builder::setDownloadProgress( ::cereal::MapdDownloadProgress::Reader value) {
+  ::capnp::_::PointerHelpers< ::cereal::MapdDownloadProgress>::set(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), value);
+}
+inline  ::cereal::MapdDownloadProgress::Builder MapdExtendedOut::Builder::initDownloadProgress() {
+  return ::capnp::_::PointerHelpers< ::cereal::MapdDownloadProgress>::init(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline void MapdExtendedOut::Builder::adoptDownloadProgress(
+    ::capnp::Orphan< ::cereal::MapdDownloadProgress>&& value) {
+  ::capnp::_::PointerHelpers< ::cereal::MapdDownloadProgress>::adopt(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::cereal::MapdDownloadProgress> MapdExtendedOut::Builder::disownDownloadProgress() {
+  return ::capnp::_::PointerHelpers< ::cereal::MapdDownloadProgress>::disown(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+
+inline bool MapdExtendedOut::Reader::hasSettings() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline bool MapdExtendedOut::Builder::hasSettings() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::Text::Reader MapdExtendedOut::Reader::getSettings() const {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline  ::capnp::Text::Builder MapdExtendedOut::Builder::getSettings() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline void MapdExtendedOut::Builder::setSettings( ::capnp::Text::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::set(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::Text::Builder MapdExtendedOut::Builder::initSettings(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::init(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), size);
+}
+inline void MapdExtendedOut::Builder::adoptSettings(
+    ::capnp::Orphan< ::capnp::Text>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::adopt(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::Text> MapdExtendedOut::Builder::disownSettings() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::disown(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+
+inline bool MapdExtendedOut::Reader::hasPath() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS).isNull();
+}
+inline bool MapdExtendedOut::Builder::hasPath() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::List< ::cereal::MapdPathPoint,  ::capnp::Kind::STRUCT>::Reader MapdExtendedOut::Reader::getPath() const {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::MapdPathPoint,  ::capnp::Kind::STRUCT>>::get(_reader.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS));
+}
+inline  ::capnp::List< ::cereal::MapdPathPoint,  ::capnp::Kind::STRUCT>::Builder MapdExtendedOut::Builder::getPath() {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::MapdPathPoint,  ::capnp::Kind::STRUCT>>::get(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS));
+}
+inline void MapdExtendedOut::Builder::setPath( ::capnp::List< ::cereal::MapdPathPoint,  ::capnp::Kind::STRUCT>::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::MapdPathPoint,  ::capnp::Kind::STRUCT>>::set(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::List< ::cereal::MapdPathPoint,  ::capnp::Kind::STRUCT>::Builder MapdExtendedOut::Builder::initPath(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::MapdPathPoint,  ::capnp::Kind::STRUCT>>::init(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS), size);
+}
+inline void MapdExtendedOut::Builder::adoptPath(
+    ::capnp::Orphan< ::capnp::List< ::cereal::MapdPathPoint,  ::capnp::Kind::STRUCT>>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::MapdPathPoint,  ::capnp::Kind::STRUCT>>::adopt(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::List< ::cereal::MapdPathPoint,  ::capnp::Kind::STRUCT>> MapdExtendedOut::Builder::disownPath() {
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::MapdPathPoint,  ::capnp::Kind::STRUCT>>::disown(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS));
+}
+
+inline bool MapdExtendedOut::Reader::hasPosition() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<3>() * ::capnp::POINTERS).isNull();
+}
+inline bool MapdExtendedOut::Builder::hasPosition() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<3>() * ::capnp::POINTERS).isNull();
+}
+inline  ::cereal::MapdPosition::Reader MapdExtendedOut::Reader::getPosition() const {
+  return ::capnp::_::PointerHelpers< ::cereal::MapdPosition>::get(_reader.getPointerField(
+      ::capnp::bounded<3>() * ::capnp::POINTERS));
+}
+inline  ::cereal::MapdPosition::Builder MapdExtendedOut::Builder::getPosition() {
+  return ::capnp::_::PointerHelpers< ::cereal::MapdPosition>::get(_builder.getPointerField(
+      ::capnp::bounded<3>() * ::capnp::POINTERS));
+}
+#if !CAPNP_LITE
+inline  ::cereal::MapdPosition::Pipeline MapdExtendedOut::Pipeline::getPosition() {
+  return  ::cereal::MapdPosition::Pipeline(_typeless.getPointerField(3));
+}
+#endif  // !CAPNP_LITE
+inline void MapdExtendedOut::Builder::setPosition( ::cereal::MapdPosition::Reader value) {
+  ::capnp::_::PointerHelpers< ::cereal::MapdPosition>::set(_builder.getPointerField(
+      ::capnp::bounded<3>() * ::capnp::POINTERS), value);
+}
+inline  ::cereal::MapdPosition::Builder MapdExtendedOut::Builder::initPosition() {
+  return ::capnp::_::PointerHelpers< ::cereal::MapdPosition>::init(_builder.getPointerField(
+      ::capnp::bounded<3>() * ::capnp::POINTERS));
+}
+inline void MapdExtendedOut::Builder::adoptPosition(
+    ::capnp::Orphan< ::cereal::MapdPosition>&& value) {
+  ::capnp::_::PointerHelpers< ::cereal::MapdPosition>::adopt(_builder.getPointerField(
+      ::capnp::bounded<3>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::cereal::MapdPosition> MapdExtendedOut::Builder::disownPosition() {
+  return ::capnp::_::PointerHelpers< ::cereal::MapdPosition>::disown(_builder.getPointerField(
+      ::capnp::bounded<3>() * ::capnp::POINTERS));
+}
+
+inline float MapdExtendedOut::Reader::getLoopRateAverage() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline float MapdExtendedOut::Builder::getLoopRateAverage() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void MapdExtendedOut::Builder::setLoopRateAverage(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline float MapdExtendedOut::Reader::getLoopRateMin() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline float MapdExtendedOut::Builder::getLoopRateMin() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void MapdExtendedOut::Builder::setLoopRateMin(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::cereal::MapdInputType MapdIn::Reader::getType() const {
+  return _reader.getDataField< ::cereal::MapdInputType>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline  ::cereal::MapdInputType MapdIn::Builder::getType() {
+  return _builder.getDataField< ::cereal::MapdInputType>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void MapdIn::Builder::setType( ::cereal::MapdInputType value) {
+  _builder.setDataField< ::cereal::MapdInputType>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline float MapdIn::Reader::getFloat() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline float MapdIn::Builder::getFloat() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void MapdIn::Builder::setFloat(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool MapdIn::Reader::hasStr() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline bool MapdIn::Builder::hasStr() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::Text::Reader MapdIn::Reader::getStr() const {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline  ::capnp::Text::Builder MapdIn::Builder::getStr() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline void MapdIn::Builder::setStr( ::capnp::Text::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::set(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::Text::Builder MapdIn::Builder::initStr(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::init(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), size);
+}
+inline void MapdIn::Builder::adoptStr(
+    ::capnp::Orphan< ::capnp::Text>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::adopt(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::Text> MapdIn::Builder::disownStr() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::disown(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+
+inline bool MapdIn::Reader::getBool() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<16>() * ::capnp::ELEMENTS);
+}
+
+inline bool MapdIn::Builder::getBool() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<16>() * ::capnp::ELEMENTS);
+}
+inline void MapdIn::Builder::setBool(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<16>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool MapdIn::Reader::hasJsonPath() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline bool MapdIn::Builder::hasJsonPath() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::Text::Reader MapdIn::Reader::getJsonPath() const {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline  ::capnp::Text::Builder MapdIn::Builder::getJsonPath() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline void MapdIn::Builder::setJsonPath( ::capnp::Text::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::set(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::Text::Builder MapdIn::Builder::initJsonPath(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::init(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), size);
+}
+inline void MapdIn::Builder::adoptJsonPath(
+    ::capnp::Orphan< ::capnp::Text>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::adopt(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::Text> MapdIn::Builder::disownJsonPath() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::disown(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+
+inline bool MapdOut::Reader::hasWayName() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline bool MapdOut::Builder::hasWayName() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::Text::Reader MapdOut::Reader::getWayName() const {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_reader.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline  ::capnp::Text::Builder MapdOut::Builder::getWayName() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+inline void MapdOut::Builder::setWayName( ::capnp::Text::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::set(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::Text::Builder MapdOut::Builder::initWayName(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::init(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), size);
+}
+inline void MapdOut::Builder::adoptWayName(
+    ::capnp::Orphan< ::capnp::Text>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::adopt(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::Text> MapdOut::Builder::disownWayName() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::disown(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS));
+}
+
+inline bool MapdOut::Reader::hasWayRef() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline bool MapdOut::Builder::hasWayRef() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::Text::Reader MapdOut::Reader::getWayRef() const {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_reader.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline  ::capnp::Text::Builder MapdOut::Builder::getWayRef() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+inline void MapdOut::Builder::setWayRef( ::capnp::Text::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::set(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::Text::Builder MapdOut::Builder::initWayRef(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::init(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), size);
+}
+inline void MapdOut::Builder::adoptWayRef(
+    ::capnp::Orphan< ::capnp::Text>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::adopt(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::Text> MapdOut::Builder::disownWayRef() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::disown(_builder.getPointerField(
+      ::capnp::bounded<1>() * ::capnp::POINTERS));
+}
+
+inline bool MapdOut::Reader::hasRoadName() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS).isNull();
+}
+inline bool MapdOut::Builder::hasRoadName() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::Text::Reader MapdOut::Reader::getRoadName() const {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_reader.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS));
+}
+inline  ::capnp::Text::Builder MapdOut::Builder::getRoadName() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS));
+}
+inline void MapdOut::Builder::setRoadName( ::capnp::Text::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::set(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::Text::Builder MapdOut::Builder::initRoadName(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::init(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS), size);
+}
+inline void MapdOut::Builder::adoptRoadName(
+    ::capnp::Orphan< ::capnp::Text>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::adopt(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::Text> MapdOut::Builder::disownRoadName() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::disown(_builder.getPointerField(
+      ::capnp::bounded<2>() * ::capnp::POINTERS));
+}
+
+inline float MapdOut::Reader::getSpeedLimit() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+
+inline float MapdOut::Builder::getSpeedLimit() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setSpeedLimit(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<0>() * ::capnp::ELEMENTS, value);
+}
+
+inline float MapdOut::Reader::getNextSpeedLimit() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+
+inline float MapdOut::Builder::getNextSpeedLimit() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setNextSpeedLimit(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<1>() * ::capnp::ELEMENTS, value);
+}
+
+inline float MapdOut::Reader::getNextSpeedLimitDistance() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+
+inline float MapdOut::Builder::getNextSpeedLimitDistance() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setNextSpeedLimitDistance(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<2>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool MapdOut::Reader::hasHazard() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<3>() * ::capnp::POINTERS).isNull();
+}
+inline bool MapdOut::Builder::hasHazard() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<3>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::Text::Reader MapdOut::Reader::getHazard() const {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_reader.getPointerField(
+      ::capnp::bounded<3>() * ::capnp::POINTERS));
+}
+inline  ::capnp::Text::Builder MapdOut::Builder::getHazard() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_builder.getPointerField(
+      ::capnp::bounded<3>() * ::capnp::POINTERS));
+}
+inline void MapdOut::Builder::setHazard( ::capnp::Text::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::set(_builder.getPointerField(
+      ::capnp::bounded<3>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::Text::Builder MapdOut::Builder::initHazard(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::init(_builder.getPointerField(
+      ::capnp::bounded<3>() * ::capnp::POINTERS), size);
+}
+inline void MapdOut::Builder::adoptHazard(
+    ::capnp::Orphan< ::capnp::Text>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::adopt(_builder.getPointerField(
+      ::capnp::bounded<3>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::Text> MapdOut::Builder::disownHazard() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::disown(_builder.getPointerField(
+      ::capnp::bounded<3>() * ::capnp::POINTERS));
+}
+
+inline bool MapdOut::Reader::hasNextHazard() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::POINTERS).isNull();
+}
+inline bool MapdOut::Builder::hasNextHazard() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::Text::Reader MapdOut::Reader::getNextHazard() const {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_reader.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::POINTERS));
+}
+inline  ::capnp::Text::Builder MapdOut::Builder::getNextHazard() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::POINTERS));
+}
+inline void MapdOut::Builder::setNextHazard( ::capnp::Text::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::Text::Builder MapdOut::Builder::initNextHazard(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::POINTERS), size);
+}
+inline void MapdOut::Builder::adoptNextHazard(
+    ::capnp::Orphan< ::capnp::Text>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::Text> MapdOut::Builder::disownNextHazard() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::disown(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::POINTERS));
+}
+
+inline float MapdOut::Reader::getNextHazardDistance() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+
+inline float MapdOut::Builder::getNextHazardDistance() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setNextHazardDistance(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<3>() * ::capnp::ELEMENTS, value);
+}
+
+inline float MapdOut::Reader::getAdvisorySpeed() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+
+inline float MapdOut::Builder::getAdvisorySpeed() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setAdvisorySpeed(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, value);
+}
+
+inline float MapdOut::Reader::getNextAdvisorySpeed() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+
+inline float MapdOut::Builder::getNextAdvisorySpeed() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setNextAdvisorySpeed(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<5>() * ::capnp::ELEMENTS, value);
+}
+
+inline float MapdOut::Reader::getNextAdvisorySpeedDistance() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS);
+}
+
+inline float MapdOut::Builder::getNextAdvisorySpeedDistance() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setNextAdvisorySpeedDistance(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<6>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool MapdOut::Reader::getOneWay() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<224>() * ::capnp::ELEMENTS);
+}
+
+inline bool MapdOut::Builder::getOneWay() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<224>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setOneWay(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<224>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::uint8_t MapdOut::Reader::getLanes() const {
+  return _reader.getDataField< ::uint8_t>(
+      ::capnp::bounded<29>() * ::capnp::ELEMENTS);
+}
+
+inline  ::uint8_t MapdOut::Builder::getLanes() {
+  return _builder.getDataField< ::uint8_t>(
+      ::capnp::bounded<29>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setLanes( ::uint8_t value) {
+  _builder.setDataField< ::uint8_t>(
+      ::capnp::bounded<29>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool MapdOut::Reader::getTileLoaded() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<225>() * ::capnp::ELEMENTS);
+}
+
+inline bool MapdOut::Builder::getTileLoaded() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<225>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setTileLoaded(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<225>() * ::capnp::ELEMENTS, value);
+}
+
+inline float MapdOut::Reader::getSpeedLimitSuggestedSpeed() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+
+inline float MapdOut::Builder::getSpeedLimitSuggestedSpeed() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setSpeedLimitSuggestedSpeed(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS, value);
+}
+
+inline float MapdOut::Reader::getSuggestedSpeed() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+
+inline float MapdOut::Builder::getSuggestedSpeed() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setSuggestedSpeed(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<9>() * ::capnp::ELEMENTS, value);
+}
+
+inline float MapdOut::Reader::getEstimatedRoadWidth() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS);
+}
+
+inline float MapdOut::Builder::getEstimatedRoadWidth() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setEstimatedRoadWidth(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<10>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::cereal::RoadContext MapdOut::Reader::getRoadContext() const {
+  return _reader.getDataField< ::cereal::RoadContext>(
+      ::capnp::bounded<15>() * ::capnp::ELEMENTS);
+}
+
+inline  ::cereal::RoadContext MapdOut::Builder::getRoadContext() {
+  return _builder.getDataField< ::cereal::RoadContext>(
+      ::capnp::bounded<15>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setRoadContext( ::cereal::RoadContext value) {
+  _builder.setDataField< ::cereal::RoadContext>(
+      ::capnp::bounded<15>() * ::capnp::ELEMENTS, value);
+}
+
+inline float MapdOut::Reader::getDistanceFromWayCenter() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS);
+}
+
+inline float MapdOut::Builder::getDistanceFromWayCenter() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setDistanceFromWayCenter(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<11>() * ::capnp::ELEMENTS, value);
+}
+
+inline float MapdOut::Reader::getVisionCurveSpeed() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS);
+}
+
+inline float MapdOut::Builder::getVisionCurveSpeed() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setVisionCurveSpeed(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<12>() * ::capnp::ELEMENTS, value);
+}
+
+inline float MapdOut::Reader::getMapCurveSpeed() const {
+  return _reader.getDataField<float>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS);
+}
+
+inline float MapdOut::Builder::getMapCurveSpeed() {
+  return _builder.getDataField<float>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setMapCurveSpeed(float value) {
+  _builder.setDataField<float>(
+      ::capnp::bounded<13>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::cereal::WaySelectionType MapdOut::Reader::getWaySelectionType() const {
+  return _reader.getDataField< ::cereal::WaySelectionType>(
+      ::capnp::bounded<28>() * ::capnp::ELEMENTS);
+}
+
+inline  ::cereal::WaySelectionType MapdOut::Builder::getWaySelectionType() {
+  return _builder.getDataField< ::cereal::WaySelectionType>(
+      ::capnp::bounded<28>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setWaySelectionType( ::cereal::WaySelectionType value) {
+  _builder.setDataField< ::cereal::WaySelectionType>(
+      ::capnp::bounded<28>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool MapdOut::Reader::getSpeedLimitAccepted() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<226>() * ::capnp::ELEMENTS);
+}
+
+inline bool MapdOut::Builder::getSpeedLimitAccepted() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<226>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setSpeedLimitAccepted(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<226>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::cereal::HighwayClass MapdOut::Reader::getHighwayClass() const {
+  return _reader.getDataField< ::cereal::HighwayClass>(
+      ::capnp::bounded<29>() * ::capnp::ELEMENTS);
+}
+
+inline  ::cereal::HighwayClass MapdOut::Builder::getHighwayClass() {
+  return _builder.getDataField< ::cereal::HighwayClass>(
+      ::capnp::bounded<29>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setHighwayClass( ::cereal::HighwayClass value) {
+  _builder.setDataField< ::cereal::HighwayClass>(
+      ::capnp::bounded<29>() * ::capnp::ELEMENTS, value);
+}
+
+inline  ::int64_t MapdOut::Reader::getWayId() const {
+  return _reader.getDataField< ::int64_t>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+
+inline  ::int64_t MapdOut::Builder::getWayId() {
+  return _builder.getDataField< ::int64_t>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setWayId( ::int64_t value) {
+  _builder.setDataField< ::int64_t>(
+      ::capnp::bounded<8>() * ::capnp::ELEMENTS, value);
+}
+
+inline bool MapdOut::Reader::hasConditionalSpeedLimit() const {
+  return !_reader.getPointerField(
+      ::capnp::bounded<5>() * ::capnp::POINTERS).isNull();
+}
+inline bool MapdOut::Builder::hasConditionalSpeedLimit() {
+  return !_builder.getPointerField(
+      ::capnp::bounded<5>() * ::capnp::POINTERS).isNull();
+}
+inline  ::capnp::Text::Reader MapdOut::Reader::getConditionalSpeedLimit() const {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_reader.getPointerField(
+      ::capnp::bounded<5>() * ::capnp::POINTERS));
+}
+inline  ::capnp::Text::Builder MapdOut::Builder::getConditionalSpeedLimit() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::get(_builder.getPointerField(
+      ::capnp::bounded<5>() * ::capnp::POINTERS));
+}
+inline void MapdOut::Builder::setConditionalSpeedLimit( ::capnp::Text::Reader value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::set(_builder.getPointerField(
+      ::capnp::bounded<5>() * ::capnp::POINTERS), value);
+}
+inline  ::capnp::Text::Builder MapdOut::Builder::initConditionalSpeedLimit(unsigned int size) {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::init(_builder.getPointerField(
+      ::capnp::bounded<5>() * ::capnp::POINTERS), size);
+}
+inline void MapdOut::Builder::adoptConditionalSpeedLimit(
+    ::capnp::Orphan< ::capnp::Text>&& value) {
+  ::capnp::_::PointerHelpers< ::capnp::Text>::adopt(_builder.getPointerField(
+      ::capnp::bounded<5>() * ::capnp::POINTERS), kj::mv(value));
+}
+inline ::capnp::Orphan< ::capnp::Text> MapdOut::Builder::disownConditionalSpeedLimit() {
+  return ::capnp::_::PointerHelpers< ::capnp::Text>::disown(_builder.getPointerField(
+      ::capnp::bounded<5>() * ::capnp::POINTERS));
+}
+
+inline bool MapdOut::Reader::getIsForward() const {
+  return _reader.getDataField<bool>(
+      ::capnp::bounded<227>() * ::capnp::ELEMENTS);
+}
+
+inline bool MapdOut::Builder::getIsForward() {
+  return _builder.getDataField<bool>(
+      ::capnp::bounded<227>() * ::capnp::ELEMENTS);
+}
+inline void MapdOut::Builder::setIsForward(bool value) {
+  _builder.setDataField<bool>(
+      ::capnp::bounded<227>() * ::capnp::ELEMENTS, value);
+}
 
 }  // namespace
 

@@ -1,0 +1,786 @@
+"""Speed-limit pill, steering arc, pedals and screen recorder contracts (headless; no window, no device).
+
+The recorder tests run the REAL ffmpeg encoder on synthetic frames in a temporary directory (sandbox only) and check
+the saved files with ffprobe. Nothing here captures a screen or reads private data."""
+import ast
+import datetime
+import json
+import math
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+import threading
+import time
+import unittest
+from unittest import mock
+from types import SimpleNamespace
+
+from openpilot.selfdrive.ui.onroad.bogpilot.tests.test_release_adapters import load
+
+ROOT_HUD = Path(__file__).resolve().parents[1]
+SL = load("speed_limit_display")
+ARC = load("steering_arc")
+PED = load("pedals")
+L = load("cluster_layout")
+SR = load("screen_recorder")
+MPH = 2.23694
+FFMPEG = shutil.which("ffmpeg")
+FFPROBE = shutil.which("ffprobe")
+
+
+class FakeSM:
+  def __init__(self, now, **msgs):
+    self.data = dict(msgs)
+    self.recv_time = {k: now for k in msgs}
+    self.alive = {k: True for k in msgs}
+    self.valid = {k: True for k in msgs}
+
+  def __getitem__(self, k):
+    return self.data[k]
+
+
+def fpcs(limit):
+  return SimpleNamespace(dashboardSpeedLimit=limit, brakeLights=False)
+
+
+def plan(**kw):
+  base = dict(valid=True, training=False, controlling=False, csc_speed=0.0, road_curvature=0.0, slc_overridden_speed=0.0,
+              slc_speed_limit=0.0, slc_speed_limit_offset=0.0, speed_limit_changed=False)
+  base.update(kw)
+  return L.CscStatus(**base)
+
+
+ON = SL.LimitPolicy(show_speed_limits=True, speed_limit_controller=True)
+
+
+class TestDashboardLimitSource(unittest.TestCase):
+  def test_fresh_valid_current_drive(self):
+    sm = FakeSM(100.0, bogpilotCarState=fpcs(29.0576))
+    self.assertAlmostEqual(SL.read_dashboard_limit(sm, 100.2, 50.0), 29.0576, places=4)
+
+  def test_rejects_stale_invalid_dead_previous_drive_and_missing(self):
+    sm = FakeSM(100.0, bogpilotCarState=fpcs(29.0))
+    self.assertIsNone(SL.read_dashboard_limit(sm, 100.0 + SL.LIMIT_STALE_S + 0.01, 50.0))
+    self.assertIsNone(SL.read_dashboard_limit(sm, 100.1, 100.5))          # message from before this drive started
+    sm.valid["bogpilotCarState"] = False
+    self.assertIsNone(SL.read_dashboard_limit(sm, 100.1, 50.0))
+    sm.valid["bogpilotCarState"] = True
+    sm.alive["bogpilotCarState"] = False
+    self.assertIsNone(SL.read_dashboard_limit(sm, 100.1, 50.0))
+    self.assertIsNone(SL.read_dashboard_limit(FakeSM(100.0), 100.1, 50.0))
+    self.assertIsNone(SL.read_dashboard_limit(None, 100.1, 50.0))
+    # SubMaster.update() stamps recv_time after `now` was sampled: a message newer than `now` is fresh, not rejected
+    self.assertAlmostEqual(SL.read_dashboard_limit(FakeSM(100.0, bogpilotCarState=fpcs(29.0)), 99.99, 50.0), 29.0)
+
+  def test_bogus_values(self):
+    for v in (float("nan"), float("inf"), -1.0, SL.MAX_LIMIT_MS + 1):
+      self.assertIsNone(SL.read_dashboard_limit(FakeSM(1.0, bogpilotCarState=fpcs(v)), 1.0, 0.0), v)
+    self.assertEqual(SL.read_dashboard_limit(FakeSM(1.0, bogpilotCarState=fpcs(0.5)), 1.0, 0.0), 0.0)  # "no limit"
+
+
+class TestSpeedLimitView(unittest.TestCase):
+  def test_dashboard_limit_has_no_offset_badge(self):
+    v = SL.speed_limit_view(ON, 65 / MPH, plan(), MPH)       # C3X today: CSC plan with slc fields 0
+    self.assertEqual((v.show_limit, v.limit, v.offset, v.limit_opacity, v.source), (True, "65", "", 1.0, "dashboard"))
+    self.assertAlmostEqual(v.color_limit, 65, places=3)
+    v = SL.speed_limit_view(ON, 65 / MPH, L.INVALID_CSC, MPH)
+    self.assertEqual((v.limit, v.offset, v.source), ("65", "", "dashboard"))
+
+  def test_real_slc_plan_wins_with_badge(self):
+    on = SL.LimitPolicy(show_speed_limits=True, speed_limit_controller=True, show_speed_limit_offset=True)
+    v = SL.speed_limit_view(on, 60 / MPH, plan(slc_speed_limit=65 / MPH, slc_speed_limit_offset=5 / MPH), MPH)
+    self.assertEqual((v.limit, v.offset, v.source), ("65", "+5", "slc"))
+    self.assertAlmostEqual(v.color_limit, 70, places=3)                   # colour compares against limit + offset
+    v = SL.speed_limit_view(SL.LimitPolicy(show_speed_limits=True, show_speed_limit_offset=True), 0,
+                            plan(slc_speed_limit=65 / MPH, slc_speed_limit_offset=-5 / MPH), MPH)
+    self.assertEqual(v.offset, "-5")
+    self.assertAlmostEqual(v.color_limit, 60, places=3)
+
+  def test_offset_badge_follows_the_show_offset_setting(self):
+    p = plan(slc_speed_limit=65 / MPH, slc_speed_limit_offset=5 / MPH)
+    off = SL.speed_limit_view(ON, 60 / MPH, p, MPH)                       # ShowSLCOffset off: no badge, same sign and colour
+    on = SL.speed_limit_view(SL.LimitPolicy(show_speed_limits=True, speed_limit_controller=True, show_speed_limit_offset=True),
+                             60 / MPH, p, MPH)
+    self.assertEqual((off.limit, off.offset, off.limit_opacity), ("65", "", 1.0))
+    self.assertEqual((on.limit, on.offset, on.limit_opacity), ("65", "+5", 1.0))
+    self.assertAlmostEqual(off.color_limit, on.color_limit, places=6)
+
+  def test_override_and_no_limit(self):
+    v = SL.speed_limit_view(ON, 0, plan(slc_speed_limit=65 / MPH, slc_overridden_speed=72 / MPH, slc_speed_limit_offset=5 / MPH), MPH)
+    self.assertEqual((v.limit, v.offset, v.limit_opacity), ("72", "", 0.25))
+    v = SL.speed_limit_view(ON, None, L.INVALID_CSC, MPH)
+    self.assertEqual((v.show_limit, v.limit, v.source, v.color_limit), (True, "–", "none", 0.0))
+
+  def test_gating(self):
+    self.assertFalse(SL.speed_limit_view(SL.LimitPolicy(), 30.0, plan(), MPH).show_limit)
+    hide = SL.LimitPolicy(show_speed_limits=True, hide_speed_limit=True)
+    self.assertFalse(SL.speed_limit_view(hide, 30.0, plan(), MPH).show_limit)
+    self.assertTrue(SL.speed_limit_view(hide, 30.0, plan(speed_limit_changed=True), MPH).show_limit)
+    self.assertTrue(SL.speed_limit_view(SL.LimitPolicy(speed_limit_controller=True, vienna=True), 30.0, plan(), 3.6).vienna)
+    self.assertEqual(SL.speed_limit_view(ON, 100 / 3.6, plan(), 3.6).limit, "100")    # metric units
+
+  def test_nonfinite_plan_fields_ignored(self):
+    v = SL.speed_limit_view(ON, 50 / MPH, plan(slc_speed_limit_offset=float("nan")), MPH)
+    self.assertEqual((v.limit, v.offset, v.source), ("50", "", "dashboard"))
+
+  def test_set_speed_colour(self):
+    self.assertEqual(SL.set_speed_rgba(False, True, 70, 65), SL.GREY)
+    self.assertEqual(SL.set_speed_rgba(True, True, 70, 65), SL.WHITE)      # limit + 5
+    self.assertEqual(SL.set_speed_rgba(True, True, 80, 65), SL.ORANGE)     # limit + 15
+    self.assertEqual(SL.set_speed_rgba(True, True, 95, 65), SL.RED)
+    self.assertEqual(SL.set_speed_rgba(True, False, 95, 65), SL.WHITE)     # disengaged / override: white
+    self.assertEqual(SL.set_speed_rgba(True, True, 95, 0), SL.WHITE)       # no limit
+    mid = SL.set_speed_rgba(True, True, 75, 65)
+    self.assertTrue(SL.WHITE[2] > mid[2] > SL.ORANGE[2])
+
+  def test_policy_formulas(self):
+    class Store:
+      def __init__(self, **v):
+        self.v = v
+      def tuning_level(self):
+        return 3
+      def toggle_bool(self, k, level=None):
+        return self.v.get(k, False)
+    import importlib, sys
+    toggles = SimpleNamespace(onroad_toggles=lambda store, cp: SimpleNamespace(
+      tuning_level=3, navigation_ui=store.v.get("NavigationUI", False), show_speed_limits=store.v.get("NavigationUI", False) and store.v.get("ShowSpeedLimits", False),
+      speed_limit_controller=store.v.get("SpeedLimitController", False), show_speed_limit_offset=False, debug_mode=store.v.get("DebugMode", False)))
+    sys.modules["openpilot.common.bogpilot_onroad_toggles"], saved = toggles, sys.modules.get("openpilot.common.bogpilot_onroad_toggles")
+    try:
+      p = SL.policy_from_store(Store(NavigationUI=True, ShowSpeedLimits=True, UseVienna=True, AdvancedCustomUI=True, HideSpeedLimit=True))
+      self.assertEqual((p.show_speed_limits, p.vienna, p.hide_speed_limit), (True, True, True))
+      p = SL.policy_from_store(Store(NavigationUI=False, UseVienna=True, AdvancedCustomUI=True, HideSpeedLimit=True, DebugMode=True))
+      self.assertEqual((p.vienna, p.hide_speed_limit), (False, False))
+    finally:
+      if saved is not None:
+        sys.modules["openpilot.common.bogpilot_onroad_toggles"] = saved
+      else:
+        del sys.modules["openpilot.common.bogpilot_onroad_toggles"]
+
+  def test_policy_reader_fails_closed(self):
+    r = SL.LimitPolicyReader(store=SimpleNamespace(), clock=lambda: 0.0)
+    self.assertEqual(r.get(), SL.CLOSED_POLICY)
+
+
+def msgs(curv=0.0, desired=0.0, v=20.0, angle=0.0, lat=True, which="angleState", torque=0.0, roll=0.0):
+  cs = SimpleNamespace(curvature=curv, desiredCurvature=desired, lateralControlState=SimpleNamespace(which=lambda: which))
+  return (cs, SimpleNamespace(vEgo=v, steeringAngleDeg=angle), SimpleNamespace(latActive=lat),
+          SimpleNamespace(actuatorsOutput=SimpleNamespace(torque=torque)), SimpleNamespace(roll=roll))
+
+
+def with_cmd(m, angle):
+  """msgs() tuple with the commanded steering angle on carControl.actuators and carOutput.actuatorsOutput."""
+  cs, car, cc, co, vp = m
+  cc = SimpleNamespace(latActive=cc.latActive, actuators=SimpleNamespace(steeringAngleDeg=angle))
+  co = SimpleNamespace(actuatorsOutput=SimpleNamespace(torque=co.actuatorsOutput.torque, steeringAngleDeg=angle))
+  return cs, car, cc, co, vp
+
+
+def cp_stub(brand):
+  return SimpleNamespace(brand=brand, wheelbase=2.959, centerToFront=2.959 * 0.45, steerRatio=15.4,
+                         rotationalInertiaPerMass=2.0, tireStiffnessFrontPerMass=15.0, tireStiffnessRearPerMass=20.0,
+                         maxLateralAccel=3.2)
+
+
+class TestSteeringArc(unittest.TestCase):
+  def test_signs(self):
+    # controlsState.curvature is right-turn positive -> fills right (positive)
+    a = ARC.inputs_from_messages(*msgs(curv=0.004, desired=0.004), 3.0, "engaged", False)
+    self.assertGreater(a.op, 0)
+    a = ARC.inputs_from_messages(*msgs(curv=-0.004, desired=-0.004), 3.0, "engaged", False)
+    self.assertLess(a.op, 0)
+    # steeringAngleDeg positive = left wheel -> driver fill to the left at parking speed
+    a = ARC.inputs_from_messages(*msgs(v=1.0, angle=90.0), 3.0, "disengaged", False)
+    self.assertAlmostEqual(a.human, -0.5)
+    self.assertEqual(a.human_lat_weight, 0.0)
+    # torque control path: -carOutput.actuatorsOutput.torque (0.11.2 upstream)
+    a = ARC.inputs_from_messages(*msgs(which="pidState", torque=0.3), 3.0, "engaged", False)
+    self.assertAlmostEqual(a.op, -0.3)
+
+  def test_legacy_tesla_engaged_arc_uses_commanded_angle_without_roll(self):
+    cp = cp_stub("tesla_ap1")
+    fn = ARC.make_commanded_curvature_fn(cp)
+    self.assertIsNotNone(fn)
+    # drive-like case: roll +3 deg (0.052 rad) pushes the old arc left; commanded +0.3 deg, wheel +0.2 deg
+    base = msgs(curv=-0.0001, desired=-0.0001, v=13.0, angle=0.2, roll=0.052)
+    old = ARC.inputs_from_messages(*base, 3.0, "engaged", False)
+    new = ARC.inputs_from_messages(*with_cmd(base, 0.3), 3.0, "engaged", False, fn)
+    self.assertLess(old.op, -0.1)                    # old arc: roll compensation drags it left
+    self.assertLess(abs(new.op), 0.01)               # new arc: ~straight, like the wheel
+    # roll has no effect at all on the commanded arc
+    flat = ARC.inputs_from_messages(*with_cmd(msgs(curv=-0.0001, desired=-0.0001, v=13.0, angle=0.2, roll=0.0), 0.3),
+                                    3.0, "engaged", False, fn)
+    self.assertEqual(new.op, flat.op)
+    # desired curvature / actual curvature do not matter either, only the command
+    other = ARC.inputs_from_messages(*with_cmd(msgs(curv=0.01, desired=-0.02, v=13.0, angle=0.2, roll=0.052), 0.3),
+                                     3.0, "engaged", False, fn)
+    self.assertEqual(new.op, other.op)
+    # signs: left command (positive angle) fills left (negative), right fills right, same convention as before
+    left = ARC.inputs_from_messages(*with_cmd(msgs(v=20.0), 20.0), 3.0, "engaged", False, fn)
+    right = ARC.inputs_from_messages(*with_cmd(msgs(v=20.0), -20.0), 3.0, "engaged", False, fn)
+    self.assertLess(left.op, 0)
+    self.assertAlmostEqual(left.op, -right.op)
+    # same 17 degree span semantics: op is lateral accel / max lateral accel, clamped to +-1
+    big = ARC.inputs_from_messages(*with_cmd(msgs(v=30.0), 500.0), 3.0, "engaged", False, fn)
+    self.assertEqual(big.op, -1.0)
+    v = 20.0
+    k = -fn(10.0, v)
+    self.assertAlmostEqual(ARC.inputs_from_messages(*with_cmd(msgs(v=v), -10.0), 3.0, "engaged", False, fn).op,
+                           k * v * v / 3.0)
+
+  def test_commanded_angle_prefers_carOutput_as_sent(self):
+    cc = SimpleNamespace(actuators=SimpleNamespace(steeringAngleDeg=5.0))
+    co = SimpleNamespace(actuatorsOutput=SimpleNamespace(steeringAngleDeg=2.0))
+    self.assertEqual(ARC.commanded_angle_deg(cc, co), 2.0)
+    self.assertEqual(ARC.commanded_angle_deg(cc, None), 5.0)
+    self.assertEqual(ARC.commanded_angle_deg(cc, SimpleNamespace(actuatorsOutput=SimpleNamespace(steeringAngleDeg=float("nan")))), 5.0)
+    self.assertIsNone(ARC.commanded_angle_deg(SimpleNamespace(), None))
+    # no readable command -> the old source, never a crash
+    fn = ARC.make_commanded_curvature_fn(cp_stub("tesla_ap1"))
+    m = msgs(curv=0.004, desired=0.004)
+    a = ARC.inputs_from_messages(m[0], m[1], SimpleNamespace(latActive=True), None, m[4], 3.0, "engaged", False, fn)
+    self.assertGreater(a.op, 0)
+
+  def test_manual_steering_keeps_the_real_wheel_angle(self):
+    fn = ARC.make_commanded_curvature_fn(cp_stub("tesla_ap1"))
+    base = msgs(curv=-0.01, desired=0.0, v=1.0, angle=90.0)
+    plain = ARC.inputs_from_messages(*base, 3.0, "disengaged", False)
+    with_fn = ARC.inputs_from_messages(*with_cmd(base, 1.0), 3.0, "disengaged", False, fn)
+    self.assertEqual((plain.human, plain.human_lat_weight, plain.steering_angle_deg),
+                     (with_fn.human, with_fn.human_lat_weight, with_fn.steering_angle_deg))
+    self.assertAlmostEqual(with_fn.human, -0.5)      # the wheel at +90 deg, not the commanded +1 deg
+    # override: human source is wheel-based as well
+    ov = ARC.inputs_from_messages(*with_cmd(msgs(curv=-0.004, desired=0.0, v=20.0, angle=30.0), 0.5), 3.0, "override", False, fn)
+    plain_ov = ARC.inputs_from_messages(*msgs(curv=-0.004, desired=0.0, v=20.0, angle=30.0), 3.0, "override", False)
+    self.assertEqual(ov.human, plain_ov.human)
+
+  def test_other_brands_and_other_controls_unchanged(self):
+    self.assertIsNone(ARC.make_commanded_curvature_fn(cp_stub("tesla")))     # AP2 / new Tesla
+    self.assertIsNone(ARC.make_commanded_curvature_fn(cp_stub("toyota")))
+    self.assertIsNone(ARC.make_commanded_curvature_fn(None))
+    for kw in (dict(curv=0.004, desired=0.004), dict(curv=0.0, desired=0.004, roll=0.01), dict(curv=-0.003, desired=-0.001, v=9.0)):
+      m = msgs(**kw)
+      self.assertEqual(ARC.inputs_from_messages(*m, 3.2, "engaged", False),
+                       ARC.inputs_from_messages(*with_cmd(m, 12.0), 3.2, "engaged", False, None))
+    # torque control stays on carOutput torque even with the legacy-Tesla function present
+    fn = ARC.make_commanded_curvature_fn(cp_stub("tesla_ap1"))
+    a = ARC.inputs_from_messages(*with_cmd(msgs(which="pidState", torque=0.3), 9.0), 3.0, "engaged", False, fn)
+    self.assertAlmostEqual(a.op, -0.3)
+
+  def test_both_renderers_pass_the_commanded_function(self):
+    src = (ROOT_HUD / "bogpilot_hud.py").read_text()
+    self.assertEqual(src.count("self._bp_arc_cmd_fn(cp)"), 2)       # 3X arc and comma 4 arc
+    tree = ast.parse(src)
+    cls = {n.name: n for n in tree.body if isinstance(n, ast.ClassDef)}
+    self.assertIn("_bp_arc_cmd_fn", {f.name for f in cls["ClusterState"].body if isinstance(f, ast.FunctionDef)})
+    for n in ("BogPilotHudRenderer", "BogPilotMiciHudRenderer"):
+      self.assertIn("ClusterState", [b.id for b in cls[n].bases])
+
+  def test_utilization_formula(self):
+    # 0.004 * 20^2 = 1.6 m/s^2 over 3.2 -> 0.5; roll compensation fully on above 15 m/s
+    self.assertAlmostEqual(ARC.angle_utilization(0.004, 0.004, 20.0, 0.0, 3.2), 0.5)
+    self.assertAlmostEqual(ARC.angle_utilization(0.004, 0.004, 20.0, 0.01, 3.2), (1.6 - 0.0981) / 3.2, places=5)
+    self.assertAlmostEqual(ARC.angle_utilization(0.0, 0.004, 20.0, 0.0, 3.2), 0.5)    # desired - actual term
+    self.assertEqual(ARC.angle_utilization(1.0, 1.0, 20.0, 0.0, 3.0), 1.0)
+    self.assertAlmostEqual(ARC.angle_utilization(0.004, 0.004, 20.0, 0.0, 0.0), 1.6 / 3.0)  # default max lat accel
+
+  def test_nonfinite_rejected(self):
+    with self.assertRaises(ValueError):
+      ARC.inputs_from_messages(*msgs(curv=float("nan")), 3.0, "engaged", False)
+
+  def test_states_and_hysteresis(self):
+    st = ARC.ArcState()
+    eng = ARC.ArcInputs(op=0.6, human=-0.4, lat_active=True, active=True, engaged_colors=True)
+    for _ in range(40):
+      st.update(eng)
+    self.assertFalse(st.human)
+    self.assertAlmostEqual(st.torque, 0.6, places=3)
+    ovr = ARC.ArcInputs(op=0.6, human=-0.4, lat_active=True, override=True, active=True)
+    for i in range(ARC.SOURCE_HYSTERESIS_FRAMES - 1):
+      st.update(ovr)
+      self.assertFalse(st.human, i)
+    st.update(ovr)
+    self.assertTrue(st.human)
+    self.assertTrue(st.show_tick)
+    st.update(eng)   # one engaged frame does not flip back
+    self.assertTrue(st.human)
+    self.assertFalse(st.show_tick)
+    st.reset()
+    dis = ARC.ArcInputs(op=0.9, human=0.2, lat_active=False)
+    for _ in range(60):
+      st.update(dis)
+    self.assertTrue(st.human)
+    self.assertAlmostEqual(st.torque, 0.2, places=3)
+    self.assertAlmostEqual(st.alpha, 0.55, places=3)
+    self.assertAlmostEqual(st.op_target, 0.0)
+
+  def test_geometry_and_tap_rect_match_daily_device(self):
+    view = SimpleNamespace(x=30, y=30, width=2100, height=1020)
+    x, y, w, h = ARC.tap_rect(view)
+    # daily: QRectF(770, 816, 560, 204) in the 2100x1020 widget; the C3X content rect starts at (30, 30)
+    self.assertEqual((x - 30, y - 30, w, round(h)), (770, 816, 560, 204))
+    st = ARC.ArcState()
+    st.torque = -1.0
+    g = ARC.geometry(st, view)
+    self.assertEqual(g["fill"], (-90.0, -90.0 - ARC.SPAN_DEG / 2))   # left turn fills toward -98.5 deg = left
+    self.assertAlmostEqual(g["thickness"], ARC.THICKNESS_HI)
+    self.assertAlmostEqual(g["cy"] - g["radius"], 30 + 1020 - ARC.OFFSET_HI)
+
+  def test_human_angle_colour_ramp(self):
+    self.assertEqual(ARC.human_angle_color(0), (90, 205, 255))
+    self.assertEqual(tuple(round(c) for c in ARC.human_angle_color(500)), (255, 20, 147))
+
+  def _geo(self, angle, human=True, torque=0.9):
+    st = ARC.ArcState()
+    st.human, st.angle, st.torque = human, angle, torque
+    return ARC.geometry(st, SimpleNamespace(x=0, y=0, width=ARC.VIEW_W, height=ARC.VIEW_H))
+
+  def test_human_arc_blue_fade_to_orange_then_pink(self):
+    M, L, B = ARC.HUMAN_MARKER_DEG, ARC.LOCK_DEG, ARC.HUMAN_FADE_BAND_DEG
+    f0 = ARC.human_fade_start_deg()
+    self.assertEqual(f0, max(ARC.HUMAN_ORANGE_START_DEG, M - B))
+    self.assertGreaterEqual(f0, ARC.HUMAN_ORANGE_START_DEG)
+    self.assertLess(f0, M)
+    self.assertLess(M, L)
+    blue, orange, pink = (90, 205, 255), (255, 140, 0), (255, 20, 147)
+    rnd = lambda c: tuple(round(x) for x in c)
+    for a in (0, 60, ARC.HUMAN_ORANGE_START_DEG, f0):          # blue up to and including the band start
+      self.assertEqual(rnd(ARC.human_angle_color(a)), blue, a)
+    yellow = (255, 215, 0)
+    self.assertEqual((ARC.HUMAN_FADE_BLUE, ARC.HUMAN_FADE_YELLOW, ARC.HUMAN_FADE_ORANGE), (blue, yellow, orange))
+    mid = (f0 + M) / 2
+    self.assertEqual(tuple(ARC.human_angle_color(f0)), blue)               # band start exact
+    self.assertEqual(tuple(ARC.human_angle_color(mid)), yellow)            # band middle exact
+    for k in (0.1, 0.25, 0.5, 0.75, 0.9):                                  # each half is linear RGB
+      c = ARC.human_angle_color(f0 + k * (mid - f0))
+      for i in range(3):
+        self.assertAlmostEqual(c[i], blue[i] + (yellow[i] - blue[i]) * k, places=6)
+      c = ARC.human_angle_color(mid + k * (M - mid))
+      for i in range(3):
+        self.assertAlmostEqual(c[i], yellow[i] + (orange[i] - yellow[i]) * k, places=6)
+    self.assertEqual(rnd(ARC.human_angle_color(M)), orange)      # no jump: continuous at the marker
+    self.assertEqual(rnd(ARC.human_angle_color(M - 1e-6)), orange)     # continuous at the marker
+    self.assertEqual(rnd(ARC.human_angle_color(L)), pink)
+    self.assertEqual(rnd(ARC.human_angle_color(L + 50)), pink)
+    pm = ARC.human_angle_color((M + L) / 2)                    # marker -> lock still an even orange -> pink
+    for i in range(3):
+      self.assertAlmostEqual(pm[i], (orange[i] + pink[i]) / 2, places=6)
+
+  def test_human_fade_band_clamped_at_orange_start(self):
+    with mock.patch.object(ARC, "HUMAN_MARKER_DEG", 130.0):   # marker 130 with a 20 deg band would start at 110 < 120
+      self.assertEqual(ARC.human_fade_start_deg(), ARC.HUMAN_ORANGE_START_DEG)
+      self.assertEqual(tuple(round(c) for c in ARC.human_angle_color(120.0)), (90, 205, 255))
+      self.assertEqual(tuple(round(c) for c in ARC.human_angle_color(130.0)), (255, 140, 0))
+      self.assertEqual(tuple(round(c) for c in ARC.human_angle_color(110.0)), (90, 205, 255))
+      self.assertEqual(tuple(ARC.human_angle_color(125.0)), (255, 215, 0))   # clamped band 120..130, middle 125
+    with mock.patch.object(ARC, "HUMAN_FADE_BAND_DEG", 0.0):  # zero band: hard edge, no division by zero
+      self.assertEqual(tuple(round(c) for c in ARC.human_angle_color(ARC.HUMAN_MARKER_DEG - 1)), (90, 205, 255))
+      self.assertEqual(tuple(round(c) for c in ARC.human_angle_color(ARC.HUMAN_MARKER_DEG)), (255, 140, 0))
+
+  def test_human_arc_symmetric_left_right(self):
+    f0 = ARC.human_fade_start_deg()
+    for a in (30, 130, f0, f0 + 7, ARC.HUMAN_MARKER_DEG, ARC.HUMAN_MARKER_DEG + 40, 400):
+      self.assertEqual(ARC.human_angle_color(a), ARC.human_angle_color(-a))
+      self.assertEqual(ARC.human_size_t(a), ARC.human_size_t(-a))
+
+  def test_human_arc_size_small_then_grows_to_max_at_lock(self):
+    S = ARC.HUMAN_GROW_START_DEG
+    for a in (0, 50, 87.9, S, -S):
+      g = self._geo(a)
+      self.assertAlmostEqual(g["thickness"], ARC.THICKNESS_LO)
+      self.assertAlmostEqual(g["cy"] - g["radius"], ARC.VIEW_H - ARC.OFFSET_LO)
+    prev = ARC.THICKNESS_LO
+    for a in (S + 10, S + 60, ARC.HUMAN_MARKER_DEG, ARC.HUMAN_MARKER_DEG + 60, ARC.LOCK_DEG - 10):
+      th = self._geo(a)["thickness"]
+      self.assertGreater(th, prev)
+      prev = th
+    g = self._geo(ARC.LOCK_DEG)
+    self.assertAlmostEqual(g["thickness"], ARC.THICKNESS_HI)
+    self.assertAlmostEqual(g["cy"] - g["radius"], ARC.VIEW_H - ARC.OFFSET_HI)
+    self.assertAlmostEqual(self._geo(ARC.LOCK_DEG + 40)["thickness"], ARC.THICKNESS_HI)
+
+  def test_human_arc_grows_from_88_degrees(self):
+    # The driver arc stays small and blue below 88 deg and starts growing at 88 deg (was 120)
+    self.assertEqual(ARC.HUMAN_GROW_START_DEG, 88.0)
+    self.assertEqual((ARC.HUMAN_MARKER_DEG, ARC.HUMAN_FADE_BAND_DEG, ARC.LOCK_DEG), (260.0, 20.0, 430.0))   # unchanged
+    self.assertEqual(ARC.human_size_t(0), 0.0)
+    self.assertEqual(ARC.human_size_t(87.99), 0.0)
+    self.assertEqual(ARC.human_size_t(88.0), 0.0)
+    self.assertGreater(ARC.human_size_t(88.5), 0.0)
+    self.assertAlmostEqual(ARC.human_size_t(120.0), 32.0 / 342.0)
+    self.assertAlmostEqual(ARC.human_size_t(-259.0), 171.0 / 342.0)
+    self.assertEqual(ARC.human_size_t(430.0), 1.0)
+    self.assertLess(self._geo(87.0)["thickness"] + 1e-9, self._geo(100.0)["thickness"])
+    # colour does not move with it: still blue from 88 deg up to the fade start (240), then through yellow to orange at 260
+    blue = (90, 205, 255)
+    self.assertEqual(ARC.human_fade_start_deg(), 240.0)
+    for a in (88.0, 100.0, 120.0, 200.0, 240.0):
+      self.assertEqual(tuple(round(c) for c in ARC.human_angle_color(a)), blue, a)
+    self.assertEqual(tuple(ARC.human_angle_color(250.0)), ARC.HUMAN_FADE_YELLOW)
+
+  def test_human_size_ignores_fill_length_and_commanded_path_unchanged(self):
+    # fill length (torque) does not change the driver arc size; the openpilot (non-human) size still follows torque
+    self.assertAlmostEqual(self._geo(30, torque=1.0)["thickness"], ARC.THICKNESS_LO)
+    self.assertAlmostEqual(self._geo(430, torque=0.1)["thickness"], ARC.THICKNESS_HI)
+    for torque, th in ((0.3, ARC.THICKNESS_LO), (0.75, (ARC.THICKNESS_LO + ARC.THICKNESS_HI) / 2), (1.0, ARC.THICKNESS_HI)):
+      g = self._geo(400, human=False, torque=torque)   # large wheel angle is ignored when not the human source
+      self.assertAlmostEqual(g["thickness"], th)
+
+
+class TestPedals(unittest.TestCase):
+  ON = PED.PedalPolicy(show=True)
+
+  def test_three_bars_follow_inputs(self):
+    g = PED.PedalGauge().update(self.ON, True, 0.0, "ap1", brake_pressed=True, brake_level=1.0, pedal_pos=1.0, op_accel=0.0,
+                                long_active=False, motor_torque_nm=-200.0, motor_rpm=6000.0, fingerprint="TESLA_AP1_MODELS")
+    self.assertEqual((g.brake, g.regen, g.accel), (1.0, 1.0, 1.0))
+    self.assertEqual(PED.PedalGauge().update(self.ON, True, 0.0, "ap1", brake_pressed=False, brake_level=0.0, pedal_pos=0.0,
+                                             op_accel=0.0, long_active=False), PED.G3.EMPTY3)
+    self.assertEqual(PED.G3.FILL_A, 191)                        # about 75 % opacity
+
+  def test_policy_gate(self):
+    class S:
+      def __init__(self, **v):
+        self.v = v
+      def tuning_level(self):
+        return 3
+      def toggle_bool(self, k, level=None):
+        return self.v.get(k, False)
+    on = dict(CustomUI=True, PedalsOnUI=True)
+    self.assertEqual(PED.policy_from_store(S(**on), True), self.ON)
+    self.assertEqual(PED.policy_from_store(S(**on), False), PED.CLOSED)       # needs openpilot longitudinal
+    self.assertFalse(PED.policy_from_store(S(PedalsOnUI=True), True).show)    # needs CustomUI
+    # the old Dynamic / Static mode values no longer hide the gauge
+    self.assertEqual(PED.policy_from_store(S(**on, DynamicPedalsOnUI=False, StaticPedalsOnUI=False), True), self.ON)
+
+  def test_footprint_and_bars_inside_daily_keepout(self):
+    s = min(1.0, 2100 / 2160, 1020 / 1080)
+    ww = 2100 / s
+    for rhd in (False, True):
+      fx, fy, fw, fh = PED.pedal_rect(ww, rhd, s)
+      self.assertEqual((fy, fw, fh), (486, 120, 120))
+      for x, y, w, h in PED.G3.bar_rects((fx, fy, fw, fh)):
+        self.assertTrue(fx <= x + 1e-9 and x + w <= fx + fw + 1e-9 and fy <= y and y + h <= fy + fh)
+    self.assertAlmostEqual(PED.pedal_rect(ww, False, s)[0], PED.COLUMN_CX / s - 60)
+    self.assertAlmostEqual(PED.pedal_rect(ww, True, s)[0], ww - PED.COLUMN_CX / s - 60)
+
+
+class FakeEncoder:
+  def __init__(self, path, w, h, fail_at=None):
+    self.path, self.lock_path, self.w, self.h = path, path + ".lock", w, h
+    self.frames, self.error, self.closed, self.fail_at, self.running = 0, None, False, fail_at, True
+
+  def alive(self):
+    return self.running
+
+  def open(self):
+    Path(self.lock_path).write_text(str(os.getpid()))
+    Path(self.path).write_bytes(b"")
+    return True
+
+  def write(self, data):
+    if self.fail_at is not None and self.frames >= self.fail_at:
+      self.error = "encoder write failed: broken pipe"
+      return False
+    self.frames += 1
+    with open(self.path, "ab") as f:
+      f.write(b"x")
+    return True
+
+  def close(self):
+    self.closed = True
+    ok = self.error is None and self.frames > 0
+    if ok:
+      os.remove(self.lock_path)
+    else:
+      for p in (self.path, self.lock_path):
+        if os.path.exists(p):
+          os.remove(p)
+    return ok
+
+
+def frame(w, h, rgba):
+  return bytes(rgba) * (w * h)
+
+
+def wait_until(cond, timeout=10.0):
+  t = time.monotonic() + timeout
+  while time.monotonic() < t:
+    if cond():
+      return True
+    time.sleep(0.02)
+  return cond()
+
+
+class TestRecorderEngine(unittest.TestCase):
+  def setUp(self):
+    self.dir = tempfile.mkdtemp(prefix="bp_sr_")
+
+  def tearDown(self):
+    shutil.rmtree(self.dir, ignore_errors=True)
+
+  def engine(self, **kw):
+    kw.setdefault("free_fn", lambda p: 10 << 30)
+    kw.setdefault("wallclock", lambda: datetime.datetime(2026, 11, 7, 13, 5, 9))
+    return SR.RecorderEngine(self.dir, **kw)
+
+  def test_segment_name_matches_daily_format(self):
+    self.assertEqual(SR.segment_name(datetime.datetime(2026, 11, 7, 13, 5, 9)), "November_07_2026-01-05-09PM.mp4")
+
+  def test_refuses_to_start_without_space(self):
+    e = self.engine(free_fn=lambda p: (1 << 30) - 1, encoder_factory=lambda p, w, h: FakeEncoder(p, w, h))
+    self.assertFalse(e.start())
+    self.assertIn("not enough free space", e.last_error)
+    self.assertFalse(e.recording)
+    self.assertEqual(os.listdir(self.dir), [])
+
+  def test_disk_fills_while_recording_stops_and_keeps_file(self):
+    free = [10 << 30]
+    now = [0.0]
+    e = self.engine(free_fn=lambda p: free[0], clock=lambda: now[0], encoder_factory=lambda p, w, h: FakeEncoder(p, w, h))
+    self.assertTrue(e.start())
+    e.submit_frame(frame(4, 2, (1, 2, 3, 255)), 4, 2)
+    self.assertTrue(wait_until(lambda: e.encoder is not None and e.encoder.frames == 1))
+    free[0] = 100 << 20
+    now[0] = SR.DISK_CHECK_S + 1
+    e.submit_frame(frame(4, 2, (1, 2, 3, 255)), 4, 2)
+    self.assertTrue(wait_until(lambda: not e.recording))
+    e.stop()
+    self.assertIn("not enough free space", e.last_error)
+    self.assertEqual(len(e.saved), 1)
+    self.assertFalse(any(n.endswith(".lock") for n in os.listdir(self.dir)))
+
+  def test_encoder_failure_discards_partial_and_stops(self):
+    encs = []
+    def fac(p, w, h):
+      encs.append(FakeEncoder(p, w, h, fail_at=0))
+      return encs[-1]
+    e = self.engine(encoder_factory=fac)
+    self.assertTrue(e.start())
+    e.submit_frame(frame(4, 2, (0, 0, 0, 255)), 4, 2)
+    self.assertTrue(wait_until(lambda: not e.recording))
+    e.stop()
+    self.assertIn("broken pipe", e.last_error)
+    self.assertEqual(os.listdir(self.dir), [])
+    self.assertTrue(encs[0].closed)
+
+  def test_segment_rotation_and_resolution_change(self):
+    now = [0.0]
+    names = iter(datetime.datetime(2026, 11, 7, 13, 5, s) for s in range(10))
+    encs = []
+    def fac(p, w, h):
+      encs.append(FakeEncoder(p, w, h))
+      return encs[-1]
+    e = self.engine(clock=lambda: now[0], wallclock=lambda: next(names), max_segment_s=2.0, encoder_factory=fac)
+    e.start()
+    e.submit_frame(frame(4, 2, (9, 9, 9, 255)), 4, 2)
+    self.assertTrue(wait_until(lambda: len(encs) == 1 and encs[0].frames == 1))
+    now[0] = 2.5
+    e.submit_frame(frame(4, 2, (9, 9, 9, 255)), 4, 2)
+    self.assertTrue(wait_until(lambda: len(encs) == 2 and encs[1].frames == 1))
+    e.submit_frame(frame(2, 2, (9, 9, 9, 255)), 2, 2)
+    self.assertTrue(wait_until(lambda: len(encs) == 3))
+    e.stop()
+    self.assertEqual(len(e.saved), 3)
+    self.assertTrue(all(x.closed for x in encs))
+
+  def test_frames_due_and_repeat(self):
+    now = [0.0]
+    e = self.engine(clock=lambda: now[0], fps=10, encoder_factory=lambda p, w, h: FakeEncoder(p, w, h))
+    self.assertEqual(e.frames_due(), 0)                  # not recording
+    e.start()
+    self.assertEqual(e.frames_due(), 1)
+    e.submit_frame(frame(2, 2, (0, 0, 0, 255)), 2, 2, 1)
+    self.assertEqual(e.frames_due(), 0)                  # next frame not due yet
+    now[0] = 0.35                                        # slow UI frame: 3 frames owed
+    self.assertEqual(e.frames_due(), 3)
+    now[0] = 10.0
+    self.assertEqual(e.frames_due(), SR.MAX_REPEAT)
+    e.stop()
+
+  def test_bad_frame_size_ignored(self):
+    e = self.engine(encoder_factory=lambda p, w, h: FakeEncoder(p, w, h))
+    e.start()
+    e.submit_frame(b"\x00" * 7, 4, 2)
+    time.sleep(0.2)
+    self.assertIsNone(e.encoder)
+    e.stop()
+    self.assertEqual(os.listdir(self.dir), [])
+
+  def test_stale_lock_cleanup(self):
+    d = Path(self.dir)
+    (d / "a.mp4").write_bytes(b"data")
+    (d / "a.mp4.lock").write_text("999999")             # dead writer, non-empty fragmented file: keep the video
+    (d / "b.mp4").write_bytes(b"")
+    (d / "b.mp4.lock").write_text("999998")             # dead writer, empty file: remove
+    (d / "c.mp4").write_bytes(b"live")
+    (d / "c.mp4.lock").write_text(str(os.getppid()))    # live writer: untouched
+    SR.cleanup_stale(self.dir)
+    self.assertEqual(sorted(os.listdir(self.dir)), ["a.mp4", "c.mp4", "c.mp4.lock"])
+
+  def test_unwritable_directory(self):
+    e = SR.RecorderEngine("/proc/bogpilot_no_such_dir/x", free_fn=lambda p: 10 << 30)
+    self.assertFalse(e.start())
+    self.assertIn("cannot create", e.last_error)
+
+  def test_toggle_glue_and_truthful_indicator(self):
+    e = self.engine(encoder_factory=lambda p, w, h: FakeEncoder(p, w, h))
+    r = SR.ScreenRecorder(e)
+    self.assertEqual(r.status, "idle")
+    self.assertTrue(r.toggle())
+    self.assertFalse(r.recording)                       # armed only: no encoder, no frame yet
+    self.assertEqual(r.status, "starting")
+    e.submit_frame(frame(4, 2, (0, 0, 0, 255)), 4, 2)
+    self.assertTrue(wait_until(lambda: r.recording))
+    self.assertEqual(r.status, "recording")
+    self.assertFalse(r.toggle())
+    self.assertFalse(r.recording)
+    self.assertEqual(r.status, "idle")
+    r.stop()   # idempotent (offroad transition)
+
+  def test_toggle_while_armed_stops(self):
+    e = self.engine(encoder_factory=lambda p, w, h: FakeEncoder(p, w, h))
+    r = SR.ScreenRecorder(e)
+    r.toggle()
+    self.assertFalse(r.toggle())
+    self.assertFalse(e.recording)
+    self.assertEqual(os.listdir(self.dir), [])
+
+  def test_encoder_death_while_idle_clears_indicator_and_reports(self):
+    encs = []
+    def fac(p, w, h):
+      encs.append(FakeEncoder(p, w, h))
+      return encs[-1]
+    e = self.engine(encoder_factory=fac)
+    r = SR.ScreenRecorder(e)
+    r.toggle()
+    e.submit_frame(frame(4, 2, (0, 0, 0, 255)), 4, 2)
+    self.assertTrue(wait_until(lambda: r.recording))
+    encs[0].running = False                             # process died, no further frames arrive
+    self.assertFalse(r.recording)                       # indicator truth is immediate
+    self.assertTrue(wait_until(lambda: not e.recording))  # engine notices within its 0.1 s poll
+    self.assertEqual(r.status, "error")
+    self.assertIn("exited", r.last_error)
+    self.assertTrue(wait_until(lambda: encs[0].closed))   # worker finalizes the dead segment
+    self.assertTrue(r.toggle())                         # next start clears the error
+    self.assertIsNone(r.last_error)
+    r.stop()
+
+  def test_interpreter_shutdown_finalizes(self):
+    child = r"""
+import importlib.util, sys, time
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("sr", sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+root = Path(sys.argv[2])
+class Enc:
+  def __init__(self, path, w, h): self.path, self.error, self.frames = path, None, 0
+  def open(self): return True
+  def alive(self): return True
+  def write(self, d): self.frames += 1; return True
+  def close(self): (root / "finalized").write_text("1"); return True
+e = m.RecorderEngine(directory=str(root), encoder_factory=Enc, free_fn=lambda p: 1 << 40)
+e.start(); e.submit_frame(bytes(16 * 16 * 4), 16, 16)
+t = time.monotonic() + 2
+while not e.active and time.monotonic() < t: time.sleep(0.005)
+assert e.active
+"""
+    import sys
+    subprocess.run([sys.executable, "-c", child, str(Path(SR.__file__)), self.dir], check=True, timeout=20)
+    self.assertTrue((Path(self.dir) / "finalized").exists())
+
+
+@unittest.skipUnless(FFMPEG and FFPROBE, "ffmpeg/ffprobe not available")
+class TestRecorderRealEncode(unittest.TestCase):
+  """Real ffmpeg encode of synthetic frames (sandbox temp dir only)."""
+
+  def setUp(self):
+    self.dir = tempfile.mkdtemp(prefix="bp_sr_real_")
+
+  def tearDown(self):
+    shutil.rmtree(self.dir, ignore_errors=True)
+
+  def probe(self, path):
+    out = subprocess.run([FFPROBE, "-v", "error", "-count_frames", "-select_streams", "v:0", "-show_entries",
+                          "stream=codec_name,width,height,nb_read_frames,pix_fmt", "-of", "json", path],
+                         capture_output=True, text=True, check=True)
+    return json.loads(out.stdout)["streams"][0]
+
+  def test_start_stop_save_real_h264(self):
+    e = SR.RecorderEngine(self.dir, free_fn=lambda p: 10 << 30)
+    self.assertTrue(e.start())
+    w, h = 320, 160
+    for i in range(25):
+      top = bytes((255, 0, 0, 255)) * (w * h // 2)
+      bottom = bytes((0, 0, 255, 255)) * (w * h // 2)
+      e.submit_frame(top + bottom, w, h)
+      time.sleep(0.01)
+    e.stop()
+    self.assertIsNone(e.last_error)
+    self.assertEqual(len(e.saved), 1)
+    path = e.saved[0]
+    self.assertTrue(path.endswith(".mp4"))
+    self.assertFalse(os.path.exists(path + ".lock"))
+    st = self.probe(path)
+    self.assertEqual((st["codec_name"], st["width"], st["height"], st["pix_fmt"]), ("h264", w // SR.SCALE_DIV, h // SR.SCALE_DIV, "yuv420p"))
+    self.assertGreaterEqual(int(st["nb_read_frames"]), 20)   # dropped-oldest queue may drop a few under load
+    # colours survive the encode (top red, bottom blue)
+    raw = subprocess.run([FFMPEG, "-v", "error", "-i", path, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                         capture_output=True, check=True).stdout
+    ow = w // SR.SCALE_DIV   # encoded at half size
+    px = lambda x, y: raw[(y * ow + x) * 3:(y * ow + x) * 3 + 3]  # noqa: E731
+    self.assertGreater(px(160 // SR.SCALE_DIV, 20 // SR.SCALE_DIV)[0], 200)
+    self.assertGreater(px(160 // SR.SCALE_DIV, 140 // SR.SCALE_DIV)[2], 200)
+
+  def test_killed_writer_leaves_playable_fragmented_file(self):
+    enc = SR.FfmpegEncoder(os.path.join(self.dir, "crash.mp4"), 64, 32, 10, 1_000_000)
+    self.assertTrue(enc.open())
+    for _ in range(60):
+      enc.write(bytes((0, 255, 0, 255)) * (64 * 32))
+    enc.proc.stdin.flush()
+    time.sleep(2.0)
+    enc.proc.kill()
+    enc.proc.wait()
+    st = self.probe(enc.path)                               # fragmented MP4 is readable without a trailer
+    self.assertEqual(st["codec_name"], "h264")
+    SR.cleanup_stale(self.dir)                              # killed pid is this test's child, so the lock is ours...
+    self.assertTrue(os.path.exists(enc.path))
+
+  def test_missing_encoder_binary(self):
+    e = SR.RecorderEngine(self.dir, free_fn=lambda p: 10 << 30,
+                          encoder_factory=lambda p, w, h: SR.FfmpegEncoder(p, w, h, 10, 1_000_000, ffmpeg="/nonexistent/ffmpeg"))
+    self.assertTrue(e.start())
+    e.submit_frame(bytes(4 * 8 * 8), 8, 8)
+    self.assertTrue(wait_until(lambda: not e.recording))
+    e.stop()
+    self.assertIn("encoder start failed", e.last_error)
+    self.assertEqual(os.listdir(self.dir), [])
+
+  def test_encoder_rejects_stream(self):
+    # odd width is rejected by libx264 yuv420p -> ffmpeg exits non-zero; partial file and lock are removed
+    # (full size: the half-size scale filter would round 7x7 to an even size and accept it)
+    e = SR.RecorderEngine(self.dir, free_fn=lambda p: 10 << 30,
+                          encoder_factory=lambda p, w, h: SR.FfmpegEncoder(p, w, h, 10, 1_000_000, scale_div=1))
+    self.assertTrue(e.start())
+    for _ in range(5):
+      e.submit_frame(bytes(4 * 7 * 7), 7, 7)
+    time.sleep(0.5)
+    e.stop()
+    self.assertEqual(e.saved, [])
+    self.assertIsNotNone(e.last_error)
+    self.assertEqual([n for n in os.listdir(self.dir)], [])
+
+
+class TestFrameHookSource(unittest.TestCase):
+  def test_hook_runs_before_end_drawing_and_after_overlays(self):
+    src = (Path(__file__).resolve().parents[5] / "system" / "ui" / "lib" / "application.py").read_text()
+    body = src[src.index("  def render(self):"):]
+    i_hook, i_end, i_grid = body.index("for hook in list(self._frame_hooks)"), body.index("rl.end_drawing()"), body.index("self._draw_grid()")
+    self.assertLess(i_grid, i_hook)
+    self.assertLess(i_hook, i_end)
+    self.assertIn("self.remove_frame_hook(hook)", body[i_hook:i_end])
+
+
+if __name__ == "__main__":
+  unittest.main()

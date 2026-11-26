@@ -284,6 +284,7 @@ class TestFwFingerprintTiming(unittest.TestCase):
       'nissan': 1.6,
       'subaru': 0.65,
       'tesla': 0.1,
+      'tesla_ap1': 0.0,  # BogPilot AP1 brand
       'toyota': 0.7,
       'volkswagen': 0.65,
       'rivian': 0.3,

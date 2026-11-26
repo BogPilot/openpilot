@@ -88,3 +88,7 @@ legend = ["LAT_ACCEL_FACTOR", "MAX_LAT_ACCEL_MEASURED", "FRICTION"]
 "SUBARU_FORESTER_PREGLOBAL" = "SUBARU_IMPREZA"
 "SUBARU_LEGACY_PREGLOBAL" = "SUBARU_IMPREZA"
 "SUBARU_ASCENT" = "SUBARU_FORESTER"
+
+# Angle-controlled AP1 uses the stock Tesla lookup for interface metadata only (the Model X has its own row in override.toml).
+"TESLA_AP1_MODELS" = "TESLA_MODEL_3"
+"TESLA_PREAP_MODELS" = "TESLA_MODEL_3"

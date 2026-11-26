@@ -15,6 +15,9 @@ from openpilot.system.ui.widgets.html_render import HtmlRenderer
 from openpilot.selfdrive.selfdrived.alertmanager import OFFROAD_ALERTS
 
 
+BOGPILOT_MODEL_ALERT_KEY = "BogPilot_ModelFallback"
+
+
 class AlertColors:
   HIGH_SEVERITY = rl.Color(226, 44, 44, 255)
   LOW_SEVERITY = rl.Color(41, 41, 41, 255)
@@ -216,7 +219,7 @@ class OffroadAlert(AbstractAlert):
 
     for alert_data in self.sorted_alerts:
       text = ""
-      alert_json = self.params.get(alert_data.key)
+      alert_json = self._read_alert(alert_data)
 
       if alert_json:
         text = alert_json.get("text", "").replace("%1", alert_json.get("extra", ""))
@@ -236,6 +239,19 @@ class OffroadAlert(AbstractAlert):
     self.excessive_actuation_btn.set_visible(excessive_actuation)
     self.snooze_btn.set_visible(connectivity_needed and not excessive_actuation)
     return active_count
+
+  def _read_alert(self, alert_data: AlertData):
+    if alert_data.key == BOGPILOT_MODEL_ALERT_KEY:
+      # BogPilot driving-model fallback: lives in the BogPilot setting store (not a compiled Params key)
+      try:
+        from openpilot.common.bogpilot_models.alert import current_alert
+        data = current_alert()
+      except Exception:
+        data = None
+      if data:
+        alert_data.severity = data.get("severity", 1)
+      return data
+    return self.params.get(alert_data.key)
 
   def get_content_height(self) -> float:
     if not self.sorted_alerts:
@@ -268,6 +284,7 @@ class OffroadAlert(AbstractAlert):
       severity = config.get("severity", 0)
       alert_data = AlertData(key=key, text="", severity=severity)
       self.sorted_alerts.append(alert_data)
+    self.sorted_alerts.insert(0, AlertData(key=BOGPILOT_MODEL_ALERT_KEY, text="", severity=1))
 
   def _render_content(self, content_rect: rl.Rectangle):
     y_offset = AlertConstants.ALERT_SPACING
@@ -335,12 +352,10 @@ class UpdateAlert(AbstractAlert):
     if not self.release_notes:
       return 100
 
-    if self._cached_content_height == 0:
-      self._wrapped_release_notes = self.release_notes
-      size = measure_text_cached(gui_app.font(FontWeight.NORMAL), self._wrapped_release_notes, AlertConstants.FONT_SIZE)
-      self._cached_content_height = max(size.y + 60, 100)
-
-    return self._cached_content_height
+    # Height of the notes as the HtmlRenderer lays them out (wrapped, at the notes width), plus the 30 px inset on
+    # each side. Measuring the raw HTML string under-counts wrapped lines, which cut the last lines off the splash.
+    notes_width = int(self.scroll_panel_rect.width - 60)
+    return max(self._html_renderer.get_total_height(notes_width) + 60, 100)
 
   def _render_content(self, content_rect: rl.Rectangle):
     notes_rect = rl.Rectangle(content_rect.x + 30, content_rect.y + 30, content_rect.width - 60, content_rect.height - 60)

@@ -1,8 +1,15 @@
 import pyray as rl
-import time
 from dataclasses import dataclass
 from collections.abc import Callable
 from openpilot.cereal import log
+from openpilot.common.params import Params
+from openpilot.selfdrive.ui.bogpilot.sidebar_metrics import (Reading, device_readings, metric_visibility_from_params, slot_choices,
+                                                              slot_flags_from_params, chip_reading, ModeldLoad, storage_reading, data_usage_gb,
+                                                              IpReader, next_chip, chip_writes, write_chip_file, cycle_memory, temp_mode, temp_writes,
+                                                              power_reading, read_upper_slot, write_upper_slot, cycle_upper_slot,
+                                                              upper_slot_shown, read_vehicle_slot, write_vehicle_slot,
+                                                              cycle_vehicle_slot, vehicle_slot_shown)
+from openpilot.selfdrive.ui.onroad.bogpilot.overlay_gate import OverlayGate
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app, FontWeight, MousePos, FONT_SCALE
 from openpilot.system.ui.lib.multilang import tr, tr_noop
@@ -65,16 +72,39 @@ class MetricData:
 class Sidebar(Widget):
   def __init__(self):
     super().__init__()
+    self._params = Params()
+    self._offroad_temp_status = MetricData(tr_noop("TEMP"), "--", Colors.GRAY)
+    self._power_status = MetricData(tr_noop("POWER"), "--", Colors.GRAY)
+    self._cpu_status = MetricData(tr_noop("CPU"), "--", Colors.GRAY)
+    self._ram_status = MetricData(tr_noop("RAM"), "--", Colors.GRAY)
     self._net_type = NETWORK_TYPES[NetworkType.none]
     self._net_strength = 0
+    self._ip_gate = OverlayGate("ShowIP")   # ShowIP: the Wi-Fi address replaces the signal dots
+    self._ip_reader = IpReader()
+    self._ip_text = ""
 
     self._temp_status = MetricData(tr_noop("TEMP"), tr_noop("GOOD"), Colors.GOOD)
     self._panda_status = MetricData(tr_noop("VEHICLE"), tr_noop("ONLINE"), Colors.GOOD)
-    self._connect_status = MetricData(tr_noop("CONNECT"), tr_noop("OFFLINE"), Colors.WARNING)
     self._recording_audio = False
+    self._hw_args = (None, False)        # (deviceState, fresh) of the last metrics update, to redraw at once after a tap
+    self._metric_hits: list = []         # (rect, kind) of the boxes drawn last frame; kind is "temp" (upper box), "chip", "memory" or "vehicle"
 
-    self._home_img = gui_app.texture("images/button_home.png", HOME_BTN.width, HOME_BTN.height)
-    self._flag_img = gui_app.texture("images/button_flag.png", HOME_BTN.width, HOME_BTN.height)
+    # Load BogPilot home mark at native PNG resolution (360x360). Forcing a CPU
+    # image_resize down to HOME_BTN (180) then drawing with GPU bilinear double-filters
+    # the arc AA and looks like clipped/smudged pixels on the lower-left sidebar logo.
+    # Draw at HOME_BTN with an explicit scale so only one filter step runs.
+    # button_home_ring.png is button_home.png with the ring's top half replaced by the mirror of its bottom half (the
+    # shipped ring is thinner and hard-edged at the top, which reads as a clipped top at 2160x1080); every other pixel
+    # is the shipped asset's. The shipped file stays the fallback.
+    self._home_img = gui_app.texture("bogpilot/button_home_ring.png")
+    if not (self._home_img.width > 0 and self._home_img.height > 0):
+      self._home_img = gui_app.texture("bogpilot/button_home.png")
+    if not (self._home_img.width > 0 and self._home_img.height > 0):
+      # ui is a managed process (selfdrived raises processNotRunning if it is down): never crash on an asset failure.
+      # Fall back to the other BogPilot mark, never to the stock comma logo or flag images; if that fails too draw nothing.
+      self._home_img = gui_app.texture("icons/bogpilot/icon_bogpilot.png")
+    self._home_valid = self._home_img.width > 0 and self._home_img.height > 0
+    self._home_draw_scale = HOME_BTN.width / float(self._home_img.width) if self._home_img.width > 0 else 1.0
     self._settings_img = gui_app.texture("images/button_settings.png", SETTINGS_BTN.width, SETTINGS_BTN.height)
     self._mic_img = gui_app.texture("icons/microphone.png", 30, 30)
     self._mic_indicator_rect = rl.Rectangle(0, 0, 0, 0)
@@ -102,16 +132,99 @@ class Sidebar(Widget):
 
   def _update_state(self):
     sm = ui_state.sm
+    self._update_ip()
+    self._recording_audio = ui_state.recording_audio
+    self._sample_modeld_load(sm)
+    if not (sm.valid["deviceState"] and sm.alive["deviceState"]):
+      self._update_hardware_metrics(None, fresh=False)
+      self._net_type = NETWORK_TYPES[NetworkType.none]
+      self._net_strength = 0
+      return
     if not sm.updated['deviceState']:
       return
 
     device_state = sm['deviceState']
 
     self._recording_audio = ui_state.recording_audio
+    self._update_hardware_metrics(device_state, fresh=True)
     self._update_network_status(device_state)
     self._update_temperature_status(device_state)
-    self._update_connection_status(device_state)
     self._update_panda_status()
+
+  def _modeld_load(self) -> ModeldLoad:
+    if getattr(self, "_modeld", None) is None:
+      self._modeld = ModeldLoad()
+    return self._modeld
+
+  def _sample_modeld_load(self, sm):
+    # modelV2 and driverStateV2 are already in the UI SubMaster; this only reads three floats per modelV2 message (20 Hz).
+    try:
+      if not sm.updated["modelV2"]:
+        return
+      driver = sm["driverStateV2"].modelExecutionTime if sm.alive["driverStateV2"] else None
+      model = sm["modelV2"]
+      self._modeld_load().update(model.modelExecutionTime, driver, model.frameDropPerc)
+    except Exception:
+      pass
+
+  def _update_ip(self):
+    gate = getattr(self, "_ip_gate", None)
+    self._ip_text = ""
+    if gate is not None and gate.get():
+      self._ip_text = self._ip_reader.get() or "--"
+
+  def _update_hardware_metrics(self, device_state, *, fresh: bool):
+    self._hw_args = (device_state, fresh)
+    show_cpu, show_memory, numerical_temp, fahrenheit = metric_visibility_from_params(self._params)
+    self._show_cpu = show_cpu
+    self._show_memory = show_memory
+    self._numerical_temp = numerical_temp
+    self._temp_mode = temp_mode(numerical_temp, fahrenheit)
+    # Upper box (offroad and onroad): Power only when SidebarUpperSlot is exactly "power". A Visuals change of
+    # NumericalTemp / Fahrenheit while Power is showing leaves Power and shows that temp mode.
+    stored_upper = read_upper_slot()
+    shown_upper = upper_slot_shown(stored_upper, numerical_temp, fahrenheit)
+    if shown_upper == "power":
+      snapshot = getattr(self, "_power_temp_mode", None)
+      if snapshot is None:
+        self._power_temp_mode = self._temp_mode
+        self._slot_upper = "power"
+      elif self._temp_mode != snapshot:
+        write_upper_slot(self._temp_mode)
+        self._power_temp_mode = None
+        self._slot_upper = self._temp_mode
+      else:
+        self._slot_upper = "power"
+    else:
+      self._power_temp_mode = None
+      self._slot_upper = self._temp_mode
+    readings = device_readings(device_state, fresh=fresh, fahrenheit=fahrenheit)
+    colors = {"good": Colors.GOOD, "warning": Colors.WARNING, "danger": Colors.DANGER, "unknown": Colors.GRAY}
+    for metric, reading in zip((self._offroad_temp_status, self._cpu_status, self._ram_status), readings, strict=True):
+      metric.update(metric.label, reading.value, colors[reading.level])
+    if not hasattr(self, "_power_status"):
+      self._power_status = MetricData(tr_noop("POWER"), "--", Colors.GRAY)
+    try:
+      power = power_reading() if not hasattr(self, "_power_read") else self._power_read()
+    except Exception:
+      power = Reading()
+    self._power_status.update(self._power_status.label, power.value, colors.get(power.level, Colors.GRAY))
+    # chip slot: CPU or GPU; memory slot: RAM, storage left or storage used (0.9.7). CPU and RAM keep their slots by default.
+    flags = slot_flags_from_params(self._params) | {"ShowCPU": show_cpu, "ShowMemoryUsage": show_memory}
+    self._slot_chip, self._slot_memory = slot_choices(flags)
+    self._slot_vehicle = read_vehicle_slot()   # onroad middle box (file choice), read with the other slots, not every frame
+    if not hasattr(self, "_extra_status"):
+      self._extra_status = {"gpu": MetricData(tr_noop("GPU"), "--", Colors.GRAY),
+                            "modeld": MetricData(tr_noop("MODELD"), "--", Colors.GRAY),
+                            "storage_left": MetricData(tr_noop("LEFT"), "--", Colors.GRAY),
+                            "storage_used": MetricData(tr_noop("USED"), "--", Colors.GRAY)}
+    extra = {"gpu": chip_reading(device_state, "gpu", fresh=fresh),
+             "modeld": self._modeld_load().reading() if fresh else Reading()}   # modeld load: share of the 50 ms model frame budget
+    usage = data_usage_gb() if self._slot_memory in ("storage_left", "storage_used") else None
+    for which in ("storage_left", "storage_used"):
+      extra[which] = storage_reading(device_state, which, usage, fresh=fresh)
+    for which, metric in self._extra_status.items():
+      metric.update(metric.label, extra[which].value, colors[extra[which].level])
 
   def _update_network_status(self, device_state):
     self._net_type = NETWORK_TYPES.get(device_state.networkType.raw, tr_noop("Unknown"))
@@ -126,19 +239,13 @@ class Sidebar(Widget):
     else:
       self._temp_status.update(tr_noop("TEMP"), tr_noop("HIGH"), Colors.DANGER)
 
-  def _update_connection_status(self, device_state):
-    last_ping = device_state.lastAthenaPingTime
-    if last_ping == 0:
-      self._connect_status.update(tr_noop("CONNECT"), tr_noop("OFFLINE"), Colors.WARNING)
-    elif time.monotonic_ns() - last_ping < 80_000_000_000:  # 80 seconds in nanoseconds
-      self._connect_status.update(tr_noop("CONNECT"), tr_noop("ONLINE"), Colors.GOOD)
-    else:
-      self._connect_status.update(tr_noop("CONNECT"), tr_noop("ERROR"), Colors.DANGER)
 
   def _update_panda_status(self):
     if ui_state.panda_type == log.PandaState.PandaType.unknown:
+      self._panda_seen = False
       self._panda_status.update(tr_noop("NO"), tr_noop("PANDA"), Colors.DANGER)
     else:
+      self._panda_seen = True
       self._panda_status.update(tr_noop("VEHICLE"), tr_noop("ONLINE"), Colors.GOOD)
 
   def _handle_mouse_release(self, mouse_pos: MousePos):
@@ -151,6 +258,54 @@ class Sidebar(Widget):
     elif self._recording_audio and rl.check_collision_point_rec(mouse_pos, self._mic_indicator_rect):
       if self._open_settings_callback:
         self._open_settings_callback()
+    else:
+      for box, kind in self._metric_hits:
+        if rl.check_collision_point_rec(mouse_pos, box):
+          self._cycle(kind)
+          break
+
+  def _store_flags(self, writes: dict) -> None:
+    try:
+      for key, value in writes.items():
+        self._params.put_bool(key, bool(value))
+    except Exception:
+      pass   # an unwritable preference must never take the UI down; the box simply keeps its contents
+
+  def _cycle(self, kind: str) -> None:
+    """A tap inside a metric box moves that box to its next content and saves it (0.9.7 sidebar.cc:75-120). The index
+    starts from what is stored, so the first tap after a restart advances what is on screen."""
+    if kind == "chip":
+      choice = next_chip(getattr(self, "_slot_chip", "cpu"))
+      write_chip_file(choice)   # "modeld" or back to "auto" (ShowCPU / ShowGPU decide)
+      writes = chip_writes(choice)
+    elif kind == "memory":
+      writes = cycle_memory(getattr(self, "_slot_memory", "memory"))
+    elif kind == "temp":
+      # Upper box, offroad and onroad: status -> celsius -> fahrenheit -> power -> status.
+      current = getattr(self, "_slot_upper", getattr(self, "_temp_mode", "celsius"))
+      nxt = cycle_upper_slot(current)
+      if nxt == "power":
+        if write_upper_slot("power"):
+          self._slot_upper = "power"
+          self._power_temp_mode = getattr(self, "_temp_mode", "celsius")
+        self._update_hardware_metrics(self._hw_args[0], fresh=self._hw_args[1])
+        return
+      writes = temp_writes(nxt)
+      write_upper_slot(nxt)
+      self._power_temp_mode = None
+    elif kind == "vehicle":
+      # onroad middle box: vehicle status <-> CPU, saved as a file choice (SidebarVehicleSlot). While "NO PANDA" holds
+      # the box a tap is ignored and nothing is written, so the driver's choice comes back with the panda.
+      if not getattr(self, "_panda_seen", True):
+        return
+      choice = cycle_vehicle_slot(getattr(self, "_slot_vehicle", "vehicle"))
+      if write_vehicle_slot(choice):
+        self._slot_vehicle = choice
+      return
+    else:
+      return
+    self._store_flags(writes)
+    self._update_hardware_metrics(self._hw_args[0], fresh=self._hw_args[1])
 
   def _draw_buttons(self, rect: rl.Rectangle):
     mouse_pos = rl.get_mouse_position()
@@ -163,10 +318,15 @@ class Sidebar(Widget):
 
     # Home/Flag button
     flag_pressed = mouse_down and rl.check_collision_point_rec(mouse_pos, HOME_BTN)
-    button_img = self._flag_img if ui_state.started else self._home_img
+    # The BogPilot mark is shown both offroad and onroad (the stock comma flag image is never drawn). Onroad the button
+    # still acts as the flag/bookmark tap; only its pressed tint differs.
+    button_img = self._home_img
 
     tint = Colors.BUTTON_PRESSED if (ui_state.started and flag_pressed) else Colors.BUTTON_NORMAL
-    rl.draw_texture_ex(button_img, rl.Vector2(HOME_BTN.x, HOME_BTN.y), 0.0, 1.0, tint)
+    # Native-size texture + explicit scale so only one filter step runs (same as the offroad home mark).
+    draw_scale = self._home_draw_scale
+    if self._home_valid:
+      rl.draw_texture_ex(button_img, rl.Vector2(HOME_BTN.x, HOME_BTN.y), 0.0, draw_scale, tint)
 
     # Microphone button
     if self._recording_audio:
@@ -180,6 +340,10 @@ class Sidebar(Widget):
                          self._mic_indicator_rect.y + (self._mic_indicator_rect.height - self._mic_img.height) / 2), 0.0, 1.0, Colors.WHITE)
 
   def _draw_network_indicator(self, rect: rl.Rectangle):
+    ip_text = getattr(self, "_ip_text", "")
+    if ip_text:
+      self._draw_ip(rect, ip_text)
+      return
     # Signal strength dots
     x_start = rect.x + 58
     y_pos = rect.y + 196
@@ -192,16 +356,61 @@ class Sidebar(Widget):
       y = int(y_pos + dot_size // 2)
       rl.draw_circle(x, y, dot_size // 2, color)
 
-    # Network type text
+    self._draw_network_type(rect)
+
+  def _draw_network_type(self, rect: rl.Rectangle):
     text_y = rect.y + 247
     text_pos = rl.Vector2(rect.x + 58, text_y)
     rl.draw_text_ex(self._font_regular, tr(self._net_type), text_pos, FONT_SIZE, 0, Colors.WHITE)
 
-  def _draw_metrics(self, rect: rl.Rectangle):
-    metrics = [(self._temp_status, 338), (self._panda_status, 496), (self._connect_status, 654)]
+  def _draw_ip(self, rect: rl.Rectangle, text: str):
+    """ShowIP (0.9.7): the Wi-Fi address where the signal dots are, left aligned in the 27 px dot row; the type stays below."""
+    size = 30
+    width = measure_text_cached(self._font_regular, text, size).x
+    max_width = SIDEBAR_WIDTH - 50 - 10
+    if width > max_width:
+      size = max(18, int(size * max_width / width))
+    height = measure_text_cached(self._font_regular, text, size).y
+    rl.draw_text_ex(self._font_regular, text, rl.Vector2(rect.x + 50, rect.y + 196 + (27 - height) / 2), size, 0, Colors.WHITE)
+    self._draw_network_type(rect)
 
-    for metric, y_offset in metrics:
+  def _draw_metrics(self, rect: rl.Rectangle):
+    # Keep thermal and vehicle readiness onroad; show genuine RAM instead of removed cloud status.
+    # visualsTheme: gate CPU/RAM/numeric temp from preserved ShowCPU / ShowMemoryUsage / NumericalTemp.
+    numerical_temp = getattr(self, "_numerical_temp", True)
+    chip = getattr(self, "_slot_chip", "cpu" if getattr(self, "_show_cpu", True) else None)
+    memory = getattr(self, "_slot_memory", "memory" if getattr(self, "_show_memory", True) else None)
+    extra = getattr(self, "_extra_status", {})
+    chip_metric = {"cpu": self._cpu_status, "gpu": extra.get("gpu"), "modeld": extra.get("modeld")}.get(chip)
+    memory_metric = {"memory": self._ram_status, "storage_left": extra.get("storage_left"),
+                     "storage_used": extra.get("storage_used")}.get(memory)
+    slots = (338, 496, 654)
+    # The upper box shows GOOD / HIGH, the number in C or F, or Power, onroad as well as offroad, as saved by tapping it.
+    slot_upper = getattr(self, "_slot_upper", "celsius" if numerical_temp else "status")
+    if slot_upper == "power":
+      temp_metric = getattr(self, "_power_status", MetricData(tr_noop("POWER"), "--", Colors.GRAY))
+    else:
+      temp_metric = self._offroad_temp_status if slot_upper != "status" else self._temp_status
+    if ui_state.started:
+      # The middle box is the vehicle status, or CPU when the driver tapped it to CPU (SidebarVehicleSlot). "NO PANDA"
+      # always takes it back, so a missing panda is never hidden.
+      shown = vehicle_slot_shown(getattr(self, "_slot_vehicle", "vehicle"), getattr(self, "_panda_seen", True))
+      middle = {"cpu": self._cpu_status, "gpu": extra.get("gpu", self._panda_status),
+                "modeld": extra.get("modeld", self._panda_status)}.get(shown, self._panda_status)
+      chosen = [(temp_metric, "temp"), (middle, "vehicle")]
+      if memory_metric is not None:
+        chosen.append((memory_metric, "memory"))
+    else:
+      chosen = [(temp_metric, "temp")]
+      if chip_metric is not None:
+        chosen.append((chip_metric, "chip"))
+      if memory_metric is not None:
+        chosen.append((memory_metric, "memory"))
+    self._metric_hits = []
+    for (metric, kind), y_offset in zip(chosen, slots[:len(chosen)], strict=True):
       self._draw_metric(rect, metric, rect.y + y_offset)
+      if kind is not None:
+        self._metric_hits.append((rl.Rectangle(rect.x + METRIC_MARGIN, rect.y + y_offset, METRIC_WIDTH, METRIC_HEIGHT), kind))
 
   def _draw_metric(self, rect: rl.Rectangle, metric: MetricData, y: float):
     metric_rect = rl.Rectangle(rect.x + METRIC_MARGIN, y, METRIC_WIDTH, METRIC_HEIGHT)

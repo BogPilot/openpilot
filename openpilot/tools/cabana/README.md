@@ -1,6 +1,6 @@
 # Cabana
 
-Cabana is a tool developed to view raw CAN data. One use for this is creating and editing [CAN Dictionaries](http://socialledge.com/sjsu/index.php/DBC_Format) (DBC files), and the tool provides direct integration with [commaai/opendbc](https://github.com/commaai/opendbc) (a collection of DBC files), allowing you to load the DBC files direct from source, and save to your fork. In addition, you can load routes from [comma connect](https://connect.comma.ai).
+Cabana is a tool developed to view raw CAN data. One use for this is creating and editing [CAN Dictionaries](http://socialledge.com/sjsu/index.php/DBC_Format) (DBC files), and the tool provides direct integration with [commaai/opendbc](https://github.com/commaai/opendbc) (a collection of DBC files), allowing you to load the DBC files direct from source, and save to your fork. In addition, you can load local routes.
 
 ## Usage Instructions
 
@@ -8,13 +8,13 @@ Cabana is a tool developed to view raw CAN data. One use for this is creating an
 $ ./cabana -h
 Usage: ./cabana [options] [route]
 
-  route                     the drive to replay. find your drives at connect.comma.ai
+  route                     the drive to replay (local route with --data_dir, or a public dataset route)
 
 Options:
   --help                    show this help
   --demo                    use a demo route instead of providing your own
   --auto                    Auto load the route from the best available source (no video):
-                            internal, openpilotci, comma_api, car_segments, testing_closet
+                            internal (DATA_ENDPOINT), openpilotci, car_segments, testing_closet
   --qcam                    load qcamera
   --wide-road               load wide road camera (alias: --ecam)
   --cabin                   load cabin camera (alias: --dcam)

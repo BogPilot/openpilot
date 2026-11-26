@@ -131,6 +131,13 @@ BO_ 1281 TeslaRadarAlertMatrix: 8 Radar
  SG_ unused62 : 62|2@1+ (1,0) [0|3] ""  Autopilot
 """)
 
+  # 0x32e in this range is RadarPoint10_A (8 bytes, ~16 Hz) on the radar bus
+  # (bus 1). The same CAN ID on the chassis bus (bus 0) is the 5-byte park-assist
+  # frame PARK_sensorStatusFront (front corner ultrasonics in cm, 4 Hz, 255 = no
+  # reading). 0x33e is RadarPoint15_B on bus 1 and the rear park corners on bus 0.
+  # Radar parsing is bus-1 only; the Pre-AP panda has disable_forwarding, so the
+  # chassis frames cannot reach this DBC. Never apply an ID-only filter: that
+  # would drop a real radar track.
   M_RANGE = range(0x310, 0x36D + 1, 3)
   for i, base_id in enumerate(M_RANGE):
     parts.append(get_radar_point_definition(base_id, f"RadarPoint{i}"))

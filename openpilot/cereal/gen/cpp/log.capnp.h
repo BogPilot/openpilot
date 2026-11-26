@@ -132,6 +132,18 @@ enum class EventName_91f1992a1f77fb03: uint16_t {
   BIG_MODEL_FAILED,
   CAR_NOT_READY,
   USER_BOOKMARK_NOT_PAIRED,
+  PEDAL_NOT_RESPONDING,
+  PREAP_NOT_ARMED,
+  PEDAL_RETRYING,
+  EXPERIMENTAL_MODE_UNCONFIRMED,
+  AP1_SPEED_LIMIT_UNKNOWN,
+  PREAP_STEER_ONLY,
+  PREAP_SPEED_BLOCKED,
+  PREAP_CRUISE_NOT_ARMED,
+  PREAP_REGEN_LIMIT,
+  PREAP_RADAR_NOT_READY,
+  RADAR_DATA_INVALID,
+  PREAP_EPAS_NOT_STEERING,
 };
 CAPNP_DECLARE_ENUM(EventName, 91f1992a1f77fb03);
 CAPNP_DECLARE_SCHEMA(d692e23d1a247d99);
@@ -3291,16 +3303,16 @@ struct Event {
     NAV_MODEL_D_E_P_R_E_C_A_T_E_D,
     MAP_RENDER_STATE_D_E_P_R_E_C_A_T_E_D,
     UI_PLAN_D_E_P_R_E_C_A_T_E_D,
-    CUSTOM_RESERVED0,
-    CUSTOM_RESERVED1,
-    CUSTOM_RESERVED2,
-    CUSTOM_RESERVED3,
-    CUSTOM_RESERVED4,
-    CUSTOM_RESERVED5,
-    CUSTOM_RESERVED6,
-    CUSTOM_RESERVED7,
-    CUSTOM_RESERVED8,
-    CUSTOM_RESERVED9,
+    BOGPILOT_CAR_CONTROL,
+    BOGPILOT_CAR_PARAMS,
+    BOGPILOT_CAR_STATE,
+    BOGPILOT_CONTROLS_STATE,
+    BOGPILOT_DEVICE_STATE,
+    BOGPILOT_MODEL_V2,
+    BOGPILOT_NAVIGATION,
+    BOGPILOT_ONROAD_EVENTS,
+    BOGPILOT_PLAN,
+    BOGPILOT_RADAR_STATE,
     LIVESTREAM_NARROW_ROAD_ENCODE_IDX,
     LIVESTREAM_WIDE_ROAD_ENCODE_IDX,
     LIVESTREAM_CABIN_ENCODE_IDX,
@@ -3327,9 +3339,9 @@ struct Event {
     CUSTOM_RESERVED14,
     CUSTOM_RESERVED15,
     CUSTOM_RESERVED16,
-    CUSTOM_RESERVED17,
-    CUSTOM_RESERVED18,
-    CUSTOM_RESERVED19,
+    MAPD_EXTENDED_OUT,
+    MAPD_IN,
+    MAPD_OUT,
     LATERAL_DELAY,
     RAW_AUDIO_DATA,
     BOOKMARK_BUTTON,
@@ -23196,45 +23208,45 @@ public:
   inline bool hasUiPlanDEPRECATED() const;
   inline  ::cereal::UiPlan::Reader getUiPlanDEPRECATED() const;
 
-  inline bool isCustomReserved0() const;
-  inline bool hasCustomReserved0() const;
-  inline  ::cereal::CustomReserved0::Reader getCustomReserved0() const;
+  inline bool isBogpilotCarControl() const;
+  inline bool hasBogpilotCarControl() const;
+  inline  ::cereal::BogPilotCarControl::Reader getBogpilotCarControl() const;
 
-  inline bool isCustomReserved1() const;
-  inline bool hasCustomReserved1() const;
-  inline  ::cereal::CustomReserved1::Reader getCustomReserved1() const;
+  inline bool isBogpilotCarParams() const;
+  inline bool hasBogpilotCarParams() const;
+  inline  ::cereal::BogPilotCarParams::Reader getBogpilotCarParams() const;
 
-  inline bool isCustomReserved2() const;
-  inline bool hasCustomReserved2() const;
-  inline  ::cereal::CustomReserved2::Reader getCustomReserved2() const;
+  inline bool isBogpilotCarState() const;
+  inline bool hasBogpilotCarState() const;
+  inline  ::cereal::BogPilotCarStateMsg::Reader getBogpilotCarState() const;
 
-  inline bool isCustomReserved3() const;
-  inline bool hasCustomReserved3() const;
-  inline  ::cereal::CustomReserved3::Reader getCustomReserved3() const;
+  inline bool isBogpilotControlsState() const;
+  inline bool hasBogpilotControlsState() const;
+  inline  ::cereal::BogPilotControlsState::Reader getBogpilotControlsState() const;
 
-  inline bool isCustomReserved4() const;
-  inline bool hasCustomReserved4() const;
-  inline  ::cereal::CustomReserved4::Reader getCustomReserved4() const;
+  inline bool isBogpilotDeviceState() const;
+  inline bool hasBogpilotDeviceState() const;
+  inline  ::cereal::BogPilotDeviceState::Reader getBogpilotDeviceState() const;
 
-  inline bool isCustomReserved5() const;
-  inline bool hasCustomReserved5() const;
-  inline  ::cereal::CustomReserved5::Reader getCustomReserved5() const;
+  inline bool isBogpilotModelV2() const;
+  inline bool hasBogpilotModelV2() const;
+  inline  ::cereal::BogPilotModelDataV2::Reader getBogpilotModelV2() const;
 
-  inline bool isCustomReserved6() const;
-  inline bool hasCustomReserved6() const;
-  inline  ::cereal::CustomReserved6::Reader getCustomReserved6() const;
+  inline bool isBogpilotNavigation() const;
+  inline bool hasBogpilotNavigation() const;
+  inline  ::cereal::BogPilotNavigation::Reader getBogpilotNavigation() const;
 
-  inline bool isCustomReserved7() const;
-  inline bool hasCustomReserved7() const;
-  inline  ::cereal::CustomReserved7::Reader getCustomReserved7() const;
+  inline bool isBogpilotOnroadEvents() const;
+  inline bool hasBogpilotOnroadEvents() const;
+  inline  ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>::Reader getBogpilotOnroadEvents() const;
 
-  inline bool isCustomReserved8() const;
-  inline bool hasCustomReserved8() const;
-  inline  ::cereal::CustomReserved8::Reader getCustomReserved8() const;
+  inline bool isBogpilotPlan() const;
+  inline bool hasBogpilotPlan() const;
+  inline  ::cereal::BogPilotPlan::Reader getBogpilotPlan() const;
 
-  inline bool isCustomReserved9() const;
-  inline bool hasCustomReserved9() const;
-  inline  ::cereal::CustomReserved9::Reader getCustomReserved9() const;
+  inline bool isBogpilotRadarState() const;
+  inline bool hasBogpilotRadarState() const;
+  inline  ::cereal::BogPilotRadarState::Reader getBogpilotRadarState() const;
 
   inline bool isLivestreamNarrowRoadEncodeIdx() const;
   inline bool hasLivestreamNarrowRoadEncodeIdx() const;
@@ -23340,17 +23352,17 @@ public:
   inline bool hasCustomReserved16() const;
   inline  ::cereal::CustomReserved16::Reader getCustomReserved16() const;
 
-  inline bool isCustomReserved17() const;
-  inline bool hasCustomReserved17() const;
-  inline  ::cereal::CustomReserved17::Reader getCustomReserved17() const;
+  inline bool isMapdExtendedOut() const;
+  inline bool hasMapdExtendedOut() const;
+  inline  ::cereal::MapdExtendedOut::Reader getMapdExtendedOut() const;
 
-  inline bool isCustomReserved18() const;
-  inline bool hasCustomReserved18() const;
-  inline  ::cereal::CustomReserved18::Reader getCustomReserved18() const;
+  inline bool isMapdIn() const;
+  inline bool hasMapdIn() const;
+  inline  ::cereal::MapdIn::Reader getMapdIn() const;
 
-  inline bool isCustomReserved19() const;
-  inline bool hasCustomReserved19() const;
-  inline  ::cereal::CustomReserved19::Reader getCustomReserved19() const;
+  inline bool isMapdOut() const;
+  inline bool hasMapdOut() const;
+  inline  ::cereal::MapdOut::Reader getMapdOut() const;
 
   inline bool isLateralDelay() const;
   inline bool hasLateralDelay() const;
@@ -24259,85 +24271,85 @@ public:
   inline void adoptUiPlanDEPRECATED(::capnp::Orphan< ::cereal::UiPlan>&& value);
   inline ::capnp::Orphan< ::cereal::UiPlan> disownUiPlanDEPRECATED();
 
-  inline bool isCustomReserved0();
-  inline bool hasCustomReserved0();
-  inline  ::cereal::CustomReserved0::Builder getCustomReserved0();
-  inline void setCustomReserved0( ::cereal::CustomReserved0::Reader value);
-  inline  ::cereal::CustomReserved0::Builder initCustomReserved0();
-  inline void adoptCustomReserved0(::capnp::Orphan< ::cereal::CustomReserved0>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved0> disownCustomReserved0();
+  inline bool isBogpilotCarControl();
+  inline bool hasBogpilotCarControl();
+  inline  ::cereal::BogPilotCarControl::Builder getBogpilotCarControl();
+  inline void setBogpilotCarControl( ::cereal::BogPilotCarControl::Reader value);
+  inline  ::cereal::BogPilotCarControl::Builder initBogpilotCarControl();
+  inline void adoptBogpilotCarControl(::capnp::Orphan< ::cereal::BogPilotCarControl>&& value);
+  inline ::capnp::Orphan< ::cereal::BogPilotCarControl> disownBogpilotCarControl();
 
-  inline bool isCustomReserved1();
-  inline bool hasCustomReserved1();
-  inline  ::cereal::CustomReserved1::Builder getCustomReserved1();
-  inline void setCustomReserved1( ::cereal::CustomReserved1::Reader value);
-  inline  ::cereal::CustomReserved1::Builder initCustomReserved1();
-  inline void adoptCustomReserved1(::capnp::Orphan< ::cereal::CustomReserved1>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved1> disownCustomReserved1();
+  inline bool isBogpilotCarParams();
+  inline bool hasBogpilotCarParams();
+  inline  ::cereal::BogPilotCarParams::Builder getBogpilotCarParams();
+  inline void setBogpilotCarParams( ::cereal::BogPilotCarParams::Reader value);
+  inline  ::cereal::BogPilotCarParams::Builder initBogpilotCarParams();
+  inline void adoptBogpilotCarParams(::capnp::Orphan< ::cereal::BogPilotCarParams>&& value);
+  inline ::capnp::Orphan< ::cereal::BogPilotCarParams> disownBogpilotCarParams();
 
-  inline bool isCustomReserved2();
-  inline bool hasCustomReserved2();
-  inline  ::cereal::CustomReserved2::Builder getCustomReserved2();
-  inline void setCustomReserved2( ::cereal::CustomReserved2::Reader value);
-  inline  ::cereal::CustomReserved2::Builder initCustomReserved2();
-  inline void adoptCustomReserved2(::capnp::Orphan< ::cereal::CustomReserved2>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved2> disownCustomReserved2();
+  inline bool isBogpilotCarState();
+  inline bool hasBogpilotCarState();
+  inline  ::cereal::BogPilotCarStateMsg::Builder getBogpilotCarState();
+  inline void setBogpilotCarState( ::cereal::BogPilotCarStateMsg::Reader value);
+  inline  ::cereal::BogPilotCarStateMsg::Builder initBogpilotCarState();
+  inline void adoptBogpilotCarState(::capnp::Orphan< ::cereal::BogPilotCarStateMsg>&& value);
+  inline ::capnp::Orphan< ::cereal::BogPilotCarStateMsg> disownBogpilotCarState();
 
-  inline bool isCustomReserved3();
-  inline bool hasCustomReserved3();
-  inline  ::cereal::CustomReserved3::Builder getCustomReserved3();
-  inline void setCustomReserved3( ::cereal::CustomReserved3::Reader value);
-  inline  ::cereal::CustomReserved3::Builder initCustomReserved3();
-  inline void adoptCustomReserved3(::capnp::Orphan< ::cereal::CustomReserved3>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved3> disownCustomReserved3();
+  inline bool isBogpilotControlsState();
+  inline bool hasBogpilotControlsState();
+  inline  ::cereal::BogPilotControlsState::Builder getBogpilotControlsState();
+  inline void setBogpilotControlsState( ::cereal::BogPilotControlsState::Reader value);
+  inline  ::cereal::BogPilotControlsState::Builder initBogpilotControlsState();
+  inline void adoptBogpilotControlsState(::capnp::Orphan< ::cereal::BogPilotControlsState>&& value);
+  inline ::capnp::Orphan< ::cereal::BogPilotControlsState> disownBogpilotControlsState();
 
-  inline bool isCustomReserved4();
-  inline bool hasCustomReserved4();
-  inline  ::cereal::CustomReserved4::Builder getCustomReserved4();
-  inline void setCustomReserved4( ::cereal::CustomReserved4::Reader value);
-  inline  ::cereal::CustomReserved4::Builder initCustomReserved4();
-  inline void adoptCustomReserved4(::capnp::Orphan< ::cereal::CustomReserved4>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved4> disownCustomReserved4();
+  inline bool isBogpilotDeviceState();
+  inline bool hasBogpilotDeviceState();
+  inline  ::cereal::BogPilotDeviceState::Builder getBogpilotDeviceState();
+  inline void setBogpilotDeviceState( ::cereal::BogPilotDeviceState::Reader value);
+  inline  ::cereal::BogPilotDeviceState::Builder initBogpilotDeviceState();
+  inline void adoptBogpilotDeviceState(::capnp::Orphan< ::cereal::BogPilotDeviceState>&& value);
+  inline ::capnp::Orphan< ::cereal::BogPilotDeviceState> disownBogpilotDeviceState();
 
-  inline bool isCustomReserved5();
-  inline bool hasCustomReserved5();
-  inline  ::cereal::CustomReserved5::Builder getCustomReserved5();
-  inline void setCustomReserved5( ::cereal::CustomReserved5::Reader value);
-  inline  ::cereal::CustomReserved5::Builder initCustomReserved5();
-  inline void adoptCustomReserved5(::capnp::Orphan< ::cereal::CustomReserved5>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved5> disownCustomReserved5();
+  inline bool isBogpilotModelV2();
+  inline bool hasBogpilotModelV2();
+  inline  ::cereal::BogPilotModelDataV2::Builder getBogpilotModelV2();
+  inline void setBogpilotModelV2( ::cereal::BogPilotModelDataV2::Reader value);
+  inline  ::cereal::BogPilotModelDataV2::Builder initBogpilotModelV2();
+  inline void adoptBogpilotModelV2(::capnp::Orphan< ::cereal::BogPilotModelDataV2>&& value);
+  inline ::capnp::Orphan< ::cereal::BogPilotModelDataV2> disownBogpilotModelV2();
 
-  inline bool isCustomReserved6();
-  inline bool hasCustomReserved6();
-  inline  ::cereal::CustomReserved6::Builder getCustomReserved6();
-  inline void setCustomReserved6( ::cereal::CustomReserved6::Reader value);
-  inline  ::cereal::CustomReserved6::Builder initCustomReserved6();
-  inline void adoptCustomReserved6(::capnp::Orphan< ::cereal::CustomReserved6>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved6> disownCustomReserved6();
+  inline bool isBogpilotNavigation();
+  inline bool hasBogpilotNavigation();
+  inline  ::cereal::BogPilotNavigation::Builder getBogpilotNavigation();
+  inline void setBogpilotNavigation( ::cereal::BogPilotNavigation::Reader value);
+  inline  ::cereal::BogPilotNavigation::Builder initBogpilotNavigation();
+  inline void adoptBogpilotNavigation(::capnp::Orphan< ::cereal::BogPilotNavigation>&& value);
+  inline ::capnp::Orphan< ::cereal::BogPilotNavigation> disownBogpilotNavigation();
 
-  inline bool isCustomReserved7();
-  inline bool hasCustomReserved7();
-  inline  ::cereal::CustomReserved7::Builder getCustomReserved7();
-  inline void setCustomReserved7( ::cereal::CustomReserved7::Reader value);
-  inline  ::cereal::CustomReserved7::Builder initCustomReserved7();
-  inline void adoptCustomReserved7(::capnp::Orphan< ::cereal::CustomReserved7>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved7> disownCustomReserved7();
+  inline bool isBogpilotOnroadEvents();
+  inline bool hasBogpilotOnroadEvents();
+  inline  ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>::Builder getBogpilotOnroadEvents();
+  inline void setBogpilotOnroadEvents( ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>::Reader value);
+  inline  ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>::Builder initBogpilotOnroadEvents(unsigned int size);
+  inline void adoptBogpilotOnroadEvents(::capnp::Orphan< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>>&& value);
+  inline ::capnp::Orphan< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>> disownBogpilotOnroadEvents();
 
-  inline bool isCustomReserved8();
-  inline bool hasCustomReserved8();
-  inline  ::cereal::CustomReserved8::Builder getCustomReserved8();
-  inline void setCustomReserved8( ::cereal::CustomReserved8::Reader value);
-  inline  ::cereal::CustomReserved8::Builder initCustomReserved8();
-  inline void adoptCustomReserved8(::capnp::Orphan< ::cereal::CustomReserved8>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved8> disownCustomReserved8();
+  inline bool isBogpilotPlan();
+  inline bool hasBogpilotPlan();
+  inline  ::cereal::BogPilotPlan::Builder getBogpilotPlan();
+  inline void setBogpilotPlan( ::cereal::BogPilotPlan::Reader value);
+  inline  ::cereal::BogPilotPlan::Builder initBogpilotPlan();
+  inline void adoptBogpilotPlan(::capnp::Orphan< ::cereal::BogPilotPlan>&& value);
+  inline ::capnp::Orphan< ::cereal::BogPilotPlan> disownBogpilotPlan();
 
-  inline bool isCustomReserved9();
-  inline bool hasCustomReserved9();
-  inline  ::cereal::CustomReserved9::Builder getCustomReserved9();
-  inline void setCustomReserved9( ::cereal::CustomReserved9::Reader value);
-  inline  ::cereal::CustomReserved9::Builder initCustomReserved9();
-  inline void adoptCustomReserved9(::capnp::Orphan< ::cereal::CustomReserved9>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved9> disownCustomReserved9();
+  inline bool isBogpilotRadarState();
+  inline bool hasBogpilotRadarState();
+  inline  ::cereal::BogPilotRadarState::Builder getBogpilotRadarState();
+  inline void setBogpilotRadarState( ::cereal::BogPilotRadarState::Reader value);
+  inline  ::cereal::BogPilotRadarState::Builder initBogpilotRadarState();
+  inline void adoptBogpilotRadarState(::capnp::Orphan< ::cereal::BogPilotRadarState>&& value);
+  inline ::capnp::Orphan< ::cereal::BogPilotRadarState> disownBogpilotRadarState();
 
   inline bool isLivestreamNarrowRoadEncodeIdx();
   inline bool hasLivestreamNarrowRoadEncodeIdx();
@@ -24547,29 +24559,29 @@ public:
   inline void adoptCustomReserved16(::capnp::Orphan< ::cereal::CustomReserved16>&& value);
   inline ::capnp::Orphan< ::cereal::CustomReserved16> disownCustomReserved16();
 
-  inline bool isCustomReserved17();
-  inline bool hasCustomReserved17();
-  inline  ::cereal::CustomReserved17::Builder getCustomReserved17();
-  inline void setCustomReserved17( ::cereal::CustomReserved17::Reader value);
-  inline  ::cereal::CustomReserved17::Builder initCustomReserved17();
-  inline void adoptCustomReserved17(::capnp::Orphan< ::cereal::CustomReserved17>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved17> disownCustomReserved17();
+  inline bool isMapdExtendedOut();
+  inline bool hasMapdExtendedOut();
+  inline  ::cereal::MapdExtendedOut::Builder getMapdExtendedOut();
+  inline void setMapdExtendedOut( ::cereal::MapdExtendedOut::Reader value);
+  inline  ::cereal::MapdExtendedOut::Builder initMapdExtendedOut();
+  inline void adoptMapdExtendedOut(::capnp::Orphan< ::cereal::MapdExtendedOut>&& value);
+  inline ::capnp::Orphan< ::cereal::MapdExtendedOut> disownMapdExtendedOut();
 
-  inline bool isCustomReserved18();
-  inline bool hasCustomReserved18();
-  inline  ::cereal::CustomReserved18::Builder getCustomReserved18();
-  inline void setCustomReserved18( ::cereal::CustomReserved18::Reader value);
-  inline  ::cereal::CustomReserved18::Builder initCustomReserved18();
-  inline void adoptCustomReserved18(::capnp::Orphan< ::cereal::CustomReserved18>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved18> disownCustomReserved18();
+  inline bool isMapdIn();
+  inline bool hasMapdIn();
+  inline  ::cereal::MapdIn::Builder getMapdIn();
+  inline void setMapdIn( ::cereal::MapdIn::Reader value);
+  inline  ::cereal::MapdIn::Builder initMapdIn();
+  inline void adoptMapdIn(::capnp::Orphan< ::cereal::MapdIn>&& value);
+  inline ::capnp::Orphan< ::cereal::MapdIn> disownMapdIn();
 
-  inline bool isCustomReserved19();
-  inline bool hasCustomReserved19();
-  inline  ::cereal::CustomReserved19::Builder getCustomReserved19();
-  inline void setCustomReserved19( ::cereal::CustomReserved19::Reader value);
-  inline  ::cereal::CustomReserved19::Builder initCustomReserved19();
-  inline void adoptCustomReserved19(::capnp::Orphan< ::cereal::CustomReserved19>&& value);
-  inline ::capnp::Orphan< ::cereal::CustomReserved19> disownCustomReserved19();
+  inline bool isMapdOut();
+  inline bool hasMapdOut();
+  inline  ::cereal::MapdOut::Builder getMapdOut();
+  inline void setMapdOut( ::cereal::MapdOut::Reader value);
+  inline  ::cereal::MapdOut::Builder initMapdOut();
+  inline void adoptMapdOut(::capnp::Orphan< ::cereal::MapdOut>&& value);
+  inline ::capnp::Orphan< ::cereal::MapdOut> disownMapdOut();
 
   inline bool isLateralDelay();
   inline bool hasLateralDelay();
@@ -57438,543 +57450,543 @@ inline ::capnp::Orphan< ::cereal::UiPlan> Event::Builder::disownUiPlanDEPRECATED
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved0() const {
-  return which() == Event::CUSTOM_RESERVED0;
+inline bool Event::Reader::isBogpilotCarControl() const {
+  return which() == Event::BOGPILOT_CAR_CONTROL;
 }
-inline bool Event::Builder::isCustomReserved0() {
-  return which() == Event::CUSTOM_RESERVED0;
+inline bool Event::Builder::isBogpilotCarControl() {
+  return which() == Event::BOGPILOT_CAR_CONTROL;
 }
-inline bool Event::Reader::hasCustomReserved0() const {
-  if (which() != Event::CUSTOM_RESERVED0) return false;
+inline bool Event::Reader::hasBogpilotCarControl() const {
+  if (which() != Event::BOGPILOT_CAR_CONTROL) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved0() {
-  if (which() != Event::CUSTOM_RESERVED0) return false;
+inline bool Event::Builder::hasBogpilotCarControl() {
+  if (which() != Event::BOGPILOT_CAR_CONTROL) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved0::Reader Event::Reader::getCustomReserved0() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED0),
+inline  ::cereal::BogPilotCarControl::Reader Event::Reader::getBogpilotCarControl() const {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_CAR_CONTROL),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved0>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarControl>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved0::Builder Event::Builder::getCustomReserved0() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED0),
+inline  ::cereal::BogPilotCarControl::Builder Event::Builder::getBogpilotCarControl() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_CAR_CONTROL),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved0>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarControl>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved0( ::cereal::CustomReserved0::Reader value) {
+inline void Event::Builder::setBogpilotCarControl( ::cereal::BogPilotCarControl::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED0);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved0>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_CAR_CONTROL);
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotCarControl>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved0::Builder Event::Builder::initCustomReserved0() {
+inline  ::cereal::BogPilotCarControl::Builder Event::Builder::initBogpilotCarControl() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED0);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved0>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_CAR_CONTROL);
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarControl>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved0(
-    ::capnp::Orphan< ::cereal::CustomReserved0>&& value) {
+inline void Event::Builder::adoptBogpilotCarControl(
+    ::capnp::Orphan< ::cereal::BogPilotCarControl>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED0);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved0>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_CAR_CONTROL);
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotCarControl>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved0> Event::Builder::disownCustomReserved0() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED0),
+inline ::capnp::Orphan< ::cereal::BogPilotCarControl> Event::Builder::disownBogpilotCarControl() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_CAR_CONTROL),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved0>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarControl>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved1() const {
-  return which() == Event::CUSTOM_RESERVED1;
+inline bool Event::Reader::isBogpilotCarParams() const {
+  return which() == Event::BOGPILOT_CAR_PARAMS;
 }
-inline bool Event::Builder::isCustomReserved1() {
-  return which() == Event::CUSTOM_RESERVED1;
+inline bool Event::Builder::isBogpilotCarParams() {
+  return which() == Event::BOGPILOT_CAR_PARAMS;
 }
-inline bool Event::Reader::hasCustomReserved1() const {
-  if (which() != Event::CUSTOM_RESERVED1) return false;
+inline bool Event::Reader::hasBogpilotCarParams() const {
+  if (which() != Event::BOGPILOT_CAR_PARAMS) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved1() {
-  if (which() != Event::CUSTOM_RESERVED1) return false;
+inline bool Event::Builder::hasBogpilotCarParams() {
+  if (which() != Event::BOGPILOT_CAR_PARAMS) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved1::Reader Event::Reader::getCustomReserved1() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED1),
+inline  ::cereal::BogPilotCarParams::Reader Event::Reader::getBogpilotCarParams() const {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_CAR_PARAMS),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved1>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarParams>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved1::Builder Event::Builder::getCustomReserved1() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED1),
+inline  ::cereal::BogPilotCarParams::Builder Event::Builder::getBogpilotCarParams() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_CAR_PARAMS),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved1>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarParams>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved1( ::cereal::CustomReserved1::Reader value) {
+inline void Event::Builder::setBogpilotCarParams( ::cereal::BogPilotCarParams::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED1);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved1>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_CAR_PARAMS);
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotCarParams>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved1::Builder Event::Builder::initCustomReserved1() {
+inline  ::cereal::BogPilotCarParams::Builder Event::Builder::initBogpilotCarParams() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED1);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved1>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_CAR_PARAMS);
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarParams>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved1(
-    ::capnp::Orphan< ::cereal::CustomReserved1>&& value) {
+inline void Event::Builder::adoptBogpilotCarParams(
+    ::capnp::Orphan< ::cereal::BogPilotCarParams>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED1);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved1>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_CAR_PARAMS);
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotCarParams>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved1> Event::Builder::disownCustomReserved1() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED1),
+inline ::capnp::Orphan< ::cereal::BogPilotCarParams> Event::Builder::disownBogpilotCarParams() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_CAR_PARAMS),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved1>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarParams>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved2() const {
-  return which() == Event::CUSTOM_RESERVED2;
+inline bool Event::Reader::isBogpilotCarState() const {
+  return which() == Event::BOGPILOT_CAR_STATE;
 }
-inline bool Event::Builder::isCustomReserved2() {
-  return which() == Event::CUSTOM_RESERVED2;
+inline bool Event::Builder::isBogpilotCarState() {
+  return which() == Event::BOGPILOT_CAR_STATE;
 }
-inline bool Event::Reader::hasCustomReserved2() const {
-  if (which() != Event::CUSTOM_RESERVED2) return false;
+inline bool Event::Reader::hasBogpilotCarState() const {
+  if (which() != Event::BOGPILOT_CAR_STATE) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved2() {
-  if (which() != Event::CUSTOM_RESERVED2) return false;
+inline bool Event::Builder::hasBogpilotCarState() {
+  if (which() != Event::BOGPILOT_CAR_STATE) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved2::Reader Event::Reader::getCustomReserved2() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED2),
+inline  ::cereal::BogPilotCarStateMsg::Reader Event::Reader::getBogpilotCarState() const {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_CAR_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved2>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarStateMsg>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved2::Builder Event::Builder::getCustomReserved2() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED2),
+inline  ::cereal::BogPilotCarStateMsg::Builder Event::Builder::getBogpilotCarState() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_CAR_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved2>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarStateMsg>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved2( ::cereal::CustomReserved2::Reader value) {
+inline void Event::Builder::setBogpilotCarState( ::cereal::BogPilotCarStateMsg::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED2);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved2>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_CAR_STATE);
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotCarStateMsg>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved2::Builder Event::Builder::initCustomReserved2() {
+inline  ::cereal::BogPilotCarStateMsg::Builder Event::Builder::initBogpilotCarState() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED2);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved2>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_CAR_STATE);
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarStateMsg>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved2(
-    ::capnp::Orphan< ::cereal::CustomReserved2>&& value) {
+inline void Event::Builder::adoptBogpilotCarState(
+    ::capnp::Orphan< ::cereal::BogPilotCarStateMsg>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED2);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved2>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_CAR_STATE);
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotCarStateMsg>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved2> Event::Builder::disownCustomReserved2() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED2),
+inline ::capnp::Orphan< ::cereal::BogPilotCarStateMsg> Event::Builder::disownBogpilotCarState() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_CAR_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved2>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotCarStateMsg>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved3() const {
-  return which() == Event::CUSTOM_RESERVED3;
+inline bool Event::Reader::isBogpilotControlsState() const {
+  return which() == Event::BOGPILOT_CONTROLS_STATE;
 }
-inline bool Event::Builder::isCustomReserved3() {
-  return which() == Event::CUSTOM_RESERVED3;
+inline bool Event::Builder::isBogpilotControlsState() {
+  return which() == Event::BOGPILOT_CONTROLS_STATE;
 }
-inline bool Event::Reader::hasCustomReserved3() const {
-  if (which() != Event::CUSTOM_RESERVED3) return false;
+inline bool Event::Reader::hasBogpilotControlsState() const {
+  if (which() != Event::BOGPILOT_CONTROLS_STATE) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved3() {
-  if (which() != Event::CUSTOM_RESERVED3) return false;
+inline bool Event::Builder::hasBogpilotControlsState() {
+  if (which() != Event::BOGPILOT_CONTROLS_STATE) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved3::Reader Event::Reader::getCustomReserved3() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED3),
+inline  ::cereal::BogPilotControlsState::Reader Event::Reader::getBogpilotControlsState() const {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_CONTROLS_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved3>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotControlsState>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved3::Builder Event::Builder::getCustomReserved3() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED3),
+inline  ::cereal::BogPilotControlsState::Builder Event::Builder::getBogpilotControlsState() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_CONTROLS_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved3>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotControlsState>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved3( ::cereal::CustomReserved3::Reader value) {
+inline void Event::Builder::setBogpilotControlsState( ::cereal::BogPilotControlsState::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED3);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved3>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_CONTROLS_STATE);
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotControlsState>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved3::Builder Event::Builder::initCustomReserved3() {
+inline  ::cereal::BogPilotControlsState::Builder Event::Builder::initBogpilotControlsState() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED3);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved3>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_CONTROLS_STATE);
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotControlsState>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved3(
-    ::capnp::Orphan< ::cereal::CustomReserved3>&& value) {
+inline void Event::Builder::adoptBogpilotControlsState(
+    ::capnp::Orphan< ::cereal::BogPilotControlsState>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED3);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved3>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_CONTROLS_STATE);
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotControlsState>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved3> Event::Builder::disownCustomReserved3() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED3),
+inline ::capnp::Orphan< ::cereal::BogPilotControlsState> Event::Builder::disownBogpilotControlsState() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_CONTROLS_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved3>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotControlsState>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved4() const {
-  return which() == Event::CUSTOM_RESERVED4;
+inline bool Event::Reader::isBogpilotDeviceState() const {
+  return which() == Event::BOGPILOT_DEVICE_STATE;
 }
-inline bool Event::Builder::isCustomReserved4() {
-  return which() == Event::CUSTOM_RESERVED4;
+inline bool Event::Builder::isBogpilotDeviceState() {
+  return which() == Event::BOGPILOT_DEVICE_STATE;
 }
-inline bool Event::Reader::hasCustomReserved4() const {
-  if (which() != Event::CUSTOM_RESERVED4) return false;
+inline bool Event::Reader::hasBogpilotDeviceState() const {
+  if (which() != Event::BOGPILOT_DEVICE_STATE) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved4() {
-  if (which() != Event::CUSTOM_RESERVED4) return false;
+inline bool Event::Builder::hasBogpilotDeviceState() {
+  if (which() != Event::BOGPILOT_DEVICE_STATE) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved4::Reader Event::Reader::getCustomReserved4() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED4),
+inline  ::cereal::BogPilotDeviceState::Reader Event::Reader::getBogpilotDeviceState() const {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_DEVICE_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved4>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotDeviceState>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved4::Builder Event::Builder::getCustomReserved4() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED4),
+inline  ::cereal::BogPilotDeviceState::Builder Event::Builder::getBogpilotDeviceState() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_DEVICE_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved4>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotDeviceState>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved4( ::cereal::CustomReserved4::Reader value) {
+inline void Event::Builder::setBogpilotDeviceState( ::cereal::BogPilotDeviceState::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED4);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved4>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_DEVICE_STATE);
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotDeviceState>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved4::Builder Event::Builder::initCustomReserved4() {
+inline  ::cereal::BogPilotDeviceState::Builder Event::Builder::initBogpilotDeviceState() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED4);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved4>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_DEVICE_STATE);
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotDeviceState>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved4(
-    ::capnp::Orphan< ::cereal::CustomReserved4>&& value) {
+inline void Event::Builder::adoptBogpilotDeviceState(
+    ::capnp::Orphan< ::cereal::BogPilotDeviceState>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED4);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved4>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_DEVICE_STATE);
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotDeviceState>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved4> Event::Builder::disownCustomReserved4() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED4),
+inline ::capnp::Orphan< ::cereal::BogPilotDeviceState> Event::Builder::disownBogpilotDeviceState() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_DEVICE_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved4>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotDeviceState>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved5() const {
-  return which() == Event::CUSTOM_RESERVED5;
+inline bool Event::Reader::isBogpilotModelV2() const {
+  return which() == Event::BOGPILOT_MODEL_V2;
 }
-inline bool Event::Builder::isCustomReserved5() {
-  return which() == Event::CUSTOM_RESERVED5;
+inline bool Event::Builder::isBogpilotModelV2() {
+  return which() == Event::BOGPILOT_MODEL_V2;
 }
-inline bool Event::Reader::hasCustomReserved5() const {
-  if (which() != Event::CUSTOM_RESERVED5) return false;
+inline bool Event::Reader::hasBogpilotModelV2() const {
+  if (which() != Event::BOGPILOT_MODEL_V2) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved5() {
-  if (which() != Event::CUSTOM_RESERVED5) return false;
+inline bool Event::Builder::hasBogpilotModelV2() {
+  if (which() != Event::BOGPILOT_MODEL_V2) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved5::Reader Event::Reader::getCustomReserved5() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED5),
+inline  ::cereal::BogPilotModelDataV2::Reader Event::Reader::getBogpilotModelV2() const {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_MODEL_V2),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved5>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotModelDataV2>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved5::Builder Event::Builder::getCustomReserved5() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED5),
+inline  ::cereal::BogPilotModelDataV2::Builder Event::Builder::getBogpilotModelV2() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_MODEL_V2),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved5>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotModelDataV2>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved5( ::cereal::CustomReserved5::Reader value) {
+inline void Event::Builder::setBogpilotModelV2( ::cereal::BogPilotModelDataV2::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED5);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved5>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_MODEL_V2);
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotModelDataV2>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved5::Builder Event::Builder::initCustomReserved5() {
+inline  ::cereal::BogPilotModelDataV2::Builder Event::Builder::initBogpilotModelV2() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED5);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved5>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_MODEL_V2);
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotModelDataV2>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved5(
-    ::capnp::Orphan< ::cereal::CustomReserved5>&& value) {
+inline void Event::Builder::adoptBogpilotModelV2(
+    ::capnp::Orphan< ::cereal::BogPilotModelDataV2>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED5);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved5>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_MODEL_V2);
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotModelDataV2>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved5> Event::Builder::disownCustomReserved5() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED5),
+inline ::capnp::Orphan< ::cereal::BogPilotModelDataV2> Event::Builder::disownBogpilotModelV2() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_MODEL_V2),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved5>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotModelDataV2>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved6() const {
-  return which() == Event::CUSTOM_RESERVED6;
+inline bool Event::Reader::isBogpilotNavigation() const {
+  return which() == Event::BOGPILOT_NAVIGATION;
 }
-inline bool Event::Builder::isCustomReserved6() {
-  return which() == Event::CUSTOM_RESERVED6;
+inline bool Event::Builder::isBogpilotNavigation() {
+  return which() == Event::BOGPILOT_NAVIGATION;
 }
-inline bool Event::Reader::hasCustomReserved6() const {
-  if (which() != Event::CUSTOM_RESERVED6) return false;
+inline bool Event::Reader::hasBogpilotNavigation() const {
+  if (which() != Event::BOGPILOT_NAVIGATION) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved6() {
-  if (which() != Event::CUSTOM_RESERVED6) return false;
+inline bool Event::Builder::hasBogpilotNavigation() {
+  if (which() != Event::BOGPILOT_NAVIGATION) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved6::Reader Event::Reader::getCustomReserved6() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED6),
+inline  ::cereal::BogPilotNavigation::Reader Event::Reader::getBogpilotNavigation() const {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_NAVIGATION),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved6>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotNavigation>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved6::Builder Event::Builder::getCustomReserved6() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED6),
+inline  ::cereal::BogPilotNavigation::Builder Event::Builder::getBogpilotNavigation() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_NAVIGATION),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved6>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotNavigation>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved6( ::cereal::CustomReserved6::Reader value) {
+inline void Event::Builder::setBogpilotNavigation( ::cereal::BogPilotNavigation::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED6);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved6>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_NAVIGATION);
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotNavigation>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved6::Builder Event::Builder::initCustomReserved6() {
+inline  ::cereal::BogPilotNavigation::Builder Event::Builder::initBogpilotNavigation() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED6);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved6>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_NAVIGATION);
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotNavigation>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved6(
-    ::capnp::Orphan< ::cereal::CustomReserved6>&& value) {
+inline void Event::Builder::adoptBogpilotNavigation(
+    ::capnp::Orphan< ::cereal::BogPilotNavigation>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED6);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved6>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_NAVIGATION);
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotNavigation>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved6> Event::Builder::disownCustomReserved6() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED6),
+inline ::capnp::Orphan< ::cereal::BogPilotNavigation> Event::Builder::disownBogpilotNavigation() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_NAVIGATION),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved6>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotNavigation>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved7() const {
-  return which() == Event::CUSTOM_RESERVED7;
+inline bool Event::Reader::isBogpilotOnroadEvents() const {
+  return which() == Event::BOGPILOT_ONROAD_EVENTS;
 }
-inline bool Event::Builder::isCustomReserved7() {
-  return which() == Event::CUSTOM_RESERVED7;
+inline bool Event::Builder::isBogpilotOnroadEvents() {
+  return which() == Event::BOGPILOT_ONROAD_EVENTS;
 }
-inline bool Event::Reader::hasCustomReserved7() const {
-  if (which() != Event::CUSTOM_RESERVED7) return false;
+inline bool Event::Reader::hasBogpilotOnroadEvents() const {
+  if (which() != Event::BOGPILOT_ONROAD_EVENTS) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved7() {
-  if (which() != Event::CUSTOM_RESERVED7) return false;
+inline bool Event::Builder::hasBogpilotOnroadEvents() {
+  if (which() != Event::BOGPILOT_ONROAD_EVENTS) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved7::Reader Event::Reader::getCustomReserved7() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED7),
+inline  ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>::Reader Event::Reader::getBogpilotOnroadEvents() const {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_ONROAD_EVENTS),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved7>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved7::Builder Event::Builder::getCustomReserved7() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED7),
+inline  ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>::Builder Event::Builder::getBogpilotOnroadEvents() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_ONROAD_EVENTS),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved7>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved7( ::cereal::CustomReserved7::Reader value) {
+inline void Event::Builder::setBogpilotOnroadEvents( ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED7);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved7>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_ONROAD_EVENTS);
+  ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved7::Builder Event::Builder::initCustomReserved7() {
+inline  ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>::Builder Event::Builder::initBogpilotOnroadEvents(unsigned int size) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED7);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved7>::init(_builder.getPointerField(
-      ::capnp::bounded<0>() * ::capnp::POINTERS));
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_ONROAD_EVENTS);
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>>::init(_builder.getPointerField(
+      ::capnp::bounded<0>() * ::capnp::POINTERS), size);
 }
-inline void Event::Builder::adoptCustomReserved7(
-    ::capnp::Orphan< ::cereal::CustomReserved7>&& value) {
+inline void Event::Builder::adoptBogpilotOnroadEvents(
+    ::capnp::Orphan< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED7);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved7>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_ONROAD_EVENTS);
+  ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved7> Event::Builder::disownCustomReserved7() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED7),
+inline ::capnp::Orphan< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>> Event::Builder::disownBogpilotOnroadEvents() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_ONROAD_EVENTS),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved7>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::capnp::List< ::cereal::BogPilotCarEvent,  ::capnp::Kind::STRUCT>>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved8() const {
-  return which() == Event::CUSTOM_RESERVED8;
+inline bool Event::Reader::isBogpilotPlan() const {
+  return which() == Event::BOGPILOT_PLAN;
 }
-inline bool Event::Builder::isCustomReserved8() {
-  return which() == Event::CUSTOM_RESERVED8;
+inline bool Event::Builder::isBogpilotPlan() {
+  return which() == Event::BOGPILOT_PLAN;
 }
-inline bool Event::Reader::hasCustomReserved8() const {
-  if (which() != Event::CUSTOM_RESERVED8) return false;
+inline bool Event::Reader::hasBogpilotPlan() const {
+  if (which() != Event::BOGPILOT_PLAN) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved8() {
-  if (which() != Event::CUSTOM_RESERVED8) return false;
+inline bool Event::Builder::hasBogpilotPlan() {
+  if (which() != Event::BOGPILOT_PLAN) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved8::Reader Event::Reader::getCustomReserved8() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED8),
+inline  ::cereal::BogPilotPlan::Reader Event::Reader::getBogpilotPlan() const {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_PLAN),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved8>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotPlan>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved8::Builder Event::Builder::getCustomReserved8() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED8),
+inline  ::cereal::BogPilotPlan::Builder Event::Builder::getBogpilotPlan() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_PLAN),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved8>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotPlan>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved8( ::cereal::CustomReserved8::Reader value) {
+inline void Event::Builder::setBogpilotPlan( ::cereal::BogPilotPlan::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED8);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved8>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_PLAN);
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotPlan>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved8::Builder Event::Builder::initCustomReserved8() {
+inline  ::cereal::BogPilotPlan::Builder Event::Builder::initBogpilotPlan() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED8);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved8>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_PLAN);
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotPlan>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved8(
-    ::capnp::Orphan< ::cereal::CustomReserved8>&& value) {
+inline void Event::Builder::adoptBogpilotPlan(
+    ::capnp::Orphan< ::cereal::BogPilotPlan>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED8);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved8>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_PLAN);
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotPlan>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved8> Event::Builder::disownCustomReserved8() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED8),
+inline ::capnp::Orphan< ::cereal::BogPilotPlan> Event::Builder::disownBogpilotPlan() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_PLAN),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved8>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotPlan>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved9() const {
-  return which() == Event::CUSTOM_RESERVED9;
+inline bool Event::Reader::isBogpilotRadarState() const {
+  return which() == Event::BOGPILOT_RADAR_STATE;
 }
-inline bool Event::Builder::isCustomReserved9() {
-  return which() == Event::CUSTOM_RESERVED9;
+inline bool Event::Builder::isBogpilotRadarState() {
+  return which() == Event::BOGPILOT_RADAR_STATE;
 }
-inline bool Event::Reader::hasCustomReserved9() const {
-  if (which() != Event::CUSTOM_RESERVED9) return false;
+inline bool Event::Reader::hasBogpilotRadarState() const {
+  if (which() != Event::BOGPILOT_RADAR_STATE) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved9() {
-  if (which() != Event::CUSTOM_RESERVED9) return false;
+inline bool Event::Builder::hasBogpilotRadarState() {
+  if (which() != Event::BOGPILOT_RADAR_STATE) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved9::Reader Event::Reader::getCustomReserved9() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED9),
+inline  ::cereal::BogPilotRadarState::Reader Event::Reader::getBogpilotRadarState() const {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_RADAR_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved9>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotRadarState>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved9::Builder Event::Builder::getCustomReserved9() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED9),
+inline  ::cereal::BogPilotRadarState::Builder Event::Builder::getBogpilotRadarState() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_RADAR_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved9>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotRadarState>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved9( ::cereal::CustomReserved9::Reader value) {
+inline void Event::Builder::setBogpilotRadarState( ::cereal::BogPilotRadarState::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED9);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved9>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_RADAR_STATE);
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotRadarState>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved9::Builder Event::Builder::initCustomReserved9() {
+inline  ::cereal::BogPilotRadarState::Builder Event::Builder::initBogpilotRadarState() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED9);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved9>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_RADAR_STATE);
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotRadarState>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved9(
-    ::capnp::Orphan< ::cereal::CustomReserved9>&& value) {
+inline void Event::Builder::adoptBogpilotRadarState(
+    ::capnp::Orphan< ::cereal::BogPilotRadarState>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED9);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved9>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::BOGPILOT_RADAR_STATE);
+  ::capnp::_::PointerHelpers< ::cereal::BogPilotRadarState>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved9> Event::Builder::disownCustomReserved9() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED9),
+inline ::capnp::Orphan< ::cereal::BogPilotRadarState> Event::Builder::disownBogpilotRadarState() {
+  KJ_IREQUIRE((which() == Event::BOGPILOT_RADAR_STATE),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved9>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::BogPilotRadarState>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
@@ -59382,165 +59394,165 @@ inline ::capnp::Orphan< ::cereal::CustomReserved16> Event::Builder::disownCustom
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved17() const {
-  return which() == Event::CUSTOM_RESERVED17;
+inline bool Event::Reader::isMapdExtendedOut() const {
+  return which() == Event::MAPD_EXTENDED_OUT;
 }
-inline bool Event::Builder::isCustomReserved17() {
-  return which() == Event::CUSTOM_RESERVED17;
+inline bool Event::Builder::isMapdExtendedOut() {
+  return which() == Event::MAPD_EXTENDED_OUT;
 }
-inline bool Event::Reader::hasCustomReserved17() const {
-  if (which() != Event::CUSTOM_RESERVED17) return false;
+inline bool Event::Reader::hasMapdExtendedOut() const {
+  if (which() != Event::MAPD_EXTENDED_OUT) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved17() {
-  if (which() != Event::CUSTOM_RESERVED17) return false;
+inline bool Event::Builder::hasMapdExtendedOut() {
+  if (which() != Event::MAPD_EXTENDED_OUT) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved17::Reader Event::Reader::getCustomReserved17() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED17),
+inline  ::cereal::MapdExtendedOut::Reader Event::Reader::getMapdExtendedOut() const {
+  KJ_IREQUIRE((which() == Event::MAPD_EXTENDED_OUT),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved17>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::MapdExtendedOut>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved17::Builder Event::Builder::getCustomReserved17() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED17),
+inline  ::cereal::MapdExtendedOut::Builder Event::Builder::getMapdExtendedOut() {
+  KJ_IREQUIRE((which() == Event::MAPD_EXTENDED_OUT),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved17>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::MapdExtendedOut>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved17( ::cereal::CustomReserved17::Reader value) {
+inline void Event::Builder::setMapdExtendedOut( ::cereal::MapdExtendedOut::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED17);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved17>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::MAPD_EXTENDED_OUT);
+  ::capnp::_::PointerHelpers< ::cereal::MapdExtendedOut>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved17::Builder Event::Builder::initCustomReserved17() {
+inline  ::cereal::MapdExtendedOut::Builder Event::Builder::initMapdExtendedOut() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED17);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved17>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::MAPD_EXTENDED_OUT);
+  return ::capnp::_::PointerHelpers< ::cereal::MapdExtendedOut>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved17(
-    ::capnp::Orphan< ::cereal::CustomReserved17>&& value) {
+inline void Event::Builder::adoptMapdExtendedOut(
+    ::capnp::Orphan< ::cereal::MapdExtendedOut>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED17);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved17>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::MAPD_EXTENDED_OUT);
+  ::capnp::_::PointerHelpers< ::cereal::MapdExtendedOut>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved17> Event::Builder::disownCustomReserved17() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED17),
+inline ::capnp::Orphan< ::cereal::MapdExtendedOut> Event::Builder::disownMapdExtendedOut() {
+  KJ_IREQUIRE((which() == Event::MAPD_EXTENDED_OUT),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved17>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::MapdExtendedOut>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved18() const {
-  return which() == Event::CUSTOM_RESERVED18;
+inline bool Event::Reader::isMapdIn() const {
+  return which() == Event::MAPD_IN;
 }
-inline bool Event::Builder::isCustomReserved18() {
-  return which() == Event::CUSTOM_RESERVED18;
+inline bool Event::Builder::isMapdIn() {
+  return which() == Event::MAPD_IN;
 }
-inline bool Event::Reader::hasCustomReserved18() const {
-  if (which() != Event::CUSTOM_RESERVED18) return false;
+inline bool Event::Reader::hasMapdIn() const {
+  if (which() != Event::MAPD_IN) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved18() {
-  if (which() != Event::CUSTOM_RESERVED18) return false;
+inline bool Event::Builder::hasMapdIn() {
+  if (which() != Event::MAPD_IN) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved18::Reader Event::Reader::getCustomReserved18() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED18),
+inline  ::cereal::MapdIn::Reader Event::Reader::getMapdIn() const {
+  KJ_IREQUIRE((which() == Event::MAPD_IN),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved18>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::MapdIn>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved18::Builder Event::Builder::getCustomReserved18() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED18),
+inline  ::cereal::MapdIn::Builder Event::Builder::getMapdIn() {
+  KJ_IREQUIRE((which() == Event::MAPD_IN),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved18>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::MapdIn>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved18( ::cereal::CustomReserved18::Reader value) {
+inline void Event::Builder::setMapdIn( ::cereal::MapdIn::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED18);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved18>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::MAPD_IN);
+  ::capnp::_::PointerHelpers< ::cereal::MapdIn>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved18::Builder Event::Builder::initCustomReserved18() {
+inline  ::cereal::MapdIn::Builder Event::Builder::initMapdIn() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED18);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved18>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::MAPD_IN);
+  return ::capnp::_::PointerHelpers< ::cereal::MapdIn>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved18(
-    ::capnp::Orphan< ::cereal::CustomReserved18>&& value) {
+inline void Event::Builder::adoptMapdIn(
+    ::capnp::Orphan< ::cereal::MapdIn>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED18);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved18>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::MAPD_IN);
+  ::capnp::_::PointerHelpers< ::cereal::MapdIn>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved18> Event::Builder::disownCustomReserved18() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED18),
+inline ::capnp::Orphan< ::cereal::MapdIn> Event::Builder::disownMapdIn() {
+  KJ_IREQUIRE((which() == Event::MAPD_IN),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved18>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::MapdIn>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 
-inline bool Event::Reader::isCustomReserved19() const {
-  return which() == Event::CUSTOM_RESERVED19;
+inline bool Event::Reader::isMapdOut() const {
+  return which() == Event::MAPD_OUT;
 }
-inline bool Event::Builder::isCustomReserved19() {
-  return which() == Event::CUSTOM_RESERVED19;
+inline bool Event::Builder::isMapdOut() {
+  return which() == Event::MAPD_OUT;
 }
-inline bool Event::Reader::hasCustomReserved19() const {
-  if (which() != Event::CUSTOM_RESERVED19) return false;
+inline bool Event::Reader::hasMapdOut() const {
+  if (which() != Event::MAPD_OUT) return false;
   return !_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline bool Event::Builder::hasCustomReserved19() {
-  if (which() != Event::CUSTOM_RESERVED19) return false;
+inline bool Event::Builder::hasMapdOut() {
+  if (which() != Event::MAPD_OUT) return false;
   return !_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS).isNull();
 }
-inline  ::cereal::CustomReserved19::Reader Event::Reader::getCustomReserved19() const {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED19),
+inline  ::cereal::MapdOut::Reader Event::Reader::getMapdOut() const {
+  KJ_IREQUIRE((which() == Event::MAPD_OUT),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved19>::get(_reader.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::MapdOut>::get(_reader.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline  ::cereal::CustomReserved19::Builder Event::Builder::getCustomReserved19() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED19),
+inline  ::cereal::MapdOut::Builder Event::Builder::getMapdOut() {
+  KJ_IREQUIRE((which() == Event::MAPD_OUT),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved19>::get(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::MapdOut>::get(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::setCustomReserved19( ::cereal::CustomReserved19::Reader value) {
+inline void Event::Builder::setMapdOut( ::cereal::MapdOut::Reader value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED19);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved19>::set(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::MAPD_OUT);
+  ::capnp::_::PointerHelpers< ::cereal::MapdOut>::set(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), value);
 }
-inline  ::cereal::CustomReserved19::Builder Event::Builder::initCustomReserved19() {
+inline  ::cereal::MapdOut::Builder Event::Builder::initMapdOut() {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED19);
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved19>::init(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::MAPD_OUT);
+  return ::capnp::_::PointerHelpers< ::cereal::MapdOut>::init(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
-inline void Event::Builder::adoptCustomReserved19(
-    ::capnp::Orphan< ::cereal::CustomReserved19>&& value) {
+inline void Event::Builder::adoptMapdOut(
+    ::capnp::Orphan< ::cereal::MapdOut>&& value) {
   _builder.setDataField<Event::Which>(
-      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::CUSTOM_RESERVED19);
-  ::capnp::_::PointerHelpers< ::cereal::CustomReserved19>::adopt(_builder.getPointerField(
+      ::capnp::bounded<4>() * ::capnp::ELEMENTS, Event::MAPD_OUT);
+  ::capnp::_::PointerHelpers< ::cereal::MapdOut>::adopt(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS), kj::mv(value));
 }
-inline ::capnp::Orphan< ::cereal::CustomReserved19> Event::Builder::disownCustomReserved19() {
-  KJ_IREQUIRE((which() == Event::CUSTOM_RESERVED19),
+inline ::capnp::Orphan< ::cereal::MapdOut> Event::Builder::disownMapdOut() {
+  KJ_IREQUIRE((which() == Event::MAPD_OUT),
               "Must check which() before get()ing a union member.");
-  return ::capnp::_::PointerHelpers< ::cereal::CustomReserved19>::disown(_builder.getPointerField(
+  return ::capnp::_::PointerHelpers< ::cereal::MapdOut>::disown(_builder.getPointerField(
       ::capnp::bounded<0>() * ::capnp::POINTERS));
 }
 

@@ -92,10 +92,48 @@ _services: dict[str, tuple] = {
   "livestreamWideRoadEncodeData": (False, 20., None, QueueSize.MEDIUM),
   "livestreamNarrowRoadEncodeData": (False, 20., None, QueueSize.MEDIUM),
   "livestreamCabinEncodeData": (False, 20., None, QueueSize.MEDIUM),
+  "bogpilotCarControl": (True, 100., 10),
+  "bogpilotCarParams": (True, 0.02, 1),
+  "bogpilotCarState": (True, 100., 10),
+  "bogpilotControlsState": (True, 100., 10),
+  "bogpilotDeviceState": (True, 2., 1),
+  "bogpilotModelV2": (True, 20., 40),
+  "bogpilotNavigation": (True, 1., 10),
+  "bogpilotOnroadEvents": (True, 1., 1),
+  "bogpilotPlan": (True, 20., 5),
+  "bogpilotRadarState": (True, 20., 5),
   "customReservedRawData0": (True, 0.),
+  # mapd v2 (only runs when "Use mapd v2" is on): mapdOut logged at 1 Hz (decimation 20), the rest not logged.
+  # MEDIUM queues: mapd v2.4.0 creates these with 2 MB segments (settings/const.go ServiceQueueSize); every opener
+  # must use the same size or the ring buffers disagree once they wrap.
+  "mapdOut": (True, 20., 20, QueueSize.MEDIUM),
+  "mapdExtendedOut": (False, 1., None, QueueSize.MEDIUM),
+  "mapdIn": (False, 0., None, QueueSize.MEDIUM),
 }
 SERVICE_LIST = {name: Service(*vals) for
                 idx, (name, vals) in enumerate(_services.items())}
+
+# Service names used before the FrogPilot -> BogPilot rename. The wire format identifies an Event's union member by
+# ordinal (@107..@116), never by name, so a log recorded before the rename decodes with the current schema and
+# reports the new name from which(). Tools that still look events up by the old name resolve it through
+# canonical_service_name(). These names are not services: nothing is published or logged under them.
+LEGACY_SERVICE_ALIASES = {
+  "frogpilotCarControl": "bogpilotCarControl",
+  "frogpilotCarParams": "bogpilotCarParams",
+  "frogpilotCarState": "bogpilotCarState",
+  "frogpilotControlsState": "bogpilotControlsState",
+  "frogpilotDeviceState": "bogpilotDeviceState",
+  "frogpilotModelV2": "bogpilotModelV2",
+  "frogpilotNavigation": "bogpilotNavigation",
+  "frogpilotOnroadEvents": "bogpilotOnroadEvents",
+  "frogpilotPlan": "bogpilotPlan",
+  "frogpilotRadarState": "bogpilotRadarState",
+}
+
+
+def canonical_service_name(name: str) -> str:
+  """Current name for a service, accepting the pre-rename name."""
+  return LEGACY_SERVICE_ALIASES.get(name, name)
 
 
 def build_header():

@@ -4,14 +4,16 @@ from openpilot.cereal import log
 from openpilot.cereal.visionipc import VisionStreamType
 from openpilot.selfdrive.ui import UI_BORDER_SIZE
 from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
-from openpilot.selfdrive.ui.onroad.alert_renderer import AlertRenderer
 from openpilot.selfdrive.ui.onroad.driver_state import DriverStateRenderer
-from openpilot.selfdrive.ui.onroad.hud_renderer import HudRenderer
-from openpilot.selfdrive.ui.onroad.model_renderer import ModelRenderer
 from openpilot.selfdrive.ui.onroad.cameraview import CameraView
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.common.transformations.camera import DEVICE_CAMERAS, DeviceCameraConfig, view_frame_from_device_frame
 from openpilot.common.transformations.orientation import rot_from_euler
+from openpilot.selfdrive.ui.onroad.bogpilot.bogpilot_hud import BogPilotHudRenderer
+from openpilot.selfdrive.ui.onroad.bogpilot.bogpilot_model import BogPilotModelRenderer
+from openpilot.selfdrive.ui.onroad.bogpilot.hud_compose import HudComposer, make_alert_renderer
+from openpilot.selfdrive.ui.onroad.bogpilot.confidence_ball import ConfidenceBallRenderer
+from openpilot.selfdrive.ui.bogpilot import camera_view
 
 OpState = log.SelfdriveState.OpenpilotState
 CALIBRATED = log.ExtrinsicsCalibration.Status.calibrated
@@ -43,10 +45,14 @@ class AugmentedRoadView(CameraView):
     self._cached_matrix: np.ndarray | None = None
     self._content_rect = rl.Rectangle()
 
-    self.model_renderer = ModelRenderer()
-    self._hud_renderer = HudRenderer()
-    self.alert_renderer = AlertRenderer()
+    self.model_renderer = BogPilotModelRenderer()
+    self._hud_renderer = BogPilotHudRenderer()
+    self.alert_renderer = make_alert_renderer()   # stock AlertRenderer unless the redesign banner module is present
     self.driver_state_renderer = DriverStateRenderer()
+    self._hud_compose = HudComposer(self.model_renderer, self._hud_renderer, self.alert_renderer, self.driver_state_renderer)
+    # BogPilot 0.9.7 confidence ball (Appearance > Confidence Ball). Not a Widget: it never receives touch input.
+    self._confidence_ball = ConfidenceBallRenderer()
+    self._hud_compose.extra_keepouts = self._confidence_ball.keepouts   # lead boxes / labels stay out of the ball strip
 
   def _render(self, rect):
     # Only render when system is started to avoid invalid data access
@@ -66,50 +72,122 @@ class AugmentedRoadView(CameraView):
       rect.height - 2 * UI_BORDER_SIZE,
     )
 
-    # Enable scissor mode to clip all rendering within content rectangle boundaries
-    # This creates a rendering viewport that prevents graphics from drawing outside the border
-    rl.begin_scissor_mode(
-      int(self._content_rect.x),
-      int(self._content_rect.y),
-      int(self._content_rect.width),
-      int(self._content_rect.height)
-    )
+    # Alert last: arm the frame so the composer leaves the alert (and, with RedesignUI off, the stock driver monitor
+    # after it) to render_tail(), drawn after the status border and the confidence ball. A full-screen alert (or any
+    # error asking) keeps the plain order: alert inside the content scissor, then the border, and no ball.
+    self._hud_compose.begin_frame(defer_alert=True)
+    full_alert = self._hud_compose.full_alert_pending()
 
-    # Render the base camera view
-    super()._render(self._content_rect)
+    try:
+      # Enable scissor mode to clip all rendering within content rectangle boundaries
+      # This creates a rendering viewport that prevents graphics from drawing outside the border
+      rl.begin_scissor_mode(
+        int(self._content_rect.x),
+        int(self._content_rect.y),
+        int(self._content_rect.width),
+        int(self._content_rect.height)
+      )
+      try:
+        # Render the base camera view
+        super()._render(self._content_rect)
 
-    # Draw all UI overlays
-    self.model_renderer.render(self._content_rect)
-    self._hud_renderer.render(self._content_rect)
-    self.alert_renderer.render(self._content_rect)
-    self.driver_state_renderer.render(self._content_rect)
+        # Draw all UI overlays. RedesignUI off: stock model -> hud -> (alert -> driver_state in the tail).
+        # RedesignUI on: model -> lead lock-on -> hud -> labels/personality -> driver monitor -> (alert in the tail).
+        self._hud_compose.render(self._content_rect)
 
-    # Custom UI extension point - add custom overlays here
-    # Use self._content_rect for positioning within camera bounds
+        # Custom UI extension point - add custom overlays here
+        # Use self._content_rect for positioning within camera bounds
+      finally:
+        try:
+          if full_alert:
+            self._hud_compose.render_tail(self._content_rect)
+        finally:
+          # End clipping region (always, even if a renderer raised)
+          rl.end_scissor_mode()
 
-    # End clipping region
-    rl.end_scissor_mode()
+      # Draw colored border based on driving state
+      self._draw_border(rect)
 
-    # Draw colored border based on driving state
-    self._draw_border(rect)
+      # Confidence ball: rides the left (default) or right edge strip over the border, display only, no input
+      if full_alert:
+        self._confidence_ball.hide()
+      else:
+        self._confidence_ball.render(rect, ui_state.started, ui_state.status.name, ui_state.sm, self._flame_sides())
+    finally:
+      if not full_alert:
+        # The deferred tail, last in the frame: alert (stock driver monitor first with RedesignUI on, after it with
+        # RedesignUI off). Runs even if anything above raised; exactly one alert per frame (hud_compose counters).
+        rl.begin_scissor_mode(
+          int(self._content_rect.x),
+          int(self._content_rect.y),
+          int(self._content_rect.width),
+          int(self._content_rect.height)
+        )
+        try:
+          self._hud_compose.render_tail(self._content_rect)
+        finally:
+          rl.end_scissor_mode()
 
-  def _handle_mouse_press(self, _):
+  def _flame_sides(self):
+    """(left, right): a 'Bog to the Future' flame track is burning on that side. The ball then rides the other edge."""
+    try:
+      trigger = self.model_renderer._flames.trigger
+      return bool(trigger.active(0)), bool(trigger.active(1))
+    except Exception:
+      return False, False
+
+  def _handle_mouse_press(self, mouse_pos):
+    # BogPilot: the driving-personality button consumes its own press (no sidebar toggle).
+    # A brief release still cycles personalities via handle_press; a 1 s hold toggles Traffic Mode.
+    if self._hud_compose.handle_button_press(mouse_pos):
+      return
     if not self._hud_renderer.user_interacting() and self._click_callback is not None:
       self._click_callback()
 
-  def _handle_mouse_release(self, _):
+  def _handle_mouse_release(self, mouse_pos):
+    if self._hud_compose.handle_button_release(mouse_pos):
+      return
     # We only call click callback on press if not interacting with HUD
     pass
 
   def _draw_border(self, rect: rl.Rectangle):
     rl.draw_rectangle_lines_ex(rect, UI_BORDER_SIZE, rl.BLACK)
     border_roundness = 0.12
-    border_color = BORDER_COLORS.get(ui_state.status, BORDER_COLORS[UIStatus.DISENGAGED])
+    border_color = self._hud_compose.border_color(BORDER_COLORS.get(ui_state.status, BORDER_COLORS[UIStatus.DISENGAGED]))
     border_rect = rl.Rectangle(rect.x + UI_BORDER_SIZE, rect.y + UI_BORDER_SIZE,
                                rect.width - 2 * UI_BORDER_SIZE, rect.height - 2 * UI_BORDER_SIZE)
     rl.draw_rectangle_rounded_lines_ex(border_rect, border_roundness, 10, UI_BORDER_SIZE, border_color)
+    # BogPilot: blind-spot side -> that physical half of the border red (daily paintTurnSignalBorder colour,
+    # steady). bsm_border() returns None while an LKAS-fault flash / full / critical alert owns the border.
+    sides = self._hud_compose.bsm_border()
+    if sides:
+      half = rect.width / 2
+      for i, on in enumerate(sides):
+        if on:
+          rl.begin_scissor_mode(int(rect.x + i * half), int(rect.y), int(half + (rect.width - 2 * half)), int(rect.height))
+          try:
+            rl.draw_rectangle_rounded_lines_ex(border_rect, border_roundness, 10, UI_BORDER_SIZE, rl.Color(*self._hud_compose.BSM_BORDER_RGBA))
+          finally:
+            rl.end_scissor_mode()
+
+  def _camera_view_store(self):
+    store = getattr(self, "_cv_store", None)
+    if store is None:
+      try:
+        from openpilot.common.bogpilot_store import ParamStore
+        store = self._cv_store = ParamStore(cache_ttl=2.0)
+      except Exception:
+        return None
+    return store
 
   def _switch_stream_if_needed(self, sm):
+    # BogPilot Camera View (Settings > Visuals): Standard / Wide hold one stream; Auto is the upstream 0.11.2 switching below
+    view = camera_view.selected_view(self._camera_view_store())
+    if view in (camera_view.STANDARD, camera_view.WIDE):
+      target = WIDE_CAM if view == camera_view.WIDE and WIDE_CAM in self.available_streams else NARROW_ROAD_CAM
+      if self.stream_type != target:
+        self.switch_stream(target)
+      return
     if sm['selfdriveState'].experimentalMode and WIDE_CAM in self.available_streams:
       v_ego = sm['carState'].vEgo
       if v_ego < WIDE_CAM_MAX_SPEED:

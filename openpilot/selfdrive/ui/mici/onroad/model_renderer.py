@@ -29,6 +29,19 @@ NO_THROTTLE_COLORS = [
   rl.Color(242, 242, 242, 0),   # HSLF(112/360, 0.0, 0.95, 0.0)
 ]
 
+STEER_ONLY_COLORS = [   # Pre-AP steering only (carState.bogpilot.preapLatOnly): speed control is off
+  rl.Color(64, 160, 255, 102),
+  rl.Color(64, 160, 255, 89),
+  rl.Color(64, 160, 255, 0),
+]
+
+
+def preap_steer_only(sm) -> bool:
+  try:
+    return bool(sm['selfdriveState'].enabled) and bool(sm['carState'].bogpilot.preapLatOnly)
+  except Exception:
+    return False
+
 LANE_LINE_COLORS = {
   UIStatus.DISENGAGED: rl.Color(200, 200, 200, 255),
   UIStatus.OVERRIDE: rl.Color(255, 255, 255, 255),
@@ -335,6 +348,11 @@ class ModelRenderer(Widget):
 
     path_pts = self._path.projected_points + np.array([self._rect.x, self._rect.y], dtype=np.float32)
 
+    if preap_steer_only(sm):
+      draw_polygon(self._rect, path_pts, gradient=Gradient(start=(0.0, 1.0), end=(0.0, 0.0), colors=STEER_ONLY_COLORS,
+                                                           stops=[0.0, 0.5, 1.0]))
+      return
+
     if self._experimental_mode:
       # Draw with acceleration coloring
       if ui_state.status == UIStatus.DISENGAGED:
@@ -360,13 +378,9 @@ class ModelRenderer(Widget):
         draw_polygon(self._rect, path_pts, gradient=gradient)
 
   def _draw_lead_indicator(self):
-    # Draw lead vehicles if available
-    for lead in self._lead_vehicles:
-      if not lead.glow or not lead.chevron:
-        continue
-
-      rl.draw_triangle_fan(lead.glow, len(lead.glow), rl.Color(218, 202, 37, 255))
-      rl.draw_triangle_fan(lead.chevron, len(lead.chevron), rl.Color(201, 34, 49, lead.fill_alpha))
+    # The stock lead chevron is never painted. Geometry is still computed for callers;
+    # the lock-on box is the on-road lead indicator when the redesign is on.
+    return
 
   @staticmethod
   def _get_path_length_idx(pos_x_array: np.ndarray, path_height: float) -> int:

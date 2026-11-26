@@ -25,6 +25,7 @@ legend = ["LAT_ACCEL_FACTOR", "MAX_LAT_ACCEL_MEASURED", "FRICTION"]
 "TESLA_MODEL_3" = [nan, 2.5, nan]
 "TESLA_MODEL_Y" = [nan, 2.5, nan]
 "TESLA_MODEL_X" = [nan, 2.5, nan]
+"TESLA_AP1_MODELX" = [nan, 2.5, nan]  # own row (same angle-controller stub value), not borrowed from the Model 3
 
 # Guess
 "VOLKSWAGEN_ID4_MK1" = [nan, 2.5, nan]

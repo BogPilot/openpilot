@@ -4,12 +4,12 @@ import threading
 from collections.abc import Callable
 from enum import Enum
 from openpilot.cereal import messaging, log
+from openpilot.cereal.services import SERVICE_LIST
 from opendbc.car.structs import car
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.common.params import Params
 from openpilot.common.realtime import drop_realtime
 from openpilot.common.swaglog import cloudlog
-from openpilot.selfdrive.ui.lib.prime_state import PrimeState
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.common.hardware import HARDWARE, PC
 from openpilot.common.hardware.usb import cable_connected, get_usb_state, is_chestnut_usb_id
@@ -46,8 +46,7 @@ class UIState:
 
   def _initialize(self):
     self.params = Params()
-    self.sm = messaging.SubMaster(
-      [
+    _ui_services = [
         "modelV2",
         "controlsState",
         "onroadEvents",
@@ -70,10 +69,15 @@ class UIState:
         "vehicleParameters",
         "testJoystick",
         "rawAudioData",
-      ]
-    )
+        "bogpilotRadarState",   # BogPilot: adjacent radar leads (radard bogpilot_radar) for adjacent boxes / BSM flames
+    ]
+    # Cluster CSC/CEM/speed-limit, traffic-mode, and pedal brake-lights: one shared socket
+    # so ClusterState and TrafficModeReader do not each poll a second or third SubMaster.
+    for _s in ("bogpilotPlan", "bogpilotCarState"):
+      if _s in SERVICE_LIST:
+        _ui_services.append(_s)
+    self.sm = messaging.SubMaster(_ui_services)
 
-    self.prime_state = PrimeState()
 
     # UI Status tracking
     self.status: UIStatus = UIStatus.DISENGAGED
@@ -135,7 +139,6 @@ class UIState:
     return not self.started
 
   def update(self) -> None:
-    self.prime_state.start()  # start thread after manager forks ui
     if self._params_thread is None:
       self._params_thread = threading.Thread(target=self._params_refresh_worker, daemon=True)
       self._params_thread.start()
@@ -272,6 +275,15 @@ class UIState:
         self.usb_unknown = False
 
 
+
+from openpilot.common.bogpilot_store import store as bp_device_store
+from openpilot.selfdrive.ui.bogpilot.phase3_device_controls_runtime import (
+  screen_timeout as bp_screen_timeout,
+  screen_brightness as bp_screen_brightness,
+  screen_awake as bp_screen_awake,
+  screen_enabled as bp_screen_enabled,
+)
+
 class Device:
   def __init__(self):
     self._ignition = False
@@ -303,7 +315,8 @@ class Device:
       return self._override_interactive_timeout
 
     ignition_timeout = 10 if gui_app.big_ui() else 5
-    return ignition_timeout if ui_state.ignition else 30
+    stock = ignition_timeout if ui_state.ignition else 30
+    return bp_screen_timeout(bp_device_store(), ui_state.ignition, stock)
 
   def _reset_interactive_timeout(self) -> None:
     self._interaction_time = time.monotonic() + self.interactive_timeout
@@ -352,6 +365,7 @@ class Device:
 
       clipped_brightness = float(np.interp(clipped_brightness, [0, 1], [30, 100]))
 
+    clipped_brightness = bp_screen_brightness(bp_device_store(), ui_state.started, clipped_brightness, self._bp_attention())
     brightness = round(self._brightness_filter.update(clipped_brightness))
     if not self._awake:
       brightness = 0
@@ -361,12 +375,18 @@ class Device:
       self._brightness_event.set()
       self._last_brightness = brightness
 
+  def _bp_attention(self):
+    # with the Screen master OFF this must be a no-op so stock wake behaviour is unchanged.
+    if not bp_screen_enabled(bp_device_store()):
+      return False
+    return bool(ui_state.sm["selfdriveState"].alertType) or ui_state.engaged != getattr(self, "_bp_last_engaged", ui_state.engaged)
+
   def _update_wakefulness(self):
     # Handle interactive timeout
     ignition_just_turned_off = not ui_state.ignition and self._ignition
     self._ignition = ui_state.ignition
 
-    if ignition_just_turned_off or any(ev.left_down for ev in gui_app.mouse_events):
+    if ignition_just_turned_off or self._bp_attention() or any(ev.left_down for ev in gui_app.mouse_events):
       self._reset_interactive_timeout()
 
     interaction_timeout = time.monotonic() > self._interaction_time
@@ -375,7 +395,8 @@ class Device:
         callback()
     self._prev_timed_out = interaction_timeout
 
-    self._set_awake(ui_state.ignition or not interaction_timeout or PC)
+    self._bp_last_engaged = ui_state.engaged
+    self._set_awake(bp_screen_awake(bp_device_store(), ui_state.ignition, interaction_timeout, PC, self._bp_attention()))
 
   def _set_awake(self, on: bool):
     if on != self._awake:
