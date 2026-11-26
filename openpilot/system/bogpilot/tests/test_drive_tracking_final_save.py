@@ -144,14 +144,50 @@ def test_final_save_then_more_driving_then_regular_save_sums_exactly(bp_dir):
   drive(t, 40)
   t.final_flush(NOW, True)
   drive(t, 30)
-  t.update(NOW, True, *msgs(v=0.0, standstill=True))        # 30 s since the final save: below the regular 60 s
-  drive(t, 31, v=0.0, standstill=True)                       # standstill save once 60 s are tracked again
+  t.update(NOW, True, *msgs(v=0.0, standstill=True))        # 70 s tracked in all: the first standstill credits the drive
   s = saved(params)
-  assert s["TrackedTime"] == pytest.approx(40 + 60, abs=0.1)  # 40 (final save) + 60 (regular save), ~1 s still unsaved
-  assert t.tracked_time == pytest.approx(1.1, abs=0.1)
+  assert s["TrackedTime"] == pytest.approx(40 + 30.05, abs=0.1)
+  assert s["BogPilotDrives"] == 1
+  drive(t, 31, v=0.0, standstill=True)                       # under the 60 s checkpoint: nothing new saved
+  assert saved(params)["TrackedTime"] == pytest.approx(40 + 30.05, abs=0.1)
+  assert t.tracked_time == pytest.approx(31, abs=0.1)
+  day = dt.local_day(NOW, dt.bogpilot_timezone(None)).isoformat()
+  assert json.loads((bp_dir / "DriveHistory").read_text())[day]["routes"] == 1
+
+
+# 60 s checkpoint (hardwared UptimeOnroad cadence), moving or stopped
+
+def test_highway_counters_are_checkpointed_every_60_s_without_credit(bp_dir):
+  params, t = tracker(bp_dir)
+  base = sum(1 for k, *_ in params.puts if k == "BogPilotStats")
+  drive(t, 30 * 60)                                          # 30 min, never stopped
+  s = saved(params)
+  assert s["TrackedTime"] == pytest.approx(30 * 60, abs=60.1)   # at most one checkpoint interval unsaved
+  assert s["BogPilotDrives"] == 0                            # a moving checkpoint never credits the drive
+  stats_writes = [k for k, *_ in params.puts if k == "BogPilotStats"]
+  assert 29 <= len(stats_writes) - base <= 30                # one per minute
+  t.final_flush(NOW, True)
+  s = saved(params)
+  assert s["TrackedTime"] == pytest.approx(30 * 60, abs=0.1)
   assert s["BogPilotDrives"] == 1
   day = dt.local_day(NOW, dt.bogpilot_timezone(None)).isoformat()
   assert json.loads((bp_dir / "DriveHistory").read_text())[day]["routes"] == 1
+
+
+def test_checkpoint_interval_matches_stock_uptime():
+  from openpilot.common.bogpilot_checkpoint import COUNTER_INTERVAL_S
+  assert dt.CHECKPOINT_S == COUNTER_INTERVAL_S == 60
+
+
+def test_stop_and_go_credits_once_and_saves_at_most_once_a_minute_after(bp_dir):
+  params, t = tracker(bp_dir)
+  base = sum(1 for k, *_ in params.puts if k == "BogPilotStats")
+  for _ in range(20):                                        # 20 x (25 s moving + 5 s stopped) = 10 min
+    drive(t, 25)
+    drive(t, 5, v=0.0, standstill=True)
+  writes = [k for k, *_ in params.puts if k == "BogPilotStats"]
+  assert saved(params)["BogPilotDrives"] == 1
+  assert 9 <= len(writes) - base <= 10 + 1                   # checkpoints plus the one credit save
 
 
 # triggers: signal, offroad transition, shutdown params

@@ -13,7 +13,13 @@ Corrupt stores are copied to a timestamped .corrupt backup before recovery.
 Drive credit (same contract as 367e1fe): after >= 60 s tracked, at standstill, if
 openpilot engaged at least once; ledger write only when the wall clock is valid.
 
-Final save: the counters gathered since the last standstill save are also saved when the
+Checkpoint: like stock hardwared's UptimeOnroad, the counters are saved every
+CHECKPOINT_S (60 s) of tracked time, moving or stopped, once openpilot has engaged. A
+checkpoint while moving never credits the drive; the credit still needs a standstill
+save or the final save, so the drive count follows the same rule as before. Before this
+the counters were only saved at standstill, so a highway stint stayed unsaved until offroad.
+
+Final save: the counters gathered since the last save are also saved when the
 process is stopped (SIGTERM/SIGINT from the manager), when deviceState.started goes false,
 and when a shutdown/reboot/uninstall param is set. The signal handler only sets a flag; the
 main loop does the save, so a save can never run inside another save. Saving is idempotent:
@@ -39,6 +45,7 @@ from openpilot.system.bogpilot.legacy_migration import translate_stats_keys
 DT_MDL = 0.05
 DRIVE_HISTORY_DAYS = 14
 DRIVE_CREDIT_S = 60
+CHECKPOINT_S = 60  # hardwared UptimeOnroad cadence (openpilot.common.bogpilot_checkpoint.COUNTER_INTERVAL_S)
 TIMEZONE_NAME_PATH = Path("/data/etc/timezone")
 V_CRUISE_MAX = 145  # kph
 KPH_TO_MS = 1 / 3.6
@@ -398,10 +405,14 @@ class DriveTracker:
     if car_state.standstill:
       _add(s, "StandstillTime", DT_MDL)
 
-    if self.tracked_time >= DRIVE_CREDIT_S and car_state.standstill and self.previously_enabled:
-      self.flush(now, time_validated)
+    if not self.previously_enabled:
+      return
+    credit_due = (car_state.standstill and not self.drive_added and
+                  self.drive_tracked_time + self.tracked_time >= DRIVE_CREDIT_S)
+    if self.tracked_time >= CHECKPOINT_S or credit_due:
+      self.flush(now, time_validated, credit=bool(car_state.standstill))
 
-  def flush(self, now, time_validated):
+  def flush(self, now, time_validated, credit=True):
     s = self.stats
     if time_validated and now.month != s.get("Month"):
       s.update({"CurrentMonthsMeters": 0, "Month": now.month})
@@ -411,7 +422,7 @@ class DriveTracker:
     _add(s, "TrackedTime", self.tracked_time)
     self.drive_tracked_time += self.tracked_time
 
-    new_drive = not self.drive_added and self.drive_tracked_time >= DRIVE_CREDIT_S
+    new_drive = credit and not self.drive_added and self.drive_tracked_time >= DRIVE_CREDIT_S
     self.history_routes += int(new_drive)
     self.history_seconds += self.tracked_time
     if time_validated and (self.history_routes or self.history_meters or self.history_seconds):
