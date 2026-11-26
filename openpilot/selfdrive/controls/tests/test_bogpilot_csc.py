@@ -132,7 +132,7 @@ def test_learning_needs_planner_time_of_manual_driving():
   csc = CurveSpeedController(Store(), TESLA_CSC_MAX_LAT_ACCEL)
   steps = train_until_first_sample(csc)
   assert steps is not None and abs(steps * DT_MDL - PLANNER_TIME) <= DT_MDL + 1e-9
-  assert csc.curvature_data == {"0.012": {"average": 1.8, "count": 1}} and csc.enable_training
+  assert csc.curvature_data == {"0.012": {"average": 1.8, "count": 1, "last": 1}} and csc.enable_training
 
 
 @pytest.mark.parametrize("kw", [{"lead": True}, {"long_active": True}, {"v": CRUISING_SPEED}, {"curve_on": False},
@@ -260,3 +260,67 @@ def test_planner_flushes_curve_data_on_the_edge_into_park():
   msg.carState.gearShifter = "park"
   acs._flush_on_park({"carState": msg.carState})
   assert acs._parked is True
+
+
+# --- bucket cap: last seen, least recently seen goes first, old files ---
+
+def _warm(csc):
+  train_until_first_sample(csc, k=0.0105)        # PLANNER_TIME of manual driving, then one sample per call
+
+
+def test_cap_drops_the_least_recently_seen_bucket(monkeypatch):
+  import openpilot.selfdrive.controls.lib.bogpilot_csc as CSC
+  monkeypatch.setattr(CSC, "MAX_BUCKETS", 3)
+  csc = CurveSpeedController(Store(), TESLA_CSC_MAX_LAT_ACCEL)
+  _warm(csc)                                     # 0.0105 seen at 1
+  train(csc, 1, k=0.011)                         # 2
+  train(csc, 1, k=0.012)                         # 3
+  train(csc, 1, k=0.0105)                        # 4: seen again, now the most recent
+  train(csc, 1, k=0.013)                         # 5: over the cap, 0.011 (seen at 2) goes
+  assert list(csc.curvature_data) == ["0.012", "0.0105", "0.013"]
+  assert [d["last"] for d in csc.curvature_data.values()] == [3, 4, 5]
+  assert csc.curvature_data["0.0105"]["count"] == 2
+
+
+def test_cap_holds_while_learning_at_the_default(monkeypatch):
+  import openpilot.selfdrive.controls.lib.bogpilot_csc as CSC
+  assert CSC.MAX_BUCKETS == 5000
+  store = Store()
+  csc = CurveSpeedController(store, TESLA_CSC_MAX_LAT_ACCEL)
+  _warm(csc)
+  for i in range(6200):                          # distinct 1e-5 buckets, like real driving
+    csc.log_data(15.0, False, False, True, False, 1.3 + (i % 97) / 101.0, 0.002 + i * 1e-5)
+  assert len(csc.curvature_data) == 5000
+  first = next(iter(csc.curvature_data.values()))
+  assert first["last"] == csc.sample_number - 4999           # exactly the 5,000 most recent
+  csc.persist()
+  text = store.vals["CurvatureData"]
+  assert 250_000 < len(text) < 400_000, len(text)            # ~70 B per bucket with "last"
+  assert load_curvature_data(text) == csc.curvature_data
+  assert list(load_curvature_data(text)) == list(csc.curvature_data)
+
+
+def test_a_file_from_before_the_cap_loads_oldest_first_and_keeps_learning():
+  old = {"0.004": {"average": 1.5, "count": 3}, "0.002": {"average": 1.7, "count": 1},
+         "0.003": {"average": 2.0, "count": 2, "last": 7}, "0.005": {"average": 1.9, "count": 1}}
+  data = load_curvature_data(json.dumps(old))
+  assert list(data) == ["0.004", "0.002", "0.005", "0.003"]   # no "last" = oldest, in file (creation) order
+  assert [d["last"] for d in data.values()] == [0, 0, 0, 7]
+  assert data["0.004"] == {"average": 1.5, "count": 3, "last": 0}
+  csc = CurveSpeedController(Store(CurvatureData=json.dumps(old)), TESLA_CSC_MAX_LAT_ACCEL)
+  assert csc.sample_number == 7
+  assert csc.lateral_acceleration == pytest.approx(float(np.percentile([1.5, 1.7, 2.0, 1.9], 90)))   # learning unchanged
+  train(csc, int(round(PLANNER_TIME / DT_MDL)) + 2, k=0.0105)
+  new = csc.curvature_data["0.0105"]
+  assert new["count"] >= 1 and new["last"] == 7 + new["count"] == csc.sample_number   # numbering carries on from the file
+  assert list(csc.curvature_data)[-1] == "0.0105"
+
+
+def test_load_trims_to_the_cap_oldest_first_and_cleans_bad_last_values():
+  raw = {"0.001": {"average": 1.0, "count": 1, "last": -3}, "0.002": {"average": 1.0, "count": 1, "last": "x"},
+         "0.003": {"average": 1.0, "count": 1, "last": True}, "0.004": {"average": 1.0, "count": 1, "last": 9},
+         "0.005": {"average": 1.0, "count": 1, "last": 4}}
+  data = load_curvature_data(json.dumps(raw), max_buckets=2)
+  assert list(data) == ["0.005", "0.004"]
+  data = load_curvature_data(json.dumps(raw))
+  assert [d["last"] for d in data.values()] == [0, 0, 0, 4, 9]

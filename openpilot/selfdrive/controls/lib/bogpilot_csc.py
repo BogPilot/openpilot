@@ -14,7 +14,10 @@ Behaviour and every number are unchanged from that source. Not ported: the weath
 no weather source) and the speed limit controller. Changes for C3X: the Params store is injected,
 stored learning data is validated before use, and CurvatureData, CalibrationProgress and
 CalibratedLateralAcceleration are saved together at most every 60 s after a new sample (plus once on
-the edge into Park) instead of after every training window.
+the edge into Park) instead of after every training window. Each bucket also keeps "last", the sample
+number it was last seen at, and the data is capped at MAX_BUCKETS: past it the least recently seen
+bucket is dropped (0.9.7 grew without bound, ~15,000 buckets / 0.8 MB). Files from before this have no
+"last"; their buckets count as the oldest, in the order they were first created.
 
 The road curvature (1/m) comes from the model's path geometry: lateral acceleration along the path
 (yaw rate * node speed) divided by node speed squared, i.e. yaw rate / speed. The model's own speed
@@ -25,6 +28,7 @@ from __future__ import annotations
 import json
 import math
 import time
+from collections import OrderedDict
 
 import numpy as np
 
@@ -46,6 +50,7 @@ MIN_CURVATURE = 0.001
 PERCENTILE = 90
 ROUNDING_PRECISION = 5
 STEP = 0.001
+MAX_BUCKETS = 5000                        # ~350 kB of CurvatureData at most; the least recently seen bucket goes first
 
 
 def calculate_road_curvature(orientation_rate_z, velocity_x, timebase):
@@ -169,23 +174,32 @@ class CurveDetector:
     return self.active
 
 
-def load_curvature_data(text) -> dict:
-  """CurvatureData json -> {key: {"average": float, "count": int}}; malformed entries are dropped."""
+def load_curvature_data(text, max_buckets: int = MAX_BUCKETS) -> OrderedDict:
+  """CurvatureData json -> {key: {"average": float, "count": int, "last": int}}, oldest first (least recently seen), at most
+  max_buckets (the oldest go). Malformed entries are dropped. A bucket without a valid "last" (a file from before the cap)
+  gets 0, so it counts as older than any bucket seen since, in the order the file has it (the order it was first created)."""
   try:
     raw = json.loads(text) if text else {}
   except (TypeError, ValueError):
-    return {}
+    return OrderedDict()
   if not isinstance(raw, dict):
-    return {}
-  out = {}
+    return OrderedDict()
+  rows = []
   for key, data in raw.items():
     try:
       average, count = float(data["average"]), int(data["count"])
       float(key)
     except (KeyError, TypeError, ValueError):
       continue
+    last = data.get("last", 0)
+    if isinstance(last, bool) or not isinstance(last, int) or last < 0:
+      last = 0
     if math.isfinite(average) and average >= 0.0 and count > 0:
-      out[str(key)] = {"average": average, "count": count}
+      rows.append((last, str(key), {"average": average, "count": count, "last": last}))
+  rows.sort(key=lambda r: r[0])           # stable: equal "last" (old files: all 0) keep the file order
+  out = OrderedDict((key, data) for _, key, data in rows)
+  while len(out) > max(1, int(max_buckets)):
+    out.popitem(last=False)
   return out
 
 
@@ -224,6 +238,7 @@ class CurveSpeedController:
     self.max_lateral_acceleration = max_lateral_acceleration
 
     self.curvature_data = load_curvature_data(self._read("CurvatureData"))
+    self.sample_number = max((d["last"] for d in self.curvature_data.values()), default=0)
 
     self.required_curvatures = [str(round(float(road_curvature), ROUNDING_PRECISION))
                                 for road_curvature in np.arange(MIN_CURVATURE, MAX_CURVATURE + STEP, STEP)]
@@ -258,6 +273,7 @@ class CurveSpeedController:
         road_curvature = abs(round(road_curvature, ROUNDING_PRECISION))
 
         key = str(road_curvature)
+        self.sample_number += 1
         if key in self.curvature_data:
           data = self.curvature_data[key]
 
@@ -266,13 +282,18 @@ class CurveSpeedController:
 
           self.curvature_data[key] = {
             "average": ((average * count) + lateral_acceleration) / (count + 1),
-            "count": count + 1
+            "count": count + 1,
+            "last": self.sample_number,
           }
+          self.curvature_data.move_to_end(key)
         else:
           self.curvature_data[key] = {
             "average": lateral_acceleration,
-            "count": 1
+            "count": 1,
+            "last": self.sample_number,
           }
+          while len(self.curvature_data) > MAX_BUCKETS:
+            self.curvature_data.popitem(last=False)   # least recently seen
 
         self.update_lateral_acceleration()
         self.checkpoint.mark()
