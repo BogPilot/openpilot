@@ -118,6 +118,7 @@ class Ap1CurveSpeed:
     self._dt_s = dt
     self.map_cap = 0.0            # Map Curve Speed point speed used this tick (m/s), 0 = none
     self._map_tick = None         # mapd_v2.SharedTick, created on first use with the toggle on
+    self._parked = None           # last carState gear was Park (the learned curve data is flushed on the edge into Park)
 
   @property
   def a_brake(self) -> float:
@@ -220,10 +221,24 @@ class Ap1CurveSpeed:
     self._cap_prev = out
     return out
 
+  def _flush_on_park(self, sm) -> None:
+    """plannerd stops at offroad, so unsaved curve samples are also saved on the edge into Park."""
+    if self.csc is None:
+      return
+    try:
+      from opendbc.car.structs import car
+      parked = bool(sm['carState'].gearShifter == car.CarState.GearShifter.park)
+    except Exception:
+      return
+    if parked and self._parked is False:
+      self.csc.flush()
+    self._parked = bool(parked)
+
   def update(self, sm, v_ego, v_cruise, reset_state, action_delay=None) -> float:
     """Returns the cruise speed for the cruise candidate: always v_cruise (curves no longer lower it)."""
     if not self.available:
       return self._inactive(v_cruise, reset_state)
+    self._flush_on_park(sm)
 
     dt_s = self.clock.step(sm)
     self._dt_s = self.dt if dt_s is None else dt_s

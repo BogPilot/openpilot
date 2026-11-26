@@ -12,8 +12,9 @@ under this repository's MIT license (see LICENSE):
 
 Behaviour and every number are unchanged from that source. Not ported: the weather reduction (C3X has
 no weather source) and the speed limit controller. Changes for C3X: the Params store is injected,
-stored learning data is validated before use, and CalibratedLateralAcceleration is persisted together
-with CurvatureData at the end of a training segment instead of on every sample.
+stored learning data is validated before use, and CurvatureData, CalibrationProgress and
+CalibratedLateralAcceleration are saved together at most every 60 s after a new sample (plus once on
+the edge into Park) instead of after every training window.
 
 The road curvature (1/m) comes from the model's path geometry: lateral acceleration along the path
 (yaw rate * node speed) divided by node speed squared, i.e. yaw rate / speed. The model's own speed
@@ -23,9 +24,11 @@ from __future__ import annotations
 
 import json
 import math
+import time
 
 import numpy as np
 
+from openpilot.common.bogpilot_checkpoint import LEARNED_INTERVAL_S, Checkpoint
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.common.realtime import DT_MDL
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import STOP_DISTANCE
@@ -209,8 +212,10 @@ class TrackingLead:
 
 
 class CurveSpeedController:
-  def __init__(self, store, max_lateral_acceleration: float | None = None):
+  def __init__(self, store, max_lateral_acceleration: float | None = None, clock=time.monotonic):
     self.store = store
+    # Learned data saves like paramsd LiveParametersV2: at most every 60 s, only when a sample was added, plus flush() on park.
+    self.checkpoint = Checkpoint("CurvatureData", LEARNED_INTERVAL_S, clock=clock)
 
     self.enable_training = False
     self.training_timer = 0.0
@@ -270,12 +275,11 @@ class CurveSpeedController:
           }
 
         self.update_lateral_acceleration()
+        self.checkpoint.mark()
       else:
         self.enable_training = False
 
     elif self.training_timer >= PLANNER_TIME:
-      self.persist()
-
       self.enable_training = False
 
       self.training_timer = 0
@@ -284,6 +288,9 @@ class CurveSpeedController:
       self.enable_training = False
 
       self.training_timer = 0
+
+    if self.checkpoint.due():
+      self.persist()
 
   def calibration_progress(self) -> float:
     progress = 0.0
@@ -296,6 +303,14 @@ class CurveSpeedController:
     self._put("CalibrationProgress", float(self.calibration_progress()))
     self._put("CurvatureData", json.dumps(self.curvature_data))
     self._put("CalibratedLateralAcceleration", float(self.lateral_acceleration))
+    self.checkpoint.saved()
+
+  def flush(self) -> bool:
+    """Extra save of unsaved samples (park edge). True when it wrote."""
+    if not self.checkpoint.dirty:
+      return False
+    self.persist()
+    return True
 
   def update_lateral_acceleration(self):
     if self.curvature_data:

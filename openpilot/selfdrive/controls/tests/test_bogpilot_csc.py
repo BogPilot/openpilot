@@ -143,9 +143,17 @@ def test_learning_gates(kw):
   assert csc.curvature_data == {}
 
 
-def test_learning_running_average_percentile_and_persist_at_segment_end():
-  store = Store()
-  csc = CurveSpeedController(store, TESLA_CSC_MAX_LAT_ACCEL)
+class FakeClock:
+  def __init__(self, t=1000.0):
+    self.t = t
+
+  def __call__(self):
+    return self.t
+
+
+def test_learning_running_average_percentile_and_checkpoint_every_60_s():
+  store, clock = Store(), FakeClock()
+  csc = CurveSpeedController(store, TESLA_CSC_MAX_LAT_ACCEL, clock=clock)
   train_until_first_sample(csc, lat=1.6)
   train(csc, 1, lat=1.6)                     # 2 samples at 1.6
   train(csc, 1, lat=2.2)                     # running average (1.6 * 2 + 2.2) / 3
@@ -153,12 +161,48 @@ def test_learning_running_average_percentile_and_persist_at_segment_end():
   assert csc.curvature_data["0.012"]["average"] == pytest.approx((1.6 * 2 + 2.2) / 3)
   assert store.puts == []                    # nothing written while the segment runs
   csc.log_data(15.0, False, True, True, False, 1.8, 0.012)   # engaged: segment ends
+  assert store.puts == []                    # segment end no longer saves by itself
+  assert csc.training_timer == 0
+  clock.t += 60.0                            # the 60 s checkpoint (paramsd cadence) comes due
+  csc.log_data(15.0, False, True, True, False, 1.8, 0.012)
   keys = [k for k, _ in store.puts]
   assert keys == ["CalibrationProgress", "CurvatureData", "CalibratedLateralAcceleration"]
   assert json.loads(store.vals["CurvatureData"]) == csc.curvature_data
   assert store.vals["CalibratedLateralAcceleration"] == pytest.approx(csc.lateral_acceleration)
   assert store.vals["CalibrationProgress"] == pytest.approx(3 / CALIBRATION_PROGRESS_THRESHOLD / 100 * 100)
-  assert csc.training_timer == 0
+  clock.t += 600.0                           # nothing new learned: no more writes
+  csc.log_data(15.0, False, True, True, False, 1.8, 0.012)
+  assert len(store.puts) == 3
+
+
+def test_no_save_without_a_new_sample():
+  store, clock = Store(), FakeClock()
+  csc = CurveSpeedController(store, TESLA_CSC_MAX_LAT_ACCEL, clock=clock)
+  for _ in range(5):
+    train(csc, int(round(PLANNER_TIME / DT_MDL)) + 40, curve_on=False)   # windows with no curve sample
+    csc.log_data(15.0, False, True, True, False, 1.8, 0.012)
+    clock.t += 120.0
+  assert store.puts == []
+  assert csc.flush() is False and store.puts == []
+
+
+def test_long_training_saves_at_most_once_a_minute():
+  store, clock = Store(), FakeClock()
+  csc = CurveSpeedController(store, TESLA_CSC_MAX_LAT_ACCEL, clock=clock)
+  for _ in range(int(600 / DT_MDL)):         # 10 min of steady learning in one curve
+    clock.t += DT_MDL
+    csc.log_data(15.0, False, False, True, False, 1.8, 0.012)
+  saves = sum(1 for k, _ in store.puts if k == "CurvatureData")
+  assert 9 <= saves <= 10
+
+
+def test_flush_saves_pending_samples_once():
+  store, clock = Store(), FakeClock()
+  csc = CurveSpeedController(store, TESLA_CSC_MAX_LAT_ACCEL, clock=clock)
+  train_until_first_sample(csc, lat=1.6)
+  assert csc.flush() is True
+  assert [k for k, _ in store.puts] == ["CalibrationProgress", "CurvatureData", "CalibratedLateralAcceleration"]
+  assert csc.flush() is False and len(store.puts) == 3
 
 
 def test_learned_limit_is_90th_percentile_and_capped_for_target():
@@ -187,3 +231,32 @@ def test_tracking_lead_filter():
   assert not out[0] and out[-1]                               # following: after the 0.5 s filter passes 0.63
   tl = TrackingLead()
   assert not any(tl.update(False, 40.0, 0.0, 150.0, False) for _ in range(40))
+
+
+def test_planner_flushes_curve_data_on_the_edge_into_park():
+  from types import SimpleNamespace
+  from opendbc.car.structs import car
+  from openpilot.cereal import messaging
+  from openpilot.selfdrive.controls.lib.ap1_curve_speed import Ap1CurveSpeed
+  store, clock = Store(), FakeClock()
+  acs = Ap1CurveSpeed.__new__(Ap1CurveSpeed)
+  acs.csc = CurveSpeedController(store, TESLA_CSC_MAX_LAT_ACCEL, clock=clock)
+  acs._parked = None
+  G = car.CarState.GearShifter
+  sm = lambda gear: {"carState": SimpleNamespace(gearShifter=gear)}
+  acs._flush_on_park(sm(G.park))               # starting in Park is not an edge
+  train_until_first_sample(acs.csc, lat=1.6)
+  acs._flush_on_park(sm(G.drive))
+  assert store.puts == []
+  acs._flush_on_park(sm(G.park))               # edge into Park: unsaved samples are written
+  assert [k for k, _ in store.puts] == ["CalibrationProgress", "CurvatureData", "CalibratedLateralAcceleration"]
+  acs._flush_on_park(sm(G.park))
+  assert len(store.puts) == 3
+  # the real carState message (capnp enum) reads the same way
+  msg = messaging.new_message("carState")
+  msg.carState.gearShifter = "drive"
+  acs._flush_on_park({"carState": msg.carState})
+  assert acs._parked is False
+  msg.carState.gearShifter = "park"
+  acs._flush_on_park({"carState": msg.carState})
+  assert acs._parked is True
