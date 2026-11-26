@@ -61,6 +61,10 @@ MAPD_TIME_OFFSET = 10.0        # s, curve_target_speed_time_offset (mapd_v2.MAP_
 MAP_HORIZON_M = 500.0          # m, road mapd always has loaded ahead (mapd_v2.MAP_HORIZON_M, mapd MIN_WAY_DIST)
 MAP_SPEED_STEP = 0.1           # m/s, a mapCurveSpeed change larger than this is a different curve (distance re-seeded)
 MAP_SEED_MARGIN_S = 1.0        # s of travel taken off the seed: mapd checks its trigger once per GPS fix, with its own aEgo
+MAP_GAP_S = 3.0                # s, a mapd curve value that drops to 0 and returns within this is the same curve (mapd briefly
+                               # loses the curve when it switches to the next way)
+MAPD_CURVE_CALC_OFFSET = 10.0 * 0.44704   # m/s, mapd CURVE_CALC_OFFSET: mapd skips curves faster than vEgo + this
+MAP_GATE_MARGIN = 0.5          # m/s, tolerance on that skip rule
 
 
 def tesla_csc_lateral_accel(learned: float, cap: float = TESLA_CSC_MAX_LAT_ACCEL) -> float:
@@ -138,31 +142,62 @@ def map_trigger_distance(v_ego: float, a_ego: float, v_map: float) -> float:
 
 class MapCurvePoint:
   """Distance to the curve mapd reports. Seeded from mapd's trigger rule when a new value appears, then counted down
-  with the distance driven (floored at 0: the curve is here). No value from mapd = no point."""
+  with the distance driven (floored at 0: the curve is here).
+
+  A value that drops to 0 is kept and counted down (same speed, same place) instead of being forgotten:
+    * for up to MAP_GAP_S (mapd briefly loses the curve, for example when it switches to the next way), or
+    * for as long as mapd's own skip rule explains the 0 (the car is more than MAPD_CURVE_CALC_OFFSET below the curve
+      speed, so mapd does not report it).
+  It is dropped when the countdown reaches 0 (the curve is behind) or the gap outlasts both rules.
+  When the same value returns after a gap, the distance is the nearer of the countdown and a fresh trigger seed (mapd
+  reporting again means the curve is inside its trigger distance), so a gap can only move the curve closer, never farther."""
 
   def __init__(self):
     self.reset()
 
   def reset(self):
     self.speed = 0.0       # mapd's value this point was seeded for (m/s, mapd's lateral accel)
+    self.cap = 0.0         # the planner's curve speed for this point (m/s), kept through a gap
     self.distance = 0.0    # m
+    self.gap = 0.0         # s since mapd last reported this value (0 = reported this tick)
 
-  def update(self, v_map_raw: float, v_ego: float, a_ego: float, dt: float) -> float | None:
+  def _seed(self, v_map_raw: float, v_ego: float, a_ego: float) -> float:
+    return max(map_trigger_distance(v_ego, a_ego, v_map_raw) - max(float(v_ego), 0.0) * MAP_SEED_MARGIN_S, 0.0)
+
+  def update(self, v_map_raw: float, v_ego: float, a_ego: float, dt: float, cap: float = 0.0) -> float | None:
     v_map_raw = _finite(v_map_raw, 0.0)
+    v = max(_finite(v_ego, 0.0), 0.0)
+    dt = max(_finite(dt, 0.0), 0.0)
     if v_map_raw <= 0.0:
-      self.reset()
-      return None
+      if self.speed <= 0.0:
+        return None
+      # mapd stopped reporting: keep the point and count it down
+      self.gap += dt
+      self.distance = max(self.distance - v * dt, 0.0)
+      skipped_by_mapd = v + MAPD_CURVE_CALC_OFFSET < self.speed + MAP_GATE_MARGIN
+      if self.distance <= 0.0 or (self.gap > MAP_GAP_S and not skipped_by_mapd):
+        self.reset()
+        return None
+      return self.distance
+    returning = self.gap > 0.0
+    self.gap = 0.0
     if self.speed <= 0.0 or v_map_raw < self.speed - MAP_SPEED_STEP:
       # New or slower: that curve has just come inside mapd's trigger distance, so it is at most that far (a little
       # closer by the time mapd notices: MAP_SEED_MARGIN_S).
       self.speed = v_map_raw
-      self.distance = max(map_trigger_distance(v_ego, a_ego, v_map_raw) - max(float(v_ego), 0.0) * MAP_SEED_MARGIN_S, 0.0)
+      self.distance = self._seed(v_map_raw, v, a_ego)
     elif v_map_raw > self.speed + MAP_SPEED_STEP:
       # Faster: the slower curve (or its tightest part) is behind the car and mapd now reports a curve it triggered
       # earlier, while the slower one hid it. How far it is is unknown (at most its trigger distance), so take it as here.
       self.speed, self.distance = v_map_raw, 0.0
     else:
-      self.distance = max(self.distance - max(float(v_ego), 0.0) * dt, 0.0)
+      self.distance = max(self.distance - v * dt, 0.0)
+      if returning:
+        # Same curve back after a gap: never farther than mapd's trigger says (the nearer estimate wins).
+        self.distance = min(self.distance, self._seed(v_map_raw, v, a_ego))
+    cap = _finite(cap, 0.0)
+    if cap > 0.0:
+      self.cap = cap
     return self.distance
 
 
@@ -218,11 +253,10 @@ class CurveSpeedPlanner:
       d, vc = vision if vision is not None else (np.zeros(0), np.zeros(0))
       d, vc = np.asarray(d, dtype=float), np.asarray(vc, dtype=float)
       map_speed = _finite(map_speed, 0.0)
-      self.map_distance = self.map_point.update(map_speed_raw, v_ego, a_ego, dt) if map_speed > 0.0 else None
-      if map_speed <= 0.0:
-        self.map_point.reset()
+      # map_speed 0 = mapd reports no curve this tick; MapCurvePoint keeps a point it already had through a short gap
+      self.map_distance = self.map_point.update(map_speed_raw if map_speed > 0.0 else 0.0, v_ego, a_ego, dt, cap=map_speed)
       if self.map_distance is not None:
-        d, vc = np.append(d, self.map_distance), np.append(vc, map_speed)
+        d, vc = np.append(d, self.map_distance), np.append(vc, map_speed if map_speed > 0.0 else self.map_point.cap)
 
     if len(vc):
       d_eff = np.clip(d - v_ego * (CURVE_LEAD_S + delay), MIN_DISTANCE, None)

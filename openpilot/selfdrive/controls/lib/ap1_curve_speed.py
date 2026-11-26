@@ -143,6 +143,8 @@ class Ap1CurveSpeed:
   def _map_point(self, allowed: bool, lat: float) -> tuple[float, float]:
     """(rescaled map curve speed, mapd's own value); (0, 0) = none. Any problem = none."""
     if not allowed or not self._map_on():
+      if self.planner is not None:
+        self.planner.map_point.reset()   # Map Curve Speed off: no point is kept through a gap
       return 0.0, 0.0
     try:
       from openpilot.system.bogpilot.osm.mapd_v2 import map_curve_cap

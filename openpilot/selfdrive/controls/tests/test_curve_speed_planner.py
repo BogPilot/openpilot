@@ -294,7 +294,11 @@ def test_map_point_seeds_from_mapd_trigger_rule_and_counts_down():
   assert d1 == pytest.approx(d0 - 25.0 * DT)
   assert m.update(15.05, 25.0, 0.0, DT) == pytest.approx(d1 - 25.0 * DT)   # same curve
   assert m.update(12.0, 25.0, 0.0, DT) == pytest.approx(map_trigger_distance(25.0, 0.0, 12.0) - 25.0 * C.MAP_SEED_MARGIN_S)  # new curve
-  assert m.update(0.0, 25.0, 0.0, DT) is None and m.speed == 0.0
+  d2 = m.update(0.0, 25.0, 0.0, DT)                                   # mapd gap: kept and counted down
+  assert d2 is not None and m.speed == 12.0
+  for _ in range(int(C.MAP_GAP_S / DT) + 2):
+    out = m.update(0.0, 25.0, 0.0, DT)
+  assert out is None and m.speed == 0.0                               # gap longer than MAP_GAP_S: dropped
 
 
 def test_map_only_curve_brakes_and_lands():
@@ -357,3 +361,105 @@ def test_map_point_faster_value_is_taken_as_here():
 def test_map_seed_never_beyond_the_loaded_map():
   assert map_trigger_distance(40.0, 0.0, 5.0) == pytest.approx(C.MAP_HORIZON_M)
   assert map_trigger_distance(25.0, 0.0, 24.0) < C.MAP_HORIZON_M
+
+
+# --- map point through a mapd gap (the curve value drops to 0 and comes back) ---
+
+def _seed(v_map, v_ego, a_ego=0.0):
+  return map_trigger_distance(v_ego, a_ego, v_map) - v_ego * C.MAP_SEED_MARGIN_S
+
+
+def test_map_gap_same_curve_keeps_the_countdown():
+  """mapd loses the curve for about 1 s (for example while it switches to the next way): the point keeps counting down
+  and is not re-seeded at the full trigger distance when the same value returns."""
+  m = MapCurvePoint()
+  d0 = m.update(10.0, 14.0, 0.0, DT)
+  n_on, n_gap = 50, 20                         # 2.5 s reported, 1.0 s gap
+  for _ in range(n_on - 1):
+    m.update(10.0, 14.0, 0.0, DT)
+  for _ in range(n_gap):
+    assert m.update(0.0, 14.0, 0.0, DT) is not None
+  back = m.update(10.0, 14.0, 0.0, DT)
+  assert back == pytest.approx(d0 - 14.0 * DT * (n_on + n_gap), abs=1e-6)
+  assert back < _seed(10.0, 14.0)
+
+
+def test_map_gap_return_takes_the_nearer_of_countdown_and_fresh_seed():
+  m = MapCurvePoint()
+  m.update(10.0, 14.0, 0.0, DT)
+  m.distance = 400.0                           # a countdown that is too far (for example a seed made at a lower speed)
+  m.update(0.0, 14.0, 0.0, DT)
+  assert m.update(10.0, 14.0, 0.0, DT) == pytest.approx(_seed(10.0, 14.0))
+
+
+def test_map_gap_planner_keeps_braking_through_the_gap():
+  p = CurveSpeedPlanner()
+  for _ in range(40):
+    p.update(14.0, DT, LAT, 0.35, vision=None, map_speed=10.0, map_speed_raw=10.0)
+  a_before = p.a_curve
+  assert a_before < 0.0
+  for _ in range(20):
+    p.update(14.0, DT, LAT, 0.35, vision=None, map_speed=0.0, map_speed_raw=0.0)
+    assert p.v_limit == pytest.approx(10.0) and p.map_distance is not None
+  assert p.a_curve <= a_before + 1e-9 or p.a_curve < 0.0
+
+
+def test_map_gap_ends_when_the_countdown_reaches_the_curve():
+  m = MapCurvePoint()
+  m.update(10.0, 14.0, 0.0, DT)
+  m.distance = 0.5                             # less than one tick of travel
+  assert m.update(0.0, 14.0, 0.0, DT) is None and m.speed == 0.0
+  assert m.update(10.0, 14.0, 0.0, DT) == pytest.approx(_seed(10.0, 14.0))   # a later report is a new curve
+
+
+def test_map_gap_explained_by_mapd_skip_rule_is_kept_past_map_gap_s():
+  """mapd skips curves faster than vEgo + CURVE_CALC_OFFSET; while the car is that much slower the 0 is expected and the
+  point is kept (counted down) until the car is back in range or the curve is behind."""
+  m = MapCurvePoint()
+  v_map = 14.0
+  m.update(v_map, 20.0, 0.0, DT)
+  m.distance = 300.0
+  v_slow = v_map - C.MAPD_CURVE_CALC_OFFSET - 1.0
+  for _ in range(int(3 * C.MAP_GAP_S / DT)):
+    assert m.update(0.0, v_slow, 0.0, DT) is not None
+  assert m.distance == pytest.approx(300.0 - v_slow * DT * int(3 * C.MAP_GAP_S / DT), abs=1e-6)
+  for _ in range(int(C.MAP_GAP_S / DT) + 2):   # car back in mapd's range and still no value: dropped after MAP_GAP_S
+    out = m.update(0.0, v_map - 2.0, 0.0, DT)
+  assert out is None
+
+
+def test_map_gap_different_value_is_a_different_curve():
+  m = MapCurvePoint()
+  m.update(10.0, 14.0, 0.0, DT)
+  m.update(0.0, 14.0, 0.0, DT)
+  assert m.update(8.0, 14.0, 0.0, DT) == pytest.approx(_seed(8.0, 14.0))    # slower: new trigger
+  m.update(0.0, 14.0, 0.0, DT)
+  assert m.update(12.0, 14.0, 0.0, DT) == 0.0                               # faster: taken as here (unchanged rule)
+
+
+def test_map_gap_not_active_drops_the_point():
+  p = CurveSpeedPlanner()
+  p.update(14.0, DT, LAT, 0.35, vision=None, map_speed=10.0, map_speed_raw=10.0)
+  p.update(14.0, DT, LAT, 0.35, vision=None, map_speed=0.0, map_speed_raw=0.0, active=False)
+  assert p.map_point.speed == 0.0 and p.map_distance is None
+
+
+def test_map_gap_closed_loop_lands_on_the_curve_speed():
+  """Closed loop, map only: the value drops out for 1 s while braking. The car still lands on the curve speed."""
+  x_curve, v_map = 300.0, 10.0
+  seen = {}
+
+  def map_fn(s):
+    if s >= x_curve:
+      return 0.0, 0.0
+    if "s0" not in seen:
+      if x_curve - s > 150.0:
+        return 0.0, 0.0
+      seen["s0"] = s
+    if seen["s0"] + 30.0 <= s < seen["s0"] + 44.0:   # about 1 s gap at 14 m/s
+      return 0.0, 0.0
+    return v_map, v_map
+  rows = _closed_loop(lambda s: 0.0, 14.0, 40.0, map_fn=map_fn)
+  v_at = next(v for s, v, *_ in rows if s >= x_curve - 5.0)
+  assert v_at <= v_map + 0.45
+  assert min(r[2] for r in rows) >= A_MIN - 1e-9
