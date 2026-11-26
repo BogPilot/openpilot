@@ -16,6 +16,15 @@ from unittest.mock import patch
 
 # synthetic fixture identities, assembled at runtime
 SYNTH_EMAIL = "@".join(("test", "example.invalid"))
+ROOT = Path(__file__).resolve().parents[3]
+SYNTH_FLAGS = ('-DALLOW_DEBUG', '-DSTM32H7')
+SYNTH_SCONSCRIPT = '\n'.join((
+  'cert_fn = File("./board/crypto/certs/debug").srcnode().relpath',
+  'common_flags += ["-DALLOW_DEBUG"]',
+  'flags = ["-DSTM32H7"]',
+  'certs = [get_key_header(n) for n in ["debug", "release"]]',
+  '',
+))
 
 spec = importlib.util.spec_from_file_location('gate', Path(__file__).resolve().parents[1] / 'rc_firmware_gate.py')
 gate = importlib.util.module_from_spec(spec)
@@ -60,23 +69,27 @@ class GateTests(unittest.TestCase):
     self.base = Path(self.temp.name)
     self.source = self.base / 'source'
     self.source.mkdir()
-    for name in ('SConstruct', 'common/version.h', 'panda/SConscript', 'panda/board/main.c',
-                 'opendbc_repo/opendbc/safety/safety.h'):
+    for name in ('SConstruct', 'common/version.h', 'panda/board/main.c',
+                 'opendbc_repo/opendbc/safety/safety.h', 'opendbc_repo/opendbc/safety/tests/test_mode.py'):
       p = self.source / name
       p.parent.mkdir(parents=True, exist_ok=True)
       p.write_text('synthetic fixture\n')
+    (self.source / 'panda/SConscript').write_text(SYNTH_SCONSCRIPT)
     fields = [b'ssh-rsa'] + [x.to_bytes((x.bit_length() + 7) // 8, 'big') for x in (self.e, self.n)]
     wire = b''.join(struct.pack('>I', len(x)) + x for x in fields)
     key = self.source / 'panda/board/crypto/certs/debug.pub'
     key.parent.mkdir(parents=True)
     key.write_bytes(b'ssh-rsa ' + base64.b64encode(wire))
+    (key.parent / 'release.pub').write_bytes(b'ssh-rsa synthetic-release')
+    pins = {name: gate.sha((self.source / name).read_bytes()) for name in gate.PINNED_CERTS}
+    for target, value in (('PINNED_CERTS', pins), ('PINNED_BUILD_FLAGS', SYNTH_FLAGS)):
+      patcher = patch.object(gate, target, value)
+      patcher.start()
+      self.addCleanup(patcher.stop)
     self.git('init', '-q')
     self.git('add', '.')
     self.git('-c', 'user.name=Synthetic', '-c', 'user.email=' + SYNTH_EMAIL, 'commit', '-qm', 'synthetic source')
     self.candidate = self.git('rev-parse', 'HEAD').strip()
-    self.policy_patch = patch.object(gate, 'POLICY_BASE', self.candidate)
-    self.policy_patch.start()
-    self.addCleanup(self.policy_patch.stop)
     files = gate.inventory(self.source)
     self.manifest = dict(schema=1, source_commit=self.candidate, dirty=False, files=files,
                          source_sha256=gate.sha(json.dumps(files, sort_keys=True, separators=(',', ':')).encode()),
@@ -103,16 +116,17 @@ class GateTests(unittest.TestCase):
     for i, name in enumerate(gate.OUTPUTS):
       p = build / name
       p.parent.mkdir(parents=True, exist_ok=True)
-      p.write_bytes(self.signed(str(i).encode()) if i < 2 else b'\x7fELFsynthetic ' + self.version.encode() + b'\0')
+      p.write_bytes(self.signed(str(i).encode()) if i < 2 else
+                    b'\x7fELFsynthetic ' + self.version.encode() + b'\0' + gate.TOOLCHAIN_COMMENT + b'\0')
     (build / 'panda/board/obj/version').write_text(self.version)
     commands = [dict(file='board/main.c', arguments=['arm-none-eabi-gcc', '-DALLOW_DEBUG', '-DSTM32H7', '-DSTM32H725xx']),
                 dict(file='board/body/main.c', arguments=['arm-none-eabi-gcc', '-DALLOW_DEBUG', '-DSTM32H7', '-DSTM32H725xx', '-DPANDA_BODY'])]
-    (build / 'panda/compile_commands.json').write_text(json.dumps(commands))
+    (build / gate.COMPILE_DB).write_text(json.dumps(commands))
     self.record(build)
 
   def record(self, build):
     record = dict(source_commit=self.candidate, source_sha256=self.manifest['source_sha256'], version=self.version,
-                  sha256={name: gate.sha((build / name).read_bytes()) for name in gate.OUTPUTS})
+                  toolchain=gate.PINNED_TOOLCHAIN, sha256={name: gate.sha((build / name).read_bytes()) for name in gate.OUTPUTS})
     (build / gate.ARTIFACT_MANIFEST).write_text(json.dumps(record))
 
   def verify(self):
@@ -217,7 +231,7 @@ class GateTests(unittest.TestCase):
       self.verify()
 
   def test_release_compile_flags(self):
-    p = self.first / 'panda/compile_commands.json'
+    p = self.first / gate.COMPILE_DB
     p.write_text(p.read_text().replace('-DALLOW_DEBUG', '-DRELEASE'))
     with self.assertRaisesRegex(ValueError, 'ALLOW_DEBUG'):
       self.verify()
@@ -238,12 +252,68 @@ class GateTests(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, 'separate'):
       gate.verify(self.source, self.archive, self.first, self.first, self.candidate)
 
-  def test_policy_changed_in_new_commit(self):
-    (self.source / 'panda/SConscript').write_text('changed signing policy')
-    self.git('add', 'panda/SConscript')
+  def commit_change(self, name, data):
+    p = self.source / name
+    if isinstance(data, bytes):
+      p.write_bytes(data)
+    else:
+      p.write_text(data)
+    self.git('add', name)
     self.git('-c', 'user.name=Synthetic', '-c', 'user.email=' + SYNTH_EMAIL, 'commit', '-qm', 'change')
-    with self.assertRaisesRegex(ValueError, 'policy changed'):
-      gate.checkout_policy(self.source, self.git('rev-parse', 'HEAD').strip())
+    return self.git('rev-parse', 'HEAD').strip()
+
+  def test_build_flag_changed_in_new_commit(self):
+    head = self.commit_change('panda/SConscript', SYNTH_SCONSCRIPT.replace('-DSTM32H7', '-DSTM32F4'))
+    with self.assertRaisesRegex(ValueError, 'build flags changed'):
+      gate.checkout_policy(self.source, head)
+
+  def test_release_flag_added_in_new_commit(self):
+    head = self.commit_change('panda/SConscript', SYNTH_SCONSCRIPT + 'common_flags += ["-DRELEASE"]\n')
+    with self.assertRaisesRegex(ValueError, 'build flags changed'):
+      gate.checkout_policy(self.source, head)
+
+  def test_signing_selection_changed_in_new_commit(self):
+    head = self.commit_change('panda/SConscript', SYNTH_SCONSCRIPT.replace('certs/debug', 'certs/other'))
+    with self.assertRaisesRegex(ValueError, 'signing selection'):
+      gate.checkout_policy(self.source, head)
+
+  def test_certificate_changed_in_new_commit(self):
+    for name in ('debug.pub', 'release.pub'):
+      head = self.commit_change(f'panda/board/crypto/certs/{name}', b'ssh-rsa replaced-' + name.encode())
+      with self.assertRaisesRegex(ValueError, 'signing certificate changed'):
+        gate.checkout_policy(self.source, head)
+
+  def test_archive_policy_checked_too(self):
+    (self.archive / 'panda/board/crypto/certs/release.pub').write_bytes(b'ssh-rsa other')
+    with self.assertRaises(ValueError):
+      self.verify()
+
+  def test_toolchain_record_mismatch(self):
+    p = self.first / gate.ARTIFACT_MANIFEST
+    record = json.loads(p.read_text())
+    record['toolchain'] = 'arm-none-eabi-gcc 12.2.0'
+    p.write_text(json.dumps(record))
+    with self.assertRaisesRegex(ValueError, 'toolchain version mismatch'):
+      self.verify()
+
+  def test_elf_built_with_other_toolchain(self):
+    for build in (self.first, self.second):
+      p = build / gate.OUTPUTS[2]
+      p.write_bytes(p.read_bytes().replace(gate.TOOLCHAIN_COMMENT, b'GCC: (other) 12.2.0'))
+      self.record(build)
+    with self.assertRaisesRegex(ValueError, 'ELF toolchain'):
+      self.verify()
+
+  def test_test_file_edit_keeps_identity(self):
+    before = gate.inventory(self.source)
+    (self.source / 'opendbc_repo/opendbc/safety/tests/test_mode.py').write_text('edited test')
+    (self.source / 'panda/tests/libpanda/panda.c').parent.mkdir(parents=True)
+    (self.source / 'panda/tests/libpanda/panda.c').write_text('test library')
+    self.assertEqual(before, gate.inventory(self.source))
+
+  def test_no_fixed_baseline_commit(self):
+    self.assertFalse(hasattr(gate, 'POLICY_BASE'))
+
 
   def test_missing_evidence_cli_fails(self):
     stderr = io.StringIO()
@@ -252,6 +322,23 @@ class GateTests(unittest.TestCase):
                         '--repeat', str(self.second / 'missing'), '--candidate', self.candidate])
     self.assertEqual(json.loads(stderr.getvalue())['status'], 'fail')
     self.assertEqual(code, 1)
+
+
+class RealTreePins(unittest.TestCase):
+  """The pins match this tree's certificates, SConscript and inventory rule."""
+
+  def test_real_tree_policy(self):
+    gate.build_policy(ROOT)
+
+  def test_inventory_matches_build_identity(self):
+    spec = importlib.util.spec_from_file_location('build_identity', ROOT / 'panda/build_identity.py')
+    bi = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bi)
+    names = set(bi.inventory(ROOT))
+    gate_names = set(gate.inventory(ROOT))
+    skipped = {n for n in gate_names - names if not bi.is_input(Path(n))}
+    self.assertEqual(names, gate_names - skipped)
+    self.assertFalse(any('tests' in Path(n).parts for n in names))
 
 
 if __name__ == '__main__':

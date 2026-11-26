@@ -81,7 +81,7 @@ class CarInterface(CarInterfaceBase):
     # set only while Auto Height is on with a Park height, and the Drive bit (2048) only with a Drive height and once this tree's
     # panda has the Drive rule. A height set to None leaves its bit off, so with both None the panda refuses every 0x308.
     ap1_car = candidate in (CAR.TESLA_AP1_MODELS, CAR.TESLA_AP1_MODELX) and not ret.dashcamOnly and ride_height.PANDA_TX_SUPPORTED
-    safety_params = flags_for_candidate(candidate, fingerprint, standstill=standstill, x_long=x_long,
+    safety_params = flags_for_candidate(candidate, fingerprint, standstill=standstill, x_long=x_long, s_long=s_long,
                                         ride_height=ap1_car and ride_height.park_burst_wanted(),
                                         ride_height_drive=(ap1_car and ride_height.PANDA_DRIVE_TX_SUPPORTED
                                                            and ride_height.drive_burst_wanted()),

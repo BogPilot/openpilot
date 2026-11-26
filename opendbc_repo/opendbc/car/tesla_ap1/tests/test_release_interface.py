@@ -128,7 +128,7 @@ def test_disabling_longitudinal_keeps_ap1_safety_in_stock_mode(monkeypatch):
   monkeypatch.setattr(interface, "disable_openpilot_long", lambda: True)
   cp = params()
   assert not cp.openpilotLongitudinalControl
-  assert cp.safetyConfigs[0].safetyParam == 9  # AP1 chassis neutral messages, no standstill experiment
+  assert cp.safetyConfigs[0].safetyParam == 8  # AP1 lateral only, the same as the Model X: no LONG_CONTROL, no standstill
 
 
 def test_bosch_radar_roundtrip_uses_target_radarpoint_schema():

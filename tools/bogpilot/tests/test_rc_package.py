@@ -80,8 +80,10 @@ class PackageTests(unittest.TestCase):
     files = {"SConstruct", "common/version.h"}
     for scope in ("panda", "opendbc_repo/opendbc/safety"):
       for path in (self.root / scope).rglob("*"):
-        if path.is_file() and "obj" not in path.parts:
-          files.add(path.relative_to(self.root).as_posix())
+        rel = path.relative_to(self.root)
+        is_test = "tests" in rel.parts or (rel.name.endswith(".py") and (rel.name.startswith("test_") or rel.name == "conftest.py"))
+        if path.is_file() and "obj" not in rel.parts and not is_test:
+          files.add(rel.as_posix())
     hashes = {name: m.digest(self.root / name) for name in sorted(files)}
     self.write(".panda-source.json", m.canonical(dict(schema=1, source_commit=self.sha, dirty=False,
                version='"synthetic"', files=hashes,

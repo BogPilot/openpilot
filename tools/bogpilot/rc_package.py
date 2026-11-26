@@ -219,10 +219,12 @@ def validate_panda(root, candidate, exclusions=None):
   for scope in ("panda", "opendbc_repo/opendbc/safety"):
     for p in (root / scope).rglob("*"):
       rel = p.relative_to(root)
-      if any(x in rel.parts for x in (".git", "__pycache__", ".pytest_cache", "obj")):
+      if any(x in rel.parts for x in (".git", "__pycache__", ".pytest_cache", "obj", "tests")):
         continue
       if p.name in (".sconsign.dblite", "compile_commands.json"):
         continue
+      if p.name.endswith(".py") and (p.name.startswith("test_") or p.name == "conftest.py"):
+        continue  # test files are not firmware inputs (panda/build_identity.py)
       if p.is_file() and not p.name.endswith((".pyc", ".o", ".so")):
         expected.add(rel.as_posix())
   files = {}

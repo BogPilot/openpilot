@@ -10,9 +10,14 @@ Checks independently implemented (does not import panda/build_identity.py):
 - Real checkout HEAD equals explicit full candidate SHA, clean except documented
   generated identity/obj/SCons files. All source manifest inputs and full SHA256
   match actual source AND archive, source version and `dirty:false` required.
-- Board, safety and signing/build files unchanged against immutable policy
-  baseline f5928f3b168159129bc88b8f65c9f53b3f73039d. That baseline is **only** a
-  policy comparison, never the firmware source version.
+- Pinned build policy, checked on the source checkout and on the archive (no fixed
+  baseline commit): SHA256 of the debug and release public certificates, every
+  compiler/linker flag literal in panda/SConscript (in order), the DEBUG signing
+  selection (in-repo debug key, both public keys embedded) and the toolchain
+  (`arm-none-eabi-gcc` 13.2.1, Arm GNU Toolchain 13.2.rel1, from agnos:19.9-build),
+  which must match the artifact record and the ELF `.comment` of both ELFs. Change a
+  pin only together with a reviewed signing, flag or toolchain change, and rebuild
+  the prebuilt firmware in the same release (panda/BUILD_IDENTITY.md, Release rule).
 - Both signed panda_h7/body_h7 images contain exactly the expected full source
   SHA / clean / fingerprint / DEBUG version; size/trailer and existing SHA1/RSA
   debug public-key signatures are verified without reading a private key.
@@ -22,7 +27,8 @@ Checks independently implemented (does not import panda/build_identity.py):
   and full output hashes. Two independently executed clean builds must produce
   identical output hashes. Same evidence directory cannot stand in for a repeat.
 - Archive generated inventory exclusions: obj/cache/.o/.so/.pyc/SCons databases
-  and compile_commands.json, exactly as documented by existing panda tooling.
+  and compile_commands.json, and test files (tests directories, test_*.py,
+  conftest.py), exactly as documented by panda/build_identity.py.
 
 Limits: manifests and compile commands are unsigned local build evidence, not
 host attestation. Gate cannot establish that somebody did not fabricate evidence
@@ -59,46 +65,30 @@ printf '%s\n' "$FINAL" > "$OUT/final-source-commit"
    `.panda-source.json`. Keep a separate extracted reference archive root. Never
    manufacture .git metadata. The firmware build step takes the normal build lock atomically,
    owns/reports liveness and releases in EXIT trap. Never steal another lock.
-4. In **agnos:19.9-build**, mount isolated tree at `/data/openpilot`, existing
-   matching dependency venv read-only, matching `/opt/uv-python` read-only, and
-   evidence directory at `/evidence`. Set the existing compiler environment:
+4. Build with the release build path (the cb8/cb11 combined build scripts on the
+   AGNOS VM): **agnos:19.9-build**, a build slot lock, 4 GB memory cap, network
+   off, `/dev/null` bound at `/dev/ion`, run as the VM user, no flash. Extract the
+   source tar and manifest into two NEW separate trees (`build1`, `build2`) and build
+   each once, from clean, mounted at `/data/openpilot`:
 
 ```bash
 set -euo pipefail
 unset RELEASE
-export PATH=/data/openpilot/.venv/bin:/usr/bin:/usr/local/venv/bin:/bin
-export PYTHONPATH=/data/openpilot:/data/openpilot/opendbc_repo
-cat /VERSION > /evidence/agnos-version
-arm-none-eabi-gcc --version > /evidence/compiler-version
-cd /data/openpilot
-python3 panda/build_identity.py verify > /evidence/source-version
-python3 -m unittest discover -s panda/tests -p test_build_identity.py
-python3 -m unittest discover -s tools/bogpilot/tests -p test_rc_firmware_gate.py
-cd panda
-for run in 1 2; do
-  scons -c board/obj/panda_h7.bin.signed board/obj/body_h7.bin.signed compile_commands.json > "/evidence/clean${run}.log" 2>&1
-  scons -j6 board/obj/panda_h7.bin.signed board/obj/body_h7.bin.signed compile_commands.json > "/evidence/build${run}.log" 2>&1
-  RUN="$run" python3 - <<'PY'
-import hashlib, json, os, shutil
-from pathlib import Path
-root = Path('/data/openpilot')
-dest = Path('/evidence') / ('build' + os.environ['RUN'])
-dest.mkdir(exist_ok=False)
-manifest = json.loads((root / '.panda-source.json').read_text())
-outputs = ('panda/board/obj/panda_h7.bin.signed', 'panda/board/obj/body_h7.bin.signed',
-           'panda/board/obj/panda_h7/main.elf', 'panda/board/obj/body_h7/main.elf')
-for name in (*outputs, 'panda/board/obj/version', 'panda/compile_commands.json'):
-    target = dest / name
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(root / name, target)
-record = dict(source_commit=manifest['source_commit'], source_sha256=manifest['source_sha256'],
-              version=(root / 'panda/board/obj/version').read_text(),
-              sha256={name: hashlib.sha256((dest / name).read_bytes()).hexdigest() for name in outputs})
-(dest / 'rc-firmware-artifacts.json').write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')
-PY
-  python3 ../panda/build_identity.py verify --root .. > "/evidence/source-after${run}.txt"
-done
+export PATH=/usr/local/venv/bin:/usr/local/.cargo/bin:/usr/bin:/usr/local/bin:/bin HOME=/scratch/home
+mkdir -p $HOME; cd /data/openpilot
+rm -rf panda/board/obj panda/tests/libpanda/libpanda.so && mkdir -p panda/board/obj
+python3 panda/build_identity.py verify            # DEV-<source commit>-c-<identity>-DEBUG
+arm-none-eabi-gcc --version | head -1              # must equal the pinned toolchain
+scons -j2 panda/board/obj/panda_h7.bin.signed panda/board/obj/body_h7.bin.signed \
+  panda/board/obj/bootstub.panda_h7.bin panda/board/obj/bootstub.body_h7.bin \
+  panda/tests/libpanda/libpanda.so compile_commands.json
 ```
+
+   For each tree write the evidence directory: the four OUTPUTS, `panda/board/obj/version`,
+   the root `compile_commands.json` and `rc-firmware-artifacts.json` with `source_commit`,
+   `source_sha256` (from the manifest), `version`, `toolchain` (the first line above) and
+   the SHA256 of the four OUTPUTS. Compare every output of the two trees byte for byte
+   (all of `panda/board/obj` and `libpanda.so`) before any artifact commit.
 
 5. Transfer preserved build1/build2 evidence back to private staging,
    without modifying the frozen source checkout, then run:

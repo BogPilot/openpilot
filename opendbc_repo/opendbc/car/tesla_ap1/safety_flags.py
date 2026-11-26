@@ -15,10 +15,14 @@ FLAG_TESLA_AP1_RIDE_HEIGHT_VERY_LOW = int(TeslaAp1SafetyFlags.AP1_RIDE_HEIGHT_VE
 
 
 def flags_for_candidate(candidate, fingerprint=None, standstill=False, x_long=False, ride_height=False, ride_height_drive=False,
-                        ride_height_very_low=False):
+                        ride_height_very_low=False, s_long=True):
   """Safety params tuple (one config) for the teslaAp1 safety model.
 
-  x_long is the AP1 Model X openpilot longitudinal (AP1XOpenpilotLong). It adds LONG_CONTROL, and with standstill also
+  s_long is the AP1 Model S openpilot longitudinal (DisableOpenpilotLongitudinal off). It adds LONG_CONTROL, and with standstill
+  also AP1_STANDSTILL. The car interface passes it, so with Disable on the Model S gets the lateral only param 8, the same as the
+  Model X. Default True keeps a direct call identical to before.
+
+  x_long is the AP1 Model X openpilot longitudinal (DisableOpenpilotLongitudinal off). It adds LONG_CONTROL, and with standstill also
   AP1_STANDSTILL, as on the Model S. Without x_long the X never gets standstill. Default False keeps the Model X lateral-only
   (flag 8), identical to before.
   ride_height is Auto Height (AutoHeight on with a Park height other than None at car start, was Lower on Park): adds
@@ -32,9 +36,12 @@ def flags_for_candidate(candidate, fingerprint=None, standstill=False, x_long=Fa
     raise RuntimeError("TESLA_FLAG_AP1 must be 8")
   flags = 0
   if candidate == CAR.TESLA_AP1_MODELS:
-    flags |= FLAG_TESLA_AP1 | FLAG_TESLA_LONG_CONTROL
-    if standstill:
-      flags |= FLAG_TESLA_AP1_STANDSTILL
+    # Same rule as the Model X below: LONG_CONTROL only with openpilot longitudinal, standstill only together with it.
+    flags |= FLAG_TESLA_AP1
+    if s_long:
+      flags |= FLAG_TESLA_LONG_CONTROL
+      if standstill:
+        flags |= FLAG_TESLA_AP1_STANDSTILL
   elif candidate == CAR.TESLA_AP1_MODELX:
     # Model X is lateral only unless x_long is passed: AP1 chassis safety, LONG_CONTROL only with x_long, and standstill only
     # together with LONG_CONTROL (same panda rule as the Model S: the standby frame needs both bits).

@@ -1366,8 +1366,8 @@ The beta-only "3 quick FWD stalk taps after disengaging -> userBookmark" detecto
 - One-time step (`force_ap1x_op_long_on_once`, marker `AP1XOpenpilotLongForcedOn2`): once per device on a detected X, drops a saved
   `AP1XOpenpilotLong` value and clears Disable (older builds had no Disable row on the X), then never again. A Disable set on the
   row writes that marker first, so it always sticks.
-- Disable on (stock TACC): `openpilotLongitudinalControl` false, `pcmCruise` true, AP1 safety param 8. openpilot never sends
-  `0x2b9` and the panda forwards the stock `DAS_control`.
+- Disable on (stock TACC): `openpilotLongitudinalControl` false, `pcmCruise` true, AP1 safety param 8 on both the Model S and the
+  Model X. openpilot never sends `0x2b9` and the panda forwards the stock `DAS_control`.
 - Disable off (openpilot long): `CarParams.openpilotLongitudinalControl` and the AP1 safety `LONG_CONTROL` flag are set together (param 9). The Model S chassis `0x2b9`
   path is used, with the Model S accel smoother and jerk limits. Engage from a stop (`AP1StandstillEngage`, default on) adds the AP1
   `STANDSTILL` flag as on the Model S (param 25). AEB events are never sent and stock AEB passes through.

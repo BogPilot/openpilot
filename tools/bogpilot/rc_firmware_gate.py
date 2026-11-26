@@ -11,8 +11,34 @@ import struct
 import subprocess
 import sys
 
-POLICY_BASE = 'f5928f3b168159129bc88b8f65c9f53b3f73039d'
+# Reviewed build policy pins. Change a pin only together with a reviewed signing, build flag or toolchain
+# change, and rebuild the prebuilt panda firmware in the same release.
+# Signing certificates (public halves; the gate never reads a private key).
+PINNED_CERTS = {
+  'panda/board/crypto/certs/debug.pub': '98be6f5fd87ab61c51e91991628d6d9f0b3fd1ef448176e5610a55f18fd4e301',
+  'panda/board/crypto/certs/release.pub': '9488d5c09307bc7ab25dfec337cb54f8788a0ae6b50e97b0c51e69b3e36cfd1c',
+}
+SCONSCRIPT = 'panda/SConscript'
+# Every double quoted compiler/linker flag literal in panda/SConscript, in file order.
+PINNED_BUILD_FLAGS = (
+  '-DALLOW_DEBUG', '-Wall', '-Wextra', '-Wstrict-prototypes', '-Werror', '-mlittle-endian', '-mthumb', '-nostdlib',
+  '-fno-builtin', '-std=gnu11', '-fmax-errors=1', "-T{File(project['LINKER_SCRIPT']).srcnode().relpath}",
+  '-fsingle-precision-constant', '-Os', '-g', '-DBOOTSTUB', '-DBOOTSTUB', '-DBOOTSTUB',
+  "-Wl,--section-start,.isr_vector={project['APP_START_ADDRESS']}", '-mcpu=cortex-m7', '-mhard-float', '-DSTM32H7',
+  '-DSTM32H725xx', '-Iboard/stm32h7/inc', '-mfpu=fpv5-d16', '-DHEALTH_PACKET_VERSION=0x{hh:08X}U',
+  '-DCAN_PACKET_VERSION_HASH=0x{ch:08X}U', '-DPANDA_BODY',
+)
+# DEBUG builds sign with the in-repo debug key and embed both public keys.
+PINNED_SIGNING_LINES = (
+  'cert_fn = File("./board/crypto/certs/debug").srcnode().relpath',
+  'certs = [get_key_header(n) for n in ["debug", "release"]]',
+)
+# First line of `arm-none-eabi-gcc --version` in agnos:19.9-build, and the matching ELF .comment.
+PINNED_TOOLCHAIN = 'arm-none-eabi-gcc (Arm GNU Toolchain 13.2.rel1 (Build arm-13.7)) 13.2.1 20231009'
+TOOLCHAIN_COMMENT = b'GCC: (Arm GNU Toolchain 13.2.rel1 (Build arm-13.7)) 13.2.1 20231009'
 SOURCE_MANIFEST = '.panda-source.json'
+# Compilation database of the release build (root SConstruct, the cb8/cb11 path); it holds the panda firmware entries.
+COMPILE_DB = 'compile_commands.json'
 ARTIFACT_MANIFEST = 'rc-firmware-artifacts.json'
 OUTPUTS = ('panda/board/obj/panda_h7.bin.signed', 'panda/board/obj/body_h7.bin.signed',
            'panda/board/obj/panda_h7/main.elf', 'panda/board/obj/body_h7/main.elf')
@@ -35,6 +61,13 @@ def run_git(root, *args):
   return subprocess.check_output(['git', '-C', str(root), *args], stderr=subprocess.DEVNULL).decode().strip()
 
 
+def is_test(name):
+  """Test files are not firmware inputs (same rule as panda/build_identity.py)."""
+  if 'tests' in name.parts:
+    return True
+  return name.name.endswith('.py') and (name.name.startswith('test_') or name.name == 'conftest.py')
+
+
 def inventory(root):
   """Independent implementation of the documented firmware source inventory."""
   names = {'SConstruct', 'common/version.h'}
@@ -42,7 +75,7 @@ def inventory(root):
     require((root / directory).is_dir(), f'missing source scope: {directory}')
     for path in (root / directory).rglob('*'):
       name = path.relative_to(root)
-      if set(name.parts) & {'.git', '__pycache__', '.pytest_cache', 'obj'}:
+      if set(name.parts) & {'.git', '__pycache__', '.pytest_cache', 'obj'} or is_test(name):
         continue
       if path.name in {'.sconsign.dblite', 'compile_commands.json'} or path.suffix in {'.pyc', '.o', '.so'}:
         continue
@@ -70,11 +103,24 @@ def checkout_policy(root, candidate):
   status = run_git(root, 'status', '--porcelain', '--untracked-files=all', '--', '.',
                    ':!' + SOURCE_MANIFEST, ':!panda/board/obj', ':!panda/.sconsign.dblite', ':!panda/compile_commands.json')
   require(not status, 'source checkout dirty (excluding documented generated outputs only)')
-  # Never print key material or safety diffs. Baseline is policy, NOT output provenance.
-  result = subprocess.run(['git', '-C', str(root), 'diff', '--quiet', POLICY_BASE, '--',
-                           'panda/SConscript', 'panda/board', 'opendbc_repo/opendbc/safety', ':!panda/board/obj'],
-                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-  require(result.returncode == 0, 'firmware safety/signing/build policy changed or baseline unavailable')
+  build_policy(root)
+
+
+def sconscript_flags(text):
+  return tuple(re.findall(r'"(-[^"\n]*)"', text))
+
+
+def build_policy(root):
+  """Pinned signing certificates and SConscript build flags. Never prints key material."""
+  for name, want in PINNED_CERTS.items():
+    path = root / name
+    require(path.is_file() and sha(path.read_bytes()) == want, f'signing certificate changed or missing: {name}')
+  path = root / SCONSCRIPT
+  require(path.is_file(), 'missing panda SConscript')
+  text = path.read_text()
+  require(sconscript_flags(text) == PINNED_BUILD_FLAGS, 'SConscript build flags changed')
+  for line in PINNED_SIGNING_LINES:
+    require(line in text, 'SConscript signing selection changed')
 
 
 def debug_public_key(path):
@@ -109,7 +155,7 @@ def verify_signed(data, version, key):
 
 
 def compile_policy(build):
-  entries = read_json(build / 'panda/compile_commands.json')
+  entries = read_json(build / COMPILE_DB)
   require(isinstance(entries, list) and entries, 'missing compilation evidence')
   for suffix, body in (('board/main.c', False), ('board/body/main.c', True)):
     matches = [x for x in entries if x.get('file', '').replace('\\', '/').endswith(suffix)]
@@ -128,6 +174,7 @@ def artifact_evidence(build, source_manifest, version, key):
   require(record.get('source_commit') == source_manifest['source_commit'], 'artifact source commit mismatch')
   require(record.get('source_sha256') == source_manifest['source_sha256'], 'artifact source fingerprint mismatch')
   require(record.get('version') == version, 'artifact version mismatch')
+  require(record.get('toolchain') == PINNED_TOOLCHAIN, 'toolchain version mismatch')
   hashes = {name: sha((build / name).read_bytes()) for name in OUTPUTS}
   require(record.get('sha256') == hashes, 'artifact SHA256 manifest mismatch')
   require((build / 'panda/board/obj/version').read_text() == version, 'generated version file mismatch')
@@ -137,6 +184,7 @@ def artifact_evidence(build, source_manifest, version, key):
   for name in OUTPUTS[2:]:
     data = (build / name).read_bytes()
     require(data.startswith(b'\x7fELF') and version.encode() + b'\x00' in data, 'ELF source identity missing')
+    require(TOOLCHAIN_COMMENT in data, 'ELF toolchain version mismatch')
   return hashes
 
 
@@ -148,12 +196,13 @@ def verify(source, archive, artifacts, repeat, candidate):
   version = source_identity(source, manifest, candidate)
   require(read_json(archive / SOURCE_MANIFEST) == manifest, 'archive/source manifest mismatch')
   require(source_identity(archive, manifest, candidate) == version, 'archive identity mismatch')
+  build_policy(archive)
   key = debug_public_key(source / 'panda/board/crypto/certs/debug.pub')
   first = artifact_evidence(artifacts, manifest, version, key)
   second = artifact_evidence(repeat, manifest, version, key)
   require(first == second, 'native firmware repeat builds differ')
   return dict(status='pass', source_sha=candidate, source_commit=candidate, source_sha256=manifest['source_sha256'],
-              version=version, sha256=first, scope='local evidence only; no hardware or safety certification')
+              version=version, toolchain=PINNED_TOOLCHAIN, sha256=first, scope='local evidence only; no hardware or safety certification')
 
 
 def main(argv=None):

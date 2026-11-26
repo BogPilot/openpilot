@@ -13,6 +13,7 @@ What's new
   * Auto Height settings save like a stock setting, off the screen thread
 * Maps: downloads started while driving are limited to 5 Mbit/s, run at the lowest priority and stay off the driving cores. Automatic map updates wait until the car is off
 * Tesla AP1 Model S and Model X now share the same defaults. Both use the one Disable openpilot Longitudinal Control setting, off by default, so openpilot Longitudinal with engage from a stop is on for both. The Model X also gets the rest of the Model S setup profile and the same section resets. A stock TACC choice saved on a Model X is kept. Steering values, Model X regen stop numbers and the Model X Very Low height stay car specific
+* Tesla AP1 Model S with Disable openpilot Longitudinal Control on now starts in the same steering only safety mode as the Model X, so openpilot can never send speed commands while stock TACC is in use
 
 Earlier update
 =======================

@@ -201,10 +201,10 @@ static bool steer_angle_cmd_inactive_check(int desired_angle, int max_angle) {
 }
 
 // Safety checks for angle-based steering commands
-bool steer_angle_cmd_checks(int desired_angle, bool steer_control_enabled, const AngleSteeringLimits limits) {
+bool steer_angle_cmd_checks_with_lateral_permission(int desired_angle, bool steer_control_enabled, const AngleSteeringLimits limits, bool lateral_allowed) {
   bool violation = false;
 
-  if (controls_allowed && steer_control_enabled) {
+  if (lateral_allowed && steer_control_enabled) {
     // convert floating point angle rate limits to integers in the scale of the desired angle on CAN,
     // add 1 to not false trigger the violation. also fudge the speed by 1 m/s so rate limits are
     // always slightly above openpilot's in case we read an updated speed in between angle commands
@@ -229,16 +229,21 @@ bool steer_angle_cmd_checks(int desired_angle, bool steer_control_enabled, const
   }
 
   // No angle control allowed when controls are not allowed
-  if (!controls_allowed) {
+  if (!lateral_allowed) {
     violation |= steer_control_enabled;
   }
 
   // reset to current angle if either controls is not allowed or there's a violation
-  if (violation || !controls_allowed) {
+  if (violation || !lateral_allowed) {
     desired_angle_last = SAFETY_CLAMP(angle_meas.values[0], -limits.max_angle, limits.max_angle);
   }
 
   return violation;
+}
+
+// All existing callers retain exactly the original controls_allowed permission.
+bool steer_angle_cmd_checks(int desired_angle, bool steer_control_enabled, const AngleSteeringLimits limits) {
+  return steer_angle_cmd_checks_with_lateral_permission(desired_angle, steer_control_enabled, limits, controls_allowed);
 }
 
 // Safety checks for curvature-based steering commands
@@ -405,5 +410,31 @@ bool steer_angle_cmd_checks_vm(int desired_angle, bool steer_control_enabled, co
     desired_angle_last = SAFETY_CLAMP(angle_meas.values[0], -limits.max_angle, limits.max_angle);
   }
 
+  return violation;
+}
+
+// BogPilot legacy Tesla (AP1 / Pre-AP) lateral stage 1: ISO lateral-accel bound and absolute angle cap for angle commands
+// whose rate is limited by lookup tables (steer_angle_cmd_checks_with_lateral_permission). The accel part is the one in
+// steer_angle_cmd_checks_vm: same constants, same fudged speed (1 m/s below the slowest recent speed, floored at 1 m/s).
+// Tightening only. On a violation the rate-limit reference is put back on the measured wheel, as the vm check does.
+bool steer_angle_lat_accel_check(int desired_angle, bool steer_control_enabled, bool lateral_allowed, const AngleSteeringLimits limits,
+                                 const AngleSteeringParams params) {
+  static const float MAX_LATERAL_ACCEL = ISO_LATERAL_ACCEL + (EARTH_G * AVERAGE_ROAD_ROLL);  // ~3.6 m/s^2
+
+  const float fudged_speed = SAFETY_MAX((vehicle_speed.min / VEHICLE_SPEED_FACTOR) - 1.0, 1.0);
+  const float curvature_factor = get_curvature_factor(fudged_speed, params);
+
+  bool violation = false;
+  if (lateral_allowed && steer_control_enabled) {
+    const float max_curvature = MAX_LATERAL_ACCEL / (fudged_speed * fudged_speed);
+    const float max_angle = get_angle_from_curvature(max_curvature, curvature_factor, params);
+    const int max_angle_can = (max_angle * limits.angle_deg_to_can) + 1.;
+    violation |= safety_max_limit_check(desired_angle, max_angle_can, -max_angle_can);
+    violation |= safety_max_limit_check(desired_angle, limits.max_angle, -limits.max_angle);
+  }
+
+  if (violation) {
+    desired_angle_last = SAFETY_CLAMP(angle_meas.values[0], -limits.max_angle, limits.max_angle);
+  }
   return violation;
 }
