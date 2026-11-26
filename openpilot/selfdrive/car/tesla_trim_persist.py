@@ -1,16 +1,21 @@
 """Save the Tesla trim detection the car made this drive (opendbc tesla_ap1/trims.py), for the offroad Vehicle page's
 Detected line and Trim list, and as the next drive's rpm per m/s seed.
 
-Runs in card's 10 Hz params thread (never in the 100 Hz step). Writes only when something new is known: the layout, the
-Performance rear, or a learned rpm per m/s that moved by more than RPM_CHANGE_FRAC from what is saved. That is a handful of
-tiny writes per drive at most, and none on a drive where nothing changed.
+Runs in card's 10 Hz params thread (never in the 100 Hz step). Writes only when something new is known. A new detection
+(chassis, layout, Performance rear, or a first learned rpm per m/s) is written at once, like stock's CarParamsPersistent.
+A refinement of an rpm per m/s that is already saved is written only when it moved by more than RPM_CHANGE_FRAC, at most
+every REFINE_INTERVAL_S (paramsd LiveParametersV2 cadence), plus once on the edge into Park. That is a handful of tiny writes
+per drive at most, and none on a drive where nothing changed.
 """
 from __future__ import annotations
 
 import math
 
+from openpilot.common.bogpilot_checkpoint import LEARNED_INTERVAL_S
+
 POLL_S = 1.0
-RPM_CHANGE_FRAC = 0.005
+RPM_CHANGE_FRAC = 0.01
+REFINE_INTERVAL_S = LEARNED_INTERVAL_S
 TESLA_TRIM_FINGERPRINTS = ("TESLA_AP1_MODELS", "TESLA_AP1_MODELX", "TESLA_PREAP_MODELS")
 
 
@@ -38,17 +43,36 @@ def detection_from_car_state(CS, fingerprint):
                         trims.clamp_rpm_per_ms(rear) if rear else None, trims.clamp_rpm_per_ms(front) if front else None)
 
 
-def _differs(a, b) -> bool:
+def _new_detection(a, b) -> bool:
+  """Something not known before: no saved detection, another chassis/layout/perf, or a first rpm per m/s."""
   if b is None:
     return True
   if (a.chassis, a.layout, a.perf) != (b.chassis, b.layout, b.perf):
     return True
+  return any(x is not None and y is None
+             for x, y in ((a.rear_rpm_per_ms, b.rear_rpm_per_ms), (a.front_rpm_per_ms, b.front_rpm_per_ms)))
+
+
+def _refined(a, b) -> bool:
+  """A saved rpm per m/s moved by more than RPM_CHANGE_FRAC."""
   for x, y in ((a.rear_rpm_per_ms, b.rear_rpm_per_ms), (a.front_rpm_per_ms, b.front_rpm_per_ms)):
-    if x is None:
+    if x is None or y is None:
       continue                        # nothing new learned: keep what is saved
-    if y is None or abs(x - y) > RPM_CHANGE_FRAC * y:
+    if abs(x - y) > RPM_CHANGE_FRAC * y:
       return True
   return False
+
+
+def _differs(a, b) -> bool:
+  return _new_detection(a, b) or _refined(a, b)
+
+
+def _parked(CS) -> bool:
+  try:
+    from opendbc.car.structs import car
+    return bool(CS.gearShifter == car.CarState.GearShifter.park)
+  except Exception:
+    return False
 
 
 class TrimPersist:
@@ -57,6 +81,8 @@ class TrimPersist:
     self.enabled = self.fingerprint in TESLA_TRIM_FINGERPRINTS
     self.path = path
     self.last_poll = None
+    self.last_write = None   # time of the last write, or of the first poll (refinements wait a full interval)
+    self.was_parked = None
     self.saved = None
     self.writes = 0
     if self.enabled:
@@ -71,6 +97,11 @@ class TrimPersist:
     if self.last_poll is not None and now - self.last_poll < POLL_S:
       return False
     self.last_poll = now
+    if self.last_write is None:
+      self.last_write = now
+    parked = _parked(CS)
+    park_edge = parked and self.was_parked is False
+    self.was_parked = parked
     try:
       from opendbc.car.tesla_ap1 import trims
       det = detection_from_car_state(CS, self.fingerprint)
@@ -82,11 +113,15 @@ class TrimPersist:
       merged = trims.Detected(det.chassis, det.layout, det.perf or (old.perf if same else trims.PERF_UNKNOWN),
                               det.rear_rpm_per_ms or (old.rear_rpm_per_ms if same else None),
                               det.front_rpm_per_ms or (old.front_rpm_per_ms if same else None))
-      if not _differs(merged, old):
-        return False
+      if not _new_detection(merged, old):
+        if not _refined(merged, old):
+          return False
+        if not park_edge and now - self.last_write < REFINE_INTERVAL_S:
+          return False
       if trims.write_detected(merged, self.path):
         self.saved = merged
         self.writes += 1
+        self.last_write = now
         return True
     except Exception:
       pass
