@@ -565,7 +565,7 @@ class TestLowercaseTitles(unittest.TestCase):
 class TestComma4Software(NoWindow):
   NATIVE = True
 
-  def test_downloads_follow_the_3x_parked_class(self):
+  def test_check_update_greyed_onroad_like_the_3x(self):
     from openpilot.selfdrive.ui.mici.layouts.settings.software import CheckUpdateButton
     btn = CheckUpdateButton()
     st = {"started": True, "parked": False}
@@ -574,7 +574,7 @@ class TestComma4Software(NoWindow):
     self.assertFalse(btn.enabled)                     # driving
     st["parked"] = True
     btn._update_state()
-    self.assertTrue(btn.enabled)                      # in Park: allowed, as on the 3X
+    self.assertFalse(btn.enabled)                     # in Park: greyed too (updated runs offroad only), as on the 3X
     st.update(started=False, parked=False)
     btn._update_state()
     self.assertTrue(btn.enabled)                      # car off

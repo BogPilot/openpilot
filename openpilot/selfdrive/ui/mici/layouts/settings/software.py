@@ -49,6 +49,9 @@ class SoftwareInfoLayoutMici(InfoLayoutMici):
       self.subtext2.set_text(ui_state.params.get("GitBranch") or "N/A")
 
 
+OFFROAD_ONLY_TEXT = "available when offroad"
+
+
 class CheckUpdateButton(BigButton):
   UPDATER_PROC = "openpilot.system.updated.updated"
   CHECK_FOR_UPDATE = "SIGUSR1"
@@ -83,6 +86,9 @@ class CheckUpdateButton(BigButton):
     self._signal_updater(self.CHECK_FOR_UPDATE)
 
   def _signal_updater(self, sig: str):
+    from openpilot.selfdrive.ui.bogpilot import onroad_policy
+    if onroad_policy.state().started():
+      return  # updated is not running onroad
     self.set_enabled(False)
     self._state = UpdaterState.WAITING_FOR_UPDATER
     self._hide_value_t = None
@@ -104,19 +110,26 @@ class CheckUpdateButton(BigButton):
   def _update_state(self):
     super()._update_state()
 
-    # BogPilot (same rule as the 3X Software panel): downloads while the car is off or in Park, through the shared
-    # onroad_policy PARKED class. Install stays offroad only (InstallUpdateButton).
+    # BogPilot (same rule as the 3X Software panel): updated runs offroad only (process_config only_offroad), so onroad,
+    # Park included, the button is greyed out with OFFROAD_ONLY_TEXT. Install stays offroad only (InstallUpdateButton).
     from openpilot.selfdrive.ui.bogpilot import onroad_policy
     drive = onroad_policy.state()
     started = drive.started()
-    if not onroad_policy.downloads_allowed(started, drive.parked() if started else True):
+    if started or not onroad_policy.downloads_allowed(started, drive.parked() if started else True):
       self.set_enabled(False)
       self._blocked = True
+      self._state = UpdaterState.IDLE
+      self._hide_value_t = None
+      self.set_rotate_icon(False)
+      if self.get_value() != OFFROAD_ONLY_TEXT:
+        self.set_value(OFFROAD_ONLY_TEXT)
       return
     if getattr(self, "_blocked", False):
       self._blocked = False
+      if self.get_value() == OFFROAD_ONLY_TEXT:
+        self.set_value("")
       if self._state == UpdaterState.IDLE:
-        self.set_enabled(True)   # back in Park / off: the IDLE branch below only re-enables on failure / fetch / result
+        self.set_enabled(True)   # back offroad: the IDLE branch below only re-enables on failure / fetch / result
 
     updater_state = ui_state.params.get("UpdaterState") or ""
     failed_count = ui_state.params.get("UpdateFailedCount") or 0
