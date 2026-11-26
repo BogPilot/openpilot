@@ -1,11 +1,13 @@
 """Map Curve Speed (CSCMapCurvature, mapd v2 mapCurveSpeed) in Ap1CurveSpeed: on by default with mapd v2, one point of the
 curve speed planner's envelope (rescaled to the one lateral limit, never up), never changes the cruise speed itself, only
-where CSC could control, fails closed on stale data, follows mapd's value raw (no hold). Synthetic, no mapd."""
+where CSC could control, fails closed on stale data, follows mapd's value raw (no hold; a short mapd
+gap keeps the point, see MapCurvePoint). Synthetic, no mapd."""
 import pytest
 
 from openpilot.common.realtime import DT_MDL
 from openpilot.selfdrive.controls.lib import ap1_curve_speed as A
 from openpilot.selfdrive.controls.lib.bogpilot_csc import CRUISING_SPEED
+from openpilot.selfdrive.controls.lib.curve_speed_planner import MAP_GAP_S
 from openpilot.selfdrive.controls.tests.test_ap1_curve_speed_planner import SM, ap1_cp, msgs, planner, drive, road
 from openpilot.system.bogpilot.osm.mapd_v2 import MapdV2Data, NO_V2, map_curve_cap
 
@@ -132,9 +134,13 @@ def test_lower_raise_and_release_are_immediate():
   tick.data = MapdV2Data(True, 25.0, 0, 0, 11.0)
   step(c)
   assert c.map_cap < a and c.planner.v_limit == pytest.approx(c.map_cap)     # lower at once
+  kept = c.planner.v_limit
   tick.data = MapdV2Data(True, 25.0, 0, 0, 0.0)              # curve left mapd's report
   assert step(c) == pytest.approx(30.0) and c.map_cap == 0.0
-  assert c.planner.v_limit == float("inf") and c.v_cruise_out == pytest.approx(30.0)   # released on the very next tick
+  assert c.planner.v_limit == pytest.approx(kept)            # kept through a short mapd gap (same curve, counted down)
+  for _ in range(int(MAP_GAP_S / DT_MDL) + 1):
+    step(c)
+  assert c.planner.v_limit == float("inf") and c.v_cruise_out == pytest.approx(30.0)   # released after MAP_GAP_S
 
 
 def test_immediate_rise_at_curve_exit():
