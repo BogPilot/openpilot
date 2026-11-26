@@ -263,7 +263,15 @@ def _write_text_file(key: str, text: str) -> None:
   file's mode, or 0o644 if the file is new, before replacing.
   """
   _params_dir.mkdir(parents=True, exist_ok=True)
-  dest = _path(key)
+  write_file_durable(_path(key), text)
+
+
+def write_file_durable(dest: Path, text: str) -> None:
+  """The _write_text_file steps for any path (Auto Height uses it too): a tmp next to dest with dest's mode (0o644 when new),
+  write, fsync, os.replace over dest, fsync the directory. Same order as stock Params::put, so a crash leaves the old or the
+  new value, never a torn one, and the new value is on flash when this returns."""
+  dest = Path(dest)
+  dest.parent.mkdir(parents=True, exist_ok=True)
   mode = dest.stat().st_mode & 0o777 if dest.is_file() else 0o644
   fd, tmp_name = tempfile.mkstemp(prefix=dest.name + ".", suffix=".tmp", dir=str(dest.parent))
   try:

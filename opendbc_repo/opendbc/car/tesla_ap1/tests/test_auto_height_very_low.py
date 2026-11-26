@@ -13,6 +13,12 @@ SCREEN = bytes.fromhex("407f9ab616010600")      # idle Model X screen frame (byt
 VLOW = rh.LEVEL_VERY_LOW
 
 
+@pytest.fixture(autouse=True)
+def _settings_saved_at_once(monkeypatch):
+  # these tests read and write the setting files directly; the background save is tested in test_auto_height_durable_save.py
+  monkeypatch.setattr(rh, "_save", rh._durable_write)
+
+
 @pytest.fixture
 def very_low_panda(monkeypatch):
   monkeypatch.setattr(rh, "PANDA_TX_SUPPORTED", True)

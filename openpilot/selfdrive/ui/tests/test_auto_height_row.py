@@ -12,6 +12,12 @@ KEY, PARK, DRIVE = pv.AUTO_HEIGHT, pv.AUTO_HEIGHT_PARK, pv.AUTO_HEIGHT_DRIVE
 ALL_LEVELS = (1, 2, 3, 4)
 
 
+@pytest.fixture(autouse=True)
+def _settings_saved_at_once(monkeypatch):
+  # these tests read and write the setting files directly; the background save is tested in test_auto_height_durable_save.py
+  monkeypatch.setattr(rh, "_save", rh._durable_write)
+
+
 def cp(fp, dashcam=False, long=True):
   return SimpleNamespace(carFingerprint=fp, dashcamOnly=dashcam, openpilotLongitudinalControl=long, alphaLongitudinalAvailable=False)
 

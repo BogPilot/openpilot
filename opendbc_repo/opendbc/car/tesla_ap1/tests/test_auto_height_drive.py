@@ -15,6 +15,12 @@ HIGH = rh.LEVEL_HIGH
 VHIGH = rh.LEVEL_VERY_HIGH
 
 
+@pytest.fixture(autouse=True)
+def _settings_saved_at_once(monkeypatch):
+  # these tests read and write the setting files directly; the background save is tested in test_auto_height_durable_save.py
+  monkeypatch.setattr(rh, "_save", rh._durable_write)
+
+
 def step(hod, gear="drive", *, tx=True, active=False, v=0.0, gas=False, src=SCREEN, age=0.05, new=(), level=MED):
   return hod.update(gear=gear, can_tx=tx, controls_active=active, v_ego=v, gas_pressed=gas, source=src, source_age_s=age,
                     new_sources=new, prefs=lambda: (level is not None, level))   # level None = Auto Height off

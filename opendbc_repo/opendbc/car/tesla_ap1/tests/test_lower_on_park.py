@@ -15,6 +15,12 @@ LOW = rh.LEVEL_LOW
 MED = rh.LEVEL_MEDIUM
 
 
+@pytest.fixture(autouse=True)
+def _settings_saved_at_once(monkeypatch):
+  # these tests read and write the setting files directly; the background save is tested in test_auto_height_durable_save.py
+  monkeypatch.setattr(rh, "_save", rh._durable_write)
+
+
 def step(lop, *, park=True, known=True, tx=True, active=False, v=0.0, src=SCREEN, age=0.05, new=(), prefs=(True, LOW)):
   return lop.update(in_park=park, gear_known=known, can_tx=tx, controls_active=active, v_ego=v, source=src,
                     source_age_s=age, new_sources=new, prefs=lambda: prefs)

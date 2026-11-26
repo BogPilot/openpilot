@@ -31,6 +31,8 @@ The old LowerOnPark / LowerOnParkHeight files are only read, never changed or de
 """
 from __future__ import annotations
 
+import threading
+import time
 from pathlib import Path
 
 RIDE_HEIGHT_ADDR = 0x308
@@ -104,10 +106,17 @@ def _text(v) -> str:
 
 
 def _read(path: Path) -> str:
+  pending = _settings_writer.pending(path)
+  if pending is not None:
+    return pending                 # a tap still being saved: this process sees it at once
   try:
     return path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
   except OSError:
     return ""
+
+
+def _exists(path: Path) -> bool:
+  return _settings_writer.pending(path) is not None or path.is_file()
 
 
 def _write(path: Path, text: str) -> None:
@@ -117,13 +126,85 @@ def _write(path: Path, text: str) -> None:
   tmp.replace(path)
 
 
+def _durable_write(path: Path, text: str) -> None:
+  from opendbc.car.tesla_ap1.preap.params import write_file_durable
+  write_file_durable(path, text)
+
+
+class SettingsWriter:
+  """Saves the Auto Height settings like a stock settings toggle (tmp, fsync, rename, directory fsync, via the Pre-AP
+  writer) on a short background thread, so a tap never waits on flash. Taps that come faster than the flash keep only the
+  latest value per file. Reads in this process see a pending value at once (_read). The thread is not a daemon and exits
+  when nothing is pending, so the interpreter waits for the last write at exit; flush() waits explicitly."""
+
+  def __init__(self, write=None):
+    self._write = write
+    self._lock = threading.Lock()
+    self._pending: dict[Path, str] = {}
+    self._thread: threading.Thread | None = None
+    self.writes = 0
+    self.errors = 0
+
+  def put(self, path: Path, text: str) -> None:
+    with self._lock:
+      self._pending[Path(path)] = text
+      if self._thread is None:       # decided under the lock the writer exits under: a put never strands
+        self._thread = threading.Thread(target=self._run, name="auto_height_save", daemon=False)
+        self._thread.start()
+
+  def pending(self, path: Path) -> str | None:
+    with self._lock:
+      return self._pending.get(Path(path))
+
+  def _run(self) -> None:
+    write = self._write or _durable_write
+    while True:
+      with self._lock:
+        if not self._pending:
+          self._thread = None
+          return
+        path, text = next(iter(self._pending.items()))
+      try:
+        write(path, text)
+        self.writes += 1
+      except OSError:
+        self.errors += 1             # the file keeps its previous value
+      with self._lock:
+        if self._pending.get(path) == text:
+          del self._pending[path]    # a newer tap for this file stays queued and is written next
+
+  def flush(self, timeout: float = 5.0) -> bool:
+    """Wait until every pending value is on flash. True when nothing is pending."""
+    end = time.monotonic() + timeout
+    while True:
+      with self._lock:
+        t = self._thread
+      if t is None:
+        return True
+      t.join(max(0.0, end - time.monotonic()))
+      if time.monotonic() >= end:
+        with self._lock:
+          return self._thread is None
+
+
+_settings_writer = SettingsWriter()
+
+
+def flush_settings(timeout: float = 5.0) -> bool:
+  return _settings_writer.flush(timeout)
+
+
+def _save(path: Path, text: str) -> None:
+  _settings_writer.put(path, text)
+
+
 def _legacy(path: Path, legacy_key: str) -> Path:
   return path.with_name(legacy_key)
 
 
 def _read_migrated(path: Path, legacy_key: str) -> str:
   """The new key's file when it exists, else the old Lower on Park file next to it (read only), else empty."""
-  return _read(path) if path.is_file() else _read(_legacy(path, legacy_key))
+  return _read(path) if _exists(path) else _read(_legacy(path, legacy_key))
 
 
 def _height_text(stored) -> str:
@@ -138,7 +219,7 @@ def enabled(stored: str | bytes | None = None, path: Path | None = None) -> bool
 
 
 def set_enabled(state: bool, path: Path | None = None) -> None:
-  _write(path if path is not None else _enable_path, "1" if state else "0")
+  _save(path if path is not None else _enable_path, "1" if state else "0")
 
 
 def _choice(stored, default: str) -> str:
@@ -157,7 +238,7 @@ def set_height(value: str, path: Path | None = None) -> None:
   value = _height_text(value)
   if value not in X_CHOICES:
     raise ValueError(value)
-  _write(path if path is not None else _height_path, value)
+  _save(path if path is not None else _height_path, value)
 
 
 def very_low_offered(model_x: bool = False) -> bool:
@@ -186,7 +267,7 @@ def drive_height(stored: str | bytes | None = None, path: Path | None = None) ->
   files sit next to this one), else medium. Unknown = medium."""
   if stored is None:
     path = path if path is not None else _drive_height_path
-    if not path.is_file():
+    if not _exists(path):
       return NONE if _moved_from_lower_on_park(path) else DRIVE_HEIGHT_DEFAULT
     stored = _read(path)
   return _choice(stored, DRIVE_HEIGHT_DEFAULT)
@@ -196,7 +277,7 @@ def set_drive_height(value: str, path: Path | None = None) -> None:
   value = _height_text(value)
   if value not in X_CHOICES:
     raise ValueError(value)
-  _write(path if path is not None else _drive_height_path, value)
+  _save(path if path is not None else _drive_height_path, value)
 
 
 def drive_level_for(value: str | bytes | None = None, path: Path | None = None, model_x: bool = False) -> int | None:
