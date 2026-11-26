@@ -106,6 +106,52 @@ class TestParams(OpenpilotTestCase):
     assert q.get("CarParams") is None
     assert q.get("CarParams", True) == b"1"
 
+  @staticmethod
+  def _reads_back(key, want, timeout=1.0):
+    reader = Params()
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+      if reader.get(key) == want:
+        return True
+      time.sleep(0.0002)
+    return reader.get(key) == want
+
+  def test_put_non_blocking_never_strands_a_write(self):
+    # a new value right after the previous one lands probes the moment the
+    # writer thread finds the queue empty and is about to return
+    q = Params()
+    for i in range(1000):
+      val = f"single{i}".encode()
+      q.put("CarParams", val)
+      assert self._reads_back("CarParams", val), f"write {i} was not persisted"
+
+  def test_put_non_blocking_two_threads_one_object(self):
+    q = Params()
+    errors = []
+    def _writer(key, prefix, as_bytes):
+      for i in range(500):
+        val = f"{prefix}{i}"
+        val = val.encode() if as_bytes else val
+        q.put(key, val)
+        if not self._reads_back(key, val):
+          errors.append((key, i))
+          return
+    threads = [threading.Thread(target=_writer, args=("CarParams", "a", True)),
+               threading.Thread(target=_writer, args=("DongleId", "b", False))]
+    for t in threads:
+      t.start()
+    for t in threads:
+      t.join()
+    assert not errors, f"writes not persisted: {errors}"
+
+  def test_put_non_blocking_then_release_object(self):
+    for i in range(200):
+      q = Params()
+      val = f"released{i}".encode()
+      q.put("CarParams", val)
+      del q  # the destructor waits for the writer
+      assert Params().get("CarParams") == val
+
   def test_params_all_keys(self):
     keys = Params().all_keys()
 

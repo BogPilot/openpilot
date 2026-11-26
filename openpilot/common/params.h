@@ -2,6 +2,7 @@
 
 #include <future>
 #include <map>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <tuple>
@@ -87,4 +88,8 @@ private:
   // for nonblocking write
   std::future<void> future;
   SafeQueue<std::pair<std::string, std::string>> queue;
+  // guards future and async_running. The writer clears async_running under this lock
+  // in the same step as its final empty pop, so a later push always starts a new writer.
+  std::mutex async_lock;
+  bool async_running = false;
 };

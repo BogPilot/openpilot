@@ -225,9 +225,13 @@ void Params::clearAll(ParamKeyFlag key_flag) {
 }
 
 void Params::putNonBlocking(const std::string &key, const std::string &val) {
-   queue.push(std::make_pair(key, val));
-  // start thread on demand
-  if (!future.valid() || future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
+  std::lock_guard<std::mutex> lk(async_lock);
+  queue.push(std::make_pair(key, val));
+  // start a writer only when none is running. This is decided under the same lock
+  // the writer exits under, so a push can never land after the final pop of a
+  // writer that is still counted as running.
+  if (!async_running) {
+    async_running = true;
     future = std::async(std::launch::async, &Params::asyncWriteThread, this);
   }
 }
@@ -235,7 +239,14 @@ void Params::putNonBlocking(const std::string &key, const std::string &val) {
 void Params::asyncWriteThread() {
   // TODO: write the latest one if a key has multiple values in the queue.
   std::pair<std::string, std::string> p;
-  while (queue.try_pop(p, 0)) {
+  while (true) {
+    {
+      std::lock_guard<std::mutex> lk(async_lock);
+      if (!queue.try_pop(p, 0)) {
+        async_running = false;
+        return;
+      }
+    }
     // Params::put is Thread-Safe
     put(p.first, p.second);
   }
