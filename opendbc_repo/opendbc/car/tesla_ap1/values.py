@@ -42,7 +42,8 @@ class CAR(Platforms):
   # Lateral through the Pre-AP safety flag; longitudinal only through the Comma Pedal (see preap/).
   TESLA_PREAP_MODELS = TeslaAp1PlatformConfig(
     [CarDocs("Tesla Model S (Pre-Autopilot) 2012-14", "Pre-Autopilot", support_type=SupportType.COMMUNITY, support_link="#community")],
-    CarSpecs(wheelbase=2.959, steerRatio=15.0),
+    # Same chassis and starting value as the AP1 Model S (14.0); paramsd still learns each car's own ratio.
+    CarSpecs(wheelbase=2.959, steerRatio=14.0),
   )
   # Real Model X specs: wheelbase 2.965 m (the Model S is 2.959). steerRatio 16.8 is measured on a real AP1 Model X drive
   # (26 min, lateral engaged): paramsd learned 16.66-16.98 (median 16.78) with tire stiffness 0.99, and a steady-turn fit
