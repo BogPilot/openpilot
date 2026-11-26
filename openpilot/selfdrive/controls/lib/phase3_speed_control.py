@@ -42,6 +42,7 @@ import copy
 import math
 import time
 
+from openpilot.common.bogpilot_checkpoint import RATE_LIMITED_INTERVAL_S, Checkpoint
 from opendbc.car.tesla_ap1.slc_raise import Ap1RaiseHoldoff, Ap1SlcLimitGuard, ap1_cruise_ms
 
 DT_MDL = 0.05                 # common/realtime.DT_MDL
@@ -617,6 +618,11 @@ class Ap1SpeedControl:
     self._store = store
     self._toggles_fn = toggles_fn
     self._clock = clock
+    # PreviousSpeedLimit saves like power_monitoring CarBatteryCapacity: the first change at once, then at most every 10 s with
+    # the latest value winning, plus once on the edge into Park.
+    self._prev_limit_ckpt = Checkpoint("PreviousSpeedLimit", RATE_LIMITED_INTERVAL_S, clock=clock, first_at_once=True)
+    self._prev_limit_pending = None
+    self._prev_limit_parked = None
     self._toggles = None
     self._toggles_t = -1e9
     self._adopted = False
@@ -659,7 +665,34 @@ class Ap1SpeedControl:
 
   # ---- toggles ----
   def _persist_previous(self, value):
-    self._store.put("PreviousSpeedLimit", str(float(value)))
+    self._prev_limit_pending = float(value)
+    self._prev_limit_ckpt.mark()
+    self._write_previous(force=False)
+
+  def _write_previous(self, force: bool) -> None:
+    ck = self._prev_limit_ckpt
+    if self._store is None or self._prev_limit_pending is None or not ck.dirty:
+      return
+    if not force and not ck.due():
+      return
+    try:
+      self._store.put("PreviousSpeedLimit", str(self._prev_limit_pending))
+    except Exception:
+      return
+    ck.saved()
+
+  def _previous_limit_tick(self, sm) -> None:
+    """Deferred latest value once its 10 s are up, and the extra save on the edge into Park."""
+    parked = None
+    try:
+      from opendbc.car.structs import car
+      parked = bool(sm["carState"].gearShifter == car.CarState.GearShifter.park)
+    except Exception:
+      pass
+    edge = parked is True and self._prev_limit_parked is False
+    if parked is not None:
+      self._prev_limit_parked = parked
+    self._write_previous(force=edge)
 
   def toggles(self):
     now = self._clock()
@@ -738,6 +771,7 @@ class Ap1SpeedControl:
 
   def update(self, sm, v_cruise: float, v_ego: float, dt: float = DT_MDL) -> float:
     """v_cruise (m/s, already min(carState.vCruise, V_CRUISE_MAX)) -> SLC / stalk set (m/s)."""
+    self._previous_limit_tick(sm)
     t = self.toggles() if self.ap1 else None
     if t is not None and self._preap_auto:
       t = preap_auto_fallback_toggles(t)

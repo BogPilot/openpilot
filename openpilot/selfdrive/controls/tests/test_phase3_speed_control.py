@@ -569,6 +569,54 @@ class TestDefaultOnActivation(unittest.TestCase):
       self.assertEqual(run(ctl, Sm(), 30.0, 20.0, limit=45 * MPH), 30.0)
 
 
+class TestPreviousSpeedLimitCadence(unittest.TestCase):
+  """PreviousSpeedLimit saves like CarBatteryCapacity: first change at once, then at most every 10 s, latest wins, park flush."""
+
+  def setUp(self):
+    self.t = [100.0]
+    self.store = FakeStore()
+    self.ctl = sc.Ap1SpeedControl(CP_AP1, store=self.store, toggles_fn=lambda: toggles(), clock=lambda: self.t[0], adopted=True,
+                                  auto_speed=True)
+
+  def writes(self):
+    return [v for k, v in self.store.puts if k == "PreviousSpeedLimit"]
+
+  def test_interval_is_the_stock_10_s_floor(self):
+    self.assertEqual(self.ctl._prev_limit_ckpt.interval_s, 10.0)
+
+  def test_flicker_writes_at_most_once_per_10_s_and_the_latest_wins(self):
+    sm = Sm()
+    self.ctl._persist_previous(30 * MPH)
+    self.assertEqual(self.writes(), [str(30 * MPH)])              # first change at once
+    for i in range(50):                                          # 5 s of a limit flickering every tick
+      self.t[0] += 0.1
+      self.ctl._persist_previous((35 if i % 2 else 40) * MPH)
+      self.ctl._previous_limit_tick(sm)
+    self.assertEqual(len(self.writes()), 1)
+    self.ctl._persist_previous(45 * MPH)
+    self.t[0] += 5.1
+    self.ctl._previous_limit_tick(sm)
+    self.assertEqual(self.writes()[-1], str(45 * MPH))           # deferred latest value once the 10 s are up
+    self.assertEqual(len(self.writes()), 2)
+    self.t[0] += 60.0
+    self.ctl._previous_limit_tick(sm)
+    self.assertEqual(len(self.writes()), 2)                      # nothing new: no write
+
+  def test_park_edge_saves_a_pending_limit_at_once(self):
+    from opendbc.car.structs import car
+    G = car.CarState.GearShifter
+    sm = Sm()
+    sm["carState"].gearShifter = G.drive
+    self.ctl._previous_limit_tick(sm)
+    self.ctl._persist_previous(30 * MPH)
+    self.t[0] += 1.0
+    self.ctl._persist_previous(50 * MPH)
+    self.assertEqual(self.writes(), [str(30 * MPH)])
+    sm["carState"].gearShifter = G.park
+    self.ctl._previous_limit_tick(sm)
+    self.assertEqual(self.writes(), [str(30 * MPH), str(50 * MPH)])
+
+
 if __name__ == "__main__":
   unittest.main()
 
