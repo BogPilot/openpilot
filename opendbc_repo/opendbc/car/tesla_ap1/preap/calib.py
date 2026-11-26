@@ -34,7 +34,6 @@ STAGE_FAILED = "failed"
 # The failure reason is shown on the guided screen. na-preap (BogPilot 0.9.7 Pre-AP) stored only the first 120 characters, which cut the reason
 # (and its "try again" advice) off mid-word; UI text only, no calibration value or threshold changed.
 MESSAGE_MAX = 300
-PEDAL_LIVE_S = 3.0             # PedalSeenTs older than this = the pedal is not being heard now
 
 # DI units (NAP nap_conf / na-preap calib.py)
 PEDAL_DI_ZERO = 0.0
@@ -356,20 +355,15 @@ def set_stage(stage: str) -> None:
     set_str(PreApParamKeys.PEDAL_CALIB_STAGE, stage)
 
 
-def pedal_live(now: float | None = None, mono_now: float | None = None) -> bool:
-  """True when the car process has heard the pedal in the last PEDAL_LIVE_S seconds (the PedalDetected file alone goes stale offroad).
+def pedal_live_from_car_state(car_state_alive: bool, bogpilot) -> bool:
+  """True when the car process is publishing carState and it says the pedal is heard now.
 
-  Either heartbeat counts: the wall-clock PedalSeenTs, or PedalSeenMono on time.monotonic() (one clock for every process
-  since boot), so a wall-clock jump between the write and the read does not hide a live pedal."""
-  if not pedal_detected():
+  carState.bogpilot.preapPedalDetected is computed in RAM by PreApCarState (GAS_SENSOR IDX counter moving, 0.5 s timeout), the way
+  NAP and stock liveness signals work. When carState stops (offroad, card down) the row goes "Not detected" at once. Nothing is read
+  from or written to disk."""
+  if not car_state_alive or bogpilot is None:
     return False
-  seen = get_float(PreApParamKeys.PEDAL_SEEN_TS)
-  now = time.time() if now is None else now
-  if seen > 0.0 and 0.0 <= (now - seen) <= PEDAL_LIVE_S:
-    return True
-  seen_mono = get_float(PreApParamKeys.PEDAL_SEEN_MONO)
-  mono_now = time.monotonic() if mono_now is None else mono_now
-  return bool(seen_mono > 0.0 and 0.0 <= (mono_now - seen_mono) <= PEDAL_LIVE_S)
+  return bool(getattr(bogpilot, "preapPedalDetected", False))
 
 
 def current_pedal_transform() -> tuple[float, float]:

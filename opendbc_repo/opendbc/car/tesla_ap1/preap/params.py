@@ -27,8 +27,10 @@ class PreApParamKeys:
   PEDAL_CALIB_MESSAGE = "PedalCalibMessage"  # runtime UI status / fail reason
   PEDAL_DETECTED = "PedalDetected"      # runtime mirror for UI status line
   PEDAL_CALIB_STAGE = "PedalCalibStage"  # runtime: "", coast, coast_ok, saved, failed (the car publishes, the UI reads)
-  PEDAL_SEEN_TS = "PedalSeenTs"          # runtime: wall-clock heartbeat while the pedal is heard (UI status goes stale without it)
-  PEDAL_SEEN_MONO = "PedalSeenMono"      # runtime: the same heartbeat on time.monotonic() (survives a wall-clock jump)
+  # Former 1 Hz pedal heartbeat files. No longer written: live presence is carState.bogpilot.preapPedalDetected. The names are
+  # kept only so a file left by an older build is removed once at car start (remove_stale_runtime_files).
+  PEDAL_SEEN_TS = "PedalSeenTs"
+  PEDAL_SEEN_MONO = "PedalSeenMono"
   # Pre-AP NAP-style double-pull under Always On Lateral. Default ON.
   # File-backed: July params_pyx.so cannot store new Params keys.
   DOUBLE_PULL = "TeslaPreApDoublePull"
@@ -293,6 +295,18 @@ def _write_text_file(key: str, text: str) -> None:
       except OSError:
         pass
     raise
+
+
+STALE_RUNTIME_KEYS = (PreApParamKeys.PEDAL_SEEN_TS, PreApParamKeys.PEDAL_SEEN_MONO)
+
+
+def remove_stale_runtime_files() -> None:
+  """Delete runtime files that no build writes any more (the old pedal heartbeat). Called once at car start, never in the step."""
+  for key in STALE_RUNTIME_KEYS:
+    try:
+      _path(key).unlink(missing_ok=True)
+    except OSError:
+      pass
 
 
 def get_bool(key: str, default: bool | None = None) -> bool:

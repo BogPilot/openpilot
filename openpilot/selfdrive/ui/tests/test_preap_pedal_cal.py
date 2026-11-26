@@ -44,14 +44,19 @@ class PedalCase(unittest.TestCase):
     from pathlib import Path
     pp._params_dir = Path(self.tmp)
     self.clock = Clock()
+    # live presence is the car message (carState.bogpilot.preapPedalDetected); a fake stands in for ui_state's SubMaster
+    self._live = False
+    self._old_live_source = cal.live_source
+    cal.live_source = lambda: self._live
 
   def tearDown(self):
     pp._params_dir = self._old
+    cal.live_source = self._old_live_source
 
   # helpers: what the car process publishes
   def heard(self, on=True):
     pp.set_bool(K.PEDAL_DETECTED, on)
-    pp.set_float(K.PEDAL_SEEN_TS, self.clock.t if on else 0.0)
+    self._live = on
 
   def calibrated(self, factor=0.941, zero=0.8):
     pp.set_float(K.PEDAL_CALIB_ZERO, zero)
@@ -162,10 +167,44 @@ class TestPedalStatusLive(PedalCase):
     self.assertEqual(cal.status_text(cal.read_snapshot(self.clock.t)), "Needs calibration")
     self.calibrated()
     self.assertEqual(cal.status_text(cal.read_snapshot(self.clock.t)), "Calibrated")
-    # the car stops: PedalDetected stays latched True but the heartbeat ages out
+    # the car stops: PedalDetected stays latched True but carState is no longer alive
+    self._live = False
     self.assertEqual(cal.status_text(cal.read_snapshot(self.clock.t + 10)), "Not detected (calibrated)")
+    self._live = True
     pp.set_bool(K.PEDAL_CALIB_ARMED, True)
     self.assertEqual(cal.status_text(cal.read_snapshot(self.clock.t)), "Calibrating")
+
+
+class TestCarStateLiveSource(unittest.TestCase):
+  class _SM:
+    def __init__(self, alive, detected):
+      self.alive = {"carState": alive}
+      self._cs = SimpleNamespace(bogpilot=SimpleNamespace(preapPedalDetected=detected))
+
+    def __getitem__(self, key):
+      assert key == "carState"
+      return self._cs
+
+  def test_live_needs_an_alive_car_state_that_hears_the_pedal(self):
+    self.assertTrue(cal.car_state_pedal_live(self._SM(True, True)))
+    self.assertFalse(cal.car_state_pedal_live(self._SM(False, True)))
+    self.assertFalse(cal.car_state_pedal_live(self._SM(True, False)))
+
+  def test_a_missing_service_reads_not_live(self):
+    self.assertFalse(cal.car_state_pedal_live(SimpleNamespace(alive={})))
+
+  def test_reading_the_row_writes_nothing(self):
+    tmp = tempfile.mkdtemp(prefix="pedalcal-ro-")
+    old, old_src = pp._params_dir, cal.live_source
+    from pathlib import Path
+    pp._params_dir = Path(tmp)
+    try:
+      cal.live_source = lambda: True
+      for _ in range(50):
+        cal.read_snapshot()
+      self.assertEqual(os.listdir(tmp), [])
+    finally:
+      pp._params_dir, cal.live_source = old, old_src
 
 
 class TestFailureMessage(PedalCase):
@@ -448,7 +487,7 @@ class TestPreApVehicleRows(PedalCase):
     self.assertEqual(m.pedal_status(), "Needs calibration")
     self.calibrated()
     self.assertEqual(m.pedal_status(), "Calibrated")
-    self.clock.t += 10                      # the car went quiet
+    self._live = False                      # the car went quiet: carState stops (PedalDetected stays latched)
     self.assertEqual(m.pedal_status(), "Not detected (calibrated)")
 
   def test_build_and_panda_firmware_rows_are_preap_only_and_independent_of_pedal_long(self):

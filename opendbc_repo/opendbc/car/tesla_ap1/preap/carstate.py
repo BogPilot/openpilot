@@ -40,7 +40,7 @@ from opendbc.car.tesla_ap1.preap.cruise import (SPD_CTRL_CANCEL, SPD_CTRL_MAIN, 
                                                 pedal_cruise_available, remap_preap_pedal_button_type)
 from opendbc.car.tesla_ap1.preap import ibooster as IBST
 from opendbc.car.tesla_ap1.preap.engagement import Decision, PreAPEngagement, preap_epas_refusing, preap_steer_drop
-from opendbc.car.tesla_ap1.preap.params import PreApParamKeys, get_bool, set_bool, set_float  # noqa: F401
+from opendbc.car.tesla_ap1.preap.params import PreApParamKeys, get_bool, remove_stale_runtime_files, set_bool, set_float  # noqa: F401
 from opendbc.car.tesla_ap1.preap.stalk_retrofit import StalkRetrofitDetector
 from opendbc.car.tesla_ap1.stalk_follow import dtr_sample, follow_seconds, parse_stalk_raw
 from opendbc.car.tesla_ap1.preap.pedal_feedback import PedalFeedback
@@ -91,7 +91,8 @@ class PreApCarState(CarStateBase):
     self.preap_pedal_detected = False
     self.preap_pedal_raw = None
     self._preap_pedal_last_idx = None
-    self._pedal_seen_write = float('-inf')   # time.monotonic() of the last heartbeat write (1 s throttle)
+    self._pedal_detected_mirrored = None     # last PedalDetected value written (change only, no file read in the step)
+    remove_stale_runtime_files()             # once per start, never in the step
     self.pedal = PedalFeedback()
     self.pedal_interceptor_value = 0.0
     self.di_gas = 0.0
@@ -146,20 +147,16 @@ class PreApCarState(CarStateBase):
     return bool(self.pedal_long and self._enable_request)
 
   def _mirror_pedal_status(self) -> None:
-    """Display only: the Vehicle Controls "Comma Pedal" row reads these files (calib.pedal_live). They are written here,
-    from the CAN stream, so the row is right even when the CarController never runs (openpilot toggle off, passive or
-    dashcam, controlsd not up). Calibration stays in the controller. Nothing here feeds control, the panda or any TX."""
+    """Display only: PedalDetected is the latched offroad "installed" line for the Vehicle Controls "Comma Pedal" row. It is
+    written here, from the CAN stream, only when the value changes. Live presence is not a file: the row reads
+    carState.bogpilot.preapPedalDetected (IDX counter plus the 0.5 s timeout below), like stock's pandaStates and
+    peripheralState. Nothing here feeds control, the panda or any TX."""
     detected = bool(self.preap_pedal_detected)
+    if detected == self._pedal_detected_mirrored:
+      return
     try:
       set_bool(PreApParamKeys.PEDAL_DETECTED, detected)
-      if detected:
-        # Heartbeat for the UI: PedalDetected is a latched file and stays True after the car stops. The throttle runs on
-        # time.monotonic(), so a wall-clock jump (GPS/NTP time set) cannot stop the writes.
-        mono = time.monotonic()
-        if mono - self._pedal_seen_write >= 1.0:
-          set_float(PreApParamKeys.PEDAL_SEEN_TS, time.time())
-          set_float(PreApParamKeys.PEDAL_SEEN_MONO, mono)
-          self._pedal_seen_write = mono
+      self._pedal_detected_mirrored = detected
     except OSError:
       pass   # fresh device / read-only /data must not stop card
 

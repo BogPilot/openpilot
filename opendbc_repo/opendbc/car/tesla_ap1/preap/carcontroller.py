@@ -88,7 +88,7 @@ class PreApCarController(CarControllerBase):
     self._reset_calib_capture()
 
   def _update_detection_and_calib(self, CS) -> bool:
-    """Run the armed driver-press calibration from CS samples (PedalDetected / PedalSeenTs are written by PreApCarState).
+    """Run the armed driver-press calibration from CS samples (PedalDetected is written by PreApCarState).
 
     Step 1: a COAST_FRAMES rest window while the car reads DI_pedalPos = 0, accepted on its medians (calib.coast_steady), not max-min.
     Step 2: the pedal reading at the first frame with DI_pedalPos >= 0.4 % (onset) and at the first frame with DI_pedalPos >= 99.6 % (full);

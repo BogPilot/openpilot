@@ -7,7 +7,8 @@ tested without a window. The raylib part (`create_intro_dialog`, `create_calibra
 anywhere.
 
 The car process (preap/carcontroller.py) owns the capture. It publishes progress through file-backed params under /data/params_bogpilot
-(PedalCalibArmed / Stage / Message, PedalCalibDone / Zero / Factor, PedalDetected + PedalSeenTs). The UI only reads those and arms or
+(PedalCalibArmed / Stage / Message, PedalCalibDone / Zero / Factor, PedalDetected). Live presence comes from the car message
+(carState.bogpilot.preapPedalDetected), not a file. The UI only reads those and arms or
 disarms with calib.arm_calibration / calib.cancel_calibration. Cancel, a UI timeout, the car moving, and leaving the screen all disarm
 and never write a calibration value. The capture itself (rest window, the reading where the car first sees throttle, span/factor
 validation) lives in preap/calib.py and preap/carcontroller.py.
@@ -64,12 +65,33 @@ class Snapshot:
   zero: float = 0.0
 
 
+def car_state_pedal_live(sm) -> bool:
+  """Live pedal presence from the car message: carState.bogpilot.preapPedalDetected while carState is alive."""
+  try:
+    return calib.pedal_live_from_car_state(bool(sm.alive["carState"]), sm["carState"].bogpilot)
+  except (KeyError, AttributeError, TypeError, IndexError):
+    return False
+
+
+def _ui_state_pedal_live() -> bool:
+  try:
+    from openpilot.selfdrive.ui.ui_state import ui_state
+  except Exception:
+    return False
+  return car_state_pedal_live(ui_state.sm)
+
+
+# Where read_snapshot gets live presence. The UI uses ui_state's SubMaster; tests swap in a fake.
+live_source = _ui_state_pedal_live
+
+
 def read_snapshot(now: float | None = None) -> Snapshot:
+  """`now` is kept for callers; live presence no longer depends on a file timestamp."""
   return Snapshot(
     armed=get_bool(PreApParamKeys.PEDAL_CALIB_ARMED),
     stage=get_str(PreApParamKeys.PEDAL_CALIB_STAGE),
     message=get_str(PreApParamKeys.PEDAL_CALIB_MESSAGE),
-    live=calib.pedal_live(now),
+    live=bool(live_source()),
     calibrated=calib.is_pedal_calibrated(),
     out_of_range=calib.saved_calibration_out_of_range(),
     factor=get_float(PreApParamKeys.PEDAL_CALIB_FACTOR),

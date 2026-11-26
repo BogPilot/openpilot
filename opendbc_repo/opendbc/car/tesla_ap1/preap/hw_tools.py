@@ -27,7 +27,7 @@ from opendbc.car.tesla_ap1.preap import calib
 from opendbc.car.tesla_ap1.preap import params as P
 from opendbc.car.tesla_ap1.preap.params import DEFAULTS, PreApParamKeys as K
 
-# Pedal: the calibration the guided screen saves, and the pedal bus. (Runtime keys such as PedalDetected / PedalSeenTs are not settings.)
+# Pedal: the calibration the guided screen saves, and the pedal bus. (Runtime keys such as PedalDetected are not settings.)
 PEDAL_RESET_KEYS = (K.PEDAL_CALIB_DONE, K.PEDAL_CALIB_MIN, K.PEDAL_CALIB_MAX, K.PEDAL_CALIB_FACTOR, K.PEDAL_CALIB_ZERO, K.PEDAL_CAN_BUS)
 # Radar: every Bosch radar setting row, including the donor VIN (default empty = this car) and the lateral offset.
 RADAR_RESET_KEYS = (K.RADAR_ENABLED, K.RADAR_BEHIND_NOSECONE, K.RADAR_DONOR_VIN, K.RADAR_DONOR_TYPE, K.RADAR_EPAS_TYPE,

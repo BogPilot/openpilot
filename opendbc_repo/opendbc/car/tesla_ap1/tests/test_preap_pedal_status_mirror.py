@@ -1,8 +1,9 @@
 """The Comma Pedal row (Settings > Vehicle Controls) follows the CAN stream even when the Pre-AP CarController never runs.
 
-PedalDetected / PedalSeenTs are written by PreApCarState (display only). Before this, only PreApCarController wrote them,
-so with the openpilot toggle off, passive/dashcam, or controlsd not up the row said "Not detected" with a live pedal.
-Synthetic frames from the DBC packer only; the clock is faked so the 0.5 s IDX timeout and the 3 s UI freshness are real.
+PedalDetected is written by PreApCarState (display only, change only). Before that, only PreApCarController wrote it, so with the
+openpilot toggle off, passive/dashcam, or controlsd not up the row said "Not detected" with a live pedal. Live presence is the car
+message carState.bogpilot.preapPedalDetected; no heartbeat file is written.
+Synthetic frames from the DBC packer only; the clock is faked so the 0.5 s IDX timeout is real.
 """
 from types import SimpleNamespace
 
@@ -32,8 +33,11 @@ class _Clock:
   def monotonic(self):
     return self.m
 
-  def live(self, dt=0.0, dm=None):
-    return calib.pedal_live(self.t + dt, self.m + (dt if dm is None else dm))
+
+
+def _live(car, alive=True):
+  """What the Comma Pedal row sees: the car message the CarState publishes."""
+  return calib.pedal_live_from_car_state(alive, SimpleNamespace(preapPedalDetected=bool(car.cs.preap_pedal_detected)))
 
 
 @pytest.fixture(autouse=True)
@@ -94,7 +98,7 @@ def test_status_is_written_with_no_controller(_env, ibooster, bus):
   car.run(200, pedal_bus=bus)
   assert car.cs.preap_pedal_detected
   assert params.get_bool(PreApParamKeys.PEDAL_DETECTED)
-  assert _env.live()
+  assert _live(car)
 
 
 @pytest.mark.parametrize("ibooster", [False, True])
@@ -102,7 +106,7 @@ def test_no_pedal_or_a_stuck_counter_is_not_detected(_env, ibooster):
   car = _Car(_env, ibooster)
   car.run(200, pedal_bus=None)
   assert not params.get_bool(PreApParamKeys.PEDAL_DETECTED)
-  assert not _env.live()
+  assert not _live(car)
   car2 = _Car(_env, ibooster)
   car2.run(200, pedal_bus=2, idx_moves=False)   # IDX never changes after the first frame: times out
   assert not car2.cs.preap_pedal_detected
@@ -116,46 +120,39 @@ def test_a_pedal_that_stops_goes_not_detected(_env):
   car.run(200, pedal_bus=None)   # 2 s of silence: the 0.5 s IDX timeout clears it
   assert not car.cs.preap_pedal_detected
   assert not params.get_bool(PreApParamKeys.PEDAL_DETECTED)
-  assert not _env.live()
+  assert not _live(car)
 
 
-def test_the_ui_goes_stale_3_s_after_the_car_process_stops(_env):
+def test_the_row_is_not_live_once_car_state_stops(_env):
   car = _Car(_env)
   car.run(200, pedal_bus=2)
-  age = _env.t - params.get_float(PreApParamKeys.PEDAL_SEEN_TS)
-  assert _env.live(calib.PEDAL_LIVE_S - 0.1 - age)
-  assert not _env.live(calib.PEDAL_LIVE_S + 0.1)   # PedalDetected stays latched, the heartbeat does not
+  assert _live(car)
+  assert not _live(car, alive=False)   # offroad or card down: PedalDetected may stay latched, the row does not say live
+  assert not calib.pedal_live_from_car_state(True, None)
 
 
-def test_the_heartbeat_is_throttled_to_once_a_second(_env, monkeypatch):
+def test_no_heartbeat_file_and_pedal_detected_is_written_only_on_change(_env, monkeypatch):
   writes = []
-  real = cs_mod.set_float
-  monkeypatch.setattr(cs_mod, "set_float", lambda k, v: (writes.append((k, v)), real(k, v)))
+  real_bool, real_float = cs_mod.set_bool, cs_mod.set_float
+  monkeypatch.setattr(cs_mod, "set_bool", lambda k, v: (writes.append((k, v)), real_bool(k, v)))
+  monkeypatch.setattr(cs_mod, "set_float", lambda k, v: (writes.append((k, v)), real_float(k, v)))
   car = _Car(_env)
-  car.run(500, pedal_bus=2)   # 5 s
-  ts = [v for k, v in writes if k == PreApParamKeys.PEDAL_SEEN_TS]
-  assert 4 <= len(ts) <= 6
-  assert all(b - a >= 1.0 - 1e-6 for a, b in zip(ts, ts[1:], strict=False))
+  car.run(500, pedal_bus=2)    # 5 s heard
+  car.run(200, pedal_bus=None)  # silence: times out
+  car.run(300, pedal_bus=2)    # heard again
+  detected = [v for k, v in writes if k == PreApParamKeys.PEDAL_DETECTED]
+  assert detected == [False, True, False, True] or detected == [True, False, True]
+  assert not [k for k, _ in writes if k in (PreApParamKeys.PEDAL_SEEN_TS, PreApParamKeys.PEDAL_SEEN_MONO)]
+  assert not (params._params_dir / PreApParamKeys.PEDAL_SEEN_TS).exists()
+  assert not (params._params_dir / PreApParamKeys.PEDAL_SEEN_MONO).exists()
 
 
-@pytest.mark.parametrize("jump_s", [-3600.0, -2.0, 3600.0])
-def test_a_wall_clock_jump_does_not_stop_the_heartbeat_or_hide_a_live_pedal(_env, monkeypatch, jump_s):
-  writes = []
-  real = cs_mod.set_float
-  monkeypatch.setattr(cs_mod, "set_float", lambda k, v: (writes.append((k, v)), real(k, v)))
-  car = _Car(_env)
-  car.run(200, pedal_bus=2)
-  before = len(writes)
-  _env.t += jump_s   # GPS / NTP sets the wall clock; time.monotonic() does not move
-  car.run(300, pedal_bus=2)   # 3 s more
-  mono = [v for k, v in writes[before:] if k == PreApParamKeys.PEDAL_SEEN_MONO]
-  assert 2 <= len(mono) <= 4   # still about once a second
-  assert _env.live()
-  # The reader alone: a wall stamp from before a backward jump (negative age) still reads live on the monotonic stamp.
-  params.set_float(PreApParamKeys.PEDAL_SEEN_TS, _env.t + 3600.0)
-  assert _env.live()
-  # ... and a stale monotonic stamp with no fresh wall stamp does not.
-  assert not _env.live(dt=0.0, dm=calib.PEDAL_LIVE_S + 0.1)
+def test_heartbeat_files_from_an_older_build_are_removed_at_car_start(_env):
+  for key in (PreApParamKeys.PEDAL_SEEN_TS, PreApParamKeys.PEDAL_SEEN_MONO):
+    (params._params_dir / key).write_text("123.0")
+  _Car(_env)
+  assert not (params._params_dir / PreApParamKeys.PEDAL_SEEN_TS).exists()
+  assert not (params._params_dir / PreApParamKeys.PEDAL_SEEN_MONO).exists()
 
 
 def test_a_read_only_params_dir_does_not_stop_carstate(_env, monkeypatch):
