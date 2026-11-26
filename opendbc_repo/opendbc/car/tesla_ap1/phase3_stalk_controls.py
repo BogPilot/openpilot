@@ -304,6 +304,10 @@ def apply_experimental_toggle(params, cp, cs, started):
 
   When Conditional Experimental Mode is on, the hold flips the CEStatus override
   (0.9.7 handle_experimental_mode) and leaves ExperimentalMode alone.
+
+  This runs in card's 100 Hz step, so the value is saved once with a non blocking put (Params' own
+  writer thread does the fsync), like selfdrived saves LongitudinalPersonality on a button press.
+  The returned value is used at once; nothing in the step waits on the disk.
   """
   if not (getattr(cs.bogpilot, "ap1StalkPullToggle", False) or getattr(cs.bogpilot, "ap1StalkFwdToggle", False)):
     return None
@@ -313,12 +317,10 @@ def apply_experimental_toggle(params, cp, cs, started):
   if cem_is_on(params):
     value = cem_stalk_override(_param_int(params, "CEStatus", 0))
     try:
-      params.put("CEStatus", value, block=True)
-    except TypeError:
       params.put("CEStatus", value)
     except Exception:
       return None
     return None
   value = not params.get_bool("ExperimentalMode")
-  params.put_bool("ExperimentalMode", value, block=True)
+  params.put_bool("ExperimentalMode", value)
   return value

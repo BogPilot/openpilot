@@ -143,7 +143,7 @@ def test_actual_card_persistence_and_eligibility():
   car = cp()
   cs = NS(canValid=True, bogpilot=NS(ap1StalkPullToggle=True, ap1StalkFwdToggle=False))
   assert apply_experimental_toggle(params, car, cs, True) is True
-  assert writes == [('ExperimentalMode', True, True)]
+  assert writes == [('ExperimentalMode', True, False)]   # saved once, non blocking: card's step never waits on the disk
   for blocked in ['offroad','unconfirmed','invalid','unsupported']:
     data['ExperimentalModeConfirmed'] = blocked != 'unconfirmed'
     cs.canValid = blocked != 'invalid'
